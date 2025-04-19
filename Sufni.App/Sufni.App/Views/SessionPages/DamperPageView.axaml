@@ -1,0 +1,44 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.SessionPages.DamperPageView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:DamperPageViewModel"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:DamperPageViewModel />
+    </Design.DataContext>
+
+    <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
+        <StackPanel Orientation="Vertical">
+            <!--  Front velocity histogram  -->
+            <Grid ColumnDefinitions="* auto" IsVisible="{Binding FrontVelocityHistogram, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Svg Grid.Column="0" Source="{Binding FrontVelocityHistogram}" />
+                <plots:VelocityBandView
+                    Grid.Column="1"
+                    HscPercentage="{Binding FrontHscPercentage}"
+                    HsrPercentage="{Binding FrontHsrPercentage}"
+                    LscPercentage="{Binding FrontLscPercentage}"
+                    LsrPercentage="{Binding FrontLsrPercentage}" />
+            </Grid>
+
+            <!--  Rear velocity histogram  -->
+            <Grid ColumnDefinitions="* auto" IsVisible="{Binding RearVelocityHistogram, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Svg Grid.Column="0" Source="{Binding RearVelocityHistogram}" />
+                <plots:VelocityBandView
+                    Grid.Column="1"
+                    HscPercentage="{Binding RearHscPercentage}"
+                    HsrPercentage="{Binding RearHsrPercentage}"
+                    LscPercentage="{Binding RearLscPercentage}"
+                    LsrPercentage="{Binding RearLsrPercentage}" />
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

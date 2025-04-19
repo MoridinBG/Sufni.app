@@ -1,0 +1,104 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.Controls.SidePanel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.Views.ItemLists"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    d:DesignHeight="450"
+    d:DesignWidth="200"
+    x:DataType="vm:MainPagesViewModel"
+    mc:Ignorable="d">
+    <Design.DataContext>
+        <vm:MainPagesViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <Style Selector="MenuItem">
+            <Setter Property="Margin" Value="5,10,0,10" />
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+            <Setter Property="Height" Value="30" />
+        </Style>
+        <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="#c0c0c0" />
+        </Style>
+        <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel>
+        <StackPanel.Background>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <LinearGradientBrush.GradientStops>
+                    <GradientStop Offset="0.7" Color="{StaticResource SufniRegion}" />
+                    <GradientStop Offset="1" Color="{StaticResource SufniBackgroundDisabled}" />
+                </LinearGradientBrush.GradientStops>
+            </LinearGradientBrush>
+        </StackPanel.Background>
+        <MenuItem
+            Command="{Binding OpenPageCommand}"
+            CommandParameter="{Binding ImportSessionsPage}"
+            Header="import">
+            <MenuItem.Icon>
+                <Image Width="12" Source="{SvgImage /Assets/fa-file-import.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <Separator />
+        <MenuItem Command="{Binding LinkagesPage.AddCommand}" Header="linkage">
+            <MenuItem.Icon>
+                <Image
+                    Width="12"
+                    Margin="0,1,0,0"
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Command="{Binding CalibrationsPage.AddCommand}" Header="calibration">
+            <MenuItem.Icon>
+                <Image
+                    Width="12"
+                    Margin="0,1,0,0"
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Command="{Binding SetupsPage.AddCommand}" Header="setup">
+            <MenuItem.Icon>
+                <Image
+                    Width="12"
+                    Margin="0,1,0,0"
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <Separator />
+        <MenuItem
+            Command="{Binding SyncCommand}"
+            Header="synchronize"
+            IsVisible="{Binding SettingsPage.IsRegistered}">
+            <MenuItem.Icon>
+                <Image
+                    Width="12"
+                    Margin="0,3,0,0"
+                    Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
+            Command="{Binding OpenPageCommand}"
+            CommandParameter="{Binding SettingsPage}"
+            Header="connect"
+            IsVisible="{Binding !SettingsPage.IsRegistered}">
+            <MenuItem.Icon>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
+            Command="{Binding OpenPageCommand}"
+            CommandParameter="{Binding SettingsPage}"
+            Header="disconnect"
+            IsVisible="{Binding SettingsPage.IsRegistered}">
+            <MenuItem.Icon>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+    </StackPanel>
+</UserControl>

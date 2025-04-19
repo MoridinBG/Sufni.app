@@ -1,0 +1,23 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.SessionPages.BalancePageView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:BalancePageViewModel"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:BalancePageViewModel />
+    </Design.DataContext>
+
+    <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
+        <Grid RowDefinitions="* *">
+            <Svg Grid.Row="0" Source="{Binding CompressionBalance}" />
+            <Svg Grid.Row="1" Source="{Binding ReboundBalance}" />
+        </Grid>
+    </ScrollViewer>
+</UserControl>

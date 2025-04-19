@@ -1,0 +1,53 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.ItemLists.LinkageListView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.Views"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:LinkageListViewModel"
+    Background="{StaticResource SufniRegion}"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vml:LinkageListViewModel />
+    </Design.DataContext>
+
+    <Grid ColumnDefinitions="*" RowDefinitions="* auto auto">
+
+        <!--  List of Linkages  -->
+        <controls:PullableMenuScrollViewer
+            Grid.Row="0"
+            Grid.Column="0"
+            Margin="0,15,0,5"
+            Items="{Binding Items}"
+            MenuItems="{Binding MenuItems}">
+            <controls:PullableMenuScrollViewer.TopContent>
+                <controls:SearchBar />
+            </controls:PullableMenuScrollViewer.TopContent>
+        </controls:PullableMenuScrollViewer>
+
+        <!--  Notifications  -->
+        <controls:NotificationsBar
+            Grid.Row="1"
+            Grid.Column="0"
+            Margin="5,0" />
+
+        <!--  Error messages  -->
+        <controls:ErrorMessagesBar
+            Grid.Row="2"
+            Grid.Column="0"
+            Margin="5,0" />
+
+        <!--  Undo last deleted  -->
+        <controls:UndoDeleteButton
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Grid.Column="0" />
+    </Grid>
+</UserControl>

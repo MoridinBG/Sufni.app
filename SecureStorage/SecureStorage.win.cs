@@ -22,7 +22,7 @@ public class SecureStorage : ISecureStorage
 
     private static readonly string AppSecureStoragePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Sufni.Bridge",
+        "Sufni.App",
         "preferences.dat");
 
     private readonly SecureStorageDictionary secureStorage = new();

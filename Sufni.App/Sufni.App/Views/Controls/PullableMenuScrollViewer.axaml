@@ -1,0 +1,85 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.Controls.PullableMenuScrollViewer"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="v:PullableMenuScrollViewer"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <v:MenuItemSelectedConverter x:Key="MenuItemSelectedConverter" />
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="auto *">
+        <ContentControl
+            Name="TopContainer"
+            Grid.Row="0"
+            HorizontalAlignment="Stretch"
+            Content="{Binding $parent[v:PullableMenuScrollViewer].TopContent}"
+            ZIndex="10" />
+        <Grid
+            Name="Container"
+            Grid.Row="1"
+            RowDefinitions="auto *">
+            <ItemsRepeater
+                Name="PullMenu"
+                Grid.Row="0"
+                Margin="0,0,0,20"
+                HorizontalAlignment="Stretch"
+                IsVisible="false"
+                ItemsSource="{Binding $parent[v:PullableMenuScrollViewer].MenuItems}">
+                <ItemsRepeater.Layout>
+                    <NonVirtualizingStackLayout Orientation="Vertical" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate DataType="vm:PullMenuItemViewModel">
+                        <Panel>
+                            <Border
+                                Height="5"
+                                Margin="10,0,10,0"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource SufniAccentColor}"
+                                BoxShadow="0 0 15 3 #0078D7"
+                                CornerRadius="3"
+                                IsVisible="{Binding Selected}"
+                                Opacity="0.4" />
+                            <Button
+                                Height="30"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                Classes="embedded"
+                                Command="{Binding Command}"
+                                CommandParameter="{Binding CommandParameter}"
+                                Content="{Binding Name}"
+                                FontWeight="{Binding Selected, Converter={StaticResource MenuItemSelectedConverter}}" />
+                        </Panel>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+            <ScrollViewer
+                Name="Scroll"
+                Grid.Row="1"
+                VerticalAlignment="Bottom">
+                <ItemsRepeater ItemsSource="{Binding $parent[v:PullableMenuScrollViewer].Items}">
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <v:SwipeToDeleteButton />
+                                <Separator
+                                    Height="1"
+                                    Margin="0"
+                                    Background="{StaticResource SufniBackgroundDisabled}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

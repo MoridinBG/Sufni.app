@@ -1,0 +1,156 @@
+<UserControl
+    x:Class="Sufni.App.Views.Controls.SearchBarWithDateFilter"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+    xmlns:v="clr-namespace:Sufni.App.Views"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vml:ItemListViewModelBase"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vml:ItemListViewModelBase />
+    </Design.DataContext>
+
+    <!--  Filter  -->
+    <Grid
+        Margin="20,0,20,20"
+        ColumnDefinitions="*"
+        RowDefinitions="39 auto">
+
+        <!--  Search box  -->
+        <TextBox
+            Grid.Row="0"
+            Padding="35,0,0,0"
+            VerticalContentAlignment="Center"
+            BorderThickness="0"
+            CornerRadius="5"
+            IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
+            Text="{Binding SearchText}"
+            Watermark="Search ..." />
+
+        <!--  Hamburger menu  -->
+        <Button
+            Grid.Row="0"
+            Width="32"
+            HorizontalAlignment="Left"
+            Classes="embedded"
+            Command="{Binding $parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
+            <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
+        </Button>
+
+        <!--  Close search button  -->
+        <Button
+            Name="CloseButton"
+            Grid.Row="0"
+            Width="30"
+            Margin="0,0,5,0"
+            HorizontalAlignment="Right"
+            Classes="embedded"
+            Command="{Binding ClearSearchTextCommand}">
+            <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="DateFilterVisible" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="DateFilterFrom" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="DateFilterTo" />
+                </MultiBinding>
+            </Button.IsVisible>
+        </Button>
+
+        <!--  Connection indicator  -->
+        <Button
+            Margin="0,0,5,0"
+            HorizontalAlignment="Right"
+            Classes="embedded">
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="$parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).SettingsPage.IsRegistered" />
+                    <Binding Path="!$parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
+                    <Binding Path="!#CloseButton.IsVisible" />
+                </MultiBinding>
+            </Button.IsVisible>
+            <Image
+                Width="20"
+                Opacity="0.5"
+                Source="{SvgImage /Assets/fa-link_green.svg}" />
+        </Button>
+
+        <!--  Synchronization indicator  -->
+        <progRing:ProgressRing
+            Width="15"
+            Height="15"
+            Margin="0,0,10,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource SufniAccentColor}">
+            <progRing:ProgressRing.IsActive>
+                <Binding Path="$parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
+            </progRing:ProgressRing.IsActive>
+        </progRing:ProgressRing>
+
+        <!--  Date pickers  -->
+        <Border
+            Name="DatePickers"
+            Grid.Row="1"
+            Grid.Column="0"
+            Background="{StaticResource SufniRegion}"
+            IsVisible="{Binding DateFilterVisible}">
+            <Grid
+                Margin="1,0,1,0"
+                ColumnDefinitions="* auto *"
+                RowDefinitions="auto">
+
+                <!--  From  -->
+                <CalendarDatePicker
+                    Grid.Column="0"
+                    Margin="0,5,5,5"
+                    HorizontalAlignment="Stretch"
+                    DisplayDateEnd="{Binding DateFilterTo}"
+                    SelectedDate="{Binding DateFilterFrom}" />
+                <Button
+                    Grid.Column="0"
+                    Width="30"
+                    Margin="0,0,20,0"
+                    HorizontalAlignment="Right"
+                    Classes="embedded"
+                    Command="{Binding ClearDateFilterCommand}"
+                    CommandParameter="from"
+                    IsVisible="{Binding DateFilterFrom, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+
+                <!--  Arrow  -->
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Text="→" />
+
+                <!--  To  -->
+                <CalendarDatePicker
+                    Grid.Row="0"
+                    Grid.Column="2"
+                    Margin="5,5,0,5"
+                    HorizontalAlignment="Stretch"
+                    DisplayDateStart="{Binding DateFilterFrom}"
+                    SelectedDate="{Binding DateFilterTo}" />
+                <Button
+                    Grid.Column="2"
+                    Width="30"
+                    Margin="0,0,20,0"
+                    HorizontalAlignment="Right"
+                    Classes="embedded"
+                    Command="{Binding ClearDateFilterCommand}"
+                    CommandParameter="to"
+                    IsVisible="{Binding DateFilterTo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

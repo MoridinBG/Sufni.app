@@ -363,11 +363,11 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Android native libraries (generated during prebuild event)
-Sufni.Bridge/Sufni.Bridge.Android/lib
+Sufni.App/Sufni.App.Android/lib
 
 # IDE files
 .idea/
 .vscode/
 
 # User dictionary
-Sufni.Bridge.sln.DotSettings
+Sufni.App.sln.DotSettings

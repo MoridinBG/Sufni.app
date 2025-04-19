@@ -1,7 +1,7 @@
-Sufni.Bridge
+Sufni.App
 ============
 
-Sufni.Bridge\* is a work-in-progress cross-platform (.NET core / Avalonia) application to process
+Sufni.App\* is a work-in-progress cross-platform (.NET core / Avalonia) application to process
 recorded sessions directly from a [Sufni Suspension Telemetry](https://github.com/sghctoma/sst)
 DAQ either via the DAQ's server, or its mass storage device (MSC) mode. As of
 now, the application has a limited functionality compared to the

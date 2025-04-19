@@ -1,0 +1,129 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.Items.LinkageView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
+    xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:LinkageViewModel"
+    Background="{StaticResource SufniRegion}"
+    Focusable="True"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:LinkageViewModel />
+    </Design.DataContext>
+
+    <!--  Attach command to Loaded event  -->
+    <i:Interaction.Behaviors>
+        <ia:EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding SetLeverageRatioDataCommand}" />
+        </ia:EventTriggerBehavior>
+    </i:Interaction.Behaviors>
+
+    <Grid
+        MinWidth="300"
+        Margin="20,0,20,10"
+        HorizontalAlignment="Stretch"
+        ColumnDefinitions="auto *"
+        RowDefinitions="auto auto auto auto auto * auto auto">
+
+        <!--  Name  -->
+        <v:EditableTitle
+            Grid.Row="0"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="-5,0,0,10"
+            HorizontalAlignment="Stretch" />
+
+        <!--  Head angle  -->
+        <Label
+            Grid.Row="1"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Head angle (°): " />
+        <NumericUpDown
+            Grid.Row="1"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            Increment="0.5"
+            Maximum="90"
+            Minimum="45"
+            Value="{Binding HeadAngle}" />
+
+        <!--  Front stroke  -->
+        <Label
+            Grid.Row="2"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Front stroke (mm): " />
+        <NumericUpDown
+            Grid.Row="2"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            Increment="10"
+            Maximum="300"
+            Minimum="0"
+            Value="{Binding FrontStroke}" />
+
+        <!--  Rear stroke  -->
+        <Label
+            Grid.Row="3"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Rear stroke (mm): " />
+        <NumericUpDown
+            Grid.Row="3"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            Increment="2.5"
+            Maximum="200"
+            Minimum="0"
+            Value="{Binding RearStroke}" />
+
+        <!--  Leverage ratio  -->
+        <Label
+            Grid.Row="4"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Leverage data: " />
+        <Button
+            Grid.Row="4"
+            Grid.Column="1"
+            Height="39"
+            Margin="1,0,1,0"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            Command="{Binding OpenLeverageRatioFileCommand}"
+            Content="..." />
+        <plots:LeverageRatioPlotView
+            Grid.Row="5"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            IsHitTestVisible="False"
+            LevarageRatioData="{Binding LeverageRatioData}" />
+
+        <!--  Error messages for Linkage instance  -->
+        <v:ErrorMessagesBar
+            Grid.Row="6"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="0,5,0,0" />
+
+        <!--  Back, Save, Reset and Delete buttons  -->
+        <v:CommonButtonLine
+            Grid.Row="7"
+            Grid.Column="0"
+            Grid.ColumnSpan="2" />
+    </Grid>
+</UserControl>
