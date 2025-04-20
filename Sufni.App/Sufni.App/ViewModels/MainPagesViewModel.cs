@@ -18,8 +18,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
     [ObservableProperty] private bool databaseLoaded;
     [ObservableProperty] private ImportSessionsViewModel importSessionsPage;
-    [ObservableProperty] private CalibrationListViewModel calibrationsPage;
-    [ObservableProperty] private LinkageListViewModel linkagesPage;
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
     [ObservableProperty] private SettingsViewModel settingsPage = new();
@@ -35,17 +33,11 @@ public partial class MainPagesViewModel : ViewModelBase
     public MainPagesViewModel()
     {
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        CalibrationsPage = new CalibrationListViewModel();
-        LinkagesPage = new LinkageListViewModel();
         SessionsPage = new SessionListViewModel();
         ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
-        SetupsPage = new SetupListViewModel(LinkagesPage, CalibrationsPage, ImportSessionsPage);
-        pages = [SessionsPage, LinkagesPage, CalibrationsPage, SetupsPage];
+        SetupsPage = new SetupListViewModel(ImportSessionsPage);
+        pages = [SessionsPage, SetupsPage];
 
-        CalibrationsPage.MenuItems.Add(new("sync", SyncCommand));
-        CalibrationsPage.MenuItems.Add(new("add", CalibrationsPage.AddCommand));
-        LinkagesPage.MenuItems.Add(new("sync", SyncCommand));
-        LinkagesPage.MenuItems.Add(new("add", LinkagesPage.AddCommand));
         SetupsPage.MenuItems.Add(new("sync", SyncCommand));
         SetupsPage.MenuItems.Add(new("add", SetupsPage.AddCommand));
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
@@ -72,12 +64,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
         switch (item)
         {
-            case LinkageViewModel lvm:
-                await LinkagesPage.Delete(lvm);
-                break;
-            case CalibrationViewModel cvm:
-                await CalibrationsPage.Delete(cvm);
-                break;
             case SetupViewModel svm:
                 await SetupsPage.Delete(svm);
                 break;
@@ -91,12 +77,6 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         switch (item)
         {
-            case LinkageViewModel lvm:
-                LinkagesPage.UndoableDelete(lvm);
-                break;
-            case CalibrationViewModel cvm:
-                CalibrationsPage.UndoableDelete(cvm);
-                break;
             case SetupViewModel svm:
                 SetupsPage.UndoableDelete(svm);
                 break;
@@ -114,8 +94,6 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-        await CalibrationsPage.LoadFromDatabase();
-        await LinkagesPage.LoadFromDatabase();
         await SetupsPage.LoadFromDatabase();
         await SessionsPage.LoadFromDatabase();
 

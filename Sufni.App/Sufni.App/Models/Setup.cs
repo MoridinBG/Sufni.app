@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SQLite;
 
@@ -13,13 +14,10 @@ public class Setup : Synchronizable
     {
     }
 
-    public Setup(Guid id, string name, Guid linkageId, Guid? frontCalibrationId, Guid? rearCalibrationId)
+    public Setup(Guid id, string name)
     {
         Id = id;
         Name = name;
-        LinkageId = linkageId;
-        FrontCalibrationId = frontCalibrationId;
-        RearCalibrationId = rearCalibrationId;
     }
 
     [JsonPropertyName("id")]
@@ -31,15 +29,39 @@ public class Setup : Synchronizable
     [Column("name")]
     public string Name { get; set; } = null!;
 
-    [JsonPropertyName("linkage_id")]
-    [Column("linkage_id")]
-    public Guid LinkageId { get; set; }
+    [JsonIgnore]
+    [Column("front_coefficients")]
+    public string? FrontCoefficientsJson { get; set; }
 
-    [JsonPropertyName("front_calibration_id")]
-    [Column("front_calibration_id")]
-    public Guid? FrontCalibrationId { get; set; }
+    [JsonPropertyName("front_coefficients")]
+    [Ignore]
+    public double[]? FrontCoefficients
+    {
+        get => FrontCoefficientsJson is null ? null : JsonSerializer.Deserialize<double[]>(FrontCoefficientsJson);
+        set => FrontCoefficientsJson = value is null ? null : JsonSerializer.Serialize(value);
+    }
 
-    [JsonPropertyName("rear_calibration_id")]
-    [Column("rear_calibration_id")]
-    public Guid? RearCalibrationId { get; set; }
+    [JsonIgnore]
+    [Column("rear_coefficients")]
+    public string? RearCoefficientsJson { get; set; }
+
+    [JsonPropertyName("rear_coefficients")]
+    [Ignore]
+    public double[]? RearCoefficients
+    {
+        get => RearCoefficientsJson is null ? null : JsonSerializer.Deserialize<double[]>(RearCoefficientsJson);
+        set => RearCoefficientsJson = value is null ? null : JsonSerializer.Serialize(value);
+    }
+
+    [JsonPropertyName("front_max_travel")]
+    [Column("front_max_travel")]
+    public double FrontMaxTravel { get; set; }
+
+    [JsonPropertyName("rear_max_travel")]
+    [Column("rear_max_travel")]
+    public double RearMaxTravel { get; set; }
+
+    [JsonPropertyName("head_angle")]
+    [Column("head_angle")]
+    public double HeadAngle { get; set; }
 }

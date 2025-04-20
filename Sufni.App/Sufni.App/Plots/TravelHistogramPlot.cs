@@ -1,6 +1,6 @@
 using System.Linq;
 using ScottPlot;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
@@ -11,8 +11,8 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
         var statistics = telemetryData.CalculateTravelStatistics(type);
 
         var mx = type == SuspensionType.Front
-            ? telemetryData.Linkage.MaxFrontTravel
-            : telemetryData.Linkage.MaxRearTravel;
+            ? telemetryData.Front.MaxTravel
+            : telemetryData.Rear.MaxTravel;
         var avgPercentage = statistics.Average / mx * 100.0;
         var maxPercentage = statistics.Max / mx * 100.0;
 

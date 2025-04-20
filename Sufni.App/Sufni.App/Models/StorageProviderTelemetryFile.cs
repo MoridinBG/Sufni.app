@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -54,16 +54,21 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
-    public async Task<byte[]> GeneratePsstAsync(Linkage linkage, Calibration? frontCal, Calibration? rearCal)
+    public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
         await Initialization;
 
         await using var stream = await storageFile.OpenReadAsync();
-        var rawTelemetryData = new RawTelemetryData(stream);
-        var telemetryData = new TelemetryData(storageFile.Name,
-            rawTelemetryData.Version, rawTelemetryData.SampleRate, rawTelemetryData.Timestamp,
-            frontCal, rearCal, linkage);
-        return telemetryData.ProcessRecording(rawTelemetryData.Front, rawTelemetryData.Rear);
+        var rawTelemetryData = RawTelemetryData.FromStream(stream);
+        var telemetryMetadata = new Metadata()
+        {
+            SourceName = FileName,
+            Version = rawTelemetryData.Version,
+            SampleRate = rawTelemetryData.SampleRate,
+            Timestamp = rawTelemetryData.Timestamp
+        };
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear, telemetryMetadata, bikeData);
+        return telemetryData.BinaryForm;
     }
 
     public async Task OnImported()

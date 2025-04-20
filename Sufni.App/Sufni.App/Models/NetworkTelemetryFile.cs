@@ -1,7 +1,7 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -17,16 +17,21 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     private readonly IPEndPoint ipEndPoint;
 
-    public async Task<byte[]> GeneratePsstAsync(Linkage linkage, Calibration? frontCal, Calibration? rearCal)
+    public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
         var idString = FileName[..5].TrimStart('0');
         var idInt = int.Parse(idString);
         var rawData = await SstTcpClient.GetFile(ipEndPoint, idInt);
-        var rawTelemetryData = new RawTelemetryData(rawData);
-        var telemetryData = new TelemetryData(FileName,
-            rawTelemetryData.Version, rawTelemetryData.SampleRate, rawTelemetryData.Timestamp,
-            frontCal, rearCal, linkage);
-        return telemetryData.ProcessRecording(rawTelemetryData.Front, rawTelemetryData.Rear);
+        var rawTelemetryData = RawTelemetryData.FromByteArray(rawData);
+        var telemetryMetadata = new Metadata()
+        {
+            SourceName = FileName,
+            Version = rawTelemetryData.Version,
+            SampleRate = rawTelemetryData.SampleRate,
+            Timestamp = rawTelemetryData.Timestamp
+        };
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear, telemetryMetadata, bikeData);
+        return telemetryData.BinaryForm;
     }
 
     public Task OnImported()

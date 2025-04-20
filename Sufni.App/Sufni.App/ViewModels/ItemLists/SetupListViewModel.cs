@@ -13,21 +13,15 @@ namespace Sufni.App.ViewModels.ItemLists;
 public class SetupListViewModel : ItemListViewModelBase
 {
     private ObservableCollection<Board> Boards { get; } = [];
-    private readonly LinkageListViewModel linkagesPage;
-    private readonly CalibrationListViewModel calibrationsPage;
     private readonly ImportSessionsViewModel importSessionsPage;
 
     public SetupListViewModel()
     {
-        linkagesPage = new();
-        calibrationsPage = new();
         importSessionsPage = new();
     }
 
-    public SetupListViewModel(LinkageListViewModel linkagesPage, CalibrationListViewModel calibrationsPage, ImportSessionsViewModel importSessionsPage)
+    public SetupListViewModel(ImportSessionsViewModel importSessionsPage)
     {
-        this.linkagesPage = linkagesPage;
-        this.calibrationsPage = calibrationsPage;
         this.importSessionsPage = importSessionsPage;
     }
 
@@ -45,12 +39,14 @@ public class SetupListViewModel : ItemListViewModelBase
 
         // Notify associated calibrations and linkages about the deletion
         await databaseService.DeleteSetupAsync(vm.Id);
+        /* TODO: remove
         svm.SelectedFrontCalibration?.DeleteCommand.NotifyCanExecuteChanged();
         svm.SelectedRearCalibration?.DeleteCommand.NotifyCanExecuteChanged();
         svm.SelectedLinkage?.DeleteCommand.NotifyCanExecuteChanged();
         svm.SelectedFrontCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
         svm.SelectedRearCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
         svm.SelectedLinkage?.FakeDeleteCommand.NotifyCanExecuteChanged();
+        */
     }
 
     public override async Task LoadFromDatabase()
@@ -69,10 +65,7 @@ public class SetupListViewModel : ItemListViewModelBase
         {
             var setup = new Setup(
                 Guid.NewGuid(),
-                "new setup",
-                linkagesPage.Items[0].Id,
-                null,
-                null);
+                "new setup");
 
             // Use the SST datastore's board ID only if it's not already associated to another setup;
             string? newSetupsBoardId = null;
@@ -84,7 +77,7 @@ public class SetupListViewModel : ItemListViewModelBase
                 newSetupsBoardId = datastoreBoardId;
             }
 
-            var svm = new SetupViewModel(setup, newSetupsBoardId, false, linkagesPage.Source, calibrationsPage.Source)
+            var svm = new SetupViewModel(setup, newSetupsBoardId, false)
             {
                 IsDirty = true
             };
@@ -123,12 +116,14 @@ public class SetupListViewModel : ItemListViewModelBase
             sender is SetupViewModel svm &&
             !svm.IsDirty)
         {
+            /* TODO: remove entire function
             svm.SelectedFrontCalibration?.DeleteCommand.NotifyCanExecuteChanged();
             svm.SelectedRearCalibration?.DeleteCommand.NotifyCanExecuteChanged();
             svm.SelectedLinkage?.DeleteCommand.NotifyCanExecuteChanged();
             svm.SelectedFrontCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
             svm.SelectedRearCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
             svm.SelectedLinkage?.FakeDeleteCommand.NotifyCanExecuteChanged();
+            */
         }
     }
 
@@ -145,9 +140,7 @@ public class SetupListViewModel : ItemListViewModelBase
                 var svm = new SetupViewModel(
                     setup,
                     board?.Id,
-                    true,
-                    linkagesPage.Source,
-                    calibrationsPage.Source);
+                    true);
                 svm.PropertyChanged += OnSetupDirtinessChanged;
                 Source.AddOrUpdate(svm);
             }

@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.ViewModels.Items;
+using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels;
 
@@ -197,33 +198,9 @@ public partial class ImportSessionsViewModel : ViewModelBase
         {
             try
             {
-                // Get Linkage
-                var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value);
-                var linkage = await databaseService.GetLinkageAsync(setup!.LinkageId);
-                if (linkage is null)
-                {
-                    throw new Exception("Linkage is missing");
-                }
-
-                // Get front Calibration
-                var fcal = await databaseService.GetCalibrationAsync(setup.FrontCalibrationId ?? Guid.Empty);
-                var fmethod = fcal is null ? null : await databaseService.GetCalibrationMethodAsync(fcal.MethodId);
-                if (fcal is not null && fmethod == null)
-                {
-                    throw new Exception("Front calibration method is missing.");
-                }
-
-                // Get rear Calibration
-                var rcal = await databaseService.GetCalibrationAsync(setup.RearCalibrationId ?? Guid.Empty);
-                var rmethod = rcal is null ? null : await databaseService.GetCalibrationMethodAsync(rcal.MethodId);
-                if (rcal is not null && rmethod == null)
-                {
-                    throw new Exception("Rear calibration method is missing.");
-                }
-
-                fcal?.Prepare(fmethod!, linkage.MaxFrontStroke!.Value, linkage.MaxFrontTravel);
-                rcal?.Prepare(rmethod!, linkage.MaxRearStroke!.Value, linkage.MaxRearTravel);
-                var psst = await telemetryFile.GeneratePsstAsync(linkage, fcal, rcal);
+                var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
+                var bikeData = new BikeData(setup.HeadAngle, setup.FrontMaxTravel, setup.RearMaxTravel, setup.FrontCoefficients, setup.RearCoefficients);
+                var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
                 var session = new Session(
                     id: Guid.NewGuid(),
