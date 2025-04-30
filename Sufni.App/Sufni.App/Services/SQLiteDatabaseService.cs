@@ -96,6 +96,63 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
+    public async Task<List<Bike>> GetBikesAsync()
+    {
+        await Initialization;
+        return await connection.Table<Bike>().Where(s => s.Deleted == null).ToListAsync();
+    }
+
+    public async Task<List<Bike>> GetChangedBikesAsync(int since)
+    {
+        await Initialization;
+
+        return await connection.Table<Bike>()
+            .Where(s => s.Updated > since || (s.Deleted != null && s.Deleted > since))
+            .ToListAsync();
+    }
+
+    public async Task<Bike?> GetBikeAsync(Guid id)
+    {
+        await Initialization;
+
+        return await connection.Table<Bike>()
+            .Where(s => s.Id == id && s.Deleted == null)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<Guid> PutBikeAsync(Bike bike)
+    {
+        await Initialization;
+
+        var existing = await connection.Table<Bike>()
+            .Where(s => s.Id == bike.Id && s.Deleted == null)
+            .FirstOrDefaultAsync() is not null;
+        bike.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+        if (existing)
+        {
+            await connection.UpdateAsync(bike);
+        }
+        else
+        {
+            await connection.InsertAsync(bike);
+        }
+
+        return bike.Id;
+    }
+
+    public async Task DeleteBikeAsync(Guid id)
+    {
+        await Initialization;
+        var bike = await connection.Table<Bike>()
+            .Where(s => s.Id == id)
+            .FirstOrDefaultAsync();
+        if (bike is not null)
+        {
+            bike.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+            await connection.UpdateAsync(bike);
+        }
+    }
+
     public async Task<List<Setup>> GetSetupsAsync()
     {
         await Initialization;

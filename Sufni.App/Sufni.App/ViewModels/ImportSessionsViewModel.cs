@@ -199,7 +199,18 @@ public partial class ImportSessionsViewModel : ViewModelBase
             try
             {
                 var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
-                var bikeData = new BikeData(setup.HeadAngle, setup.FrontMaxTravel, setup.RearMaxTravel, setup.FrontCoefficients, setup.RearCoefficients);
+                var bike = await databaseService.GetBikeAsync(setup.BikeId);
+                Debug.Assert(bike is not null, "bike is not null");
+
+                var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
+                var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
+
+                var bikeData = new BikeData(
+                    bike.HeadAngle,
+                    frontSensorConfiguration?.MaxTravel,
+                    rearSensorConfiguration?.MaxTravel,
+                    frontSensorConfiguration?.MeasurementToTravel,
+                    rearSensorConfiguration?.MeasurementToTravel);
                 var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
                 var session = new Session(

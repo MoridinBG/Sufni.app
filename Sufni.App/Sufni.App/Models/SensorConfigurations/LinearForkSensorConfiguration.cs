@@ -1,0 +1,43 @@
+using System;
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Sufni.App.Models.SensorConfigurations;
+
+public class LinearForkSensorConfiguration : SensorConfiguration
+{
+    private double measurementToStroke;
+    private double strokeToTravel;
+    private Bike? bike;
+
+    [JsonPropertyName("length")] public double Length { get; set; }
+    [JsonPropertyName("resolution")] public int Resolution { get; set; }
+    [JsonPropertyName("type")] public override SensorType Type { get; } = SensorType.LinearFork;
+    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    {
+        get
+        {
+            return (measurement) => measurement * measurementToStroke * strokeToTravel;
+        }
+    }
+    [JsonIgnore] public override double MaxTravel
+    {
+        get
+        {
+            Debug.Assert(bike is not null && bike.ForkStroke.HasValue, "bike is not null && bike.ForkStroke.HasValue");
+            return bike.ForkStroke.Value * strokeToTravel;
+        }
+    }
+
+    public static new ISensorConfiguration? FromJson(string json, Bike bike)
+    {
+        var sc = JsonSerializer.Deserialize<LinearForkSensorConfiguration>(json, SerializerOptions);
+        if (sc is null) return null;
+
+        sc.bike = bike;
+        sc.measurementToStroke = sc.Length / (2 ^ sc.Resolution);
+        sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        return sc;
+    }
+}

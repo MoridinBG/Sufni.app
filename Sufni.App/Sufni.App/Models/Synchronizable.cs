@@ -26,6 +26,7 @@ public class Synchronization
 public class SynchronizationData
 {
     [JsonPropertyName("board")] public List<Board> Boards { get; set; } = [];
+    [JsonPropertyName("bike")] public List<Bike> Bikes { get; set; } = [];
     [JsonPropertyName("setup")] public List<Setup> Setups { get; set; } = [];
     [JsonPropertyName("session")] public List<Session> Sessions { get; set; } = [];
 }

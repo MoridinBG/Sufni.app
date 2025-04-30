@@ -1,7 +1,7 @@
 using System;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using SQLite;
+using Sufni.App.Models.SensorConfigurations;
 
 namespace Sufni.App.Models;
 
@@ -29,39 +29,25 @@ public class Setup : Synchronizable
     [Column("name")]
     public string Name { get; set; } = null!;
 
-    [JsonIgnore]
-    [Column("front_coefficients")]
-    public string? FrontCoefficientsJson { get; set; }
+    [JsonPropertyName("bike_id")]
+    [Column("bike_id")]
+    public Guid BikeId { get; set; }
 
-    [JsonPropertyName("front_coefficients")]
-    [Ignore]
-    public double[]? FrontCoefficients
+    [JsonPropertyName("front_sensor_configuration")]
+    [Column("front_sensor_configuration")]
+    public string? FrontSensorConfigurationJson { get; set; }
+
+    [JsonPropertyName("rear_sensor_configuration")]
+    [Column("rear_sensor_configuration")]
+    public string? RearSensorConfigurationJson { get; set; }
+
+    public ISensorConfiguration? FrontSensorConfiguration(Bike bike)
     {
-        get => FrontCoefficientsJson is null ? null : JsonSerializer.Deserialize<double[]>(FrontCoefficientsJson);
-        set => FrontCoefficientsJson = value is null ? null : JsonSerializer.Serialize(value);
+        return FrontSensorConfigurationJson is null ? null : SensorConfiguration.FromJson(FrontSensorConfigurationJson, bike);
     }
 
-    [JsonIgnore]
-    [Column("rear_coefficients")]
-    public string? RearCoefficientsJson { get; set; }
-
-    [JsonPropertyName("rear_coefficients")]
-    [Ignore]
-    public double[]? RearCoefficients
+    public ISensorConfiguration? RearSensorConfiguration(Bike bike)
     {
-        get => RearCoefficientsJson is null ? null : JsonSerializer.Deserialize<double[]>(RearCoefficientsJson);
-        set => RearCoefficientsJson = value is null ? null : JsonSerializer.Serialize(value);
+        return RearSensorConfigurationJson is null ? null : SensorConfiguration.FromJson(RearSensorConfigurationJson, bike);
     }
-
-    [JsonPropertyName("front_max_travel")]
-    [Column("front_max_travel")]
-    public double FrontMaxTravel { get; set; }
-
-    [JsonPropertyName("rear_max_travel")]
-    [Column("rear_max_travel")]
-    public double RearMaxTravel { get; set; }
-
-    [JsonPropertyName("head_angle")]
-    [Column("head_angle")]
-    public double HeadAngle { get; set; }
 }
