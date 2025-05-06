@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -147,17 +148,37 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void ShowConnectPage()
     {
-        var mainViewModel = App.Current?.Services?.GetService<MainViewModel>();
-        Debug.Assert(mainViewModel != null, nameof(mainViewModel) + " != null");
-        mainViewModel.OpenView(SettingsPage);
+        var isDesktop = App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
+        if (isDesktop)
+        {
+            var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(SettingsPage);
+        }
+        else
+        {
+            var vm = App.Current?.Services?.GetService<MainViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(SettingsPage);
+        }
     }
 
     [RelayCommand]
     private void ShowImportPage()
     {
-        var mainViewModel = App.Current?.Services?.GetService<MainViewModel>();
-        Debug.Assert(mainViewModel != null, nameof(mainViewModel) + " != null");
-        mainViewModel.OpenView(ImportSessionsPage);
+        var isDesktop = App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
+        if (isDesktop)
+        {
+            var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(ImportSessionsPage);
+        }
+        else
+        {
+            var vm = App.Current?.Services?.GetService<MainViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(ImportSessionsPage);
+        }
     }
 
     [RelayCommand]

@@ -4,17 +4,26 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:views="clr-namespace:Sufni.App.Views"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     Title="Sufni.App"
-    Width="500"
-    Height="700"
-    MaxWidth="500"
+    Width="1600"
+    Height="1200"
     d:DesignHeight="450"
     d:DesignWidth="800"
+    x:DataType="vm:MainWindowViewModel"
     Background="{StaticResource SufniRegion}"
     Icon="/Assets/sufni-icon.png"
     mc:Ignorable="d">
 
-    <views:MainView />
+    <SplitView
+        Content="{Binding CurrentView}"
+        DisplayMode="Inline"
+        IsPaneOpen="True"
+        OpenPaneLength="400">
+
+        <SplitView.Pane>
+            <ContentControl Content="{Binding MainPagesViewModel}" />
+        </SplitView.Pane>
+    </SplitView>
 
 </Window>

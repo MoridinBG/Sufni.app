@@ -1,0 +1,105 @@
+﻿<UserControl
+    x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:c="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    d:DesignHeight="720"
+    d:DesignWidth="500"
+    x:DataType="vm:MainPagesViewModel"
+    Background="{StaticResource SufniRegion}"
+    mc:Ignorable="d">
+    <Design.DataContext>
+        <vm:MainPagesViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <!--  Tabs  -->
+        <Style Selector="TabControl">
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="Margin" Value="2 0 2 0" />
+            <Setter Property="MinHeight" Value="46" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="Padding" Value="5" />
+        </Style>
+        <Style Selector="TabItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Height" Value="25" />
+            <Setter Property="Margin" Value="0,10,0,0" />
+        </Style>
+        <Style Selector="TabItem:disabled /template/ Border">
+            <Setter Property="Opacity" Value="0.3" />
+        </Style>
+        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Height" Value="2" />
+            <Setter Property="Width" Value="60" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+    </UserControl.Styles>
+
+     <SplitView
+        Name="MainSplitView"
+        DisplayMode="Overlay"
+        IsPaneOpen="{Binding IsMenuPaneOpen, Mode=TwoWay}"
+        OpenPaneLength="160"
+        UseLightDismissOverlayMode="True">
+        <SplitView.Pane>
+            <controls:SidePanel
+                Name="MenuPanel"
+                Grid.Row="0"
+                Grid.RowSpan="2"
+                Grid.Column="0" />
+        </SplitView.Pane>
+        <SplitView.Content>
+            <Panel>
+                <Grid ColumnDefinitions="auto * 40">
+
+                    <!--  Menu tab  -->
+                    <TabControl
+                        Grid.Column="0"
+                        Grid.ColumnSpan="3"
+                        Background="{StaticResource SufniBackgroundDisabled}"
+                        SelectedIndex="{Binding SelectedIndex}"
+                        TabStripPlacement="Bottom">
+                        <TabControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid
+                                    Margin="3,0,3,5"
+                                    HorizontalAlignment="Stretch"
+                                    Rows="1" />
+                            </ItemsPanelTemplate>
+                        </TabControl.ItemsPanel>
+                        <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
+                            <TabItem.Header>
+                                <StackPanel>
+                                    <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
+                                    <TextBlock
+                                        Margin="0,2,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="9"
+                                        Text="Sessions" />
+                                </StackPanel>
+                            </TabItem.Header>
+                        </TabItem>
+                        <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
+                            <TabItem.Header>
+                                <StackPanel>
+                                    <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="9"
+                                        Text="Setups" />
+                                </StackPanel>
+                            </TabItem.Header>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Panel>
+        </SplitView.Content>
+    </SplitView>
+</UserControl>

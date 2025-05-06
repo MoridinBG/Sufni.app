@@ -1,12 +1,13 @@
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
-using System.Linq;
+using Sufni.App.Views;
 
-namespace Sufni.App.Views;
+namespace Sufni.App.DesktopViews;
 
-public partial class MainPagesView : MainPagesViewBase
+public partial class MainPagesDesktopView : MainPagesViewBase
 {
-    public MainPagesView()
+    public MainPagesDesktopView()
     {
         InitializeComponent();
         MenuPanel.Loaded += (s, e) =>
