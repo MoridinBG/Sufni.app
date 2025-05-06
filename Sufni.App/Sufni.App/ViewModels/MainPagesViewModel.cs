@@ -19,6 +19,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     [ObservableProperty] private bool databaseLoaded;
     [ObservableProperty] private ImportSessionsViewModel importSessionsPage;
+    [ObservableProperty] private BikeListViewModel bikesPage;
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
     [ObservableProperty] private SettingsViewModel settingsPage = new();
@@ -34,11 +35,14 @@ public partial class MainPagesViewModel : ViewModelBase
     public MainPagesViewModel()
     {
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        BikesPage = new BikeListViewModel();
         SessionsPage = new SessionListViewModel();
         ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
         SetupsPage = new SetupListViewModel(ImportSessionsPage);
         pages = [SessionsPage, SetupsPage];
 
+        BikesPage.MenuItems.Add(new("sync", SyncCommand));
+        BikesPage.MenuItems.Add(new("add", BikesPage.AddCommand));
         SetupsPage.MenuItems.Add(new("sync", SyncCommand));
         SetupsPage.MenuItems.Add(new("add", SetupsPage.AddCommand));
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
@@ -65,6 +69,9 @@ public partial class MainPagesViewModel : ViewModelBase
 
         switch (item)
         {
+            case BikeViewModel bvm:
+                await BikesPage.Delete(bvm);
+                break;
             case SetupViewModel svm:
                 await SetupsPage.Delete(svm);
                 break;
@@ -78,6 +85,9 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         switch (item)
         {
+            case BikeViewModel bvm:
+                BikesPage.UndoableDelete(bvm);
+                break;
             case SetupViewModel svm:
                 SetupsPage.UndoableDelete(svm);
                 break;
@@ -95,6 +105,7 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
+        await BikesPage.LoadFromDatabase();
         await SetupsPage.LoadFromDatabase();
         await SessionsPage.LoadFromDatabase();
 

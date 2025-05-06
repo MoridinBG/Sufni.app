@@ -90,11 +90,22 @@
                         <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
                             <TabItem.Header>
                                 <StackPanel>
-                                    <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
+                                    <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
                                     <TextBlock
                                         HorizontalAlignment="Center"
                                         FontSize="9"
                                         Text="Setups" />
+                                </StackPanel>
+                            </TabItem.Header>
+                        </TabItem>
+                        <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
+                            <TabItem.Header>
+                                <StackPanel>
+                                    <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="9"
+                                        Text="Bikes" />
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>

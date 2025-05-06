@@ -46,6 +46,14 @@
             </MenuItem.Icon>
         </MenuItem>
         <Separator />
+        <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike">
+            <MenuItem.Icon>
+                <Image
+                    Width="12"
+                    Margin="0,1,0,0"
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
         <MenuItem Command="{Binding SetupsPage.AddCommand}" Header="setup">
             <MenuItem.Icon>
                 <Image

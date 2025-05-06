@@ -82,6 +82,7 @@
         <StyleInclude Source="/Views/Plots/SufniPlotView.axaml" />
         <StyleInclude Source="/Views/Plots/VelocityBandView.axaml" />
         <StyleInclude Source="avares://AvaloniaProgressRing/Styles/ProgressRing.xaml" />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
 
         <!--  Global styles for TextBlock  -->
         <Style Selector="TextBlock">
@@ -142,6 +143,11 @@
         </Style>
         <Style Selector="CalendarDayButton">
             <Setter Property="FontSize" Value="14" />
+        </Style>
+
+        <!-- Get rid of FlyoutPresenter's default MaxWidth  -->
+        <Style Selector="FlyoutPresenter.wide">
+            <Setter Property="MaxWidth" Value="10000" />
         </Style>
     </Application.Styles>
 

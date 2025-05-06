@@ -22,12 +22,12 @@ public partial class SetupViewModel : ItemViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private string? boardId;
 
-    /* TODO: remove
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private LinkageViewModel? selectedLinkage;
+    private BikeViewModel? selectedBike;
 
+    /* TODO: remove
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]

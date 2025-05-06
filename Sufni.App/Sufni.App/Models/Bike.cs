@@ -14,17 +14,6 @@ public class Bike : Synchronizable
 {
     private double? chainstay;
 
-    // Just to satisfy sql-net-pcl's parameterless constructor requirement
-    // Uninitialized non-nullable property warnings are suppressed with null! initializer.
-    public Bike() { }
-
-    public Bike(Bitmap image, Linkage linkage, double pixelsToMillimeters)
-    {
-        Image = image;
-        Linkage = linkage;
-        PixelsToMillimeters = pixelsToMillimeters;
-    }
-
     [JsonPropertyName("id")]
     [PrimaryKey]
     [Column("id")]
@@ -61,6 +50,21 @@ public class Bike : Synchronizable
     [Ignore]
     public Linkage? Linkage { get; set; }
 
+    [JsonIgnore]
+    [Column("linkage")]
+    public string? LinkageJson
+    {
+        get
+        {
+            return Linkage?.ToJson();
+        }
+        set
+        {
+            if (value is null) return;
+            Linkage = Linkage.FromJson(value);
+        }
+    }
+
     [JsonPropertyName("pixels_to_millimeters")]
     [Column("pixels_to_millimeters")]
     public double PixelsToMillimeters { get; set; }
@@ -96,6 +100,16 @@ public class Bike : Synchronizable
             chainstay ??= CalculateChainstay();
             return chainstay;
         }
+    }
+
+    // Just to satisfy sql-net-pcl's parameterless constructor requirement
+    // Uninitialized non-nullable property warnings are suppressed with null! initializer.
+    public Bike() { }
+
+    public Bike(Guid id, string name)
+    {
+        Id = id;
+        Name = name;
     }
 
     public string ToJson()

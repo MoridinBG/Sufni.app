@@ -63,6 +63,7 @@
             Command="{Binding FakeDeleteCommand}">
             <Button.Flyout>
                 <Flyout
+                    Flyout.FlyoutPresenterClasses="wide"
                     HorizontalOffset="40"
                     Placement="Left"
                     PlacementAnchor="Right">

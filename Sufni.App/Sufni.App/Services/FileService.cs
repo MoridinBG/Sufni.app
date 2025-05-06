@@ -8,6 +8,11 @@ namespace Sufni.App.Services;
 public class FilesService : IFilesService
 {
     private TopLevel? target;
+    private readonly FilePickerFileType jsonType = new("JSON files")
+    {
+        Patterns = ["*.json"],
+        MimeTypes = ["application/json"]
+    };
 
     public void SetTarget(TopLevel? newTarget)
     {
@@ -38,5 +43,45 @@ public class FilesService : IFilesService
         });
 
         return folders.Count == 1 ? folders[0] : null;
+    }
+
+    public async Task<IStorageFile?> OpenBikeImageFileAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open bike image file",
+            FileTypeFilter = [FilePickerFileTypes.ImageAll],
+            AllowMultiple = false
+        });
+
+        return files.Count == 1 ? files[0] : null;
+    }
+
+    public async Task<IStorageFile?> SaveBikeFileAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        return await target.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions()
+        {
+            Title = "Save bike as JSON",
+            DefaultExtension = ".json",
+            FileTypeChoices = [jsonType],
+        });
+    }
+
+    public async Task<IStorageFile?> OpenBikeFileAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open bike JSON",
+            FileTypeFilter = [jsonType],
+            AllowMultiple = false
+        });
+
+        return files.Count == 1 ? files[0] : null;
     }
 }

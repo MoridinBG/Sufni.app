@@ -1,0 +1,257 @@
+﻿<UserControl
+    x:Class="Sufni.App.DesktopViews.Items.BikeImageControlsDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sufni.App.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="using:Sufni.App.DesktopViews.Items"
+    xmlns:vm="using:Sufni.App.ViewModels.Items"
+    xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:BikeViewModel"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:BikeViewModel />
+    </Design.DataContext>
+
+    <StackPanel>
+
+        <!--  Open bike picture  -->
+        <Grid ColumnDefinitions="* auto">
+            <Button
+                Grid.Column="0"
+                Margin="5"
+                HorizontalAlignment="Stretch"
+                Command="{Binding OpenImageCommand}"
+                Content="Open image ..." />
+            <CheckBox
+                Grid.Column="1"
+                Margin="5"
+                Content="Draw overlay"
+                IsChecked="{Binding OverlayVisible}" />
+        </Grid>
+
+        <Grid
+            ColumnDefinitions="auto *"
+            IsVisible="{Binding Image, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+            RowDefinitions="auto auto">
+
+            <!--  Chainstay  -->
+            <TextBlock
+                Grid.Row="0"
+                Grid.Column="0"
+                Margin="5"
+                Text="Chainstay (mm)" />
+            <NumericUpDown
+                Grid.Row="0"
+                Grid.Column="1"
+                Margin="0,0,5,0"
+                Maximum="1000"
+                Minimum="0"
+                Value="{Binding Chainstay}" />
+
+            <!--  Shock stroke  -->
+            <TextBlock
+                Grid.Row="1"
+                Grid.Column="0"
+                Margin="5"
+                Text="Max. shock stroke (mm)" />
+            <NumericUpDown
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="0,0,5,0"
+                Maximum="1000"
+                Minimum="0"
+                Value="{Binding ShockStroke}" />
+        </Grid>
+
+        <!--  List of Points  -->
+        <TextBlock
+            Margin="5"
+            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Text="Points" />
+        <DataGrid
+            Margin="5"
+            BeginningEdit="DataGrid_OnBeginningEdit"
+            BorderBrush="Gray"
+            BorderThickness="1"
+            GridLinesVisibility="All"
+            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+            ItemsSource="{Binding JointViewModels}"
+            SelectedItem="{Binding SelectedPoint}">
+
+            <DataGrid.KeyBindings>
+                <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+            </DataGrid.KeyBindings>
+
+            <DataGrid.Columns>
+
+                <!--  Name  -->
+                <DataGridTextColumn
+                    Width="1.5*"
+                    Binding="{Binding Name}"
+                    Header="Name"
+                    IsReadOnly="False" />
+
+                <!--  Type  -->
+                <DataGridTemplateColumn
+                    Width="1.5*"
+                    Header="Type"
+                    IsReadOnly="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:JointViewModel">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding Type}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate DataType="vml:JointViewModel">
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsDropDownOpen="True"
+                                ItemsSource="{Binding PointTypes}"
+                                SelectedItem="{Binding Type}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
+                <!--  X  -->
+                <DataGridTextColumn
+                    Width="*"
+                    Binding="{Binding X, StringFormat={}{0:0.00}}}"
+                    Header="X (px)"
+                    IsReadOnly="True" />
+
+                <!--  Y  -->
+                <DataGridTextColumn
+                    Width="*"
+                    Binding="{Binding Y, StringFormat={}{0:0.00}}}"
+                    Header="Y (px)"
+                    IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!--  List of Links  -->
+        <TextBlock
+            Margin="5"
+            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Text="Links" />
+        <DataGrid
+            Margin="5"
+            BeginningEdit="DataGrid_OnBeginningEdit"
+            BorderBrush="Gray"
+            BorderThickness="1"
+            GridLinesVisibility="All"
+            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+            ItemsSource="{Binding LinkViewModels}"
+            SelectedItem="{Binding SelectedLink}">
+
+            <DataGrid.KeyBindings>
+                <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+            </DataGrid.KeyBindings>
+
+            <DataGrid.Columns>
+
+                <!--  Point A  -->
+                <DataGridTemplateColumn
+                    Width="*"
+                    Header="Point A"
+                    IsReadOnly="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding A.Name}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsDropDownOpen="True"
+                                ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeViewModel)DataContext).JointViewModels}"
+                                SelectedItem="{Binding A}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
+                <!--  Point B  -->
+                <DataGridTemplateColumn
+                    Width="*"
+                    Header="Point B"
+                    IsReadOnly="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding B.Name}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsDropDownOpen="True"
+                                ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeViewModel)DataContext).JointViewModels}"
+                                SelectedItem="{Binding B}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
+                <!--  Length  -->
+                <DataGridTextColumn
+                    Width="*"
+                    Binding="{Binding Length, StringFormat={}{0:0.00}}}"
+                    Header="L (mm)"
+                    IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+        <Button
+            Margin="5"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Command="{Binding CreateLinkCommand}"
+            Content="Add new link"
+            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Separator />
+
+        <!--  Export  -->
+        <!--Button
+            Margin="5"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Command="{Binding ExportCommand}"
+            Content="Export as JSON"
+            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}" /-->
+
+        <!--  Import  -->
+        <!--Button
+            Margin="5,0,5,5"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Command="{Binding ImportCommand}"
+            Content="Import from JSON" /-->
+    </StackPanel>
+</UserControl>

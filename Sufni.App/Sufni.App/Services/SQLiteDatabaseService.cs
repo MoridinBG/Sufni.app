@@ -34,14 +34,15 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         await connection.EnableWriteAheadLoggingAsync();
-        var result = await connection.CreateTablesAsync(CreateFlags.None, new[]
-        {
+        var result = await connection.CreateTablesAsync(CreateFlags.None,
+        [
             typeof(Board),
             typeof(Setup),
+            typeof(Bike),
             typeof(Session),
             typeof(SessionCache),
             typeof(Synchronization)
-        });
+        ]);
 
         if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
         {
