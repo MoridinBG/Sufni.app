@@ -116,6 +116,14 @@
             <Setter Property="Foreground" Value="{StaticResource SufniDangerColor}" />
         </Style>
 
+        <!--  Global styles for "hyperlink" Buttons  -->
+        <Style Selector="Button.hyperlink">
+            <Setter Property="Foreground" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+        <Style Selector="Button.hyperlink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+
         <!--  Global styles for NumericUpDown  -->
         <Style Selector="NumericUpDown">
             <Setter Property="Height" Value="39" />

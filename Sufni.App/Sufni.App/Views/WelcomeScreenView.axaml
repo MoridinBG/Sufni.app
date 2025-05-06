@@ -4,8 +4,21 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     d:DesignHeight="450"
     d:DesignWidth="800"
+    x:DataType="vm:WelcomeScreenViewModel"
     mc:Ignorable="d">
-    Welcome to Avalonia!
+
+    <Design.DataContext>
+        <vm:WelcomeScreenViewModel />
+    </Design.DataContext>
+
+    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+        <TextBlock Text="Sufni Suspension Telemetry" FontSize="36" />
+        <Border Height="100" />
+        <Button Width="150" Margin="30,0,0,0" Classes="embedded hyperlink" FontSize="16" Content="Import sessions ..." Command="{Binding ImportSessionCommand}" />
+        <Button Width="150" Margin="30,0,0,0" Classes="embedded hyperlink" FontSize="16" Content="Create bike ..." Command="{Binding AddBikeCommand}" />
+        <Button Width="150" Margin="30,0,0,0" Classes="embedded hyperlink" FontSize="16" Content="Create setup ..." Command="{Binding AddSetupCommand}" />
+    </StackPanel>
 </UserControl>
