@@ -10,6 +10,7 @@
     d:DesignWidth="200"
     x:DataType="vm:MainPagesViewModel"
     mc:Ignorable="d">
+
     <Design.DataContext>
         <vm:MainPagesViewModel />
     </Design.DataContext>
@@ -28,15 +29,17 @@
         </Style>
     </UserControl.Styles>
 
+    <!-- Default background -->
+    <UserControl.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <LinearGradientBrush.GradientStops>
+                <GradientStop Offset="0.7" Color="{StaticResource SufniRegion}" />
+                <GradientStop Offset="1" Color="{StaticResource SufniBackgroundDisabled}" />
+            </LinearGradientBrush.GradientStops>
+        </LinearGradientBrush>
+    </UserControl.Background>
+
     <StackPanel>
-        <StackPanel.Background>
-            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                <LinearGradientBrush.GradientStops>
-                    <GradientStop Offset="0.7" Color="{StaticResource SufniRegion}" />
-                    <GradientStop Offset="1" Color="{StaticResource SufniBackgroundDisabled}" />
-                </LinearGradientBrush.GradientStops>
-            </LinearGradientBrush>
-        </StackPanel.Background>
         <MenuItem
             Command="{Binding OpenPageCommand}"
             CommandParameter="{Binding ImportSessionsPage}"

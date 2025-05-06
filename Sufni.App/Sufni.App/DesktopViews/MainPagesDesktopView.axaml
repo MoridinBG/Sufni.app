@@ -42,75 +42,79 @@
         </Style>
     </UserControl.Styles>
 
-     <SplitView
-        Name="MainSplitView"
-        DisplayMode="Overlay"
-        IsPaneOpen="{Binding IsMenuPaneOpen, Mode=TwoWay}"
-        OpenPaneLength="160"
-        UseLightDismissOverlayMode="True">
-        <SplitView.Pane>
-            <controls:SidePanel
-                Name="MenuPanel"
-                Grid.Row="0"
-                Grid.RowSpan="2"
-                Grid.Column="0" />
-        </SplitView.Pane>
-        <SplitView.Content>
-            <Panel>
-                <Grid ColumnDefinitions="auto * 40">
+    <Panel>
 
-                    <!--  Menu tab  -->
-                    <TabControl
-                        Grid.Column="0"
-                        Grid.ColumnSpan="3"
-                        Background="{StaticResource SufniBackgroundDisabled}"
-                        SelectedIndex="{Binding SelectedIndex}"
-                        TabStripPlacement="Bottom">
-                        <TabControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid
-                                    Margin="3,0,3,5"
-                                    HorizontalAlignment="Stretch"
-                                    Rows="1" />
-                            </ItemsPanelTemplate>
-                        </TabControl.ItemsPanel>
-                        <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
-                            <TabItem.Header>
-                                <StackPanel>
-                                    <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
-                                    <TextBlock
-                                        Margin="0,2,0,0"
-                                        HorizontalAlignment="Center"
-                                        FontSize="9"
-                                        Text="Sessions" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
-                            <TabItem.Header>
-                                <StackPanel>
-                                    <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
-                                    <TextBlock
-                                        HorizontalAlignment="Center"
-                                        FontSize="9"
-                                        Text="Setups" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
-                            <TabItem.Header>
-                                <StackPanel>
-                                    <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
-                                    <TextBlock
-                                        HorizontalAlignment="Center"
-                                        FontSize="9"
-                                        Text="Bikes" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                    </TabControl>
-                </Grid>
-            </Panel>
-        </SplitView.Content>
-    </SplitView>
+        <!-- This panel catches taps outside MenuPanel, so that we can close it -->
+        <Panel
+            Name="MenuPanelBackground"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Background="Transparent"
+            IsVisible="{Binding IsMenuPaneOpen}"
+            ZIndex="5" />
+
+        <!-- MenuPanel -->
+        <controls:SidePanel
+            Background="{StaticResource SufniRegion}"
+            Name="MenuPanel"
+            Width="200"
+            Margin="30,50,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            IsVisible="{Binding IsMenuPaneOpen, Mode=TwoWay}"
+            ZIndex="10" />
+        <Grid ColumnDefinitions="auto * 40">
+
+            <!--  Menu tab  -->
+            <TabControl
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                SelectedIndex="{Binding SelectedIndex}"
+                TabStripPlacement="Bottom">
+                <TabControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid
+                            Margin="3,0,3,5"
+                            HorizontalAlignment="Stretch"
+                            Rows="1" />
+                    </ItemsPanelTemplate>
+                </TabControl.ItemsPanel>
+                <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
+                    <TabItem.Header>
+                        <StackPanel>
+                            <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
+                            <TextBlock
+                                Margin="0,2,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="9"
+                                Text="Sessions" />
+                        </StackPanel>
+                    </TabItem.Header>
+                </TabItem>
+                <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
+                    <TabItem.Header>
+                        <StackPanel>
+                            <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="9"
+                                Text="Setups" />
+                        </StackPanel>
+                    </TabItem.Header>
+                </TabItem>
+                <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
+                    <TabItem.Header>
+                        <StackPanel>
+                            <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="9"
+                                Text="Bikes" />
+                        </StackPanel>
+                    </TabItem.Header>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Panel>
 </UserControl>
