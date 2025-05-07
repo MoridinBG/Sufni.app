@@ -63,50 +63,48 @@
             VerticalAlignment="Top"
             IsVisible="{Binding IsMenuPaneOpen, Mode=TwoWay}"
             ZIndex="10" />
-        <Grid ColumnDefinitions="auto * 40">
 
-            <!--  Menu tab  -->
-            <TabControl
-                Grid.Column="0"
-                Grid.ColumnSpan="3"
-                Background="{StaticResource SufniRegion}"
-                SelectedIndex="{Binding SelectedIndex}"
-                TabStripPlacement="Left">
-                <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
-                    <TabItem.Header>
-                        <StackPanel>
-                            <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
-                            <TextBlock
-                                Margin="0,2,0,0"
-                                HorizontalAlignment="Center"
-                                FontSize="9"
-                                Text="Sessions" />
-                        </StackPanel>
-                    </TabItem.Header>
-                </TabItem>
-                <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
-                    <TabItem.Header>
-                        <StackPanel>
-                            <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="9"
-                                Text="Setups" />
-                        </StackPanel>
-                    </TabItem.Header>
-                </TabItem>
-                <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
-                    <TabItem.Header>
-                        <StackPanel>
-                            <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="9"
-                                Text="Bikes" />
-                        </StackPanel>
-                    </TabItem.Header>
-                </TabItem>
-            </TabControl>
-        </Grid>
+        <!--  Menu tab  -->
+        <TabControl
+            Grid.Column="0"
+            Grid.ColumnSpan="3"
+            Background="{StaticResource SufniRegion}"
+            SelectedIndex="{Binding SelectedIndex}"
+            TabStripPlacement="Left">
+            <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
+                <TabItem.Header>
+                    <StackPanel>
+                        <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
+                        <TextBlock
+                            Margin="0,2,0,0"
+                            HorizontalAlignment="Center"
+                            FontSize="9"
+                            Text="Sessions" />
+                    </StackPanel>
+                </TabItem.Header>
+            </TabItem>
+            <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
+                <TabItem.Header>
+                    <StackPanel>
+                        <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="9"
+                            Text="Setups" />
+                    </StackPanel>
+                </TabItem.Header>
+            </TabItem>
+            <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
+                <TabItem.Header>
+                    <StackPanel>
+                        <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="9"
+                            Text="Bikes" />
+                    </StackPanel>
+                </TabItem.Header>
+            </TabItem>
+        </TabControl>
     </Panel>
 </UserControl>
