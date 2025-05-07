@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Templates;
 using Sufni.App.ViewModels;
 using System;
+using System.Diagnostics;
 
 namespace Sufni.App
 {
@@ -13,8 +14,8 @@ namespace Sufni.App
             if (data is null)
                 return null;
 
-            var isDesktop = App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
-
+            Debug.Assert(App.Current is not null, "App.Current is not null");
+            var isDesktop = App.Current.IsDesktop;
 
             var name = data.GetType().FullName!.Replace("ViewModel", isDesktop ? "DesktopView" : "View");
             var type = Type.GetType(name);

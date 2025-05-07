@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -159,7 +158,8 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void ShowConnectPage()
     {
-        var isDesktop = App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
+        Debug.Assert(App.Current is not null, "App.Current is not null");
+        var isDesktop = App.Current.IsDesktop;
         if (isDesktop)
         {
             var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
@@ -177,7 +177,8 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void ShowImportPage()
     {
-        var isDesktop = App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
+        Debug.Assert(App.Current is not null, "App.Current is not null");
+        var isDesktop = App.Current.IsDesktop;
         if (isDesktop)
         {
             var vm = App.Current?.Services?.GetService<MainWindowViewModel>();

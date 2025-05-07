@@ -15,6 +15,7 @@ public partial class App : Application
 {
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
+    public bool IsDesktop { get; private set; }
 
     public App()
     {
@@ -49,11 +50,13 @@ public partial class App : Application
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
+                IsDesktop = true;
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
+                IsDesktop = false;
                 singleViewPlatform.MainView = new MainView
                 {
                     DataContext = mainViewModel
