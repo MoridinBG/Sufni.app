@@ -10,8 +10,8 @@
     d:DesignHeight="720"
     d:DesignWidth="500"
     x:DataType="vm:MainPagesViewModel"
-    Background="{StaticResource SufniRegion}"
     mc:Ignorable="d">
+
     <Design.DataContext>
         <vm:MainPagesViewModel />
     </Design.DataContext>
@@ -35,9 +35,9 @@
             <Setter Property="Opacity" Value="0.3" />
         </Style>
         <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
-            <Setter Property="Height" Value="2" />
-            <Setter Property="Width" Value="60" />
-            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Height" Value="60" />
+            <Setter Property="Width" Value="2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
         </Style>
     </UserControl.Styles>
@@ -69,17 +69,9 @@
             <TabControl
                 Grid.Column="0"
                 Grid.ColumnSpan="3"
-                Background="{StaticResource SufniBackgroundDisabled}"
+                Background="{StaticResource SufniRegion}"
                 SelectedIndex="{Binding SelectedIndex}"
-                TabStripPlacement="Bottom">
-                <TabControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid
-                            Margin="3,0,3,5"
-                            HorizontalAlignment="Stretch"
-                            Rows="1" />
-                    </ItemsPanelTemplate>
-                </TabControl.ItemsPanel>
+                TabStripPlacement="Left">
                 <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
                     <TabItem.Header>
                         <StackPanel>
