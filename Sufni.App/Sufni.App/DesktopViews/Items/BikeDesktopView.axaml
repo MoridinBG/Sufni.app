@@ -19,38 +19,30 @@
         <vm:BikeViewModel />
     </Design.DataContext>
 
-    <Grid
-        MinWidth="300"
-        Margin="20,0,20,10"
-        HorizontalAlignment="Stretch"
-        ColumnDefinitions="* 400"
-        RowDefinitions="auto * auto auto">
+    <SplitView
+        DisplayMode="Inline"
+        IsPaneOpen="True"
+        OpenPaneLength="400"
+        PanePlacement="Right">
 
-        <!--  Name  -->
-        <controls:EditableTitle
-            Grid.Row="0"
-            Grid.Column="0"
-            Grid.ColumnSpan="2"
-            Margin="-5,0,0,10"
-            HorizontalAlignment="Stretch" />
+        <SplitView.Pane>
+            <StackPanel Margin="5" Background="{StaticResource SufniRegion}">
+                <!--  Name  -->
+                <controls:EditableTitle Margin="5,0,0,10" HorizontalAlignment="Stretch" />
 
-        <!-- Bike image / linkage -->
-        <v:BikeImageDesktopView Grid.Row="1" Grid.Column="0" />
+                <!--  Linkage parts  -->
+                <v:BikeImageControlsDesktopView />
 
-        <!-- Linkage parts -->
-        <v:BikeImageControlsDesktopView Grid.Row="1" Grid.Column="1" />
+                <!--  Error messages for Bike instance  -->
+                <controls:ErrorMessagesBar Margin="0,5,0,0" />
 
-        <!--  Error messages for Bike instance  -->
-        <controls:ErrorMessagesBar
-            Grid.Row="2"
-            Grid.Column="0"
-            Grid.ColumnSpan="2"
-            Margin="0,5,0,0" />
+                <!--  Back, Save, Reset and Delete buttons  -->
+                <controls:CommonButtonLine />
+            </StackPanel>
+        </SplitView.Pane>
 
-        <!--  Back, Save, Reset and Delete buttons  -->
-        <controls:CommonButtonLine
-            Grid.Row="3"
-            Grid.Column="0"
-            Grid.ColumnSpan="2" />
-    </Grid>
+        <!--  Bike image / linkage  -->
+        <v:BikeImageDesktopView />
+    </SplitView>
+
 </UserControl>

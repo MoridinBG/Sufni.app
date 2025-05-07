@@ -235,8 +235,6 @@
             Content="Add new link"
             IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-        <Separator />
-
         <!--  Export  -->
         <!--Button
             Margin="5"
