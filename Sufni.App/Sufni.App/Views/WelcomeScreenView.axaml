@@ -14,11 +14,30 @@
         <vm:WelcomeScreenViewModel />
     </Design.DataContext>
 
-    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-        <TextBlock Text="Sufni Suspension Telemetry" FontSize="36" />
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock FontSize="36" Text="Sufni Suspension Telemetry" />
         <Border Height="100" />
-        <Button Width="150" Margin="30,0,0,0" Classes="embedded hyperlink" FontSize="16" Content="Import sessions ..." Command="{Binding ImportSessionCommand}" />
-        <Button Width="150" Margin="30,0,0,0" Classes="embedded hyperlink" FontSize="16" Content="Create bike ..." Command="{Binding AddBikeCommand}" />
-        <Button Width="150" Margin="30,0,0,0" Classes="embedded hyperlink" FontSize="16" Content="Create setup ..." Command="{Binding AddSetupCommand}" />
+        <Button
+            Width="150"
+            Margin="30,0,0,0"
+            Classes="embedded hyperlink"
+            Command="{Binding ImportSessionCommand}"
+            Content="Import sessions ..."
+            FontSize="16" />
+        <Button
+            Width="150"
+            Margin="30,0,0,0"
+            Classes="embedded hyperlink"
+            Command="{Binding AddBikeCommand}"
+            Content="Create bike ..."
+            FontSize="16" />
+        <Button
+            Width="150"
+            Margin="30,0,0,0"
+            Classes="embedded hyperlink"
+            Command="{Binding AddSetupCommand}"
+            Content="Create setup ..."
+            FontSize="16" />
     </StackPanel>
+
 </UserControl>
