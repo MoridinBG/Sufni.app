@@ -124,6 +124,18 @@
             <Setter Property="Foreground" Value="{StaticResource SufniAccentColor}" />
         </Style>
 
+        <!--  Global styles for "item" Buttons  -->
+        <Style Selector="Button.item">
+            <Setter Property="Background" Value="{StaticResource SufniRegion}" />
+            <Setter Property="RenderTransform" Value="{x:Null}" />
+        </Style>
+        <Style Selector="Button.item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1f2327" />
+        </Style>
+        <Style Selector="Button.item:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1f2327" />
+        </Style>
+
         <!--  Global styles for NumericUpDown  -->
         <Style Selector="NumericUpDown">
             <Setter Property="Height" Value="39" />
@@ -153,7 +165,7 @@
             <Setter Property="FontSize" Value="14" />
         </Style>
 
-        <!-- Get rid of FlyoutPresenter's default MaxWidth  -->
+        <!--  Get rid of FlyoutPresenter's default MaxWidth  -->
         <Style Selector="FlyoutPresenter.wide">
             <Setter Property="MaxWidth" Value="10000" />
         </Style>
