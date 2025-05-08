@@ -9,8 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Android", "Sufni.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Windows", "Sufni.App\Sufni.App.Windows\Sufni.App.Windows.csproj", "{6B366BF2-2928-4DF4-879D-F2B6537DEF1D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.iOS", "Sufni.App\Sufni.App.iOS\Sufni.App.iOS.csproj", "{84662F52-2EAD-4264-B6C9-6C3C60366685}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Browser", "Sufni.App\Sufni.App.Browser\Sufni.App.Browser.csproj", "{D788CF3E-A425-4A38-BEE5-6D320FE79B24}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureStorage", "SecureStorage\SecureStorage.csproj", "{DCA2F8B2-D436-420C-A7C0-DFB4F1916FED}"
