@@ -55,6 +55,7 @@ public partial class MainViewModel : ViewModelBase
 
     public void OpenPreviousView()
     {
+        if (viewHistory.Count <= 0) return;
         CurrentView = viewHistory.Pop();
         Debug.Assert(CurrentView != null, nameof(CurrentView) + " != null");
     }

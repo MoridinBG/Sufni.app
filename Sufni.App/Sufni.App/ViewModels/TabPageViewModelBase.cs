@@ -1,8 +1,11 @@
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Services;
+using Sufni.App.Views.Controls;
 
 namespace Sufni.App.ViewModels;
 
@@ -49,11 +52,34 @@ public partial class TabPageViewModelBase : ViewModelBase
     }
 
     [RelayCommand]
-    private void Close()
+    private async Task Close()
     {
         var mainWindowViewModel = App.Current?.Services?.GetService<MainWindowViewModel>();
+        var dialogService = App.Current?.Services?.GetService<IDialogService>();
         Debug.Assert(mainWindowViewModel != null);
+        Debug.Assert(dialogService != null, nameof(dialogService) + " != null");
+
+        if (!IsDirty)
+        {
+            mainWindowViewModel.CloseTabPage(this);
+            return;
+        }
         
-        mainWindowViewModel.CloseTabPage(this);
+        var result = await dialogService.ShowSaveConfirmationAsync();
+        switch (result)
+        {
+            case PromptResult.Yes:
+                await Save();
+                mainWindowViewModel.CloseTabPage(this);
+                break;
+            case PromptResult.No:
+                await Reset();
+                mainWindowViewModel.CloseTabPage(this);
+                break;
+            case PromptResult.Cancel:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
     }
 }

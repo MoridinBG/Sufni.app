@@ -37,15 +37,18 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         RegisteredServices.Collection.AddSingleton<IFilesService>(_ => new FilesService());
+        RegisteredServices.Collection.AddSingleton<IDialogService>(_ => new DialogService());
         RegisteredServices.Collection.AddSingleton<MainPagesViewModel>();
         RegisteredServices.Collection.AddSingleton<MainViewModel>();
         RegisteredServices.Collection.AddSingleton<MainWindowViewModel>();
         Services = RegisteredServices.Collection.BuildServiceProvider();
-        
+
         var fileService = Services.GetService<IFilesService>();
+        var dialogService = Services.GetService<IDialogService>();
         var mainViewModel = Services.GetService<MainViewModel>();
         var mainWindowViewModel = Services.GetService<MainWindowViewModel>();
         Debug.Assert(fileService != null, nameof(fileService) + " != null");
+        Debug.Assert(dialogService != null, nameof(dialogService) + " != null");
 
         switch (ApplicationLifetime)
         {
@@ -53,6 +56,7 @@ public partial class App : Application
                 IsDesktop = true;
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
+                dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:

@@ -46,7 +46,8 @@ namespace Sufni.App.ViewModels
         protected static void OpenPreviousPage()
         {
             Debug.Assert(App.Current is not null, "App.Current is not null");
-            Debug.Assert(!App.Current.IsDesktop, "OpenPreviousPage should only be called from the mobile UI");
+
+            if (!App.Current.IsDesktop) return; // OpenPreviousPage is a no-op on desktop
 
             var vm = App.Current.Services?.GetService<MainViewModel>();
             Debug.Assert(vm != null, nameof(vm) + " != null");
