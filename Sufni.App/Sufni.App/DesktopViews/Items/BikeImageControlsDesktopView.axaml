@@ -2,10 +2,7 @@
     x:Class="Sufni.App.DesktopViews.Items.BikeImageControlsDesktopView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
-    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="using:Sufni.App.DesktopViews.Items"
     xmlns:vm="using:Sufni.App.ViewModels.Items"
@@ -125,14 +122,14 @@
                 <!--  X  -->
                 <DataGridTextColumn
                     Width="*"
-                    Binding="{Binding X, StringFormat={}{0:0.00}}}"
+                    Binding="{Binding X, StringFormat={}{0:0.00}}"
                     Header="X (px)"
                     IsReadOnly="True" />
 
                 <!--  Y  -->
                 <DataGridTextColumn
                     Width="*"
-                    Binding="{Binding Y, StringFormat={}{0:0.00}}}"
+                    Binding="{Binding Y, StringFormat={}{0:0.00}}"
                     Header="Y (px)"
                     IsReadOnly="True" />
             </DataGrid.Columns>
@@ -222,7 +219,7 @@
                 <!--  Length  -->
                 <DataGridTextColumn
                     Width="*"
-                    Binding="{Binding Length, StringFormat={}{0:0.00}}}"
+                    Binding="{Binding Length, StringFormat={}{0:0.00}}"
                     Header="L (mm)"
                     IsReadOnly="True" />
             </DataGrid.Columns>
