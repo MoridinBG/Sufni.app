@@ -4,8 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels;
 
-public partial class WelcomeScreenViewModel : ViewModelBase
+public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
+    public WelcomeScreenViewModel()
+    {
+        Name = "Welcome";
+    }
+
     [RelayCommand]
     private static void AddBike()
     {

@@ -5,7 +5,6 @@
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
     d:DesignHeight="600"
     d:DesignWidth="500"
@@ -27,8 +26,7 @@
         <!--  List of Setups  -->
         <ScrollViewer
             Name="Scroll"
-            Grid.Row="1"
-            VerticalAlignment="Bottom">
+            Grid.Row="1">
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>

@@ -1,16 +1,15 @@
 ﻿<UserControl
+    d:DesignHeight="720"
+    d:DesignWidth="500"
+    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
+    x:DataType="vm:MainPagesViewModel"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:c="clr-namespace:Sufni.App.Views.Controls"
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    d:DesignHeight="720"
-    d:DesignWidth="500"
-    x:DataType="vm:MainPagesViewModel"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <vm:MainPagesViewModel />
@@ -25,7 +24,6 @@
             <Setter Property="Margin" Value="2 0 2 0" />
             <Setter Property="MinHeight" Value="46" />
             <Setter Property="Height" Value="46" />
-            <Setter Property="Padding" Value="5" />
         </Style>
         <Style Selector="TabItem /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Height" Value="25" />
@@ -38,69 +36,66 @@
             <Setter Property="Height" Value="60" />
             <Setter Property="Width" Value="2" />
             <Setter Property="HorizontalAlignment" Value="Left" />
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
         </Style>
     </UserControl.Styles>
 
     <Panel>
 
-        <!-- This panel catches taps outside MenuPanel, so that we can close it -->
+        <!--  This panel catches taps outside MenuPanel, so that we can close it  -->
         <Panel
-            Name="MenuPanelBackground"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
             Background="Transparent"
+            HorizontalAlignment="Stretch"
             IsVisible="{Binding IsMenuPaneOpen}"
+            Name="MenuPanelBackground"
+            VerticalAlignment="Stretch"
             ZIndex="5" />
 
-        <!-- MenuPanel -->
+        <!--  MenuPanel  -->
         <controls:SidePanel
             Background="{StaticResource SufniRegion}"
-            Name="MenuPanel"
-            Width="200"
-            Margin="30,50,0,0"
             HorizontalAlignment="Left"
-            VerticalAlignment="Top"
             IsVisible="{Binding IsMenuPaneOpen, Mode=TwoWay}"
+            Margin="30,50,0,0"
+            Name="MenuPanel"
+            VerticalAlignment="Top"
+            Width="200"
             ZIndex="10" />
 
         <!--  Menu tab  -->
         <TabControl
-            Grid.Column="0"
-            Grid.ColumnSpan="3"
             Background="{StaticResource SufniRegion}"
             SelectedIndex="{Binding SelectedIndex}"
             TabStripPlacement="Left">
-            <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
+            <TabItem Content="{Binding SessionsPage}" Name="SessionTabItem">
                 <TabItem.Header>
                     <StackPanel>
-                        <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
+                        <Image Source="{SvgImage /Assets/fa-chart-line.svg}" Width="16" />
                         <TextBlock
-                            Margin="0,2,0,0"
-                            HorizontalAlignment="Center"
                             FontSize="9"
+                            HorizontalAlignment="Center"
+                            Margin="0,2,0,0"
                             Text="Sessions" />
                     </StackPanel>
                 </TabItem.Header>
             </TabItem>
-            <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
+            <TabItem Content="{Binding SetupsPage}" Name="BikeSetupsTabItem">
                 <TabItem.Header>
                     <StackPanel>
-                        <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
+                        <Image Source="{SvgImage /Assets/cog.svg}" Width="18" />
                         <TextBlock
-                            HorizontalAlignment="Center"
                             FontSize="9"
+                            HorizontalAlignment="Center"
                             Text="Setups" />
                     </StackPanel>
                 </TabItem.Header>
             </TabItem>
-            <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
+            <TabItem Content="{Binding BikesPage}" Name="BikesTabItem">
                 <TabItem.Header>
                     <StackPanel>
-                        <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
+                        <Image Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" Width="18" />
                         <TextBlock
-                            HorizontalAlignment="Center"
                             FontSize="9"
+                            HorizontalAlignment="Center"
                             Text="Bikes" />
                     </StackPanel>
                 </TabItem.Header>
