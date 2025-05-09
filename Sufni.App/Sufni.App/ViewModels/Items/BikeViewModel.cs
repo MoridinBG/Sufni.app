@@ -54,7 +54,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
 
     [ObservableProperty] private bool overlayVisible;
-    [ObservableProperty] static Color wheelColor = Colors.Cyan;
+    [ObservableProperty] private static Color wheelColor = Colors.Cyan;
     [ObservableProperty] private Brush wheelBrush = new SolidColorBrush(wheelColor);
     [ObservableProperty] private static Color groundColor = Colors.OrangeRed;
     [ObservableProperty] private static Color linkColor = Colors.HotPink;
@@ -164,8 +164,8 @@ public partial class BikeViewModel : ItemViewModelBase
         var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
-        Debug.Assert(shockViewModel is not null, "shockViewModel is not null");
-        Debug.Assert(Image is not null, "Image is not null");
+        Debug.Assert(shockViewModel is not null);
+        Debug.Assert(Image is not null);
         Debug.Assert(PixelsToMillimeters is not null, "PxelsToMillimeters is not null");
         Debug.Assert(ShockStroke is not null, "MaxShockStroke is not null");
 
@@ -215,7 +215,11 @@ public partial class BikeViewModel : ItemViewModelBase
         Id = bike.Id;
         Name = bike.Name;
 
-        if (bike.Linkage is null || bike.Image is null) return Task.CompletedTask;
+        if (bike.Linkage is null || bike.Image is null)
+        {
+            AddInitialJoints();
+            return Task.CompletedTask;
+        }
 
         JointViewModels.Clear();
         var jointViewModels = bike.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, bike.Image.Size.Height, bike.PixelsToMillimeters));
@@ -319,40 +323,6 @@ public partial class BikeViewModel : ItemViewModelBase
     }
 
     [RelayCommand]
-    private void Loaded()
-    {
-        // We add these Points here, because adding them in the constructor won't trigger an update on the DataGrid,
-        // so they won't show up.
-        JointViewModels.Add(new JointViewModel("Front wheel", JointType.FrontWheel, 100, 150));
-
-        var bottomBracket = new JointViewModel("Bottom bracket", JointType.BottomBracket, 100, 200);
-        var rearWheel = new JointViewModel("Rear wheel", JointType.RearWheel, 100, 100);
-        bottomBracket.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(JointViewModel.X) || e.PropertyName == nameof(JointViewModel.Y))
-            {
-                UpdatePixelsToMillimeters(bottomBracket, rearWheel);
-            }
-        };
-        rearWheel.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(JointViewModel.X) || e.PropertyName == nameof(JointViewModel.Y))
-            {
-                UpdatePixelsToMillimeters(bottomBracket, rearWheel);
-            }
-        };
-        JointViewModels.Add(bottomBracket);
-        JointViewModels.Add(rearWheel);
-
-        var shockEye1 = new JointViewModel("Shock eye 1", JointType.Floating, 100, 250);
-        var shockEye2 = new JointViewModel("Shock eye 2", JointType.Floating, 100, 300);
-        JointViewModels.Add(shockEye1);
-        JointViewModels.Add(shockEye2);
-        shockViewModel = new(shockEye1, shockEye2, "Shock");
-        LinkViewModels.Add(shockViewModel);
-    }
-
-    [RelayCommand]
     private async Task OpenImage(CancellationToken token)
     {
         var filesService = App.Current?.Services?.GetService<IFilesService>();
@@ -372,10 +342,41 @@ public partial class BikeViewModel : ItemViewModelBase
         LinkViewModels.Add(link);
     }
 
+    private void AddInitialJoints()
+    {
+        JointViewModels.Add(new JointViewModel("Front wheel", JointType.FrontWheel, 100, 150));
+
+        var bottomBracket = new JointViewModel("Bottom bracket", JointType.BottomBracket, 100, 200);
+        var rearWheel = new JointViewModel("Rear wheel", JointType.RearWheel, 100, 100);
+        bottomBracket.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(JointViewModel.X) or nameof(JointViewModel.Y))
+            {
+                UpdatePixelsToMillimeters(bottomBracket, rearWheel);
+            }
+        };
+        rearWheel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(JointViewModel.X) or nameof(JointViewModel.Y))
+            {
+                UpdatePixelsToMillimeters(bottomBracket, rearWheel);
+            }
+        };
+        JointViewModels.Add(bottomBracket);
+        JointViewModels.Add(rearWheel);
+
+        var shockEye1 = new JointViewModel("Shock eye 1", JointType.Floating, 100, 250);
+        var shockEye2 = new JointViewModel("Shock eye 2", JointType.Floating, 100, 300);
+        JointViewModels.Add(shockEye1);
+        JointViewModels.Add(shockEye2);
+        shockViewModel = new(shockEye1, shockEye2, "Shock");
+        LinkViewModels.Add(shockViewModel);
+    }
+
     private void UpdatePixelsToMillimeters(JointViewModel? bottomBracket = null, JointViewModel? rearWheel = null)
     {
-        var bb = bottomBracket is not null ? bottomBracket : JointViewModels.Where(p => p.Type == JointType.BottomBracket).First();
-        var rw = rearWheel is not null ? rearWheel : JointViewModels.Where(p => p.Type == JointType.RearWheel).First();
+        var bb = bottomBracket ?? JointViewModels.First(p => p.Type == JointType.BottomBracket);
+        var rw = rearWheel ?? JointViewModels.First(p => p.Type == JointType.RearWheel);
         var distance = Math.Sqrt(Math.Pow(rw.X - bb.X, 2) + Math.Pow(rw.Y - bb.Y, 2));
         PixelsToMillimeters = Chainstay / distance;
     }
