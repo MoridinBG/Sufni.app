@@ -25,19 +25,21 @@ public partial class JointViewModel : ViewModelBase
     [ObservableProperty] private bool isSelected;
 
     public Immutability Immutability { get; private set; }
+    public bool ShowFlyout { get; set; }
 
     partial void OnTypeChanged(JointType value)
     {
         Brush = BikeViewModel.PointTypeToBrushMapping[value];
     }
 
-    public JointViewModel(string name, JointType type, double x, double y)
+    public JointViewModel(string name, JointType type, double x, double y, bool showFlyout = false)
     {
         X = x;
         Y = y;
         Name = name;
         Type = type;
         Brush = BikeViewModel.PointTypeToBrushMapping[type];
+        ShowFlyout = showFlyout;
 
         if (Type == JointType.FrontWheel || Type == JointType.RearWheel || Type == JointType.BottomBracket)
         {
