@@ -12,17 +12,17 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     private Bike? bike;
     private readonly double measurementToAngle = 2.0 / Math.PI * 4096;
 
-    [JsonPropertyName("max_length")] public double MaxLength { get; set; }
-    [JsonPropertyName("arm_length")] public double ArmLength { get; set; }
+    [JsonPropertyName("max_length")] public double MaxLength { get; init; }
+    [JsonPropertyName("arm_length")] public double ArmLength { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; } = SensorType.RotationalFork;
     [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
-            return (measurement) =>
+            return measurement =>
             {
                 var measuredAngle = measurement * measurementToAngle;
-                var stroke = MaxLength - (2.0 * ArmLength * Math.Cos(measuredAngle + startAngle));
+                var stroke = MaxLength - 2.0 * ArmLength * Math.Cos(measuredAngle + startAngle);
                 return stroke * strokeToTravel;
             };
         }
@@ -31,14 +31,14 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     {
         get
         {
-            Debug.Assert(bike is not null && bike.ForkStroke.HasValue, "bike is not null && bike.ForkStroke.HasValue");
+            Debug.Assert(bike?.ForkStroke != null);
             return bike.ForkStroke.Value * strokeToTravel;
         }
     }
 
-    public static new ISensorConfiguration? FromJson(string json, Bike bike)
+    public new static ISensorConfiguration? FromJson(string json, Bike bike)
     {
-        Debug.Assert(bike.Linkage is not null, "bike.Linkage is not null");
+        Debug.Assert(bike.Linkage is not null);
 
         var sc = JsonSerializer.Deserialize<RotationalForkSensorConfiguration>(json, SerializerOptions);
         if (sc is null) return null;

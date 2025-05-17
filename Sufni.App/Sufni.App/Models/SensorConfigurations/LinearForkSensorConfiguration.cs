@@ -11,26 +11,26 @@ public class LinearForkSensorConfiguration : SensorConfiguration
     private double strokeToTravel;
     private Bike? bike;
 
-    [JsonPropertyName("length")] public double Length { get; set; }
-    [JsonPropertyName("resolution")] public int Resolution { get; set; }
+    [JsonPropertyName("length")] public double Length { get; init; }
+    [JsonPropertyName("resolution")] public int Resolution { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; } = SensorType.LinearFork;
     [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
-            return (measurement) => measurement * measurementToStroke * strokeToTravel;
+            return measurement => measurement * measurementToStroke * strokeToTravel;
         }
     }
     [JsonIgnore] public override double MaxTravel
     {
         get
         {
-            Debug.Assert(bike is not null && bike.ForkStroke.HasValue, "bike is not null && bike.ForkStroke.HasValue");
+            Debug.Assert(bike?.ForkStroke != null);
             return bike.ForkStroke.Value * strokeToTravel;
         }
     }
 
-    public static new ISensorConfiguration? FromJson(string json, Bike bike)
+    public new static ISensorConfiguration? FromJson(string json, Bike bike)
     {
         var sc = JsonSerializer.Deserialize<LinearForkSensorConfiguration>(json, SerializerOptions);
         if (sc is null) return null;

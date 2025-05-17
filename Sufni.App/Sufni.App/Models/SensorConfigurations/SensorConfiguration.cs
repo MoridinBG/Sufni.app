@@ -17,7 +17,7 @@ public interface ISensorConfiguration
     public SensorType Type { get; }
     public Func<ushort, double> MeasurementToTravel { get; }
     [JsonIgnore] public double MaxTravel { get; }
-    static abstract ISensorConfiguration? FromJson(string json, Bike bike);
+    public static abstract ISensorConfiguration? FromJson(string json, Bike bike);
 }
 
 public class SensorConfiguration : ISensorConfiguration
@@ -43,7 +43,7 @@ public class SensorConfiguration : ISensorConfiguration
             SensorType.RotationalFork => RotationalForkSensorConfiguration.FromJson(json, bike),
             SensorType.LinearShock => LinearShockSensorConfiguration.FromJson(json, bike),
             SensorType.RotationalShock => RotationalShockSensorConfiguration.FromJson(json, bike),
-            _ => null,
+            _ => null
         };
     }
 }

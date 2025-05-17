@@ -13,30 +13,30 @@ public class LinearShockSensorConfiguration : SensorConfiguration
     private Bike? bike;
     private Polynomial? leverageRatioPolynomial;
 
-    [JsonPropertyName("length")] public double Length { get; set; }
-    [JsonPropertyName("resolution")] public int Resolution { get; set; }
+    [JsonPropertyName("length")] public double Length { get; init; }
+    [JsonPropertyName("resolution")] public int Resolution { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; } = SensorType.LinearShock;
     [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
             leverageRatioPolynomial ??= CalculateLeverageRatioPolynomial();
-            return (measurement) => leverageRatioPolynomial.Evaluate(measurement * measurementToStroke);
+            return measurement => leverageRatioPolynomial.Evaluate(measurement * measurementToStroke);
         }
     }
     [JsonIgnore] public override double MaxTravel
     {
         get
         {
-            Debug.Assert(bike is not null && bike.ShockStroke.HasValue, "bike is not null && bike.ShockStroke.HasValue");
+            Debug.Assert(bike?.ShockStroke != null);
             leverageRatioPolynomial ??= CalculateLeverageRatioPolynomial();
             return leverageRatioPolynomial.Evaluate(bike.ShockStroke.Value);
         }
     }
 
-    public static new ISensorConfiguration? FromJson(string json, Bike bike)
+    public new static ISensorConfiguration? FromJson(string json, Bike bike)
     {
-        Debug.Assert(bike.Linkage is not null, "bike.Linkage is not null");
+        Debug.Assert(bike.Linkage is not null);
 
         var sc = JsonSerializer.Deserialize<LinearShockSensorConfiguration>(json, SerializerOptions);
         if (sc is null) return null;
@@ -49,7 +49,7 @@ public class LinearShockSensorConfiguration : SensorConfiguration
 
     private Polynomial CalculateLeverageRatioPolynomial()
     {
-        Debug.Assert(bike is not null && bike.Linkage is not null, "bike is not null, and has Linkage");
+        Debug.Assert(bike?.Linkage != null);
 
         var solver = KinematicSolver.Create(500, bike.Linkage!);
         var solution = solver.SolveSuspensionMotion();

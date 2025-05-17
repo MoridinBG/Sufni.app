@@ -14,16 +14,16 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     private Polynomial? angleToTravelPolynomial;
     private BikeCharacteristics? characteristics;
 
-    [JsonPropertyName("centrail_joint")] public string CentralJoint { get; set; } = null!;
-    [JsonPropertyName("adjacent_joint_1")] public string AdjacentJoint1 { get; set; } = null!;
-    [JsonPropertyName("adjacent_joint_2")] public string AdjacentJoint2 { get; set; } = null!;
+    [JsonPropertyName("central_joint")] public string CentralJoint { get; init; } = null!;
+    [JsonPropertyName("adjacent_joint_1")] public string AdjacentJoint1 { get; init; } = null!;
+    [JsonPropertyName("adjacent_joint_2")] public string AdjacentJoint2 { get; init; } = null!;
     [JsonPropertyName("type")] public override SensorType Type { get; } = SensorType.RotationalShock;
     [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
             angleToTravelPolynomial ??= CalculateAngleToTravelPolynomial();
-            return (measurement) => angleToTravelPolynomial.Evaluate(measurement * measurementToAngle);
+            return measurement => angleToTravelPolynomial.Evaluate(measurement * measurementToAngle);
         }
     }
     [JsonIgnore] public override double MaxTravel
@@ -31,15 +31,15 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
         get
         {
             characteristics ??= CalculateBikeCharacteristics();
-            Debug.Assert(characteristics.MaxRearTravel.HasValue, "characteristics.MaxRearTravel.HasValue");
+            Debug.Assert(characteristics.MaxRearTravel.HasValue);
 
             return characteristics.MaxRearTravel.Value;
         }
     }
 
-    public static new ISensorConfiguration? FromJson(string json, Bike bike)
+    public new static ISensorConfiguration? FromJson(string json, Bike bike)
     {
-        Debug.Assert(bike.Linkage is not null, "bike.Linkage is not null");
+        Debug.Assert(bike.Linkage is not null);
 
         var sc = JsonSerializer.Deserialize<RotationalShockSensorConfiguration>(json, SerializerOptions);
         if (sc is null) return null;
@@ -51,7 +51,7 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
 
     private BikeCharacteristics CalculateBikeCharacteristics()
     {
-        Debug.Assert(bike is not null && bike.Linkage is not null, "bike is not null, and has Linkage");
+        Debug.Assert(bike?.Linkage != null);
 
         var solver = KinematicSolver.Create(500, bike.Linkage!);
         var solution = solver.SolveSuspensionMotion();
@@ -61,13 +61,6 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     private Polynomial CalculateAngleToTravelPolynomial()
     {
         characteristics ??= CalculateBikeCharacteristics();
-        /*
-        Debug.Assert(bike is not null && bike.Linkage is not null, "bike is not null, and has Linkage");
-
-        var solver = KinematicSolver.Create(500, bike.Linkage!);
-        var solution = solver.SolveSuspensionMotion();
-        var characteristics = new BikeCharacteristics(solution, frontStroke: bike.ForkStroke, headAngle: bike.HeadAngle);
-        */
         var angleToTravelDataset = characteristics.AngleToTravelDataset(CentralJoint, AdjacentJoint1, AdjacentJoint2);
         return Polynomial.Fit([.. angleToTravelDataset.X], [.. angleToTravelDataset.Y], 3);
     }
