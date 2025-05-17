@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.ViewModels.Items;
 using Sufni.Kinematics;
 
 namespace Sufni.App.ViewModels.LinkageParts;
@@ -26,10 +25,19 @@ public partial class JointViewModel : ViewModelBase
 
     public Immutability Immutability { get; private set; }
     public bool ShowFlyout { get; set; }
+    
+    public static Dictionary<JointType, Brush> TypeToBrushMapping { get; } = new()
+    {
+        { JointType.RearWheel, new SolidColorBrush(Colors.Cyan)},
+        { JointType.FrontWheel, new SolidColorBrush(Colors.Cyan)},
+        { JointType.Fixed, new SolidColorBrush(Colors.OrangeRed)},
+        { JointType.Floating, new SolidColorBrush(Colors.HotPink)},
+        { JointType.BottomBracket, new SolidColorBrush(Colors.Purple)}
+    };
 
     partial void OnTypeChanged(JointType value)
     {
-        Brush = BikeViewModel.PointTypeToBrushMapping[value];
+        Brush = TypeToBrushMapping[value];
     }
 
     public JointViewModel(string name, JointType type, double x, double y, bool showFlyout = false)
@@ -38,7 +46,7 @@ public partial class JointViewModel : ViewModelBase
         Y = y;
         Name = name;
         Type = type;
-        Brush = BikeViewModel.PointTypeToBrushMapping[type];
+        Brush = TypeToBrushMapping[type];
         ShowFlyout = showFlyout;
 
         if (Type == JointType.FrontWheel || Type == JointType.RearWheel || Type == JointType.BottomBracket)
