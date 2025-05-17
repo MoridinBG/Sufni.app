@@ -51,14 +51,7 @@ public partial class BikeViewModel : ItemViewModelBase
     public ObservableCollection<LinkViewModel> LinkViewModels { get; } = [];
     [ObservableProperty] private JointViewModel? selectedPoint;
     [ObservableProperty] private LinkViewModel? selectedLink;
-
-
     [ObservableProperty] private bool overlayVisible;
-    [ObservableProperty] private static Color wheelColor = Colors.Cyan;
-    [ObservableProperty] private Brush wheelBrush = new SolidColorBrush(wheelColor);
-    [ObservableProperty] private static Color groundColor = Colors.OrangeRed;
-    [ObservableProperty] private static Color linkColor = Colors.HotPink;
-    [ObservableProperty] private static Color bottomBracketColor = Colors.Purple;
 
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
@@ -104,28 +97,6 @@ public partial class BikeViewModel : ItemViewModelBase
         }
     }
 
-    partial void OnWheelColorChanged(Color value)
-    {
-        PointTypeToBrushMapping[JointType.RearWheel] = new SolidColorBrush(value);
-        PointTypeToBrushMapping[JointType.FrontWheel] = new SolidColorBrush(value);
-        WheelBrush = new SolidColorBrush(value);
-    }
-
-    partial void OnGroundColorChanged(Color value)
-    {
-        PointTypeToBrushMapping[JointType.Fixed] = new SolidColorBrush(value);
-    }
-
-    partial void OnLinkColorChanged(Color value)
-    {
-        PointTypeToBrushMapping[JointType.Floating] = new SolidColorBrush(value);
-    }
-
-    partial void OnBottomBracketColorChanged(Color value)
-    {
-        PointTypeToBrushMapping[JointType.BottomBracket] = new SolidColorBrush(value);
-    }
-
     public BikeViewModel()
     {
         bike = new Bike();
@@ -142,15 +113,6 @@ public partial class BikeViewModel : ItemViewModelBase
         SetupJointsListeners();
         SetupLinksListeners();
     }
-
-    public static Dictionary<JointType, Brush> PointTypeToBrushMapping { get; } = new()
-    {
-        { JointType.RearWheel, new SolidColorBrush(wheelColor)},
-        { JointType.FrontWheel, new SolidColorBrush(wheelColor)},
-        { JointType.Fixed, new SolidColorBrush(groundColor)},
-        { JointType.Floating, new SolidColorBrush(linkColor)},
-        { JointType.BottomBracket, new SolidColorBrush(bottomBracketColor)},
-    };
 
     protected override void EvaluateDirtiness()
     {

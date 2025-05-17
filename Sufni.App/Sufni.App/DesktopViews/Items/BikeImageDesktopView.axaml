@@ -96,20 +96,6 @@
                     </SelectingItemsControl.ItemTemplate>
                 </SelectingItemsControl>
 
-                <!--  Wheels  -->
-                <Canvas IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <!--
-                        TODO Ellipse
-                        Canvas.Left="0"
-                        Canvas.Top="0"
-                        Width="100"
-                        Height="100"
-                        Fill="Transparent"
-                        Stroke="{Binding WheelBrush}"
-                        StrokeThickness="2" /
-                    -->
-                </Canvas>
-
                 <!--  Points  -->
                 <SelectingItemsControl
                     Background="Transparent"
