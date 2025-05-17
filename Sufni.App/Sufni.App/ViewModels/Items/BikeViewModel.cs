@@ -347,10 +347,11 @@ public partial class BikeViewModel : ItemViewModelBase
 
     private void AddInitialJoints()
     {
-        JointViewModels.Add(new JointViewModel("Front wheel", JointType.FrontWheel, 100, 150));
+        var mapping = new JointNameMapping();
+        JointViewModels.Add(new JointViewModel(mapping.FrontWheel, JointType.FrontWheel, 100, 150));
 
-        var bottomBracket = new JointViewModel("Bottom bracket", JointType.BottomBracket, 100, 200);
-        var rearWheel = new JointViewModel("Rear wheel", JointType.RearWheel, 100, 100);
+        var bottomBracket = new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200);
+        var rearWheel = new JointViewModel(mapping.RearWheel, JointType.RearWheel, 100, 100);
         bottomBracket.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(JointViewModel.X) or nameof(JointViewModel.Y))
@@ -368,8 +369,8 @@ public partial class BikeViewModel : ItemViewModelBase
         JointViewModels.Add(bottomBracket);
         JointViewModels.Add(rearWheel);
 
-        var shockEye1 = new JointViewModel("Shock eye 1", JointType.Floating, 100, 250);
-        var shockEye2 = new JointViewModel("Shock eye 2", JointType.Floating, 100, 300);
+        var shockEye1 = new JointViewModel(mapping.ShockEye1, JointType.Floating, 100, 250);
+        var shockEye2 = new JointViewModel(mapping.ShockEye2, JointType.Floating, 100, 300);
         JointViewModels.Add(shockEye1);
         JointViewModels.Add(shockEye2);
         shockViewModel = new(shockEye1, shockEye2, "Shock");
