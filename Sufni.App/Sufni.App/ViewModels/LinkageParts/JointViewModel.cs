@@ -22,6 +22,7 @@ public partial class JointViewModel : ViewModelBase
     public static ObservableCollection<JointType> PointTypes { get; } = [JointType.Fixed, JointType.Floating];
     [ObservableProperty] private Brush brush;
     [ObservableProperty] private bool isSelected;
+    [ObservableProperty] private bool wasPossiblyDragged;
 
     public Immutability Immutability { get; private set; }
     public bool ShowFlyout { get; set; }

@@ -129,8 +129,9 @@ public partial class BikeViewModel : ItemViewModelBase
     public BikeViewModel()
     {
         bike = new Bike();
-        IsInDatabase = false;
-        ResetImplementation();
+
+        SetupJointsListeners();
+        SetupLinksListeners();
     }
 
     public BikeViewModel(Bike bike, bool fromDatabase)
@@ -138,6 +139,8 @@ public partial class BikeViewModel : ItemViewModelBase
         this.bike = bike;
         IsInDatabase = fromDatabase;
         ResetImplementation();
+        SetupJointsListeners();
+        SetupLinksListeners();
     }
 
     public static Dictionary<JointType, Brush> PointTypeToBrushMapping { get; } = new()
@@ -157,6 +160,14 @@ public partial class BikeViewModel : ItemViewModelBase
             ForksStroke != bike.ForkStroke ||
             ShockStroke != bike.ShockStroke ||
             Chainstay != bike.Chainstay; //TODO: account for linkage changes too
+            !AreEqual(HeadAngle, bike.HeadAngle) ||
+            !AreEqual(ForksStroke, bike.ForkStroke) ||
+            !AreEqual(ShockStroke, bike.ShockStroke) ||
+            !AreEqual(Chainstay, bike.Chainstay) ||
+            DidJointsChanged() ||
+            DidLinksChanged();
+    }
+
     }
 
     protected override async Task SaveImplementation()
@@ -392,5 +403,76 @@ public partial class BikeViewModel : ItemViewModelBase
         {
             link.IsSelected = false;
         }
+    }
+    private bool DidJointsChanged()
+    {
+        if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
+        
+        var joints2 = JointViewModels.Select(jvm => jvm.ToJoint(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
+        return bike.Linkage.Joints.Count != joints2.Count || !bike.Linkage.Joints.All(j => joints2.Contains(j));
+    }
+    
+    private bool DidLinksChanged()
+    {
+        if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
+
+        var links2 = LinkViewModels.Where(lvm => lvm != shockViewModel).Select(lvm => lvm.ToLink(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
+        return bike.Linkage.Links.Count != links2.Count || !bike.Linkage.Links.All(l => links2.Contains(l));
+    }
+
+    private void SetupJointsListeners()
+    {
+        JointViewModels.CollectionChanged += (_, e) =>
+        {
+            EvaluateDirtiness();
+
+            if (e.Action != NotifyCollectionChangedAction.Add) return;
+            Debug.Assert(e.NewItems is not null);
+            foreach (var item in e.NewItems)
+            {
+                var jvm = item as JointViewModel;
+                Debug.Assert(jvm is not null);
+
+                jvm.PropertyChanged += (_, pce) =>
+                {
+                    switch (pce.PropertyName)
+                    {
+                        case nameof(jvm.WasPossiblyDragged) when jvm.WasPossiblyDragged:
+                            jvm.WasPossiblyDragged = false;
+                            EvaluateDirtiness();
+                            break;
+                        case nameof(jvm.Name) or nameof(jvm.Type):
+                            EvaluateDirtiness();
+                            break;
+                    }
+                };
+            }
+        };
+    }
+    
+    private void SetupLinksListeners()
+    {
+        LinkViewModels.CollectionChanged += (_, e) =>
+        {
+            EvaluateDirtiness();
+
+            if (e.Action != NotifyCollectionChangedAction.Add) return;
+            Debug.Assert(e.NewItems is not null);
+            foreach (var item in e.NewItems)
+            {
+                var lvm = item as LinkViewModel;
+                Debug.Assert(lvm is not null);
+
+                lvm.PropertyChanged += (_, pce) =>
+                {
+                    if (pce.PropertyName is
+                        nameof(lvm.A) or 
+                        nameof(lvm.B))
+                    {
+                        EvaluateDirtiness();
+                    }
+                };
+            }
+        };
     }
 }
