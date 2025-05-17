@@ -144,8 +144,8 @@ public partial class LinkViewModel : ViewModelBase
 
     public static LinkViewModel FromLink(Link link, IEnumerable<JointViewModel> jointViewModels)
     {
-        Debug.Assert(link.A is not null, "link.A is not null");
-        Debug.Assert(link.B is not null, "link.A is not null");
+        Debug.Assert(link.A is not null);
+        Debug.Assert(link.B is not null);
 
         var a = jointViewModels.FirstOrDefault(j => j.Name == link.A.Name);
         var b = jointViewModels.FirstOrDefault(j => j.Name == link.B.Name);
@@ -157,10 +157,10 @@ public partial class LinkViewModel : ViewModelBase
 
     public Link ToLink(double imageHeight, double pixelsToMillimeters)
     {
-        Debug.Assert(A is not null, "A is not null");
-        Debug.Assert(B is not null, "B is not null");
-        Debug.Assert(A.Name is not null, "A.Name is not null");
-        Debug.Assert(B.Name is not null, "B.Name is not null");
+        Debug.Assert(A is not null);
+        Debug.Assert(B is not null);
+        Debug.Assert(A.Name is not null);
+        Debug.Assert(B.Name is not null);
 
         return new Link(
             A.ToJoint(imageHeight, pixelsToMillimeters),

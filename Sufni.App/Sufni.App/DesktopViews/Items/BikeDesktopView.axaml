@@ -5,7 +5,6 @@
     x:Class="Sufni.App.DesktopViews.Items.BikeDesktopView"
     x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
-    xmlns:controls="using:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="using:Sufni.App.DesktopViews.Items"
@@ -23,19 +22,7 @@
         PanePlacement="Right">
 
         <SplitView.Pane>
-            <StackPanel Background="{StaticResource SufniRegion}" Margin="5">
-                <!--  Name  -->
-                <controls:EditableTitle HorizontalAlignment="Stretch" Margin="5,0,0,10" />
-
-                <!--  Linkage parts  -->
-                <v:BikeImageControlsDesktopView />
-
-                <!--  Error messages for Bike instance  -->
-                <controls:ErrorMessagesBar Margin="0,5,0,0" />
-
-                <!--  Back, Save, Reset and Delete buttons  -->
-                <controls:CommonButtonLine />
-            </StackPanel>
+            <v:BikeImageControlsDesktopView />
         </SplitView.Pane>
 
         <!--  Bike image / linkage  -->

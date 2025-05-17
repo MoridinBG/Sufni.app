@@ -1,86 +1,172 @@
 ﻿<UserControl
+    Background="{StaticResource SufniRegion}"
+    d:DesignHeight="600"
+    d:DesignWidth="400"
+    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.Items.BikeImageControlsDesktopView"
+    x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="using:Sufni.App.DesktopViews.Items"
     xmlns:vm="using:Sufni.App.ViewModels.Items"
     xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vm:BikeViewModel"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <vm:BikeViewModel />
     </Design.DataContext>
 
-    <StackPanel>
+    <UserControl.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="MinHeight" Value="39" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
 
-        <!--  Open bike picture  -->
-        <Grid ColumnDefinitions="* auto">
-            <Button
-                Grid.Column="0"
-                Margin="5"
-                HorizontalAlignment="Stretch"
-                Command="{Binding OpenImageCommand}"
-                Content="Open image ..." />
-            <CheckBox
-                Grid.Column="1"
-                Margin="5"
-                Content="Draw overlay"
-                IsChecked="{Binding OverlayVisible}" />
-        </Grid>
+    <Grid
+        ColumnDefinitions="auto *"
+        Margin="10"
+        RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto * auto auto auto auto">
+
+        <!--  Name  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="0"
+            Margin="0,0,10,5"
+            Text="Name" />
+        <TextBox
+            Grid.Column="1"
+            Grid.Row="0"
+            Margin="0,0,0,5"
+            Text="{Binding Name}" />
+
+        <!--  Head angle  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="1"
+            Margin="0,0,0,5"
+            Text="Head angle (°)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="1"
+            Margin="0,0,0,5"
+            Maximum="90"
+            Minimum="0"
+            Value="{Binding HeadAngle}" />
+
+        <!--  Fork stroke  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="2"
+            Margin="0,0,0,5"
+            Text="Fork stroke (mm)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="2"
+            Margin="0,0,0,5"
+            Maximum="300"
+            Minimum="0"
+            Value="{Binding ForksStroke}" />
+
+        <!--  Shock stroke  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="3"
+            Margin="0,0,10,5"
+            Text="Shock stroke (mm)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="3"
+            Margin="0,0,0,5"
+            Maximum="1000"
+            Minimum="0"
+            Value="{Binding ShockStroke}" />
+
+        <!--  Chainstay  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="4"
+            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Margin="0,0,0,5"
+            Text="Chainstay (mm)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="4"
+            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Margin="0,0,0,5"
+            Maximum="1000"
+            Minimum="0"
+            Value="{Binding Chainstay}" />
 
         <Grid
-            ColumnDefinitions="auto *"
-            IsVisible="{Binding Image, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-            RowDefinitions="auto auto">
+            ColumnDefinitions="* auto"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="5"
+            Margin="0,0,0,15">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </Grid.IsVisible>
 
-            <!--  Chainstay  -->
-            <TextBlock
-                Grid.Row="0"
+            <!--  Open bike picture  -->
+            <Button
+                Command="{Binding OpenImageCommand}"
+                Content="Open image ..."
                 Grid.Column="0"
-                Margin="5"
-                Text="Chainstay (mm)" />
-            <NumericUpDown
                 Grid.Row="0"
-                Grid.Column="1"
-                Margin="0,0,5,0"
-                Maximum="1000"
-                Minimum="0"
-                Value="{Binding Chainstay}" />
+                HorizontalAlignment="Stretch"
+                Margin="0,0,5,0" />
 
-            <!--  Shock stroke  -->
-            <TextBlock
-                Grid.Row="1"
-                Grid.Column="0"
-                Margin="5"
-                Text="Max. shock stroke (mm)" />
-            <NumericUpDown
-                Grid.Row="1"
+            <!--  Overlay  -->
+            <CheckBox
+                Content="Draw overlay"
                 Grid.Column="1"
-                Margin="0,0,5,0"
-                Maximum="1000"
-                Minimum="0"
-                Value="{Binding ShockStroke}" />
+                Grid.Row="0"
+                IsChecked="{Binding OverlayVisible}" />
         </Grid>
 
         <!--  List of Points  -->
         <TextBlock
-            Margin="5"
-            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
-            Text="Points" />
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="6"
+            Margin="0,0,0,5"
+            Text="Points">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
         <DataGrid
-            Margin="5"
             BeginningEdit="DataGrid_OnBeginningEdit"
             BorderBrush="Gray"
             BorderThickness="1"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="7"
             GridLinesVisibility="All"
-            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
             ItemsSource="{Binding JointViewModels}"
+            Margin="2,0,2,5"
             SelectedItem="{Binding SelectedPoint}">
+
+            <DataGrid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </DataGrid.IsVisible>
 
             <DataGrid.KeyBindings>
                 <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
@@ -90,22 +176,22 @@
 
                 <!--  Name  -->
                 <DataGridTextColumn
-                    Width="1.5*"
                     Binding="{Binding Name}"
                     Header="Name"
-                    IsReadOnly="False" />
+                    IsReadOnly="False"
+                    Width="1.5*" />
 
                 <!--  Type  -->
                 <DataGridTemplateColumn
-                    Width="1.5*"
                     Header="Type"
-                    IsReadOnly="False">
+                    IsReadOnly="False"
+                    Width="1.5*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="vml:JointViewModel">
                             <TextBlock
                                 HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Text="{Binding Type}" />
+                                Text="{Binding Type}"
+                                VerticalAlignment="Center" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                     <DataGridTemplateColumn.CellEditingTemplate>
@@ -121,34 +207,54 @@
 
                 <!--  X  -->
                 <DataGridTextColumn
-                    Width="*"
                     Binding="{Binding X, StringFormat={}{0:0.00}}"
                     Header="X (px)"
-                    IsReadOnly="True" />
+                    IsReadOnly="True"
+                    Width="*" />
 
                 <!--  Y  -->
                 <DataGridTextColumn
-                    Width="*"
                     Binding="{Binding Y, StringFormat={}{0:0.00}}"
                     Header="Y (px)"
-                    IsReadOnly="True" />
+                    IsReadOnly="True"
+                    Width="*" />
             </DataGrid.Columns>
         </DataGrid>
 
         <!--  List of Links  -->
         <TextBlock
-            Margin="5"
-            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
-            Text="Links" />
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="8"
+            Margin="0,0,0,5"
+            Text="Links">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
         <DataGrid
-            Margin="5"
             BeginningEdit="DataGrid_OnBeginningEdit"
             BorderBrush="Gray"
             BorderThickness="1"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="9"
             GridLinesVisibility="All"
-            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
             ItemsSource="{Binding LinkViewModels}"
+            Margin="2,0,2,5"
             SelectedItem="{Binding SelectedLink}">
+
+            <DataGrid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </DataGrid.IsVisible>
 
             <DataGrid.KeyBindings>
                 <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
@@ -158,15 +264,15 @@
 
                 <!--  Point A  -->
                 <DataGridTemplateColumn
-                    Width="*"
                     Header="Point A"
-                    IsReadOnly="False">
+                    IsReadOnly="False"
+                    Width="*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="vml:LinkViewModel">
                             <TextBlock
                                 HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Text="{Binding A.Name}" />
+                                Text="{Binding A.Name}"
+                                VerticalAlignment="Center" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                     <DataGridTemplateColumn.CellEditingTemplate>
@@ -188,15 +294,15 @@
 
                 <!--  Point B  -->
                 <DataGridTemplateColumn
-                    Width="*"
                     Header="Point B"
-                    IsReadOnly="False">
+                    IsReadOnly="False"
+                    Width="*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="vml:LinkViewModel">
                             <TextBlock
                                 HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Text="{Binding B.Name}" />
+                                Text="{Binding B.Name}"
+                                VerticalAlignment="Center" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                     <DataGridTemplateColumn.CellEditingTemplate>
@@ -218,35 +324,61 @@
 
                 <!--  Length  -->
                 <DataGridTextColumn
-                    Width="*"
                     Binding="{Binding Length, StringFormat={}{0:0.00}}"
                     Header="L (mm)"
-                    IsReadOnly="True" />
+                    IsReadOnly="True"
+                    Width="*" />
             </DataGrid.Columns>
         </DataGrid>
         <Button
-            Margin="5"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
             Command="{Binding CreateLinkCommand}"
             Content="Add new link"
-            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-        <!--  Export  -->
-        <!--Button
-            Margin="5"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="10"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            Command="{Binding ExportCommand}"
-            Content="Export as JSON"
-            IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}" /-->
+            HorizontalContentAlignment="Center">
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </Button.IsVisible>
+        </Button>
+
+        <controls:ErrorMessagesBar
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="12" />
 
         <!--  Import  -->
-        <!--Button
-            Margin="5,0,5,5"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
+        <Button
             Command="{Binding ImportCommand}"
-            Content="Import from JSON" /-->
-    </StackPanel>
+            Content="Import from JSON"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="13"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center" />
+
+        <!--  Export  -->
+        <Button
+            Command="{Binding ExportCommand}"
+            Content="Export as JSON"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="14"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center" />
+
+        <Button
+            Command="{Binding SaveCommand}"
+            Content="Save"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="15"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center" />
+    </Grid>
 </UserControl>

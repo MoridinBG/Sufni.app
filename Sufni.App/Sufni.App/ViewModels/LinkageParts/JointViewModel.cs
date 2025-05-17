@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Avalonia.Media;
@@ -50,11 +51,11 @@ public partial class JointViewModel : ViewModelBase
         Brush = TypeToBrushMapping[type];
         ShowFlyout = showFlyout;
 
-        if (Type == JointType.FrontWheel || Type == JointType.RearWheel || Type == JointType.BottomBracket)
+        if (Type is JointType.FrontWheel or JointType.RearWheel or JointType.BottomBracket)
         {
             Immutability = Immutability.Immutable;
         }
-        else if (Name == "Shock eye 1" || Name == "Shock eye 2")
+        else if (Name is "Shock eye 1" or "Shock eye 2")
         {
             Immutability = Immutability.NameOnly;
         }
@@ -66,18 +67,16 @@ public partial class JointViewModel : ViewModelBase
 
     public static JointViewModel FromJoint(Joint joint, double imageHeight, double pixelsToMillimeters)
     {
-        Debug.Assert(joint.Name is not null, "joint.Name is not null");
-        Debug.Assert(joint.Type is not null, "joint.Type is not null");
+        Debug.Assert(joint.Name is not null);
+        Debug.Assert(joint.Type is not null);
 
         var x = joint.X / pixelsToMillimeters;
         var y = imageHeight - joint.Y / pixelsToMillimeters;
-        return new(joint.Name, joint.Type.Value, x, y);
+        return new JointViewModel(joint.Name, joint.Type.Value, x, y);
     }
 
     public Joint ToJoint(double imageHeight, double pixelsToMillimeters)
     {
-        var x = X * pixelsToMillimeters;
-        var y = (imageHeight - Y) * pixelsToMillimeters;
-        return new Joint(Name, Type, x, y);
+        return new Joint(Name, Type, X * pixelsToMillimeters, (imageHeight - Y) * pixelsToMillimeters);
     }
 }

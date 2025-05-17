@@ -48,7 +48,10 @@
                 Content="{Binding MainPagesViewModel}" />
         </SplitView.Pane>
 
-        <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding CurrentView}">
+        <TabControl
+            ItemsSource="{Binding Tabs}"
+            Padding="0"
+            SelectedItem="{Binding CurrentView}">
             <TabControl.ItemTemplate>
                 <DataTemplate>
                     <Grid ColumnDefinitions="* auto" Margin="10,0,0,0">

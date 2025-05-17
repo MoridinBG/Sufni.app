@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -71,22 +70,18 @@ public partial class BikeViewModel : ItemViewModelBase
     // Handle link selection coming from the table.
     partial void OnSelectedLinkChanged(LinkViewModel? value)
     {
-        if (SelectedLink is not null)
-        {
-            ClearSelections();
-            SelectedLink.IsSelected = true;
-            SelectedPoint = null;
-        }
+        if (SelectedLink is null) return;
+        ClearSelections();
+        SelectedLink.IsSelected = true;
+        SelectedPoint = null;
     }
     // Handle point selection coming from the table.
     partial void OnSelectedPointChanged(JointViewModel? value)
     {
-        if (SelectedPoint is not null)
-        {
-            ClearSelections();
-            SelectedPoint.IsSelected = true;
-            SelectedLink = null;
-        }
+        if (SelectedPoint is null) return;
+        ClearSelections();
+        SelectedPoint.IsSelected = true;
+        SelectedLink = null;
     }
 
     partial void OnChainstayChanged(double? value)
@@ -111,6 +106,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
     public BikeViewModel()
     {
+        IsInDatabase = false;
         bike = new Bike();
 
         SetupJointsListeners();
@@ -119,9 +115,9 @@ public partial class BikeViewModel : ItemViewModelBase
 
     public BikeViewModel(Bike bike, bool fromDatabase)
     {
-        this.bike = bike;
         IsInDatabase = fromDatabase;
-        ResetImplementation();
+        this.bike = bike;
+        
         SetupJointsListeners();
         SetupLinksListeners();
         
@@ -144,6 +140,13 @@ public partial class BikeViewModel : ItemViewModelBase
             DidLinksChanged();
     }
 
+    protected override bool CanSave()
+    {
+        EvaluateDirtiness();
+        return IsDirty &&
+               HeadAngle is not null &&
+               ForksStroke is not null &&
+               (ShockStroke is null || (Image is not null && Chainstay is not null));
     }
 
     protected override async Task SaveImplementation()
@@ -159,22 +162,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
         try
         {
-            var linkage = new Linkage
-            {
-                Joints = [.. JointViewModels.Select(p => p.ToJoint(Image.Size.Height, PixelsToMillimeters.Value))],
-                Links = [.. LinkViewModels.Where(l => l != shockViewModel).Select(l => l.ToLink(Image.Size.Height, PixelsToMillimeters.Value))],
-                Shock = shockViewModel.ToLink(Image.Size.Height, PixelsToMillimeters.Value),
-                ShockStroke = ShockStroke.Value
-            };
-
-            var newBike = new Bike(Id, Name ?? $"bike {Id}")
-            {
-                Linkage = linkage,
-                HeadAngle = HeadAngle,
-                ForkStroke = ForksStroke, // ShockStroke is set in linkage
-                Image = Image,
-                PixelsToMillimeters = PixelsToMillimeters.Value,
-            };
+            var newBike = ToBike();
             Id = await databaseService.PutBikeAsync(newBike);
             bike = newBike;
 
@@ -210,8 +198,7 @@ public partial class BikeViewModel : ItemViewModelBase
         Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
 
         return !mainPagesViewModel.SetupsPage.Items.Any(s =>
-            s is SetupViewModel svm &&
-            svm.SelectedBike != null &&
+            s is SetupViewModel { SelectedBike: not null } svm &&
             svm.SelectedBike.Id == Id);
     }
 
@@ -219,7 +206,7 @@ public partial class BikeViewModel : ItemViewModelBase
     private void DoubleTapped(TappedEventArgs args)
     {
         var position = args.GetPosition(args.Source as Visual);
-        JointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y));
+        JointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
     }
 
     [RelayCommand]
@@ -233,33 +220,30 @@ public partial class BikeViewModel : ItemViewModelBase
     [RelayCommand]
     private void PointTapped(TappedEventArgs args)
     {
-        if (args.Source is Visual npv)
-        {
-            ClearSelections();
-            SelectedLink = null;
+        if (args.Source is not Visual npv) return;
 
-            SelectedPoint = npv.DataContext as JointViewModel;
-            SelectedPoint!.IsSelected = true;
+        ClearSelections();
+        SelectedLink = null;
+        SelectedPoint = npv.DataContext as JointViewModel;
+        SelectedPoint!.IsSelected = true;
 
-            // Prevent Tapped event on the Canvas, which would deselect the point.
-            args.Handled = true;
-        }
+        // Prevent Tapped event on the Canvas, which would deselect the point.
+        args.Handled = true;
     }
 
     [RelayCommand]
     private void LinkTapped(TappedEventArgs args)
     {
-        if (args.Source is Line lv)
-        {
-            ClearSelections();
-            SelectedPoint = null;
+        if (args.Source is not Line lv) return;
 
-            SelectedLink = lv.DataContext as LinkViewModel;
-            SelectedLink!.IsSelected = true;
+        ClearSelections();
+        SelectedPoint = null;
 
-            // Prevent Tapped event on the Canvas, which would deselect the link.
-            args.Handled = true;
-        }
+        SelectedLink = lv.DataContext as LinkViewModel;
+        SelectedLink!.IsSelected = true;
+
+        // Prevent Tapped event on the Canvas, which would deselect the link.
+        args.Handled = true;
     }
 
     [RelayCommand]
@@ -290,7 +274,7 @@ public partial class BikeViewModel : ItemViewModelBase
         var file = await filesService.OpenBikeImageFileAsync();
         if (file is null) return;
 
-        Image = new(file.Path.AbsolutePath);
+        Image = new Bitmap(file.Path.AbsolutePath);
     }
 
     [RelayCommand]
@@ -374,7 +358,7 @@ public partial class BikeViewModel : ItemViewModelBase
         var shockEye2 = new JointViewModel(mapping.ShockEye2, JointType.Floating, 100, 300);
         JointViewModels.Add(shockEye1);
         JointViewModels.Add(shockEye2);
-        shockViewModel = new(shockEye1, shockEye2, "Shock");
+        shockViewModel = new LinkViewModel(shockEye1, shockEye2, "Shock");
         LinkViewModels.Add(shockViewModel);
     }
 
@@ -471,6 +455,22 @@ public partial class BikeViewModel : ItemViewModelBase
         ForksStroke = bike.ForkStroke;
     }
 
+    private bool CheckLinkage()
+    {
+        if (ShockStroke is null) return true;
+
+        var linkage = CreateLinkage();
+        try
+        {
+            var solver = KinematicSolver.Create(500, linkage);
+            solver.SolveSuspensionMotion();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     private bool CanExport()
     {
