@@ -1,10 +1,10 @@
 ﻿<Application
+    RequestedThemeVariant="Dark"
     x:Class="Sufni.App.App"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:labs="using:Avalonia.Labs.Controls"
     xmlns:local="using:Sufni.App"
-    RequestedThemeVariant="Dark">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--  "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options.  -->
 
     <Application.DataTemplates>
@@ -14,6 +14,7 @@
     <Application.Resources>
         <!--  Common colors  -->
         <Color x:Key="SufniForeground">#a0a0a0</Color>
+        <Color x:Key="SufniForegroundPointerOver">#c0c0c0</Color>
         <Color x:Key="SufniRegion">#15191c</Color>
         <Color x:Key="SufniBackground">#20262b</Color>
         <Color x:Key="SufniForegroundDisabled">#606060</Color>
@@ -25,51 +26,51 @@
         <Color x:Key="SufniAccentColor">#0078d7</Color>
 
         <!--  Expander colors  -->
-        <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="{StaticResource SufniBackground}" />
-        <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="{StaticResource SufniBackground}" />
-        <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="ExpanderHeaderBackground" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="ExpanderHeaderBackgroundPressed" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="ExpanderHeaderBackgroundPointerOver" />
 
         <!--  Button colors  -->
-        <SolidColorBrush x:Key="ButtonBackground" Color="{StaticResource SufniBackground}" />
-        <SolidColorBrush x:Key="ButtonForeground" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{StaticResource SufniBackgroundDisabled}" />
-        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{StaticResource SufniForegroundDisabled}" />
-        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{StaticResource SufniBackgroundPointerOver}" />
-        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{StaticResource SufniBackgroundPointerOver}" />
-        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="ButtonBackground" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="ButtonForeground" />
+        <SolidColorBrush Color="{StaticResource SufniBackgroundDisabled}" x:Key="ButtonBackgroundDisabled" />
+        <SolidColorBrush Color="{StaticResource SufniForegroundDisabled}" x:Key="ButtonForegroundDisabled" />
+        <SolidColorBrush Color="{StaticResource SufniBackgroundPointerOver}" x:Key="ButtonBackgroundPointerOver" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="ButtonForegroundPointerOver" />
+        <SolidColorBrush Color="{StaticResource SufniBackgroundPointerOver}" x:Key="ButtonBackgroundPressed" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="ButtonForegroundPressed" />
 
         <!--  TextBox colors  -->
-        <SolidColorBrush x:Key="TextControlForeground" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource SufniBackground}" />
-        <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource SufniBorderBrush}" />
-        <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="{StaticResource SufniForegroundDisabled}" />
-        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{StaticResource SufniBackgroundDisabled}" />
-        <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#303030" />
-        <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#10161b" />
-        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource SufniBorderBrush}" />
-        <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#10161b" />
-        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource SufniAccentColor}" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="TextControlForeground" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="TextControlBackground" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="TextControlBorderBrush" />
+        <SolidColorBrush Color="{StaticResource SufniForegroundDisabled}" x:Key="TextControlForegroundDisabled" />
+        <SolidColorBrush Color="{StaticResource SufniBackgroundDisabled}" x:Key="TextControlBackgroundDisabled" />
+        <SolidColorBrush Color="#303030" x:Key="TextControlBorderBrushDisabled" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="TextControlForegroundPointerOver" />
+        <SolidColorBrush Color="#10161b" x:Key="TextControlBackgroundPointerOver" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="TextControlBorderBrushPointerOver" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="TextControlForegroundFocused" />
+        <SolidColorBrush Color="#10161b" x:Key="TextControlBackgroundFocused" />
+        <SolidColorBrush Color="{StaticResource SufniAccentColor}" x:Key="TextControlBorderBrushFocused" />
 
         <!--  ComboBox colors  -->
-        <SolidColorBrush x:Key="ComboBoxForeground" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource SufniBackground}" />
-        <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{StaticResource SufniBorderBrush}" />
-        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{StaticResource SufniBackgroundPointerOver}" />
-        <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="{StaticResource SufniBorderBrush}" />
-        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{StaticResource SufniBackgroundPointerOver}" />
-        <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="{StaticResource SufniBorderBrush}" />
-        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="ComboBoxForeground" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="ComboBoxBackground" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="ComboBoxBorderBrush" />
+        <SolidColorBrush Color="{StaticResource SufniBackgroundPointerOver}" x:Key="ComboBoxBackgroundPointerOver" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="ComboBoxBorderBrushPointerOver" />
+        <SolidColorBrush Color="{StaticResource SufniBackgroundPointerOver}" x:Key="ComboBoxBackgroundPressed" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="ComboBoxBorderBrushPressed" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="ComboBoxDropDownBackground" />
 
         <!--  CalendarDatePicker colors  -->
-        <SolidColorBrush x:Key="CalendarDatePickerForeground" Color="{StaticResource SufniForeground}" />
-        <SolidColorBrush x:Key="CalendarDatePickerBorderBrush" Color="{StaticResource SufniBorderBrush}" />
-        <SolidColorBrush x:Key="CalendarDatePickerBorderBrushPointerOver" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush Color="{StaticResource SufniForeground}" x:Key="CalendarDatePickerForeground" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="CalendarDatePickerBorderBrush" />
+        <SolidColorBrush Color="{StaticResource SufniBorderBrush}" x:Key="CalendarDatePickerBorderBrushPointerOver" />
 
         <!--  Flyout colors  -->
-        <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush Color="{StaticResource SufniBackground}" x:Key="FlyoutPresenterBackground" />
         <Thickness x:Key="FlyoutContentThemePadding">0</Thickness>
         <x:Double x:Key="FlyoutThemeMaxWidth">600</x:Double>
         <CornerRadius x:Key="OverlayCornerRadius">3</CornerRadius>
@@ -163,6 +164,14 @@
         </Style>
         <Style Selector="CalendarDayButton">
             <Setter Property="FontSize" Value="14" />
+        </Style>
+
+        <!--  Global styles for CheckBox  -->
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource SufniForegroundPointerOver}" />
         </Style>
 
         <!--  Get rid of FlyoutPresenter's default MaxWidth  -->

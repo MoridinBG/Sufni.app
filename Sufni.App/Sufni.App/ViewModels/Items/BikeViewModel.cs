@@ -151,10 +151,11 @@ public partial class BikeViewModel : ItemViewModelBase
         var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
-        Debug.Assert(shockViewModel is not null);
-        Debug.Assert(Image is not null);
-        Debug.Assert(PixelsToMillimeters is not null, "PxelsToMillimeters is not null");
-        Debug.Assert(ShockStroke is not null, "MaxShockStroke is not null");
+        if (!CheckLinkage())
+        {
+            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+            return;
+        }
 
         try
         {
