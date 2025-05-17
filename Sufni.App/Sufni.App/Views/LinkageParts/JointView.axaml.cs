@@ -16,7 +16,7 @@ public partial class JointView : UserControl
         // Show flyout when a new, modifyable point is added.
         Loaded += (_, _) =>
         {
-            if (DataContext is JointViewModel { Immutability: Immutability.Modifyable })
+            if (DataContext is JointViewModel { Immutability: Immutability.Modifiable})
             {
                 PointCanvas.ContextFlyout!.ShowAt(PointCanvas);
             }

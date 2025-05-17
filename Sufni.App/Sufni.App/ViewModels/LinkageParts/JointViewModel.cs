@@ -11,7 +11,7 @@ public enum Immutability
 {
     Immutable,
     NameOnly,
-    Modifyable,
+    Modifiable
 }
 
 public partial class JointViewModel : ViewModelBase
@@ -49,7 +49,7 @@ public partial class JointViewModel : ViewModelBase
         }
         else
         {
-            Immutability = Immutability.Modifyable;
+            Immutability = Immutability.Modifiable;
         }
     }
 

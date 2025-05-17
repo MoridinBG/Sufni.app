@@ -310,7 +310,7 @@ public partial class BikeViewModel : ItemViewModelBase
         {
             LinkViewModels.Remove(SelectedLink);
         }
-        else if (SelectedPoint is not null && SelectedPoint.Immutability == Immutability.Modifyable)
+        else if (SelectedPoint is not null && SelectedPoint.Immutability == Immutability.Modifiable)
         {
             var linksToDelete = LinkViewModels.Where(l => l.A == SelectedPoint || l.B == SelectedPoint).ToList();
             foreach (var link in linksToDelete)
