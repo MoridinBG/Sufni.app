@@ -136,9 +136,6 @@ public partial class BikeViewModel : ItemViewModelBase
         IsDirty =
             !IsInDatabase ||
             Name != bike.Name ||
-            ForksStroke != bike.ForkStroke ||
-            ShockStroke != bike.ShockStroke ||
-            Chainstay != bike.Chainstay; //TODO: account for linkage changes too
             !AreEqual(HeadAngle, bike.HeadAngle) ||
             !AreEqual(ForksStroke, bike.ForkStroke) ||
             !AreEqual(ShockStroke, bike.ShockStroke) ||
@@ -478,6 +475,13 @@ public partial class BikeViewModel : ItemViewModelBase
         return HeadAngle is not null &&
                ForksStroke is not null &&
                (ShockStroke is null || (Image is not null && Chainstay is not null));
+    }
+
+    private static bool AreEqual(double? a, double? b, double epsilon = 1e-3)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        return Math.Abs(a.Value - b.Value) < epsilon;
     }
 
     private bool DidJointsChanged()
