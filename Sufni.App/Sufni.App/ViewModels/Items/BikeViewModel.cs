@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -28,23 +30,33 @@ public partial class BikeViewModel : ItemViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private double headAngle;
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? headAngle;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private double? forksStroke;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private double? shockStroke;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private Bitmap? image;
-    [ObservableProperty] private double? chainstay;
+    
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? chainstay;
+
     [ObservableProperty] private double? pixelsToMillimeters;
 
     public ObservableCollection<JointViewModel> JointViewModels { get; } = [];
@@ -112,6 +124,11 @@ public partial class BikeViewModel : ItemViewModelBase
         ResetImplementation();
         SetupJointsListeners();
         SetupLinksListeners();
+        
+        UpdateFromBike();
+        
+        // If this is a BikeViewModel created from scratch, we need to add the mandatory joints.
+        if (!fromDatabase) AddInitialJoints();
     }
 
     protected override void EvaluateDirtiness()
@@ -185,36 +202,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
     protected override Task ResetImplementation()
     {
-        Id = bike.Id;
-        Name = bike.Name;
-
-        if (bike.Linkage is null || bike.Image is null)
-        {
-            AddInitialJoints();
-            return Task.CompletedTask;
-        }
-
-        JointViewModels.Clear();
-        var jointViewModels = bike.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, bike.Image.Size.Height, bike.PixelsToMillimeters));
-        foreach (var jvm in jointViewModels)
-        {
-            JointViewModels.Add(jvm);
-        }
-
-        LinkViewModels.Clear();
-        var linkViewModels = bike.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
-        foreach (var link in linkViewModels)
-        {
-            LinkViewModels.Add(link);
-        }
-
-        Image = bike.Image;
-        shockViewModel = LinkViewModel.FromLink(bike.Linkage.Shock, JointViewModels);
-        LinkViewModels.Add(shockViewModel);
-        Chainstay = bike.Chainstay; // this also updates PixelsToMillimeters
-        ForksStroke = bike.ForkStroke;
-        ShockStroke = bike.Linkage.ShockStroke;
-
+        UpdateFromBike();
         return Task.CompletedTask;
     }
 
@@ -315,6 +303,51 @@ public partial class BikeViewModel : ItemViewModelBase
         LinkViewModels.Add(link);
     }
 
+    [RelayCommand]
+    private async Task Import()
+    {
+        var filesService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(filesService != null);
+
+        var file = await filesService.OpenBikeFileAsync();
+        if (file is null) return;
+
+        await using var stream = await file.OpenReadAsync();
+        using var reader = new StreamReader(stream);
+        var json = await reader.ReadToEndAsync();
+        var bikeFromJson = Bike.FromJson(json);
+        if (bikeFromJson is null)
+        {
+            ErrorMessages.Add("JSON file was not a valid bike file.");
+            return;
+        }
+        
+        bike = bikeFromJson;
+        UpdateFromBike();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task Export()
+    {
+        if (!CheckLinkage())
+        {
+            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+            return;
+        }
+
+        var filesService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(filesService != null);
+
+        var file = await filesService.SaveBikeFileAsync();
+        if (file is null) return;
+        
+        var bikeToExport = ToBike();
+        var bikeJson = bikeToExport.ToJson();
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new StreamWriter(stream, Encoding.UTF8);
+        await writer.WriteAsync(bikeJson);
+    }
+
     private void AddInitialJoints()
     {
         JointViewModels.Add(new JointViewModel("Front wheel", JointType.FrontWheel, 100, 150));
@@ -366,6 +399,87 @@ public partial class BikeViewModel : ItemViewModelBase
             link.IsSelected = false;
         }
     }
+
+    private Linkage CreateLinkage()
+    {
+        Debug.Assert(ShockStroke is not null);
+        Debug.Assert(Image is not null);
+        Debug.Assert(PixelsToMillimeters is not null);
+        Debug.Assert(shockViewModel is not null);
+
+        return new Linkage
+        {
+            Joints = [.. JointViewModels.Select(p => p.ToJoint(Image.Size.Height, PixelsToMillimeters.Value))],
+            Links = [.. LinkViewModels.Where(l => l != shockViewModel).Select(l => l.ToLink(Image.Size.Height, PixelsToMillimeters.Value))],
+            Shock = shockViewModel.ToLink(Image.Size.Height, PixelsToMillimeters.Value),
+            ShockStroke = ShockStroke.Value
+        };
+    }
+
+    private Bike ToBike()
+    {
+        Debug.Assert(HeadAngle is not null);
+        Debug.Assert(ForksStroke is not null);
+
+        var newBike = new Bike(Id, Name ?? $"bike {Id}")
+        {
+            HeadAngle = HeadAngle.Value,
+            ForkStroke = ForksStroke
+        };
+
+        // If we don't have a rear suspension, we can return here
+        if (ShockStroke is null) return newBike;
+        
+        Debug.Assert(PixelsToMillimeters is not null);
+        newBike.ShockStroke = ShockStroke;
+        newBike.Image = Image;
+        newBike.PixelsToMillimeters = PixelsToMillimeters.Value;
+        newBike.Linkage = CreateLinkage();
+
+        return newBike;
+    }
+
+    private void UpdateFromBike()
+    {
+        JointViewModels.Clear();
+        LinkViewModels.Clear();
+
+        if (bike.Linkage is not null)
+        {
+            Debug.Assert(bike.Image is not null);
+
+            var jointViewModels = bike.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, bike.Image.Size.Height, bike.PixelsToMillimeters));
+            foreach (var jvm in jointViewModels)
+            {
+                JointViewModels.Add(jvm);
+            }
+
+            var linkViewModels = bike.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
+            foreach (var link in linkViewModels)
+            {
+                LinkViewModels.Add(link);
+            }
+            shockViewModel = LinkViewModel.FromLink(bike.Linkage.Shock, JointViewModels);
+            LinkViewModels.Add(shockViewModel);
+            ShockStroke = bike.Linkage.ShockStroke;
+            Chainstay = bike.Chainstay; // this also updates PixelsToMillimeters
+            Image = bike.Image;
+        }
+
+        Id = bike.Id;
+        Name = bike.Name;
+        HeadAngle = bike.HeadAngle;
+        ForksStroke = bike.ForkStroke;
+    }
+
+
+    private bool CanExport()
+    {
+        return HeadAngle is not null &&
+               ForksStroke is not null &&
+               (ShockStroke is null || (Image is not null && Chainstay is not null));
+    }
+
     private bool DidJointsChanged()
     {
         if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
