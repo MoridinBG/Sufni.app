@@ -14,15 +14,18 @@ public class SetupListViewModel : ItemListViewModelBase
 {
     private ObservableCollection<Board> Boards { get; } = [];
     private readonly ImportSessionsViewModel importSessionsPage;
+    private readonly BikeListViewModel bikesPage;
 
     public SetupListViewModel()
     {
-        importSessionsPage = new();
+        importSessionsPage = new ImportSessionsViewModel();
+        bikesPage = new BikeListViewModel();
     }
 
-    public SetupListViewModel(ImportSessionsViewModel importSessionsPage)
+    public SetupListViewModel(ImportSessionsViewModel importSessionsPage, BikeListViewModel bikesPage)
     {
         this.importSessionsPage = importSessionsPage;
+        this.bikesPage =  bikesPage;
     }
 
     protected override async Task DeleteImplementation(ItemViewModelBase vm)
@@ -77,7 +80,7 @@ public class SetupListViewModel : ItemListViewModelBase
                 newSetupsBoardId = datastoreBoardId;
             }
 
-            var svm = new SetupViewModel(setup, newSetupsBoardId, false)
+            var svm = new SetupViewModel(setup, newSetupsBoardId, false, bikesPage.Source)
             {
                 IsDirty = true
             };
@@ -140,7 +143,8 @@ public class SetupListViewModel : ItemListViewModelBase
                 var svm = new SetupViewModel(
                     setup,
                     board?.Id,
-                    true);
+                    true,
+                    bikesPage.Source);
                 svm.PropertyChanged += OnSetupDirtinessChanged;
                 Source.AddOrUpdate(svm);
             }

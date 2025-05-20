@@ -156,6 +156,7 @@
         <Style Selector="ComboBox">
             <Setter Property="Height" Value="39" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="PlaceholderForeground" Value="{StaticResource SufniForeground}" />
         </Style>
 
         <!--  Global styles for CalendarDatePicker  -->

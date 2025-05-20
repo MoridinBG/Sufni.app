@@ -37,7 +37,7 @@ public partial class MainPagesViewModel : ViewModelBase
         BikesPage = new BikeListViewModel();
         SessionsPage = new SessionListViewModel();
         ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
-        SetupsPage = new SetupListViewModel(ImportSessionsPage);
+        SetupsPage = new SetupListViewModel(ImportSessionsPage, BikesPage);
         pages = [SessionsPage, SetupsPage];
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
@@ -158,17 +158,17 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void ShowConnectPage()
     {
-        Debug.Assert(App.Current is not null, "App.Current is not null");
+        Debug.Assert(App.Current is not null);
         var isDesktop = App.Current.IsDesktop;
         if (isDesktop)
         {
-            var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
+            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
             Debug.Assert(vm != null, nameof(vm) + " != null");
             vm.OpenView(SettingsPage);
         }
         else
         {
-            var vm = App.Current?.Services?.GetService<MainViewModel>();
+            var vm = App.Current.Services?.GetService<MainViewModel>();
             Debug.Assert(vm != null, nameof(vm) + " != null");
             vm.OpenView(SettingsPage);
         }
@@ -177,17 +177,17 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void ShowImportPage()
     {
-        Debug.Assert(App.Current is not null, "App.Current is not null");
+        Debug.Assert(App.Current is not null);
         var isDesktop = App.Current.IsDesktop;
         if (isDesktop)
         {
-            var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
+            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
             Debug.Assert(vm != null, nameof(vm) + " != null");
             vm.OpenView(ImportSessionsPage);
         }
         else
         {
-            var vm = App.Current?.Services?.GetService<MainViewModel>();
+            var vm = App.Current.Services?.GetService<MainViewModel>();
             Debug.Assert(vm != null, nameof(vm) + " != null");
             vm.OpenView(ImportSessionsPage);
         }

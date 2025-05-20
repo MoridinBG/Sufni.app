@@ -79,7 +79,7 @@
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
                 <DataTemplate DataType="vm:TabPageViewModelBase">
-                    <ContentControl Content="{Binding}" />
+                    <ContentControl Content="{Binding}" Margin="0,20,0,0" />
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>

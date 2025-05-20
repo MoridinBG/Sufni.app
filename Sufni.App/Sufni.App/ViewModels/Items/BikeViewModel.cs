@@ -330,6 +330,29 @@ public partial class BikeViewModel : ItemViewModelBase
         await writer.WriteAsync(bikeJson);
     }
 
+    public Bike ToBike()
+    {
+        Debug.Assert(HeadAngle is not null);
+        Debug.Assert(ForksStroke is not null);
+
+        var newBike = new Bike(Id, Name ?? $"bike {Id}")
+        {
+            HeadAngle = HeadAngle.Value,
+            ForkStroke = ForksStroke
+        };
+
+        // If we don't have a rear suspension, we can return here
+        if (ShockStroke is null) return newBike;
+        
+        Debug.Assert(PixelsToMillimeters is not null);
+        newBike.ShockStroke = ShockStroke;
+        newBike.Image = Image;
+        newBike.PixelsToMillimeters = PixelsToMillimeters.Value;
+        newBike.Linkage = CreateLinkage();
+
+        return newBike;
+    }
+
     private void AddInitialJoints()
     {
         var mapping = new JointNameMapping();
@@ -397,29 +420,6 @@ public partial class BikeViewModel : ItemViewModelBase
             Shock = shockViewModel.ToLink(Image.Size.Height, PixelsToMillimeters.Value),
             ShockStroke = ShockStroke.Value
         };
-    }
-
-    private Bike ToBike()
-    {
-        Debug.Assert(HeadAngle is not null);
-        Debug.Assert(ForksStroke is not null);
-
-        var newBike = new Bike(Id, Name ?? $"bike {Id}")
-        {
-            HeadAngle = HeadAngle.Value,
-            ForkStroke = ForksStroke
-        };
-
-        // If we don't have a rear suspension, we can return here
-        if (ShockStroke is null) return newBike;
-        
-        Debug.Assert(PixelsToMillimeters is not null);
-        newBike.ShockStroke = ShockStroke;
-        newBike.Image = Image;
-        newBike.PixelsToMillimeters = PixelsToMillimeters.Value;
-        newBike.Linkage = CreateLinkage();
-
-        return newBike;
     }
 
     private void UpdateFromBike()
