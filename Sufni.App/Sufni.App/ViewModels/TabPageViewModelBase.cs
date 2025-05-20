@@ -65,7 +65,7 @@ public partial class TabPageViewModelBase : ViewModelBase
             return;
         }
         
-        var result = await dialogService.ShowSaveConfirmationAsync();
+        var result = await dialogService.ShowCloseConfirmationAsync(CanSave());
         switch (result)
         {
             case PromptResult.Yes:
@@ -77,6 +77,10 @@ public partial class TabPageViewModelBase : ViewModelBase
                 mainWindowViewModel.CloseTabPage(this);
                 break;
             case PromptResult.Cancel:
+                break;
+            case PromptResult.Ok:
+                await Reset();
+                mainWindowViewModel.CloseTabPage(this);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

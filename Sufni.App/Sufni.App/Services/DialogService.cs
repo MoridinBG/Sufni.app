@@ -14,11 +14,20 @@ public class DialogService : IDialogService
         this.owner = owner;
     }
 
-    public async Task<PromptResult> ShowSaveConfirmationAsync()
+    public async Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true)
     {
         Debug.Assert(owner != null, nameof(owner) + " != null");
-        
-        var dialog = new YesNoCancelDialogWindow("Save?", "You have unsaved changes. Save before closing?");
+
+        DialogWindow dialog;
+        if (isSaveEnabled)
+        {
+            dialog = new YesNoCancelDialogWindow("Save?", "You have unsaved changes. Save before closing?");
+        }
+        else
+        {
+            dialog = new OkCancelDialogWindow("Close?",
+                "Page cannot be saved due to missing or wrong data. Are you sure you want to close it?");
+        }
         return await dialog.ShowDialogAsync(owner);
     }
 }

@@ -7,5 +7,5 @@ namespace Sufni.App.Services;
 public interface IDialogService
 {
     public void SetOwner(Window owner);
-    public Task<PromptResult> ShowSaveConfirmationAsync();
+    public Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true);
 }
