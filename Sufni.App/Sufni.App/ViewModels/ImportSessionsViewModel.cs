@@ -18,7 +18,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels;
 
-public partial class ImportSessionsViewModel : ViewModelBase
+public partial class ImportSessionsViewModel : TabPageViewModelBase
 {
     #region Observable properties
 
@@ -99,6 +99,8 @@ public partial class ImportSessionsViewModel : ViewModelBase
 
     public ImportSessionsViewModel(SourceCache<ItemViewModelBase, Guid> sessions)
     {
+        Name = "Import Sessions";
+
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         var telemetryDataStoreService = App.Current?.Services?.GetService<ITelemetryDataStoreService>();
 
@@ -200,7 +202,7 @@ public partial class ImportSessionsViewModel : ViewModelBase
             {
                 var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
                 var bike = await databaseService.GetBikeAsync(setup.BikeId);
-                Debug.Assert(bike is not null, "bike is not null");
+                Debug.Assert(bike is not null);
 
                 var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
                 var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
