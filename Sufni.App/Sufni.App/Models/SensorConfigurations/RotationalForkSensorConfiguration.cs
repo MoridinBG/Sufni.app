@@ -10,7 +10,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     private double startAngle;
     private double strokeToTravel;
     private Bike? bike;
-    private readonly double measurementToAngle = 2.0 / Math.PI * 4096;
+    private readonly double measurementToAngle = 2.0 * Math.PI / 4096;
 
     [JsonPropertyName("max_length")] public double MaxLength { get; init; }
     [JsonPropertyName("arm_length")] public double ArmLength { get; init; }
