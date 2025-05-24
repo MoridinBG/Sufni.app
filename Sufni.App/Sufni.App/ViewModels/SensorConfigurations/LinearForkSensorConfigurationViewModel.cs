@@ -20,7 +20,7 @@ public partial class LinearForkSensorConfigurationViewModel : SensorConfiguratio
 
     public override void EvaluateDirtiness()
     {
-        IsDirty = !AreEqual(Length, sensorConfiguration.Length) ||
+        IsDirty = !MathUtils.AreEqual(Length, sensorConfiguration.Length) ||
                   Resolution != sensorConfiguration.Resolution;
     }
 

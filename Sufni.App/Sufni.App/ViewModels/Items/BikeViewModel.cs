@@ -294,13 +294,6 @@ public partial class BikeViewModel : ItemViewModelBase
                (ShockStroke is null || (Image is not null && Chainstay is not null));
     }
 
-    private static bool AreEqual(double? a, double? b, double epsilon = 1e-3)
-    {
-        if (a is null && b is null) return true;
-        if (a is null || b is null) return false;
-        return Math.Abs(a.Value - b.Value) < epsilon;
-    }
-
     private bool DidJointsChanged()
     {
         if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
@@ -382,10 +375,10 @@ public partial class BikeViewModel : ItemViewModelBase
         IsDirty =
             !IsInDatabase ||
             Name != bike.Name ||
-            !AreEqual(HeadAngle, bike.HeadAngle) ||
-            !AreEqual(ForksStroke, bike.ForkStroke) ||
-            !AreEqual(ShockStroke, bike.ShockStroke) ||
-            !AreEqual(Chainstay, bike.Chainstay) ||
+            !MathUtils.AreEqual(HeadAngle, bike.HeadAngle) ||
+            !MathUtils.AreEqual(ForksStroke, bike.ForkStroke) ||
+            !MathUtils.AreEqual(ShockStroke, bike.ShockStroke) ||
+            !MathUtils.AreEqual(Chainstay, bike.Chainstay) ||
             DidJointsChanged() ||
             DidLinksChanged();
     }

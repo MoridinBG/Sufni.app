@@ -57,7 +57,7 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
         var central = bike.Linkage.Joints.First(j => j.Name == sc.CentralJoint);
         var adjacent1 = bike.Linkage.Joints.First(j => j.Name == sc.AdjacentJoint1);
         var adjacent2 = bike.Linkage.Joints.First(j => j.Name == sc.AdjacentJoint2);
-        sc.startAngle = CalculateAngleAtPoint(central, adjacent1, adjacent2);
+        sc.startAngle = GeometryUtils.CalculateAngleAtPoint(central, adjacent1, adjacent2);
 
         sc.bike = bike;
 
@@ -79,26 +79,5 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
         var angleToTravelDataset = characteristics.AngleToTravelDataset(CentralJoint, AdjacentJoint1, AdjacentJoint2);
         anglesIncreasing = angleToTravelDataset.X[^1] > angleToTravelDataset.X[0];
         angleToTravelPolynomial = Polynomial.Fit([.. angleToTravelDataset.X], [.. angleToTravelDataset.Y], 3);
-    }
-    
-    private static double CalculateAngleAtPoint(Joint central, Joint adjacent1, Joint adjacent2)
-    {
-        // Vector from central to adjacent1
-        var v1X = adjacent1.X - central.X;
-        var v1Y = adjacent1.Y - central.Y;
-
-        // Vector from central to adjacent2
-        var v2X = adjacent2.X - central.X;
-        var v2Y = adjacent2.Y - central.Y;
-
-        // Dot product and magnitudes
-        var dotProduct = v1X * v2X + v1Y * v2Y;
-        var magnitude1 = Math.Sqrt(v1X * v1X + v1Y * v1Y);
-        var magnitude2 = Math.Sqrt(v2X * v2X + v2Y * v2Y);
-
-        var cosAngle = dotProduct / (magnitude1 * magnitude2);
-        // Clamp value to the valid range for Math.Acos to avoid NaN due to floating point errors
-        cosAngle = Math.Max(-1.0, Math.Min(1.0, cosAngle));
-        return Math.Acos(cosAngle);
     }
 }

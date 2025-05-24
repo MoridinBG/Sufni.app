@@ -67,7 +67,7 @@ public class BikeCharacteristics
         var travel0 = solution["Rear wheel"].Y[0];
         for (var i = 0; i < sensorJointMotion.X.Count; ++i)
         {
-            angles.Add(CalculateAngle(
+            angles.Add(GeometryUtils.CalculateAngleAtPoint(
                 sensorJointMotion.X[i], sensorJointMotion.Y[i],
                 adjacentJoint1Motion.X[i], adjacentJoint1Motion.Y[i],
                 adjacentJoint2Motion.X[i], adjacentJoint2Motion.Y[i]));
@@ -117,25 +117,6 @@ public class BikeCharacteristics
         }
 
         return new CoordinateList(wheelTravels[1..], lr);
-    }
-
-    private static double CalculateAngle(double centralX, double centralY, double adjacent1X, double adjacent1Y, double adjacent2X, double adjacent2Y)
-    {
-        // Create vectors from central to each adjacent point
-        var (x1, y1) = (adjacent1X - centralX, adjacent1Y - centralY);
-        var (x2, y2) = (adjacent2X - centralX, adjacent2Y - centralY);
-
-        // Compute the dot product and magnitudes
-        var dot = x1 * x2 + y1 * y2;
-        var mag1 = Math.Sqrt(x1 * x1 + y1 * y1);
-        var mag2 = Math.Sqrt(x2 * x2 + y2 * y2);
-
-        // Prevent division by zero
-        if (mag1 == 0 || mag2 == 0) return 0;
-
-        // Compute the angle in radians
-        var cosTheta = Math.Clamp(dot / (mag1 * mag2), -1.0, 1.0);
-        return Math.Acos(cosTheta);
     }
 
     #endregion Private methods

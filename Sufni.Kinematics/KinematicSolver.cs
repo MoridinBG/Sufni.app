@@ -12,37 +12,6 @@ public readonly struct CoordinateList(List<double> x, List<double> y)
     public List<double> Y { get; } = y;
 }
 
-internal static class GeometryUtils
-{
-    public static double NormalizeAngle(double theta)
-    {
-        const double twoPi = 2 * Math.PI;
-        theta = (theta + Math.PI) % twoPi;
-        if (theta < 0) theta += twoPi;
-        return theta - Math.PI;
-    }
-
-    public static IEnumerable<double> NormalizeVector(IEnumerable<double> angles)
-    {
-        return angles.Select(NormalizeAngle);
-    }
-
-    public static bool IsCounterClockwise(List<Joint> joints)
-    {
-        double area = 0;
-        var n = joints.Count;
-
-        for (var i = 0; i < n; i++)
-        {
-            var p1 = joints[i];
-            var p2 = joints[(i + 1) % n];  // wrap around
-            area += p1.X * p2.Y - p2.X * p1.Y;
-        }
-
-        return area > 0;  // CCW if area > 0, CW if area < 0
-    }
-}
-
 internal static class NumericalGradient
 {
     private const double StepSize = 1e-8;

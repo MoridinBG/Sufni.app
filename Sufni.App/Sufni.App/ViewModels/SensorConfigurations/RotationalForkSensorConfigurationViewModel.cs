@@ -20,8 +20,8 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
 
     public override void EvaluateDirtiness()
     {
-        IsDirty = !AreEqual(MaxLength, sensorConfiguration.MaxLength) ||
-                  !AreEqual(ArmLength, sensorConfiguration.ArmLength);
+        IsDirty = !MathUtils.AreEqual(MaxLength, sensorConfiguration.MaxLength) ||
+                  !MathUtils.AreEqual(ArmLength, sensorConfiguration.ArmLength);
     }
     
     public override bool CanSave()
