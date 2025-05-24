@@ -62,20 +62,11 @@ public class SetupListViewModel : ItemListViewModelBase
         }
     }
 
-    private void OnSetupDirtinessChanged(object? sender, PropertyChangedEventArgs e)
+    private static void OnSetupDirtinessChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(SetupViewModel.IsDirty) &&
-            sender is SetupViewModel svm &&
-            !svm.IsDirty)
+        if (e.PropertyName == nameof(SetupViewModel.IsDirty) && sender is SetupViewModel { IsDirty: false } svm)
         {
-            /* TODO: remove entire function
-            svm.SelectedFrontCalibration?.DeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedRearCalibration?.DeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedLinkage?.DeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedFrontCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedRearCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedLinkage?.FakeDeleteCommand.NotifyCanExecuteChanged();
-            */
+            svm.SelectedBike?.DeleteCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -122,14 +113,7 @@ public class SetupListViewModel : ItemListViewModelBase
 
         // Notify associated calibrations and linkages about the deletion
         await databaseService.DeleteSetupAsync(vm.Id);
-        /* TODO: remove
-        svm.SelectedFrontCalibration?.DeleteCommand.NotifyCanExecuteChanged();
-        svm.SelectedRearCalibration?.DeleteCommand.NotifyCanExecuteChanged();
-        svm.SelectedLinkage?.DeleteCommand.NotifyCanExecuteChanged();
-        svm.SelectedFrontCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
-        svm.SelectedRearCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
-        svm.SelectedLinkage?.FakeDeleteCommand.NotifyCanExecuteChanged();
-        */
+        svm.SelectedBike?.DeleteCommand.NotifyCanExecuteChanged();
     }
 
     public override async Task LoadFromDatabase()
