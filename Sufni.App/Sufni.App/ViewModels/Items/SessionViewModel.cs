@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using ScottPlot;
@@ -15,7 +16,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Items;
 
-public partial class SessionViewModel : ItemViewModelBase
+public sealed partial class SessionViewModel : ItemViewModelBase
 {
     private Session session;
     public bool IsInDatabase;
@@ -26,6 +27,8 @@ public partial class SessionViewModel : ItemViewModelBase
     public ObservableCollection<PageViewModelBase> Pages { get; }
     public string Description => NotesPage.Description ?? "";
     public override bool IsComplete => session.HasProcessedData;
+    
+    [ObservableProperty] private TelemetryData? telemetryData;
 
     #region Private methods
 
@@ -67,16 +70,22 @@ public partial class SessionViewModel : ItemViewModelBase
         return true;
     }
 
-    private async Task CreateCache(object? bounds)
+    private async Task LoadTelemetryData()
     {
         var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+        Debug.Assert(databaseService != null);
 
-        var telemetryData = await databaseService.GetSessionPsstAsync(Id);
-        if (telemetryData is null)
+        TelemetryData = await databaseService.GetSessionPsstAsync(Id);
+        if (TelemetryData is null)
         {
             throw new Exception("Database error");
         }
+    }
+
+    private async Task CreateCache(object? bounds)
+    {
+        await LoadTelemetryData();
+        Debug.Assert(TelemetryData is not null);
 
         var b = (Rect)bounds!;
         var (width, height) = ((int)b.Width, (int)(b.Height / 2.0));
@@ -85,19 +94,19 @@ public partial class SessionViewModel : ItemViewModelBase
             SessionId = Id
         };
 
-        if (telemetryData.Front.Present)
+        if (TelemetryData.Front.Present)
         {
             var fth = new TravelHistogramPlot(new Plot(), SuspensionType.Front);
-            fth.LoadTelemetryData(telemetryData);
+            fth.LoadTelemetryData(TelemetryData);
             sessionCache.FrontTravelHistogram = fth.Plot.GetSvgXml(width, height);
             Dispatcher.UIThread.Post(() => { SpringPage.FrontTravelHistogram = sessionCache.FrontTravelHistogram; });
 
             var fvh = new VelocityHistogramPlot(new Plot(), SuspensionType.Front);
-            fvh.LoadTelemetryData(telemetryData);
+            fvh.LoadTelemetryData(TelemetryData);
             sessionCache.FrontVelocityHistogram = fvh.Plot.GetSvgXml(width - 64, 478);
             Dispatcher.UIThread.Post(() => { DamperPage.FrontVelocityHistogram = sessionCache.FrontVelocityHistogram; });
 
-            var fvb = telemetryData.CalculateVelocityBands(SuspensionType.Front, 200);
+            var fvb = TelemetryData.CalculateVelocityBands(SuspensionType.Front, 200);
             sessionCache.FrontHsrPercentage = fvb.HighSpeedRebound;
             sessionCache.FrontLsrPercentage = fvb.LowSpeedRebound;
             sessionCache.FrontLscPercentage = fvb.LowSpeedCompression;
@@ -111,19 +120,19 @@ public partial class SessionViewModel : ItemViewModelBase
             });
         }
 
-        if (telemetryData.Rear.Present)
+        if (TelemetryData.Rear.Present)
         {
             var rth = new TravelHistogramPlot(new Plot(), SuspensionType.Rear);
-            rth.LoadTelemetryData(telemetryData);
+            rth.LoadTelemetryData(TelemetryData);
             sessionCache.RearTravelHistogram = rth.Plot.GetSvgXml(width, height);
             Dispatcher.UIThread.Post(() => { SpringPage.RearTravelHistogram = sessionCache.RearTravelHistogram; });
 
             var rvh = new VelocityHistogramPlot(new Plot(), SuspensionType.Rear);
-            rvh.LoadTelemetryData(telemetryData);
+            rvh.LoadTelemetryData(TelemetryData);
             sessionCache.RearVelocityHistogram = rvh.Plot.GetSvgXml(width - 64, 478);
             Dispatcher.UIThread.Post(() => { DamperPage.RearVelocityHistogram = sessionCache.RearVelocityHistogram; });
 
-            var rvb = telemetryData.CalculateVelocityBands(SuspensionType.Rear, 200);
+            var rvb = TelemetryData.CalculateVelocityBands(SuspensionType.Rear, 200);
             sessionCache.RearHsrPercentage = rvb.HighSpeedRebound;
             sessionCache.RearLsrPercentage = rvb.LowSpeedRebound;
             sessionCache.RearLscPercentage = rvb.LowSpeedCompression;
@@ -137,16 +146,16 @@ public partial class SessionViewModel : ItemViewModelBase
             });
         }
 
-        if (telemetryData.Front.Present && telemetryData.Rear.Present)
+        if (TelemetryData.Front.Present && TelemetryData.Rear.Present)
         {
 
             var cb = new BalancePlot(new Plot(), BalanceType.Compression);
-            cb.LoadTelemetryData(telemetryData);
+            cb.LoadTelemetryData(TelemetryData);
             sessionCache.CompressionBalance = cb.Plot.GetSvgXml(width, height);
             Dispatcher.UIThread.Post(() => { BalancePage.CompressionBalance = sessionCache.CompressionBalance; });
 
             var rb = new BalancePlot(new Plot(), BalanceType.Rebound);
-            rb.LoadTelemetryData(telemetryData);
+            rb.LoadTelemetryData(TelemetryData);
             sessionCache.ReboundBalance = rb.Plot.GetSvgXml(width, height);
             Dispatcher.UIThread.Post(() => { BalancePage.ReboundBalance = sessionCache.ReboundBalance; });
         }
@@ -155,6 +164,8 @@ public partial class SessionViewModel : ItemViewModelBase
             Dispatcher.UIThread.Post(() => { Pages.Remove(BalancePage); });
         }
 
+        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        Debug.Assert(databaseService != null);
         await databaseService.PutSessionCacheAsync(sessionCache);
     }
 
@@ -258,7 +269,7 @@ public partial class SessionViewModel : ItemViewModelBase
     #region Commands
 
     [RelayCommand]
-    private async Task Loaded(Rect bounds)
+    private async Task Loaded(Rect? bounds = null)
     {
         try
         {
@@ -274,7 +285,12 @@ public partial class SessionViewModel : ItemViewModelBase
                 session.HasProcessedData = true;
             }
 
-            if (!await LoadCache())
+            Debug.Assert(App.Current is not null);
+            if (App.Current.IsDesktop)
+            {
+                await LoadTelemetryData();
+            }
+            else if (!await LoadCache())
             {
                 await CreateCache(bounds);
             }
