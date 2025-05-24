@@ -6,8 +6,8 @@ public class Link
 {
     #region Public properties
 
-    [JsonPropertyName("a")] public string? A_Name { get; set; }
-    [JsonPropertyName("b")] public string? B_Name { get; set; }
+    [JsonPropertyName("a")] public string? A_Name { get; set; } // Setter is used during deserialization.
+    [JsonPropertyName("b")] public string? B_Name { get; set; } // Setter is used during deserialization.
 
     #endregion Public properties
 

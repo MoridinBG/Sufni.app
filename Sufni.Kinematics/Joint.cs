@@ -21,8 +21,8 @@ public class CartesianCoordinate(double x, double y)
 {
     #region Public properties
 
-    [JsonPropertyName("x")] public double X { get; set; } = x;
-    [JsonPropertyName("y")] public double Y { get; set; } = y;
+    [JsonPropertyName("x")] public double X { get; set; } = x; // Setter is used during deserialization.
+    [JsonPropertyName("y")] public double Y { get; set; } = y; // Setter is used during deserialization.
 
     #endregion
 
@@ -67,8 +67,8 @@ public class Joint : CartesianCoordinate
 {
     #region Public properties
 
-    [JsonPropertyName("name")] public string? Name { get; set; }
-    [JsonPropertyName("type")] public JointType? Type { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; } // Setter is used during deserialization.
+    [JsonPropertyName("type")] public JointType? Type { get; set; } // Setter is used during deserialization.
 
     #endregion Public properties
 
