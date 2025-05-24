@@ -7,7 +7,7 @@ namespace Sufni.App.ViewModels.SensorConfigurations;
 
 public partial class LinearForkSensorConfigurationViewModel : SensorConfigurationViewModel
 {
-    private readonly LinearForkSensorConfiguration sensorConfiguration;
+    private LinearForkSensorConfiguration sensorConfiguration;
 
     #region Observable properties
 
@@ -18,7 +18,7 @@ public partial class LinearForkSensorConfigurationViewModel : SensorConfiguratio
 
     #region SensorConfigurationViewModel overrides
 
-    protected override void EvaluateDirtiness()
+    public override void EvaluateDirtiness()
     {
         IsDirty = !AreEqual(Length, sensorConfiguration.Length) ||
                   Resolution != sensorConfiguration.Resolution;
@@ -27,6 +27,20 @@ public partial class LinearForkSensorConfigurationViewModel : SensorConfiguratio
     public override bool CanSave()
     {
         return Length is not null && Resolution is not null;
+    }
+
+    public override void Save()
+    {
+        Debug.Assert(Length.HasValue);
+        Debug.Assert(Resolution.HasValue);
+
+        sensorConfiguration = new LinearForkSensorConfiguration
+        {
+            Length = Length.Value,
+            Resolution = Resolution.Value
+        };
+        
+        EvaluateDirtiness();
     }
 
     public override string ToJson()

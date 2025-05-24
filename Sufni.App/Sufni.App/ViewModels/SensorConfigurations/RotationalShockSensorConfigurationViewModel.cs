@@ -12,7 +12,7 @@ namespace Sufni.App.ViewModels.SensorConfigurations;
 
 public partial class RotationalShockSensorConfigurationViewModel : SensorConfigurationViewModel
 {
-    private readonly RotationalShockSensorConfiguration sensorConfiguration;
+    private RotationalShockSensorConfiguration sensorConfiguration;
 
     #region Observable properties
 
@@ -48,7 +48,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
 
     #region SensorConfigurationViewModel overrides
 
-    protected override void EvaluateDirtiness()
+    public override void EvaluateDirtiness()
     {
         IsDirty = SensorJoint?.Name != sensorConfiguration.CentralJoint ||
                   AdjacentJoint1?.Name != sensorConfiguration.AdjacentJoint1 ||
@@ -58,6 +58,22 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     public override bool CanSave()
     {
         return SensorJoint is not null && AdjacentJoint1 is not null && AdjacentJoint2 is not null;
+    }
+
+    public override void Save()
+    {
+        Debug.Assert(SensorJoint is not null);
+        Debug.Assert(AdjacentJoint1 is not null);
+        Debug.Assert(AdjacentJoint2 is not null);
+
+        sensorConfiguration = new RotationalShockSensorConfiguration
+        {
+            CentralJoint = SensorJoint.Name,
+            AdjacentJoint1 = AdjacentJoint1.Name,
+            AdjacentJoint2 = AdjacentJoint2.Name
+        };
+        
+        EvaluateDirtiness();
     }
 
     public override string ToJson()

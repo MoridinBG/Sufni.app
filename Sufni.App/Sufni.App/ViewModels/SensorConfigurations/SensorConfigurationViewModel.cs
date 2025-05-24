@@ -16,13 +16,14 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
 
     #endregion
 
-    #region Virtual / abstract methods
+    #region Abstract methods
 
-    public virtual bool CanSave() { return false; }
-    protected virtual void EvaluateDirtiness() { IsDirty = false; }
+    public abstract bool CanSave();
+    public abstract void Save();
+    public abstract void EvaluateDirtiness();
     public abstract string ToJson();
 
-    #endregion
+    #endregion Abstract methods
 
     #region Constructors / Initializers
 

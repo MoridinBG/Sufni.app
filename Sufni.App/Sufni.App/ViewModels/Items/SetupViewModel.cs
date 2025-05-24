@@ -135,12 +135,17 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     protected override void EvaluateDirtiness()
     {
+        ForkSensorConfiguration?.EvaluateDirtiness();
+        ShockSensorConfiguration?.EvaluateDirtiness();
+
         IsDirty =
             !IsInDatabase ||
             Name != setup.Name ||
             BoardId != originalBoardId ||
             (SelectedBike is null && setup.BikeId != Guid.Empty) ||
             (SelectedBike is not null && SelectedBike.Id != setup.BikeId) ||
+            (ForkSensorConfiguration is null && setup.FrontSensorConfigurationJson is not null) ||
+            (ShockSensorConfiguration is null && setup.RearSensorConfigurationJson is not null) ||
             (ForkSensorConfiguration is not null && ForkSensorConfiguration.IsDirty) ||
             (ShockSensorConfiguration is not null && ShockSensorConfiguration.IsDirty);
     }
@@ -164,6 +169,9 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
         try
         {
+            ForkSensorConfiguration?.Save();
+            ShockSensorConfiguration?.Save();
+
             var newSetup = new Setup(Id, Name ?? $"setup #{Id}")
             {
                 BikeId = SelectedBike?.Id ?? Guid.Empty,

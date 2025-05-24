@@ -7,7 +7,7 @@ namespace Sufni.App.ViewModels.SensorConfigurations;
 
 public partial class RotationalForkSensorConfigurationViewModel : SensorConfigurationViewModel
 {
-    private readonly RotationalForkSensorConfiguration sensorConfiguration;
+    private RotationalForkSensorConfiguration sensorConfiguration;
 
     #region Observable properties
 
@@ -18,7 +18,7 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
 
     #region SensorConfigurationViewModel overrides
 
-    protected override void EvaluateDirtiness()
+    public override void EvaluateDirtiness()
     {
         IsDirty = !AreEqual(MaxLength, sensorConfiguration.MaxLength) ||
                   !AreEqual(ArmLength, sensorConfiguration.ArmLength);
@@ -27,6 +27,20 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
     public override bool CanSave()
     {
         return MaxLength is not null && ArmLength is not null;
+    }
+
+    public override void Save()
+    {
+        Debug.Assert(MaxLength.HasValue);
+        Debug.Assert(ArmLength.HasValue);
+
+        sensorConfiguration = new RotationalForkSensorConfiguration
+        {
+            MaxLength = MaxLength.Value,
+            ArmLength = ArmLength.Value
+        };
+        
+        EvaluateDirtiness();
     }
 
     public override string ToJson()

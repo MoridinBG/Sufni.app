@@ -7,7 +7,7 @@ namespace Sufni.App.ViewModels.SensorConfigurations;
 
 public partial class LinearShockSensorConfigurationViewModel : SensorConfigurationViewModel
 {
-    private readonly LinearShockSensorConfiguration sensorConfiguration;
+    private LinearShockSensorConfiguration sensorConfiguration;
 
     #region Observable properties
 
@@ -18,7 +18,7 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
 
     #region SensorConfigurationViewModel overrides
 
-    protected override void EvaluateDirtiness()
+    public override void EvaluateDirtiness()
     {
         IsDirty = !AreEqual(Length, sensorConfiguration.Length) ||
                   Resolution != sensorConfiguration.Resolution;
@@ -27,6 +27,20 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
     public override bool CanSave()
     {
         return Length is not null && Resolution is not null;
+    }
+
+    public override void Save()
+    {
+        Debug.Assert(Length.HasValue);
+        Debug.Assert(Resolution.HasValue);
+
+        sensorConfiguration = new LinearShockSensorConfiguration
+        {
+            Length = Length.Value,
+            Resolution = Resolution.Value
+        };
+        
+        EvaluateDirtiness();
     }
 
     public override string ToJson()
