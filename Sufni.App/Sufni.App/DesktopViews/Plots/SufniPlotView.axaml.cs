@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using ScottPlot.Avalonia;
 
-namespace Sufni.App.Views.Plots;
+namespace Sufni.App.DesktopViews.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
 {
