@@ -6,8 +6,6 @@
     xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
     xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
-    xmlns:sessionpages="clr-namespace:Sufni.App.Views.SessionPages"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
     d:DesignHeight="600"
@@ -49,7 +47,7 @@
                         HorizontalAlignment="Center"
                         Classes="tabheader"
                         Click="OnTabHeaderClicked"
-                        Content="{Binding DisplayName}}"
+                        Content="{Binding DisplayName}"
                         IsEnabled="{Binding !Selected, Mode=TwoWay}" />
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Sufni.App.Views;
 
-public partial class MainPagesView : UserControl
+public partial class MainPagesView : MainPagesViewBase
 {
     public MainPagesView()
     {

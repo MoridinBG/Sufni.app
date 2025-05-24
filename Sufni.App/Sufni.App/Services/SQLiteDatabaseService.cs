@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using MessagePack;
 using SQLite;
 using Sufni.App.Models;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Services;
 
@@ -14,82 +13,6 @@ public class SqLiteDatabaseService : IDatabaseService
 {
     private Task Initialization { get; }
     private readonly SQLiteAsyncConnection connection;
-
-    private static readonly List<CalibrationMethod> DefaultCalibrationMethods =
-    [
-        new(CalibrationMethod.FractionId,
-            "fraction",
-            "Sample is in fraction of maximum suspension stroke.",
-            new CalibrationMethodProperties([], [], "sample * MAX_STROKE")),
-        new(CalibrationMethod.PercentageId,
-            "percentage",
-            "Sample is in percentage of maximum suspension stroke.",
-            new CalibrationMethodProperties(
-                [],
-                new Dictionary<string, string>()
-                {
-                    {"factor", "MAX_STROKE / 100.0"}
-                },
-                "sample * factor")),
-        new(CalibrationMethod.LinearId,
-            "linear",
-            "Sample is linearly distributed within a given range.",
-            new CalibrationMethodProperties(
-                [
-                    "min_measurement",
-                    "max_measurement"
-                ],
-                new Dictionary<string, string>()
-                {
-                    {"factor", "MAX_STROKE / (max_measurement - min_measurement)"}
-                },
-                "(sample - min_measurement) * factor")),
-        new(CalibrationMethod.LinearPotmeterId,
-            "linear-potmeter",
-            "Sample is the ADC value read from a linear potentiometer.",
-            new CalibrationMethodProperties(
-                [
-                    "stroke",
-                    "resolution"
-                ],
-                new Dictionary<string, string>()
-                {
-                    {"factor", "stroke / (2^resolution)"}
-                },
-                "sample * factor")),
-        new(CalibrationMethod.IsoscelesId,
-            "as5600-isosceles-triangle",
-            "Triangle setup with the sensor between the base and leg.",
-            new CalibrationMethodProperties(
-                [
-                    "arm",
-                    "max"
-                ],
-                new Dictionary<string, string>()
-                {
-                    {"start_angle", "acos(max / 2.0 / arm)"},
-                    {"factor", "2.0 * pi / 4096"},
-                    {"dbl_arm", "2.0 * arm"},
-                },
-                "max - (dbl_arm * cos((factor*sample) + start_angle))")),
-        new(CalibrationMethod.TriangleId,
-            "as5600-triangle",
-            "Triangle setup with the sensor between two known sides.",
-            new CalibrationMethodProperties(
-                [
-                    "arm1",
-                    "arm2",
-                    "max"
-                ],
-                new Dictionary<string, string>()
-                {
-                    {"start_angle", "acos((arm1^2+arm2^2-max^2)/(2*arm1*arm2))"},
-                    {"factor", "2.0 * pi / 4096"},
-                    {"arms_sqr_sum", "arm1^2 + arm2^2"},
-                    {"dbl_arm1_arm2", "2 * arm1 * arm2"},
-                },
-                "max - sqrt(arms_sqr_sum - dbl_arm1_arm2 * cos(start_angle-(factor*sample)))")),
-    ];
 
     public SqLiteDatabaseService()
     {
@@ -111,27 +34,16 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         await connection.EnableWriteAheadLoggingAsync();
-        var result = await connection.CreateTablesAsync(CreateFlags.None, new[]
-        {
+        var result = await connection.CreateTablesAsync(CreateFlags.None,
+        [
             typeof(Board),
-            typeof(Linkage),
-            typeof(CalibrationMethod),
-            typeof(Calibration),
             typeof(Setup),
+            typeof(Bike),
             typeof(Session),
             typeof(SessionCache),
             typeof(Synchronization)
-        });
+        ]);
 
-        if (result.Results[typeof(CalibrationMethod)] == CreateTableResult.Created)
-        {
-            var timestamp = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            foreach (var calibrationMethod in DefaultCalibrationMethods)
-            {
-                calibrationMethod.Updated = timestamp;
-            }
-            await connection.InsertAllAsync(DefaultCalibrationMethods);
-        }
         if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
         {
             await connection.QueryAsync<Synchronization>("INSERT INTO sync VALUES (0)");
@@ -185,175 +97,60 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
-    public async Task<List<Linkage>> GetLinkagesAsync()
+    public async Task<List<Bike>> GetBikesAsync()
     {
         await Initialization;
-
-        return await connection.Table<Linkage>().Where(t => t.Deleted == null).ToListAsync();
+        return await connection.Table<Bike>().Where(s => s.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Linkage>> GetChangedLinkagesAsync(int since)
+    public async Task<List<Bike>> GetChangedBikesAsync(int since)
     {
         await Initialization;
 
-        return await connection.Table<Linkage>()
-            .Where(l => l.Updated > since || (l.Deleted != null && l.Deleted > since))
+        return await connection.Table<Bike>()
+            .Where(s => s.Updated > since || (s.Deleted != null && s.Deleted > since))
             .ToListAsync();
     }
 
-    public async Task<Linkage?> GetLinkageAsync(Guid id)
+    public async Task<Bike?> GetBikeAsync(Guid id)
     {
         await Initialization;
 
-        return await connection.Table<Linkage>()
-            .Where(l => l.Id == id && l.Deleted == null)
+        return await connection.Table<Bike>()
+            .Where(s => s.Id == id && s.Deleted == null)
             .FirstOrDefaultAsync();
     }
 
-    public async Task<Guid> PutLinkageAsync(Linkage linkage)
+    public async Task<Guid> PutBikeAsync(Bike bike)
     {
         await Initialization;
 
-        var existing = await connection.Table<Linkage>()
-            .Where(l => l.Id == linkage.Id && l.Deleted == null)
+        var existing = await connection.Table<Bike>()
+            .Where(s => s.Id == bike.Id && s.Deleted == null)
             .FirstOrDefaultAsync() is not null;
-        linkage.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+        bike.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
         if (existing)
         {
-            await connection.UpdateAsync(linkage);
+            await connection.UpdateAsync(bike);
         }
         else
         {
-            await connection.InsertAsync(linkage);
+            await connection.InsertAsync(bike);
         }
 
-        return linkage.Id;
+        return bike.Id;
     }
 
-    public async Task DeleteLinkageAsync(Guid id)
+    public async Task DeleteBikeAsync(Guid id)
     {
         await Initialization;
-        var linkage = await connection.Table<Linkage>()
-            .Where(l => l.Id == id)
+        var bike = await connection.Table<Bike>()
+            .Where(s => s.Id == id)
             .FirstOrDefaultAsync();
-        if (linkage is not null)
+        if (bike is not null)
         {
-            linkage.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(linkage);
-        }
-    }
-
-    public async Task<List<CalibrationMethod>> GetCalibrationMethodsAsync()
-    {
-        await Initialization;
-        return await connection.Table<CalibrationMethod>().Where(c => c.Deleted == null).ToListAsync();
-    }
-
-    public async Task<List<CalibrationMethod>> GetChangedCalibrationMethodsAsync(int since)
-    {
-        await Initialization;
-
-        return await connection.Table<CalibrationMethod>()
-            .Where(c => c.Updated > since || (c.Deleted != null && c.Deleted > since))
-            .ToListAsync();
-    }
-
-    public async Task<CalibrationMethod?> GetCalibrationMethodAsync(Guid id)
-    {
-        await Initialization;
-
-        return await connection.Table<CalibrationMethod>()
-            .Where(c => c.Id == id && c.Deleted == null)
-            .FirstOrDefaultAsync();
-    }
-
-    public async Task<Guid> PutCalibrationMethodAsync(CalibrationMethod calibrationMethod)
-    {
-        await Initialization;
-
-        var existing = await connection.Table<CalibrationMethod>()
-            .Where(c => c.Id == calibrationMethod.Id && c.Deleted == null)
-            .FirstOrDefaultAsync() is not null;
-        calibrationMethod.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-        if (existing)
-        {
-            await connection.UpdateAsync(calibrationMethod);
-        }
-        else
-        {
-            await connection.InsertAsync(calibrationMethod);
-        }
-
-        return calibrationMethod.Id;
-    }
-
-    public async Task DeleteCalibrationMethodAsync(Guid id)
-    {
-        await Initialization;
-        var calibrationMethod = await connection.Table<CalibrationMethod>()
-            .Where(c => c.Id == id)
-            .FirstOrDefaultAsync();
-        if (calibrationMethod is not null)
-        {
-            calibrationMethod.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(calibrationMethod);
-        }
-    }
-
-    public async Task<List<Calibration>> GetCalibrationsAsync()
-    {
-        await Initialization;
-        return await connection.Table<Calibration>().Where(c => c.Deleted == null).ToListAsync();
-    }
-
-    public async Task<List<Calibration>> GetChangedCalibrationsAsync(int since)
-    {
-        await Initialization;
-
-        return await connection.Table<Calibration>()
-            .Where(c => c.Updated > since || (c.Deleted != null && c.Deleted > since))
-            .ToListAsync();
-    }
-
-    public async Task<Calibration?> GetCalibrationAsync(Guid id)
-    {
-        await Initialization;
-
-        return await connection.Table<Calibration>()
-            .Where(c => c.Id == id && c.Deleted == null)
-            .FirstOrDefaultAsync();
-    }
-
-    public async Task<Guid> PutCalibrationAsync(Calibration calibration)
-    {
-        await Initialization;
-
-        var existing = await connection.Table<Calibration>()
-            .Where(c => c.Id == calibration.Id && c.Deleted == null)
-            .FirstOrDefaultAsync() is not null;
-        calibration.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-        if (existing)
-        {
-            await connection.UpdateAsync(calibration);
-        }
-        else
-        {
-            await connection.InsertAsync(calibration);
-        }
-
-        return calibration.Id;
-    }
-
-    public async Task DeleteCalibrationAsync(Guid id)
-    {
-        await Initialization;
-        var calibration = await connection.Table<Calibration>()
-            .Where(c => c.Id == id)
-            .FirstOrDefaultAsync();
-        if (calibration is not null)
-        {
-            calibration.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(calibration);
+            bike.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+            await connection.UpdateAsync(bike);
         }
     }
 
@@ -464,7 +261,7 @@ public class SqLiteDatabaseService : IDatabaseService
         await Initialization;
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
-        return sessions.Count == 1 ? MessagePackSerializer.Deserialize<TelemetryData>(sessions[0].ProcessedData) : null;
+        return sessions.Count == 1 ? TelemetryData.FromBinary(sessions[0].ProcessedData) : null;
     }
 
     public async Task<byte[]?> GetSessionRawPsstAsync(Guid id)

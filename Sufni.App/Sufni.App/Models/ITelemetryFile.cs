@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -14,7 +14,7 @@ public interface ITelemetryFile
     public DateTime StartTime { get; }
     public string Duration { get; }
 
-    public Task<byte[]> GeneratePsstAsync(Linkage linkage, Calibration? frontCal, Calibration? rearCal);
+    public Task<byte[]> GeneratePsstAsync(BikeData bikeData);
     public Task OnImported();
     public Task OnTrashed();
 }

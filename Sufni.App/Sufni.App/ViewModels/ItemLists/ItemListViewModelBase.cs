@@ -111,12 +111,6 @@ public partial class ItemListViewModelBase : ViewModelBase
 
         switch (LastDeleted)
         {
-            case CalibrationViewModel:
-                await databaseService.DeleteCalibrationAsync(LastDeleted.Id);
-                break;
-            case LinkageViewModel:
-                await databaseService.DeleteLinkageAsync(LastDeleted.Id);
-                break;
             case SetupViewModel:
                 await databaseService.DeleteSetupAsync(LastDeleted.Id);
                 break;

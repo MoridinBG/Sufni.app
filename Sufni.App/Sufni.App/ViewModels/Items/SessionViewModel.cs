@@ -1,7 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
@@ -9,10 +8,10 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using ScottPlot;
 using Sufni.App.Models;
-using Sufni.App.Models.Telemetry;
 using Sufni.App.Plots;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Items;
 

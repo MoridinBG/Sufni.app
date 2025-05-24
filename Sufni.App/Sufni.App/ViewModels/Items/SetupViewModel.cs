@@ -1,18 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
+using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.SensorConfigurations;
 
 namespace Sufni.App.ViewModels.Items;
 
-public partial class SetupViewModel : ItemViewModelBase
+public sealed partial class SetupViewModel : ItemViewModelBase
 {
     private Setup setup;
     private string? originalBoardId;
@@ -28,25 +30,70 @@ public partial class SetupViewModel : ItemViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private LinkageViewModel? selectedLinkage;
+    private BikeViewModel? selectedBike;
+
+    [ObservableProperty] private SensorType? forkSensorType;
+    [ObservableProperty] private SensorType? shockSensorType;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private CalibrationViewModel? selectedFrontCalibration;
+    private SensorConfigurationViewModel? forkSensorConfiguration;
 
-    [ObservableProperty]
+    [ObservableProperty] 
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private CalibrationViewModel? selectedRearCalibration;
+    private SensorConfigurationViewModel? shockSensorConfiguration;
 
-    public ReadOnlyObservableCollection<ItemViewModelBase> Linkages => linkages;
-    private readonly ReadOnlyObservableCollection<ItemViewModelBase> linkages;
-
-    public ReadOnlyObservableCollection<ItemViewModelBase> Calibrations => calibrations;
-    private readonly ReadOnlyObservableCollection<ItemViewModelBase> calibrations;
+    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes => bikes;
+    private readonly ReadOnlyObservableCollection<ItemViewModelBase> bikes;
+    public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];
+    public List<SensorType?> ShockSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Shock"))];
 
     #endregion
+
+    // RotationalShockSensorConfigurationViewModel needs a list of Joints, so that sensor position
+    // can be defined.
+    partial void OnSelectedBikeChanged(BikeViewModel? value)
+    {
+        if (value is null) return;
+        if (ShockSensorConfiguration is RotationalShockSensorConfigurationViewModel sensorConfiguration)
+        {
+            sensorConfiguration.JointViewModels = value.JointViewModels;
+        }
+    }
+
+    partial void OnForkSensorTypeChanged(SensorType? value)
+    {
+        if (ForkSensorConfiguration is not null && value == ForkSensorConfiguration.Type) return;
+        ForkSensorConfiguration = SensorConfigurationViewModel.Create(value);
+    }
+    
+    partial void OnShockSensorTypeChanged(SensorType? value)
+    {
+        if (ShockSensorConfiguration is not null && value == ShockSensorConfiguration.Type) return;
+        ShockSensorConfiguration = SensorConfigurationViewModel.Create(value, SelectedBike);
+    }
+
+    partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? value)
+    {
+        if  (value is null) return;
+        value.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == "IsDirty") EvaluateDirtiness();
+            SaveCommand.NotifyCanExecuteChanged();
+        };
+    }
+
+    partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? value)
+    {
+        if  (value is null) return;
+        value.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == "IsDirty") EvaluateDirtiness();
+            SaveCommand.NotifyCanExecuteChanged();
+        };
+    }
 
     #region Constructors
 
@@ -55,26 +102,18 @@ public partial class SetupViewModel : ItemViewModelBase
         setup = new Setup();
         Id = setup.Id;
         BoardId = originalBoardId = boardId;
-        linkages = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
-        calibrations = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
+        bikes = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
     }
 
-    public SetupViewModel(Setup setup, string? boardId, bool fromDatabase,
-        SourceCache<ItemViewModelBase, Guid> linkagesSourceCache,
-        SourceCache<ItemViewModelBase, Guid> calibrationsSourceCache)
+    public SetupViewModel(Setup setup, string? boardId, bool fromDatabase, SourceCache<ItemViewModelBase, Guid> bikesSourceCache)
     {
         this.setup = setup;
         IsInDatabase = fromDatabase;
         Id = setup.Id;
         BoardId = originalBoardId = boardId;
-
-        linkagesSourceCache.Connect()
-            .Bind(out linkages)
-            .DisposeMany()
-            .Subscribe();
-
-        calibrationsSourceCache.Connect()
-            .Bind(out calibrations)
+        
+        bikesSourceCache.Connect()
+            .Bind(out bikes)
             .DisposeMany()
             .Subscribe();
 
@@ -91,34 +130,37 @@ public partial class SetupViewModel : ItemViewModelBase
             !IsInDatabase ||
             Name != setup.Name ||
             BoardId != originalBoardId ||
-            SelectedLinkage == null || SelectedLinkage.Id != setup.LinkageId ||
-            SelectedFrontCalibration?.Id != setup.FrontCalibrationId ||
-            SelectedRearCalibration?.Id != setup.RearCalibrationId;
+            (SelectedBike is null && setup.BikeId != Guid.Empty) ||
+            (SelectedBike is not null && SelectedBike.Id != setup.BikeId) ||
+            (ForkSensorConfiguration is not null && ForkSensorConfiguration.IsDirty) ||
+            (ShockSensorConfiguration is not null && ShockSensorConfiguration.IsDirty);
     }
 
     protected override bool CanSave()
     {
         EvaluateDirtiness();
-        return IsDirty && !(SelectedFrontCalibration == null && SelectedRearCalibration == null);
+        return IsDirty &&
+               !string.IsNullOrEmpty(Name) &&
+               !string.IsNullOrEmpty(BoardId) &&
+               SelectedBike is not null &&
+               (ForkSensorConfiguration is not null || ShockSensorConfiguration is not null) &&
+               (ForkSensorConfiguration is null || ForkSensorConfiguration.CanSave()) &&
+               (ShockSensorConfiguration is null || ShockSensorConfiguration.CanSave());
     }
 
     protected override async Task SaveImplementation()
     {
-        Debug.Assert(SelectedLinkage != null, nameof(SelectedLinkage) + " != null");
-        Debug.Assert(!(SelectedFrontCalibration == null && SelectedRearCalibration == null),
-            nameof(SelectedFrontCalibration) + " and " + nameof(SelectedRearCalibration) + " can't be both null");
-
         var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
         try
         {
-            var newSetup = new Setup(
-                Id,
-                Name ?? $"setup #{Id}",
-                SelectedLinkage.Id,
-                SelectedFrontCalibration?.Id,
-                SelectedRearCalibration?.Id);
+            var newSetup = new Setup(Id, Name ?? $"setup #{Id}")
+            {
+                BikeId = SelectedBike?.Id ?? Guid.Empty,
+                FrontSensorConfigurationJson = ForkSensorConfiguration?.ToJson(),
+                RearSensorConfigurationJson = ShockSensorConfiguration?.ToJson()
+            };
             Id = await databaseService.PutSetupAsync(newSetup);
 
             // If this setup was already associated with another board, clear that association.
@@ -148,6 +190,7 @@ public partial class SetupViewModel : ItemViewModelBase
             await mainPagesViewModel.ImportSessionsPage.EvaluateSetupExists();
 
             IsInDatabase = true;
+            EvaluateDirtiness();
 
             OpenPreviousPage();
         }
@@ -159,42 +202,16 @@ public partial class SetupViewModel : ItemViewModelBase
 
     protected override Task ResetImplementation()
     {
-        try
-        {
-            Name = setup.Name;
-            BoardId = originalBoardId;
-            SelectedLinkage = Linkages.First(l => l.Id == setup.LinkageId) as LinkageViewModel;
-            SelectedFrontCalibration = Calibrations.FirstOrDefault(c => c?.Id == setup.FrontCalibrationId, null) as CalibrationViewModel;
-            SelectedRearCalibration = Calibrations.FirstOrDefault(c => c?.Id == setup.RearCalibrationId, null) as CalibrationViewModel;
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Setup could not be reset: {e.Message}");
-        }
+        Name = setup.Name;
+        BoardId = originalBoardId;
+        SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId) as BikeViewModel;
 
+        ForkSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.FrontSensorConfigurationJson);
+        ShockSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.RearSensorConfigurationJson, SelectedBike);
+        ForkSensorType = ForkSensorConfiguration?.Type;
+        ShockSensorType = ShockSensorConfiguration?.Type;
+        
         return Task.CompletedTask;
-    }
-
-    #endregion
-
-    #region Commands
-
-    [RelayCommand]
-    private void AddLinkage()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        mainPagesViewModel.LinkagesPage.AddCommand.Execute(null);
-    }
-
-    [RelayCommand]
-    private void AddCalibration()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        mainPagesViewModel.CalibrationsPage.AddCommand.Execute(null);
     }
 
     #endregion

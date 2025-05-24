@@ -9,8 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Android", "Sufni.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Windows", "Sufni.App\Sufni.App.Windows\Sufni.App.Windows.csproj", "{6B366BF2-2928-4DF4-879D-F2B6537DEF1D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.iOS", "Sufni.App\Sufni.App.iOS\Sufni.App.iOS.csproj", "{84662F52-2EAD-4264-B6C9-6C3C60366685}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Browser", "Sufni.App\Sufni.App.Browser\Sufni.App.Browser.csproj", "{D788CF3E-A425-4A38-BEE5-6D320FE79B24}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureStorage", "SecureStorage\SecureStorage.csproj", "{DCA2F8B2-D436-420C-A7C0-DFB4F1916FED}"
@@ -22,6 +20,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceDiscovery", "ServiceDiscovery\ServiceDiscovery.csproj", "{A5806A95-7EEC-4DDB-AA25-BC5146AD90B6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticFeedback", "HapticFeedback\HapticFeedback.csproj", "{5C42408E-E609-462F-A096-86835380E4C5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Telemetry", "Sufni.Telemetry\Sufni.Telemetry.csproj", "{AE11A5D4-60D6-431B-BCB1-021BE7EBBEBB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Kinematics", "Sufni.Kinematics\Sufni.Kinematics.csproj", "{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -66,6 +68,14 @@ Global
 		{5C42408E-E609-462F-A096-86835380E4C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5C42408E-E609-462F-A096-86835380E4C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5C42408E-E609-462F-A096-86835380E4C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE11A5D4-60D6-431B-BCB1-021BE7EBBEBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE11A5D4-60D6-431B-BCB1-021BE7EBBEBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE11A5D4-60D6-431B-BCB1-021BE7EBBEBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE11A5D4-60D6-431B-BCB1-021BE7EBBEBB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

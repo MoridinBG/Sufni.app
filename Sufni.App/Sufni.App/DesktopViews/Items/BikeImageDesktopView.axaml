@@ -1,0 +1,136 @@
+<UserControl
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.DesktopViews.Items.BikeImageDesktopView"
+    x:DataType="vm:BikeViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:paz="using:Avalonia.Controls.PanAndZoom"
+    xmlns:v="using:Sufni.App.Views.Items"
+    xmlns:vl="using:Sufni.App.Views.LinkageParts"
+    xmlns:vm="using:Sufni.App.ViewModels.Items"
+    xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vm:BikeViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <StyleInclude Source="avares://Avalonia.Xaml.Interactions.Draggable/Styles.axaml" />
+        <Style Selector="SelectingItemsControl">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border>
+                        <ItemsPresenter ItemsPanel="{TemplateBinding ItemsPanel}" Name="PART_ItemsPresenter" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+    </UserControl.Styles>
+
+    <paz:ZoomBorder
+        Focusable="True"
+        HorizontalAlignment="Stretch"
+        Name="ZoomBorder"
+        Stretch="None"
+        VerticalAlignment="Stretch"
+        ZoomSpeed="1.2">
+
+        <i:Interaction.Behaviors>
+            <ia:EventTriggerBehavior EventName="DoubleTapped">
+                <InvokeCommandAction Command="{Binding DoubleTappedCommand}" PassEventArgsToCommand="True" />
+            </ia:EventTriggerBehavior>
+            <ia:EventTriggerBehavior EventName="Tapped">
+                <InvokeCommandAction Command="{Binding TappedCommand}" />
+            </ia:EventTriggerBehavior>
+        </i:Interaction.Behaviors>
+
+        <paz:ZoomBorder.KeyBindings>
+            <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+        </paz:ZoomBorder.KeyBindings>
+
+        <Viewbox>
+            <Panel Background="#252933">
+                <!--  Bike image  -->
+                <Image Name="BikeImage" Source="{Binding Image}" />
+
+                <!--  Semi-opaque overlay to improve point visibility  -->
+                <Border
+                    Background="White"
+                    HorizontalAlignment="Stretch"
+                    IsVisible="{Binding OverlayVisible}"
+                    Opacity="0.7"
+                    VerticalAlignment="Stretch" />
+
+                <!--  Links  -->
+                <SelectingItemsControl
+                    Background="Transparent"
+                    IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ItemsSource="{Binding LinkViewModels}"
+                    SelectedItem="{Binding SelectedLink}">
+                    <SelectingItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </SelectingItemsControl.ItemsPanel>
+                    <SelectingItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <Line
+                                EndPoint="{Binding EndPoint}"
+                                Opacity="0.6"
+                                StartPoint="{Binding StartPoint}"
+                                Stroke="{Binding Brush}"
+                                StrokeThickness="10">
+                                <i:Interaction.Behaviors>
+                                    <ia:EventTriggerBehavior EventName="Tapped">
+                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).LinkTappedCommand}" PassEventArgsToCommand="True" />
+                                    </ia:EventTriggerBehavior>
+                                </i:Interaction.Behaviors>
+                            </Line>
+                        </DataTemplate>
+                    </SelectingItemsControl.ItemTemplate>
+                </SelectingItemsControl>
+
+                <!--  Points  -->
+                <SelectingItemsControl
+                    Background="Transparent"
+                    Classes="draggable"
+                    IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ItemsSource="{Binding JointViewModels}"
+                    SelectedItem="{Binding SelectedPoint}">
+                    <SelectingItemsControl.Styles>
+                        <Style Selector="SelectingItemsControl &gt; ContentPresenter" x:DataType="vml:JointViewModel">
+                            <Setter Property="(Canvas.Left)" Value="{Binding X, Mode=TwoWay}" />
+                            <Setter Property="(Canvas.Top)" Value="{Binding Y, Mode=TwoWay}" />
+                        </Style>
+                        <Style Selector="SelectingItemsControl &gt; ContentPresenter:dragging">
+                            <Setter Property="Opacity" Value="0.5" />
+                            <Setter Property="ZIndex" Value="1" />
+                        </Style>
+                    </SelectingItemsControl.Styles>
+                    <SelectingItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </SelectingItemsControl.ItemsPanel>
+                    <SelectingItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <vl:JointView>
+                                <i:Interaction.Behaviors>
+                                    <ia:EventTriggerBehavior EventName="Tapped">
+                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).PointTappedCommand}" PassEventArgsToCommand="True" />
+                                    </ia:EventTriggerBehavior>
+                                </i:Interaction.Behaviors>
+                            </vl:JointView>
+                        </DataTemplate>
+                    </SelectingItemsControl.ItemTemplate>
+                </SelectingItemsControl>
+            </Panel>
+        </Viewbox>
+    </paz:ZoomBorder>
+</UserControl>

@@ -1,0 +1,80 @@
+﻿<UserControl
+    Background="{StaticResource SufniRegion}"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.DesktopViews.ItemLists.BikeListDesktopView"
+    x:DataType="vml:BikeListViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vml:BikeListViewModel />
+    </Design.DataContext>
+
+    <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+
+        <!--  Search bar  -->
+        <controls:SearchBar Grid.Row="0" Margin="0,20,0,20" />
+
+        <!--  List of Bikes  -->
+        <ScrollViewer Grid.Row="1" Name="Scroll">
+            <ItemsRepeater ItemsSource="{Binding Items}">
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <Button
+                                Classes="item"
+                                Command="{Binding OpenPageCommand}"
+                                CommandParameter="{Binding}"
+                                CornerRadius="0"
+                                Height="48"
+                                HorizontalAlignment="Stretch"
+                                Padding="30,0,10,0"
+                                VerticalContentAlignment="Center">
+                                <Grid ColumnDefinitions="auto * auto 40" HorizontalAlignment="Stretch">
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Timestamp}" />
+                                    <Image
+                                        Grid.Column="3"
+                                        Height="16"
+                                        IsVisible="{Binding !IsComplete}"
+                                        Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}"
+                                        Width="16" />
+                                </Grid>
+                            </Button>
+                            <Separator
+                                Background="{StaticResource SufniBackgroundDisabled}"
+                                Height="1"
+                                Margin="0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <!--  Notifications  -->
+        <controls:NotificationsBar
+            Grid.Column="0"
+            Grid.Row="2"
+            Margin="5,0"
+            ZIndex="10" />
+
+        <!--  Error messages  -->
+        <controls:ErrorMessagesBar
+            Grid.Column="0"
+            Grid.Row="3"
+            Margin="5,0"
+            ZIndex="10" />
+
+        <!--  Undo last deleted  -->
+        <controls:UndoDeleteButton
+            Grid.Column="0"
+            Grid.Row="0"
+            Grid.RowSpan="4" />
+    </Grid>
+</UserControl>

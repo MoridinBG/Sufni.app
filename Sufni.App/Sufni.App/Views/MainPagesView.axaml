@@ -87,46 +87,25 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem Name="LinkagesTabItem" Content="{Binding LinkagesPage}">
-                            <TabItem.Header>
-                                <StackPanel>
-                                    <Image Width="16" Source="{SvgImage /Assets/leverage-ratio.svg}" />
-                                    <TextBlock
-                                        Margin="0,2,0,0"
-                                        HorizontalAlignment="Center"
-                                        FontSize="9"
-                                        Text="Linkages" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem
-                            Name="CalibrationsTabItem"
-                            Content="{Binding CalibrationsPage}"
-                            IsEnabled="{Binding CalibrationsPage.HasCalibrationMethods}">
-                            <TabItem.Header>
-                                <StackPanel>
-                                    <Image Width="18" Source="{SvgImage /Assets/fa-ruler.svg}" />
-                                    <TextBlock
-                                        HorizontalAlignment="Center"
-                                        FontSize="9"
-                                        Text="Calibrations" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
                         <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
-                            <TabItem.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <Binding Path="CalibrationsPage.HasCalibrations" />
-                                    <Binding Path="LinkagesPage.HasLinkages" />
-                                </MultiBinding>
-                            </TabItem.IsEnabled>
+                            <TabItem.Header>
+                                <StackPanel>
+                                    <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="9"
+                                        Text="Setups" />
+                                </StackPanel>
+                            </TabItem.Header>
+                        </TabItem>
+                        <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
                             <TabItem.Header>
                                 <StackPanel>
                                     <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
                                     <TextBlock
                                         HorizontalAlignment="Center"
                                         FontSize="9"
-                                        Text="Setups" />
+                                        Text="Bikes" />
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>

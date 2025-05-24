@@ -7,52 +7,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels.Items;
 
-public partial class ItemViewModelBase : ViewModelBase
+public partial class ItemViewModelBase : TabPageViewModelBase
 {
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private bool isDirty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private string? name;
-
     [ObservableProperty] private Guid id;
     [ObservableProperty] private DateTime? timestamp;
     public virtual bool IsComplete => true;
 
-    protected virtual void EvaluateDirtiness() { IsDirty = false; }
     protected virtual bool CanDelete() { return true; }
-    protected virtual Task SaveImplementation() { return Task.CompletedTask; }
-    protected virtual Task ResetImplementation() { return Task.CompletedTask; }
-
-    protected virtual bool CanSave()
-    {
-        EvaluateDirtiness();
-        return IsDirty;
-    }
-
-    protected virtual bool CanReset()
-    {
-        EvaluateDirtiness();
-        return IsDirty;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanSave))]
-    private async Task Save()
-    {
-        await SaveImplementation();
-        IsDirty = false;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanReset))]
-    private async Task Reset()
-    {
-        await ResetImplementation();
-        IsDirty = false;
-    }
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private async Task Delete(bool navigateBack)

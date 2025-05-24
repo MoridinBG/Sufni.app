@@ -1,0 +1,82 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using Avalonia.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.Kinematics;
+
+namespace Sufni.App.ViewModels.LinkageParts;
+
+public enum Immutability
+{
+    Immutable,
+    NameOnly,
+    Modifiable
+}
+
+public partial class JointViewModel : ViewModelBase
+{
+    [ObservableProperty] private double x;
+    [ObservableProperty] private double y;
+    [ObservableProperty] private string name;
+    [ObservableProperty] private JointType type;
+    public static ObservableCollection<JointType> PointTypes { get; } = [JointType.Fixed, JointType.Floating];
+    [ObservableProperty] private Brush brush;
+    [ObservableProperty] private bool isSelected;
+    [ObservableProperty] private bool wasPossiblyDragged;
+
+    public Immutability Immutability { get; private set; }
+    public bool ShowFlyout { get; set; }
+    
+    public static Dictionary<JointType, Brush> TypeToBrushMapping { get; } = new()
+    {
+        { JointType.RearWheel, new SolidColorBrush(Colors.Cyan)},
+        { JointType.FrontWheel, new SolidColorBrush(Colors.Cyan)},
+        { JointType.Fixed, new SolidColorBrush(Colors.OrangeRed)},
+        { JointType.Floating, new SolidColorBrush(Colors.HotPink)},
+        { JointType.BottomBracket, new SolidColorBrush(Colors.Purple)}
+    };
+
+    partial void OnTypeChanged(JointType value)
+    {
+        Brush = TypeToBrushMapping[value];
+    }
+
+    public JointViewModel(string name, JointType type, double x, double y, bool showFlyout = false)
+    {
+        X = x;
+        Y = y;
+        Name = name;
+        Type = type;
+        Brush = TypeToBrushMapping[type];
+        ShowFlyout = showFlyout;
+
+        if (Type is JointType.FrontWheel or JointType.RearWheel or JointType.BottomBracket)
+        {
+            Immutability = Immutability.Immutable;
+        }
+        else if (Name is "Shock eye 1" or "Shock eye 2")
+        {
+            Immutability = Immutability.NameOnly;
+        }
+        else
+        {
+            Immutability = Immutability.Modifiable;
+        }
+    }
+
+    public static JointViewModel FromJoint(Joint joint, double imageHeight, double pixelsToMillimeters)
+    {
+        Debug.Assert(joint.Name is not null);
+        Debug.Assert(joint.Type is not null);
+
+        var x = joint.X / pixelsToMillimeters;
+        var y = imageHeight - joint.Y / pixelsToMillimeters;
+        return new JointViewModel(joint.Name, joint.Type.Value, x, y);
+    }
+
+    public Joint ToJoint(double imageHeight, double pixelsToMillimeters)
+    {
+        return new Joint(Name, Type, X * pixelsToMillimeters, (imageHeight - Y) * pixelsToMillimeters);
+    }
+}

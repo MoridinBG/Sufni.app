@@ -15,6 +15,7 @@ public partial class App : Application
 {
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
+    public bool IsDesktop { get; private set; }
 
     public App()
     {
@@ -36,22 +37,30 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         RegisteredServices.Collection.AddSingleton<IFilesService>(_ => new FilesService());
+        RegisteredServices.Collection.AddSingleton<IDialogService>(_ => new DialogService());
         RegisteredServices.Collection.AddSingleton<MainPagesViewModel>();
         RegisteredServices.Collection.AddSingleton<MainViewModel>();
+        RegisteredServices.Collection.AddSingleton<MainWindowViewModel>();
         Services = RegisteredServices.Collection.BuildServiceProvider();
-        
+
         var fileService = Services.GetService<IFilesService>();
+        var dialogService = Services.GetService<IDialogService>();
         var mainViewModel = Services.GetService<MainViewModel>();
+        var mainWindowViewModel = Services.GetService<MainWindowViewModel>();
         Debug.Assert(fileService != null, nameof(fileService) + " != null");
+        Debug.Assert(dialogService != null, nameof(dialogService) + " != null");
 
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
+                IsDesktop = true;
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
-                desktop.MainWindow.DataContext = mainViewModel;
+                dialogService.SetOwner(desktop.MainWindow);
+                desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
+                IsDesktop = false;
                 singleViewPlatform.MainView = new MainView
                 {
                     DataContext = mainViewModel

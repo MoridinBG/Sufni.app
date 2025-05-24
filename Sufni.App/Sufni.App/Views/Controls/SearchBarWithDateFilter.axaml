@@ -40,7 +40,7 @@
             Width="32"
             HorizontalAlignment="Left"
             Classes="embedded"
-            Command="{Binding $parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
+            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
             <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
         </Button>
 
@@ -70,8 +70,8 @@
             Classes="embedded">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="$parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).SettingsPage.IsRegistered" />
-                    <Binding Path="!$parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
+                    <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SettingsPage.IsRegistered" />
+                    <Binding Path="!$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
                     <Binding Path="!#CloseButton.IsVisible" />
                 </MultiBinding>
             </Button.IsVisible>
@@ -90,7 +90,7 @@
             VerticalAlignment="Center"
             Foreground="{StaticResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
-                <Binding Path="$parent[v:MainPagesView].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
+                <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
             </progRing:ProgressRing.IsActive>
         </progRing:ProgressRing>
 

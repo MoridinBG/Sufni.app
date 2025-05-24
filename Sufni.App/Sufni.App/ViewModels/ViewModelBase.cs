@@ -26,19 +26,32 @@ namespace Sufni.App.ViewModels
         [RelayCommand]
         protected static void OpenPage(ViewModelBase view)
         {
-            var mainViewModel = App.Current?.Services?.GetService<MainViewModel>();
-            Debug.Assert(mainViewModel != null, nameof(mainViewModel) + " != null");
-
-            mainViewModel.OpenView(view);
+            Debug.Assert(App.Current is not null, "App.Current is not null");
+            var isDesktop = App.Current.IsDesktop;
+            if (isDesktop)
+            {
+                var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
+                Debug.Assert(vm != null, nameof(vm) + " != null");
+                vm.OpenView(view);
+            }
+            else
+            {
+                var vm = App.Current?.Services?.GetService<MainViewModel>();
+                Debug.Assert(vm != null, nameof(vm) + " != null");
+                vm.OpenView(view);
+            }
         }
 
         [RelayCommand]
         protected static void OpenPreviousPage()
         {
-            var mainViewModel = App.Current?.Services?.GetService<MainViewModel>();
-            Debug.Assert(mainViewModel != null, nameof(mainViewModel) + " != null");
+            Debug.Assert(App.Current is not null, "App.Current is not null");
 
-            mainViewModel.OpenPreviousView();
+            if (!App.Current.IsDesktop) return; // OpenPreviousPage is a no-op on desktop
+
+            var vm = App.Current.Services?.GetService<MainViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenPreviousView();
         }
     }
 }

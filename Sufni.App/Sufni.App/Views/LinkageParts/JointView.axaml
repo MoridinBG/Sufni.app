@@ -1,0 +1,81 @@
+<UserControl
+    ClipToBounds="False"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.Views.LinkageParts.JointView"
+    x:DataType="vm:JointViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:Sufni.App.ViewModels.LinkageParts"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vm:JointViewModel />
+    </Design.DataContext>
+
+    <Canvas Name="PointCanvas">
+
+        <!--  Context flyout with name and type  -->
+        <Canvas.ContextFlyout>
+            <Flyout>
+                <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto">
+                    <TextBlock
+                        Grid.Column="0"
+                        Grid.Row="0"
+                        Margin="5"
+                        Text="Name: " />
+                    <TextBox
+                        Grid.Column="1"
+                        Grid.Row="0"
+                        KeyDown="TextBox_KeyDown"
+                        Text="{Binding Name}" />
+                    <TextBlock
+                        Grid.Column="0"
+                        Grid.Row="1"
+                        Margin="5"
+                        Text="Type" />
+                    <ComboBox
+                        Grid.Column="1"
+                        Grid.Row="1"
+                        HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding PointTypes}"
+                        SelectedItem="{Binding Type}" />
+                </Grid>
+            </Flyout>
+        </Canvas.ContextFlyout>
+
+        <!--  Name  -->
+        <Grid
+            Canvas.Left="0"
+            Canvas.Top="0"
+            Margin="-16,-16,0,0">
+            <TextBlock
+                FontSize="24"
+                FontWeight="Bold"
+                Foreground="{Binding Brush}"
+                Height="28"
+                Margin="2"
+                Padding="32,0,0,0"
+                Text="{Binding Name}" />
+            <Rectangle
+                IsVisible="{Binding IsSelected}"
+                Stroke="Gray"
+                StrokeDashArray="5,2"
+                StrokeThickness="1" />
+        </Grid>
+
+        <!--  Crosshair  -->
+        <Line
+            EndPoint="14,0"
+            StartPoint="-14,0"
+            Stroke="{Binding Brush}"
+            StrokeThickness="2" />
+        <Line
+            EndPoint="0,14"
+            StartPoint="0,-14"
+            Stroke="{Binding Brush}"
+            StrokeThickness="2" />
+    </Canvas>
+</UserControl>

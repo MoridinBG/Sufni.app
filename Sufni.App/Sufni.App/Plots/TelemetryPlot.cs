@@ -1,5 +1,5 @@
 using ScottPlot;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 

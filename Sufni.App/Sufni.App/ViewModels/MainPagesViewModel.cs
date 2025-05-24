@@ -18,8 +18,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     [ObservableProperty] private bool databaseLoaded;
     [ObservableProperty] private ImportSessionsViewModel importSessionsPage;
-    [ObservableProperty] private CalibrationListViewModel calibrationsPage;
-    [ObservableProperty] private LinkageListViewModel linkagesPage;
+    [ObservableProperty] private BikeListViewModel bikesPage;
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
     [ObservableProperty] private SettingsViewModel settingsPage = new();
@@ -35,17 +34,14 @@ public partial class MainPagesViewModel : ViewModelBase
     public MainPagesViewModel()
     {
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        CalibrationsPage = new CalibrationListViewModel();
-        LinkagesPage = new LinkageListViewModel();
+        BikesPage = new BikeListViewModel();
         SessionsPage = new SessionListViewModel();
         ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
-        SetupsPage = new SetupListViewModel(LinkagesPage, CalibrationsPage, ImportSessionsPage);
-        pages = [SessionsPage, LinkagesPage, CalibrationsPage, SetupsPage];
+        SetupsPage = new SetupListViewModel(ImportSessionsPage, BikesPage);
+        pages = [SessionsPage, SetupsPage];
 
-        CalibrationsPage.MenuItems.Add(new("sync", SyncCommand));
-        CalibrationsPage.MenuItems.Add(new("add", CalibrationsPage.AddCommand));
-        LinkagesPage.MenuItems.Add(new("sync", SyncCommand));
-        LinkagesPage.MenuItems.Add(new("add", LinkagesPage.AddCommand));
+        BikesPage.MenuItems.Add(new("sync", SyncCommand));
+        BikesPage.MenuItems.Add(new("add", BikesPage.AddCommand));
         SetupsPage.MenuItems.Add(new("sync", SyncCommand));
         SetupsPage.MenuItems.Add(new("add", SetupsPage.AddCommand));
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
@@ -72,11 +68,8 @@ public partial class MainPagesViewModel : ViewModelBase
 
         switch (item)
         {
-            case LinkageViewModel lvm:
-                await LinkagesPage.Delete(lvm);
-                break;
-            case CalibrationViewModel cvm:
-                await CalibrationsPage.Delete(cvm);
+            case BikeViewModel bvm:
+                await BikesPage.Delete(bvm);
                 break;
             case SetupViewModel svm:
                 await SetupsPage.Delete(svm);
@@ -91,11 +84,8 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         switch (item)
         {
-            case LinkageViewModel lvm:
-                LinkagesPage.UndoableDelete(lvm);
-                break;
-            case CalibrationViewModel cvm:
-                CalibrationsPage.UndoableDelete(cvm);
+            case BikeViewModel bvm:
+                BikesPage.UndoableDelete(bvm);
                 break;
             case SetupViewModel svm:
                 SetupsPage.UndoableDelete(svm);
@@ -114,8 +104,7 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-        await CalibrationsPage.LoadFromDatabase();
-        await LinkagesPage.LoadFromDatabase();
+        await BikesPage.LoadFromDatabase();
         await SetupsPage.LoadFromDatabase();
         await SessionsPage.LoadFromDatabase();
 
@@ -169,17 +158,39 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void ShowConnectPage()
     {
-        var mainViewModel = App.Current?.Services?.GetService<MainViewModel>();
-        Debug.Assert(mainViewModel != null, nameof(mainViewModel) + " != null");
-        mainViewModel.OpenView(SettingsPage);
+        Debug.Assert(App.Current is not null);
+        var isDesktop = App.Current.IsDesktop;
+        if (isDesktop)
+        {
+            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(SettingsPage);
+        }
+        else
+        {
+            var vm = App.Current.Services?.GetService<MainViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(SettingsPage);
+        }
     }
 
     [RelayCommand]
     private void ShowImportPage()
     {
-        var mainViewModel = App.Current?.Services?.GetService<MainViewModel>();
-        Debug.Assert(mainViewModel != null, nameof(mainViewModel) + " != null");
-        mainViewModel.OpenView(ImportSessionsPage);
+        Debug.Assert(App.Current is not null);
+        var isDesktop = App.Current.IsDesktop;
+        if (isDesktop)
+        {
+            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(ImportSessionsPage);
+        }
+        else
+        {
+            var vm = App.Current.Services?.GetService<MainViewModel>();
+            Debug.Assert(vm != null, nameof(vm) + " != null");
+            vm.OpenView(ImportSessionsPage);
+        }
     }
 
     [RelayCommand]

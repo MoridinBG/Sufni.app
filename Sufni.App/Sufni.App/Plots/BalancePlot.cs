@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 

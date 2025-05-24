@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Sufni.App.Models.Telemetry;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -45,14 +45,19 @@ public class MassStorageTelemetryFile : ITelemetryFile
         Description = $"Imported from {fileInfo.Name}";
     }
 
-    public async Task<byte[]> GeneratePsstAsync(Linkage linkage, Calibration? frontCal, Calibration? rearCal)
+    public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
         var rawData = await File.ReadAllBytesAsync(fileInfo.FullName);
-        var rawTelemetryData = new RawTelemetryData(rawData);
-        var telemetryData = new TelemetryData(fileInfo.Name,
-            rawTelemetryData.Version, rawTelemetryData.SampleRate, rawTelemetryData.Timestamp,
-            frontCal, rearCal, linkage);
-        return telemetryData.ProcessRecording(rawTelemetryData.Front, rawTelemetryData.Rear);
+        var rawTelemetryData = RawTelemetryData.FromByteArray(rawData);
+        var telemetryMetadata = new Metadata()
+        {
+            SourceName = FileName,
+            Version = rawTelemetryData.Version,
+            SampleRate = rawTelemetryData.SampleRate,
+            Timestamp = rawTelemetryData.Timestamp
+        };
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear, telemetryMetadata, bikeData);
+        return telemetryData.BinaryForm;
     }
 
     public Task OnImported()

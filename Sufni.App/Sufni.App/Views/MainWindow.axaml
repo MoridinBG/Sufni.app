@@ -1,20 +1,89 @@
 ﻿<Window
-    x:Class="Sufni.App.Views.MainWindow"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:views="clr-namespace:Sufni.App.Views"
+    Background="{StaticResource SufniRegion}"
+    Height="1200"
+    Icon="/Assets/sufni-icon.png"
     Title="Sufni.App"
-    Width="500"
-    Height="700"
-    MaxWidth="500"
+    Width="1600"
     d:DesignHeight="450"
     d:DesignWidth="800"
-    Background="{StaticResource SufniRegion}"
-    Icon="/Assets/sufni-icon.png"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    x:Class="Sufni.App.Views.MainWindow"
+    x:DataType="vm:MainWindowViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.Views"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <views:MainView />
+    <Window.Styles>
+        <Style Selector="TabItem">
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+        </Style>
+        <Style Selector="TabItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+        </Style>
+        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+    </Window.Styles>
+
+    <Window.Resources>
+        <v:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
+        <v:BoolToColorConverter x:Key="BoolToColorConverter" />
+    </Window.Resources>
+
+    <SplitView
+        DisplayMode="Inline"
+        IsPaneOpen="True"
+        OpenPaneLength="450">
+
+        <SplitView.Pane>
+            <ContentControl
+                BorderBrush="{StaticResource SufniBackgroundDisabled}"
+                BorderThickness="0,0,1,0"
+                Content="{Binding MainPagesViewModel}" />
+        </SplitView.Pane>
+
+        <TabControl
+            ItemsSource="{Binding Tabs}"
+            Padding="0"
+            SelectedItem="{Binding CurrentView}">
+            <TabControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnDefinitions="* auto" Margin="10,0,0,0">
+                        <TextBlock
+                            FontSize="16"
+                            FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
+                            Foreground="{Binding IsDirty, Converter={StaticResource BoolToColorConverter}}"
+                            Grid.Column="0"
+                            HorizontalAlignment="Center"
+                            Text="{Binding Name}"
+                            VerticalAlignment="Center" />
+                        <Button
+                            Classes="embedded"
+                            Command="{Binding CloseCommand}"
+                            Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            Margin="5,3,0,0">
+                            <Image
+                                Opacity="0.4"
+                                Source="{SvgImage /Assets/fa-xmark.svg}"
+                                Width="12" />
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate DataType="vm:TabPageViewModelBase">
+                    <ContentControl Content="{Binding}" Margin="0,20,0,0" />
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </SplitView>
+    <!--  v:MainView /  -->
 
 </Window>

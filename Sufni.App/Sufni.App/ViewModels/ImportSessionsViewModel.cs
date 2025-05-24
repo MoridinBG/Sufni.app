@@ -14,10 +14,11 @@ using Avalonia.Threading;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.ViewModels.Items;
+using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels;
 
-public partial class ImportSessionsViewModel : ViewModelBase
+public partial class ImportSessionsViewModel : TabPageViewModelBase
 {
     #region Observable properties
 
@@ -98,6 +99,8 @@ public partial class ImportSessionsViewModel : ViewModelBase
 
     public ImportSessionsViewModel(SourceCache<ItemViewModelBase, Guid> sessions)
     {
+        Name = "Import Sessions";
+
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         var telemetryDataStoreService = App.Current?.Services?.GetService<ITelemetryDataStoreService>();
 
@@ -197,33 +200,20 @@ public partial class ImportSessionsViewModel : ViewModelBase
         {
             try
             {
-                // Get Linkage
-                var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value);
-                var linkage = await databaseService.GetLinkageAsync(setup!.LinkageId);
-                if (linkage is null)
-                {
-                    throw new Exception("Linkage is missing");
-                }
+                var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
+                var bike = await databaseService.GetBikeAsync(setup.BikeId);
+                Debug.Assert(bike is not null);
 
-                // Get front Calibration
-                var fcal = await databaseService.GetCalibrationAsync(setup.FrontCalibrationId ?? Guid.Empty);
-                var fmethod = fcal is null ? null : await databaseService.GetCalibrationMethodAsync(fcal.MethodId);
-                if (fcal is not null && fmethod == null)
-                {
-                    throw new Exception("Front calibration method is missing.");
-                }
+                var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
+                var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
 
-                // Get rear Calibration
-                var rcal = await databaseService.GetCalibrationAsync(setup.RearCalibrationId ?? Guid.Empty);
-                var rmethod = rcal is null ? null : await databaseService.GetCalibrationMethodAsync(rcal.MethodId);
-                if (rcal is not null && rmethod == null)
-                {
-                    throw new Exception("Rear calibration method is missing.");
-                }
-
-                fcal?.Prepare(fmethod!, linkage.MaxFrontStroke!.Value, linkage.MaxFrontTravel);
-                rcal?.Prepare(rmethod!, linkage.MaxRearStroke!.Value, linkage.MaxRearTravel);
-                var psst = await telemetryFile.GeneratePsstAsync(linkage, fcal, rcal);
+                var bikeData = new BikeData(
+                    bike.HeadAngle,
+                    frontSensorConfiguration?.MaxTravel,
+                    rearSensorConfiguration?.MaxTravel,
+                    frontSensorConfiguration?.MeasurementToTravel,
+                    rearSensorConfiguration?.MeasurementToTravel);
+                var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
                 var session = new Session(
                     id: Guid.NewGuid(),
