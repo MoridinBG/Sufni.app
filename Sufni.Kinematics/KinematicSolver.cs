@@ -74,6 +74,8 @@ internal class EarlyStopException(Vector<double> x) : Exception
 
 internal class CartesianJoints
 {
+    #region Public fields
+
     public readonly List<Joint> KinematicLoopJoints;
     public readonly List<Joint> EndEffectorJoints;
     public readonly List<Joint> StaticJoints;
@@ -81,6 +83,10 @@ internal class CartesianJoints
     public readonly int[] ShockEyeIndices = new int[2];
     public readonly JointType[] ShockEyeTypes = new JointType[2];
     public readonly double ShockMaxLength;
+
+    #endregion Public fields
+
+    #region Constructors
 
     public CartesianJoints(List<Joint> joints, List<Link> links, Link shock)
     {
@@ -125,6 +131,10 @@ internal class CartesianJoints
         ShockMaxLength = Math.Sqrt(dx * dx + dy * dy);
     }
 
+    #endregion Constructors
+
+    #region Private methods
+
     private static List<Joint> FindKinematicLoop(List<Joint> joints, List<Link> links)
     {
         var grounds = joints.Where(p => p.Type == JointType.Fixed || p.Type == JointType.FrontWheel).ToArray();
@@ -158,19 +168,31 @@ internal class CartesianJoints
         }
 
         return [];
-    }
+    } 
+
+    #endregion Private methods
 }
 
 internal class PolarJoints
 {
+    #region Public fields
+
     public readonly List<PolarCoordinate> KinematicLoopPolar;
     public readonly List<PolarCoordinate> EndEffectorPolar;
     public readonly List<int> EndEffectorOffsetFromIndices;
+
+    #endregion Public fields
+
+    #region Constructors
 
     public PolarJoints(CartesianJoints cartesianJoints, List<Link> links)
     {
         (KinematicLoopPolar, EndEffectorPolar, EndEffectorOffsetFromIndices) = GetSolutionSpaceVectors(cartesianJoints, links);
     }
+
+    #endregion Constructors
+
+    #region Private methods
 
     private static (List<PolarCoordinate>, List<PolarCoordinate>, List<int>) GetSolutionSpaceVectors(CartesianJoints classifiedJoints, List<Link> links)
     {
@@ -246,22 +268,30 @@ internal class PolarJoints
             Math.Atan2(d.Y, d.X),
             Math.Sqrt(d.X * d.X + d.Y * d.Y)))];
     }
+
+    #endregion Private methods
 }
 
 public class KinematicSolver
 {
-    private readonly int _steps;
-    private readonly CartesianJoints _cartesianJoints;
-    private readonly List<Link> _links;
-    private PolarJoints? _polarJoints;
-    private readonly double _shockStroke;
+    #region Private fields
+
+    private readonly int steps;
+    private readonly CartesianJoints cartesianJoints;
+    private readonly List<Link> links;
+    private PolarJoints? polarJoints;
+    private readonly double shockStroke;
+
+    #endregion Private fields
+
+    #region Constructors / Initializers
 
     private KinematicSolver(int steps, CartesianJoints cartesianJoints, List<Link> links, double shockStroke)
     {
-        _steps = steps;
-        _cartesianJoints = cartesianJoints;
-        _links = links;
-        _shockStroke = shockStroke;
+        this.steps = steps;
+        this.cartesianJoints = cartesianJoints;
+        this.links = links;
+        this.shockStroke = shockStroke;
     }
 
     public static KinematicSolver Create(int steps, Linkage linkage)
@@ -270,21 +300,25 @@ public class KinematicSolver
         return new KinematicSolver(steps, cartesianJoints, linkage.Links, linkage.ShockStroke);
     }
 
+    #endregion Constructors / Initializers
+    
+    #region Public methods
+
     public Dictionary<string, CoordinateList> SolveSuspensionMotion()
     {
-        _polarJoints = new PolarJoints(_cartesianJoints, _links);
+        polarJoints = new PolarJoints(cartesianJoints, links);
         
         // Find the input angles for the given travel
-        var inputAngles = FindInputAngleRange(_shockStroke);
+        var inputAngles = FindInputAngleRange(shockStroke);
         var solutions = new Dictionary<string, CoordinateList>();
 
-        var combinedJoints = new List<Joint>(_cartesianJoints.KinematicLoopJoints);
-        combinedJoints.AddRange(_cartesianJoints.EndEffectorJoints);
+        var combinedJoints = new List<Joint>(cartesianJoints.KinematicLoopJoints);
+        combinedJoints.AddRange(cartesianJoints.EndEffectorJoints);
 
         // Solve the linkage for each angle and convert to cartesian
         foreach (var t in inputAngles)
         {
-            _polarJoints.KinematicLoopPolar[0].Theta = t;
+            polarJoints.KinematicLoopPolar[0].Theta = t;
             var klpSol = SolveKinematicLoop();
             var solution = SolutionToCartesian(klpSol);
             for (var j = 0; j < combinedJoints.Count; ++j)
@@ -301,7 +335,7 @@ public class KinematicSolver
         }
 
         // Add static joints to the solution as well.
-        foreach (var joint in _cartesianJoints.StaticJoints)
+        foreach (var joint in cartesianJoints.StaticJoints)
         {
             if (joint.Name is not null && !solutions.ContainsKey(joint.Name))
             {
@@ -312,13 +346,17 @@ public class KinematicSolver
         return solutions;
     }
 
+    #endregion Public methods
+
+    #region Private methods
+
     private double[] FindInputAngleRange(double stroke)
     {
-        Debug.Assert(_polarJoints != null);
+        Debug.Assert(polarJoints != null);
 
         // Find angle that minimizes error between desired y position and the rear wheel y position
-        var desiredShockLength = _cartesianJoints.ShockMaxLength - stroke;
-        var thIn0 = GeometryUtils.NormalizeAngle(_polarJoints.KinematicLoopPolar[0].Theta);
+        var desiredShockLength = cartesianJoints.ShockMaxLength - stroke;
+        var thIn0 = GeometryUtils.NormalizeAngle(polarJoints.KinematicLoopPolar[0].Theta);
 
         double? lastF = null;
         var fatol = 1e-4;
@@ -351,10 +389,10 @@ public class KinematicSolver
         thInEnd = GeometryUtils.NormalizeAngle(thInEnd);
 
         // Create the return vector from initial and final angles
-        var inputAngles = new double[_steps];
-        for (var i = 0; i < _steps; i++)
+        var inputAngles = new double[steps];
+        for (var i = 0; i < steps; i++)
         {
-            inputAngles[i] = thIn0 + (thInEnd  - thIn0) * i / (_steps - 1);
+            inputAngles[i] = thIn0 + (thInEnd  - thIn0) * i / (steps - 1);
         }
 
         return inputAngles;
@@ -362,20 +400,20 @@ public class KinematicSolver
 
     private double TravelFindEquation(double[] x, double desiredShockLength)
     {
-        Debug.Assert(_polarJoints != null);
+        Debug.Assert(polarJoints != null);
 
         // The optimization variable is the input angle of the linkage
-        _polarJoints.KinematicLoopPolar[0].Theta = x[0];
+        polarJoints.KinematicLoopPolar[0].Theta = x[0];
 
         var kinematicLoopSolution = SolveKinematicLoop();
         var cartesianSolution = SolutionToCartesian(kinematicLoopSolution);
 
-        var shockEye1 = _cartesianJoints.ShockEyeTypes[0] == JointType.Fixed ?
-            _cartesianJoints.StaticJoints[_cartesianJoints.ShockEyeIndices[0]] :
-            cartesianSolution[_cartesianJoints.ShockEyeIndices[0]];
-        var shockEye2 = _cartesianJoints.ShockEyeTypes[1] == JointType.Fixed ?
-            _cartesianJoints.StaticJoints[_cartesianJoints.ShockEyeIndices[1]] :
-            cartesianSolution[_cartesianJoints.ShockEyeIndices[1]];
+        var shockEye1 = cartesianJoints.ShockEyeTypes[0] == JointType.Fixed ?
+            cartesianJoints.StaticJoints[cartesianJoints.ShockEyeIndices[0]] :
+            cartesianSolution[cartesianJoints.ShockEyeIndices[0]];
+        var shockEye2 = cartesianJoints.ShockEyeTypes[1] == JointType.Fixed ?
+            cartesianJoints.StaticJoints[cartesianJoints.ShockEyeIndices[1]] :
+            cartesianSolution[cartesianJoints.ShockEyeIndices[1]];
         var dx = shockEye1.X - shockEye2.X;
         var dy = shockEye1.Y - shockEye2.Y;
         var currentShockLength = Math.Sqrt(dx * dx + dy * dy);
@@ -411,17 +449,17 @@ public class KinematicSolver
 
     private List<PolarCoordinate> SolveKinematicLoop()
     {
-        Debug.Assert(_polarJoints != null);
+        Debug.Assert(polarJoints != null);
 
         // Construct input data for minimizer.
         // TODO: Needs testing for higher than 4-bar linkages.
-        var x = _polarJoints.KinematicLoopPolar[1..^1].Select(pc => GeometryUtils.NormalizeAngle(pc.Theta)).ToList();
+        var x = polarJoints.KinematicLoopPolar[1..^1].Select(pc => GeometryUtils.NormalizeAngle(pc.Theta)).ToList();
         var geo = new List<double>
         {
-            GeometryUtils.NormalizeAngle(_polarJoints.KinematicLoopPolar[0].Theta),
-            GeometryUtils.NormalizeAngle(_polarJoints.KinematicLoopPolar[^1].Theta)
+            GeometryUtils.NormalizeAngle(polarJoints.KinematicLoopPolar[0].Theta),
+            GeometryUtils.NormalizeAngle(polarJoints.KinematicLoopPolar[^1].Theta)
         };
-        geo.AddRange(_polarJoints.KinematicLoopPolar.Select(pc => pc.Length));
+        geo.AddRange(polarJoints.KinematicLoopPolar.Select(pc => pc.Length));
 
         // Minimize the objective function using the BFGS optimizer
         var objective = new Func<Vector<double>, double>(v =>
@@ -443,7 +481,7 @@ public class KinematicSolver
         var result = optimizer.FindMinimum(ObjectiveFunction.Gradient(objective, gradient), initialGuess);
 
         // Construct return List by replacing Thetas for kinematicLoopPolar[1..^1] with the minimized values.
-        var solution = new List<PolarCoordinate>(_polarJoints.KinematicLoopPolar);
+        var solution = new List<PolarCoordinate>(polarJoints.KinematicLoopPolar);
         for (var i = 1; i < solution.Count - 1; ++i)
         {
             solution[i].Theta = GeometryUtils.NormalizeAngle(result.MinimizingPoint[i - 1]);
@@ -454,20 +492,20 @@ public class KinematicSolver
 
     private List<Joint> SolutionToCartesian(List<PolarCoordinate> kinematicLoopSolution)
     {
-        Debug.Assert(_polarJoints != null);
+        Debug.Assert(polarJoints != null);
 
         // Linkage loop Joints can be directly converted
-        var kinematicLoopCartesian = PolarToCartesian(_cartesianJoints.KinematicLoopOffset, kinematicLoopSolution, true);
+        var kinematicLoopCartesian = PolarToCartesian(cartesianJoints.KinematicLoopOffset, kinematicLoopSolution, true);
 
         // End effector Joints need to be dealt with
         var endEffectorCartesian = new List<Joint>();
-        for (var i = 0; i < _polarJoints.EndEffectorPolar.Count; ++i)
+        for (var i = 0; i < polarJoints.EndEffectorPolar.Count; ++i)
         {
-            var eepOffset = kinematicLoopCartesian[_polarJoints.EndEffectorOffsetFromIndices[i]];
+            var eepOffset = kinematicLoopCartesian[polarJoints.EndEffectorOffsetFromIndices[i]];
             
             var eepSol = new List<PolarCoordinate> { new(
-                _polarJoints.KinematicLoopPolar[_polarJoints.EndEffectorOffsetFromIndices[i]].Theta - _polarJoints.EndEffectorPolar[i].Theta,
-                _polarJoints.EndEffectorPolar[i].Length)};
+                polarJoints.KinematicLoopPolar[polarJoints.EndEffectorOffsetFromIndices[i]].Theta - polarJoints.EndEffectorPolar[i].Theta,
+                polarJoints.EndEffectorPolar[i].Length)};
             var p = PolarToCartesian(eepOffset, eepSol);
             endEffectorCartesian.Add(p[1]);
         }
@@ -493,4 +531,6 @@ public class KinematicSolver
 
         return cartesian;
     }
+
+    #endregion Private methods
 }

@@ -6,16 +6,22 @@ namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
+    #region Constructors
+
     public WelcomeScreenViewModel()
     {
         Name = "Welcome";
     }
 
+    #endregion Constructors
+
+    #region Commands
+
     [RelayCommand]
     private static void AddBike()
     {
         var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null, "mainPagesViewModel is not null");
+        Debug.Assert(mainPagesViewModel is not null);
 
         mainPagesViewModel.BikesPage.AddCommand.Execute(null);
     }
@@ -24,7 +30,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private static void AddSetup()
     {
         var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null, "mainPagesViewModel is not null");
+        Debug.Assert(mainPagesViewModel is not null);
 
         mainPagesViewModel.SetupsPage.AddCommand.Execute(null);
     }
@@ -33,8 +39,10 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private static void ImportSession()
     {
         var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null, "mainPagesViewModel is not null");
+        Debug.Assert(mainPagesViewModel is not null);
 
         mainPagesViewModel.OpenPageCommand.Execute(mainPagesViewModel.ImportSessionsPage);
     }
+
+    #endregion Commands
 }

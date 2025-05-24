@@ -6,12 +6,18 @@ public record Record(ushort ForkAngle, ushort ShockAngle);
 
 public class RawTelemetryData
 {
+    #region Public properties
+
     public byte[] Magic { get; private set; } = null!;
     public byte Version { get; private set; }
     public ushort SampleRate { get; private set; }
     public int Timestamp { get; private set; }
     public ushort[] Front { get; private set; } = null!;
     public ushort[] Rear { get; private set; } = null!;
+
+    #endregion Public properties
+
+    #region Initializers
 
     public static RawTelemetryData FromStream(Stream stream)
     {
@@ -93,4 +99,6 @@ public class RawTelemetryData
     {
         return FromStream(new MemoryStream(bytes));
     }
+
+    #endregion Initializers
 }

@@ -331,7 +331,7 @@ public class TelemetryData
         }
 
         // Create Savitzky-Golay filter to get smoothed velocity data
-        var filter = new SavitzkyGolay(51, 1, 3);
+        var filter = SavitzkyGolay.Create(51, 1, 3);
 
         // Calculate telemetry data
         if (td.Front.Present)

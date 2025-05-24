@@ -2,12 +2,18 @@ namespace Sufni.Telemetry;
 
 public class SavitzkyGolay
 {
+    #region Private fields
+
     private readonly int windowSize;
     private readonly int derivative;
     private readonly int polynomial;
     private readonly double[][] weights;
 
-    public SavitzkyGolay(int windowSize, int derivative, int polynomial)
+    #endregion Private fields
+
+    #region Constructors / Initializers
+
+    private SavitzkyGolay(int windowSize, int derivative, int polynomial)
     {
         this.windowSize = windowSize;
         this.derivative = derivative;
@@ -35,55 +41,9 @@ public class SavitzkyGolay
         return new SavitzkyGolay(windowSize, derivative, polynomial);
     }
 
-    public double[] Process(double[] data, double[] h)
-    {
-        if (windowSize > data.Length)
-        {
-            throw new ArgumentException($"Data length [{data.Length}] must be larger than window size [{windowSize}]");
-        }
+    #endregion Constructors / Initializers
 
-        var halfWindow = (int)Math.Floor(windowSize / 2.0);
-        var numPoints = data.Length;
-        var results = new double[numPoints];
-        double hs;
-
-        // For the borders
-        for (var i = 0; i < halfWindow; i++)
-        {
-            var wg1 = weights[halfWindow - i - 1];
-            var wg2 = weights[halfWindow + i + 1];
-            var d1 = 0.0;
-            var d2 = 0.0;
-
-            for (var l = 0; l < windowSize; l++)
-            {
-                d1 += wg1[l] * data[l];
-                d2 += wg2[l] * data[numPoints - windowSize + l];
-            }
-
-            hs = GetHs(h, halfWindow - i - 1, halfWindow);
-            results[halfWindow - i - 1] = d1 / hs;
-
-            hs = GetHs(h, numPoints - halfWindow + i, halfWindow);
-            results[numPoints - halfWindow + i] = d2 / hs;
-        }
-
-        // For the internal points
-        var wg = weights[halfWindow];
-        for (var i = windowSize; i <= numPoints; i++)
-        {
-            var d = 0.0;
-            for (var l = 0; l < windowSize; l++)
-            {
-                d += wg[l] * data[l + i - windowSize];
-            }
-
-            hs = GetHs(h, i - halfWindow - 1, halfWindow);
-            results[i - halfWindow - 1] = d / hs;
-        }
-
-        return results;
-    }
+    #region Private methods
 
     private double GetHs(double[] h, int center, int half)
     {
@@ -159,4 +119,60 @@ public class SavitzkyGolay
 
         return w;
     }
+
+    #endregion Private methods
+
+    #region Public methods
+
+    public double[] Process(double[] data, double[] h)
+    {
+        if (windowSize > data.Length)
+        {
+            throw new ArgumentException($"Data length [{data.Length}] must be larger than window size [{windowSize}]");
+        }
+
+        var halfWindow = (int)Math.Floor(windowSize / 2.0);
+        var numPoints = data.Length;
+        var results = new double[numPoints];
+        double hs;
+
+        // For the borders
+        for (var i = 0; i < halfWindow; i++)
+        {
+            var wg1 = weights[halfWindow - i - 1];
+            var wg2 = weights[halfWindow + i + 1];
+            var d1 = 0.0;
+            var d2 = 0.0;
+
+            for (var l = 0; l < windowSize; l++)
+            {
+                d1 += wg1[l] * data[l];
+                d2 += wg2[l] * data[numPoints - windowSize + l];
+            }
+
+            hs = GetHs(h, halfWindow - i - 1, halfWindow);
+            results[halfWindow - i - 1] = d1 / hs;
+
+            hs = GetHs(h, numPoints - halfWindow + i, halfWindow);
+            results[numPoints - halfWindow + i] = d2 / hs;
+        }
+
+        // For the internal points
+        var wg = weights[halfWindow];
+        for (var i = windowSize; i <= numPoints; i++)
+        {
+            var d = 0.0;
+            for (var l = 0; l < windowSize; l++)
+            {
+                d += wg[l] * data[l + i - windowSize];
+            }
+
+            hs = GetHs(h, i - halfWindow - 1, halfWindow);
+            results[i - halfWindow - 1] = d / hs;
+        }
+
+        return results;
+    }
+
+    #endregion Public methods
 }

@@ -16,9 +16,14 @@ namespace Sufni.App.ViewModels.Items;
 
 public sealed partial class SetupViewModel : ItemViewModelBase
 {
+    public bool IsInDatabase;
+
+    #region Private fields
+
     private Setup setup;
     private string? originalBoardId;
-    public bool IsInDatabase;
+
+    #endregion Private fields
 
     #region Observable properties
 
@@ -51,6 +56,8 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     public List<SensorType?> ShockSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Shock"))];
 
     #endregion
+
+    #region Property change handlers
 
     // RotationalShockSensorConfigurationViewModel needs a list of Joints, so that sensor position
     // can be defined.
@@ -95,6 +102,8 @@ public sealed partial class SetupViewModel : ItemViewModelBase
         };
     }
 
+    #endregion Property change handlers
+
     #region Constructors
 
     public SetupViewModel()
@@ -122,7 +131,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     #endregion
 
-    #region ItemViewModelBase overrides
+    #region TabPageViewModelBase overrides
 
     protected override void EvaluateDirtiness()
     {
@@ -214,5 +223,5 @@ public sealed partial class SetupViewModel : ItemViewModelBase
         return Task.CompletedTask;
     }
 
-    #endregion
+    #endregion TabPageViewModelBase overrides
 }

@@ -10,12 +10,44 @@ namespace Sufni.App.ViewModels.ItemLists;
 
 public partial class BikeListViewModel : ItemListViewModelBase
 {
+    #region Observable properties
+    
     [ObservableProperty] private bool hasBikes;
+    
+    #endregion Observable properties
+
+    #region Constructors
 
     public BikeListViewModel()
     {
         Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
     }
+
+    #endregion Constructors
+
+    #region Private methods
+
+    private async Task LoadBikesAsync()
+    {
+        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
+        try
+        {
+            var bikeList = await databaseService.GetBikesAsync();
+            foreach (var bike in bikeList)
+            {
+                Source.AddOrUpdate(new BikeViewModel(bike, true));
+            }
+        }
+        catch (Exception e)
+        {
+            ErrorMessages.Add($"Could not load Bike: {e.Message}");
+        }
+    }
+
+    #endregion Private methods
+    
+    #region ItemListViewModelBase overrides
 
     protected override async Task DeleteImplementation(ItemViewModelBase vm)
     {
@@ -43,27 +75,11 @@ public partial class BikeListViewModel : ItemListViewModelBase
         }
     }
 
-    private async Task LoadBikesAsync()
-    {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        try
-        {
-            var bikeList = await databaseService.GetBikesAsync();
-            foreach (var bike in bikeList)
-            {
-                Source.AddOrUpdate(new BikeViewModel(bike, true));
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Bike: {e.Message}");
-        }
-    }
-
     public override async Task LoadFromDatabase()
     {
         Source.Clear();
         await LoadBikesAsync();
     }
+
+    #endregion ItemListViewModelBase overrides
 }

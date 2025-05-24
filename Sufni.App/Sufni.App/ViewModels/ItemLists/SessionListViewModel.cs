@@ -9,21 +9,7 @@ namespace Sufni.App.ViewModels.ItemLists;
 
 public partial class SessionListViewModel : ItemListViewModelBase
 {
-    public override void ConnectSource()
-    {
-        Source.Connect()
-            .Filter(vm => string.IsNullOrEmpty(SearchText) ||
-                           (vm.Name is not null &&
-                            vm.Name!.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)) ||
-                           (vm is SessionViewModel svm &&
-                            svm.Description is not null &&
-                            svm.Description!.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)))
-            .Filter(svm => (DateFilterFrom is null || svm.Timestamp >= DateFilterFrom) &&
-                           (DateFilterTo is null || svm.Timestamp <= DateFilterTo))
-            .SortAndBind(out items, SortExpressionComparer<ItemViewModelBase>.Descending(svm => svm.Timestamp!))
-            .DisposeMany()
-            .Subscribe();
-    }
+    #region Private methods
 
     private async Task LoadSessionsAsync()
     {
@@ -43,9 +29,30 @@ public partial class SessionListViewModel : ItemListViewModelBase
         }
     }
 
+    #endregion Private methods
+
+    #region ItemListViewModelBase overrides
+
+    public override void ConnectSource()
+    {
+        Source.Connect()
+            .Filter(vm => string.IsNullOrEmpty(SearchText) ||
+                           (vm.Name is not null &&
+                            vm.Name!.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)) ||
+                           (vm is SessionViewModel svm &&
+                            svm.Description.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)))
+            .Filter(svm => (DateFilterFrom is null || svm.Timestamp >= DateFilterFrom) &&
+                           (DateFilterTo is null || svm.Timestamp <= DateFilterTo))
+            .SortAndBind(out items, SortExpressionComparer<ItemViewModelBase>.Descending(svm => svm.Timestamp!))
+            .DisposeMany()
+            .Subscribe();
+    }
+
     public override async Task LoadFromDatabase()
     {
         Source.Clear();
         await LoadSessionsAsync();
     }
+
+    #endregion ItemListViewModelBase overrides
 }

@@ -9,8 +9,14 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
 {
     private readonly LinearShockSensorConfiguration sensorConfiguration;
 
+    #region Observable properties
+
     [ObservableProperty] private double? length;
     [ObservableProperty] private int? resolution;
+
+    #endregion Observable properties
+
+    #region SensorConfigurationViewModel overrides
 
     protected override void EvaluateDirtiness()
     {
@@ -21,16 +27,6 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
     public override bool CanSave()
     {
         return Length is not null && Resolution is not null;
-    }
-
-    public LinearShockSensorConfigurationViewModel() : this(new LinearShockSensorConfiguration()) { }
-
-    public LinearShockSensorConfigurationViewModel(LinearShockSensorConfiguration configuration)
-    {
-        Type = SensorType.LinearShock;
-        sensorConfiguration = configuration;
-        Length = configuration.Length;
-        Resolution = configuration.Resolution;
     }
 
     public override string ToJson()
@@ -46,4 +42,20 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
 
         return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
     }
+
+    #endregion SensorConfigurationViewModel overrides
+
+    #region Constructors
+
+    public LinearShockSensorConfigurationViewModel() : this(new LinearShockSensorConfiguration()) { }
+
+    public LinearShockSensorConfigurationViewModel(LinearShockSensorConfiguration configuration)
+    {
+        Type = SensorType.LinearShock;
+        sensorConfiguration = configuration;
+        Length = configuration.Length;
+        Resolution = configuration.Resolution;
+    }
+
+    #endregion Constructors
 }

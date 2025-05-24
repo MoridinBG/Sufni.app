@@ -13,7 +13,9 @@ namespace Sufni.App.ViewModels.SensorConfigurations;
 public partial class RotationalShockSensorConfigurationViewModel : SensorConfigurationViewModel
 {
     private readonly RotationalShockSensorConfiguration sensorConfiguration;
-    
+
+    #region Observable properties
+
     [ObservableProperty] private JointViewModel? sensorJoint;
     [ObservableProperty] private JointViewModel? adjacentJoint1;
     [ObservableProperty] private JointViewModel? adjacentJoint2;
@@ -33,10 +35,18 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     public ObservableCollection<JointViewModel> JointsForAdjacent1 { get; } = [];
     public ObservableCollection<JointViewModel> JointsForAdjacent2 { get; } = [];
 
+    #endregion Observable properties
+
+    #region Property change handlers
+
     // Make sure sensor placement joint comboboxes are mutually exclusive.
     partial void OnSensorJointChanged(JointViewModel? value) => UpdateJointsForSensorPlacement();
     partial void OnAdjacentJoint1Changed(JointViewModel? value) => UpdateJointsForSensorPlacement();
     partial void OnAdjacentJoint2Changed(JointViewModel? value) => UpdateJointsForSensorPlacement();
+
+    #endregion Property change handlers
+
+    #region SensorConfigurationViewModel overrides
 
     protected override void EvaluateDirtiness()
     {
@@ -49,6 +59,26 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     {
         return SensorJoint is not null && AdjacentJoint1 is not null && AdjacentJoint2 is not null;
     }
+
+    public override string ToJson()
+    {
+        Debug.Assert(SensorJoint is not null);
+        Debug.Assert(AdjacentJoint1 is not null);
+        Debug.Assert(AdjacentJoint2 is not null);
+
+        var sc = new RotationalShockSensorConfiguration
+        {
+            CentralJoint = SensorJoint.Name,
+            AdjacentJoint1 = AdjacentJoint1.Name,
+            AdjacentJoint2 = AdjacentJoint2.Name
+        };
+
+        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
+    }
+
+    #endregion SensorConfigurationViewModel overrides
+
+    #region Constructors
 
     public RotationalShockSensorConfigurationViewModel(BikeViewModel? bikeViewModel) : this(new RotationalShockSensorConfiguration(), bikeViewModel) { }
 
@@ -63,6 +93,10 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
         AdjacentJoint1 = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint1);
         AdjacentJoint2 = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint2);
     }
+
+    #endregion Constructors
+
+    #region Private methods
 
     private static void UpdateCollection(ObservableCollection<JointViewModel> target, List<JointViewModel> newItems)
     {
@@ -93,20 +127,6 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
         List<JointViewModel> GetFiltered(JointViewModel? current) =>
             [.. JointViewModels.Where(item => item == current || !selected.Contains(item))];
     }
-    
-    public override string ToJson()
-    {
-        Debug.Assert(SensorJoint is not null);
-        Debug.Assert(AdjacentJoint1 is not null);
-        Debug.Assert(AdjacentJoint2 is not null);
 
-        var sc = new RotationalShockSensorConfiguration
-        {
-            CentralJoint = SensorJoint.Name,
-            AdjacentJoint1 = AdjacentJoint1.Name,
-            AdjacentJoint2 = AdjacentJoint2.Name
-        };
-
-        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
-    }
+    #endregion Private methods
 }

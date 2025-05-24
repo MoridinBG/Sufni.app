@@ -8,12 +8,33 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
+    private readonly Stack<ViewModelBase> viewHistory = new();
+    private readonly MainPagesViewModel? mainPagesViewModel;
+
+    #region Observable properties
+
     [ObservableProperty] private Thickness contentControlMargin;
     [ObservableProperty] private Thickness outerPanelMargin;
     [ObservableProperty] private Thickness safeAreaPadding;
     [ObservableProperty] private ViewModelBase currentView;
-    private readonly Stack<ViewModelBase> viewHistory = new();
-    private readonly MainPagesViewModel? mainPagesViewModel;
+
+    #endregion Observable properties
+
+    #region Property change handlers
+
+    partial void OnSafeAreaPaddingChanged(Thickness value)
+    {
+        SetMargins();
+    }
+
+    partial void OnCurrentViewChanged(ViewModelBase value)
+    {
+        SetMargins();
+    }
+
+    #endregion
+    
+    #region Constructors
 
     public MainViewModel()
     {
@@ -22,6 +43,10 @@ public partial class MainViewModel : ViewModelBase
 
         CurrentView = mainPagesViewModel;
     }
+
+    #endregion Constructors
+    
+    #region Private methods
 
     private void SetMargins()
     {
@@ -37,15 +62,9 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    partial void OnSafeAreaPaddingChanged(Thickness value)
-    {
-        SetMargins();
-    }
+    #endregion Private methods
 
-    partial void OnCurrentViewChanged(ViewModelBase value)
-    {
-        SetMargins();
-    }
+    #region Public mthods
 
     public void OpenView(ViewModelBase view)
     {
@@ -59,4 +78,6 @@ public partial class MainViewModel : ViewModelBase
         CurrentView = viewHistory.Pop();
         Debug.Assert(CurrentView != null, nameof(CurrentView) + " != null");
     }
+
+    #endregion Public mthods
 }

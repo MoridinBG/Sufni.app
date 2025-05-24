@@ -18,6 +18,8 @@ public class StrokeStat
 [MessagePackObject(keyAsPropertyName: true)]
 public class Stroke
 {
+    #region Public properties
+
     public int Start { get; set; }
     public int End { get; set; }
     public StrokeStat Stat { get; set; }
@@ -25,9 +27,17 @@ public class Stroke
     public int[] DigitizedVelocity { get; set; }
     public int[] FineDigitizedVelocity { get; set; }
 
+    #endregion Public properties
+
+    #region Public properties [non-messagepack]
+
     [IgnoreMember] public double Length { get; private set; }
     [IgnoreMember] public double Duration { get; set; }
     [IgnoreMember] public bool AirCandidate { get; set; }
+
+    #endregion Public properties [non-messagepack]
+
+    #region Constructors
 
     public Stroke() { }
 
@@ -58,6 +68,10 @@ public class Stroke
         };
     }
 
+    #endregion Constructors
+
+    #region Public methods
+
     public bool Overlaps(Stroke other)
     {
         var l = Math.Max(End - Start, other.End - other.Start);
@@ -65,14 +79,27 @@ public class Stroke
         var e = Math.Min(End, other.End);
         return e - s >= Parameters.AirtimeOverlapThreshold * l;
     }
-};
+
+    #endregion Public methods
+}
 
 [MessagePackObject(keyAsPropertyName: true)]
 public class Strokes
 {
+    #region Public properties
+
     public Stroke[] Compressions { get; set; }
     public Stroke[] Rebounds { get; set; }
+
+    #endregion Public properties
+
+    #region Public properties [non-messagepack]
+
     [IgnoreMember] public Stroke[] Idlings { get; private set; }
+
+    #endregion Public properties [non-messagepack]
+
+    #region Public methods
 
     public void Categorize(Stroke[] strokes)
     {
@@ -135,13 +162,13 @@ public class Strokes
     public static Stroke[] FilterStrokes(double[] velocity, double[] travel, double maxTravel, int sampleRate)
     {
         var strokes = new List<Stroke>();
-        int velocityLength = velocity.Length;
+        var velocityLength = velocity.Length;
 
-        for (int i = 0; i < velocityLength - 1; i++)
+        for (var i = 0; i < velocityLength - 1; i++)
         {
-            int startIndex = i;
-            int startSign = Math.Sign(velocity[i]);
-            double maxPosition = travel[startIndex];
+            var startIndex = i;
+            var startSign = Math.Sign(velocity[i]);
+            var maxPosition = travel[startIndex];
 
             // Loop until velocity changes sign
             while (i < velocityLength - 1 && Math.Sign(velocity[i + 1]) == startSign)
@@ -162,7 +189,7 @@ public class Strokes
             // Top-out periods often oscillate a bit, so they are split into multiple
             // strokes. We fix this by concatenating consecutive strokes if their
             // mean position is close to zero.
-            double duration = (i - startIndex + 1) / (double)sampleRate;
+            var duration = (i - startIndex + 1) / (double)sampleRate;
             if (maxPosition < Parameters.StrokeLengthThreshold &&
                 strokes.Count > 0 &&
                 strokes[^1].Stat.MaxTravel < Parameters.StrokeLengthThreshold)
@@ -177,5 +204,7 @@ public class Strokes
         }
 
         return [.. strokes];
-    }
-};
+    } 
+
+    #endregion Public methods
+}

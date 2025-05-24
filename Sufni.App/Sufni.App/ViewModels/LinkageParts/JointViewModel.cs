@@ -16,6 +16,24 @@ public enum Immutability
 
 public partial class JointViewModel : ViewModelBase
 {
+    public Immutability Immutability { get; private set; }
+    public bool ShowFlyout { get; set; }
+
+    #region Private fields
+
+    private static Dictionary<JointType, Brush> TypeToBrushMapping { get; } = new()
+    {
+        { JointType.RearWheel, new SolidColorBrush(Colors.Cyan)},
+        { JointType.FrontWheel, new SolidColorBrush(Colors.Cyan)},
+        { JointType.Fixed, new SolidColorBrush(Colors.OrangeRed)},
+        { JointType.Floating, new SolidColorBrush(Colors.HotPink)},
+        { JointType.BottomBracket, new SolidColorBrush(Colors.Purple)}
+    };
+
+    #endregion Private fields
+
+    #region Observable properties
+
     [ObservableProperty] private double x;
     [ObservableProperty] private double y;
     [ObservableProperty] private string name;
@@ -25,22 +43,18 @@ public partial class JointViewModel : ViewModelBase
     [ObservableProperty] private bool isSelected;
     [ObservableProperty] private bool wasPossiblyDragged;
 
-    public Immutability Immutability { get; private set; }
-    public bool ShowFlyout { get; set; }
-    
-    public static Dictionary<JointType, Brush> TypeToBrushMapping { get; } = new()
-    {
-        { JointType.RearWheel, new SolidColorBrush(Colors.Cyan)},
-        { JointType.FrontWheel, new SolidColorBrush(Colors.Cyan)},
-        { JointType.Fixed, new SolidColorBrush(Colors.OrangeRed)},
-        { JointType.Floating, new SolidColorBrush(Colors.HotPink)},
-        { JointType.BottomBracket, new SolidColorBrush(Colors.Purple)}
-    };
+    #endregion Observable properties
+
+    #region Property change handlers
 
     partial void OnTypeChanged(JointType value)
     {
         Brush = TypeToBrushMapping[value];
     }
+
+    #endregion Property change handlers
+
+    #region Constructors / Initializers
 
     public JointViewModel(string name, JointType type, double x, double y, bool showFlyout = false)
     {
@@ -75,8 +89,14 @@ public partial class JointViewModel : ViewModelBase
         return new JointViewModel(joint.Name, joint.Type.Value, x, y);
     }
 
+    #endregion Constructors / Initializers
+
+    #region Public methods
+
     public Joint ToJoint(double imageHeight, double pixelsToMillimeters)
     {
         return new Joint(Name, Type, X * pixelsToMillimeters, (imageHeight - Y) * pixelsToMillimeters);
     }
+
+    #endregion Public methods
 }

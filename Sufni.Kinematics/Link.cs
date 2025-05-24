@@ -4,11 +4,21 @@ namespace Sufni.Kinematics;
 
 public class Link
 {
-    [JsonIgnore] public Joint? A { get; set; }
-    [JsonIgnore] public Joint? B { get; set; }
+    #region Public properties
 
     [JsonPropertyName("a")] public string? A_Name { get; set; }
     [JsonPropertyName("b")] public string? B_Name { get; set; }
+
+    #endregion Public properties
+
+    #region Public properties [non-json]
+    
+    [JsonIgnore] public Joint? A { get; set; }
+    [JsonIgnore] public Joint? B { get; set; }
+
+    #endregion Public properties [non-json]
+
+    #region Constructors
 
     public Link() {}
 
@@ -26,6 +36,10 @@ public class Link
         B_Name = b.Name!;
     }
 
+    #endregion Constructors
+
+    #region Public mehods
+
     public void ResolveJoints(Dictionary<string, Joint> pointMap)
     {
         if (A_Name is not null && pointMap.TryGetValue(A_Name, out var pointA))
@@ -37,6 +51,10 @@ public class Link
             B = pointB;
         }
     }
+
+    #endregion Public mehods
+
+    #region Equality overrides / operators
 
     public override bool Equals(object? obj) => obj is not null && Equals(obj as Link);
 
@@ -69,4 +87,6 @@ public class Link
     }
 
     public static bool operator !=(Link? lhs, Link? rhs) => !(lhs == rhs);
+
+    #endregion Equality overrides / operators
 }

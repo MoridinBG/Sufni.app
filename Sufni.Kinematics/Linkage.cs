@@ -5,17 +5,23 @@ namespace Sufni.Kinematics;
 
 public class Linkage
 {
-    [JsonPropertyName("joints")] public List<Joint> Joints { get; set; } = [];
-    [JsonPropertyName("links")] public List<Link> Links { get; set; } = [];
-    [JsonPropertyName("shock")] public Link Shock { get; set; } = new("", "");
-    [JsonPropertyName("shock_stroke")] public double ShockStroke { get; set; }
-
     public static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
         PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
     };
+
+    #region Public properties
+
+    [JsonPropertyName("joints")] public List<Joint> Joints { get; set; } = [];
+    [JsonPropertyName("links")] public List<Link> Links { get; set; } = [];
+    [JsonPropertyName("shock")] public Link Shock { get; set; } = new("", "");
+    [JsonPropertyName("shock_stroke")] public double ShockStroke { get; set; }
+
+    #endregion Public properties
+
+    #region Initializers
 
     public static Linkage LoadFromFile(string path)
     {
@@ -30,6 +36,10 @@ public class Linkage
 
         return linkage;
     }
+
+    #endregion Initializers
+
+    #region Public methods
 
     public string ToJson()
     {
@@ -52,4 +62,6 @@ public class Linkage
         }
         Shock.ResolveJoints(pointMap);
     }
+
+    #endregion Public methods
 }

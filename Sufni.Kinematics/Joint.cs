@@ -19,8 +19,14 @@ public class PolarCoordinate(double theta, double length)
 
 public class CartesianCoordinate(double x, double y)
 {
+    #region Public properties
+
     [JsonPropertyName("x")] public double X { get; set; } = x;
     [JsonPropertyName("y")] public double Y { get; set; } = y;
+
+    #endregion
+
+    #region Equality overrides / operators
 
     public override bool Equals(object? obj) => obj is not null && Equals(obj as CartesianCoordinate);
 
@@ -53,12 +59,20 @@ public class CartesianCoordinate(double x, double y)
     }
 
     public static bool operator !=(CartesianCoordinate? lhs, CartesianCoordinate? rhs) => !(lhs == rhs);
+
+    #endregion Equality overrides / operators
 }
 
 public class Joint : CartesianCoordinate
 {
+    #region Public properties
+
     [JsonPropertyName("name")] public string? Name { get; set; }
     [JsonPropertyName("type")] public JointType? Type { get; set; }
+
+    #endregion Public properties
+
+    #region Constructors
 
     public Joint() : base(0, 0) { }
     public Joint(string name, JointType type, double x, double y) : base(x, y)
@@ -70,7 +84,11 @@ public class Joint : CartesianCoordinate
     public Joint(double x, double y) : base(x, y)
     {
     }
-    
+
+    #endregion Constructors
+
+    #region Equality overrides / operators
+
     public override bool Equals(object? obj) => obj is not null && Equals(obj as Joint);
 
     public bool Equals(Joint? j)
@@ -103,4 +121,6 @@ public class Joint : CartesianCoordinate
     }
 
     public static bool operator !=(Joint? lhs, Joint? rhs) => !(lhs == rhs);
+
+    #endregion Equality overrides / operators
 }

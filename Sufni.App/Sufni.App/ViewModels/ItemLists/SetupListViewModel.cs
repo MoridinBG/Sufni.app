@@ -12,9 +12,20 @@ namespace Sufni.App.ViewModels.ItemLists;
 
 public class SetupListViewModel : ItemListViewModelBase
 {
-    private ObservableCollection<Board> Boards { get; } = [];
+    #region Private fields
+
     private readonly ImportSessionsViewModel importSessionsPage;
     private readonly BikeListViewModel bikesPage;
+
+    #endregion Private fields
+
+    #region Observable properties
+
+    private ObservableCollection<Board> Boards { get; } = [];
+
+    #endregion Observable properties
+
+    #region Constructors
 
     public SetupListViewModel()
     {
@@ -27,6 +38,75 @@ public class SetupListViewModel : ItemListViewModelBase
         this.importSessionsPage = importSessionsPage;
         this.bikesPage =  bikesPage;
     }
+
+    #endregion Constructors
+
+    #region Private methods
+
+    private async Task LoadBoardsAsync()
+    {
+        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
+        try
+        {
+            var boards = await databaseService.GetBoardsAsync();
+
+            foreach (var board in boards)
+            {
+                Boards.Add(board);
+            }
+        }
+        catch (Exception e)
+        {
+            ErrorMessages.Add($"Could not load Boards: {e.Message}");
+        }
+    }
+
+    private void OnSetupDirtinessChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SetupViewModel.IsDirty) &&
+            sender is SetupViewModel svm &&
+            !svm.IsDirty)
+        {
+            /* TODO: remove entire function
+            svm.SelectedFrontCalibration?.DeleteCommand.NotifyCanExecuteChanged();
+            svm.SelectedRearCalibration?.DeleteCommand.NotifyCanExecuteChanged();
+            svm.SelectedLinkage?.DeleteCommand.NotifyCanExecuteChanged();
+            svm.SelectedFrontCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
+            svm.SelectedRearCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
+            svm.SelectedLinkage?.FakeDeleteCommand.NotifyCanExecuteChanged();
+            */
+        }
+    }
+
+    private async Task LoadSetupsAsync()
+    {
+        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
+        try
+        {
+            var setupList = await databaseService.GetSetupsAsync();
+            foreach (var setup in setupList)
+            {
+                var board = Boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
+                var svm = new SetupViewModel(
+                    setup,
+                    board?.Id,
+                    true,
+                    bikesPage.Source);
+                svm.PropertyChanged += OnSetupDirtinessChanged;
+                Source.AddOrUpdate(svm);
+            }
+        }
+        catch (Exception e)
+        {
+            ErrorMessages.Add($"Could not load Setups: {e.Message}");
+        }
+    }
+
+    #endregion Private methods
+
+    #region ItemListViewModelBase overrides
 
     protected override async Task DeleteImplementation(ItemViewModelBase vm)
     {
@@ -94,64 +174,5 @@ public class SetupListViewModel : ItemListViewModelBase
         }
     }
 
-    private async Task LoadBoardsAsync()
-    {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        try
-        {
-            var boards = await databaseService.GetBoardsAsync();
-
-            foreach (var board in boards)
-            {
-                Boards.Add(board);
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Boards: {e.Message}");
-        }
-    }
-
-    private void OnSetupDirtinessChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(SetupViewModel.IsDirty) &&
-            sender is SetupViewModel svm &&
-            !svm.IsDirty)
-        {
-            /* TODO: remove entire function
-            svm.SelectedFrontCalibration?.DeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedRearCalibration?.DeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedLinkage?.DeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedFrontCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedRearCalibration?.FakeDeleteCommand.NotifyCanExecuteChanged();
-            svm.SelectedLinkage?.FakeDeleteCommand.NotifyCanExecuteChanged();
-            */
-        }
-    }
-
-    private async Task LoadSetupsAsync()
-    {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        try
-        {
-            var setupList = await databaseService.GetSetupsAsync();
-            foreach (var setup in setupList)
-            {
-                var board = Boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                var svm = new SetupViewModel(
-                    setup,
-                    board?.Id,
-                    true,
-                    bikesPage.Source);
-                svm.PropertyChanged += OnSetupDirtinessChanged;
-                Source.AddOrUpdate(svm);
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Setups: {e.Message}");
-        }
-    }
+    #endregion ItemListViewModelBase overrides
 }

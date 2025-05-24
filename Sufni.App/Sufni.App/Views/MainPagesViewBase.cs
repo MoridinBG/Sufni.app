@@ -1,9 +1,5 @@
-using System;
 using Avalonia.Controls;
 
 namespace Sufni.App.Views;
 
-public partial class MainPagesViewBase : UserControl
-{
-
-}
+public partial class MainPagesViewBase : UserControl;

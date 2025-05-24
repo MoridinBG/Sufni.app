@@ -15,40 +15,23 @@ public partial class ItemListViewModelBase : ViewModelBase
 {
     protected readonly IDatabaseService? databaseService;
 
-    [ObservableProperty] private string? searchText;
-    public readonly SourceCache<ItemViewModelBase, Guid> Source = new(x => x.Id);
-    public ReadOnlyObservableCollection<ItemViewModelBase> Items => items;
-    protected ReadOnlyObservableCollection<ItemViewModelBase> items;
-    public ObservableCollection<PullMenuItemViewModel> MenuItems { get; set; } = [];
-    [ObservableProperty] private ItemViewModelBase? lastDeleted;
+    #region Observable properties
 
+    [ObservableProperty] private string? searchText;
     [ObservableProperty] private bool searchBoxIsFocused;
     [ObservableProperty] private DateTime? dateFilterFrom;
     [ObservableProperty] private DateTime? dateFilterTo;
     [ObservableProperty] private bool dateFilterVisible;
+    [ObservableProperty] private ItemViewModelBase? lastDeleted;
 
-    public virtual Task LoadFromDatabase() { return Task.CompletedTask; }
-    public virtual void ConnectSource()
-    {
-        Source.Connect()
-            .Filter(vm => string.IsNullOrEmpty(SearchText) ||
-                            (vm.Name is not null && vm.Name.Contains(SearchText,
-                                StringComparison.CurrentCultureIgnoreCase)))
-            .Bind(out items)
-            .DisposeMany()
-            .Subscribe();
-    }
+    public readonly SourceCache<ItemViewModelBase, Guid> Source = new(x => x.Id);
+    public ReadOnlyObservableCollection<ItemViewModelBase> Items => items;
+    protected ReadOnlyObservableCollection<ItemViewModelBase> items;
+    public ObservableCollection<PullMenuItemViewModel> MenuItems { get; set; } = [];
 
-    protected virtual void AddImplementation() { }
-    protected virtual Task DeleteImplementation(ItemViewModelBase vm) { return Task.CompletedTask; }
+    #endregion Observable properties
 
-#pragma warning disable CS8618 // "items" is populated in the ConnectSource method
-    public ItemListViewModelBase()
-    {
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        ConnectSource();
-    }
-#pragma warning restore CS8618
+    #region Property change handlers
 
     partial void OnSearchTextChanged(string? value)
     {
@@ -77,6 +60,41 @@ public partial class ItemListViewModelBase : ViewModelBase
             DateFilterVisible = true;
         }
     }
+    
+    #endregion Property change handlers
+    
+    #region Virtual methods
+
+    public virtual Task LoadFromDatabase() { return Task.CompletedTask; }
+    public virtual void ConnectSource()
+    {
+        Source.Connect()
+            .Filter(vm => string.IsNullOrEmpty(SearchText) ||
+                            (vm.Name is not null && vm.Name.Contains(SearchText,
+                                StringComparison.CurrentCultureIgnoreCase)))
+            .Bind(out items)
+            .DisposeMany()
+            .Subscribe();
+    }
+
+    protected virtual void AddImplementation() { }
+    protected virtual Task DeleteImplementation(ItemViewModelBase vm) { return Task.CompletedTask; }
+
+    #endregion Virtual methods
+
+    #region Constructors
+
+#pragma warning disable CS8618 // "items" is populated in the ConnectSource method
+    public ItemListViewModelBase()
+    {
+        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        ConnectSource();
+    }
+#pragma warning restore CS8618
+
+    #endregion Constructors
+
+    #region Public methods
 
     public async Task Delete(ItemViewModelBase vm)
     {
@@ -89,6 +107,10 @@ public partial class ItemListViewModelBase : ViewModelBase
         LastDeleted = vm;
         Source.Remove(vm);
     }
+
+    #endregion Public methods
+
+    #region Commands
 
     [RelayCommand]
     private void Add()
@@ -149,4 +171,6 @@ public partial class ItemListViewModelBase : ViewModelBase
     {
         DateFilterVisible = !DateFilterVisible;
     }
+
+    #endregion Commands
 }

@@ -8,13 +8,23 @@ namespace Sufni.App.ViewModels.SensorConfigurations;
 
 public abstract partial class SensorConfigurationViewModel : ViewModelBase
 {
-    [ObservableProperty] private bool isDirty;
-    
     public SensorType Type { get; protected set; }
+
+    #region Observable properties
+
+    [ObservableProperty] private bool isDirty;
+
+    #endregion
+
+    #region Virtual / abstract methods
 
     public virtual bool CanSave() { return false; }
     protected virtual void EvaluateDirtiness() { IsDirty = false; }
     public abstract string ToJson();
+
+    #endregion
+
+    #region Constructors / Initializers
 
     protected SensorConfigurationViewModel()
     {
@@ -64,6 +74,8 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
         
         return vm;
     }
+
+    #endregion Constructors / Initializers
 
     protected static bool AreEqual(double? a, double? b, double epsilon = 1e-3)
     {

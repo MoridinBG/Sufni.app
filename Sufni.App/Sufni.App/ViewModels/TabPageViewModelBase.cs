@@ -11,6 +11,8 @@ namespace Sufni.App.ViewModels;
 
 public partial class TabPageViewModelBase : ViewModelBase
 {
+    #region Observable properties
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
@@ -20,6 +22,10 @@ public partial class TabPageViewModelBase : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private string? name;
+
+    #endregion Observable properties
+
+    #region Virtual methods
 
     protected virtual void EvaluateDirtiness() { IsDirty = false; }
     protected virtual Task SaveImplementation() { return Task.CompletedTask; }
@@ -36,6 +42,10 @@ public partial class TabPageViewModelBase : ViewModelBase
         EvaluateDirtiness();
         return IsDirty;
     }
+
+    #endregion Virtual methods
+
+    #region Commands
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task Save()
@@ -86,4 +96,6 @@ public partial class TabPageViewModelBase : ViewModelBase
                 throw new ArgumentOutOfRangeException();
         }
     }
+
+    #endregion Commands
 }

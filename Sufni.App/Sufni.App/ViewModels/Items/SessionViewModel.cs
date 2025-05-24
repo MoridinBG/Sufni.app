@@ -18,19 +18,49 @@ namespace Sufni.App.ViewModels.Items;
 
 public sealed partial class SessionViewModel : ItemViewModelBase
 {
-    private Session session;
     public bool IsInDatabase;
+    public string Description => NotesPage.Description ?? "";
+    
+    #region Private fields
+
+    private Session session;
     private SpringPageViewModel SpringPage { get; } = new();
     private DamperPageViewModel DamperPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
     private NotesPageViewModel NotesPage { get; } = new();
-    public ObservableCollection<PageViewModelBase> Pages { get; }
-    public string Description => NotesPage.Description ?? "";
-    public override bool IsComplete => session.HasProcessedData;
+
+    #endregion Private fields
+
+    #region Observable properties
     
     [ObservableProperty] private TelemetryData? telemetryData;
+    public ObservableCollection<PageViewModelBase> Pages { get; }
+
+    #endregion Observable properties
+    
+    #region ItemViewModelBase overrides
+
+    public override bool IsComplete => session.HasProcessedData;
+
+    #endregion
 
     #region Private methods
+
+    private async Task LoadTelemetryData()
+    {
+        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        Debug.Assert(databaseService != null);
+
+        TelemetryData = await databaseService.GetSessionPsstAsync(Id);
+        if (TelemetryData is null)
+        {
+            throw new Exception("Database error");
+        }
+    }
+
+    #endregion
+    
+    #region Private methods [cache, mobile-only]
 
     private async Task<bool> LoadCache()
     {
@@ -69,19 +99,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
         return true;
     }
-
-    private async Task LoadTelemetryData()
-    {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null);
-
-        TelemetryData = await databaseService.GetSessionPsstAsync(Id);
-        if (TelemetryData is null)
-        {
-            throw new Exception("Database error");
-        }
-    }
-
+    
     private async Task CreateCache(object? bounds)
     {
         await LoadTelemetryData();
@@ -169,7 +187,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         await databaseService.PutSessionCacheAsync(sessionCache);
     }
 
-    #endregion
+    #endregion [cache, mobile-only]
 
     #region Constructors
 
@@ -195,7 +213,8 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     #endregion
 
-    #region ItemViewModelBase overrides
+    #region TabPageViewModelBase overrides
+
     protected override void EvaluateDirtiness()
     {
         IsDirty =
@@ -264,7 +283,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         return Task.CompletedTask;
     }
 
-    #endregion
+    #endregion TabPageViewModelBase overrides
 
     #region Commands
 

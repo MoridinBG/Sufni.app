@@ -11,6 +11,8 @@ public class JointNameMapping
 
 public class BikeCharacteristics
 {
+    #region Public properties
+
     public double? FrontStroke { get; private set; }
     public double? RearStroke { get; private set; }
     public double HeadAngle { get; private set; }
@@ -20,74 +22,89 @@ public class BikeCharacteristics
     {
         get
         {
-            _leverageRatioData ??= CalculateLeverageRatioData();
-            return _leverageRatioData.Value;
+            leverageRatioData ??= CalculateLeverageRatioData();
+            return leverageRatioData.Value;
         }
     }
 
-    private readonly Dictionary<string, CoordinateList> _solution;
-    private readonly JointNameMapping _mapping;
-    private CoordinateList? _leverageRatioData;
+    #endregion Public properties
+
+    #region Private fields
+
+    private readonly Dictionary<string, CoordinateList> solution;
+    private readonly JointNameMapping mapping;
+    private CoordinateList? leverageRatioData;
+
+    #endregion Private fields
+
+    #region Constructors
 
     public BikeCharacteristics(Dictionary<string, CoordinateList> solution, JointNameMapping? mapping = null, double? frontStroke = null, double headAngle = 0)
     {
-        _solution = solution;
-        _mapping = mapping ?? new JointNameMapping();
+        this.solution = solution;
+        this.mapping = mapping ?? new JointNameMapping();
         FrontStroke = frontStroke;
         HeadAngle = headAngle;
 
         MaxFrontTravel = Math.Sin(HeadAngle * Math.PI / 180.0) * frontStroke;
-        MaxRearTravel = Math.Abs(solution[_mapping.RearWheel].Y[^1] - solution[_mapping.RearWheel].Y[0]);
-        var dx = solution[_mapping.ShockEye1].X[0] - solution[_mapping.ShockEye2].X[0];
-        var dy = solution[_mapping.ShockEye1].Y[0] - solution[_mapping.ShockEye2].Y[0];
+        MaxRearTravel = Math.Abs(solution[this.mapping.RearWheel].Y[^1] - solution[this.mapping.RearWheel].Y[0]);
+        var dx = solution[this.mapping.ShockEye1].X[0] - solution[this.mapping.ShockEye2].X[0];
+        var dy = solution[this.mapping.ShockEye1].Y[0] - solution[this.mapping.ShockEye2].Y[0];
         RearStroke = Math.Sqrt(dx * dx + dy * dy);
     }
 
+    #endregion Constructors
+
+    #region Public methods
+
     public CoordinateList AngleToTravelDataset(string centralJoint, string adjacentJoint1, string adjacentJoint2)
     {
-        var sensorJointMotion = _solution[centralJoint];
-        var adjacentJoint1Motion = _solution[adjacentJoint1];
-        var adjacentJoint2Motion = _solution[adjacentJoint2];
+        var sensorJointMotion = solution[centralJoint];
+        var adjacentJoint1Motion = solution[adjacentJoint1];
+        var adjacentJoint2Motion = solution[adjacentJoint2];
         List<double> angles = [];
         List<double> travel = [];
-        var travel0 = _solution["Rear wheel"].Y[0];
+        var travel0 = solution["Rear wheel"].Y[0];
         for (var i = 0; i < sensorJointMotion.X.Count; ++i)
         {
             angles.Add(CalculateAngle(
                 sensorJointMotion.X[i], sensorJointMotion.Y[i],
                 adjacentJoint1Motion.X[i], adjacentJoint1Motion.Y[i],
                 adjacentJoint2Motion.X[i], adjacentJoint2Motion.Y[i]));
-            travel.Add(_solution["Rear wheel"].Y[i] - travel0);
+            travel.Add(solution["Rear wheel"].Y[i] - travel0);
         }
 
         return new CoordinateList([.. angles], [.. travel]);
     }
 
+    #endregion Public methods
+    
+    #region Private methods
 
     private CoordinateList CalculateLeverageRatioData()
     {
         // Calculate wheel travels
-        var travel0 = _solution[_mapping.RearWheel].Y[0];
-        var wheelTravels = _solution[_mapping.RearWheel].Y.Select(t => t - travel0).ToList();
+        var travel0 = solution[mapping.RearWheel].Y[0];
+        var wheelTravels = solution[mapping.RearWheel].Y.Select(t => t - travel0).ToList();
 
         // Calculate shock lengths
         IEnumerable<double> dx = [];
         IEnumerable<double> dy = [];
 
-        if (_solution[_mapping.ShockEye1].X.Count > 1 && _solution[_mapping.ShockEye2].X.Count > 1) // Both shock eyes are floating
+        if (solution[mapping.ShockEye1].X.Count > 1 && solution[mapping.ShockEye2].X.Count > 1) // Both shock eyes are floating
         {
-            dx = _solution[_mapping.ShockEye1].X.Zip(_solution[_mapping.ShockEye2].X, (a, b) => a - b);
-            dy = _solution[_mapping.ShockEye1].Y.Zip(_solution[_mapping.ShockEye2].Y, (a, b) => a - b);
+            dx = solution[mapping.ShockEye1].X.Zip(solution[mapping.ShockEye2].X, (a, b) => a - b);
+            dy = solution[mapping.ShockEye1].Y.Zip(solution[mapping.ShockEye2].Y, (a, b) => a - b);
         }
-        else if (_solution[_mapping.ShockEye1].X.Count > 1) // ShockEye1 is not fixed.
+        else if (solution[mapping.ShockEye1].X.Count > 1) // ShockEye1 is not fixed.
         {
-            dx = _solution[_mapping.ShockEye1].X.Select(x => x - _solution[_mapping.ShockEye2].X[0]);
-            dy = _solution[_mapping.ShockEye1].Y.Select(y => y - _solution[_mapping.ShockEye2].Y[0]);
+            dx = solution[mapping.ShockEye1].X.Select(x => x - solution[mapping.ShockEye2].X[0]);
+            dy = solution[mapping.ShockEye1].Y.Select(y => y - solution[mapping.ShockEye2].Y[0]);
         }
-        else if (_solution[_mapping.ShockEye2].X.Count > 1) // ShockEye2 is not fixed.
+        else if (solution[mapping.ShockEye2].X.Count > 1) // ShockEye2 is not fixed.
         {
-            dx = _solution[_mapping.ShockEye2].X.Select(x => x - _solution[_mapping.ShockEye1].X[0]);
-            dy = _solution[_mapping.ShockEye2].Y.Select(y => y - _solution[_mapping.ShockEye1].Y[0]);
+            dx = solution[mapping.ShockEye2].X.Select(x => x - solution[mapping.ShockEye1].X[0]);
+            dy = solution[mapping.ShockEye2].Y.Select(y => y - solution[mapping.ShockEye1].Y[0]);
         }
         var shockLengths = dx.Zip(dy, (a, b) => Math.Sqrt(a * a + b * b)).ToArray();
 
@@ -120,4 +137,6 @@ public class BikeCharacteristics
         var cosTheta = Math.Clamp(dot / (mag1 * mag2), -1.0, 1.0);
         return Math.Acos(cosTheta);
     }
+
+    #endregion Private methods
 }

@@ -23,8 +23,17 @@ namespace Sufni.App.ViewModels.Items;
 
 public partial class BikeViewModel : ItemViewModelBase
 {
-    private Bike bike;
     public bool IsInDatabase;
+
+    #region Private fields
+
+    private Bike bike;
+    private uint pointNumber = 1;
+    private LinkViewModel? shockViewModel;
+
+    #endregion Private fields
+
+    #region Observable properties
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -64,8 +73,9 @@ public partial class BikeViewModel : ItemViewModelBase
     [ObservableProperty] private LinkViewModel? selectedLink;
     [ObservableProperty] private bool overlayVisible;
 
-    private uint pointNumber = 1;
-    private LinkViewModel? shockViewModel;
+    #endregion Observable properties
+
+    #region Property change handlers
 
     // Handle link selection coming from the table.
     partial void OnSelectedLinkChanged(LinkViewModel? value)
@@ -104,6 +114,10 @@ public partial class BikeViewModel : ItemViewModelBase
         }
     }
 
+    #endregion Property change handlers
+
+    #region Constructors
+
     public BikeViewModel()
     {
         IsInDatabase = false;
@@ -127,210 +141,11 @@ public partial class BikeViewModel : ItemViewModelBase
         if (!fromDatabase) AddInitialJoints();
     }
 
-    protected override void EvaluateDirtiness()
-    {
-        IsDirty =
-            !IsInDatabase ||
-            Name != bike.Name ||
-            !AreEqual(HeadAngle, bike.HeadAngle) ||
-            !AreEqual(ForksStroke, bike.ForkStroke) ||
-            !AreEqual(ShockStroke, bike.ShockStroke) ||
-            !AreEqual(Chainstay, bike.Chainstay) ||
-            DidJointsChanged() ||
-            DidLinksChanged();
-    }
+    #endregion Constructors
 
-    protected override bool CanSave()
-    {
-        EvaluateDirtiness();
-        return IsDirty &&
-               HeadAngle is not null &&
-               ForksStroke is not null &&
-               (ShockStroke is null || (Image is not null && Chainstay is not null));
-    }
+    #region Private methods
 
-    protected override async Task SaveImplementation()
-    {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        if (!CheckLinkage())
-        {
-            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-            return;
-        }
-
-        try
-        {
-            var newBike = ToBike();
-            Id = await databaseService.PutBikeAsync(newBike);
-            bike = newBike;
-
-            SaveCommand.NotifyCanExecuteChanged();
-            ResetCommand.NotifyCanExecuteChanged();
-
-            if (!IsInDatabase)
-            {
-                var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-                Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-                mainPagesViewModel.BikesPage.OnAdded(this);
-            }
-
-            IsInDatabase = true;
-
-            OpenPreviousPage();
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Bike could not be saved: {e.Message}");
-        }
-    }
-
-    protected override Task ResetImplementation()
-    {
-        UpdateFromBike();
-        return Task.CompletedTask;
-    }
-
-    protected override bool CanDelete()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        return !mainPagesViewModel.SetupsPage.Items.Any(s =>
-            s is SetupViewModel { SelectedBike: not null } svm &&
-            svm.SelectedBike.Id == Id);
-    }
-
-    [RelayCommand]
-    private void DoubleTapped(TappedEventArgs args)
-    {
-        var position = args.GetPosition(args.Source as Visual);
-        JointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
-    }
-
-    [RelayCommand]
-    private void Tapped()
-    {
-        SelectedLink = null;
-        SelectedPoint = null;
-        ClearSelections();
-    }
-
-    [RelayCommand]
-    private void PointTapped(TappedEventArgs args)
-    {
-        if (args.Source is not Visual npv) return;
-
-        ClearSelections();
-        SelectedLink = null;
-        SelectedPoint = npv.DataContext as JointViewModel;
-        SelectedPoint!.IsSelected = true;
-
-        // Prevent Tapped event on the Canvas, which would deselect the point.
-        args.Handled = true;
-    }
-
-    [RelayCommand]
-    private void LinkTapped(TappedEventArgs args)
-    {
-        if (args.Source is not Line lv) return;
-
-        ClearSelections();
-        SelectedPoint = null;
-
-        SelectedLink = lv.DataContext as LinkViewModel;
-        SelectedLink!.IsSelected = true;
-
-        // Prevent Tapped event on the Canvas, which would deselect the link.
-        args.Handled = true;
-    }
-
-    [RelayCommand]
-    private void DeleteSelectedItem()
-    {
-        if (SelectedLink is not null && !SelectedLink.IsImmutable)
-        {
-            LinkViewModels.Remove(SelectedLink);
-        }
-        else if (SelectedPoint is not null && SelectedPoint.Immutability == Immutability.Modifiable)
-        {
-            var linksToDelete = LinkViewModels.Where(l => l.A == SelectedPoint || l.B == SelectedPoint).ToList();
-            foreach (var link in linksToDelete)
-            {
-                LinkViewModels.Remove(link);
-            }
-            JointViewModels.Remove(SelectedPoint);
-            ClearSelections();
-        }
-    }
-
-    [RelayCommand]
-    private async Task OpenImage(CancellationToken token)
-    {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null, nameof(filesService) + " != null");
-
-        var file = await filesService.OpenBikeImageFileAsync();
-        if (file is null) return;
-
-        Image = new Bitmap(file.Path.AbsolutePath);
-    }
-
-    [RelayCommand]
-    private void CreateLink()
-    {
-        var link = new LinkViewModel(null, null);
-        link.UpdateLength(PixelsToMillimeters);
-        LinkViewModels.Add(link);
-    }
-
-    [RelayCommand]
-    private async Task Import()
-    {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null);
-
-        var file = await filesService.OpenBikeFileAsync();
-        if (file is null) return;
-
-        await using var stream = await file.OpenReadAsync();
-        using var reader = new StreamReader(stream);
-        var json = await reader.ReadToEndAsync();
-        var bikeFromJson = Bike.FromJson(json);
-        if (bikeFromJson is null)
-        {
-            ErrorMessages.Add("JSON file was not a valid bike file.");
-            return;
-        }
-        
-        bike = bikeFromJson;
-        UpdateFromBike();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task Export()
-    {
-        if (!CheckLinkage())
-        {
-            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-            return;
-        }
-
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null);
-
-        var file = await filesService.SaveBikeFileAsync();
-        if (file is null) return;
-        
-        var bikeToExport = ToBike();
-        var bikeJson = bikeToExport.ToJson();
-        await using var stream = await file.OpenWriteAsync();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        await writer.WriteAsync(bikeJson);
-    }
-
-    public Bike ToBike()
+    private Bike ToBike()
     {
         Debug.Assert(HeadAngle is not null);
         Debug.Assert(ForksStroke is not null);
@@ -557,4 +372,221 @@ public partial class BikeViewModel : ItemViewModelBase
             }
         };
     }
+
+    #endregion Private methods
+    
+    #region TabPageViewModelBase overrides
+
+    protected override void EvaluateDirtiness()
+    {
+        IsDirty =
+            !IsInDatabase ||
+            Name != bike.Name ||
+            !AreEqual(HeadAngle, bike.HeadAngle) ||
+            !AreEqual(ForksStroke, bike.ForkStroke) ||
+            !AreEqual(ShockStroke, bike.ShockStroke) ||
+            !AreEqual(Chainstay, bike.Chainstay) ||
+            DidJointsChanged() ||
+            DidLinksChanged();
+    }
+
+    protected override bool CanSave()
+    {
+        EvaluateDirtiness();
+        return IsDirty &&
+               HeadAngle is not null &&
+               ForksStroke is not null &&
+               (ShockStroke is null || (Image is not null && Chainstay is not null));
+    }
+
+    protected override async Task SaveImplementation()
+    {
+        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
+        if (!CheckLinkage())
+        {
+            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+            return;
+        }
+
+        try
+        {
+            var newBike = ToBike();
+            Id = await databaseService.PutBikeAsync(newBike);
+            bike = newBike;
+
+            SaveCommand.NotifyCanExecuteChanged();
+            ResetCommand.NotifyCanExecuteChanged();
+
+            if (!IsInDatabase)
+            {
+                var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
+                Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
+                mainPagesViewModel.BikesPage.OnAdded(this);
+            }
+
+            IsInDatabase = true;
+
+            OpenPreviousPage();
+        }
+        catch (Exception e)
+        {
+            ErrorMessages.Add($"Bike could not be saved: {e.Message}");
+        }
+    }
+
+    protected override Task ResetImplementation()
+    {
+        UpdateFromBike();
+        return Task.CompletedTask;
+    }
+
+    #endregion TabPageViewModelBase overrides
+
+    #region ItemViewModelBase overrides
+
+    protected override bool CanDelete()
+    {
+        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
+        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
+
+        return !mainPagesViewModel.SetupsPage.Items.Any(s =>
+            s is SetupViewModel { SelectedBike: not null } svm &&
+            svm.SelectedBike.Id == Id);
+    }
+
+    #endregion ItemViewModelBase overrides
+
+    #region Commands
+
+    [RelayCommand]
+    private void DoubleTapped(TappedEventArgs args)
+    {
+        var position = args.GetPosition(args.Source as Visual);
+        JointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
+    }
+
+    [RelayCommand]
+    private void Tapped()
+    {
+        SelectedLink = null;
+        SelectedPoint = null;
+        ClearSelections();
+    }
+
+    [RelayCommand]
+    private void PointTapped(TappedEventArgs args)
+    {
+        if (args.Source is not Visual npv) return;
+
+        ClearSelections();
+        SelectedLink = null;
+        SelectedPoint = npv.DataContext as JointViewModel;
+        SelectedPoint!.IsSelected = true;
+
+        // Prevent Tapped event on the Canvas, which would deselect the point.
+        args.Handled = true;
+    }
+
+    [RelayCommand]
+    private void LinkTapped(TappedEventArgs args)
+    {
+        if (args.Source is not Line lv) return;
+
+        ClearSelections();
+        SelectedPoint = null;
+
+        SelectedLink = lv.DataContext as LinkViewModel;
+        SelectedLink!.IsSelected = true;
+
+        // Prevent Tapped event on the Canvas, which would deselect the link.
+        args.Handled = true;
+    }
+
+    [RelayCommand]
+    private void DeleteSelectedItem()
+    {
+        if (SelectedLink is not null && !SelectedLink.IsImmutable)
+        {
+            LinkViewModels.Remove(SelectedLink);
+        }
+        else if (SelectedPoint is not null && SelectedPoint.Immutability == Immutability.Modifiable)
+        {
+            var linksToDelete = LinkViewModels.Where(l => l.A == SelectedPoint || l.B == SelectedPoint).ToList();
+            foreach (var link in linksToDelete)
+            {
+                LinkViewModels.Remove(link);
+            }
+            JointViewModels.Remove(SelectedPoint);
+            ClearSelections();
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenImage(CancellationToken token)
+    {
+        var filesService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(filesService != null, nameof(filesService) + " != null");
+
+        var file = await filesService.OpenBikeImageFileAsync();
+        if (file is null) return;
+
+        Image = new Bitmap(file.Path.AbsolutePath);
+    }
+
+    [RelayCommand]
+    private void CreateLink()
+    {
+        var link = new LinkViewModel(null, null);
+        link.UpdateLength(PixelsToMillimeters);
+        LinkViewModels.Add(link);
+    }
+
+    [RelayCommand]
+    private async Task Import()
+    {
+        var filesService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(filesService != null);
+
+        var file = await filesService.OpenBikeFileAsync();
+        if (file is null) return;
+
+        await using var stream = await file.OpenReadAsync();
+        using var reader = new StreamReader(stream);
+        var json = await reader.ReadToEndAsync();
+        var bikeFromJson = Bike.FromJson(json);
+        if (bikeFromJson is null)
+        {
+            ErrorMessages.Add("JSON file was not a valid bike file.");
+            return;
+        }
+        
+        bike = bikeFromJson;
+        UpdateFromBike();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task Export()
+    {
+        if (!CheckLinkage())
+        {
+            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+            return;
+        }
+
+        var filesService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(filesService != null);
+
+        var file = await filesService.SaveBikeFileAsync();
+        if (file is null) return;
+        
+        var bikeToExport = ToBike();
+        var bikeJson = bikeToExport.ToJson();
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new StreamWriter(stream, Encoding.UTF8);
+        await writer.WriteAsync(bikeJson);
+    }
+
+    #endregion Commands
 }

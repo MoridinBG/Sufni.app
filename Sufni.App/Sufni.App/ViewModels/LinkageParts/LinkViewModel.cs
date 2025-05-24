@@ -12,6 +12,11 @@ namespace Sufni.App.ViewModels.LinkageParts;
 
 public partial class LinkViewModel : ViewModelBase
 {
+    public double? PixelsToMillimeters { get; set; }
+    public bool IsImmutable => Name == "Shock";
+
+    #region Observable properties
+
     [ObservableProperty] private JointViewModel? a;
     [ObservableProperty] private JointViewModel? b;
     [ObservableProperty] private Point startPoint;
@@ -20,8 +25,10 @@ public partial class LinkViewModel : ViewModelBase
     [ObservableProperty] private double length;
     [ObservableProperty] private bool isSelected;
     [ObservableProperty] private Brush brush = new SolidColorBrush(Colors.CornflowerBlue);
-    public double? PixelsToMillimeters { get; set; }
-    public bool IsImmutable => Name == "Shock";
+
+    #endregion Observable properties
+
+    #region Property change handlers
 
     partial void OnIsSelectedChanged(bool value)
     {
@@ -69,21 +76,23 @@ public partial class LinkViewModel : ViewModelBase
 
     private void OnPointCoordinatesChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (sender is JointViewModel point &&
-            (e.PropertyName == nameof(point.X) || e.PropertyName == nameof(point.Y)))
+        if (sender is not JointViewModel point ||
+            e.PropertyName is not (nameof(point.X) or nameof(point.Y))) return;
+        if (point == A)
         {
-            if (point == A)
-            {
-                StartPoint = new Point(point.X, point.Y);
-            }
-            else
-            {
-                EndPoint = new Point(point.X, point.Y);
-            }
-
-            UpdateLength();
+            StartPoint = new Point(point.X, point.Y);
         }
+        else
+        {
+            EndPoint = new Point(point.X, point.Y);
+        }
+
+        UpdateLength();
     }
+
+    #endregion Property change handlers
+
+    #region Constructors
 
     public LinkViewModel(JointViewModel? a, JointViewModel? b, string? name = null)
     {
@@ -127,6 +136,10 @@ public partial class LinkViewModel : ViewModelBase
         UpdateLength();
     }
 
+    #endregion Constructors
+
+    #region Public methods
+
     public void UpdateLength(double? pixelsToMillimeter = null)
     {
         if (pixelsToMillimeter is not null)
@@ -147,8 +160,9 @@ public partial class LinkViewModel : ViewModelBase
         Debug.Assert(link.A is not null);
         Debug.Assert(link.B is not null);
 
-        var a = jointViewModels.FirstOrDefault(j => j.Name == link.A.Name);
-        var b = jointViewModels.FirstOrDefault(j => j.Name == link.B.Name);
+        var jvms = jointViewModels as JointViewModel[] ?? jointViewModels.ToArray();
+        var a = jvms.FirstOrDefault(j => j.Name == link.A.Name);
+        var b = jvms.FirstOrDefault(j => j.Name == link.B.Name);
 
         var lvm = new LinkViewModel(a, b);
         lvm.UpdateLength();
@@ -166,4 +180,6 @@ public partial class LinkViewModel : ViewModelBase
             A.ToJoint(imageHeight, pixelsToMillimeters),
             B.ToJoint(imageHeight, pixelsToMillimeters));
     }
+
+    #endregion Public methods
 }

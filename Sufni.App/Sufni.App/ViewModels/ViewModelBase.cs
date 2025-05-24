@@ -8,8 +8,14 @@ namespace Sufni.App.ViewModels
 {
     public partial class ViewModelBase : ObservableObject
     {
+        #region Observable properties
+
         public ObservableCollection<string> ErrorMessages { get; } = [];
         public ObservableCollection<string> Notifications { get; } = [];
+
+        #endregion Observable properties
+
+        #region Commands
 
         [RelayCommand]
         private void ClearErrors(object? o)
@@ -26,17 +32,17 @@ namespace Sufni.App.ViewModels
         [RelayCommand]
         protected static void OpenPage(ViewModelBase view)
         {
-            Debug.Assert(App.Current is not null, "App.Current is not null");
+            Debug.Assert(App.Current is not null);
             var isDesktop = App.Current.IsDesktop;
             if (isDesktop)
             {
-                var vm = App.Current?.Services?.GetService<MainWindowViewModel>();
+                var vm = App.Current.Services?.GetService<MainWindowViewModel>();
                 Debug.Assert(vm != null, nameof(vm) + " != null");
                 vm.OpenView(view);
             }
             else
             {
-                var vm = App.Current?.Services?.GetService<MainViewModel>();
+                var vm = App.Current.Services?.GetService<MainViewModel>();
                 Debug.Assert(vm != null, nameof(vm) + " != null");
                 vm.OpenView(view);
             }
@@ -45,7 +51,7 @@ namespace Sufni.App.ViewModels
         [RelayCommand]
         protected static void OpenPreviousPage()
         {
-            Debug.Assert(App.Current is not null, "App.Current is not null");
+            Debug.Assert(App.Current is not null);
 
             if (!App.Current.IsDesktop) return; // OpenPreviousPage is a no-op on desktop
 
@@ -53,5 +59,7 @@ namespace Sufni.App.ViewModels
             Debug.Assert(vm != null, nameof(vm) + " != null");
             vm.OpenPreviousView();
         }
+
+        #endregion Commands
     }
 }

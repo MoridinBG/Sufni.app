@@ -14,6 +14,9 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
+    private readonly IDatabaseService? databaseService;
+    private readonly ItemListViewModelBase[] pages;
+
     #region Observable properties
 
     [ObservableProperty] private bool databaseLoaded;
@@ -28,8 +31,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     #endregion
 
-    private readonly IDatabaseService? databaseService;
-    private readonly ItemListViewModelBase[] pages;
+    #region Constructors
 
     public MainPagesViewModel()
     {
@@ -59,6 +61,8 @@ public partial class MainPagesViewModel : ViewModelBase
 
         _ = LoadDatabaseContent();
     }
+
+    #endregion Constructors
 
     #region Public methods
 

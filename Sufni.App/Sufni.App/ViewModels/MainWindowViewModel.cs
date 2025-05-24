@@ -1,4 +1,3 @@
-using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -8,11 +7,17 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly WelcomeScreenViewModel welcomeScreenViewModel = new();
+
+    #region Observable properties
+
     [ObservableProperty] private TabPageViewModelBase currentView;
     [ObservableProperty] private MainPagesViewModel? mainPagesViewModel;
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
 
-    private readonly WelcomeScreenViewModel welcomeScreenViewModel = new();
+    #endregion Observable properties
+
+    #region Constructors
 
     public MainWindowViewModel()
     {
@@ -23,10 +28,14 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentView = welcomeScreenViewModel;
     }
 
+    #endregion Constructors
+
+    #region Public methods
+
     public void OpenView(ViewModelBase view)
     {
         var tabPage = view as TabPageViewModelBase;
-        Debug.Assert(tabPage is not null, "tabPage is not null");
+        Debug.Assert(tabPage is not null);
 
         if (!Tabs.Contains(tabPage))
         {
@@ -39,4 +48,6 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         Tabs.Remove(tab);
     }
+
+    #endregion Public methods
 }

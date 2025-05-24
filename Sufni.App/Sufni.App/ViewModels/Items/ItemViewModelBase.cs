@@ -9,11 +9,22 @@ namespace Sufni.App.ViewModels.Items;
 
 public partial class ItemViewModelBase : TabPageViewModelBase
 {
+    #region Observable properties
+
     [ObservableProperty] private Guid id;
     [ObservableProperty] private DateTime? timestamp;
+
+    #endregion Observable properties
+
+    #region Virtual methods / properties
+
     public virtual bool IsComplete => true;
 
     protected virtual bool CanDelete() { return true; }
+
+    #endregion Virtual methods / properties
+
+    #region Commands
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private async Task Delete(bool navigateBack)
@@ -43,4 +54,6 @@ public partial class ItemViewModelBase : TabPageViewModelBase
         // This exists just so we can easily control the enabled/disabled
         // state of the Delete button on the CommonButtonLine.
     }
+
+    #endregion Commands
 }
