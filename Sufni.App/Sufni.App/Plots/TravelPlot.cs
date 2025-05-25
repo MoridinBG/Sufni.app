@@ -1,0 +1,66 @@
+using ScottPlot;
+using Sufni.Telemetry;
+
+namespace Sufni.App.Plots;
+
+internal class LockedHorizontalVertical(IXAxis xAxis, IYAxis yAxis, double xMin, double xMax, double yMin, double yMax) : IAxisRule
+{
+    public void Apply(RenderPack rp, bool beforeLayout)
+    {
+        if (xAxis.Min < xMin) xAxis.Min = 0;
+        if (xAxis.Max > xMax) xAxis.Max = xMax;
+        yAxis.Range.Set(yMin, yMax);
+    }
+}
+
+public class TravelPlot(Plot plot) : TelemetryPlot(plot)
+{
+    public override void LoadTelemetryData(TelemetryData telemetryData)
+    {
+        base.LoadTelemetryData(telemetryData);
+
+        Plot.Axes.Title.Label.Text = "Travel (time / mm)";
+        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+
+        var count = telemetryData.Front.Present ? telemetryData.Front.Travel.Length : telemetryData.Rear.Travel.Length;
+        var step = 1.0 / telemetryData.Metadata.SampleRate;
+
+        if (telemetryData.Front.Present)
+        { 
+            var frontSignal = Plot.Add.Signal(telemetryData.Front.Travel, step, FrontColor);
+            frontSignal.Axes.XAxis = Plot.Axes.Bottom;
+            frontSignal.Axes.YAxis = Plot.Axes.Left;
+            frontSignal.LineWidth = 3.0f;
+        }
+
+        if (telemetryData.Rear.Present)
+        { 
+            var rearSignal = Plot.Add.Signal(telemetryData.Rear.Travel, step, RearColor);
+            rearSignal.Axes.XAxis = Plot.Axes.Bottom;
+            rearSignal.Axes.YAxis = Plot.Axes.Right;
+            rearSignal.LineWidth = 3.0f;
+        }
+        
+        // Lock the vertical, and set limits on the horizontal axes
+        var rule1 = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
+            0, count * step, 160, 0);
+        var rule2 = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
+            0, count * step, 160, 0);
+        Plot.Axes.Rules.Add(rule1);
+        Plot.Axes.Rules.Add(rule2);
+        
+        // Maximize tick numbers
+        ScottPlot.TickGenerators.NumericAutomatic tickGenBottom = new()
+        {
+            TargetTickCount = 5
+        };
+        Plot.Axes.Bottom.TickGenerator = tickGenBottom;
+
+        ScottPlot.TickGenerators.NumericAutomatic tickGenLeft = new()
+        {
+            MinimumTickSpacing = 20
+        };
+        Plot.Axes.Left.TickGenerator = tickGenLeft;
+        Plot.Axes.Right.TickGenerator = tickGenLeft;
+    }
+}
