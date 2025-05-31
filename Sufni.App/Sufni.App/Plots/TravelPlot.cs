@@ -52,17 +52,17 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         }
         
         // Maximize tick numbers
-        ScottPlot.TickGenerators.NumericAutomatic tickGenBottom = new()
+        ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
         {
             TargetTickCount = 5
         };
-        Plot.Axes.Bottom.TickGenerator = tickGenBottom;
+        Plot.Axes.Bottom.TickGenerator = tickGenTime;
 
-        ScottPlot.TickGenerators.NumericAutomatic tickGenLeft = new()
+        ScottPlot.TickGenerators.NumericAutomatic tickGenTravel = new()
         {
             MinimumTickSpacing = 20
         };
-        Plot.Axes.Left.TickGenerator = tickGenLeft;
-        Plot.Axes.Right.TickGenerator = tickGenLeft;
+        Plot.Axes.Left.TickGenerator = tickGenTravel;
+        Plot.Axes.Right.TickGenerator = tickGenTravel;
     }
 }
