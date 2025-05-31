@@ -30,7 +30,12 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             var frontSignal = Plot.Add.Signal(telemetryData.Front.Travel, step, FrontColor);
             frontSignal.Axes.XAxis = Plot.Axes.Bottom;
             frontSignal.Axes.YAxis = Plot.Axes.Left;
-            frontSignal.LineWidth = 3.0f;
+            frontSignal.LineWidth = 2.0f;
+            
+            // Lock the vertical, and set limits on the horizontal axis
+            var rule = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
+                0, count * step, telemetryData.Front.MaxTravel!.Value, 0);
+            Plot.Axes.Rules.Add(rule);
         }
 
         if (telemetryData.Rear.Present)
@@ -38,16 +43,13 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             var rearSignal = Plot.Add.Signal(telemetryData.Rear.Travel, step, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
             rearSignal.Axes.YAxis = Plot.Axes.Right;
-            rearSignal.LineWidth = 3.0f;
+            rearSignal.LineWidth = 2.0f;
+            
+            // Lock the vertical, and set limits on the horizontal axis
+            var rule = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
+                0, count * step, telemetryData.Rear.MaxTravel!.Value, 0);
+            Plot.Axes.Rules.Add(rule);
         }
-        
-        // Lock the vertical, and set limits on the horizontal axes
-        var rule1 = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
-            0, count * step, 160, 0);
-        var rule2 = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
-            0, count * step, 160, 0);
-        Plot.Axes.Rules.Add(rule1);
-        Plot.Axes.Rules.Add(rule2);
         
         // Maximize tick numbers
         ScottPlot.TickGenerators.NumericAutomatic tickGenBottom = new()
