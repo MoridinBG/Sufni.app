@@ -1,13 +1,14 @@
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using ScottPlot;
 using ScottPlot.Avalonia;
 
 namespace Sufni.App.DesktopViews.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
 {
-    protected AvaPlot? AvaPlot;
+    public AvaPlot? AvaPlot;
     
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
