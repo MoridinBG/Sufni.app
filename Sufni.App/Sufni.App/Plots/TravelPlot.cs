@@ -20,8 +20,15 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = "Travel (time / mm)";
-        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
-
+        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
+        Plot.Axes.Right.TickLabelStyle.Bold = false;
+        Plot.Axes.Right.TickLabelStyle.FontSize = 12;
+        Plot.Axes.Right.MajorTickStyle.Length = 0;
+        Plot.Axes.Right.MinorTickStyle.Length = 0;
+        Plot.Axes.Right.MajorTickStyle.Width = 0;
+        Plot.Axes.Right.MinorTickStyle.Width = 0;
+        
         var count = telemetryData.Front.Present ? telemetryData.Front.Travel.Length : telemetryData.Rear.Travel.Length;
         var step = 1.0 / telemetryData.Metadata.SampleRate;
 
