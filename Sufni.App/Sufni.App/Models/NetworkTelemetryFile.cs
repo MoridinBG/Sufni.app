@@ -23,14 +23,15 @@ public class NetworkTelemetryFile : ITelemetryFile
         var idInt = int.Parse(idString);
         var rawData = await SstTcpClient.GetFile(ipEndPoint, idInt);
         var rawTelemetryData = RawTelemetryData.FromByteArray(rawData);
-        var telemetryMetadata = new Metadata()
+        var telemetryMetadata = new Metadata
         {
             SourceName = FileName,
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
             Timestamp = rawTelemetryData.Timestamp
         };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear, telemetryMetadata, bikeData);
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear,
+            rawTelemetryData.FrontAnomalyRate, rawTelemetryData.RearAnomalyRate, telemetryMetadata, bikeData);
         return telemetryData.BinaryForm;
     }
 

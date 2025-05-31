@@ -60,14 +60,15 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
         await using var stream = await storageFile.OpenReadAsync();
         var rawTelemetryData = RawTelemetryData.FromStream(stream);
-        var telemetryMetadata = new Metadata()
+        var telemetryMetadata = new Metadata
         {
             SourceName = FileName,
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
             Timestamp = rawTelemetryData.Timestamp
         };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear, telemetryMetadata, bikeData);
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear,
+            rawTelemetryData.FrontAnomalyRate, rawTelemetryData.RearAnomalyRate, telemetryMetadata, bikeData);
         return telemetryData.BinaryForm;
     }
 

@@ -28,6 +28,7 @@ public class Airtime
 public class Suspension
 {
     public bool Present { get; set; }
+    public double AnomalyRate { get; set; }
     public double? MaxTravel { get; set; }
     public double[] Travel { get; set; }
     public double[] Velocity { get; set; }
@@ -304,7 +305,8 @@ public class TelemetryData
 
     #region PSST conversion
 
-    public static TelemetryData FromRecording(ushort[] front, ushort[] rear, Metadata metadata, BikeData bikeData)
+    public static TelemetryData FromRecording(ushort[] front, ushort[] rear,
+        double frontAnomalyRate, double rearAnomalyRate, Metadata metadata, BikeData bikeData)
     {
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
 
@@ -338,11 +340,13 @@ public class TelemetryData
         {
             Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
             CalculateSuspension(td.Front, front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            td.Front.AnomalyRate = frontAnomalyRate;
         }
         if (td.Rear.Present)
         {
             Debug.Assert(bikeData.RearMeasurementToTravel is not null);
             CalculateSuspension(td.Rear, rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            td.Rear.AnomalyRate = rearAnomalyRate;
         }
 
         td.CalculateAirTimes();
