@@ -19,7 +19,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
     {
         base.LoadTelemetryData(telemetryData);
 
-        Plot.Axes.Title.Label.Text = "Travel (time / mm)";
+        Plot.Axes.Title.Label.Text = "Travel (mm / seconds)";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
         Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
         Plot.Axes.Right.TickLabelStyle.Bold = false;
