@@ -6,6 +6,7 @@
     x:Class="Sufni.App.DesktopViews.ItemLists.BikeListDesktopView"
     x:DataType="vml:BikeListViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:c="clr-namespace:Sufni.App.DesktopViews.Controls"
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -26,32 +27,7 @@
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel>
-                            <Button
-                                Classes="item"
-                                Command="{Binding OpenPageCommand}"
-                                CommandParameter="{Binding}"
-                                CornerRadius="0"
-                                Height="48"
-                                HorizontalAlignment="Stretch"
-                                Padding="30,0,10,0"
-                                VerticalContentAlignment="Center">
-                                <Grid ColumnDefinitions="auto * auto 40" HorizontalAlignment="Stretch">
-                                    <TextBlock Grid.Column="0" Text="{Binding Name}" />
-                                    <TextBlock Grid.Column="2" Text="{Binding Timestamp}" />
-                                    <Image
-                                        Grid.Column="3"
-                                        Height="16"
-                                        IsVisible="{Binding !IsComplete}"
-                                        Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}"
-                                        Width="16" />
-                                </Grid>
-                            </Button>
-                            <Separator
-                                Background="{StaticResource SufniBackgroundDisabled}"
-                                Height="1"
-                                Margin="0" />
-                        </StackPanel>
+                        <c:DeletableListItemButton />
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>

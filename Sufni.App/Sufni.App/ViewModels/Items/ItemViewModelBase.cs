@@ -46,6 +46,14 @@ public partial class ItemViewModelBase : TabPageViewModelBase
         Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
 
         mainPagesViewModel.UndoableDelete(this);
+
+        Debug.Assert(App.Current is not null);
+        if (App.Current.IsDesktop)
+        {
+            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
+            Debug.Assert(vm != null);
+            vm.CloseTabPage(this);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
