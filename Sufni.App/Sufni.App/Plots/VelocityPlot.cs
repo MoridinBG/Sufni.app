@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using ScottPlot;
 using Sufni.Telemetry;
@@ -22,6 +23,8 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         
         var count = telemetryData.Front.Present ? telemetryData.Front.Travel.Length : telemetryData.Rear.Travel.Length;
         var step = 1.0 / telemetryData.Metadata.SampleRate;
+        var minimum = 0.0;
+        var maximum = 0.0;
 
         if (telemetryData.Front.Present)
         {
@@ -30,11 +33,8 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
             frontSignal.Axes.XAxis = Plot.Axes.Bottom;
             frontSignal.Axes.YAxis = Plot.Axes.Left;
             frontSignal.LineWidth = 2.0f;
-            
-            // Lock the vertical, and set limits on the horizontal axis
-            var rule = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
-                0, count * step, velocity.Min(), velocity.Max());
-            Plot.Axes.Rules.Add(rule);
+            minimum = velocity.Min();
+            maximum = velocity.Max();
         }
 
         if (telemetryData.Rear.Present)
@@ -42,14 +42,19 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
             var velocity = telemetryData.Rear.Velocity.Select(v => v / 1000).ToArray();
             var rearSignal = Plot.Add.Signal(velocity, step, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
-            rearSignal.Axes.YAxis = Plot.Axes.Right;
+            rearSignal.Axes.YAxis = Plot.Axes.Left;
             rearSignal.LineWidth = 2.0f;
-            
-            // Lock the vertical, and set limits on the horizontal axis
-            var rule = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
-                0, count * step, velocity.Min(), velocity.Max());
-            Plot.Axes.Rules.Add(rule);
+            minimum = Math.Min(minimum, velocity.Min());
+            maximum = Math.Max(maximum, velocity.Max());
         }
+        
+        // Lock the vertical, and set limits on the horizontal axis
+        var ruleFront = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
+            0, count * step, minimum, maximum);
+        var ruleRear = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
+            0, count * step, minimum, maximum);
+        Plot.Axes.Rules.Add(ruleFront);
+        Plot.Axes.Rules.Add(ruleRear);
         
         // Maximize tick numbers
         ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
