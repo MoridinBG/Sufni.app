@@ -5,7 +5,6 @@
     x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
     x:DataType="vm:MainPagesViewModel"
     xmlns="https://github.com/avaloniaui"
-    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
@@ -48,26 +47,6 @@
     </UserControl.Styles>
 
     <Panel>
-
-        <!--  This panel catches taps outside MenuPanel, so that we can close it  -->
-        <Panel
-            Background="Transparent"
-            HorizontalAlignment="Stretch"
-            IsVisible="{Binding IsMenuPaneOpen}"
-            Name="MenuPanelBackground"
-            VerticalAlignment="Stretch"
-            ZIndex="5" />
-
-        <!--  MenuPanel  -->
-        <controls:SidePanel
-            Background="{StaticResource SufniRegion}"
-            HorizontalAlignment="Left"
-            IsVisible="{Binding IsMenuPaneOpen, Mode=TwoWay}"
-            Margin="30,50,0,0"
-            Name="MenuPanel"
-            VerticalAlignment="Top"
-            Width="200"
-            ZIndex="10" />
 
         <!--  Menu tab  -->
         <TabControl

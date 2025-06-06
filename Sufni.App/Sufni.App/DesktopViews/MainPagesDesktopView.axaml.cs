@@ -12,21 +12,6 @@ public partial class MainPagesDesktopView : MainPagesViewBase
     {
         InitializeComponent();
 
-        // Catch taps outside MenuPanel, so that we can close it
-        MenuPanelBackground.Tapped += (s, e) => MenuPanel.IsVisible = false;
-
-        // Close MenuPanel when one of the options is selected
-        MenuPanel.Loaded += (s, e) =>
-        {
-            var menuItems = MenuPanel.GetLogicalDescendants().OfType<MenuItem>();
-            foreach (var menuItem in menuItems)
-            {
-                menuItem.PointerPressed += (s, e) =>
-                {
-                    MenuPanel.IsVisible = false;
-                };
-            }
-        };
         // Allow the pane to close/open on tab header clicks
         var pagesTabItems = PagesMenu.GetLogicalChildren();
         foreach (var item in pagesTabItems)
