@@ -23,10 +23,12 @@
     </Window.Resources>
 
     <SplitView
-        DisplayMode="Inline"
+        CompactPaneLength="51"
+        DisplayMode="CompactInline"
         IsPaneOpen="True"
         OpenPaneLength="450">
 
+        <!--  Left pane with item lists  -->
         <SplitView.Pane>
             <ContentControl
                 BorderBrush="{StaticResource SufniBackgroundDisabled}"
@@ -34,6 +36,7 @@
                 Content="{Binding MainPagesViewModel}" />
         </SplitView.Pane>
 
+        <!--  Main tab area  -->
         <Grid RowDefinitions="auto *">
             <TabStrip
                 Grid.Row="0"
