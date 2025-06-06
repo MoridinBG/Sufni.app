@@ -11,7 +11,6 @@ using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Labs.Controls.Base.Pan;
-using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
 using HapticFeedback;
@@ -94,7 +93,7 @@ public partial class PullableMenuScrollViewer : UserControl
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
-        Scroll.Height = Bounds.Height - TopContainer.Bounds.Height;
+        Scroll.Height = Math.Max(0, Bounds.Height - TopContainer.Bounds.Height);
     }
 
     #region Styled properties
