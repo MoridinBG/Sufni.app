@@ -25,11 +25,16 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     private Session session;
     private SpringPageViewModel SpringPage { get; } = new();
-    private DamperPageViewModel DamperPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
-    private NotesPageViewModel NotesPage { get; } = new();
 
     #endregion Private fields
+    
+    #region Public fields
+
+    public DamperPageViewModel DamperPage { get; } = new();
+    public NotesPageViewModel NotesPage { get; } = new();
+
+    #endregion Public fields
 
     #region Observable properties
     
@@ -55,6 +60,24 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         if (TelemetryData is null)
         {
             throw new Exception("Database error");
+        }
+
+        if (TelemetryData.Front.Present)
+        {
+            var fvb = TelemetryData.CalculateVelocityBands(SuspensionType.Front, 200);
+            DamperPage.FrontHsrPercentage = fvb.HighSpeedRebound;
+            DamperPage.FrontLsrPercentage = fvb.LowSpeedRebound;
+            DamperPage.FrontLscPercentage = fvb.LowSpeedCompression;
+            DamperPage.FrontHscPercentage = fvb.HighSpeedCompression;
+        }
+        
+        if (TelemetryData.Rear.Present)
+        {
+            var rvb = TelemetryData.CalculateVelocityBands(SuspensionType.Rear, 200);
+            DamperPage.RearHsrPercentage = rvb.HighSpeedRebound;
+            DamperPage.RearLsrPercentage = rvb.LowSpeedRebound;
+            DamperPage.RearLscPercentage = rvb.LowSpeedCompression;
+            DamperPage.RearHscPercentage = rvb.HighSpeedCompression;
         }
     }
 

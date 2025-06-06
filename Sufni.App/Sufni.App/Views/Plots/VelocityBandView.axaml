@@ -10,7 +10,7 @@
         <!--  Set Defaults  -->
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid ColumnDefinitions="64" RowDefinitions="39 400 39">
+                <Grid ColumnDefinitions="64" RowDefinitions="39 * 39">
 
                     <!--  Title  -->
                     <TextBlock
