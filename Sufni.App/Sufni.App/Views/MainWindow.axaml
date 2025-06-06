@@ -19,6 +19,7 @@
     <Window.Resources>
         <v:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
         <v:BoolToColorConverter x:Key="BoolToColorConverter" />
+        <v:IsEqualConverter x:Key="IsEqualConverter" />
     </Window.Resources>
 
     <SplitView
@@ -77,7 +78,7 @@
                     <DataTemplate DataType="vm:TabPageViewModelBase">
                         <ContentControl Content="{Binding}" Margin="0,20,0,0">
                             <ContentControl.IsVisible>
-                                <MultiBinding Converter="{x:Static v:IsEqualConverter.Instance}">
+                                <MultiBinding Converter="{StaticResource IsEqualConverter}">
                                     <Binding />
                                     <Binding Path="#TabControl.((vm:MainWindowViewModel)DataContext).CurrentView" />
                                 </MultiBinding>

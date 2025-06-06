@@ -11,8 +11,6 @@ namespace Sufni.App.Views;
 
 public class IsEqualConverter : IMultiValueConverter
 {
-    public static IsEqualConverter Instance { get; } = new();
-
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
         return values.Count == 2 && values[0] == values[1];
