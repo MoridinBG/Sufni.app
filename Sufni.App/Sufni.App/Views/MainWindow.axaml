@@ -16,21 +16,6 @@
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Window.Styles>
-        <Style Selector="TabItem">
-            <Setter Property="Padding" Value="0" />
-        </Style>
-        <Style Selector="TabItem:selected">
-            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
-        </Style>
-        <Style Selector="TabItem:pointerover:selected /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
-        </Style>
-        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
-        </Style>
-    </Window.Styles>
-
     <Window.Resources>
         <v:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
         <v:BoolToColorConverter x:Key="BoolToColorConverter" />

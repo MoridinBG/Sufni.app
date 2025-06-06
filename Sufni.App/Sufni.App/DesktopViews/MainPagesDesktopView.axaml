@@ -21,9 +21,16 @@
             <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="TabItem">
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="2 0 2 0" />
             <Setter Property="MinHeight" Value="46" />
             <Setter Property="Height" Value="46" />
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+        </Style>
+        <Style Selector="TabItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
         </Style>
         <Style Selector="TabItem /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Height" Value="25" />
@@ -36,6 +43,7 @@
             <Setter Property="Height" Value="60" />
             <Setter Property="Width" Value="2" />
             <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
         </Style>
     </UserControl.Styles>
 
