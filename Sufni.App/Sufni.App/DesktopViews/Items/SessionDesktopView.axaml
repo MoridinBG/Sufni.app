@@ -1,0 +1,180 @@
+<UserControl
+    Background="{StaticResource SufniRegion}"
+    Focusable="True"
+    d:DesignHeight="800"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.DesktopViews.Items.SessionDesktopView"
+    x:DataType="vm:SessionViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:pages="clr-namespace:Sufni.App.Views.SessionPages"
+    xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+    xmlns:v="clr-namespace:Sufni.App.DesktopViews.Items"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vm:SessionViewModel />
+    </Design.DataContext>
+
+    <!--  Ensure that the SufniTelemetryPlotViews' Telemetry property is set  -->
+    <i:Interaction.Behaviors>
+        <ia:EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </ia:EventTriggerBehavior>
+    </i:Interaction.Behaviors>
+
+    <UserControl.Styles>
+        <Style Selector="TabStripItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+        <Style Selector="TabStripItem:selected">
+            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+        </Style>
+        <Style Selector="TabItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+        <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+        </Style>
+        <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+            <Setter Property="Height" Value="2" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="* auto *">
+
+        <Grid
+            ColumnDefinitions="* auto auto"
+            Grid.Row="0"
+            RowDefinitions="3* auto 2*">
+
+            <!--  Travel  -->
+            <plots:TravelPlotDesktopView
+                Grid.Column="0"
+                Grid.Row="0"
+                Name="Travel"
+                Telemetry="{Binding TelemetryData}" />
+
+            <!--  Splitter between travel and velocity  -->
+            <GridSplitter
+                Grid.Column="0"
+                Grid.Row="1"
+                ResizeDirection="Rows" />
+
+            <!--  Velocity  -->
+            <plots:VelocityPlotDesktopView
+                Grid.Column="0"
+                Grid.Row="2"
+                Telemetry="{Binding TelemetryData}"
+                TravelPlot="{Binding #Travel}" />
+
+            <!--  Splitter between travel+velocity and video+map  -->
+            <!--  TODO: bind visibility to presence of video/map  -->
+            <GridSplitter
+                Grid.Column="1"
+                Grid.Row="0"
+                Grid.RowSpan="3"
+                IsVisible="False"
+                ResizeDirection="Columns" />
+
+            <!--  Video and Map  -->
+            <!--  TODO: bind visibility to presence of video/map  -->
+            <Grid
+                Grid.Column="2"
+                Grid.Row="0"
+                Grid.RowSpan="3"
+                IsVisible="False"
+                RowDefinitions="* auto *">
+
+                <!--  Video  -->
+                <Border Background="DarkSlateBlue" Grid.Row="0" />
+
+                <!--  Splitter between video and map  -->
+                <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+                <!--  Map  -->
+                <Border Background="DarkOliveGreen" Grid.Row="2" />
+            </Grid>
+        </Grid>
+
+        <!--  Splitter between top and bottom half  -->
+        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+        <Grid ColumnDefinitions="* auto 400" Row="2">
+
+            <!--  Statistic graphs  -->
+            <v:SessionStatisticsDesktopView Grid.Column="0" />
+
+            <!--  Splitter between statistics and notes  -->
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+            <!--  Name and notes  -->
+            <Grid Grid.Column="2" RowDefinitions="auto * auto">
+                <!--  Name  -->
+                <Grid
+                    ColumnDefinitions="auto *"
+                    Grid.Row="0"
+                    Margin="14,10,10,10">
+                    <Label
+                        Content="Name: "
+                        Grid.Column="0"
+                        Grid.Row="0"
+                        VerticalAlignment="Center" />
+                    <TextBox
+                        Grid.Column="1"
+                        Grid.Row="0"
+                        HorizontalAlignment="Stretch"
+                        Margin="2"
+                        Text="{Binding Name}" />
+                </Grid>
+
+                <!--  Notes  -->
+                <pages:NotesPageView DataContext="{Binding NotesPage}" Grid.Row="1" />
+
+                <!--  Buttons  -->
+                <Grid
+                    ColumnDefinitions="* auto"
+                    Grid.Row="2"
+                    Margin="14,10,10,10">
+                    <!--  Save Button  -->
+                    <Button
+                        Command="{Binding SaveCommand}"
+                        Content="Save"
+                        Grid.Column="0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Stretch"
+                        VerticalContentAlignment="Center" />
+
+                    <!--  Reset button  -->
+                    <Button
+                        Command="{Binding ResetCommand}"
+                        Grid.Column="1"
+                        Height="39"
+                        HorizontalContentAlignment="Center"
+                        Margin="0,0,5,0"
+                        VerticalContentAlignment="Center"
+                        Width="39">
+                        <Image
+                            Height="16"
+                            Source="{SvgImage /Assets/fa-rotate-left.svg}"
+                            Width="16" />
+                    </Button>
+                </Grid>
+            </Grid>
+        </Grid>
+
+    </Grid>
+
+</UserControl>
