@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Numerics;
 using MathNet.Numerics;
 using MathNet.Numerics.Distributions;
+using MathNet.Numerics.IntegralTransforms;
 using MathNet.Numerics.Statistics;
 using MessagePack;
 
@@ -630,5 +632,55 @@ public class TelemetryData
             msd);
     }
 
+    public HistogramData CalculateTravelFrequencyHistogram(SuspensionType type)
+    {
+        var suspension = type == SuspensionType.Front ? Front : Rear;
+
+        // Calculate mean
+        double sum = 0;
+        foreach (var t in suspension.Travel)
+        {
+            sum += t;
+        }
+        var mean = sum / suspension.Travel.Length;
+
+        // Determine final size (minimum 20000)
+        var n = Math.Max(20000, suspension.Travel.Length);
+        var complexSignal = new Complex[n];
+
+        // Center travel data and pad
+        for (var i = 0; i < suspension.Travel.Length; i++)
+        {
+            complexSignal[i] = new Complex(suspension.Travel[i] - mean, 0);
+        }
+
+        for (var i = suspension.Travel.Length; i < n; i++)
+        {
+            complexSignal[i] = Complex.Zero;
+        }
+
+        // Perform FFT
+        Fourier.Forward(complexSignal, FourierOptions.Matlab);
+
+        // Prepare output arrays
+        var halfN = n / 2 + 1;
+        var frequencies = new List<double>(halfN);
+        var spectrum = new List<double>(halfN);
+
+        var tick = 1.0 / Metadata.SampleRate;
+
+        for (var i = 0; i < halfN; i++)
+        {
+            var freq = i / (n * tick);
+            if (freq > 10) break;
+
+            frequencies.Add(freq);
+            var c = complexSignal[i];
+            spectrum.Add(c.Magnitude * c.Magnitude);
+        }
+
+        return new HistogramData(frequencies, spectrum);
+    }
+
     #endregion
-};
+}

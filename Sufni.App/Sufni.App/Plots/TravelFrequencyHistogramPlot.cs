@@ -1,0 +1,58 @@
+using System;
+using System.Globalization;
+using System.Linq;
+using ScottPlot;
+using ScottPlot.TickGenerators;
+using Sufni.Telemetry;
+
+namespace Sufni.App.Plots;
+
+public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot(plot)
+{
+    public override void LoadTelemetryData(TelemetryData telemetryData)
+    {
+        base.LoadTelemetryData(telemetryData);
+        
+        Plot.Axes.Title.Label.Text = type == SuspensionType.Front
+            ? "Front frequencies (Power / Hz)"
+            : "Rear frequencies (Power / Hz)";
+        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+
+        var data = telemetryData.CalculateTravelFrequencyHistogram(type);
+        var step = data.Bins[1] - data.Bins[0];
+        var color = type == SuspensionType.Front ? FrontColor : RearColor;
+        var bars = data.Bins.Zip(data.Values)
+            .Select(tuple => new Bar
+            {
+                Position = tuple.First,
+                Value = tuple.Second,
+                FillColor = color.WithOpacity(),
+                LineColor = color,
+                LineWidth = 1.5f,
+                Orientation = Orientation.Vertical,
+                Size = 4.9 / data.Bins.Count
+            })
+            .ToList();
+
+        var histogram = Plot.Add.Bars(bars);
+        histogram.Axes.XAxis = Plot.Axes.Bottom;
+        histogram.Axes.YAxis = Plot.Axes.Left;
+
+        var min = data.Values.Min();
+        var max = data.Values.Max();
+        Plot.Axes.SetLimits(left: 0.0, right: 800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
+
+        // Generate 4 tick for the power axis, and display its 20*log10 value
+        var tickSpacing = (max - min) / 3;
+        var values = new [] {min, min + tickSpacing, min + 2 * tickSpacing, max};
+        var labels = values.Select(v => Math.Floor(20 * Math.Log10(v)).ToString(CultureInfo.InvariantCulture));
+        Plot.Axes.Left.SetTicks([.. values], [.. labels]);
+        
+        // Generate ticks for the frequencies axis
+        Plot.Axes.Bottom.TickGenerator = new NumericAutomatic
+        {
+            IntegerTicksOnly = true,
+            TickDensity = 0.2
+        };
+    }
+}
