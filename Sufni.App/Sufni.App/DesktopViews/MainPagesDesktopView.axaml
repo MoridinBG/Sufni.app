@@ -90,5 +90,41 @@
                 </TabItem.Header>
             </TabItem>
         </TabControl>
+
+        <StackPanel Margin="0,0,0,20" VerticalAlignment="Bottom">
+
+            <!--  Add setup / bike button  -->
+            <Button Classes="embedded" Width="50">
+                <Button.Styles>
+                    <Style Selector="MenuItem">
+                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                    </Style>
+                    <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                    </Style>
+                </Button.Styles>
+
+                <Button.Flyout>
+                    <MenuFlyout Placement="Right" PlacementAnchor="Right">
+                        <MenuItem Command="{Binding SetupsPage.AddCommand}" Header="setup" />
+                        <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike" />
+                    </MenuFlyout>
+                </Button.Flyout>
+
+                <Image
+                    Margin="3,0,0,0"
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}"
+                    Width="18" />
+            </Button>
+
+            <!--  Import sessions button  -->
+            <Button
+                Classes="embedded"
+                Command="{Binding OpenPageCommand}"
+                CommandParameter="{Binding ImportSessionsPage}"
+                Width="50">
+                <Image Source="{SvgImage /Assets/fa-file-import.svg}" Width="18" />
+            </Button>
+        </StackPanel>
     </Panel>
 </UserControl>
