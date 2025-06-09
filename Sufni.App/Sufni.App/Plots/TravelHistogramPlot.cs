@@ -53,7 +53,7 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
         Plot.Axes.AutoScale(invertY: true);
         
         // Lock horizontal axis
-        Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0, data.Values.Max() / 0.9));
+        Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.05, data.Values.Max() / 0.9));
 
         // Set to 0.05 to hide the border line at 0 values. Otherwise it would
         // seem that there are actual measure travel data there too.

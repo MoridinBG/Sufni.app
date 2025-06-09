@@ -43,6 +43,9 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         Plot.Axes.SetLimits(left: 0.0, right:  800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(histogram.Axes.XAxis, histogram.Axes.YAxis,
             0.0, 10.0, min, max));
+        
+        // Add autoscaler that restores the original ranges
+        Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / data.Bins.Count * 3.0);
 
         // Generate 4 tick for the power axis, and display its 20*log10 value
         var tickSpacing = (max - min) / 3;

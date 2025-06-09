@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using ScottPlot;
 using Sufni.Telemetry;
 
@@ -11,6 +13,37 @@ internal class LockedVerticalSoftLockedHorizontalRule(IXAxis xAxis, IYAxis yAxis
         if (xAxis.Max > xMax) xAxis.Max = xMax;
         yAxis.Range.Set(yMin, yMax);
     }
+}
+
+internal class FixedAutoScaler(double? minX = null, double? maxX = null, double? minY = null, double? maxY = null) : IAutoScaler
+{
+    public AxisLimits GetAxisLimits(Plot plot, IXAxis xAxis, IYAxis yAxis)
+    {
+        return new AxisLimits(minX ?? xAxis.Min, maxX ?? xAxis.Max, minY ?? yAxis.Min, maxY ?? yAxis.Max);
+    }
+
+    public void AutoScaleAll(IEnumerable<IPlottable> plottables)
+    {
+        var xAxes = plottables.Select(x => x.Axes.XAxis).Distinct();
+        var yAxes = plottables.Select(x => x.Axes.YAxis).Distinct();
+
+        foreach (var axis in xAxes)
+        {
+            var min = minX ?? axis.Min;
+            var max = maxX ?? axis.Max;
+            axis.Range.Set(min, max);
+        }
+        
+        foreach (var axis in yAxes)
+        {
+            var min = minY ?? axis.Min;
+            var max = maxY ?? axis.Max;
+            axis.Range.Set(min, max);
+        }
+    }
+
+    public bool InvertedX { get; set; }
+    public bool InvertedY { get; set; }
 }
 
 public class TelemetryPlot(Plot plot) : SufniPlot(plot)

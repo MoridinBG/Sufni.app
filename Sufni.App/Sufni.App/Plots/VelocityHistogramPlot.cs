@@ -117,6 +117,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
         Plot.Axes.AutoScale(invertY: true);
         var limits = Plot.Axes.GetDataLimits();
+        Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.1, minY: 2000, maxY: -2000);
         
         // Lock axes
         Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.1, limits.Right / 0.9));
