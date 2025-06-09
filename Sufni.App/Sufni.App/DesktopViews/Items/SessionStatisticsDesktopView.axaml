@@ -60,7 +60,6 @@
                     <plots:TravelHistogramDesktopView
                         Grid.Column="0"
                         Grid.Row="0"
-                        IsHitTestVisible="False"
                         IsVisible="{Binding TelemetryData.Front.Present}"
                         SuspensionType="Front"
                         Telemetry="{Binding TelemetryData}" />
@@ -69,7 +68,6 @@
                     <plots:TravelHistogramDesktopView
                         Grid.Column="1"
                         Grid.Row="0"
-                        IsHitTestVisible="False"
                         IsVisible="{Binding TelemetryData.Rear.Present}"
                         SuspensionType="Rear"
                         Telemetry="{Binding TelemetryData}" />
@@ -79,7 +77,6 @@
                         Grid.Column="0"
                         Grid.ColumnSpan="2"
                         Grid.Row="1"
-                        IsHitTestVisible="False"
                         IsVisible="{Binding TelemetryData.Front.Present}"
                         SuspensionType="Front"
                         Telemetry="{Binding TelemetryData}" />
@@ -89,7 +86,6 @@
                         Grid.Column="0"
                         Grid.ColumnSpan="2"
                         Grid.Row="2"
-                        IsHitTestVisible="False"
                         IsVisible="{Binding TelemetryData.Front.Present}"
                         SuspensionType="Rear"
                         Telemetry="{Binding TelemetryData}" />
@@ -101,7 +97,6 @@
                     <!--  Front velocity histogram  -->
                     <plots:VelocityHistogramDesktopView
                         Grid.Column="0"
-                        IsHitTestVisible="False"
                         IsVisible="{Binding TelemetryData.Front.Present}"
                         SuspensionType="Front"
                         Telemetry="{Binding TelemetryData}" />
@@ -117,7 +112,6 @@
                     <!--  Rear velocity histogram  -->
                     <plots:VelocityHistogramDesktopView
                         Grid.Column="2"
-                        IsHitTestVisible="False"
                         IsVisible="{Binding TelemetryData.Rear.Present}"
                         SuspensionType="Rear"
                         Telemetry="{Binding TelemetryData}" />

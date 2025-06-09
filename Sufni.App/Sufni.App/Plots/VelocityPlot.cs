@@ -49,9 +49,9 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         }
         
         // Lock the vertical, and set limits on the horizontal axis
-        var ruleFront = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
+        var ruleFront = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
             0, count * step, minimum, maximum);
-        var ruleRear = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
+        var ruleRear = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
             0, count * step, minimum, maximum);
         Plot.Axes.Rules.Add(ruleFront);
         Plot.Axes.Rules.Add(ruleRear);

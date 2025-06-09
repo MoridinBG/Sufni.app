@@ -3,16 +3,6 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-internal class LockedHorizontalVertical(IXAxis xAxis, IYAxis yAxis, double xMin, double xMax, double yMin, double yMax) : IAxisRule
-{
-    public void Apply(RenderPack rp, bool beforeLayout)
-    {
-        if (xAxis.Min < xMin) xAxis.Min = 0;
-        if (xAxis.Max > xMax) xAxis.Max = xMax;
-        yAxis.Range.Set(yMin, yMax);
-    }
-}
-
 public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
@@ -40,7 +30,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             frontSignal.LineWidth = 2.0f;
             
             // Lock the vertical, and set limits on the horizontal axis
-            var rule = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Left, 
+            var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
                 0, count * step, telemetryData.Front.MaxTravel!.Value, 0);
             Plot.Axes.Rules.Add(rule);
         }
@@ -53,7 +43,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             rearSignal.LineWidth = 2.0f;
             
             // Lock the vertical, and set limits on the horizontal axis
-            var rule = new LockedHorizontalVertical(Plot.Axes.Bottom, Plot.Axes.Right, 
+            var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
                 0, count * step, telemetryData.Rear.MaxTravel!.Value, 0);
             Plot.Axes.Rules.Add(rule);
         }

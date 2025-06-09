@@ -19,7 +19,6 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
         var data = telemetryData.CalculateTravelFrequencyHistogram(type);
-        var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Bins.Zip(data.Values)
             .Select(tuple => new Bar
@@ -37,10 +36,13 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         var histogram = Plot.Add.Bars(bars);
         histogram.Axes.XAxis = Plot.Axes.Bottom;
         histogram.Axes.YAxis = Plot.Axes.Left;
-
+        
+        // Set axis initial range and limits
         var min = data.Values.Min();
         var max = data.Values.Max();
-        Plot.Axes.SetLimits(left: 0.0, right: 800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
+        Plot.Axes.SetLimits(left: 0.0, right:  800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
+        Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(histogram.Axes.XAxis, histogram.Axes.YAxis,
+            0.0, 10.0, min, max));
 
         // Generate 4 tick for the power axis, and display its 20*log10 value
         var tickSpacing = (max - min) / 3;

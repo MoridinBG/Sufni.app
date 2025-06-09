@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ScottPlot;
+using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 
@@ -38,7 +39,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             AddLabel(
                 maxReboundVelString,
                 Plot.Axes.GetLimits().Right,
-                -2000.0,
+                -VelocityLimit,
                 -10,
                 5,
                 Alignment.UpperRight);
@@ -62,7 +63,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             AddLabel(
                 maxCompVelString,
                 Plot.Axes.GetLimits().Right,
-                2000.0,
+                VelocityLimit,
                 -10,
                 -5,
                 Alignment.LowerRight);
@@ -107,7 +108,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
                     LineColor = Colors.Black,
                     LineWidth = 0.5f,
                     Orientation = Orientation.Horizontal,
-                    Size = step * 0.95,
+                    Size = step * 0.95
                 });
 
                 nextBarBase += data.Values[i][j];
@@ -115,7 +116,11 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         }
 
         Plot.Axes.AutoScale(invertY: true);
-
+        var limits = Plot.Axes.GetDataLimits();
+        
+        // Lock axes
+        Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.1, limits.Right / 0.9));
+        
         // Set left axis limit to 0.1 to hide the border line at 0 values. Otherwise
         // it would seem that there are actual measure travel data there too.
         // Also set a hardcoded limit for the velocity range.
