@@ -32,6 +32,7 @@
                     Grid.Column="0"
                     HorizontalAlignment="Left"
                     IsVisible="{Binding #Button.IsPointerOver}"
+                    Name="DeleteButton"
                     Padding="0"
                     Svg.Css=".default { fill: #bf312d; }">
                     <Image
