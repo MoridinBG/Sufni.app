@@ -39,9 +39,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
         var tickInterval = (int)Math.Ceiling(maxVelocity / 5 / 100.0) * 100;
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(tickInterval);
-        Plot.Axes.Bottom.TickGenerator = new NumericManual(
-            [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
-            ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]);
+        Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(10);
 
         var front = Plot.Add.Scatter(balance.FrontTravel, balance.FrontVelocity);
         front.LineStyle.IsVisible = false;

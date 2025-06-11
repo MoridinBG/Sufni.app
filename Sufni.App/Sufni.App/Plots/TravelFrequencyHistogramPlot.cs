@@ -33,15 +33,13 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
             })
             .ToList();
 
-        var histogram = Plot.Add.Bars(bars);
-        histogram.Axes.XAxis = Plot.Axes.Bottom;
-        histogram.Axes.YAxis = Plot.Axes.Left;
-        
+        Plot.Add.Bars(bars);
+
         // Set axis initial range and limits
         var min = data.Values.Min();
         var max = data.Values.Max();
         Plot.Axes.SetLimits(left: 0.0, right:  800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
-        Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(histogram.Axes.XAxis, histogram.Axes.YAxis,
+        Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
             0.0, 10.0, min, max));
         
         // Add autoscaler that restores the original ranges
@@ -53,10 +51,8 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         var labels = values.Select(v => Math.Floor(20 * Math.Log10(v)).ToString(CultureInfo.InvariantCulture));
         Plot.Axes.Left.SetTicks([.. values], [.. labels]);
         
-        // Generate ticks for the frequencies axis
         Plot.Axes.Bottom.TickGenerator = new NumericAutomatic
         {
-            IntegerTicksOnly = true,
             TickDensity = 0.2
         };
     }

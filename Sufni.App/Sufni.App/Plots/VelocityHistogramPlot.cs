@@ -130,6 +130,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             top: -VelocityLimit);
 
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(500);
+        Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
         var normalData = telemetryData.CalculateNormalDistribution(type);
         var normal = Plot.Add.Scatter(

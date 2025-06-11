@@ -59,7 +59,8 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         // Maximize tick numbers
         ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
         {
-            TargetTickCount = 5
+            TargetTickCount = 20,
+            LabelFormatter  = d => $"{d:0.###}"
         };
         Plot.Axes.Bottom.TickGenerator = tickGenTime;
 

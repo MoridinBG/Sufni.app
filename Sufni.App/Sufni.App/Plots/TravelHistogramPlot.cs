@@ -1,6 +1,7 @@
 using System.Linq;
 using ScottPlot;
 using ScottPlot.AxisRules;
+using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -51,7 +52,8 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
         Plot.Add.Bars(bars);
         Plot.Axes.AutoScale(invertY: true);
-        
+        Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
+
         // Lock horizontal axis
         Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.05, data.Values.Max() / 0.9));
 
