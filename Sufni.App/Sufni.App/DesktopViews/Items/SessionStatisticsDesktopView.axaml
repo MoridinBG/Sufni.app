@@ -92,11 +92,21 @@
                 </Grid>
 
                 <!--  Damping  -->
-                <Grid ColumnDefinitions="* 64 * 64" Name="Damping">
+                <Grid
+                    ColumnDefinitions="* 64 * 64"
+                    Name="Damping"
+                    RowDefinitions="auto *">
+
+                    <!--  Travel percentage legend  -->
+                    <plots:TravelPercentageLegend
+                        Grid.Column="0"
+                        Grid.Row="0"
+                        Margin="38,0,8,0" />
 
                     <!--  Front velocity histogram  -->
                     <plots:VelocityHistogramDesktopView
                         Grid.Column="0"
+                        Grid.Row="1"
                         IsVisible="{Binding TelemetryData.Front.Present}"
                         SuspensionType="Front"
                         Telemetry="{Binding TelemetryData}" />
@@ -104,14 +114,22 @@
                     <!--  Front speed zones  -->
                     <commonplots:VelocityBandView
                         Grid.Column="1"
+                        Grid.Row="1"
                         HscPercentage="{Binding DamperPage.FrontHscPercentage}"
                         HsrPercentage="{Binding DamperPage.FrontHsrPercentage}"
                         LscPercentage="{Binding DamperPage.FrontLscPercentage}"
                         LsrPercentage="{Binding DamperPage.FrontLsrPercentage}" />
 
+                    <!--  Travel percentage legend  -->
+                    <plots:TravelPercentageLegend
+                        Grid.Column="2"
+                        Grid.Row="0"
+                        Margin="38,0,8,0" />
+
                     <!--  Rear velocity histogram  -->
                     <plots:VelocityHistogramDesktopView
                         Grid.Column="2"
+                        Grid.Row="1"
                         IsVisible="{Binding TelemetryData.Rear.Present}"
                         SuspensionType="Rear"
                         Telemetry="{Binding TelemetryData}" />
@@ -119,6 +137,7 @@
                     <!--  Rear speed zones  -->
                     <commonplots:VelocityBandView
                         Grid.Column="3"
+                        Grid.Row="1"
                         HscPercentage="{Binding DamperPage.RearHscPercentage}"
                         HsrPercentage="{Binding DamperPage.RearHsrPercentage}"
                         LscPercentage="{Binding DamperPage.RearLscPercentage}"
