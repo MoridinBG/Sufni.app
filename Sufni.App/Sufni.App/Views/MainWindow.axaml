@@ -22,6 +22,10 @@
         <v:IsEqualConverter x:Key="IsEqualConverter" />
     </Window.Resources>
 
+    <Window.KeyBindings>
+        <KeyBinding Command="{Binding CurrentView.CloseCommand}" Gesture="Ctrl+W" />
+    </Window.KeyBindings>
+
     <SplitView
         CompactPaneLength="51"
         DisplayMode="CompactInline"
@@ -46,7 +50,10 @@
                 SelectedItem="{Binding CurrentView}">
                 <TabStrip.ItemTemplate>
                     <DataTemplate>
-                        <Grid ColumnDefinitions="* auto" Margin="10,0,0,0">
+                        <Grid
+                            ColumnDefinitions="* auto"
+                            Margin="10,0,0,0"
+                            PointerPressed="TabHeader_PointerPressed">
                             <TextBlock
                                 FontSize="16"
                                 FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"

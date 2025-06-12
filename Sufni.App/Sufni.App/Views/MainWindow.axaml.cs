@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Media;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.Views;
 
@@ -65,5 +67,17 @@ public partial class MainWindow : Window
         this.AttachDevTools(new KeyGesture(Key.F12, KeyModifiers.Alt));
             
 #endif
+    }
+
+    private void TabHeader_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var header = sender as Control;
+        Debug.Assert(header is not null);
+
+        var point = e.GetCurrentPoint(header);
+        if (!point.Properties.IsMiddleButtonPressed) return;
+
+        var vm = header.DataContext as TabPageViewModelBase;
+        vm?.CloseCommand.Execute(null);
     }
 }
