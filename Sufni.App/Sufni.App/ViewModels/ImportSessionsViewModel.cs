@@ -191,73 +191,84 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private async void ImportSessionsInternal()
     {
-        Debug.Assert(SelectedSetup != null);
-        Debug.Assert(SelectedDataStore != null);
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        ImportInProgress = true;
-
-        foreach (var telemetryFile in TelemetryFiles.Where(f => f.ShouldBeImported.HasValue && f.ShouldBeImported.Value))
+        try
         {
-            try
+            Debug.Assert(SelectedSetup != null);
+            Debug.Assert(SelectedDataStore != null);
+            Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
+            ImportInProgress = true;
+
+            var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
+            var bike = await databaseService.GetBikeAsync(setup.BikeId);
+            Debug.Assert(bike is not null);
+
+            var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
+            var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
+
+            var bikeData = new BikeData(
+                bike.HeadAngle,
+                frontSensorConfiguration?.MaxTravel,
+                rearSensorConfiguration?.MaxTravel,
+                frontSensorConfiguration?.MeasurementToTravel,
+                rearSensorConfiguration?.MeasurementToTravel);
+
+            foreach (var telemetryFile in TelemetryFiles.Where(f => f.ShouldBeImported.HasValue && f.ShouldBeImported.Value))
             {
-                var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
-                var bike = await databaseService.GetBikeAsync(setup.BikeId);
-                Debug.Assert(bike is not null);
-
-                var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-                var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
-
-                var bikeData = new BikeData(
-                    bike.HeadAngle,
-                    frontSensorConfiguration?.MaxTravel,
-                    rearSensorConfiguration?.MaxTravel,
-                    frontSensorConfiguration?.MeasurementToTravel,
-                    rearSensorConfiguration?.MeasurementToTravel);
-                var psst = await telemetryFile.GeneratePsstAsync(bikeData);
-
-                var session = new Session(
-                    id: Guid.NewGuid(),
-                    name: telemetryFile.Name,
-                    description: telemetryFile.Description,
-                    setup: SelectedSetup!.Value,
-                    timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
+                try
                 {
-                    ProcessedData = psst
-                };
+                    var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
-                await databaseService.PutSessionAsync(session);
-                await telemetryFile.OnImported();
+                    var session = new Session(
+                        id: Guid.NewGuid(),
+                        name: telemetryFile.Name,
+                        description: telemetryFile.Description,
+                        setup: SelectedSetup!.Value,
+                        timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
+                    {
+                        ProcessedData = psst
+                    };
 
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                    await databaseService.PutSessionAsync(session);
+                    await telemetryFile.OnImported();
+
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var svm = new SessionViewModel(session, true);
+                        sessions.AddOrUpdate(svm);
+                        Notifications.Insert(0, $"{svm.Name} was successfully imported.");
+                    });
+                }
+                catch (Exception e)
                 {
-                    var svm = new SessionViewModel(session, true);
-                    sessions.AddOrUpdate(svm);
-                    Notifications.Insert(0, $"{svm.Name} was successfully imported.");
-                });
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        ErrorMessages.Add($"Could not import {telemetryFile.Name}: {e.Message}");
+                    });
+                }
             }
-            catch (Exception e)
+
+            foreach (var telemetryFile in TelemetryFiles.Where(f => !f.ShouldBeImported.HasValue))
             {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    ErrorMessages.Add($"Could not import {telemetryFile.Name}: {e.Message}");
-                });
+                await telemetryFile.OnTrashed();
             }
-        }
 
-        foreach (var telemetryFile in TelemetryFiles.Where(f => !f.ShouldBeImported.HasValue))
+            var files = await SelectedDataStore.GetFiles();
+            TelemetryFiles.Clear();
+            foreach (var file in files)
+            {
+                TelemetryFiles.Add(file);
+            }
+
+            ImportInProgress = false;
+        }
+        catch (Exception e)
         {
-            await telemetryFile.OnTrashed();
+            Dispatcher.UIThread.Post(() =>
+            {
+                ErrorMessages.Add($"Import failed: {e.Message}");
+            });
         }
-
-        var files = await SelectedDataStore.GetFiles();
-        TelemetryFiles.Clear();
-        foreach (var file in files)
-        {
-            TelemetryFiles.Add(file);
-        }
-
-        ImportInProgress = false;
     }
 
     [RelayCommand(CanExecute = nameof(CanImportSessions))]
