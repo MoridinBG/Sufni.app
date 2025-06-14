@@ -22,7 +22,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
     {
         this.fileInfo = fileInfo;
 
-        using var stream = File.Open(this.fileInfo.FullName, FileMode.Open);
+        using var stream = File.Open(this.fileInfo.FullName, FileMode.Open, FileAccess.Read);
         using var reader = new BinaryReader(stream);
 
         var magic = reader.ReadBytes(3);
