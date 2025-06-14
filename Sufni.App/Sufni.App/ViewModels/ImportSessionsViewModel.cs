@@ -186,6 +186,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         await dataStore.Initialization;
 
         TelemetryDataStores.Add(dataStore);
+        SelectedDataStore = dataStore;
     }
 
     private async void ImportSessionsInternal()
