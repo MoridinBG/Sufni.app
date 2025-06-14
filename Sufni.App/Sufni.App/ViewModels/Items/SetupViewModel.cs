@@ -209,7 +209,11 @@ public sealed partial class SetupViewModel : ItemViewModelBase
             IsInDatabase = true;
             EvaluateDirtiness();
 
-            OpenPreviousPage();
+            Debug.Assert(App.Current is not null);
+            if (!App.Current.IsDesktop)
+            {
+                OpenPreviousPage();
+            }
         }
         catch (Exception e)
         {
