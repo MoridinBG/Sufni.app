@@ -1,3 +1,4 @@
+using System;
 using ScottPlot;
 using Sufni.Telemetry;
 
@@ -46,6 +47,21 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
                 0, count * step, telemetryData.Rear.MaxTravel!.Value, 0);
             Plot.Axes.Rules.Add(rule);
+        }
+
+        var maxTravel = Math.Max(
+            telemetryData.Front.Present ? telemetryData.Front.MaxTravel!.Value : 0, 
+            telemetryData.Rear.Present ? telemetryData.Rear.MaxTravel!.Value : 0);
+        foreach (var airtime in  telemetryData.Airtimes)
+        {
+            var span = Plot.Add.HorizontalSpan(airtime.Start, airtime.End);
+            span.FillColor = Color.FromHex("d53e4f").WithAlpha(0.2);
+            span.LineStyle.Color = Color.FromHex("#a0a0a0").WithAlpha(0.5);
+            span.LineStyle.Width = 1.0f;
+
+            var timeSpan = airtime.End - airtime.Start;
+            AddLabel($"{timeSpan:0.##}s air", airtime.Start + timeSpan / 2, maxTravel-10, 
+                0, 0, Alignment.LowerCenter);
         }
         
         // Maximize tick numbers
