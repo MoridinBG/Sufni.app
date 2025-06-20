@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels;
@@ -8,6 +10,9 @@ namespace Sufni.App.ViewModels;
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly WelcomeScreenViewModel welcomeScreenViewModel = new();
+    private readonly Stack<TabPageViewModelBase> tabHistory = new();
+    private TabPageViewModelBase? previousActiveTab;
+    private bool isClosing;
 
     #region Observable properties
 
@@ -16,6 +21,12 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
 
     #endregion Observable properties
+
+    partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase newValue)
+    {
+        if (isClosing) return;
+        previousActiveTab = oldValue;
+    }
 
     #region Constructors
 
@@ -46,8 +57,36 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void CloseTabPage(TabPageViewModelBase tab)
     {
+        // Guard against setting previousActiveTab to the tab we are closing.
+        isClosing = true;
+
+        // We store the tab we are closing, because Tabs.Remove(tab) will change CurrentView
+        var closingTab = CurrentView;
+
         Tabs.Remove(tab);
+        tabHistory.Push(tab);
+
+        // We don't want to switch tabs when
+        //   - closing a tab that's not currently the active one.
+        //   - the previous active tab is the one we are closing.
+        if (tab != previousActiveTab && tab == closingTab) CurrentView = previousActiveTab ?? Tabs[0];
+
+        isClosing = false;
     }
 
     #endregion Public methods
+    
+    #region Commands
+
+    [RelayCommand]
+    private void Restore()
+    {
+        tabHistory.TryPop(out var toRestore);
+        if (toRestore is null) return;
+
+        Tabs.Add(toRestore);
+        CurrentView = toRestore;
+    }
+    
+    #endregion Commands
 }

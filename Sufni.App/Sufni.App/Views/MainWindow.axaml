@@ -24,6 +24,7 @@
 
     <Window.KeyBindings>
         <KeyBinding Command="{Binding CurrentView.CloseCommand}" Gesture="Ctrl+W" />
+        <KeyBinding Command="{Binding RestoreCommand}" Gesture="Ctrl+Shift+T" />
     </Window.KeyBindings>
 
     <SplitView
