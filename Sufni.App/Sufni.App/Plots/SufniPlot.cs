@@ -1,6 +1,24 @@
+using System;
 using ScottPlot;
+using ScottPlot.Plottables;
 
 namespace Sufni.App.Plots;
+
+//XXX Workaround for https://github.com/ScottPlot/ScottPlot/issues/4650
+public class FixedHorizontalLine : HorizontalLine
+{
+    public override void Render(RenderPack rp)
+    {
+        if (!IsVisible) // || !Axes.YAxis.Range.Contains(Y))
+            return;
+
+        Coordinates pt1 = new(Math.Max(Minimum, Axes.XAxis.Min), Y);
+        Coordinates pt2 = new(Math.Min(Maximum, Axes.XAxis.Max), Y);
+        CoordinateLine line = new(pt1, pt2);
+        var pxLine = Axes.GetPixelLine(line);
+        LineStyle.Render(rp.Canvas, pxLine, rp.Paint);
+    }
+}
 
 public class SufniPlot
 {
@@ -77,6 +95,15 @@ public class SufniPlot
         text.LabelOffsetX = -10;
         text.LabelOffsetY = yoffset;
 
-        Plot.Add.HorizontalLine(position, 1f, Color.FromHex("#dddddd"), LinePattern.Dotted);
+        //XXX: Workaround for https://github.com/ScottPlot/ScottPlot/issues/4650
+        //Plot.Add.HorizontalLine(position, 1f, Color.FromHex("#dddddd"), LinePattern.Dotted);
+        FixedHorizontalLine line = new()
+        {
+            LineWidth = 1f,
+            LineColor = Color.FromHex("#dddddd"),
+            LinePattern = LinePattern.DenselyDashed,
+            Y = position
+        };
+        Plot.PlottableList.Add(line);
     }
 }
