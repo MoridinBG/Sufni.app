@@ -32,48 +32,18 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         var avgCompVelString = $"{statistics.AverageCompression:0.00} mm/s";
         var maxCompVelString = $"{statistics.MaxCompression:0.00} mm/s";
 
-        // If max rebound is lower than -VelocityLimit (which is the hardcoded axis limit),
-        // we draw the the label at -VelocityLimit, and omit the line.
-        if (statistics.MaxRebound < -VelocityLimit)
-        {
-            AddLabel(
-                maxReboundVelString,
-                Plot.Axes.GetLimits().Right,
-                -VelocityLimit,
-                -10,
-                5,
-                Alignment.UpperRight);
-        }
-        else
-        {
-            AddLabelWithHorizontalLine(maxReboundVelString,
-                statistics.MaxRebound,
-                LabelLinePosition.Above);
-        }
+        // TODO: Restore original behaviour: label at bottom when not in range, but moves to its proper
+        // place when it is scrolled into view.
+        AddLabelWithHorizontalLine(maxReboundVelString, statistics.MaxRebound, LabelLinePosition.Above);
 
         // Average values should be between the hardcoded limits, it's safe to draw them 
         // at their actual position.
         AddLabelWithHorizontalLine(avgReboundVelString, statistics.AverageRebound, LabelLinePosition.Below);
         AddLabelWithHorizontalLine(avgCompVelString, statistics.AverageCompression, LabelLinePosition.Above);
 
-        // If max compression is more than VelocityLimit (which is the hardcoded axis limit),
-        // we draw the the label at VelocityLimit, and omit the line.
-        if (statistics.MaxCompression > VelocityLimit)
-        {
-            AddLabel(
-                maxCompVelString,
-                Plot.Axes.GetLimits().Right,
-                VelocityLimit,
-                -10,
-                -5,
-                Alignment.LowerRight);
-        }
-        else
-        {
-            AddLabelWithHorizontalLine(maxCompVelString,
-                statistics.MaxCompression,
-                LabelLinePosition.Below);
-        }
+        // TODO: Restore original behaviour: label at bottom when not in range, but moves to its proper
+        // place when it is scrolled into view.
+        AddLabelWithHorizontalLine(maxCompVelString, statistics.MaxCompression, LabelLinePosition.Below);
     }
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
@@ -138,8 +108,8 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             normalData.Y.ToArray());
         normal.Color = Color.FromHex("#d53e4f");
         normal.MarkerStyle.IsVisible = false;
-        normal.LineStyle.Width = 3;
-        normal.LineStyle.Pattern = LinePattern.Dotted;
+        normal.LineStyle.Width = 2;
+        normal.LineStyle.Pattern = LinePattern.DenselyDashed;
 
         AddStatistics(telemetryData);
     }
