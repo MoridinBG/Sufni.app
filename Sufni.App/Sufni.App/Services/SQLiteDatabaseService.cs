@@ -41,7 +41,8 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(Bike),
             typeof(Session),
             typeof(SessionCache),
-            typeof(Synchronization)
+            typeof(Synchronization),
+            typeof(RefreshToken)
         ]);
 
         if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
@@ -386,4 +387,41 @@ public class SqLiteDatabaseService : IDatabaseService
         await connection.QueryAsync<Synchronization>("UPDATE sync SET last_sync_time = ?",
             (int)DateTimeOffset.Now.ToUnixTimeSeconds());
     }
+    
+    public async Task<RefreshToken?> GetRefreshTokenAsync(string token)
+    {
+        await Initialization;
+
+        return await connection.Table<RefreshToken>().Where(r => r.Token == token).FirstOrDefaultAsync();
+    }
+    
+    public async Task PutRefreshTokenAsync(RefreshToken token)
+    {
+        await Initialization;
+
+        var existing = await connection.Table<RefreshToken>()
+            .Where(t => t.DeviceId == token.DeviceId)
+            .FirstOrDefaultAsync() is not null;
+        if (existing)
+        {
+            await connection.UpdateAsync(token);
+        }
+        else
+        {
+            await connection.InsertAsync(token);
+        }
+    }
+
+    public async Task DeleteRefreshTokenAsync(string deviceId)
+    {
+        await Initialization;
+        var token = await connection.Table<RefreshToken>()
+            .Where(t => t.DeviceId == deviceId)
+            .FirstOrDefaultAsync();
+        if (token is not null)
+        {
+            await connection.DeleteAsync(token);
+        }
+    }
+
 }
