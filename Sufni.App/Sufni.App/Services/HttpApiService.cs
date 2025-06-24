@@ -39,7 +39,7 @@ internal class HttpApiService : IHttpApiService
         using HttpResponseMessage response = await client.PostAsync($"{serverUrl}/auth/refresh", null);
 
         response.EnsureSuccessStatusCode();
-        var tokens = await response.Content.ReadFromJsonAsync<Tokens>();
+        var tokens = await response.Content.ReadFromJsonAsync<TokenResponse>();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens!.AccessToken);
         Debug.Assert(tokens != null);
         Debug.Assert(tokens.AccessToken != null);
@@ -54,7 +54,7 @@ internal class HttpApiService : IHttpApiService
             new User(Username: username, Password: password));
 
         response.EnsureSuccessStatusCode();
-        var tokens = await response.Content.ReadFromJsonAsync<Tokens>();
+        var tokens = await response.Content.ReadFromJsonAsync<TokenResponse>();
         Debug.Assert(tokens != null);
         Debug.Assert(tokens.AccessToken != null);
         Debug.Assert(tokens.RefreshToken != null);

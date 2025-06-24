@@ -7,5 +7,6 @@ public record User(
     [property: JsonPropertyName("password")] string Password);
 
 public record Tokens(
+public record TokenResponse(
     [property: JsonPropertyName("access_token")] string AccessToken,
     [property: JsonPropertyName("refresh_token")] string RefreshToken);
