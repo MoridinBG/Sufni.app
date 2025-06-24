@@ -45,6 +45,7 @@
     <ProjectReference Include="..\..\HapticFeedback\HapticFeedback.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
+    <ProjectReference Include="..\..\SyncServer\SyncServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

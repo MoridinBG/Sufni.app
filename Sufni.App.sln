@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Telemetry", "Sufni.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Kinematics", "Sufni.Kinematics\Sufni.Kinematics.csproj", "{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncServer", "SyncServer\SyncServer.csproj", "{1DC84504-0D15-46B3-AC5A-9EA939289E02}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,10 @@ Global
 		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{665CEBA9-C320-45CF-BD92-2E274C8CDEF4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1DC84504-0D15-46B3-AC5A-9EA939289E02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DC84504-0D15-46B3-AC5A-9EA939289E02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DC84504-0D15-46B3-AC5A-9EA939289E02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DC84504-0D15-46B3-AC5A-9EA939289E02}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
