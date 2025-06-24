@@ -2,7 +2,7 @@
 
 namespace Sufni.App.Services;
 
-public interface ISynchronizationService
+public interface ISynchronizationClientService
 {
     public Task SyncAll();
 }

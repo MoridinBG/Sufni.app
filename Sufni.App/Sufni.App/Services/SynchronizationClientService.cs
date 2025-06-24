@@ -5,15 +5,11 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
-public class SynchronizationService : ISynchronizationService
+public class SynchronizationClientService : ISynchronizationClientService
 {
-    private readonly IDatabaseService? databaseService;
-    private readonly IHttpApiService? httpApiService;
-    public SynchronizationService()
-    {
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
-    }
+    private readonly IDatabaseService? databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+    private readonly IHttpApiService? httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
+
     private async Task PushLocalChanges(int lastSyncTime)
     {
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");

@@ -126,7 +126,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private async void SyncInternal()
     {
-        var synchronizationService = App.Current?.Services?.GetService<ISynchronizationService>();
+        var synchronizationService = App.Current?.Services?.GetService<ISynchronizationClientService>();
         Debug.Assert(synchronizationService != null, nameof(synchronizationService) + " != null");
 
         SyncInProgress = true;

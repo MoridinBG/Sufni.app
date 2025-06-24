@@ -26,7 +26,7 @@ public partial class App : Application
 #endif
         RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
-        RegisteredServices.Collection.AddSingleton<ISynchronizationService, SynchronizationService>();
+        RegisteredServices.Collection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
     }
 
     public override void Initialize()
