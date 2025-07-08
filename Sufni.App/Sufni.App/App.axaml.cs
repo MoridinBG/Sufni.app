@@ -8,6 +8,7 @@ using Sufni.App.Views;
 using System;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Threading;
 
 namespace Sufni.App;
 
@@ -27,6 +28,7 @@ public partial class App : Application
         RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
         RegisteredServices.Collection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+        RegisteredServices.Collection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
     }
 
     public override void Initialize()
@@ -47,8 +49,10 @@ public partial class App : Application
         var dialogService = Services.GetService<IDialogService>();
         var mainViewModel = Services.GetService<MainViewModel>();
         var mainWindowViewModel = Services.GetService<MainWindowViewModel>();
-        Debug.Assert(fileService != null, nameof(fileService) + " != null");
-        Debug.Assert(dialogService != null, nameof(dialogService) + " != null");
+        var syncServer =  Services.GetService<ISynchronizationServerService>();
+        Debug.Assert(fileService is not null);
+        Debug.Assert(dialogService is not null);
+        Debug.Assert(syncServer is not null);
 
         switch (ApplicationLifetime)
         {
@@ -58,6 +62,10 @@ public partial class App : Application
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
+                Dispatcher.UIThread.Post(async void () =>
+                {
+                    await syncServer.StartAsync();
+                });
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
                 IsDesktop = false;
