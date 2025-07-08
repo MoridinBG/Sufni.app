@@ -92,28 +92,28 @@ public class SynchronizationServerService : ISynchronizationServerService
             if (record.deviceId != req.DeviceId || record.expiresAt < DateTime.UtcNow) return Results.Unauthorized();
 
             var accessToken = GenerateAccessToken(req.DeviceId);
-            var refreshToken = new RefreshToken(req.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
-            await databaseService.PutRefreshTokenAsync(refreshToken);
+            var pairedDevice = new PairedDevice(req.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
+            await databaseService.PutPairedDeviceAsync(pairedDevice);
 
-            return Results.Ok(new TokenResponse(accessToken, refreshToken.Token));
+            return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
         });
 
         app.MapPost("/pair/refresh", async (RefreshRequest req) =>
         {
             Debug.Assert(databaseService is not null);
 
-            var token = await databaseService.GetRefreshTokenAsync(req.RefreshToken);
-            if (token is null || token.Expires < DateTime.UtcNow) return Results.Unauthorized();
+            var pairedDevice = await databaseService.GetPairedDeviceAsync(req.RefreshToken);
+            if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
 
-            var newAccessToken = GenerateAccessToken(token.DeviceId);
-            return Results.Ok(new TokenResponse(newAccessToken, req.RefreshToken)); // or rotate
+            var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
+            return Results.Ok(new TokenResponse(newAccessToken, req.RefreshToken)); // TODO: rotate refresh token
         });
 
         app.MapPost("/unpair", (PairingRequest req) =>
         {
             Debug.Assert(databaseService is not null);
 
-            databaseService.DeleteRefreshTokenAsync(req.DeviceId);
+            databaseService.DeletePairedDeviceAsync(req.DeviceId);
         });
         
         app.MapGet("/info", [Authorize] (ClaimsPrincipal user) =>

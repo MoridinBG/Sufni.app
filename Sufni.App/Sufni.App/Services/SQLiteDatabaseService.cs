@@ -42,7 +42,7 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(Session),
             typeof(SessionCache),
             typeof(Synchronization),
-            typeof(RefreshToken)
+            typeof(PairedDevice)
         ]);
 
         if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
@@ -387,19 +387,25 @@ public class SqLiteDatabaseService : IDatabaseService
         await connection.QueryAsync<Synchronization>("UPDATE sync SET last_sync_time = ?",
             (int)DateTimeOffset.Now.ToUnixTimeSeconds());
     }
-    
-    public async Task<RefreshToken?> GetRefreshTokenAsync(string token)
+
+    public async Task<List<PairedDevice>> GetPairedDevicesAsync()
+    {
+        await Initialization;
+        return await connection.Table<PairedDevice>().ToListAsync();
+    }
+
+    public async Task<PairedDevice?> GetPairedDeviceAsync(string token)
     {
         await Initialization;
 
-        return await connection.Table<RefreshToken>().Where(r => r.Token == token).FirstOrDefaultAsync();
+        return await connection.Table<PairedDevice>().Where(r => r.Token == token).FirstOrDefaultAsync();
     }
     
-    public async Task PutRefreshTokenAsync(RefreshToken token)
+    public async Task PutPairedDeviceAsync(PairedDevice token)
     {
         await Initialization;
 
-        var existing = await connection.Table<RefreshToken>()
+        var existing = await connection.Table<PairedDevice>()
             .Where(t => t.DeviceId == token.DeviceId)
             .FirstOrDefaultAsync() is not null;
         if (existing)
@@ -412,10 +418,10 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
-    public async Task DeleteRefreshTokenAsync(string deviceId)
+    public async Task DeletePairedDeviceAsync(string deviceId)
     {
         await Initialization;
-        var token = await connection.Table<RefreshToken>()
+        var token = await connection.Table<PairedDevice>()
             .Where(t => t.DeviceId == deviceId)
             .FirstOrDefaultAsync();
         if (token is not null)

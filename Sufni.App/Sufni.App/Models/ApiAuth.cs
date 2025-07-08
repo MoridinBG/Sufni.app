@@ -23,8 +23,8 @@ public record TokenResponse(
 public record RefreshRequest(
     [property: JsonPropertyName("refresh_token")] string RefreshToken);
 
-[Table("refresh_token")]
-public class RefreshToken
+[Table("paired_device")]
+public class PairedDevice
 {
     [Column("device_id")]
     [PrimaryKey]
@@ -38,9 +38,9 @@ public class RefreshToken
     
     // Just to satisfy sql-net-pcl's parameterless constructor requirement
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
-    public RefreshToken() { }
+    public PairedDevice() { }
 
-    public RefreshToken(string deviceId, DateTime expires)
+    public PairedDevice(string deviceId, DateTime expires)
     {
         DeviceId = deviceId;
         Expires = expires;

@@ -34,7 +34,8 @@ public interface IDatabaseService
     public Task<Guid> PutSessionCacheAsync(SessionCache sessionCache);
     public Task<int> GetLastSyncTimeAsync();
     public Task UpdateLastSyncTimeAsync();
-    public Task<RefreshToken?> GetRefreshTokenAsync(string token);
-    public Task PutRefreshTokenAsync(RefreshToken token);
-    public Task DeleteRefreshTokenAsync(string deviceId);
+    public Task<List<PairedDevice>> GetPairedDevicesAsync();
+    public Task<PairedDevice?> GetPairedDeviceAsync(string token);
+    public Task PutPairedDeviceAsync(PairedDevice token);
+    public Task DeletePairedDeviceAsync(string deviceId);
 }
