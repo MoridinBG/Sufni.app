@@ -22,11 +22,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     #endregion Observable properties
 
+    #region Property change handlers
+
     partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase newValue)
     {
         if (isClosing) return;
         previousActiveTab = oldValue;
     }
+
+    #endregion Property change handlers
 
     #region Constructors
 
