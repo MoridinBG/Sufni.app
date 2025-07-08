@@ -74,7 +74,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         
         Debug.Assert(jwtSecret is not null);
 
-        var app = ApiHost.BuildApp(jwtSecret);
+        var app = ApiHost.BuildApp(jwtSecret, port);
 
         app.MapPost("/pair/request", (PairingRequest req) =>
         {

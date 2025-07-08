@@ -6,12 +6,12 @@ namespace SyncServer;
 
 public static class ApiHost
 {
-    public static WebApplication BuildApp(string jwtSecret)
+    public static WebApplication BuildApp(string jwtSecret, int port)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenLocalhost(1557);
+            options.ListenLocalhost(port);
         });
 
         var key = Encoding.ASCII.GetBytes(jwtSecret);
