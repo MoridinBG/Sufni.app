@@ -19,7 +19,7 @@ namespace Sufni.App.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService
 {
-    private const int PinTtlSeconds = 60;
+    public const int PinTtlSeconds = 30;
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
 
