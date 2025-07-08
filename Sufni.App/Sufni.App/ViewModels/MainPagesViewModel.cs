@@ -25,6 +25,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
     [ObservableProperty] private SettingsViewModel settingsPage = new();
+    [ObservableProperty] private PairingViewModel pairingPage = new();
     [ObservableProperty] private int selectedIndex;
     [ObservableProperty] private bool syncInProgress;
     [ObservableProperty] private bool isMenuPaneOpen;

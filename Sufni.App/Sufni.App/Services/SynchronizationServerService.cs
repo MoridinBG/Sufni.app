@@ -33,6 +33,8 @@ public class SynchronizationServerService : ISynchronizationServerService
     private string? jwtSecret;
     
     private Task Initialization { get; }
+    
+    public Action<string, string>? PairingPinCallback { get; set; }
 
     public SynchronizationServerService()
     {
@@ -78,8 +80,10 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPost("/pair/request", (PairingRequest req) =>
         {
+            if (PairingPinCallback is null) return Results.InternalServerError();
+
             var pin = GeneratePin();
-            Console.WriteLine(pin); // TODO: remove this
+            PairingPinCallback(req.DeviceId, pin);
             pendingPairings[pin] = (req.DeviceId, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
             return Results.Ok();
         });
