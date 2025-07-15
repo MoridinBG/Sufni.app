@@ -132,10 +132,11 @@
             </Button>
         </StackPanel>
 
+        <!--  New pairing request  -->
         <Grid
             Background="{StaticResource SufniBackgroundDisabled}"
             ColumnDefinitions="* 35"
-            IsVisible="{Binding !!PairingPage.PairingPin}"
+            IsVisible="{Binding !!PairingViewModel.PairingPin}"
             Margin="50,0,20,25"
             Opacity="0.9"
             RowDefinitions="auto 24"
@@ -148,7 +149,7 @@
                 Grid.Row="0"
                 Margin="10,10,10,10">
                 <Run Text="Pairing request from " />
-                <Run FontWeight="Bold" Text="{Binding PairingPage.RequestingId}" />
+                <Run FontWeight="Bold" Text="{Binding PairingViewModel.RequestingId}" />
             </TextBlock>
 
             <!--  PIN Display  -->
@@ -159,12 +160,12 @@
                 Grid.Row="1"
                 LetterSpacing="10"
                 Margin="10,0,10,10"
-                Text="{Binding PairingPage.PairingPin}"
+                Text="{Binding PairingViewModel.PairingPin}"
                 VerticalAlignment="Center" />
 
             <!--  Progress Ring  -->
             <Path
-                Data="{Binding PairingPage.Remaining, Converter={StaticResource ProgressToArcConverter}}"
+                Data="{Binding PairingViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
                 Fill="{StaticResource SufniAccentColor}"
                 Grid.Column="1"
                 Grid.Row="1"
