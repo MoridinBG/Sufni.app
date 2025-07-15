@@ -24,6 +24,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private BikeListViewModel bikesPage;
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
+    [ObservableProperty] private PairedDeviceListViewModel pairedDevicesPage;
     [ObservableProperty] private SettingsViewModel settingsPage = new();
     [ObservableProperty] private PairingViewModel pairingViewModel = new();
     [ObservableProperty] private int selectedIndex;
@@ -39,6 +40,7 @@ public partial class MainPagesViewModel : ViewModelBase
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         BikesPage = new BikeListViewModel();
         SessionsPage = new SessionListViewModel();
+        PairedDevicesPage = new  PairedDeviceListViewModel();
         ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
         SetupsPage = new SetupListViewModel(ImportSessionsPage, BikesPage);
         pages = [SessionsPage, SetupsPage];
@@ -98,6 +100,9 @@ public partial class MainPagesViewModel : ViewModelBase
             case SessionViewModel svm:
                 SessionsPage.UndoableDelete(svm);
                 break;
+            case PairedDeviceViewModel pdvm:
+                PairedDevicesPage.UndoableDelete(pdvm);
+                break;
         }
     }
 
@@ -112,6 +117,7 @@ public partial class MainPagesViewModel : ViewModelBase
         await BikesPage.LoadFromDatabase();
         await SetupsPage.LoadFromDatabase();
         await SessionsPage.LoadFromDatabase();
+        await PairedDevicesPage.LoadFromDatabase();
 
         DatabaseLoaded = true;
     }

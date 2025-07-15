@@ -1,0 +1,56 @@
+<UserControl
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.DesktopViews.Controls.PairedDeviceListItemButton"
+    x:DataType="vm:PairedDeviceViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vm:PairedDeviceViewModel />
+    </Design.DataContext>
+
+    <StackPanel>
+        <Button
+            Classes="item"
+            CornerRadius="0"
+            Height="48"
+            HorizontalAlignment="Stretch"
+            Name="Button"
+            Padding="10,0,10,0"
+            VerticalContentAlignment="Center">
+            <Grid ColumnDefinitions="25 auto * auto 40" HorizontalAlignment="Stretch">
+                <Button
+                    Classes="embedded"
+                    Command="{Binding UndoableDeleteCommand}"
+                    Grid.Column="0"
+                    HorizontalAlignment="Left"
+                    IsVisible="{Binding #Button.IsPointerOver}"
+                    Name="DeleteButton"
+                    Padding="0"
+                    Svg.Css=".default { fill: #bf312d; }">
+                    <Image
+                        Height="16"
+                        Source="{SvgImage /Assets/fa-trash-can.svg}"
+                        Width="16" />
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding Name}" />
+                <TextBlock Grid.Column="3" Text="{Binding Timestamp}" />
+                <Image
+                    Grid.Column="4"
+                    Height="16"
+                    IsVisible="{Binding !IsComplete}"
+                    Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}"
+                    Width="16" />
+            </Grid>
+        </Button>
+        <Separator
+            Background="{StaticResource SufniBackgroundDisabled}"
+            Height="1"
+            Margin="0" />
+    </StackPanel>
+</UserControl>
