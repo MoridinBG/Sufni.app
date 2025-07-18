@@ -16,7 +16,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     #region Observable properties
 
-    [ObservableProperty] private TabPageViewModelBase currentView;
+    [ObservableProperty] private TabPageViewModelBase? currentView;
     [ObservableProperty] private MainPagesViewModel? mainPagesViewModel;
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
 
@@ -24,7 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     #region Property change handlers
 
-    partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase newValue)
+    partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase? newValue)
     {
         if (isClosing) return;
         previousActiveTab = oldValue;
@@ -73,7 +73,8 @@ public partial class MainWindowViewModel : ViewModelBase
         // We don't want to switch tabs when
         //   - closing a tab that's not currently the active one.
         //   - the previous active tab is the one we are closing.
-        if (tab != previousActiveTab && tab == closingTab) CurrentView = previousActiveTab ?? Tabs[0];
+        if (tab != previousActiveTab && tab == closingTab)
+            CurrentView = previousActiveTab ?? (Tabs.Count == 0 ? null : Tabs[0]);
 
         isClosing = false;
     }
