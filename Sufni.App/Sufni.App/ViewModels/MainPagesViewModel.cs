@@ -30,6 +30,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private int selectedIndex;
     [ObservableProperty] private bool syncInProgress;
     [ObservableProperty] private bool isMenuPaneOpen;
+    [ObservableProperty] private bool isPairedDevicesListOpen;
 
     #endregion
 
@@ -208,6 +209,12 @@ public partial class MainPagesViewModel : ViewModelBase
     private void OpenMenuPane()
     {
         IsMenuPaneOpen = true;
+    }
+
+    [RelayCommand]
+    private void OpenClosePairedDevicesList()
+    {
+        IsPairedDevicesListOpen = !IsPairedDevicesListOpen;
     }
 
     #endregion

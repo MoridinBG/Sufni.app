@@ -130,7 +130,25 @@
                 Width="50">
                 <Image Source="{SvgImage /Assets/fa-file-import.svg}" Width="18" />
             </Button>
+
+            <!--  Paired devices button  -->
+            <Button
+                Classes="embedded"
+                Command="{Binding OpenClosePairedDevicesListCommand}"
+                Name="PairedDevicesButton"
+                Width="50">
+                <Image Source="{SvgImage /Assets/fa-link.svg}" Width="18" />
+            </Button>
         </StackPanel>
+
+        <!--  Paired devices list  -->
+        <ContentControl
+            Content="{Binding PairedDevicesPage}"
+            Height="300"
+            IsVisible="{Binding IsPairedDevicesListOpen}"
+            Margin="50,0,20,25"
+            Opacity="0.9"
+            VerticalAlignment="Bottom" />
 
         <!--  New pairing request  -->
         <Grid
