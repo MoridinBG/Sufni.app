@@ -32,10 +32,16 @@
     <PackageReference Include="DynamicData" Version="9.2.1" />
     <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta2" />
     <PackageReference Include="MessagePack" Version="3.1.3" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore" Version="2.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Authorization" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.7" />
     <PackageReference Include="ScottPlot" Version="5.0.55" />
     <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.13.0" />
     <PackageReference Include="Tmds.MDns" Version="0.8.0" />
   </ItemGroup>
 
@@ -45,7 +51,6 @@
     <ProjectReference Include="..\..\HapticFeedback\HapticFeedback.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
-    <ProjectReference Include="..\..\SyncServer\SyncServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

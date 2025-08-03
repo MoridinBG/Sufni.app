@@ -6,14 +6,16 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using SecureStorage;
 using Sufni.App.Models;
-using SyncServer;
 
 namespace Sufni.App.Services;
 
@@ -69,16 +71,45 @@ public class SynchronizationServerService : ISynchronizationServerService
         };
         return tokenHandler.WriteToken(tokenHandler.CreateToken(descriptor));
     }
-    
-    public async Task StartAsync(int port = 1557)
+
+    private async Task<WebApplication> BuildApplication(int port)
     {
         await Initialization;
         
         Debug.Assert(jwtSecret is not null);
 
-        var app = ApiHost.BuildApp(jwtSecret, port);
+        var builder = WebApplication.CreateBuilder();
+        
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenLocalhost(port);
+        });
+        
+        var key = Encoding.ASCII.GetBytes(jwtSecret);
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                RequireExpirationTime = true,
+                ValidateLifetime = true
+            };
+        });
+        builder.Services.AddAuthorization();
 
-        app.MapPost("/pair/request", (PairingRequest req) =>
+        return builder.Build();
+    }
+    
+    public async Task StartAsync(int port = 1557)
+    {
+        var app =  await BuildApplication(port);
+        app.UseAuthentication();
+        app.UseAuthorization();
+
+        app.MapPost("/pair/request", ([FromBody] PairingRequest req) =>
         {
             if (PairingPinCallback is null) return Results.InternalServerError();
 
