@@ -11,7 +11,7 @@ public interface IDatabaseService
     public Task<List<Board>> GetBoardsAsync();
     public Task<List<Board>> GetChangedBoardsAsync(int since);
     public Task PutBoardAsync(Board board);
-    public Task DeleteBoardAsync(string id);
+    public Task DeleteBoardAsync(Guid id);
     public Task<List<Bike>> GetBikesAsync();
     public Task<List<Bike>> GetChangedBikesAsync(int since);
     public Task<Bike?> GetBikeAsync(Guid id);

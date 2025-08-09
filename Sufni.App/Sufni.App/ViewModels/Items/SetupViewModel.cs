@@ -21,7 +21,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     #region Private fields
 
     private Setup setup;
-    private string? originalBoardId;
+    private Guid? originalBoardId;
 
     #endregion Private fields
 
@@ -30,7 +30,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private string? boardId;
+    private Guid? boardId;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -114,7 +114,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
         bikes = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
     }
 
-    public SetupViewModel(Setup setup, string? boardId, bool fromDatabase, SourceCache<ItemViewModelBase, Guid> bikesSourceCache)
+    public SetupViewModel(Setup setup, Guid? boardId, bool fromDatabase, SourceCache<ItemViewModelBase, Guid> bikesSourceCache)
     {
         this.setup = setup;
         IsInDatabase = fromDatabase;
@@ -155,7 +155,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
         EvaluateDirtiness();
         return IsDirty &&
                !string.IsNullOrEmpty(Name) &&
-               !string.IsNullOrEmpty(BoardId) &&
+               BoardId.HasValue &&
                SelectedBike is not null &&
                (ForkSensorConfiguration is not null || ShockSensorConfiguration is not null) &&
                (ForkSensorConfiguration is null || ForkSensorConfiguration.CanSave()) &&
@@ -182,15 +182,15 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
             // If this setup was already associated with another board, clear that association.
             // Do not delete the board though, it might be picked up later.
-            if (!string.IsNullOrEmpty(originalBoardId) && IsInDatabase && originalBoardId != BoardId)
+            if (originalBoardId.HasValue && IsInDatabase && originalBoardId != BoardId)
             {
-                await databaseService.PutBoardAsync(new Board(originalBoardId, null));
+                await databaseService.PutBoardAsync(new Board(originalBoardId.Value, null));
             }
 
             // If the board ID changed, or this is a new setup, associate it with the board ID.
-            if (!string.IsNullOrEmpty(BoardId) && (!IsInDatabase || originalBoardId != BoardId))
+            if (BoardId.HasValue && (!IsInDatabase || originalBoardId != BoardId))
             {
-                await databaseService.PutBoardAsync(new Board(BoardId!, Id));
+                await databaseService.PutBoardAsync(new Board(BoardId.Value, Id));
             }
 
             setup = newSetup;

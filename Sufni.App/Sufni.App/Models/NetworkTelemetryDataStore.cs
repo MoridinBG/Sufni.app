@@ -11,7 +11,7 @@ namespace Sufni.App.Models;
 public class NetworkTelemetryDataStore : ITelemetryDataStore
 {
     public string Name { get; }
-    public string? BoardId { get; private set; }
+    public Guid? BoardId { get; private set; }
     private readonly IPEndPoint ipEndPoint;
     public readonly Task Initialization;
 
@@ -22,7 +22,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
         using var memoryStream = new MemoryStream(directoryInfo);
         using var reader = new BinaryReader(memoryStream);
         var boardId = reader.ReadBytes(8);
-        BoardId = Convert.ToHexString(boardId).ToLower();
+        BoardId = UuidUtil.CreateDeviceUuid(boardId);
         var sampleRate = reader.ReadUInt16();
 
         var files = new List<ITelemetryFile>();

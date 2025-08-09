@@ -106,9 +106,9 @@ public class SetupListViewModel : ItemListViewModelBase
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
         // If this setup is associated with a board ID, clear that association.
-        if (svm.BoardId is not null)
+        if (svm.BoardId.HasValue)
         {
-            await databaseService.PutBoardAsync(new Board(svm.BoardId, null));
+            await databaseService.PutBoardAsync(new Board(svm.BoardId.Value, null));
         }
 
         // Notify associated calibrations and linkages about the deletion
@@ -135,10 +135,10 @@ public class SetupListViewModel : ItemListViewModelBase
                 "new setup");
 
             // Use the SST datastore's board ID only if it's not already associated to another setup;
-            string? newSetupsBoardId = null;
+            Guid? newSetupsBoardId = null;
             var datastoreBoardId = importSessionsPage.SelectedDataStore?.BoardId;
             var datastoreBoard = Boards.FirstOrDefault(b =>
-                b?.Id.ToLower() == datastoreBoardId && b?.SetupId is not null, null);
+                b?.Id == datastoreBoardId && b?.SetupId is not null, null);
             if (datastoreBoard is null || datastoreBoard.SetupId is null)
             {
                 newSetupsBoardId = datastoreBoardId;

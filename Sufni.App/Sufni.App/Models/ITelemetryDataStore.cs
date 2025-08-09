@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -22,6 +23,6 @@ internal class TelemetryDataStoreComparer : IEqualityComparer<ITelemetryDataStor
 public interface ITelemetryDataStore
 {
     public string Name { get; }
-    public string? BoardId { get; }
+    public Guid? BoardId { get; }
     public Task<List<ITelemetryFile>> GetFiles();
 }

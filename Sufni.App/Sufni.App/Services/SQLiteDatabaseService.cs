@@ -85,7 +85,7 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
-    public async Task DeleteBoardAsync(string id)
+    public async Task DeleteBoardAsync(Guid id)
     {
         await Initialization;
         var board = await connection.Table<Board>()
@@ -429,5 +429,4 @@ public class SqLiteDatabaseService : IDatabaseService
             await connection.DeleteAsync(token);
         }
     }
-
 }

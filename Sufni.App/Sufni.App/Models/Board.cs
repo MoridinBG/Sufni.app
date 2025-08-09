@@ -11,7 +11,7 @@ public class Board : Synchronizable
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
     public Board() { }
 
-    public Board(string id, Guid? setupId)
+    public Board(Guid id, Guid? setupId)
     {
         Id = id;
         SetupId = setupId;
@@ -20,7 +20,7 @@ public class Board : Synchronizable
     [JsonPropertyName("id")]
     [PrimaryKey]
     [Column("id")]
-    public string Id { get; set; } = null!;
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     [JsonPropertyName("setup_id")]
     [Column("setup_id")]

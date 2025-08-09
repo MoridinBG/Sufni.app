@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,7 +11,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
 {
     public Task Initialization { get; }
     public string Name { get; }
-    public string? BoardId { get; private set; }
+    public Guid? BoardId { get; private set; }
     private IStorageFolder Folder { get; }
 
     public bool IsAvailable()
@@ -72,7 +73,8 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         await using var stream = await boardIdFile.OpenReadAsync();
         var buffer = new byte[16];
         await stream.ReadExactlyAsync(buffer, 0, 16);
-        BoardId = Encoding.ASCII.GetString(buffer).ToLower();
+        var serialHex = Encoding.ASCII.GetString(buffer).ToLower();
+        BoardId = UuidUtil.CreateDeviceUuid(serialHex);
     }
 
     public StorageProviderTelemetryDataStore(IStorageFolder folder)

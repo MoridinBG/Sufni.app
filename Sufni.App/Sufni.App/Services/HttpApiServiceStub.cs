@@ -45,10 +45,10 @@ public class HttpApiServiceStub : IHttpApiService
 
     private static readonly List<Board> Boards = new()
     {
-        new("0000000000000000", SetupClashId),
-        new("0000000000000001", SetupClashNewId),
-        new("0011223344556677", SetupOneSuspensionId),
-        new("0000000000000003", null),
+        new(Guid.Empty, SetupClashId),
+        new(new Guid("00000000-0000-0080-8000-000000000001"), SetupClashNewId),
+        new(new Guid("00000000-0000-0080-8011-223344556677"), SetupOneSuspensionId),
+        new(new Guid("00000000-0000-0080-8000-000000000003"), null),
     };
 
     private static readonly List<Session> Sessions;
