@@ -18,6 +18,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         var changes = new SynchronizationData
         {
             Boards = await databaseService.GetChangedBoardsAsync(lastSyncTime),
+            Bikes = await databaseService.GetChangedBikesAsync(lastSyncTime),
             Setups = await databaseService.GetChangedSetupsAsync(lastSyncTime),
             Sessions = await databaseService.GetChangedSessionsAsync(lastSyncTime)
         };
@@ -55,6 +56,18 @@ public class SynchronizationClientService : ISynchronizationClientService
             else
             {
                 await databaseService.PutBoardAsync(board);
+            }
+        }
+        
+        foreach (var bike in syncData.Bikes)
+        {
+            if (bike.Deleted.HasValue)
+            {
+                await databaseService.DeleteBikeAsync(bike.Id);
+            }
+            else
+            {
+                await databaseService.PutBikeAsync(bike);
             }
         }
 
