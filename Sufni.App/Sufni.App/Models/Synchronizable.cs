@@ -14,6 +14,7 @@ public class Synchronizable
     public Guid Id { get; set; } = Guid.NewGuid();
 
     [Column("updated"), NotNull]
+    [JsonPropertyName("updated")]
     [IgnoreMember]
     public long Updated { get; set; }
 
@@ -23,6 +24,7 @@ public class Synchronizable
     public long ClientUpdated { get; set; }
 
     [Column("deleted")]
+    [JsonPropertyName("deleted")]
     [IgnoreMember]
     public long? Deleted { get; set; }
 }
