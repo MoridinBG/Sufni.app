@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Makaretu.Dns;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -22,6 +23,8 @@ namespace Sufni.App.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService
 {
+    public static readonly string ServiceType = "_sstsync._tcp";
+
     public const int PinTtlSeconds = 30;
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
@@ -43,6 +46,17 @@ public class SynchronizationServerService : ISynchronizationServerService
     public SynchronizationServerService()
     {
         Initialization = Init();
+    }
+
+    private static void StartAdvertising()
+    {
+        var service = new ServiceProfile("s1", ServiceType, Port);
+        var sd = new Makaretu.Dns.ServiceDiscovery();
+        if (!sd.Probe(service))
+        {
+            sd.Advertise(service);
+            sd.Announce(service);
+        }
     }
 
     private async Task Init()
@@ -224,6 +238,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.NoContent();
         });
 
+        StartAdvertising();
         await app.RunAsync();
     }
 }
