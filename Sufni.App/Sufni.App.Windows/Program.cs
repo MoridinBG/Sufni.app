@@ -21,6 +21,7 @@ namespace Sufni.App.Windows
         {
             RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
             RegisteredServices.Collection.AddSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>();
+            RegisteredServices.Collection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()

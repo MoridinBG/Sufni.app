@@ -23,7 +23,8 @@ namespace Sufni.App.Android
             RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
             RegisteredServices.Collection.AddSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>();
             RegisteredServices.Collection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>(provider => 
-                new HapticFeedback.HapticFeedback(Window!));
+                new HapticFeedback.HapticFeedback(Window!)); 
+            RegisteredServices.Collection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
 
             return base.CustomizeAppBuilder(builder)
                 .UseAndroid()
