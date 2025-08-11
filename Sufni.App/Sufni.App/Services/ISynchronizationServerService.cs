@@ -5,6 +5,6 @@ namespace Sufni.App.Services;
 
 public interface ISynchronizationServerService
 {
-    public Task StartAsync(int port = 1557);
+    public Task StartAsync();
     public Action<string, string>? PairingPinCallback { get; set; }
 }

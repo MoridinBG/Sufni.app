@@ -9,10 +9,16 @@ public class Synchronizable
 {
     [Column("updated"), NotNull]
     [IgnoreMember]
-    public int Updated { get; set; }
+    public long Updated { get; set; }
+
+    [Column("client_updated")]
+    [JsonPropertyName("client_updated")]
+    [IgnoreMember]
+    public long ClientUpdated { get; set; }
+
     [Column("deleted")]
     [IgnoreMember]
-    public int? Deleted { get; set; }
+    public long? Deleted { get; set; }
 }
 
 [Table("sync")]
@@ -20,7 +26,7 @@ public class Synchronization
 {
     [Column("last_sync_time")]
     [PrimaryKey]
-    public int LastSyncTime { get; set; }
+    public long LastSyncTime { get; set; }
 }
 
 public class SynchronizationData

@@ -58,7 +58,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<Board>().Where(b => b.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Board>> GetChangedBoardsAsync(int since)
+    public async Task<List<Board>> GetChangedBoardsAsync(long since)
     {
         await Initialization;
 
@@ -104,7 +104,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<Bike>().Where(s => s.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Bike>> GetChangedBikesAsync(int since)
+    public async Task<List<Bike>> GetChangedBikesAsync(long since)
     {
         await Initialization;
 
@@ -161,7 +161,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<Setup>().Where(s => s.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Setup>> GetChangedSetupsAsync(int since)
+    public async Task<List<Setup>> GetChangedSetupsAsync(long since)
     {
         await Initialization;
 
@@ -248,7 +248,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
     }
 
-    public async Task<List<Session>> GetChangedSessionsAsync(int since)
+    public async Task<List<Session>> GetChangedSessionsAsync(long since)
     {
         await Initialization;
 
@@ -372,7 +372,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return sessionCache.SessionId;
     }
 
-    public async Task<int> GetLastSyncTimeAsync()
+    public async Task<long> GetLastSyncTimeAsync()
     {
         await Initialization;
 

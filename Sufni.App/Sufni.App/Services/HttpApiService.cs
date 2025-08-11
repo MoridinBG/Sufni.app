@@ -70,7 +70,7 @@ internal class HttpApiService : IHttpApiService
         client.DefaultRequestHeaders.Authorization = null;
     }
 
-    public async Task<SynchronizationData> PullSyncAsync(int since = 0)
+    public async Task<SynchronizationData> PullSyncAsync(long since = 0)
     {
         using var response = await client.GetAsync($"{serverUrl}/api/sync/pull?since={since}");
         response.EnsureSuccessStatusCode();

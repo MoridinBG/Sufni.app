@@ -68,7 +68,7 @@ public class HttpApiServiceStub : IHttpApiService
         return Task.CompletedTask;
     }
 
-    public Task<SynchronizationData> PullSyncAsync(int since = 0)
+    public Task<SynchronizationData> PullSyncAsync(long since = 0)
     {
         return Task.FromResult(new SynchronizationData
         {

@@ -10,7 +10,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IDatabaseService? databaseService = App.Current?.Services?.GetService<IDatabaseService>();
     private readonly IHttpApiService? httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
 
-    private async Task PushLocalChanges(int lastSyncTime)
+    private async Task PushLocalChanges(long lastSyncTime)
     {
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
         Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
@@ -40,7 +40,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         }
     }
 
-    private async Task PullRemoteChanges(int lastSyncTime)
+    private async Task PullRemoteChanges(long lastSyncTime)
     {
         Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
