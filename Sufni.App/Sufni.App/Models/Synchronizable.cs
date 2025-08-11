@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using MessagePack;
@@ -7,6 +8,11 @@ namespace Sufni.App.Models;
 
 public class Synchronizable
 {
+    [JsonPropertyName("id")]
+    [PrimaryKey]
+    [Column("id")]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
     [Column("updated"), NotNull]
     [IgnoreMember]
     public long Updated { get; set; }

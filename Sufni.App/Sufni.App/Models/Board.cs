@@ -17,11 +17,6 @@ public class Board : Synchronizable
         SetupId = setupId;
     }
 
-    [JsonPropertyName("id")]
-    [PrimaryKey]
-    [Column("id")]
-    public Guid Id { get; set; } = Guid.NewGuid();
-
     [JsonPropertyName("setup_id")]
     [Column("setup_id")]
     public Guid? SetupId { get; set; }
