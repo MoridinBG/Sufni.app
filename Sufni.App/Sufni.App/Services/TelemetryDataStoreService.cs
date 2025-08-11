@@ -112,7 +112,7 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
 
     public TelemetryDataStoreService()
     {
-        var serviceDiscovery = App.Current?.Services?.GetService<IServiceDiscovery>();
+        var serviceDiscovery = App.Current?.Services?.GetKeyedService<IServiceDiscovery>("gosst");
         Debug.Assert(serviceDiscovery != null, nameof(serviceDiscovery) + " != null");
 
         serviceDiscovery.ServiceAdded += async (_, e) => await AddNetworkDataStore(e);
