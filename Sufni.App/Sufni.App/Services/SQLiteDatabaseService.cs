@@ -429,4 +429,64 @@ public class SqLiteDatabaseService : IDatabaseService
             await connection.DeleteAsync(token);
         }
     }
+
+    private async Task MergeAsync<T>(T entity) where T : Synchronizable, new()
+    {
+        await Initialization;
+
+        var existing = await connection.FindAsync<T>(entity.Id);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        if (existing is null)
+        {
+            entity.ClientUpdated = entity.Updated;
+            entity.Updated = now;
+            await connection.InsertAsync(entity);
+            return;
+        }
+
+        if (entity.Deleted.HasValue)
+        {
+            existing.Deleted = entity.Deleted;
+            existing.Updated = entity.Updated;
+            await connection.UpdateAsync(existing);
+            return;
+        }
+
+        // Some other client updated the row  later and synced earlier. We
+        // want the latest update, so discard content in this update, but
+        // adjust update timestamp.
+        if (existing.ClientUpdated > entity.Updated)
+        {
+            existing.Updated = now;
+            await connection.UpdateAsync(existing);
+            return;
+        }
+
+        entity.ClientUpdated = entity.Updated;
+        entity.Updated = now;
+        await connection.UpdateAsync(entity);
+    }
+
+    public async Task MergeAllAsync(SynchronizationData data)
+    {
+        await Initialization;
+
+        await connection.ExecuteAsync("BEGIN TRANSACTION");
+
+        try
+        {
+            foreach (var bike in data.Bikes) await MergeAsync(bike);
+            foreach (var setup in data.Setups) await MergeAsync(setup);
+            foreach (var board in data.Boards) await MergeAsync(board);
+            foreach (var session in data.Sessions) await MergeAsync(session);
+
+            await connection.ExecuteAsync("COMMIT");
+        }
+        catch
+        {
+            await connection.ExecuteAsync("ROLLBACK");
+            throw;
+        }
+    }
 }

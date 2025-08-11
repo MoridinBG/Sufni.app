@@ -62,9 +62,10 @@ public partial class App : Application
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
-                Dispatcher.UIThread.Post(async void () =>
+                Dispatcher.UIThread.Post(void () =>
                 {
-                    await syncServer.StartAsync();
+                    // this will run while the application is running -> no need to await
+                    _ = syncServer.StartAsync();
                 });
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:

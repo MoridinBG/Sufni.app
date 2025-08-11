@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
+using System.IO;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,6 +25,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     public const int PinTtlSeconds = 30;
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
+    private const int Port = 5575;
 
     private readonly IDatabaseService? databaseService = App.Current?.Services?.GetService<IDatabaseService>();
     private readonly ISecureStorage? secureStorage = App.Current?.Services?.GetService<ISecureStorage>();
@@ -82,7 +84,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenLocalhost(port);
+            options.ListenAnyIP(port);
         });
         
         var key = Encoding.ASCII.GetBytes(jwtSecret);
@@ -103,9 +105,9 @@ public class SynchronizationServerService : ISynchronizationServerService
         return builder.Build();
     }
     
-    public async Task StartAsync(int port = 1557)
+    public async Task StartAsync()
     {
-        var app =  await BuildApplication(port);
+        var app =  await BuildApplication(Port);
         app.UseAuthentication();
         app.UseAuthorization();
 
@@ -119,7 +121,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok();
         });
 
-        app.MapPost("/pair/confirm", async (PairingConfirm req) =>
+        app.MapPost("/pair/confirm", async ([FromBody] PairingConfirm req) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -133,7 +135,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
         });
 
-        app.MapPost("/pair/refresh", async (RefreshRequest req) =>
+        app.MapPost("/pair/refresh", async ([FromBody] RefreshRequest req) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -144,17 +146,82 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(newAccessToken, req.RefreshToken)); // TODO: rotate refresh token
         });
 
-        app.MapPost("/unpair", (PairingRequest req) =>
+        app.MapDelete("/pair/unpair", [Authorize] async (ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
-            databaseService.DeletePairedDeviceAsync(req.DeviceId);
-        });
-        
-        app.MapGet("/info", [Authorize] (ClaimsPrincipal user) =>
-        {
             var deviceId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return Results.Ok($"device identifier: {deviceId}");
+            if (deviceId is null) return Results.NotFound();
+
+            await databaseService.DeletePairedDeviceAsync(deviceId);
+            
+            return Results.Ok();
+        });
+
+        app.MapGet("/sync/pull", [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
+        {
+            Debug.Assert(databaseService is not null);
+
+            var data = new SynchronizationData
+            {
+                Boards = await databaseService.GetChangedBoardsAsync(since),
+                Bikes = await databaseService.GetChangedBikesAsync(since),
+                Setups = await databaseService.GetChangedSetupsAsync(since),
+                Sessions = await databaseService.GetChangedSessionsAsync(since)
+            };
+
+            return Results.Ok(data);
+        });
+
+        app.MapPut("/sync/push", [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+        {
+            Debug.Assert(databaseService is not null);
+
+            await databaseService.MergeAllAsync(data);
+        });
+
+        app.MapGet("/session/incomplete", [Authorize] async (ClaimsPrincipal user) =>
+        {
+            Debug.Assert(databaseService is not null);
+
+            var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
+            return Results.Ok(incompleteSessions);
+        });
+
+        app.MapGet("/session/{id:guid}/psst", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+        {
+            Debug.Assert(databaseService is not null);
+
+            var data = await databaseService.GetSessionPsstAsync(id);
+            if  (data is null) return Results.NotFound(new { msg = "Session does not exist!" });
+
+            var name = $"{id}.psst";
+
+            return Results.File(
+                fileContents: data.BinaryForm,
+                contentType: "application/octet-stream",
+                fileDownloadName: name
+            );
+        });
+
+        app.MapPatch("/session/{id:guid}/psst", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+        {
+            Debug.Assert(databaseService is not null);
+
+            await using var memoryStream = new MemoryStream();
+            await request.BodyReader.CopyToAsync(memoryStream);
+            var data = memoryStream.ToArray();
+
+            try
+            {
+                await databaseService.PatchSessionPsstAsync(id, data);
+            }
+            catch (Exception)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.NoContent();
         });
 
         await app.RunAsync();
