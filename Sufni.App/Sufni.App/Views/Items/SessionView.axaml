@@ -3,8 +3,6 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
-    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
@@ -104,11 +102,11 @@
                 </ItemsControl.ItemsPanel>
 
                 <!--  Ensure that the SufniTelemetryPlotViews' Telemetry property is set  -->
-                <i:Interaction.Behaviors>
-                    <ia:EventTriggerBehavior EventName="Loaded">
+                <Interaction.Behaviors>
+                    <EventTriggerBehavior EventName="Loaded">
                         <InvokeCommandAction Command="{Binding LoadedCommand}" CommandParameter="{Binding ElementName=TabScrollViewer, Path=Bounds}" />
-                    </ia:EventTriggerBehavior>
-                </i:Interaction.Behaviors>
+                    </EventTriggerBehavior>
+                </Interaction.Behaviors>
 
             </ItemsControl>
         </ScrollViewer>

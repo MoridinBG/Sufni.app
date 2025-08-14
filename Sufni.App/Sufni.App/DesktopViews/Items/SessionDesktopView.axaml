@@ -8,8 +8,6 @@
     x:DataType="vm:SessionViewModel"
     xmlns="https://github.com/avaloniaui"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
-    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:pages="clr-namespace:Sufni.App.Views.SessionPages"
     xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
@@ -22,11 +20,11 @@
     </Design.DataContext>
 
     <!--  Ensure that the SufniTelemetryPlotViews' Telemetry property is set  -->
-    <i:Interaction.Behaviors>
-        <ia:EventTriggerBehavior EventName="Loaded">
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </ia:EventTriggerBehavior>
-    </i:Interaction.Behaviors>
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
 
     <UserControl.Styles>
         <Style Selector="TabStripItem">

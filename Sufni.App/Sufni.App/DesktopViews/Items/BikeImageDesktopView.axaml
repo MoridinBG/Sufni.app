@@ -6,8 +6,6 @@
     x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
-    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:paz="using:Avalonia.Controls.PanAndZoom"
     xmlns:v="using:Sufni.App.Views.Items"
@@ -21,7 +19,7 @@
     </Design.DataContext>
 
     <UserControl.Styles>
-        <StyleInclude Source="avares://Avalonia.Xaml.Interactions.Draggable/Styles.axaml" />
+        <StyleInclude Source="avares://Xaml.Behaviors.Interactions.Draggable/Styles.axaml" />
         <Style Selector="SelectingItemsControl">
             <Setter Property="Template">
                 <ControlTemplate>
@@ -41,14 +39,14 @@
         VerticalAlignment="Stretch"
         ZoomSpeed="1.2">
 
-        <i:Interaction.Behaviors>
-            <ia:EventTriggerBehavior EventName="DoubleTapped">
+        <Interaction.Behaviors>
+            <EventTriggerBehavior EventName="DoubleTapped">
                 <InvokeCommandAction Command="{Binding DoubleTappedCommand}" PassEventArgsToCommand="True" />
-            </ia:EventTriggerBehavior>
-            <ia:EventTriggerBehavior EventName="Tapped">
+            </EventTriggerBehavior>
+            <EventTriggerBehavior EventName="Tapped">
                 <InvokeCommandAction Command="{Binding TappedCommand}" />
-            </ia:EventTriggerBehavior>
-        </i:Interaction.Behaviors>
+            </EventTriggerBehavior>
+        </Interaction.Behaviors>
 
         <paz:ZoomBorder.KeyBindings>
             <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
@@ -86,11 +84,11 @@
                                 StartPoint="{Binding StartPoint}"
                                 Stroke="{Binding Brush}"
                                 StrokeThickness="10">
-                                <i:Interaction.Behaviors>
-                                    <ia:EventTriggerBehavior EventName="Tapped">
+                                <Interaction.Behaviors>
+                                    <EventTriggerBehavior EventName="Tapped">
                                         <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).LinkTappedCommand}" PassEventArgsToCommand="True" />
-                                    </ia:EventTriggerBehavior>
-                                </i:Interaction.Behaviors>
+                                    </EventTriggerBehavior>
+                                </Interaction.Behaviors>
                             </Line>
                         </DataTemplate>
                     </SelectingItemsControl.ItemTemplate>
@@ -121,11 +119,11 @@
                     <SelectingItemsControl.ItemTemplate>
                         <DataTemplate>
                             <vl:JointView>
-                                <i:Interaction.Behaviors>
-                                    <ia:EventTriggerBehavior EventName="Tapped">
+                                <Interaction.Behaviors>
+                                    <EventTriggerBehavior EventName="Tapped">
                                         <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).PointTappedCommand}" PassEventArgsToCommand="True" />
-                                    </ia:EventTriggerBehavior>
-                                </i:Interaction.Behaviors>
+                                    </EventTriggerBehavior>
+                                </Interaction.Behaviors>
                             </vl:JointView>
                         </DataTemplate>
                     </SelectingItemsControl.ItemTemplate>
