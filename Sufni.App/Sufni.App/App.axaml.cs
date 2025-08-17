@@ -20,11 +20,7 @@ public partial class App : Application
 
     public App()
     {
-#if DEBUG
-        RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiServiceStub>();
-#else
         RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiService>();
-#endif
         RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
     }
