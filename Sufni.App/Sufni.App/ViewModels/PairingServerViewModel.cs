@@ -41,6 +41,11 @@ public partial class PairingViewModel : ViewModelBase
             Remaining = 0.999;
             timer.Start();
         };
+
+        if (!Design.IsDesignMode)
+        {
+            await synchronizationServer.StartAsync();
+        }
     }
 
     #endregion Constructors

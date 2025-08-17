@@ -7,8 +7,8 @@ using Sufni.App.ViewModels;
 using Sufni.App.Views;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Threading;
 
 namespace Sufni.App;
 
@@ -45,10 +45,8 @@ public partial class App : Application
         var dialogService = Services.GetService<IDialogService>();
         var mainViewModel = Services.GetService<MainViewModel>();
         var mainWindowViewModel = Services.GetService<MainWindowViewModel>();
-        var syncServer =  Services.GetService<ISynchronizationServerService>();
         Debug.Assert(fileService is not null);
         Debug.Assert(dialogService is not null);
-        Debug.Assert(syncServer is not null);
 
         switch (ApplicationLifetime)
         {
@@ -57,11 +55,6 @@ public partial class App : Application
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
-                Dispatcher.UIThread.Post(void () =>
-                {
-                    // this will run while the application is running -> no need to await
-                    _ = syncServer.StartAsync();
-                });
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
                 singleViewPlatform.MainView = new MainView
