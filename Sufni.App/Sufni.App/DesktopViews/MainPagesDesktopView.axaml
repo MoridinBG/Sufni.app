@@ -51,6 +51,12 @@
         </Style>
     </UserControl.Styles>
 
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="AttachedToVisualTree">
+            <InvokeCommandAction Command="{Binding PairingServerViewModel.LoadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
     <Panel>
 
         <!--  Menu tab  -->
@@ -154,7 +160,7 @@
         <Grid
             Background="{StaticResource SufniBackgroundDisabled}"
             ColumnDefinitions="* 35"
-            IsVisible="{Binding !!PairingViewModel.PairingPin}"
+            IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
             Margin="50,0,20,25"
             Opacity="0.9"
             RowDefinitions="auto 24"
@@ -167,7 +173,7 @@
                 Grid.Row="0"
                 Margin="10,10,10,10">
                 <Run Text="Pairing request from " />
-                <Run FontWeight="Bold" Text="{Binding PairingViewModel.RequestingId}" />
+                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingId}" />
             </TextBlock>
 
             <!--  PIN Display  -->
@@ -178,12 +184,12 @@
                 Grid.Row="1"
                 LetterSpacing="10"
                 Margin="10,0,10,10"
-                Text="{Binding PairingViewModel.PairingPin}"
+                Text="{Binding PairingServerViewModel.PairingPin}"
                 VerticalAlignment="Center" />
 
             <!--  Progress Ring  -->
             <Path
-                Data="{Binding PairingViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
+                Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
                 Fill="{StaticResource SufniAccentColor}"
                 Grid.Column="1"
                 Grid.Row="1"

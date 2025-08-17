@@ -3,8 +3,11 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
+using System.Net;
+using System.Security.Authentication;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using Makaretu.Dns;
@@ -47,12 +50,21 @@ public class SynchronizationServerService : ISynchronizationServerService
     
     private Task Initialization { get; }
     
-    public Action<string, string>? PairingPinCallback { get; set; }
+    public Action<string, string>? PairingRequested { get; set; }
+    public Action? PairingConfirmed { get; set; }
+    public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
+    public Action<Guid>? SessionDataArrived { get; set; }
+
+    #region Constructors
 
     public SynchronizationServerService()
     {
         Initialization = Init();
     }
+
+    #endregion Constructors
+
+    #region Private methods
 
     private static void StartAdvertising()
     {
@@ -175,7 +187,11 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         return builder.Build();
     }
-    
+
+    #endregion Private methods
+
+    #region Public methods
+
     public async Task StartAsync()
     {
         var app =  await BuildApplication(Port);
@@ -184,11 +200,9 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPost("/pair/request", ([FromBody] PairingRequest req) =>
         {
-            if (PairingPinCallback is null) return Results.InternalServerError();
-
             var pin = GeneratePin();
-            PairingPinCallback(req.DeviceId, pin);
             pendingPairings[pin] = (req.DeviceId, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
+            PairingRequested?.Invoke(req.DeviceId, pin);
             return Results.Ok();
         });
 
@@ -203,6 +217,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             var pairedDevice = new PairedDevice(req.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
             await databaseService.PutPairedDeviceAsync(pairedDevice);
 
+            PairingConfirmed?.Invoke();
             return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
         });
 
@@ -214,7 +229,10 @@ public class SynchronizationServerService : ISynchronizationServerService
             if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
 
             var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
-            return Results.Ok(new TokenResponse(newAccessToken, req.RefreshToken)); // TODO: rotate refresh token
+            var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
+            await databaseService.PutPairedDeviceAsync(newPairedDevice);
+
+            return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
         });
 
         app.MapDelete("/pair/unpair", [Authorize] async (ClaimsPrincipal user) =>
@@ -228,6 +246,8 @@ public class SynchronizationServerService : ISynchronizationServerService
             
             return Results.Ok();
         });
+
+        app.MapGet("/pair/status", [Authorize] (ClaimsPrincipal user) => Results.Ok());
 
         app.MapGet("/sync/pull", [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
         {
@@ -249,6 +269,9 @@ public class SynchronizationServerService : ISynchronizationServerService
             Debug.Assert(databaseService is not null);
 
             await databaseService.MergeAllAsync(data);
+
+            SynchronizationDataArrived?.Invoke(data);
+            return Results.NoContent();
         });
 
         app.MapGet("/session/incomplete", [Authorize] async (ClaimsPrincipal user) =>
@@ -292,10 +315,13 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.NotFound();
             }
 
+            SessionDataArrived?.Invoke(id);
             return Results.NoContent();
         });
 
         StartAdvertising();
         await app.RunAsync();
     }
+
+    #endregion
 }

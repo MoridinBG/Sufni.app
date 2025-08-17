@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
@@ -14,5 +15,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         throw new NotImplementedException();
     }
 
-    public Action<string, string>? PairingPinCallback { get; set; }
+    public Action<string, string>? PairingRequested { get; set; }
+    public Action? PairingConfirmed { get; set; }
+    public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
+    public Action<Guid>? SessionDataArrived { get; set; }
 }

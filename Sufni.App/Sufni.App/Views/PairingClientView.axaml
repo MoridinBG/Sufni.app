@@ -1,0 +1,127 @@
+﻿<UserControl
+    Background="{StaticResource SufniRegion}"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.Views.PairingClientView"
+    x:DataType="vm:PairingClientViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+    xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vm:PairingClientViewModel />
+    </Design.DataContext>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="AttachedToVisualTree">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="DetachedFromVisualTree">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <StackPanel
+        HorizontalAlignment="Center"
+        Orientation="Vertical"
+        VerticalAlignment="Center"
+        Width="250">
+
+        <StackPanel.Styles>
+            <Style Selector="TextBox">
+                <Setter Property="Margin" Value="2" />
+            </Style>
+        </StackPanel.Styles>
+
+        <!--  Locating servers label  -->
+        <Label
+            Content="Locating servers"
+            FontSize="20"
+            HorizontalAlignment="Center"
+            Margin="0,0,0,25"
+            VerticalAlignment="Center">
+            <Label.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
+                    <Binding Path="!IsPaired" />
+                </MultiBinding>
+            </Label.IsVisible>
+        </Label>
+
+        <!--  Prograss ring  -->
+        <progRing:ProgressRing
+            Foreground="{StaticResource SufniAccentColor}"
+            Height="40"
+            HorizontalAlignment="Center"
+            Margin="0,0,0,25"
+            VerticalAlignment="Center"
+            Width="40">
+            <progRing:ProgressRing.IsActive>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
+                    <Binding Path="!IsPaired" />
+                </MultiBinding>
+            </progRing:ProgressRing.IsActive>
+        </progRing:ProgressRing>
+
+        <!--  Send pairing request button  -->
+        <Button
+            Command="{Binding RequestPairingCommand}"
+            Height="50"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center">
+
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="!IsPaired" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ServerUrl" />
+                    <Binding Path="!IsRequestSent" />
+                </MultiBinding>
+            </Button.IsVisible>
+
+            <TextBlock>
+                <Run Text="send pairing request to" />
+                <LineBreak />
+                <Run Foreground="MediumSeaGreen" Text="{Binding ServerUrl}" />
+            </TextBlock>
+        </Button>
+
+        <!--  PIN code input  -->
+        <TextBox
+            IsVisible="{Binding IsRequestSent}"
+            Text="{Binding Pin}"
+            Watermark="PIN" />
+
+        <!--  Confirm pairing button  -->
+        <Button
+            Command="{Binding ConfirmPairingCommand}"
+            Content="confirm"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            IsVisible="{Binding IsRequestSent}"
+            Margin="2" />
+
+        <!--  Unpair button  -->
+        <Button
+            Command="{Binding UnpairCommand}"
+            Content="unpair"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            IsVisible="{Binding IsPaired}"
+            Margin="2" />
+
+        <!--  Cancel button  -->
+        <Button
+            Command="{Binding OpenPreviousPageCommand}"
+            Content="cancel"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Margin="2" />
+        <v:ErrorMessagesBar Margin="2,4" />
+    </StackPanel>
+</UserControl>

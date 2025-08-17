@@ -1,11 +1,14 @@
 using System.Diagnostics;
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
-public partial class PairingViewModel : ViewModelBase
+public partial class PairingServerViewModel : ViewModelBase
 {
     private readonly System.Timers.Timer timer = new(1000);
 
@@ -17,9 +20,10 @@ public partial class PairingViewModel : ViewModelBase
 
     #endregion
 
-    #region Constructors
+    #region Commands
 
-    public PairingViewModel()
+    [RelayCommand]
+    private async Task Loaded()
     {
         timer.Elapsed += (_, _) =>
         {
@@ -34,7 +38,7 @@ public partial class PairingViewModel : ViewModelBase
 
         Debug.Assert(synchronizationServer is not null);
 
-        synchronizationServer.PairingPinCallback = (id, pin) =>
+        synchronizationServer.PairingRequested = (id, pin) =>
         {
             PairingPin = pin;
             RequestingId = id;
@@ -42,11 +46,14 @@ public partial class PairingViewModel : ViewModelBase
             timer.Start();
         };
 
+        // Hide the panel displaying the PIN when the pairing is done.
+        synchronizationServer.PairingConfirmed = () => PairingPin = null;
+
         if (!Design.IsDesignMode)
         {
             await synchronizationServer.StartAsync();
         }
     }
 
-    #endregion Constructors
+    #endregion Commands
 }

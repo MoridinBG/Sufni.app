@@ -46,6 +46,7 @@
     <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
     <PackageReference Include="Tmds.MDns" Version="0.8.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.13.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-android' And '$(TargetFramework)' != 'net9.0-ios'">
@@ -55,7 +56,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authorization" Version="9.0.7" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.7" />
     <PackageReference Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.13.0" />
 
     <Compile Remove="Services\SynchronizationServerService.mobile.cs" />
   </ItemGroup>
