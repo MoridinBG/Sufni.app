@@ -24,6 +24,7 @@ namespace Sufni.App.Services;
 public class SynchronizationServerService : ISynchronizationServerService
 {
     public static readonly string ServiceType = "_sstsync._tcp";
+    public static readonly string CertificateSubjectName = "cn=com.sghctoma.sst-api";
 
     public const int PinTtlSeconds = 30;
     private const int TokenTtlMinutes = 10;
@@ -38,6 +39,11 @@ public class SynchronizationServerService : ISynchronizationServerService
     private static string GeneratePin() => RandomNumberGenerator.GetInt32(100000, 999999).ToString();
 
     private string? jwtSecret;
+    private string? certPassword;
+
+    private readonly string certPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Sufni.App", "certificate.pfx");
     
     private Task Initialization { get; }
     
@@ -70,6 +76,50 @@ public class SynchronizationServerService : ISynchronizationServerService
             jwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
             await secureStorage.SetStringAsync("jwt_secret", jwtSecret);
         }
+
+        await GenerateCertificateIfNeeded();
+    }
+
+    private async Task GenerateCertificate()
+    {
+        var dir = Path.GetDirectoryName(certPath)!;
+        if (!Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var req = new CertificateRequest(CertificateSubjectName, ecdsa, HashAlgorithmName.SHA256);
+        req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
+            new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, // Server Auth
+            critical: false));
+        var cert = req.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(5));
+        var pfx = cert.Export(X509ContentType.Pfx,  certPassword);
+        await File.WriteAllBytesAsync(certPath, pfx);
+    }
+
+    private async Task GenerateCertificateIfNeeded()
+    {
+        Debug.Assert(secureStorage is not null);
+
+        certPassword = await secureStorage.GetStringAsync("cert_password");
+
+        // If there was no stored certificate password, or the certificate file is missing, we generate
+        // a new password and a new certificate.
+        if (string.IsNullOrEmpty(certPassword) || !File.Exists(certPath))
+        {
+            certPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+            await secureStorage.SetStringAsync("cert_password", certPassword);
+            await GenerateCertificate();
+            return;
+        }
+        
+        // Check if the certificate has not expired.
+        var cert = X509CertificateLoader.LoadPkcs12FromFile(certPath, certPassword);
+        if (cert.NotAfter < DateTimeOffset.Now)
+        {
+            await GenerateCertificate();
+        }
     }
     
     private string GenerateAccessToken(string deviceId)
@@ -98,7 +148,14 @@ public class SynchronizationServerService : ISynchronizationServerService
         
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(port);
+            options.ConfigureHttpsDefaults(httpsOptions =>
+            {
+                httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            });
+            options.Listen(IPAddress.Any, port, listenOptions =>
+            {
+                listenOptions.UseHttps(certPath, certPassword);
+            });
         });
         
         var key = Encoding.ASCII.GetBytes(jwtSecret);

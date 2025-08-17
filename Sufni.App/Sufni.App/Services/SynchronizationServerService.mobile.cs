@@ -6,6 +6,7 @@ namespace Sufni.App.Services;
 public class SynchronizationServerService : ISynchronizationServerService
 {
     public static readonly string ServiceType = "_sstsync._tcp";
+    public static readonly string CertificateSubjectName = "cn=com.sghctoma.sst-api";
     public const int PinTtlSeconds = 30;
 
     public Task StartAsync()

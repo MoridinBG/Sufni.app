@@ -20,10 +20,16 @@ internal class HttpApiService : IHttpApiService
 
     private static readonly HttpClientHandler Handler = new()
     {
+        SslProtocols = SslProtocols.Tls13,
         UseCookies = false,
-#if  DEBUG
-        ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-#endif
+
+        // XXX: Checking only expiration and the CN. This is NOT secure, but we are on a home (local) network.
+        // Ideal solution would be registration via QR codes, which would allow exchanging certificates too, but
+        // there's no cross-platform Avalonia library for handling the camera.
+        ServerCertificateCustomValidationCallback = (_, cert, _, _) =>
+            cert is not null &&
+            cert.NotAfter >= DateTimeOffset.Now &&
+            string.Equals(cert.Subject, SynchronizationServerService.CertificateSubjectName, StringComparison.OrdinalIgnoreCase)
     };
 
     #endregion
