@@ -36,4 +36,9 @@ public class ServiceDiscovery : IServiceDiscovery
     {
         browser.StartBrowse(type);
     }
+
+    public void StopBrowse()
+    {
+        browser.StopBrowse();
+    }
 }
