@@ -1,17 +1,17 @@
 <UserControl
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
     x:Class="Sufni.App.Views.Controls.SearchBarWithDateFilter"
+    x:DataType="vml:ItemListViewModelBase"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
     xmlns:v="clr-namespace:Sufni.App.Views"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vml:ItemListViewModelBase"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <vml:ItemListViewModelBase />
@@ -19,40 +19,40 @@
 
     <!--  Filter  -->
     <Grid
-        Margin="20,0,20,20"
         ColumnDefinitions="*"
+        Margin="20,0,20,20"
         RowDefinitions="39 auto">
 
         <!--  Search box  -->
         <TextBox
-            Grid.Row="0"
-            Padding="35,0,0,0"
-            VerticalContentAlignment="Center"
             BorderThickness="0"
             CornerRadius="5"
+            Grid.Row="0"
             IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
+            Padding="35,0,0,0"
             Text="{Binding SearchText}"
+            VerticalContentAlignment="Center"
             Watermark="Search ..." />
 
         <!--  Hamburger menu  -->
         <Button
-            Grid.Row="0"
-            Width="32"
-            HorizontalAlignment="Left"
             Classes="embedded"
-            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
+            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}"
+            Grid.Row="0"
+            HorizontalAlignment="Left"
+            Width="32">
             <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
         </Button>
 
         <!--  Close search button  -->
         <Button
-            Name="CloseButton"
-            Grid.Row="0"
-            Width="30"
-            Margin="0,0,5,0"
-            HorizontalAlignment="Right"
             Classes="embedded"
-            Command="{Binding ClearSearchTextCommand}">
+            Command="{Binding ClearSearchTextCommand}"
+            Grid.Row="0"
+            HorizontalAlignment="Right"
+            Margin="0,0,5,0"
+            Name="CloseButton"
+            Width="30">
             <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -65,30 +65,30 @@
 
         <!--  Connection indicator  -->
         <Button
-            Margin="0,0,5,0"
+            Classes="embedded"
             HorizontalAlignment="Right"
-            Classes="embedded">
+            Margin="0,0,5,0">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SettingsPage.IsRegistered" />
-                    <Binding Path="!$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
                     <Binding Path="!#CloseButton.IsVisible" />
+                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).PairingClientPage.IsPaired" />
+                    <Binding Path="!$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
                 </MultiBinding>
             </Button.IsVisible>
             <Image
-                Width="20"
                 Opacity="0.5"
-                Source="{SvgImage /Assets/fa-link_green.svg}" />
+                Source="{SvgImage /Assets/fa-link_green.svg}"
+                Width="20" />
         </Button>
 
         <!--  Synchronization indicator  -->
         <progRing:ProgressRing
-            Width="15"
+            Foreground="{StaticResource SufniAccentColor}"
             Height="15"
-            Margin="0,0,10,0"
             HorizontalAlignment="Right"
+            Margin="0,0,10,0"
             VerticalAlignment="Center"
-            Foreground="{StaticResource SufniAccentColor}">
+            Width="15">
             <progRing:ProgressRing.IsActive>
                 <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
             </progRing:ProgressRing.IsActive>
@@ -96,58 +96,58 @@
 
         <!--  Date pickers  -->
         <Border
-            Name="DatePickers"
-            Grid.Row="1"
-            Grid.Column="0"
             Background="{StaticResource SufniRegion}"
-            IsVisible="{Binding DateFilterVisible}">
+            Grid.Column="0"
+            Grid.Row="1"
+            IsVisible="{Binding DateFilterVisible}"
+            Name="DatePickers">
             <Grid
-                Margin="1,0,1,0"
                 ColumnDefinitions="* auto *"
+                Margin="1,0,1,0"
                 RowDefinitions="auto">
 
                 <!--  From  -->
                 <CalendarDatePicker
-                    Grid.Column="0"
-                    Margin="0,5,5,5"
-                    HorizontalAlignment="Stretch"
                     DisplayDateEnd="{Binding DateFilterTo}"
+                    Grid.Column="0"
+                    HorizontalAlignment="Stretch"
+                    Margin="0,5,5,5"
                     SelectedDate="{Binding DateFilterFrom}" />
                 <Button
-                    Grid.Column="0"
-                    Width="30"
-                    Margin="0,0,20,0"
-                    HorizontalAlignment="Right"
                     Classes="embedded"
                     Command="{Binding ClearDateFilterCommand}"
                     CommandParameter="from"
-                    IsVisible="{Binding DateFilterFrom, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    Grid.Column="0"
+                    HorizontalAlignment="Right"
+                    IsVisible="{Binding DateFilterFrom, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Margin="0,0,20,0"
+                    Width="30">
                     <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
                 </Button>
 
                 <!--  Arrow  -->
                 <TextBlock
                     Grid.Column="1"
-                    VerticalAlignment="Center"
-                    Text="→" />
+                    Text="→"
+                    VerticalAlignment="Center" />
 
                 <!--  To  -->
                 <CalendarDatePicker
-                    Grid.Row="0"
-                    Grid.Column="2"
-                    Margin="5,5,0,5"
-                    HorizontalAlignment="Stretch"
                     DisplayDateStart="{Binding DateFilterFrom}"
+                    Grid.Column="2"
+                    Grid.Row="0"
+                    HorizontalAlignment="Stretch"
+                    Margin="5,5,0,5"
                     SelectedDate="{Binding DateFilterTo}" />
                 <Button
-                    Grid.Column="2"
-                    Width="30"
-                    Margin="0,0,20,0"
-                    HorizontalAlignment="Right"
                     Classes="embedded"
                     Command="{Binding ClearDateFilterCommand}"
                     CommandParameter="to"
-                    IsVisible="{Binding DateFilterTo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    Grid.Column="2"
+                    HorizontalAlignment="Right"
+                    IsVisible="{Binding DateFilterTo, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Margin="0,0,20,0"
+                    Width="30">
                     <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
                 </Button>
             </Grid>
