@@ -23,6 +23,8 @@ public partial class App : Application
         RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiService>();
         RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
+
+        IsDesktop = RegisteredServices.Collection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
     }
 
     public override void Initialize()
@@ -51,7 +53,6 @@ public partial class App : Application
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                IsDesktop = true;
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
@@ -63,7 +64,6 @@ public partial class App : Application
                 });
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                IsDesktop = false;
                 singleViewPlatform.MainView = new MainView
                 {
                     DataContext = mainViewModel
