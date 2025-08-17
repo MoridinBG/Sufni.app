@@ -5,10 +5,6 @@ using SQLite;
 
 namespace Sufni.App.Models;
 
-public record User(
-    [property: JsonPropertyName("username")] string Username,
-    [property: JsonPropertyName("password")] string Password);
-
 public record PairingRequest(
     [property: JsonPropertyName("device_id")]string DeviceId);
 
