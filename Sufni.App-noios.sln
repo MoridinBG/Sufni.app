@@ -9,8 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Android", "Sufni.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Windows", "Sufni.App\Sufni.App.Windows\Sufni.App.Windows.csproj", "{6B366BF2-2928-4DF4-879D-F2B6537DEF1D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Browser", "Sufni.App\Sufni.App.Browser\Sufni.App.Browser.csproj", "{D788CF3E-A425-4A38-BEE5-6D320FE79B24}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureStorage", "SecureStorage\SecureStorage.csproj", "{DCA2F8B2-D436-420C-A7C0-DFB4F1916FED}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Linux", "Sufni.App\Sufni.App.Linux\Sufni.App.Linux.csproj", "{FD91FA49-37A1-4CEC-A012-666C88923A07}"
@@ -45,9 +43,6 @@ Global
 		{6B366BF2-2928-4DF4-879D-F2B6537DEF1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6B366BF2-2928-4DF4-879D-F2B6537DEF1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6B366BF2-2928-4DF4-879D-F2B6537DEF1D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D788CF3E-A425-4A38-BEE5-6D320FE79B24}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D788CF3E-A425-4A38-BEE5-6D320FE79B24}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D788CF3E-A425-4A38-BEE5-6D320FE79B24}.Release|Any CPU.Build.0 = Release|Any CPU
 		{DCA2F8B2-D436-420C-A7C0-DFB4F1916FED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{DCA2F8B2-D436-420C-A7C0-DFB4F1916FED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DCA2F8B2-D436-420C-A7C0-DFB4F1916FED}.Release|Any CPU.ActiveCfg = Release|Any CPU
