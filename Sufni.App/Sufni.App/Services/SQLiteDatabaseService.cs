@@ -49,6 +49,28 @@ public class SqLiteDatabaseService : IDatabaseService
         {
             await connection.QueryAsync<Synchronization>("INSERT INTO sync VALUES (0)");
         }
+
+        await Cleanup();
+    }
+
+    private async Task Cleanup()
+    {
+        var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
+
+        var cleanSessionCachesQuery = $"""
+                                       DELETE FROM session_cache
+                                       WHERE session_id IN (
+                                           SELECT id
+                                           FROM session
+                                           WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
+                                       )
+                                       """;
+        await connection.ExecuteAsync(cleanSessionCachesQuery);
+        await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
+        await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
+        await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
+        await connection.Table<Bike>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
+        await connection.Table<PairedDevice>().DeleteAsync(pd => pd.Expires < DateTime.UtcNow);
     }
 
     public async Task<List<Board>> GetBoardsAsync()
