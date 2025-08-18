@@ -170,8 +170,6 @@ internal class HttpApiService : IHttpApiService
         var url = await secureStorage.GetStringAsync(ServerUrlKey);
         if (token is null || url is null) return false;
 
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
-
         try
         {
             var response = await client.GetAsync($"{serverUrl}/pair/status");
