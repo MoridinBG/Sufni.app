@@ -148,19 +148,24 @@ internal class HttpApiService : IHttpApiService
         await secureStorage.SetStringAsync(RefreshTokenKey, tokens.RefreshToken);
     }
 
-    public async Task UnpairAsync()
+    public async Task UnpairAsync(string deviceId)
     {
         await Initialization;
 
         Debug.Assert(secureStorage is not null);
+        Debug.Assert(refreshToken is not null);
 
-        var response = await client.DeleteAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointPairUnpair}");
-        response.EnsureSuccessStatusCode();
-        
-        client.DefaultRequestHeaders.Authorization = null;
+        // Clean out locally first, so even if the server call fails for some reason (e.g. no network),
+        // the client won't store the server URL and refresh token anymore.
+        // TODO: defer failed deletions until next connection
         await secureStorage.RemoveAsync(RefreshTokenKey);
         await secureStorage.RemoveAsync(ServerUrlKey);
+        client.DefaultRequestHeaders.Authorization = null;
+
+        var response = await client.PostAsJsonAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointPairUnpair}",
+            new UnpairRequest(deviceId, refreshToken));
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task<bool> IsPairedAsync()

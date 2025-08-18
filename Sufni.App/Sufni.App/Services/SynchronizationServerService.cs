@@ -244,14 +244,15 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
         });
 
-        app.MapDelete(EndpointPairUnpair, [Authorize] async (ClaimsPrincipal user) =>
+        app.MapPost(EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
         {
             Debug.Assert(databaseService is not null);
 
-            var deviceId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (deviceId is null) return Results.NotFound();
+            var device = await databaseService.GetPairedDeviceAsync(req.DeviceId);
+            if (device is null) return Results.Ok();
+            if (device.Token != req.RefreshToken) return Results.Unauthorized();
 
-            await databaseService.DeletePairedDeviceAsync(deviceId);
+            await databaseService.DeletePairedDeviceAsync(device.DeviceId);
             
             return Results.Ok();
         });

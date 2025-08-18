@@ -9,7 +9,7 @@ internal interface IHttpApiService
 {
     public Task RequestPairingAsync(string url, string deviceId);
     public Task ConfirmPairingAsync(string deviceId, string pin);
-    public Task UnpairAsync();
+    public Task UnpairAsync(string deviceId);
     public Task<bool> IsPairedAsync();
     public Task<SynchronizationData> PullSyncAsync(long since = 0);
     public Task PushSyncAsync(SynchronizationData syncData);

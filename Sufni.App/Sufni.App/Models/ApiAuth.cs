@@ -19,6 +19,10 @@ public record TokenResponse(
 public record RefreshRequest(
     [property: JsonPropertyName("refresh_token")] string RefreshToken);
 
+public record UnpairRequest(
+    [property: JsonPropertyName("device_id")] string DeviceId,
+    [property: JsonPropertyName("refresh_token")] string RefreshToken);
+
 [Table("paired_device")]
 public class PairedDevice
 {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -97,6 +98,7 @@ public partial class PairingClientViewModel : ViewModelBase
         {
             await httpApiService.ConfirmPairingAsync(DeviceId, Pin);
             IsPaired = true;
+            Pin = null;
             IsRequestSent = false;
             ErrorMessages.Clear();
         }
@@ -113,11 +115,16 @@ public partial class PairingClientViewModel : ViewModelBase
     {
         Debug.Assert(httpApiService is not null);
         Debug.Assert(secureStorage is not null);
+        Debug.Assert(DeviceId is not null);
 
         try
         {
-            await httpApiService.UnpairAsync();
             IsPaired = false;
+            await httpApiService.UnpairAsync(DeviceId);
+        }
+        catch (HttpRequestException e)
+        {
+            Notifications.Add($"Could unpair only locally: {e.Message}");
         }
         catch (Exception e)
         {
