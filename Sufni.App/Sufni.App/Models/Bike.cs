@@ -13,6 +13,7 @@ namespace Sufni.App.Models;
 public class Bike : Synchronizable
 {
     private double? chainstay;
+    private Linkage? linkage;
 
     [JsonPropertyName("name")]
     [Column("name")]
@@ -43,20 +44,25 @@ public class Bike : Synchronizable
 
     [JsonPropertyName("linkage")]
     [Ignore]
-    public Linkage? Linkage { get; set; }
+    public Linkage? Linkage
+    {
+        get => linkage;
+        set
+        {
+            linkage = value;
+            linkage?.ResolveJoints();
+        }
+    }
 
     [JsonIgnore]
     [Column("linkage")]
     public string? LinkageJson
     {
-        get
-        {
-            return Linkage?.ToJson();
-        }
+        get => Linkage?.ToJson();
         set
         {
             if (value is null) return;
-            Linkage = Linkage.FromJson(value);
+            Linkage = Linkage.FromJson(value, false); // Linkage's setter will resolve joints.
         }
     }
 
