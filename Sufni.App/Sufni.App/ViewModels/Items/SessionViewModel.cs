@@ -42,12 +42,11 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties
-    
-    #region ItemViewModelBase overrides
 
-    public override bool IsComplete => session.HasProcessedData;
-
-    #endregion
+    partial void OnTelemetryDataChanged(TelemetryData? value)
+    {
+        IsComplete = value != null;
+    }
 
     #region Private methods
 
@@ -84,6 +83,21 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     #endregion
     
     #region Private methods [cache, mobile-only]
+
+    private async Task FetchTelemetryDataIfNeeded()
+    {
+        if (IsInDatabase) return;
+
+        var httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
+        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
+        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
+        var psst = await httpApiService.GetSessionPsstAsync(Id) ?? throw new Exception("Session data could not be downloaded from server.");
+        await databaseService.PatchSessionPsstAsync(Id, psst);
+        session.HasProcessedData = true;
+        IsComplete = true;
+    }
 
     private async Task<bool> LoadCache()
     {
@@ -125,6 +139,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     
     private async Task CreateCache(object? bounds)
     {
+        await FetchTelemetryDataIfNeeded();
         await LoadTelemetryData();
         Debug.Assert(TelemetryData is not null);
 
@@ -225,6 +240,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     {
         this.session = session;
         IsInDatabase = fromDatabase;
+        IsComplete = session.HasProcessedData;
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
@@ -315,18 +331,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     {
         try
         {
-            if (!IsComplete)
-            {
-                var httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
-                var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-                Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
-                Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-                var psst = await httpApiService.GetSessionPsstAsync(Id) ?? throw new Exception("Session data could not be downloaded from server.");
-                await databaseService.PatchSessionPsstAsync(Id, psst);
-                session.HasProcessedData = true;
-            }
-
             Debug.Assert(App.Current is not null);
             if (App.Current.IsDesktop)
             {

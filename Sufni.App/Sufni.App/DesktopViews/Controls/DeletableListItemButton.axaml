@@ -46,6 +46,7 @@
                     Grid.Column="4"
                     Height="16"
                     IsVisible="{Binding !IsComplete}"
+                    Opacity="0.5"
                     Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}"
                     Width="16" />
             </Grid>
