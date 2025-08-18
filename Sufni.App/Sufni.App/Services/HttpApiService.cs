@@ -116,7 +116,8 @@ internal class HttpApiService : IHttpApiService
 
         Debug.Assert(secureStorage is not null);
 
-        using var response = await client.PostAsJsonAsync($"{url}/pair/request",
+        using var response = await client.PostAsJsonAsync(
+            $"{url}{SynchronizationServerService.EndpointPairRequest}", 
             new PairingRequest(deviceId));
         response.EnsureSuccessStatusCode();
 
@@ -130,7 +131,8 @@ internal class HttpApiService : IHttpApiService
 
         Debug.Assert(secureStorage is not null);
 
-        using var response = await client.PostAsJsonAsync($"{serverUrl}/pair/confirm",
+        using var response = await client.PostAsJsonAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointPairConfirm}",
             new PairingConfirm(deviceId, pin));
         response.EnsureSuccessStatusCode();
 
@@ -152,7 +154,8 @@ internal class HttpApiService : IHttpApiService
 
         Debug.Assert(secureStorage is not null);
 
-        var response = await client.DeleteAsync($"{serverUrl}/pair/unpair");
+        var response = await client.DeleteAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointPairUnpair}");
         response.EnsureSuccessStatusCode();
         
         client.DefaultRequestHeaders.Authorization = null;
@@ -172,7 +175,7 @@ internal class HttpApiService : IHttpApiService
 
         try
         {
-            var response = await client.GetAsync($"{serverUrl}/pair/status");
+            var response = await client.GetAsync($"{serverUrl}{SynchronizationServerService.EndpointPairStatus}");
             if (response.StatusCode == HttpStatusCode.Unauthorized) return false;
             response.EnsureSuccessStatusCode();
         }
@@ -196,7 +199,8 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.GetAsync($"{serverUrl}/sync/pull?since={since}");
+        using var response = await client.GetAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointSyncPull}?since={since}");
         response.EnsureSuccessStatusCode();
         var entities = await response.Content.ReadFromJsonAsync<SynchronizationData>();
         Debug.Assert(entities != null);
@@ -209,7 +213,8 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.PutAsJsonAsync($"{serverUrl}/sync/push", syncData);
+        using var response = await client.PutAsJsonAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointSyncPush}", syncData);
         response.EnsureSuccessStatusCode();
     }
 
@@ -219,7 +224,8 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.GetAsync($"{serverUrl}/session/incomplete");
+        using var response = await client.GetAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointSessionIncomplete}");
         response.EnsureSuccessStatusCode();
         var incompleteSessions = await response.Content.ReadFromJsonAsync<List<Guid>>();
         return incompleteSessions ?? [];
@@ -230,8 +236,8 @@ internal class HttpApiService : IHttpApiService
         await Initialization;
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
-
-        using var response = await client.GetAsync($"{serverUrl}/session/{id}/psst");
+        
+        using var response = await client.GetAsync($"{serverUrl}{SynchronizationServerService.EndpointSessionData}{id}");
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
@@ -246,7 +252,8 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.PatchAsync($"{serverUrl}/session/{id}/psst",
+        using var response = await client.PatchAsync(
+            $"{serverUrl}{SynchronizationServerService.EndpointSessionData}{id}",
             new ByteArrayContent(data));
         response.EnsureSuccessStatusCode();
     }

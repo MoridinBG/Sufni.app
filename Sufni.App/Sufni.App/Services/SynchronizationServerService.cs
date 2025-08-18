@@ -26,10 +26,19 @@ namespace Sufni.App.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService
 {
-    public static readonly string ServiceType = "_sstsync._tcp";
-    public static readonly string CertificateSubjectName = "cn=com.sghctoma.sst-api";
-
+    public const string ServiceType = "_sstsync._tcp";
+    public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
     public const int PinTtlSeconds = 30;
+    public const string EndpointPairRequest = "/pair/request";
+    public const string EndpointPairConfirm = "/pair/confirm";
+    public const string EndpointPairRefresh = "/pair/refresh";
+    public const string EndpointPairUnpair = "/pair/unpair";
+    public const string EndpointPairStatus = "/pair/status";
+    public const string EndpointSyncPush = "/sync/push";
+    public const string EndpointSyncPull = "/sync/pull";
+    public const string EndpointSessionIncomplete = "/session/incomplete";
+    public const string EndpointSessionData = "/session/data/";
+
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
     private const int Port = 5575;
@@ -198,7 +207,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         app.UseAuthentication();
         app.UseAuthorization();
 
-        app.MapPost("/pair/request", ([FromBody] PairingRequest req) =>
+        app.MapPost(EndpointPairRequest, ([FromBody] PairingRequest req) =>
         {
             var pin = GeneratePin();
             pendingPairings[pin] = (req.DeviceId, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
@@ -206,7 +215,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok();
         });
 
-        app.MapPost("/pair/confirm", async ([FromBody] PairingConfirm req) =>
+        app.MapPost(EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -221,7 +230,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
         });
 
-        app.MapPost("/pair/refresh", async ([FromBody] RefreshRequest req) =>
+        app.MapPost(EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -235,7 +244,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
         });
 
-        app.MapDelete("/pair/unpair", [Authorize] async (ClaimsPrincipal user) =>
+        app.MapDelete(EndpointPairUnpair, [Authorize] async (ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -247,9 +256,9 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok();
         });
 
-        app.MapGet("/pair/status", [Authorize] (ClaimsPrincipal user) => Results.Ok());
+        app.MapGet(EndpointPairStatus, [Authorize] (ClaimsPrincipal user) => Results.Ok());
 
-        app.MapGet("/sync/pull", [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
+        app.MapGet(EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -264,7 +273,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(data);
         });
 
-        app.MapPut("/sync/push", [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+        app.MapPut(EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -274,7 +283,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.NoContent();
         });
 
-        app.MapGet("/session/incomplete", [Authorize] async (ClaimsPrincipal user) =>
+        app.MapGet(EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -282,7 +291,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(incompleteSessions);
         });
 
-        app.MapGet("/session/{id:guid}/psst", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+        app.MapGet($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
@@ -298,7 +307,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             );
         });
 
-        app.MapPatch("/session/{id:guid}/psst", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+        app.MapPatch($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
         {
             Debug.Assert(databaseService is not null);
 
