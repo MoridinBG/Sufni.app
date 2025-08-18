@@ -3,8 +3,6 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
-    xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
@@ -63,11 +61,11 @@
             </ComboBox.ItemTemplate>
 
             <!--  Attach command to Expanded event  -->
-            <i:Interaction.Behaviors>
-                <ia:EventTriggerBehavior EventName="GotFocus">
+            <Interaction.Behaviors>
+                <EventTriggerBehavior EventName="GotFocus">
                     <InvokeCommandAction Command="{Binding ClearNewDataStoresAvailableCommand}" />
-                </ia:EventTriggerBehavior>
-            </i:Interaction.Behaviors>
+                </EventTriggerBehavior>
+            </Interaction.Behaviors>
         </ComboBox>
 
         <Button

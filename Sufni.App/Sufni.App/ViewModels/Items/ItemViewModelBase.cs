@@ -13,12 +13,11 @@ public partial class ItemViewModelBase : TabPageViewModelBase
 
     [ObservableProperty] private Guid id;
     [ObservableProperty] private DateTime? timestamp;
+    [ObservableProperty] private bool isComplete = true;
 
     #endregion Observable properties
 
     #region Virtual methods / properties
-
-    public virtual bool IsComplete => true;
 
     protected virtual bool CanDelete() { return true; }
 

@@ -20,11 +20,6 @@ public class Setup : Synchronizable
         Name = name;
     }
 
-    [JsonPropertyName("id")]
-    [PrimaryKey]
-    [Column("id")]
-    public Guid Id { get; set; } = Guid.NewGuid();
-
     [JsonPropertyName("name")]
     [Column("name")]
     public string Name { get; set; } = null!;

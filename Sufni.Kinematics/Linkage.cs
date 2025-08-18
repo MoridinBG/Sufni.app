@@ -29,12 +29,12 @@ public class Linkage
         return FromJson(json);
     }
 
-    public static Linkage FromJson(string json)
+    public static Linkage FromJson(string json, bool resolve = true)
     {
         var linkage = JsonSerializer.Deserialize<Linkage>(json, SerializerOptions);
-        linkage!.ResolveJoints();
+        if (resolve) linkage!.ResolveJoints();
 
-        return linkage;
+        return linkage!;
     }
 
     #endregion Initializers

@@ -20,7 +20,8 @@ namespace Sufni.App.macOS
         public static AppBuilder BuildAvaloniaApp()
         {
             RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            RegisteredServices.Collection.AddSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>();
+            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            RegisteredServices.Collection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()

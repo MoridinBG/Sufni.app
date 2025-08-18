@@ -10,7 +10,7 @@ namespace Sufni.App.Models;
 public class MassStorageTelemetryDataStore : ITelemetryDataStore
 {
     public string Name { get; }
-    public string? BoardId { get; }
+    public Guid? BoardId { get; }
     public DriveInfo DriveInfo { get; }
 
     public Task<List<ITelemetryFile>> GetFiles()
@@ -26,7 +26,8 @@ public class MassStorageTelemetryDataStore : ITelemetryDataStore
     {
         DriveInfo = driveInfo;
         Name = $"{driveInfo.VolumeLabel} ({DriveInfo.RootDirectory.Name})";
-        BoardId = File.ReadAllText($"{DriveInfo.RootDirectory.FullName}/BOARDID").ToLower();
+        var serialHex = File.ReadAllText($"{DriveInfo.RootDirectory.FullName}/BOARDID").ToLower();
+        BoardId = UuidUtil.CreateDeviceUuid(serialHex);
 
         if (!Directory.Exists($"{DriveInfo.RootDirectory.FullName}/uploaded"))
             Directory.CreateDirectory($"{DriveInfo.RootDirectory.FullName}/uploaded");

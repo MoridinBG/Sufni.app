@@ -7,6 +7,7 @@ using Sufni.App.ViewModels;
 using Sufni.App.Views;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using Avalonia.Controls;
 
 namespace Sufni.App;
@@ -19,14 +20,11 @@ public partial class App : Application
 
     public App()
     {
-#if DEBUG
-        RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiServiceStub>();
-#else
         RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiService>();
-#endif
         RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
-        RegisteredServices.Collection.AddSingleton<ISynchronizationService, SynchronizationService>();
+
+        IsDesktop = RegisteredServices.Collection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
     }
 
     public override void Initialize()
@@ -47,20 +45,18 @@ public partial class App : Application
         var dialogService = Services.GetService<IDialogService>();
         var mainViewModel = Services.GetService<MainViewModel>();
         var mainWindowViewModel = Services.GetService<MainWindowViewModel>();
-        Debug.Assert(fileService != null, nameof(fileService) + " != null");
-        Debug.Assert(dialogService != null, nameof(dialogService) + " != null");
+        Debug.Assert(fileService is not null);
+        Debug.Assert(dialogService is not null);
 
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                IsDesktop = true;
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                IsDesktop = false;
                 singleViewPlatform.MainView = new MainView
                 {
                     DataContext = mainViewModel

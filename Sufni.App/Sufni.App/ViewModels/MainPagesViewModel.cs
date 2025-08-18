@@ -1,11 +1,14 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ViewModels.Items;
@@ -24,10 +27,13 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private BikeListViewModel bikesPage;
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
-    [ObservableProperty] private SettingsViewModel settingsPage = new();
+    [ObservableProperty] private PairedDeviceListViewModel pairedDevicesPage;
+    [ObservableProperty] private PairingClientViewModel? pairingClientPage;
+    [ObservableProperty] private PairingServerViewModel? pairingServerViewModel;
     [ObservableProperty] private int selectedIndex;
     [ObservableProperty] private bool syncInProgress;
     [ObservableProperty] private bool isMenuPaneOpen;
+    [ObservableProperty] private bool isPairedDevicesListOpen;
 
     #endregion
 
@@ -38,6 +44,7 @@ public partial class MainPagesViewModel : ViewModelBase
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         BikesPage = new BikeListViewModel();
         SessionsPage = new SessionListViewModel();
+        PairedDevicesPage = new  PairedDeviceListViewModel();
         ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
         SetupsPage = new SetupListViewModel(ImportSessionsPage, BikesPage);
         pages = [SessionsPage, SetupsPage];
@@ -49,15 +56,54 @@ public partial class MainPagesViewModel : ViewModelBase
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
         SessionsPage.MenuItems.Add(new("import", OpenPageCommand, importSessionsPage));
 
-        SettingsPage.PropertyChanged += (_, args) =>
+        if (App.Current!.IsDesktop)
         {
-            if (args.PropertyName != nameof(SettingsPage.IsRegistered))
-            {
-                return;
-            }
+            Debug.Assert(databaseService is  not null);
+            Debug.Assert(App.Current is not null);
 
-            SyncCommand.NotifyCanExecuteChanged();
-        };
+            var synchronizationServer = App.Current.Services?.GetService<ISynchronizationServerService>();
+            Debug.Assert(synchronizationServer is not null);
+
+            // update UI when entities arrive from synced device
+            synchronizationServer.SynchronizationDataArrived = data =>
+            {
+                Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    await MergeFromDatabase(data);
+                });
+            };
+
+            // update UI when session data arrives from synced device
+            synchronizationServer.SessionDataArrived = id =>
+            {
+                Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    var data = await databaseService.GetSessionPsstAsync(id);
+
+                    if (SessionsPage.Source.Items.First(s => s.Id == id) is SessionViewModel session)
+                    {
+                        session.TelemetryData = data;
+                        SessionsPage.Source.AddOrUpdate(session);
+                        SessionsPage.Source.Refresh();
+                    }
+                });
+            };
+
+            PairingServerViewModel = new();
+        }
+        else
+        {
+            PairingClientPage = new();
+            PairingClientPage.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName != nameof(PairingClientPage.IsPaired))
+                {
+                    return;
+                }
+
+                SyncCommand.NotifyCanExecuteChanged();
+            };
+        }
 
         _ = LoadDatabaseContent();
     }
@@ -97,6 +143,9 @@ public partial class MainPagesViewModel : ViewModelBase
             case SessionViewModel svm:
                 SessionsPage.UndoableDelete(svm);
                 break;
+            case PairedDeviceViewModel pdvm:
+                PairedDevicesPage.UndoableDelete(pdvm);
+                break;
         }
     }
 
@@ -111,8 +160,55 @@ public partial class MainPagesViewModel : ViewModelBase
         await BikesPage.LoadFromDatabase();
         await SetupsPage.LoadFromDatabase();
         await SessionsPage.LoadFromDatabase();
+        await PairedDevicesPage.LoadFromDatabase();
 
         DatabaseLoaded = true;
+    }
+
+    private async Task MergeFromDatabase(SynchronizationData data)
+    {
+        Debug.Assert(databaseService is not null);
+
+        foreach (var bike in data.Bikes)
+        {
+            if (bike.Deleted is not null)
+            {
+                BikesPage.Source.RemoveKey(bike.Id);
+            }
+            else
+            {
+                BikesPage.Source.AddOrUpdate(new BikeViewModel(bike, true));
+            }
+            BikesPage.Source.Refresh();
+        }
+
+        var boards = await databaseService.GetBoardsAsync();
+        foreach (var setup in data.Setups)
+        {
+            if (setup.Deleted is not null)
+            {
+                SetupsPage.Source.RemoveKey(setup.Id);
+            }
+            else
+            {
+                var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
+                SetupsPage.Source.AddOrUpdate(new SetupViewModel(setup, board?.Id, true, BikesPage.Source));
+            }
+            SetupsPage.Source.Refresh();
+        }
+
+        foreach (var session in data.Sessions)
+        {
+            if (session.Deleted is not null)
+            {
+                SessionsPage.Source.RemoveKey(session.Id);
+            }
+            else
+            {
+                SessionsPage.Source.AddOrUpdate(new SessionViewModel(session, true));
+            }
+            SessionsPage.Source.Refresh();
+        }
     }
 
     #endregion
@@ -121,12 +217,12 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private bool CanSync()
     {
-        return SettingsPage.IsRegistered;
+        return PairingClientPage is { IsPaired: true };
     }
 
     private async void SyncInternal()
     {
-        var synchronizationService = App.Current?.Services?.GetService<ISynchronizationService>();
+        var synchronizationService = App.Current?.Services?.GetService<ISynchronizationClientService>();
         Debug.Assert(synchronizationService != null, nameof(synchronizationService) + " != null");
 
         SyncInProgress = true;
@@ -160,47 +256,15 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ShowConnectPage()
-    {
-        Debug.Assert(App.Current is not null);
-        var isDesktop = App.Current.IsDesktop;
-        if (isDesktop)
-        {
-            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
-            Debug.Assert(vm != null, nameof(vm) + " != null");
-            vm.OpenView(SettingsPage);
-        }
-        else
-        {
-            var vm = App.Current.Services?.GetService<MainViewModel>();
-            Debug.Assert(vm != null, nameof(vm) + " != null");
-            vm.OpenView(SettingsPage);
-        }
-    }
-
-    [RelayCommand]
-    private void ShowImportPage()
-    {
-        Debug.Assert(App.Current is not null);
-        var isDesktop = App.Current.IsDesktop;
-        if (isDesktop)
-        {
-            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
-            Debug.Assert(vm != null, nameof(vm) + " != null");
-            vm.OpenView(ImportSessionsPage);
-        }
-        else
-        {
-            var vm = App.Current.Services?.GetService<MainViewModel>();
-            Debug.Assert(vm != null, nameof(vm) + " != null");
-            vm.OpenView(ImportSessionsPage);
-        }
-    }
-
-    [RelayCommand]
     private void OpenMenuPane()
     {
         IsMenuPaneOpen = true;
+    }
+
+    [RelayCommand]
+    private void OpenClosePairedDevicesList()
+    {
+        IsPairedDevicesListOpen = !IsPairedDevicesListOpen;
     }
 
     #endregion

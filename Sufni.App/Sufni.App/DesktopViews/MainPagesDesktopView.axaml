@@ -7,12 +7,17 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.DesktopViews"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <vm:MainPagesViewModel />
     </Design.DataContext>
+
+    <UserControl.Resources>
+        <v:ProgressToArcConverter x:Key="ProgressToArcConverter" />
+    </UserControl.Resources>
 
     <UserControl.Styles>
         <!--  Tabs  -->
@@ -45,6 +50,12 @@
             <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
         </Style>
     </UserControl.Styles>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="AttachedToVisualTree">
+            <InvokeCommandAction Command="{Binding PairingServerViewModel.LoadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
 
     <Panel>
 
@@ -125,6 +136,66 @@
                 Width="50">
                 <Image Source="{SvgImage /Assets/fa-file-import.svg}" Width="18" />
             </Button>
+
+            <!--  Paired devices button  -->
+            <Button
+                Classes="embedded"
+                Command="{Binding OpenClosePairedDevicesListCommand}"
+                Name="PairedDevicesButton"
+                Width="50">
+                <Image Source="{SvgImage /Assets/fa-link.svg}" Width="18" />
+            </Button>
         </StackPanel>
+
+        <!--  Paired devices list  -->
+        <ContentControl
+            Content="{Binding PairedDevicesPage}"
+            Height="300"
+            IsVisible="{Binding IsPairedDevicesListOpen}"
+            Margin="50,0,20,25"
+            Opacity="0.9"
+            VerticalAlignment="Bottom" />
+
+        <!--  New pairing request  -->
+        <Grid
+            Background="{StaticResource SufniBackgroundDisabled}"
+            ColumnDefinitions="* 35"
+            IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
+            Margin="50,0,20,25"
+            Opacity="0.9"
+            RowDefinitions="auto 24"
+            VerticalAlignment="Bottom">
+
+            <TextBlock
+                FontSize="16"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                Grid.Row="0"
+                Margin="10,10,10,10">
+                <Run Text="Pairing request from " />
+                <LineBreak />
+                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingId}" />
+            </TextBlock>
+
+            <!--  PIN Display  -->
+            <TextBlock
+                FontSize="24"
+                FontWeight="Bold"
+                Grid.Column="0"
+                Grid.Row="1"
+                LetterSpacing="10"
+                Margin="10,0,10,10"
+                Text="{Binding PairingServerViewModel.PairingPin}"
+                VerticalAlignment="Center" />
+
+            <!--  Progress Ring  -->
+            <Path
+                Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
+                Fill="{StaticResource SufniAccentColor}"
+                Grid.Column="1"
+                Grid.Row="1"
+                Stroke="{StaticResource SufniAccentColor}"
+                StrokeLineCap="Round" />
+        </Grid>
     </Panel>
 </UserControl>

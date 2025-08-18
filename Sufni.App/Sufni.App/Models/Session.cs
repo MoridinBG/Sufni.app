@@ -23,11 +23,6 @@ public class Session : Synchronizable
         Track = track;
     }
 
-    [JsonPropertyName("id")]
-    [PrimaryKey]
-    [Column("id")]
-    public Guid Id { get; set; } = Guid.NewGuid();
-
     [JsonPropertyName("name")]
     [Column("name")]
     public string Name { get; set; } = null!;
@@ -60,43 +55,43 @@ public class Session : Synchronizable
         }
     }
 
-    [JsonIgnore]
+    [JsonPropertyName("front_springrate")]
     [Column("front_springrate")]
     public string? FrontSpringRate { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("rear_springrate")]
     [Column("rear_springrate")]
     public string? RearSpringRate { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("front_hsc")]
     [Column("front_hsc")]
     public uint? FrontHighSpeedCompression { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("rear_hsc")]
     [Column("rear_hsc")]
     public uint? RearHighSpeedCompression { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("front_lsc")]
     [Column("front_lsc")]
     public uint? FrontLowSpeedCompression { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("rear_lsc")]
     [Column("rear_lsc")]
     public uint? RearLowSpeedCompression { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("front_lsr")]
     [Column("front_lsr")]
     public uint? FrontLowSpeedRebound { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("rear_lsr")]
     [Column("rear_lsr")]
     public uint? RearLowSpeedRebound { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("front_hsr")]
     [Column("front_hsr")]
     public uint? FrontHighSpeedRebound { get; set; }
 
-    [JsonIgnore]
+    [JsonPropertyName("rear_hsr")]
     [Column("rear_hsr")]
     public uint? RearHighSpeedRebound { get; set; }
 

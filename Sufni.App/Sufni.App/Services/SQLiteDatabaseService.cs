@@ -41,7 +41,8 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(Bike),
             typeof(Session),
             typeof(SessionCache),
-            typeof(Synchronization)
+            typeof(Synchronization),
+            typeof(PairedDevice)
         ]);
 
         if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
@@ -57,7 +58,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<Board>().Where(b => b.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Board>> GetChangedBoardsAsync(int since)
+    public async Task<List<Board>> GetChangedBoardsAsync(long since)
     {
         await Initialization;
 
@@ -84,7 +85,7 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
-    public async Task DeleteBoardAsync(string id)
+    public async Task DeleteBoardAsync(Guid id)
     {
         await Initialization;
         var board = await connection.Table<Board>()
@@ -103,7 +104,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<Bike>().Where(s => s.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Bike>> GetChangedBikesAsync(int since)
+    public async Task<List<Bike>> GetChangedBikesAsync(long since)
     {
         await Initialization;
 
@@ -160,7 +161,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<Setup>().Where(s => s.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Setup>> GetChangedSetupsAsync(int since)
+    public async Task<List<Setup>> GetChangedSetupsAsync(long since)
     {
         await Initialization;
 
@@ -247,7 +248,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
     }
 
-    public async Task<List<Session>> GetChangedSessionsAsync(int since)
+    public async Task<List<Session>> GetChangedSessionsAsync(long since)
     {
         await Initialization;
 
@@ -371,7 +372,7 @@ public class SqLiteDatabaseService : IDatabaseService
         return sessionCache.SessionId;
     }
 
-    public async Task<int> GetLastSyncTimeAsync()
+    public async Task<long> GetLastSyncTimeAsync()
     {
         await Initialization;
 
@@ -385,5 +386,107 @@ public class SqLiteDatabaseService : IDatabaseService
 
         await connection.QueryAsync<Synchronization>("UPDATE sync SET last_sync_time = ?",
             (int)DateTimeOffset.Now.ToUnixTimeSeconds());
+    }
+
+    public async Task<List<PairedDevice>> GetPairedDevicesAsync()
+    {
+        await Initialization;
+        return await connection.Table<PairedDevice>().ToListAsync();
+    }
+
+    public async Task<PairedDevice?> GetPairedDeviceAsync(string token)
+    {
+        await Initialization;
+
+        return await connection.Table<PairedDevice>().Where(r => r.Token == token).FirstOrDefaultAsync();
+    }
+    
+    public async Task PutPairedDeviceAsync(PairedDevice token)
+    {
+        await Initialization;
+
+        var existing = await connection.Table<PairedDevice>()
+            .Where(t => t.DeviceId == token.DeviceId)
+            .FirstOrDefaultAsync() is not null;
+        if (existing)
+        {
+            await connection.UpdateAsync(token);
+        }
+        else
+        {
+            await connection.InsertAsync(token);
+        }
+    }
+
+    public async Task DeletePairedDeviceAsync(string deviceId)
+    {
+        await Initialization;
+        var token = await connection.Table<PairedDevice>()
+            .Where(t => t.DeviceId == deviceId)
+            .FirstOrDefaultAsync();
+        if (token is not null)
+        {
+            await connection.DeleteAsync(token);
+        }
+    }
+
+    private async Task MergeAsync<T>(T entity) where T : Synchronizable, new()
+    {
+        await Initialization;
+
+        var existing = await connection.FindAsync<T>(entity.Id);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        if (existing is null)
+        {
+            entity.ClientUpdated = entity.Updated;
+            entity.Updated = now;
+            await connection.InsertAsync(entity);
+            return;
+        }
+
+        if (entity.Deleted.HasValue)
+        {
+            existing.Deleted = entity.Deleted;
+            existing.Updated = entity.Updated;
+            await connection.UpdateAsync(existing);
+            return;
+        }
+
+        // Some other client updated the row  later and synced earlier. We
+        // want the latest update, so discard content in this update, but
+        // adjust update timestamp.
+        if (existing.ClientUpdated > entity.Updated)
+        {
+            existing.Updated = now;
+            await connection.UpdateAsync(existing);
+            return;
+        }
+
+        entity.ClientUpdated = entity.Updated;
+        entity.Updated = now;
+        await connection.UpdateAsync(entity);
+    }
+
+    public async Task MergeAllAsync(SynchronizationData data)
+    {
+        await Initialization;
+
+        await connection.ExecuteAsync("BEGIN TRANSACTION");
+
+        try
+        {
+            foreach (var bike in data.Bikes) await MergeAsync(bike);
+            foreach (var setup in data.Setups) await MergeAsync(setup);
+            foreach (var board in data.Boards) await MergeAsync(board);
+            foreach (var session in data.Sessions) await MergeAsync(session);
+
+            await connection.ExecuteAsync("COMMIT");
+        }
+        catch
+        {
+            await connection.ExecuteAsync("ROLLBACK");
+            throw;
+        }
     }
 }

@@ -5,16 +5,12 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
-public class SynchronizationService : ISynchronizationService
+public class SynchronizationClientService : ISynchronizationClientService
 {
-    private readonly IDatabaseService? databaseService;
-    private readonly IHttpApiService? httpApiService;
-    public SynchronizationService()
-    {
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
-    }
-    private async Task PushLocalChanges(int lastSyncTime)
+    private readonly IDatabaseService? databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+    private readonly IHttpApiService? httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
+
+    private async Task PushLocalChanges(long lastSyncTime)
     {
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
         Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
@@ -22,6 +18,7 @@ public class SynchronizationService : ISynchronizationService
         var changes = new SynchronizationData
         {
             Boards = await databaseService.GetChangedBoardsAsync(lastSyncTime),
+            Bikes = await databaseService.GetChangedBikesAsync(lastSyncTime),
             Setups = await databaseService.GetChangedSetupsAsync(lastSyncTime),
             Sessions = await databaseService.GetChangedSessionsAsync(lastSyncTime)
         };
@@ -44,7 +41,7 @@ public class SynchronizationService : ISynchronizationService
         }
     }
 
-    private async Task PullRemoteChanges(int lastSyncTime)
+    private async Task PullRemoteChanges(long lastSyncTime)
     {
         Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
@@ -59,6 +56,18 @@ public class SynchronizationService : ISynchronizationService
             else
             {
                 await databaseService.PutBoardAsync(board);
+            }
+        }
+        
+        foreach (var bike in syncData.Bikes)
+        {
+            if (bike.Deleted.HasValue)
+            {
+                await databaseService.DeleteBikeAsync(bike.Id);
+            }
+            else
+            {
+                await databaseService.PutBikeAsync(bike);
             }
         }
 

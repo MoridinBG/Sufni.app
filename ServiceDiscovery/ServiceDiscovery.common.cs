@@ -24,4 +24,5 @@ public interface IServiceDiscovery
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceRemoved;
 
     public void StartBrowse(string type);
+    public void StopBrowse();
 }
