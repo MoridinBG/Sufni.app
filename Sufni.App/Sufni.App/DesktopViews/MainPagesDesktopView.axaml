@@ -173,6 +173,7 @@
                 Grid.Row="0"
                 Margin="10,10,10,10">
                 <Run Text="Pairing request from " />
+                <LineBreak />
                 <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingId}" />
             </TextBlock>
 
