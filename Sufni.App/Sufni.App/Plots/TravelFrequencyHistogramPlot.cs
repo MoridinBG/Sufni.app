@@ -11,6 +11,12 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
+        if ((type == SuspensionType.Front && !telemetryData.Front.Present) ||
+            (type == SuspensionType.Rear && !telemetryData.Rear.Present))
+        {
+            return;
+        }
+
         base.LoadTelemetryData(telemetryData);
         
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front

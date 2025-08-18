@@ -27,6 +27,12 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
+        if ((type == SuspensionType.Front && !telemetryData.Front.Present) ||
+            (type == SuspensionType.Rear && !telemetryData.Rear.Present))
+        {
+            return;
+        }
+
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
