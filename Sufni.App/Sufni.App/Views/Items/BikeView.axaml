@@ -1,0 +1,210 @@
+<UserControl
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.Views.Items.BikeView"
+    x:DataType="vm:BikeViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:c="using:Sufni.App.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:Sufni.App.ViewModels.Items"
+    xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <vm:BikeViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <!--  Bike image  -->
+    <Grid
+        ColumnDefinitions="auto *"
+        Margin="20,10,20,10"
+        RowDefinitions="auto auto auto auto auto auto auto auto * auto auto auto">
+
+        <!--  Name  -->
+        <c:EditableTitle
+            Grid.ColumnSpan="2"
+            Grid.Row="0"
+            HorizontalAlignment="Stretch"
+            Margin="0,0,0,10" />
+
+        <!--  Bike image  -->
+        <Image
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="1"
+            Name="BikeImage"
+            Source="{Binding Image}" />
+
+        <!--  Head angle  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="2"
+            Margin="0,0,0,5"
+            Text="Head angle (°)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="2"
+            IsEnabled="False"
+            Margin="0,0,0,5"
+            Maximum="90"
+            Minimum="0"
+            Value="{Binding HeadAngle}" />
+
+        <!--  Fork stroke  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="3"
+            Margin="0,0,0,5"
+            Text="Fork stroke (mm)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="3"
+            IsEnabled="False"
+            Margin="0,0,0,5"
+            Maximum="300"
+            Minimum="0"
+            Value="{Binding ForksStroke}" />
+
+        <!--  Shock stroke  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="4"
+            Margin="0,0,10,5"
+            Text="Shock stroke (mm)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="4"
+            IsEnabled="False"
+            Margin="0,0,0,5"
+            Maximum="1000"
+            Minimum="0"
+            Value="{Binding ShockStroke}" />
+
+        <!--  Chainstay  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.Row="5"
+            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Margin="0,0,0,5"
+            Text="Chainstay (mm)" />
+        <NumericUpDown
+            Grid.Column="1"
+            Grid.Row="5"
+            IsEnabled="False"
+            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Margin="0,0,0,5"
+            Maximum="1000"
+            Minimum="0"
+            Value="{Binding Chainstay}" />
+
+        <!--  List of Links  -->
+        <TextBlock
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="6"
+            Margin="0,0,0,5"
+            Text="Links">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
+        <DataGrid
+            BorderBrush="Gray"
+            BorderThickness="1"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="7"
+            GridLinesVisibility="All"
+            IsEnabled="False"
+            ItemsSource="{Binding LinkViewModels}"
+            Margin="2,0,2,5"
+            SelectedItem="{Binding SelectedLink}">
+
+            <DataGrid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                </MultiBinding>
+            </DataGrid.IsVisible>
+
+            <DataGrid.Columns>
+
+                <!--  Point A  -->
+                <DataGridTemplateColumn
+                    Header="Point A"
+                    IsReadOnly="True"
+                    Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Text="{Binding A.Name}"
+                                VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!--  Point B  -->
+                <DataGridTemplateColumn
+                    Header="Point B"
+                    IsReadOnly="True"
+                    Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Text="{Binding B.Name}"
+                                VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!--  Length  -->
+                <DataGridTextColumn
+                    Binding="{Binding Length, StringFormat={}{0:0.00}}"
+                    Header="L (mm)"
+                    IsReadOnly="True"
+                    Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!--  Error messages for Bike instance  -->
+        <c:ErrorMessagesBar
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="9"
+            Margin="0,5,0,0" />
+
+        <!--  Import button  -->
+        <Button
+            Content="import from file ..."
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="10"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            MinHeight="39"
+            VerticalContentAlignment="Center" />
+
+        <!--  Back, Save, Reset and Delete buttons  -->
+        <c:CommonButtonLine
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="11" />
+
+    </Grid>
+
+</UserControl>
