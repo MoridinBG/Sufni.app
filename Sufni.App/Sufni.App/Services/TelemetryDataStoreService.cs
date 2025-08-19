@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Sufni.App.Models;
 using System.Collections.ObjectModel;
@@ -5,9 +6,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceDiscovery;
-using Timer = System.Timers.Timer;
 
 namespace Sufni.App.Services;
 
@@ -33,18 +34,18 @@ internal class DriveInfoComparer : IEqualityComparer<DriveInfo>
 internal class TelemetryDataStoreService : ITelemetryDataStoreService
 {
     private const string ServiceType = "_gosst._tcp";
-    private static readonly object DataStoreLock = new();
+    private readonly IServiceDiscovery? serviceDiscovery;
+    private readonly DispatcherTimer massStorageScanTimer;
+
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = new();
 
     private void GetMassStorageDatastores()
     {
-        var x = DriveInfo.GetDrives();
         var comparer = new DriveInfoComparer();
         var current = DriveInfo.GetDrives()
-            .Where(drive => drive.IsReady &&
-                (drive.DriveFormat == "FAT32" || drive.DriveFormat == "msdos") &&
-                File.Exists($"{drive.RootDirectory}/BOARDID"))
-            .ToArray();
+            .Where(drive => drive is { IsReady: true } &&
+                            File.Exists($"{drive.RootDirectory}/BOARDID")).ToArray();
+
         var known = DataStores
             .Where(ds => ds is MassStorageTelemetryDataStore)
             .Select(ds => ((MassStorageTelemetryDataStore)ds).DriveInfo)
@@ -72,11 +73,11 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
         var port = e.Announcement.Port;
         var name = $"gosst://{ipAddress}:{port}";
 
-        lock (DataStoreLock)
+        Dispatcher.UIThread.Post(() =>
         {
             var toRemove = DataStores.First(x => x.Name == name);
             DataStores.Remove(toRemove);
-        }
+        });
     }
 
     private async Task AddNetworkDataStore(ServiceAnnouncementEventArgs e)
@@ -87,10 +88,10 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
         var ds = new NetworkTelemetryDataStore(ipAddress, port);
         await ds.Initialization;
 
-        lock (DataStoreLock)
+        Dispatcher.UIThread.Post(() =>
         {
             DataStores.Add(ds);
-        }
+        });
     }
 
     private List<StorageProviderTelemetryDataStore> GetRemovedStorageProviders()
@@ -112,28 +113,40 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
 
     public TelemetryDataStoreService()
     {
-        var serviceDiscovery = App.Current?.Services?.GetKeyedService<IServiceDiscovery>("gosst");
+        serviceDiscovery = App.Current?.Services?.GetKeyedService<IServiceDiscovery>("gosst");
         Debug.Assert(serviceDiscovery != null, nameof(serviceDiscovery) + " != null");
 
         serviceDiscovery.ServiceAdded += async (_, e) => await AddNetworkDataStore(e);
         serviceDiscovery.ServiceRemoved += (_, e) => RemoveNetworkDataStore(e);
-        serviceDiscovery.StartBrowse(ServiceType);
 
-        GetMassStorageDatastores();
-        var timer = new Timer(1000);
-        timer.AutoReset = true;
-        timer.Elapsed += (_, _) =>
+        massStorageScanTimer = new DispatcherTimer(DispatcherPriority.Background);
+        massStorageScanTimer.Interval = TimeSpan.FromSeconds(1);
+        massStorageScanTimer.Tick += (_, _) =>
         {
             var removedStorageProviders = GetRemovedStorageProviders();
-            lock (DataStoreLock)
+            foreach (var ds in removedStorageProviders)
             {
-                foreach (var ds in removedStorageProviders)
-                {
-                    DataStores.Remove(ds);
-                }
-                GetMassStorageDatastores();
+                DataStores.Remove(ds);
             }
+
+            GetMassStorageDatastores();
         };
-        timer.Enabled = true;
+    }
+
+    public void StartBrowse()
+    {
+        Debug.Assert(serviceDiscovery is not null);
+
+        massStorageScanTimer.Start();
+        serviceDiscovery.StartBrowse(ServiceType);
+    }
+
+    public void StopBrowse()
+    {
+        Debug.Assert(serviceDiscovery is not null);
+
+        massStorageScanTimer.Stop();
+        serviceDiscovery.StopBrowse();
+        DataStores.Clear();
     }
 }

@@ -89,6 +89,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     #region Private members
 
     private readonly IDatabaseService? databaseService;
+    private readonly ITelemetryDataStoreService? telemetryDataStoreService;
 
     #endregion Private members
 
@@ -102,7 +103,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         Name = "Import Sessions";
 
         databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        var telemetryDataStoreService = App.Current?.Services?.GetService<ITelemetryDataStoreService>();
+        telemetryDataStoreService = App.Current?.Services?.GetService<ITelemetryDataStoreService>();
 
         this.sessions = sessions;
 
@@ -295,6 +296,21 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
 
         mainPagesViewModel.SetupsPage.AddCommand.Execute(null);
+    }
+
+    [RelayCommand]
+    private void Loaded()
+    {
+        Debug.Assert(telemetryDataStoreService is not null);
+        telemetryDataStoreService.StartBrowse();
+    }
+
+    [RelayCommand]
+    private void Unloaded()
+    {
+        Debug.Assert(telemetryDataStoreService is not null);
+        TelemetryFiles.Clear();
+        telemetryDataStoreService.StopBrowse();
     }
 
     #endregion Commands
