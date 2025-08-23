@@ -182,7 +182,7 @@ public partial class MainPagesViewModel : ViewModelBase
             BikesPage.Source.Refresh();
         }
 
-        var boards = await databaseService.GetBoardsAsync();
+        var boards = await databaseService.GetAllAsync<Board>();
         foreach (var setup in data.Setups)
         {
             if (setup.Deleted is not null)

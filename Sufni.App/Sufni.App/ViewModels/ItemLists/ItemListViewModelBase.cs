@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Items;
 
@@ -134,13 +135,13 @@ public partial class ItemListViewModelBase : ViewModelBase
         switch (LastDeleted)
         {
             case SetupViewModel:
-                await databaseService.DeleteSetupAsync(LastDeleted.Id);
+                await databaseService.DeleteAsync<Setup>(LastDeleted.Id);
                 break;
             case SessionViewModel:
-                await databaseService.DeleteSessionAsync(LastDeleted.Id);
+                await databaseService.DeleteAsync<Session>(LastDeleted.Id);
                 break;
             case BikeViewModel:
-                await databaseService.DeleteBikeAsync(LastDeleted.Id);
+                await databaseService.DeleteAsync<Bike>(LastDeleted.Id);
                 break;
         }
         LastDeleted = null;

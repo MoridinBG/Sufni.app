@@ -406,7 +406,7 @@ public partial class BikeViewModel : ItemViewModelBase
         try
         {
             var newBike = ToBike();
-            Id = await databaseService.PutBikeAsync(newBike);
+            Id = await databaseService.PutAsync(newBike);
             bike = newBike;
 
             SaveCommand.NotifyCanExecuteChanged();

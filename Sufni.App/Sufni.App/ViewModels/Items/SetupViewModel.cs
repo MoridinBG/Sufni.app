@@ -178,19 +178,19 @@ public sealed partial class SetupViewModel : ItemViewModelBase
                 FrontSensorConfigurationJson = ForkSensorConfiguration?.ToJson(),
                 RearSensorConfigurationJson = ShockSensorConfiguration?.ToJson()
             };
-            Id = await databaseService.PutSetupAsync(newSetup);
+            Id = await databaseService.PutAsync(newSetup);
 
             // If this setup was already associated with another board, clear that association.
             // Do not delete the board though, it might be picked up later.
             if (originalBoardId.HasValue && IsInDatabase && originalBoardId != BoardId)
             {
-                await databaseService.PutBoardAsync(new Board(originalBoardId.Value, null));
+                await databaseService.PutAsync(new Board(originalBoardId.Value, null));
             }
 
             // If the board ID changed, or this is a new setup, associate it with the board ID.
             if (BoardId.HasValue && (!IsInDatabase || originalBoardId != BoardId))
             {
-                await databaseService.PutBoardAsync(new Board(BoardId.Value, Id));
+                await databaseService.PutAsync(new Board(BoardId.Value, Id));
             }
 
             setup = newSetup;

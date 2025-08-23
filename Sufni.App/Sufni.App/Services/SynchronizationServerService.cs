@@ -265,10 +265,10 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             var data = new SynchronizationData
             {
-                Boards = await databaseService.GetChangedBoardsAsync(since),
-                Bikes = await databaseService.GetChangedBikesAsync(since),
-                Setups = await databaseService.GetChangedSetupsAsync(since),
-                Sessions = await databaseService.GetChangedSessionsAsync(since)
+                Boards = await databaseService.GetChangedAsync<Board>(since),
+                Bikes = await databaseService.GetChangedAsync<Bike>(since),
+                Setups = await databaseService.GetChangedAsync<Setup>(since),
+                Sessions = await databaseService.GetChangedAsync<Session>(since)
             };
 
             return Results.Ok(data);

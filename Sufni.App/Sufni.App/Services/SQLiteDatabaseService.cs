@@ -73,164 +73,72 @@ public class SqLiteDatabaseService : IDatabaseService
         await connection.Table<PairedDevice>().DeleteAsync(pd => pd.Expires < DateTime.UtcNow);
     }
 
-    public async Task<List<Board>> GetBoardsAsync()
+    public async Task<List<T>> GetAllAsync<T>() where T : Synchronizable, new()
     {
         await Initialization;
-
-        return await connection.Table<Board>().Where(b => b.Deleted == null).ToListAsync();
+        return await connection.Table<T>().Where(s => s.Deleted == null).ToListAsync();
     }
 
-    public async Task<List<Board>> GetChangedBoardsAsync(long since)
+    public async Task<List<T>> GetChangedAsync<T>(long since) where T : Synchronizable, new()
     {
         await Initialization;
-
-        return await connection.Table<Board>()
-            .Where(b => b.Updated > since || (b.Deleted != null && b.Deleted > since))
-            .ToListAsync();
-    }
-
-    public async Task PutBoardAsync(Board board)
-    {
-        await Initialization;
-
-        board.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-        var existing = await connection.Table<Board>()
-            .Where(b => b.Id == board.Id && b.Deleted == null)
-            .FirstOrDefaultAsync() is not null;
-        if (existing)
-        {
-            await connection.UpdateAsync(board);
-        }
-        else
-        {
-            await connection.InsertAsync(board);
-        }
-    }
-
-    public async Task DeleteBoardAsync(Guid id)
-    {
-        await Initialization;
-        var board = await connection.Table<Board>()
-            .Where(b => b.Id == id)
-            .FirstOrDefaultAsync();
-        if (board is not null)
-        {
-            board.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(board);
-        }
-    }
-
-    public async Task<List<Bike>> GetBikesAsync()
-    {
-        await Initialization;
-        return await connection.Table<Bike>().Where(s => s.Deleted == null).ToListAsync();
-    }
-
-    public async Task<List<Bike>> GetChangedBikesAsync(long since)
-    {
-        await Initialization;
-
-        return await connection.Table<Bike>()
+        return await connection.Table<T>()
             .Where(s => s.Updated > since || (s.Deleted != null && s.Deleted > since))
             .ToListAsync();
     }
 
-    public async Task<Bike?> GetBikeAsync(Guid id)
+    public async Task<T> GetAsync<T>(Guid id) where T : Synchronizable, new()
     {
         await Initialization;
 
-        return await connection.Table<Bike>()
+        return await connection.Table<T>()
             .Where(s => s.Id == id && s.Deleted == null)
             .FirstOrDefaultAsync();
     }
 
-    public async Task<Guid> PutBikeAsync(Bike bike)
+    public async Task<Guid> PutAsync<T>(T item) where T : Synchronizable, new()
     {
         await Initialization;
 
-        var existing = await connection.Table<Bike>()
-            .Where(s => s.Id == bike.Id && s.Deleted == null)
+        var existing = await connection.Table<T>()
+            .Where(s => s.Id == item.Id && s.Deleted == null)
             .FirstOrDefaultAsync() is not null;
-        bike.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+        item.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
         if (existing)
         {
-            await connection.UpdateAsync(bike);
+            await connection.UpdateAsync(item);
         }
         else
         {
-            await connection.InsertAsync(bike);
+            await connection.InsertAsync(item);
         }
 
-        return bike.Id;
+        return item.Id;
     }
 
-    public async Task DeleteBikeAsync(Guid id)
+    public async Task DeleteAsync<T>(Guid id) where T : Synchronizable, new()
     {
         await Initialization;
-        var bike = await connection.Table<Bike>()
+        var item = await connection.Table<T>()
             .Where(s => s.Id == id)
             .FirstOrDefaultAsync();
-        if (bike is not null)
+        if (item is not null)
         {
-            bike.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(bike);
+            item.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+            await connection.UpdateAsync(item);
         }
     }
 
-    public async Task<List<Setup>> GetSetupsAsync()
+    public async Task DeleteAsync<T>(T item) where T : Synchronizable, new()
     {
         await Initialization;
-        return await connection.Table<Setup>().Where(s => s.Deleted == null).ToListAsync();
-    }
-
-    public async Task<List<Setup>> GetChangedSetupsAsync(long since)
-    {
-        await Initialization;
-
-        return await connection.Table<Setup>()
-            .Where(s => s.Updated > since || (s.Deleted != null && s.Deleted > since))
-            .ToListAsync();
-    }
-
-    public async Task<Setup?> GetSetupAsync(Guid id)
-    {
-        await Initialization;
-
-        return await connection.Table<Setup>()
-            .Where(s => s.Id == id && s.Deleted == null)
+        var itemFromDatabase = await connection.Table<T>()
+            .Where(s => s.Id == item.Id)
             .FirstOrDefaultAsync();
-    }
-
-    public async Task<Guid> PutSetupAsync(Setup setup)
-    {
-        await Initialization;
-
-        var existing = await connection.Table<Setup>()
-            .Where(s => s.Id == setup.Id && s.Deleted == null)
-            .FirstOrDefaultAsync() is not null;
-        setup.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-        if (existing)
+        if (itemFromDatabase is not null)
         {
-            await connection.UpdateAsync(setup);
-        }
-        else
-        {
-            await connection.InsertAsync(setup);
-        }
-
-        return setup.Id;
-    }
-
-    public async Task DeleteSetupAsync(Guid id)
-    {
-        await Initialization;
-        var setup = await connection.Table<Setup>()
-            .Where(s => s.Id == id)
-            .FirstOrDefaultAsync();
-        if (setup is not null)
-        {
-            setup.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(setup);
+            itemFromDatabase.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+            await connection.UpdateAsync(itemFromDatabase);
         }
     }
 
@@ -268,15 +176,6 @@ public class SqLiteDatabaseService : IDatabaseService
 
         const string query = "SELECT id FROM session WHERE deleted IS null AND data IS null";
         return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
-    }
-
-    public async Task<List<Session>> GetChangedSessionsAsync(long since)
-    {
-        await Initialization;
-
-        return await connection.Table<Session>()
-            .Where(s => s.Updated > since || (s.Deleted != null && s.Deleted > since))
-            .ToListAsync();
     }
 
     public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
@@ -352,19 +251,6 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         await connection.ExecuteAsync("UPDATE session SET data=? WHERE id=?", [data, id]);
-    }
-
-    public async Task DeleteSessionAsync(Guid id)
-    {
-        await Initialization;
-        var session = await connection.Table<Session>()
-            .Where(s => s.Id == id)
-            .FirstOrDefaultAsync();
-        if (session is not null)
-        {
-            session.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-            await connection.UpdateAsync(session);
-        }
     }
 
     public async Task<SessionCache?> GetSessionCacheAsync(Guid sessionId)

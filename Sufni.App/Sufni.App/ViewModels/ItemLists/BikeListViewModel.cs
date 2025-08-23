@@ -33,7 +33,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
         try
         {
-            var bikeList = await databaseService.GetBikesAsync();
+            var bikeList = await databaseService.GetAllAsync<Bike>();
             foreach (var bike in bikeList)
             {
                 Source.AddOrUpdate(new BikeViewModel(bike, true));
@@ -52,7 +52,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     protected override async Task DeleteImplementation(ItemViewModelBase vm)
     {
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-        await databaseService!.DeleteBikeAsync(vm.Id);
+        await databaseService!.DeleteAsync<Bike>(vm.Id);
     }
 
     protected override void AddImplementation()

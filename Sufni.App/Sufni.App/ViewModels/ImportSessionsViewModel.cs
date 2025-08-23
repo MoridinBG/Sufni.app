@@ -72,7 +72,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
         try
         {
-            var boards = await databaseService.GetBoardsAsync();
+            var boards = await databaseService.GetAllAsync<Board>();
             var selectedBoard = boards.FirstOrDefault(b => b?.Id == value.BoardId, null);
             SelectedSetup = selectedBoard?.SetupId;
         }
@@ -154,7 +154,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     {
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
-        var boards = await databaseService.GetBoardsAsync();
+        var boards = await databaseService.GetAllAsync<Board>();
         var selectedBoard = boards.FirstOrDefault(b => b?.Id == SelectedDataStore?.BoardId, null);
         SelectedSetup = selectedBoard?.SetupId;
     }
@@ -200,8 +200,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
             ImportInProgress = true;
 
-            var setup = await databaseService.GetSetupAsync(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
-            var bike = await databaseService.GetBikeAsync(setup.BikeId);
+            var setup = await databaseService.GetAsync<Setup>(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
+            var bike = await databaseService.GetAsync<Bike>(setup.BikeId);
             Debug.Assert(bike is not null);
 
             var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);

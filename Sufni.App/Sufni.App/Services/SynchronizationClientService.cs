@@ -17,10 +17,10 @@ public class SynchronizationClientService : ISynchronizationClientService
 
         var changes = new SynchronizationData
         {
-            Boards = await databaseService.GetChangedBoardsAsync(lastSyncTime),
-            Bikes = await databaseService.GetChangedBikesAsync(lastSyncTime),
-            Setups = await databaseService.GetChangedSetupsAsync(lastSyncTime),
-            Sessions = await databaseService.GetChangedSessionsAsync(lastSyncTime)
+            Boards = await databaseService.GetChangedAsync<Board>(lastSyncTime),
+            Bikes = await databaseService.GetChangedAsync<Bike>(lastSyncTime),
+            Setups = await databaseService.GetChangedAsync<Setup>(lastSyncTime),
+            Sessions = await databaseService.GetChangedAsync<Session>(lastSyncTime)
         };
         await httpApiService.PushSyncAsync(changes);
     }
@@ -51,11 +51,11 @@ public class SynchronizationClientService : ISynchronizationClientService
         {
             if (board.Deleted.HasValue)
             {
-                await databaseService.DeleteBoardAsync(board.Id);
+                await databaseService.DeleteAsync(board);
             }
             else
             {
-                await databaseService.PutBoardAsync(board);
+                await databaseService.PutAsync(board);
             }
         }
         
@@ -63,11 +63,11 @@ public class SynchronizationClientService : ISynchronizationClientService
         {
             if (bike.Deleted.HasValue)
             {
-                await databaseService.DeleteBikeAsync(bike.Id);
+                await databaseService.DeleteAsync(bike);
             }
             else
             {
-                await databaseService.PutBikeAsync(bike);
+                await databaseService.PutAsync(bike);
             }
         }
 
@@ -75,11 +75,11 @@ public class SynchronizationClientService : ISynchronizationClientService
         {
             if (setup.Deleted.HasValue)
             {
-                await databaseService.DeleteSetupAsync(setup.Id);
+                await databaseService.DeleteAsync(setup);
             }
             else
             {
-                await databaseService.PutSetupAsync(setup);
+                await databaseService.PutAsync(setup);
             }
         }
 
@@ -87,7 +87,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         {
             if (session.Deleted.HasValue)
             {
-                await databaseService.DeleteSessionAsync(session.Id);
+                await databaseService.DeleteAsync(session);
             }
             else
             {

@@ -49,7 +49,7 @@ public class SetupListViewModel : ItemListViewModelBase
 
         try
         {
-            var boards = await databaseService.GetBoardsAsync();
+            var boards = await databaseService.GetAllAsync<Board>();
 
             foreach (var board in boards)
             {
@@ -76,7 +76,7 @@ public class SetupListViewModel : ItemListViewModelBase
 
         try
         {
-            var setupList = await databaseService.GetSetupsAsync();
+            var setupList = await databaseService.GetAllAsync<Setup>();
             foreach (var setup in setupList)
             {
                 var board = Boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
@@ -108,11 +108,11 @@ public class SetupListViewModel : ItemListViewModelBase
         // If this setup is associated with a board ID, clear that association.
         if (svm.BoardId.HasValue)
         {
-            await databaseService.PutBoardAsync(new Board(svm.BoardId.Value, null));
+            await databaseService.PutAsync(new Board(svm.BoardId.Value, null));
         }
 
         // Notify associated calibrations and linkages about the deletion
-        await databaseService.DeleteSetupAsync(vm.Id);
+        await databaseService.DeleteAsync<Setup>(vm.Id);
         svm.SelectedBike?.DeleteCommand.NotifyCanExecuteChanged();
     }
 
