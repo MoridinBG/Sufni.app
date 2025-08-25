@@ -13,7 +13,7 @@ public class Session : Synchronizable
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
     public Session() { }
 
-    public Session(Guid id, string name, string description, Guid? setup, int? timestamp = null, Guid? track = null)
+    public Session(Guid id, string name, string description, Guid? setup, long? timestamp = null, Guid? track = null)
     {
         Id = id;
         Name = name;
@@ -37,7 +37,7 @@ public class Session : Synchronizable
 
     [JsonPropertyName("timestamp"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [Column("timestamp")]
-    public int? Timestamp { get; set; }
+    public long? Timestamp { get; set; }
 
     [JsonPropertyName("track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [Column("track_id")]
