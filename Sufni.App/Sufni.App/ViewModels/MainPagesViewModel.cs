@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -265,6 +266,24 @@ public partial class MainPagesViewModel : ViewModelBase
     private void OpenClosePairedDevicesList()
     {
         IsPairedDevicesListOpen = !IsPairedDevicesListOpen;
+    }
+
+    [RelayCommand]
+    private async Task OpenGpsTracks()
+    {
+        var fileService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(fileService is not null);
+        Debug.Assert(databaseService is not null);
+
+        var files = await fileService.OpenGpxFilesAsync();
+        foreach (var file in files)
+        {
+            await using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            var gpx = await reader.ReadToEndAsync();
+            var track = Track.FromGpx(gpx);
+            await databaseService.PutAsync(track);
+        }
     }
 
     #endregion

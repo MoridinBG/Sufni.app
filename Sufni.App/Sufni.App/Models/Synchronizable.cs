@@ -43,4 +43,5 @@ public class SynchronizationData
     [JsonPropertyName("bike")] public List<Bike> Bikes { get; set; } = [];
     [JsonPropertyName("setup")] public List<Setup> Setups { get; set; } = [];
     [JsonPropertyName("session")] public List<Session> Sessions { get; set; } = [];
+    [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
 }

@@ -268,7 +268,8 @@ public class SynchronizationServerService : ISynchronizationServerService
                 Boards = await databaseService.GetChangedAsync<Board>(since),
                 Bikes = await databaseService.GetChangedAsync<Bike>(since),
                 Setups = await databaseService.GetChangedAsync<Setup>(since),
-                Sessions = await databaseService.GetChangedAsync<Session>(since)
+                Sessions = await databaseService.GetChangedAsync<Session>(since),
+                Tracks = await databaseService.GetChangedAsync<Track>(since)
             };
 
             return Results.Ok(data);

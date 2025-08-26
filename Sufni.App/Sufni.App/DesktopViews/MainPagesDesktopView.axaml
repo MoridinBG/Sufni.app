@@ -137,6 +137,14 @@
                 <Image Source="{SvgImage /Assets/fa-file-import.svg}" Width="18" />
             </Button>
 
+            <!--  Import GPX button  -->
+            <Button
+                Classes="embedded"
+                Command="{Binding OpenGpsTracksCommand}"
+                Width="50">
+                <Image Source="{SvgImage /Assets/fa-map.svg}" Width="18" />
+            </Button>
+
             <!--  Paired devices button  -->
             <Button
                 Classes="embedded"

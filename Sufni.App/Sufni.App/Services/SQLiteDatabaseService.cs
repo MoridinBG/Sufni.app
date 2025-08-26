@@ -42,7 +42,8 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(Session),
             typeof(SessionCache),
             typeof(Synchronization),
-            typeof(PairedDevice)
+            typeof(PairedDevice),
+            typeof(Track)
         ]);
 
         if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
@@ -388,6 +389,7 @@ public class SqLiteDatabaseService : IDatabaseService
             foreach (var setup in data.Setups) await MergeAsync(setup);
             foreach (var board in data.Boards) await MergeAsync(board);
             foreach (var session in data.Sessions) await MergeAsync(session);
+            foreach (var track in data.Tracks) await MergeAsync(track);
 
             await connection.ExecuteAsync("COMMIT");
         }

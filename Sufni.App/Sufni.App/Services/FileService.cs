@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using DynamicData.Kernel;
 
 namespace Sufni.App.Services;
 
@@ -17,19 +19,6 @@ public class FilesService : IFilesService
     public void SetTarget(TopLevel? newTarget)
     {
         target = newTarget;
-    }
-
-    public async Task<IStorageFile?> OpenLeverageRatioFileAsync()
-    {
-        Debug.Assert(target != null, nameof(target) + " != null");
-
-        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
-        {
-            Title = "Open Leverage Ratio file",
-            AllowMultiple = false
-        });
-
-        return files.Count == 1 ? files[0] : null;
     }
 
     public async Task<IStorageFolder?> OpenDataStoreFolderAsync()
@@ -83,5 +72,26 @@ public class FilesService : IFilesService
         });
 
         return files.Count == 1 ? files[0] : null;
+    }
+
+    public async Task<List<IStorageFile>> OpenGpxFilesAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open GPX file",
+            AllowMultiple = true,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("GPX files")
+                {
+                    Patterns = ["*.gpx"],
+                    MimeTypes = ["application/gpx+xml"]
+                }
+            ]
+        });
+
+        return files.AsList();
     }
 }

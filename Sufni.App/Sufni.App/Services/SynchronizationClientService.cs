@@ -20,7 +20,8 @@ public class SynchronizationClientService : ISynchronizationClientService
             Boards = await databaseService.GetChangedAsync<Board>(lastSyncTime),
             Bikes = await databaseService.GetChangedAsync<Bike>(lastSyncTime),
             Setups = await databaseService.GetChangedAsync<Setup>(lastSyncTime),
-            Sessions = await databaseService.GetChangedAsync<Session>(lastSyncTime)
+            Sessions = await databaseService.GetChangedAsync<Session>(lastSyncTime),
+            Tracks = await databaseService.GetChangedAsync<Track>(lastSyncTime)
         };
         await httpApiService.PushSyncAsync(changes);
     }
@@ -80,6 +81,18 @@ public class SynchronizationClientService : ISynchronizationClientService
             else
             {
                 await databaseService.PutAsync(setup);
+            }
+        }
+
+        foreach (var track in syncData.Tracks)
+        {
+            if (track.Deleted.HasValue)
+            {
+                await databaseService.DeleteAsync(track);
+            }
+            else
+            {
+                await databaseService.PutAsync(track);
             }
         }
 
