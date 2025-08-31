@@ -125,8 +125,8 @@ public class Track : Synchronizable
         var interpolated = x.Select(t =>
             new TrackPoint(
                 start + (long)Math.Round(t),
-                yInterpolate.Interpolate(t),
                 xInterpolate.Interpolate(t),
+                yInterpolate.Interpolate(t),
                 0
             )).ToList();
 
