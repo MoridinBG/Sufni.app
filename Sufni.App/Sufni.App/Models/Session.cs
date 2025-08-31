@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SQLite;
 
@@ -13,14 +15,13 @@ public class Session : Synchronizable
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
     public Session() { }
 
-    public Session(Guid id, string name, string description, Guid? setup, long? timestamp = null, Guid? track = null)
+    public Session(Guid id, string name, string description, Guid? setup, long? timestamp = null)
     {
         Id = id;
         Name = name;
         Description = description;
         Setup = setup;
         Timestamp = timestamp;
-        Track = track;
     }
 
     [JsonPropertyName("name")]
@@ -39,9 +40,21 @@ public class Session : Synchronizable
     [Column("timestamp")]
     public long? Timestamp { get; set; }
 
+    [JsonPropertyName("full_track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("full_track_id")]
+    public Guid? FullTrack { get; set; }
+
     [JsonPropertyName("track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Column("track_id")]
-    public Guid? Track { get; set; }
+    [Ignore]
+    public List<TrackPoint>? Track { get; set; }
+
+    [JsonIgnore]
+    [Column("track")]
+    public string? TrackJson
+    {
+        get => JsonSerializer.Serialize(Track);
+        set => Track = value != null ? JsonSerializer.Deserialize<List<TrackPoint>>(value) : null;
+    }
 
     [JsonIgnore]
     [Column("data")]

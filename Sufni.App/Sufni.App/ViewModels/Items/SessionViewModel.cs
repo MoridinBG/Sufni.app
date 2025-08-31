@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -39,6 +40,10 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     #region Observable properties
     
     [ObservableProperty] private TelemetryData? telemetryData;
+    [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
+    [ObservableProperty] private List<TrackPoint>? trackPoints;
+    [ObservableProperty] private string? videoUrl;
+    [ObservableProperty] private double? mapVideoWidth;
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties
@@ -77,6 +82,31 @@ public sealed partial class SessionViewModel : ItemViewModelBase
             DamperPage.RearLsrPercentage = rvb.LowSpeedRebound;
             DamperPage.RearLscPercentage = rvb.LowSpeedCompression;
             DamperPage.RearHscPercentage = rvb.HighSpeedCompression;
+        }
+    }
+
+    private async Task LoadTrack()
+    {
+        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        Debug.Assert(databaseService != null);
+        Debug.Assert(TelemetryData is not null);
+
+        session.FullTrack ??= await databaseService.AssociateSessionWithTrackAsync(Id);
+        if (session.FullTrack is not null)
+        {
+            var fullTrack = await databaseService.GetAsync<Track>(session.FullTrack.Value);
+            FullTrackPoints = fullTrack.Points;
+            MapVideoWidth = 400;
+
+            TrackPoints = await databaseService.GetSessionTrackAsync(Id);
+            if (TrackPoints is null)
+            {
+                var count = TelemetryData.Front.Present ? TelemetryData.Front.Travel.Length : TelemetryData.Rear.Travel.Length;
+                var start = TelemetryData.Metadata.Timestamp;
+                var end = start + (int)Math.Ceiling((double)count / TelemetryData.Metadata.SampleRate);
+                TrackPoints = fullTrack.GenerateSessionTrack(TelemetryData.Metadata.Timestamp, end);
+                await databaseService.PatchSessionTrackAsync(Id, TrackPoints);
+            }
         }
     }
 
@@ -335,6 +365,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
             if (App.Current.IsDesktop)
             {
                 await LoadTelemetryData();
+                await LoadTrack();
             }
             else if (!await LoadCache())
             {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
@@ -154,7 +155,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                  setup_id,
                                  description,
                                  timestamp,
-                                 track_id,
+                                 full_track_id,
                                  front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                  rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                  CASE
@@ -193,6 +194,14 @@ public class SqLiteDatabaseService : IDatabaseService
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
         return sessions.Count == 1 ? sessions[0].ProcessedData : null;
+    }
+
+    public async Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id)
+    {
+        await Initialization;
+        var sessions = await connection.QueryAsync<Session>(
+            "SELECT track FROM session WHERE deleted IS null AND id = ?", id);
+        return sessions.Count == 1 ? sessions[0].Track : null;
     }
 
     public async Task<Guid> PutSessionAsync(Session session)
@@ -254,6 +263,22 @@ public class SqLiteDatabaseService : IDatabaseService
         await connection.ExecuteAsync("UPDATE session SET data=? WHERE id=?", [data, id]);
     }
 
+    public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points)
+    {
+        await Initialization;
+
+        var session = await connection.Table<Session>()
+            .Where(s => s.Id == id && s.Deleted == null)
+            .FirstOrDefaultAsync();
+        if (session is null)
+        {
+            throw new Exception($"Session {id} does not exist.");
+        }
+
+        var pointsJson = JsonSerializer.Serialize(points);
+        await connection.ExecuteAsync("UPDATE session SET track=? WHERE id=?", [pointsJson, id]);
+    }
+
     public async Task<SessionCache?> GetSessionCacheAsync(Guid sessionId)
     {
         await Initialization;
@@ -279,6 +304,27 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         return sessionCache.SessionId;
+    }
+
+    public async Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId)
+    {
+        await Initialization;
+
+        var sessions = await connection.QueryAsync<Session>(
+            "SELECT id,timestamp FROM session WHERE deleted IS null AND id = ?", sessionId);
+        if (sessions.Count == 0)
+        {
+            throw new Exception($"Session {sessionId} does not exist.");
+        }
+
+        var session = sessions[0];
+        var track = await connection.Table<Track>()
+            .Where(t => t.StartTime <= session.Timestamp && session.Timestamp <= t.EndTime)
+            .FirstOrDefaultAsync();
+        if (track is null) return null;
+
+        await connection.ExecuteAsync("UPDATE session SET full_track_id=? WHERE id=?", track.Id, session.Id);
+        return track.Id;
     }
 
     public async Task<long> GetLastSyncTimeAsync()
