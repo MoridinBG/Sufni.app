@@ -317,7 +317,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         NotesPage.ShockSettings.LowSpeedRebound = session.RearLowSpeedRebound;
         NotesPage.ShockSettings.HighSpeedRebound = session.RearHighSpeedRebound;
 
-        Timestamp = DateTimeOffset.FromUnixTimeSeconds(session.Timestamp ?? 0).DateTime;
+        Timestamp = DateTimeOffset.FromUnixTimeSeconds(session.Timestamp ?? 0).LocalDateTime;
 
         return Task.CompletedTask;
     }

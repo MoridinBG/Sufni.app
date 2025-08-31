@@ -39,7 +39,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
         var duration = TimeSpan.FromSeconds((double)count / sampleRate);
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
-        StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).DateTime;
+        StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
         Name = storageFile.Name;
         Description = $"Imported from {storageFile.Name}";

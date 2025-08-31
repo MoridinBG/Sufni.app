@@ -53,7 +53,7 @@ public class NetworkTelemetryFile : ITelemetryFile
         var count = (size - 16 /* sizeof(header) */) / 4 /* sizeof(record) */;
         var duration = TimeSpan.FromSeconds((double)count / sampleRate);
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
-        StartTime = DateTimeOffset.FromUnixTimeSeconds((int)timestamp).DateTime;
+        StartTime = DateTimeOffset.FromUnixTimeSeconds((int)timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
         Name = name;
         FileName = name;
