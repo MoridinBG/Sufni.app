@@ -17,6 +17,7 @@ public class Metadata
     public int Version { get; set; }
     public int SampleRate { get; set; }
     public int Timestamp { get; set; }
+    public double Duration { get; set; }
 }
 
 [MessagePackObject(keyAsPropertyName: true)]

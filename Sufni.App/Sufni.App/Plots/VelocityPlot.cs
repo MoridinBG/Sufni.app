@@ -21,7 +21,6 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Axes.Right.MajorTickStyle.Width = 0;
         Plot.Axes.Right.MinorTickStyle.Width = 0;
         
-        var count = telemetryData.Front.Present ? telemetryData.Front.Travel.Length : telemetryData.Rear.Travel.Length;
         var step = 1.0 / telemetryData.Metadata.SampleRate;
         var minimum = 0.0;
         var maximum = 0.0;
@@ -50,9 +49,9 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         
         // Lock the vertical, and set limits on the horizontal axis
         var ruleFront = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
-            0, count * step, minimum, maximum);
+            0, telemetryData.Metadata.Duration, minimum, maximum);
         var ruleRear = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
-            0, count * step, minimum, maximum);
+            0, telemetryData.Metadata.Duration, minimum, maximum);
         Plot.Axes.Rules.Add(ruleFront);
         Plot.Axes.Rules.Add(ruleRear);
         

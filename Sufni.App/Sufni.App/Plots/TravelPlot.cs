@@ -20,7 +20,6 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Axes.Right.MajorTickStyle.Width = 0;
         Plot.Axes.Right.MinorTickStyle.Width = 0;
         
-        var count = telemetryData.Front.Present ? telemetryData.Front.Travel.Length : telemetryData.Rear.Travel.Length;
         var step = 1.0 / telemetryData.Metadata.SampleRate;
 
         if (telemetryData.Front.Present)
@@ -32,7 +31,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             
             // Lock the vertical, and set limits on the horizontal axis
             var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
-                0, count * step, telemetryData.Front.MaxTravel!.Value, 0);
+                0, telemetryData.Metadata.Duration, telemetryData.Front.MaxTravel!.Value, 0);
             Plot.Axes.Rules.Add(rule);
         }
 
@@ -45,7 +44,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             
             // Lock the vertical, and set limits on the horizontal axis
             var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
-                0, count * step, telemetryData.Rear.MaxTravel!.Value, 0);
+                0, telemetryData.Metadata.Duration, telemetryData.Rear.MaxTravel!.Value, 0);
             Plot.Axes.Rules.Add(rule);
         }
 

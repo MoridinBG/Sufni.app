@@ -101,9 +101,8 @@ public sealed partial class SessionViewModel : ItemViewModelBase
             TrackPoints = await databaseService.GetSessionTrackAsync(Id);
             if (TrackPoints is null)
             {
-                var count = TelemetryData.Front.Present ? TelemetryData.Front.Travel.Length : TelemetryData.Rear.Travel.Length;
                 var start = TelemetryData.Metadata.Timestamp;
-                var end = start + (int)Math.Ceiling((double)count / TelemetryData.Metadata.SampleRate);
+                var end = start + (int)Math.Ceiling(TelemetryData.Metadata.Duration);
                 TrackPoints = fullTrack.GenerateSessionTrack(TelemetryData.Metadata.Timestamp, end);
                 await databaseService.PatchSessionTrackAsync(Id, TrackPoints);
             }

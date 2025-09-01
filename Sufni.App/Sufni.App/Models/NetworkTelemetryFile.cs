@@ -28,7 +28,8 @@ public class NetworkTelemetryFile : ITelemetryFile
             SourceName = FileName,
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
-            Timestamp = rawTelemetryData.Timestamp
+            Timestamp = rawTelemetryData.Timestamp,
+            Duration = (double)rawTelemetryData.Front.Length / rawTelemetryData.SampleRate
         };
         var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear,
             rawTelemetryData.FrontAnomalyRate, rawTelemetryData.RearAnomalyRate, telemetryMetadata, bikeData);
