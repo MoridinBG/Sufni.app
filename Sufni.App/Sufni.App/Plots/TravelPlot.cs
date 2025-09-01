@@ -1,11 +1,14 @@
 using System;
 using ScottPlot;
+using ScottPlot.Plottables;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
 public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 {
+    public VerticalLine? CursorLine { get; set; }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
@@ -77,5 +80,9 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         };
         Plot.Axes.Left.TickGenerator = tickGenTravel;
         Plot.Axes.Right.TickGenerator = tickGenTravel;
+
+        CursorLine = Plot.Add.VerticalLine(double.NaN);
+        CursorLine.LineWidth = 1;
+        CursorLine.LineColor = Colors.LightGray;
     }
 }

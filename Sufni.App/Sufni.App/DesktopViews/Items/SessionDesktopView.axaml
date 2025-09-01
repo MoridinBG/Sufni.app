@@ -68,7 +68,8 @@
                 Grid.Column="0"
                 Grid.Row="0"
                 Name="Travel"
-                Telemetry="{Binding TelemetryData}" />
+                Telemetry="{Binding TelemetryData}"
+                VelocityPlotView="{Binding #Velocity}" />
 
             <!--  Splitter between travel and velocity  -->
             <GridSplitter
@@ -80,8 +81,9 @@
             <plots:VelocityPlotDesktopView
                 Grid.Column="0"
                 Grid.Row="2"
+                Name="Velocity"
                 Telemetry="{Binding TelemetryData}"
-                TravelPlot="{Binding #Travel}" />
+                TravelPlotView="{Binding #Travel}" />
 
             <!--  Splitter between travel+velocity and video+map  -->
             <GridSplitter

@@ -6,7 +6,7 @@ namespace Sufni.App.DesktopViews.Plots;
 
 public abstract class SufniTelemetryPlotView : SufniPlotView
 {
-    protected TelemetryPlot? Plot;
+    public TelemetryPlot? Plot;
     
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
         AvaloniaProperty.Register<SufniTelemetryPlotView, TelemetryData?>(nameof(Telemetry));

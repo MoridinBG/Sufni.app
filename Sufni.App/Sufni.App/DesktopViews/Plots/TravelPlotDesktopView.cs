@@ -1,13 +1,47 @@
+using System;
 using System.Diagnostics;
+using Avalonia;
 using Sufni.App.Plots;
+using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.DesktopViews.Plots;
 
 public class TravelPlotDesktopView : SufniTelemetryPlotView
 {
+    public static readonly StyledProperty<SufniTelemetryPlotView> VelocityPlotViewProperty =
+        AvaloniaProperty.Register<VelocityPlotDesktopView, SufniTelemetryPlotView>(nameof(VelocityPlotView));
+
+    public SufniTelemetryPlotView VelocityPlotView
+    {
+        get => GetValue(VelocityPlotViewProperty);
+        set => SetValue(VelocityPlotViewProperty, value);
+    }
+
     protected override void CreatePlot()
     {
         Debug.Assert(AvaPlot != null, nameof(AvaPlot) + " != null");
         Plot = new TravelPlot(AvaPlot.Plot);
+            
+        AvaPlot.PointerMoved += (_, args) =>
+        {
+            var point = args.GetPosition(AvaPlot);
+            var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
+            if (DataContext is not SessionViewModel vm) return;
+
+            Debug.Assert(vm.TelemetryData is not null);
+            vm.NormalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);
+
+            if (Plot is TravelPlot travelPlot)
+            {
+                travelPlot.CursorLine!.Position = coords.X;
+                Plot.Plot.PlotControl!.Refresh();
+            }
+
+            if (VelocityPlotView.Plot is VelocityPlot velocityPlot)
+            {
+                velocityPlot.CursorLine!.Position = coords.X;
+                velocityPlot.Plot.PlotControl!.Refresh();
+            }
+        };
     }
 }
