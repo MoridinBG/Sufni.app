@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
 using BruTile;
 using BruTile.Predefined;
 using BruTile.Web;
@@ -20,21 +21,25 @@ namespace Sufni.App.Views;
 
 public class MapView : TemplatedControl
 {
-    public MapControl? MapControl;
+    private readonly WritableLayer positionMarkerLayer = new()
+    {
+        Name = "Position Marker",
+        Style = new SymbolStyle { SymbolScale = 0.5 }
+    };
 
-    public static readonly StyledProperty<List<TrackPoint>> TrackPointsProperty =
-        AvaloniaProperty.Register<MapView, List<TrackPoint>>(nameof(TrackPoints));
+    public static readonly StyledProperty<List<TrackPoint>?> TrackPointsProperty =
+        AvaloniaProperty.Register<MapView, List<TrackPoint>?>(nameof(TrackPoints));
     
-    public List<TrackPoint> TrackPoints
+    public List<TrackPoint>? TrackPoints
     {
         get => GetValue(TrackPointsProperty);
         set => SetValue(TrackPointsProperty, value);
     }
 
-    public static readonly StyledProperty<List<TrackPoint>> SessionTrackPointsProperty =
-        AvaloniaProperty.Register<MapView, List<TrackPoint>>(nameof(SessionTrackPoints));
+    public static readonly StyledProperty<List<TrackPoint>?> SessionTrackPointsProperty =
+        AvaloniaProperty.Register<MapView, List<TrackPoint>?>(nameof(SessionTrackPoints));
     
-    public List<TrackPoint> SessionTrackPoints
+    public List<TrackPoint>? SessionTrackPoints
     {
         get => GetValue(SessionTrackPointsProperty);
         set => SetValue(SessionTrackPointsProperty, value);
@@ -44,16 +49,19 @@ public class MapView : TemplatedControl
     {
         base.OnApplyTemplate(e);
 
-        MapControl = e.NameScope.Find<MapControl>("MapControl");
-        MapControl?.Map.Layers.Add(CreateJawgTileLayer());
+        var mapControl = e.NameScope.Find<MapControl>("MapControl");
+        mapControl?.Map.Layers.Add(CreateJawgTileLayer());
 
         var trackLayer = CreateFullTrackLayer();
-        MapControl?.Map.Layers.Add(trackLayer);
+        mapControl?.Map.Layers.Add(trackLayer);
 
         var sessionTrackLayer = CreateSessionTrackLayer();
-        MapControl?.Map.Layers.Add(sessionTrackLayer);
-        MapControl?.Map.Layers.Add(CreateStartEndPointsLayer());
-        MapControl?.Map.Navigator.CenterOnAndZoomTo(sessionTrackLayer.Extent!.Centroid, 10);
+        mapControl?.Map.Layers.Add(sessionTrackLayer);
+        mapControl?.Map.Layers.Add(CreateStartEndPointsLayer());
+        mapControl?.Map.Layers.Add(positionMarkerLayer);
+        mapControl?.Map.Navigator.CenterOnAndZoomTo(sessionTrackLayer.Extent!.Centroid, 10);
+
+        SetNormalizedCursorPosition(100);
     }
 
     private static TileLayer CreateJawgTileLayer()
@@ -70,23 +78,28 @@ public class MapView : TemplatedControl
 
     private MemoryLayer CreateFullTrackLayer()
     {
+        Debug.Assert(TrackPoints is not null);
+
         var lineString = new LineString(TrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
         var style = new VectorStyle { Line = new Pen(Color.FromString("#abdda4"), 2) }; // Spectral11 #04
 
         return new MemoryLayer
         {
             Features = [new GeometryFeature { Geometry = lineString }],
-            Name = "FullTrackLayer",
+            Name = "Full Track",
             Style = style
         };
     }
 
     private MemoryLayer CreateStartEndPointsLayer()
     {
+        Debug.Assert(SessionTrackPoints is not null);
+
         var startPointFeature = new PointFeature(SessionTrackPoints[0].X, SessionTrackPoints[0].Y);
         startPointFeature.Styles.Add(new SymbolStyle 
         {
             SymbolType = SymbolType.Ellipse,
+            Line = new Pen(Color.Black),
             Fill = new Brush(Color.FromString("#229954")),
             SymbolScale = 0.5
         });
@@ -95,6 +108,7 @@ public class MapView : TemplatedControl
         endPointFeature.Styles.Add(new SymbolStyle 
         {
             SymbolType = SymbolType.Ellipse,
+            Line = new Pen(Color.Black),
             Fill = new Brush(Color.FromString("#E74C3C")),
             SymbolScale = 0.5
         });
@@ -102,12 +116,33 @@ public class MapView : TemplatedControl
         return new MemoryLayer
         {
             Features = [startPointFeature, endPointFeature],
-            Style = new SymbolStyle { SymbolScale = 0.5 }
+            Style = new SymbolStyle { SymbolScale = 0.5 },
+            Name = "Start/End Marker"
         };
+    }
+
+    public void SetNormalizedCursorPosition(double pos)
+    {
+        if (SessionTrackPoints is null || pos < 0 || pos > 1) return;
+
+        var index = (int)Math.Ceiling((SessionTrackPoints.Count - 1) * pos);
+        positionMarkerLayer.Clear();
+        var feature = new PointFeature(SessionTrackPoints[index].X, SessionTrackPoints[index].Y);
+        feature.Styles.Add(new SymbolStyle 
+        {
+            SymbolType = SymbolType.Ellipse,
+            Line = new Pen(Color.Black),
+            Fill = new Brush(Color.Gray),
+            SymbolScale = 0.5
+        });
+        positionMarkerLayer.Add(feature);
+        positionMarkerLayer.DataHasChanged();
     }
 
     private MemoryLayer CreateSessionTrackLayer()
     {
+        Debug.Assert(SessionTrackPoints is not null);
+
         var lineString = new LineString(SessionTrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
         var style = new VectorStyle { Line = new Pen(Color.FromString("#9e0142"), 5) }; // Spectral11 #11
 
@@ -117,7 +152,7 @@ public class MapView : TemplatedControl
         return new MemoryLayer
         {
             Features = [new GeometryFeature { Geometry = lineString }],
-            Name = "SessionTrackLayer",
+            Name = "Session Track",
             Style = style
         };
     }

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
 using Sufni.App.ViewModels.Items;
+using Sufni.App.Views;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -15,6 +16,15 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
     {
         get => GetValue(TravelPlotViewProperty);
         set => SetValue(TravelPlotViewProperty, value);
+    }
+
+    public static readonly StyledProperty<MapView> MapViewProperty =
+        AvaloniaProperty.Register<VelocityPlotDesktopView, MapView>(nameof(MapView));
+
+    public MapView MapView
+    {
+        get => GetValue(MapViewProperty);
+        set => SetValue(MapViewProperty, value);
     }
 
     protected override void CreatePlot()
@@ -33,7 +43,8 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
             if (DataContext is not SessionViewModel vm) return;
 
             Debug.Assert(vm.TelemetryData is not null);
-            vm.NormalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);
+            var normalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);
+            MapView.SetNormalizedCursorPosition(normalizedCursorPosition);
 
             if (Plot is VelocityPlot velocityPlot)
             {

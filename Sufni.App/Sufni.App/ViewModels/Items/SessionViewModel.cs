@@ -44,7 +44,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private string? videoUrl;
     [ObservableProperty] private double? mapVideoWidth;
-    [ObservableProperty] private double normalizedCursorPosition;
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties

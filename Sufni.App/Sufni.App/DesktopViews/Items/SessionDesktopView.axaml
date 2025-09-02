@@ -67,6 +67,7 @@
             <plots:TravelPlotDesktopView
                 Grid.Column="0"
                 Grid.Row="0"
+                MapView="{Binding #Map}"
                 Name="Travel"
                 Telemetry="{Binding TelemetryData}"
                 VelocityPlotView="{Binding #Velocity}" />
@@ -81,6 +82,7 @@
             <plots:VelocityPlotDesktopView
                 Grid.Column="0"
                 Grid.Row="2"
+                MapView="{Binding #Map}"
                 Name="Velocity"
                 Telemetry="{Binding TelemetryData}"
                 TravelPlotView="{Binding #Travel}" />
@@ -130,6 +132,7 @@
                     Grid.Row="2"
                     HorizontalAlignment="Stretch"
                     IsVisible="{Binding TrackPoints, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Name="Map"
                     SessionTrackPoints="{Binding TrackPoints}"
                     TrackPoints="{Binding FullTrackPoints}"
                     VerticalAlignment="Stretch" />
