@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using CoreFoundation;
 using Network;
@@ -10,7 +11,7 @@ public class ServiceDiscovery : IServiceDiscovery
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceRemoved;
 
     private readonly DispatchQueue dispatchQueue = new("com.sghctoma.sufni-bridge.serviceDiscovery");
-    private NWBrowser browser;
+    private NWBrowser? browser;
     private IPAddress? currentIpAddress;
     private ushort? currentPort;
 
@@ -68,13 +69,13 @@ public class ServiceDiscovery : IServiceDiscovery
         }));
     }
 
-    public ServiceDiscovery()
+    private NWBrowser CreateBrowser(string type)
     {
         var browserDescriptor = NWBrowserDescriptor.CreateBonjourService(type, "local.");
-        browser = new NWBrowser(browserDescriptor, parameters);
-        browser.SetDispatchQueue(dispatchQueue);
+        var newBrowser = new NWBrowser(browserDescriptor, parameters);
+        newBrowser.SetDispatchQueue(dispatchQueue);
 
-        browser.CompleteChangesDelegate = changes =>
+        newBrowser.CompleteChangesDelegate = changes =>
         {
             if (changes is null) return;
 
@@ -91,15 +92,19 @@ public class ServiceDiscovery : IServiceDiscovery
                 }
             }
         };
+
+        return newBrowser;
     }
 
     public void StartBrowse(string type)
     {
+        browser ??= CreateBrowser(type);
         browser.Start();
     }
 
     public void StopBrowse()
     {
+        Debug.Assert(browser is not null);
         browser.Cancel();
     }
 }
