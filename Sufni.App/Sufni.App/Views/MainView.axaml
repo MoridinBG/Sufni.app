@@ -9,11 +9,10 @@
     d:DesignWidth="500"
     x:DataType="vm:MainViewModel"
     Background="{StaticResource SufniBackgroundDisabled}"
-    TopLevel.AutoSafeAreaPadding="False"
+    TopLevel.AutoSafeAreaPadding="True"
     mc:Ignorable="d">
-    <Panel Margin="{Binding OuterPanelMargin}" Background="{StaticResource SufniRegion}">
+    <Panel Background="{StaticResource SufniRegion}">
         <ContentControl
-            Margin="{Binding ContentControlMargin}"
             VerticalAlignment="Stretch"
             Content="{Binding CurrentView}" />
     </Panel>
