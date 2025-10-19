@@ -57,6 +57,8 @@ public partial class App : Application
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
+                Debug.Assert(mainViewModel is not null);
+
                 singleViewPlatform.MainView = new MainView
                 {
                     DataContext = mainViewModel
@@ -64,6 +66,12 @@ public partial class App : Application
                 singleViewPlatform.MainView.Loaded += (_, _) =>
                 {
                     var topLevel = TopLevel.GetTopLevel(singleViewPlatform.MainView);
+                    Debug.Assert(topLevel is not null); // TODO: use null-conditional assignment after switch to .net 10
+                    topLevel.BackRequested += (_, e) =>
+                    {
+                        mainViewModel.OpenPreviousView();
+                        e.Handled = true;
+                    };
                     fileService.SetTarget(topLevel);
                 };
                 break;
