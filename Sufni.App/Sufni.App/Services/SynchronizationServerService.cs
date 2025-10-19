@@ -173,7 +173,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             {
                 httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
             });
-            options.Listen(IPAddress.Any, port, listenOptions =>
+            options.Listen(IPAddress.IPv6Any, port, listenOptions =>
             {
                 listenOptions.UseHttps(certPath, certPassword);
             });

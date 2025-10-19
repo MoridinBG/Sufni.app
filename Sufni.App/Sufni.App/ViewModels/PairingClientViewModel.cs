@@ -65,7 +65,13 @@ public partial class PairingClientViewModel : ViewModelBase
 
         serviceDiscovery.ServiceAdded += (_, e) =>
         {
-            ServerUrl = $"https://{e.Announcement.Address.ToString()}:{e.Announcement.Port}";
+            var address = e.Announcement.Address.IsIPv4MappedToIPv6
+                ? e.Announcement.Address.MapToIPv4()
+                : e.Announcement.Address;
+            var host = address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                ? $"[{address}]"
+                : address.ToString();
+            ServerUrl = $"https://{host}:{e.Announcement.Port}";
         };
         serviceDiscovery.ServiceRemoved += (_, _) => ServerUrl = null;
     }
