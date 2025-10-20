@@ -67,7 +67,7 @@
 
         <!--  Fork sensor type  -->
         <Label
-            Content="Fork sensor type: "
+            Content="Fork sensor: "
             Grid.Column="0"
             Grid.Row="3"
             VerticalAlignment="Center" />
@@ -83,12 +83,14 @@
         <!--  Fork sensor configuration  -->
         <ContentControl
             Content="{Binding ForkSensorConfiguration}"
-            Grid.Column="1"
-            Grid.Row="4" />
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="4"
+            Margin="20,0,0,0" />
 
         <!--  Shock sensor type  -->
         <Label
-            Content="Shock sensor type: "
+            Content="Shock sensor: "
             Grid.Column="0"
             Grid.Row="5"
             VerticalAlignment="Center" />
@@ -104,8 +106,10 @@
         <!--  Shock sensor configuration  -->
         <ContentControl
             Content="{Binding ShockSensorConfiguration}"
-            Grid.Column="1"
-            Grid.Row="6" />
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="6"
+            Margin="20,0,0,0" />
 
         <!--  Error messages for Setup instance  -->
         <v:ErrorMessagesBar
