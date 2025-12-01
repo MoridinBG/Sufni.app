@@ -61,12 +61,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-            
-#if DEBUG
-            
-        this.AttachDevTools(new KeyGesture(Key.F12, KeyModifiers.Alt));
-            
-#endif
     }
 
     private void TabHeader_PointerPressed(object? sender, PointerPressedEventArgs e)
