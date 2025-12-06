@@ -423,7 +423,11 @@ public partial class BikeViewModel : ItemViewModelBase
 
             IsInDatabase = true;
 
-            OpenPreviousPage();
+            Debug.Assert(App.Current is not null);
+            if (!App.Current.IsDesktop)
+            {
+                OpenPreviousPage();
+            }
         }
         catch (Exception e)
         {
