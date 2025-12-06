@@ -12,11 +12,12 @@ public class Link
     #endregion Public properties
 
     #region Public properties [non-json]
-    
+
     [JsonIgnore] public Joint? A { get; set; }
     [JsonIgnore] public Joint? B { get; set; }
+    [JsonIgnore] public double Length { get; private set; }
 
-    #endregion Public properties [non-json]
+#endregion Public properties [non-json]
 
     #region Constructors
 
@@ -50,6 +51,11 @@ public class Link
         {
             B = pointB;
         }
+
+        if (A is null || B is null) return;
+        var dx = A.X - B.X;
+        var dy = A.Y - B.Y;
+        Length = Math.Sqrt(dx * dx + dy * dy);
     }
 
     #endregion Public mehods

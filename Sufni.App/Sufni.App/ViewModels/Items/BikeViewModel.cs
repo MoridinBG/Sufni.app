@@ -274,10 +274,9 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         if (ShockStroke is null) return true;
 
-        var linkage = CreateLinkage();
         try
         {
-            var solver = KinematicSolver.Create(500, linkage);
+            var solver = new KinematicSolver(bike.Linkage!);
             solver.SolveSuspensionMotion();
             return true;
         }

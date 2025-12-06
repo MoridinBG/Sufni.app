@@ -51,7 +51,7 @@ public class LinearShockSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike?.Linkage != null);
 
-        var solver = KinematicSolver.Create(500, bike.Linkage!);
+        var solver = new KinematicSolver(bike.Linkage!);
         var solution = solver.SolveSuspensionMotion();
         var characteristics = new BikeCharacteristics(solution, frontStroke: bike.ForkStroke, headAngle: bike.HeadAngle);
         return Polynomial.Fit([.. characteristics.LeverageRatioData.X], [.. characteristics.LeverageRatioData.Y], 3);

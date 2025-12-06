@@ -68,7 +68,7 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike?.Linkage != null);
 
-        var solver = KinematicSolver.Create(500, bike.Linkage!);
+        var solver = new KinematicSolver(bike.Linkage!);
         var solution = solver.SolveSuspensionMotion();
         return new BikeCharacteristics(solution, frontStroke: bike.ForkStroke, headAngle: bike.HeadAngle);
     }

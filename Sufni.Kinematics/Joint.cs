@@ -11,12 +11,6 @@ public enum JointType
     BottomBracket
 }
 
-public class PolarCoordinate(double theta, double length)
-{
-    public double Theta  = theta;
-    public double Length = length;
-}
-
 public class CartesianCoordinate(double x, double y)
 {
     #region Public properties
@@ -71,6 +65,12 @@ public class Joint : CartesianCoordinate
     [JsonPropertyName("type")] public JointType? Type { get; set; } // Setter is used during deserialization.
 
     #endregion Public properties
+
+    #region Public properties [non-json]
+
+    [JsonIgnore] public bool IsFixed => Type is JointType.BottomBracket or JointType.Fixed;
+
+    #endregion Public properties [non-json]
 
     #region Constructors
 
