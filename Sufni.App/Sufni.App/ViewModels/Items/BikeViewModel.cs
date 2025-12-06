@@ -306,7 +306,9 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
 
-        var links2 = LinkViewModels.Where(lvm => lvm != shockViewModel).Select(lvm => lvm.ToLink(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
+        var links2 = LinkViewModels
+            .Where(lvm => lvm != shockViewModel && lvm.A is not null && lvm.B is not null)
+            .Select(lvm => lvm.ToLink(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
         return bike.Linkage.Links.Count != links2.Count || !bike.Linkage.Links.All(l => links2.Contains(l));
     }
 
