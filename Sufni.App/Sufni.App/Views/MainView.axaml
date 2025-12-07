@@ -12,8 +12,6 @@
     TopLevel.AutoSafeAreaPadding="True"
     mc:Ignorable="d">
     <Panel Background="{StaticResource SufniRegion}">
-        <ContentControl
-            VerticalAlignment="Stretch"
-            Content="{Binding CurrentView}" />
+        <ContentControl VerticalAlignment="Stretch" Content="{Binding CurrentView}" />
     </Panel>
 </UserControl>

@@ -1,8 +1,8 @@
-<Styles
+﻿<Styles
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Sufni.App.Views"
-    xmlns:mapsui="clr-namespace:Mapsui.UI.Avalonia;assembly=Mapsui.UI.Avalonia"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:mapsui="clr-namespace:Mapsui.UI.Avalonia;assembly=Mapsui.UI.Avalonia">
     <Design.PreviewWith>
         <controls:MapView />
     </Design.PreviewWith>

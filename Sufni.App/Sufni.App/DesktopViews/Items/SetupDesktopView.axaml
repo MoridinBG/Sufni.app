@@ -1,82 +1,82 @@
-<UserControl
-    Background="{StaticResource SufniRegion}"
-    Focusable="True"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.DesktopViews.Items.SetupDesktopView"
-    x:DataType="vm:SetupViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:SetupViewModel"
+    Background="{StaticResource SufniRegion}"
+    Focusable="True"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:SetupViewModel />
     </Design.DataContext>
 
     <Grid
-        ColumnDefinitions="auto *"
-        HorizontalAlignment="Stretch"
-        Margin="20,0,20,10"
         MinWidth="300"
-        RowDefinitions="auto auto auto auto auto auto auto * auto 40 39"
-        VerticalAlignment="Stretch">
+        Margin="20,0,20,10"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        ColumnDefinitions="auto *"
+        RowDefinitions="auto auto auto auto auto auto auto * auto 40 39">
         <!--  Name  -->
         <Label
-            Content="Name: "
+            Grid.Row="0"
             Grid.Column="0"
-            Grid.Row="0"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Name: " />
         <TextBox
-            Grid.Column="1"
             Grid.Row="0"
-            HorizontalAlignment="Stretch"
+            Grid.Column="1"
             Margin="2"
+            HorizontalAlignment="Stretch"
             Text="{Binding Name}" />
 
         <!--  Board ID  -->
         <Label
-            Content="Board ID: "
+            Grid.Row="1"
             Grid.Column="0"
-            Grid.Row="1"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Board ID: " />
         <TextBox
-            Grid.Column="1"
             Grid.Row="1"
-            HorizontalAlignment="Stretch"
+            Grid.Column="1"
             Margin="2"
+            HorizontalAlignment="Stretch"
             Text="{Binding BoardId}" />
 
         <!--  Bike  -->
         <Label
-            Content="Bike: "
+            Grid.Row="2"
             Grid.Column="0"
-            Grid.Row="2"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Bike: " />
         <ComboBox
-            Grid.Column="1"
             Grid.Row="2"
+            Grid.Column="1"
+            Margin="2"
             HorizontalAlignment="Stretch"
             ItemsSource="{Binding Bikes}"
-            Margin="2"
             SelectedItem="{Binding SelectedBike}">
 
             <ComboBox.DataTemplates>
                 <DataTemplate DataType="vm:BikeViewModel">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock Text="{Binding Name}" />
                         <Button
+                            Padding="10,0,0,0"
                             Classes="embedded"
                             Command="{Binding OpenPageCommand}"
-                            CommandParameter="{Binding}"
-                            Padding="10,0,0,0">
+                            CommandParameter="{Binding}">
                             <Image
+                                Width="12"
                                 Height="12"
-                                Source="{SvgImage /Assets/fa-edit.svg}"
-                                Width="12" />
+                                Source="{SvgImage /Assets/fa-edit.svg}" />
                         </Button>
                     </StackPanel>
                 </DataTemplate>
@@ -85,85 +85,85 @@
 
         <!--  Fork sensor type  -->
         <Label
-            Content="Fork sensor: "
+            Grid.Row="3"
             Grid.Column="0"
-            Grid.Row="3"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Fork sensor: " />
         <ComboBox
-            Grid.Column="1"
             Grid.Row="3"
+            Grid.Column="1"
+            Margin="2"
             HorizontalAlignment="Stretch"
             ItemsSource="{Binding ForkSensorTypes}"
-            Margin="2"
             PlaceholderText=" -- not in use --"
             SelectedItem="{Binding ForkSensorType}" />
 
         <!--  Fork sensor configuration  -->
         <ContentControl
-            Content="{Binding ForkSensorConfiguration}"
+            Grid.Row="4"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="4"
-            Margin="20,0,0,0" />
+            Margin="20,0,0,0"
+            Content="{Binding ForkSensorConfiguration}" />
 
         <!--  Shock sensor type  -->
         <Label
-            Content="Shock sensor: "
+            Grid.Row="5"
             Grid.Column="0"
-            Grid.Row="5"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Shock sensor: " />
         <ComboBox
-            Grid.Column="1"
             Grid.Row="5"
+            Grid.Column="1"
+            Margin="2"
             HorizontalAlignment="Stretch"
             ItemsSource="{Binding ShockSensorTypes}"
-            Margin="2"
             PlaceholderText=" -- not in use --"
             SelectedItem="{Binding ShockSensorType}" />
 
         <!--  Shock sensor configuration  -->
         <ContentControl
-            Content="{Binding ShockSensorConfiguration}"
+            Grid.Row="6"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="6"
-            Margin="20,0,0,0" />
+            Margin="20,0,0,0"
+            Content="{Binding ShockSensorConfiguration}" />
 
         <!--  Error messages for Setup instance  -->
         <v:ErrorMessagesBar
+            Grid.Row="8"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="8"
             Margin="0,5,0,0" />
 
         <!--  Save and Reset buttons  -->
         <Grid
-            ColumnDefinitions="* auto"
+            Grid.Row="10"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="10">
+            ColumnDefinitions="* auto">
             <Button
-                Command="{Binding SaveCommand}"
-                Content="Save"
                 Grid.Column="0"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
                 Margin="0,0,10,0"
+                HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                VerticalContentAlignment="Center" />
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Command="{Binding SaveCommand}"
+                Content="Save" />
 
             <Button
-                Command="{Binding ResetCommand}"
                 Grid.Column="1"
+                Width="39"
                 Height="39"
-                HorizontalContentAlignment="Center"
                 Margin="0,0,5,0"
+                HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center"
-                Width="39">
+                Command="{Binding ResetCommand}">
                 <Image
+                    Width="16"
                     Height="16"
-                    Source="{SvgImage /Assets/fa-rotate-left.svg}"
-                    Width="16" />
+                    Source="{SvgImage /Assets/fa-rotate-left.svg}" />
             </Button>
         </Grid>
     </Grid>

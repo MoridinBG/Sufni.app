@@ -1,12 +1,7 @@
-<UserControl
-    Background="{StaticResource SufniRegion}"
-    Focusable="True"
-    d:DesignHeight="800"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.DesktopViews.Items.SessionDesktopView"
-    x:DataType="vm:SessionViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -14,7 +9,12 @@
     xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
     xmlns:v="clr-namespace:Sufni.App.Views"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="800"
+    d:DesignWidth="800"
+    x:DataType="vm:SessionViewModel"
+    Background="{StaticResource SufniRegion}"
+    Focusable="True"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:SessionViewModel />
@@ -65,33 +65,33 @@
 
             <!--  Travel  -->
             <plots:TravelPlotDesktopView
-                Grid.Column="0"
-                Grid.Row="0"
-                MapView="{Binding #Map}"
                 Name="Travel"
+                Grid.Row="0"
+                Grid.Column="0"
+                MapView="{Binding #Map}"
                 Telemetry="{Binding TelemetryData}"
                 VelocityPlotView="{Binding #Velocity}" />
 
             <!--  Splitter between travel and velocity  -->
             <GridSplitter
-                Grid.Column="0"
                 Grid.Row="1"
+                Grid.Column="0"
                 ResizeDirection="Rows" />
 
             <!--  Velocity  -->
             <plots:VelocityPlotDesktopView
-                Grid.Column="0"
-                Grid.Row="2"
-                MapView="{Binding #Map}"
                 Name="Velocity"
+                Grid.Row="2"
+                Grid.Column="0"
+                MapView="{Binding #Map}"
                 Telemetry="{Binding TelemetryData}"
                 TravelPlotView="{Binding #Travel}" />
 
             <!--  Splitter between travel+velocity and video+map  -->
             <GridSplitter
-                Grid.Column="1"
                 Grid.Row="0"
                 Grid.RowSpan="3"
+                Grid.Column="1"
                 Margin="0,39,0,0"
                 ResizeDirection="Columns">
                 <GridSplitter.IsVisible>
@@ -104,17 +104,17 @@
 
             <!--  Video and Map  -->
             <Grid
-                Grid.Column="2"
                 Grid.Row="0"
                 Grid.RowSpan="3"
-                IsVisible="True"
+                Grid.Column="2"
                 Margin="0,39,0,0"
+                IsVisible="True"
                 RowDefinitions="auto auto *">
 
                 <!--  Video  -->
                 <Border
-                    Background="DarkSlateBlue"
                     Grid.Row="0"
+                    Background="DarkSlateBlue"
                     IsVisible="{Binding VideoUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                 <!--  Splitter between video and map  -->
@@ -129,13 +129,13 @@
 
                 <!--  Map  -->
                 <v:MapView
+                    Name="Map"
                     Grid.Row="2"
                     HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
                     IsVisible="{Binding TrackPoints, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    Name="Map"
                     SessionTrackPoints="{Binding TrackPoints}"
-                    TrackPoints="{Binding FullTrackPoints}"
-                    VerticalAlignment="Stretch" />
+                    TrackPoints="{Binding FullTrackPoints}" />
             </Grid>
         </Grid>
 
@@ -154,54 +154,54 @@
             <Grid Grid.Column="2" RowDefinitions="auto * auto">
                 <!--  Name  -->
                 <Grid
-                    ColumnDefinitions="auto *"
                     Grid.Row="0"
-                    Margin="14,10,10,10">
+                    Margin="14,10,10,10"
+                    ColumnDefinitions="auto *">
                     <Label
-                        Content="Name: "
+                        Grid.Row="0"
                         Grid.Column="0"
-                        Grid.Row="0"
-                        VerticalAlignment="Center" />
+                        VerticalAlignment="Center"
+                        Content="Name: " />
                     <TextBox
-                        Grid.Column="1"
                         Grid.Row="0"
-                        HorizontalAlignment="Stretch"
+                        Grid.Column="1"
                         Margin="2"
+                        HorizontalAlignment="Stretch"
                         Text="{Binding Name}" />
                 </Grid>
 
                 <!--  Notes  -->
-                <pages:NotesPageView DataContext="{Binding NotesPage}" Grid.Row="1" />
+                <pages:NotesPageView Grid.Row="1" DataContext="{Binding NotesPage}" />
 
                 <!--  Buttons  -->
                 <Grid
-                    ColumnDefinitions="* auto"
                     Grid.Row="2"
-                    Margin="14,10,10,10">
+                    Margin="14,10,10,10"
+                    ColumnDefinitions="* auto">
                     <!--  Save Button  -->
                     <Button
-                        Command="{Binding SaveCommand}"
-                        Content="Save"
                         Grid.Column="0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
                         Margin="0,0,10,0"
+                        HorizontalAlignment="Stretch"
                         VerticalAlignment="Stretch"
-                        VerticalContentAlignment="Center" />
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Command="{Binding SaveCommand}"
+                        Content="Save" />
 
                     <!--  Reset button  -->
                     <Button
-                        Command="{Binding ResetCommand}"
                         Grid.Column="1"
+                        Width="39"
                         Height="39"
-                        HorizontalContentAlignment="Center"
                         Margin="0,0,5,0"
+                        HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center"
-                        Width="39">
+                        Command="{Binding ResetCommand}">
                         <Image
+                            Width="16"
                             Height="16"
-                            Source="{SvgImage /Assets/fa-rotate-left.svg}"
-                            Width="16" />
+                            Source="{SvgImage /Assets/fa-rotate-left.svg}" />
                     </Button>
                 </Grid>
             </Grid>

@@ -1,21 +1,21 @@
-<Window
-    Height="100"
-    Width="350"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<Window
     x:Class="Sufni.App.Views.Controls.OkCancelDialogWindow"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    Width="350"
+    Height="100"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
     <Grid Margin="10" RowDefinitions="auto * auto">
         <TextBlock
+            Name="MessageText"
             Grid.Row="0"
             Margin="0,0,0,10"
-            Name="MessageText"
             TextWrapping="Wrap" />
-        <Border Background="Transparent" Grid.Row="1" />
+        <Border Grid.Row="1" Background="Transparent" />
         <StackPanel
             Grid.Row="2"
             HorizontalAlignment="Right"

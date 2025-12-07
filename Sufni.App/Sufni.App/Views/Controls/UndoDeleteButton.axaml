@@ -27,7 +27,6 @@
             CornerRadius="0" />
         <Label
             Height="39"
-            CornerRadius="2"
             Margin="5,0,5,5"
             Padding="10,0,0,0"
             HorizontalAlignment="Stretch"
@@ -35,6 +34,7 @@
             VerticalContentAlignment="Center"
             Background="#f0f0f0"
             Content="Item deleted."
+            CornerRadius="2"
             Foreground="{StaticResource SufniRegion}"
             IsHitTestVisible="False" />
         <Button

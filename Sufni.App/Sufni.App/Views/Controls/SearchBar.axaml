@@ -1,56 +1,56 @@
-<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.Views.Controls.SearchBar"
-    x:DataType="vml:ItemListViewModelBase"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
     xmlns:v="clr-namespace:Sufni.App.Views"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vml:ItemListViewModelBase"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vml:ItemListViewModelBase />
     </Design.DataContext>
 
     <Grid
-        ColumnDefinitions="*"
         Margin="20,0,20,20"
+        ColumnDefinitions="*"
         RowDefinitions="39">
 
         <!--  Search box  -->
         <TextBox
+            Name="SearchBox"
+            Padding="35,0,0,0"
+            VerticalContentAlignment="Center"
             BorderThickness="0"
             CornerRadius="5"
             IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
-            Name="SearchBox"
-            Padding="35,0,0,0"
             Text="{Binding SearchText}"
-            VerticalContentAlignment="Center"
             Watermark="Search ..." />
 
         <!--  Hamburger menu  -->
         <Button
-            Classes="embedded"
-            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}"
             Grid.Row="0"
+            Width="32"
             HorizontalAlignment="Left"
-            Width="32">
+            Classes="embedded"
+            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
             <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
         </Button>
 
         <!--  Close search button  -->
         <Button
-            Classes="embedded"
-            Command="{Binding ClearSearchTextCommand}"
-            HorizontalAlignment="Right"
-            Margin="0,0,5,0"
             Name="CloseButton"
-            Width="30">
+            Width="30"
+            Margin="0,0,5,0"
+            HorizontalAlignment="Right"
+            Classes="embedded"
+            Command="{Binding ClearSearchTextCommand}">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="SearchBoxIsFocused" />
@@ -62,9 +62,9 @@
 
         <!--  Connection indicator  -->
         <Button
-            Classes="embedded"
+            Margin="0,0,5,0"
             HorizontalAlignment="Right"
-            Margin="0,0,5,0">
+            Classes="embedded">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).PairingClientPage.IsPaired" />
@@ -73,19 +73,19 @@
                 </MultiBinding>
             </Button.IsVisible>
             <Image
+                Width="20"
                 Opacity="0.5"
-                Source="{SvgImage /Assets/fa-link_green.svg}"
-                Width="20" />
+                Source="{SvgImage /Assets/fa-link_green.svg}" />
         </Button>
 
         <!--  Synchronization indicator  -->
         <progRing:ProgressRing
-            Foreground="{StaticResource SufniAccentColor}"
+            Width="15"
             Height="15"
-            HorizontalAlignment="Right"
             Margin="0,0,10,0"
+            HorizontalAlignment="Right"
             VerticalAlignment="Center"
-            Width="15">
+            Foreground="{StaticResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
             </progRing:ProgressRing.IsActive>

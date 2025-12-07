@@ -1,12 +1,12 @@
-<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.DesktopViews.Plots.TravelPercentageLegend"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
 
     <StackPanel>
         <TextBlock Text="Travel (%)" />
@@ -27,8 +27,8 @@
                 TextAlignment="Right" />
         </Grid>
         <UniformGrid
-            Columns="10"
             Height="10"
+            Columns="10"
             Rows="1">
             <Border Background="#3288bd" />
             <Border Background="#66c2a5" />

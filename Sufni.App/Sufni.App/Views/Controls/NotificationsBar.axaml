@@ -1,41 +1,41 @@
-<UserControl
-    IsVisible="{Binding Notifications.Count}"
-    d:DesignHeight="50"
-    d:DesignWidth="500"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.Views.Controls.NotificationsBar"
-    x:DataType="vm:ViewModelBase"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="50"
+    d:DesignWidth="500"
+    x:DataType="vm:ViewModelBase"
+    IsVisible="{Binding Notifications.Count}"
+    mc:Ignorable="d">
     <Border
+        MaxHeight="100"
+        Padding="5"
         Background="DarkKhaki"
         BorderBrush="Khaki"
         BorderThickness="2"
         CornerRadius="5"
-        IsPointerOver="{Binding IsPointerOverNotifications, Mode=OneWayToSource}"
-        MaxHeight="100"
-        Padding="5">
+        IsPointerOver="{Binding IsPointerOverNotifications, Mode=OneWayToSource}">
         <Grid ColumnDefinitions="*" RowDefinitions="auto *">
             <Button
+                Grid.Row="0"
+                Width="50"
+                Height="20"
+                Padding="0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
                 Background="Khaki"
                 Command="{Binding ClearNotificationsCommand}"
                 Content="close"
                 CornerRadius="2"
-                Foreground="#0d0d0d"
-                Grid.Row="0"
-                Height="20"
-                HorizontalAlignment="Right"
-                HorizontalContentAlignment="Center"
-                Padding="0"
-                VerticalAlignment="Top"
-                VerticalContentAlignment="Center"
-                Width="50" />
+                Foreground="#0d0d0d" />
             <ListBox
-                Background="Transparent"
                 Grid.Row="1"
+                Background="Transparent"
                 ItemsSource="{Binding Notifications}">
                 <ListBox.Styles>
                     <Style Selector="ListBoxItem">

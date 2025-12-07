@@ -1,17 +1,17 @@
 ﻿<UserControl
-    Background="{StaticResource SufniRegion}"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    mc:Ignorable="d"
     x:Class="Sufni.App.Views.PairingClientView"
-    x:DataType="vm:PairingClientViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:PairingClientViewModel"
+    Background="{StaticResource SufniRegion}"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:PairingClientViewModel />
@@ -27,10 +27,10 @@
     </Interaction.Behaviors>
 
     <StackPanel
+        Width="250"
         HorizontalAlignment="Center"
-        Orientation="Vertical"
         VerticalAlignment="Center"
-        Width="250">
+        Orientation="Vertical">
 
         <StackPanel.Styles>
             <Style Selector="TextBox">
@@ -40,11 +40,11 @@
 
         <!--  Locating servers label  -->
         <Label
-            Content="Locating servers"
-            FontSize="20"
-            HorizontalAlignment="Center"
             Margin="0,0,0,25"
-            VerticalAlignment="Center">
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Content="Locating servers"
+            FontSize="20">
             <Label.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
@@ -55,12 +55,12 @@
 
         <!--  Prograss ring  -->
         <progRing:ProgressRing
-            Foreground="{StaticResource SufniAccentColor}"
+            Width="40"
             Height="40"
-            HorizontalAlignment="Center"
             Margin="0,0,0,25"
+            HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            Width="40">
+            Foreground="{StaticResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
@@ -71,10 +71,10 @@
 
         <!--  Send pairing request button  -->
         <Button
-            Command="{Binding RequestPairingCommand}"
             Height="50"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center">
+            HorizontalContentAlignment="Center"
+            Command="{Binding RequestPairingCommand}">
 
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -99,29 +99,29 @@
 
         <!--  Confirm pairing button  -->
         <Button
-            Command="{Binding ConfirmPairingCommand}"
-            Content="confirm"
+            Margin="2"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Center"
-            IsVisible="{Binding IsRequestSent}"
-            Margin="2" />
+            Command="{Binding ConfirmPairingCommand}"
+            Content="confirm"
+            IsVisible="{Binding IsRequestSent}" />
 
         <!--  Unpair button  -->
         <Button
-            Command="{Binding UnpairCommand}"
-            Content="unpair"
+            Margin="2"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Center"
-            IsVisible="{Binding IsPaired}"
-            Margin="2" />
+            Command="{Binding UnpairCommand}"
+            Content="unpair"
+            IsVisible="{Binding IsPaired}" />
 
         <!--  Cancel button  -->
         <Button
-            Command="{Binding OpenPreviousPageCommand}"
-            Content="cancel"
+            Margin="2"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Center"
-            Margin="2" />
+            Command="{Binding OpenPreviousPageCommand}"
+            Content="cancel" />
         <v:ErrorMessagesBar Margin="2,4" />
     </StackPanel>
 </UserControl>

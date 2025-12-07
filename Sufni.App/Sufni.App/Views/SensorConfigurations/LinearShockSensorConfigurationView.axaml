@@ -1,14 +1,14 @@
-<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.Views.SensorConfigurations.LinearShockSensorConfigurationView"
-    x:DataType="vm:LinearShockSensorConfigurationViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.SensorConfigurations"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:LinearShockSensorConfigurationViewModel"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:LinearShockSensorConfigurationViewModel />
@@ -17,28 +17,28 @@
     <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto">
         <!--  Length  -->
         <Label
-            Content="Sensor length: "
+            Grid.Row="0"
             Grid.Column="0"
-            Grid.Row="0"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Sensor length: " />
         <NumericUpDown
-            Grid.Column="1"
             Grid.Row="0"
-            Increment="1"
+            Grid.Column="1"
             Margin="0,2,2,2"
+            Increment="1"
             Maximum="500"
             Minimum="100"
             Value="{Binding Length}" />
 
         <!--  Resolution  -->
         <Label
-            Content="Resolution: "
+            Grid.Row="1"
             Grid.Column="0"
-            Grid.Row="1"
-            VerticalAlignment="Center" />
+            VerticalAlignment="Center"
+            Content="Resolution: " />
         <NumericUpDown
-            Grid.Column="1"
             Grid.Row="1"
+            Grid.Column="1"
             Margin="0,2,2,2"
             Maximum="32"
             Minimum="8"

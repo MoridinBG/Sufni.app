@@ -1,14 +1,14 @@
 ﻿<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="200"
-    mc:Ignorable="d"
     x:Class="Sufni.App.Views.Controls.SidePanel"
-    x:DataType="vm:MainPagesViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="450"
+    d:DesignWidth="200"
+    x:DataType="vm:MainPagesViewModel"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:MainPagesViewModel />
@@ -30,10 +30,10 @@
 
     <!--  Default background  -->
     <UserControl.Background>
-        <LinearGradientBrush EndPoint="0%,100%" StartPoint="0%,0%">
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
             <LinearGradientBrush.GradientStops>
-                <GradientStop Color="{StaticResource SufniRegion}" Offset="0.7" />
-                <GradientStop Color="{StaticResource SufniBackgroundDisabled}" Offset="1" />
+                <GradientStop Offset="0.7" Color="{StaticResource SufniRegion}" />
+                <GradientStop Offset="1" Color="{StaticResource SufniBackgroundDisabled}" />
             </LinearGradientBrush.GradientStops>
         </LinearGradientBrush>
     </UserControl.Background>
@@ -44,24 +44,24 @@
             CommandParameter="{Binding ImportSessionsPage}"
             Header="import">
             <MenuItem.Icon>
-                <Image Source="{SvgImage /Assets/fa-file-import.svg}" Width="12" />
+                <Image Width="12" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <Separator />
         <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike">
             <MenuItem.Icon>
                 <Image
+                    Width="12"
                     Margin="0,1,0,0"
-                    Source="{SvgImage /Assets/fa-circle-plus.svg}"
-                    Width="12" />
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem Command="{Binding SetupsPage.AddCommand}" Header="setup">
             <MenuItem.Icon>
                 <Image
+                    Width="12"
                     Margin="0,1,0,0"
-                    Source="{SvgImage /Assets/fa-circle-plus.svg}"
-                    Width="12" />
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <Separator />
@@ -71,9 +71,9 @@
             IsVisible="{Binding PairingClientPage.IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
                 <Image
+                    Width="12"
                     Margin="0,3,0,0"
-                    Source="{SvgImage /Assets/fa-sync-alt.svg}"
-                    Width="12" />
+                    Source="{SvgImage /Assets/fa-sync-alt.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
@@ -82,7 +82,7 @@
             Header="pair"
             IsVisible="{Binding !PairingClientPage.IsPaired}">
             <MenuItem.Icon>
-                <Image Source="{SvgImage /Assets/fa-link.svg}" Width="18" />
+                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
@@ -91,7 +91,7 @@
             Header="unpair"
             IsVisible="{Binding PairingClientPage.IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
-                <Image Source="{SvgImage /Assets/fa-link-slash.svg}" Width="18" />
+                <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
             </MenuItem.Icon>
         </MenuItem>
     </StackPanel>

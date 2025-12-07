@@ -1,17 +1,17 @@
-<UserControl
-    Background="{StaticResource SufniRegion}"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.DesktopViews.ItemLists.PairedDeviceListDesktopView"
-    x:DataType="vml:PairedDeviceListViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:c="clr-namespace:Sufni.App.DesktopViews.Controls"
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:PairedDeviceListViewModel"
+    Background="{StaticResource SufniRegion}"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vml:PairedDeviceListViewModel />
@@ -24,14 +24,14 @@
 
         <!--  Title  -->
         <TextBlock
+            VerticalAlignment="Center"
             FontSize="16"
             FontWeight="Bold"
             Text="Paired devices"
-            TextAlignment="Center"
-            VerticalAlignment="Center" />
+            TextAlignment="Center" />
 
         <!--  List of Paired devices  -->
-        <ScrollViewer Grid.Row="1" Name="Scroll">
+        <ScrollViewer Name="Scroll" Grid.Row="1">
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
@@ -42,6 +42,6 @@
         </ScrollViewer>
 
         <!--  Undo last deleted  -->
-        <controls:UndoDeleteButton Grid.Column="0" Grid.Row="2" />
+        <controls:UndoDeleteButton Grid.Row="2" Grid.Column="0" />
     </Grid>
 </UserControl>

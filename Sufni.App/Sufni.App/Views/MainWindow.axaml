@@ -1,20 +1,20 @@
 ﻿<Window
-    Background="{StaticResource SufniRegion}"
-    Height="1200"
-    Icon="/Assets/sufni-icon.png"
-    Title="Sufni.App"
-    Width="1600"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
     x:Class="Sufni.App.Views.MainWindow"
-    x:DataType="vm:MainWindowViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.Views"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    Title="Sufni.App"
+    Width="1600"
+    Height="1200"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:MainWindowViewModel"
+    Background="{StaticResource SufniRegion}"
+    Icon="/Assets/sufni-icon.png"
+    mc:Ignorable="d">
 
     <Window.Resources>
         <v:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
@@ -44,35 +44,35 @@
         <!--  Main tab area  -->
         <Grid RowDefinitions="auto *">
             <TabStrip
-                Grid.Row="0"
-                ItemsSource="{Binding Tabs}"
                 Name="TabControl"
+                Grid.Row="0"
                 Padding="0"
+                ItemsSource="{Binding Tabs}"
                 SelectedItem="{Binding CurrentView}">
                 <TabStrip.ItemTemplate>
                     <DataTemplate>
                         <Grid
-                            ColumnDefinitions="* auto"
                             Margin="10,0,0,0"
+                            ColumnDefinitions="* auto"
                             PointerPressed="TabHeader_PointerPressed">
                             <TextBlock
+                                Grid.Column="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
                                 FontSize="16"
                                 FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
                                 Foreground="{Binding IsDirty, Converter={StaticResource BoolToColorConverter}}"
-                                Grid.Column="0"
-                                HorizontalAlignment="Center"
-                                Text="{Binding Name}"
-                                VerticalAlignment="Center" />
+                                Text="{Binding Name}" />
                             <Button
-                                Classes="embedded"
-                                Command="{Binding CloseCommand}"
                                 Grid.Column="1"
+                                Margin="5,3,0,0"
                                 HorizontalAlignment="Right"
-                                Margin="5,3,0,0">
+                                Classes="embedded"
+                                Command="{Binding CloseCommand}">
                                 <Image
+                                    Width="12"
                                     Opacity="0.4"
-                                    Source="{SvgImage /Assets/fa-xmark.svg}"
-                                    Width="12" />
+                                    Source="{SvgImage /Assets/fa-xmark.svg}" />
                             </Button>
                         </Grid>
                     </DataTemplate>
@@ -87,7 +87,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="vm:TabPageViewModelBase">
-                        <ContentControl Content="{Binding}" Margin="0,20,0,0">
+                        <ContentControl Margin="0,20,0,0" Content="{Binding}">
                             <ContentControl.IsVisible>
                                 <MultiBinding Converter="{StaticResource IsEqualConverter}">
                                     <Binding />

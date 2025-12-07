@@ -1,15 +1,15 @@
 ﻿<UserControl
-    d:DesignHeight="720"
-    d:DesignWidth="500"
-    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
-    x:DataType="vm:MainPagesViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.DesktopViews"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="720"
+    d:DesignWidth="500"
+    x:DataType="vm:MainPagesViewModel"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:MainPagesViewModel />
@@ -61,41 +61,41 @@
 
         <!--  Menu tab  -->
         <TabControl
-            Background="{StaticResource SufniRegion}"
-            Margin="0,0,0,5"
             Name="PagesMenu"
+            Margin="0,0,0,5"
+            Background="{StaticResource SufniRegion}"
             SelectedIndex="{Binding SelectedIndex}"
             TabStripPlacement="Left">
-            <TabItem Content="{Binding SessionsPage}" Name="SessionTabItem">
+            <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
                 <TabItem.Header>
                     <StackPanel>
-                        <Image Source="{SvgImage /Assets/fa-chart-line.svg}" Width="16" />
+                        <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
                         <TextBlock
-                            FontSize="9"
-                            HorizontalAlignment="Center"
                             Margin="0,2,0,0"
+                            HorizontalAlignment="Center"
+                            FontSize="9"
                             Text="Sessions" />
                     </StackPanel>
                 </TabItem.Header>
             </TabItem>
-            <TabItem Content="{Binding SetupsPage}" Name="BikeSetupsTabItem">
+            <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
                 <TabItem.Header>
                     <StackPanel>
-                        <Image Source="{SvgImage /Assets/cog.svg}" Width="18" />
+                        <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
                         <TextBlock
-                            FontSize="9"
                             HorizontalAlignment="Center"
+                            FontSize="9"
                             Text="Setups" />
                     </StackPanel>
                 </TabItem.Header>
             </TabItem>
-            <TabItem Content="{Binding BikesPage}" Name="BikesTabItem">
+            <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
                 <TabItem.Header>
                     <StackPanel>
-                        <Image Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" Width="18" />
+                        <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
                         <TextBlock
-                            FontSize="9"
                             HorizontalAlignment="Center"
+                            FontSize="9"
                             Text="Bikes" />
                     </StackPanel>
                 </TabItem.Header>
@@ -105,7 +105,7 @@
         <StackPanel Margin="0,0,0,20" VerticalAlignment="Bottom">
 
             <!--  Add setup / bike button  -->
-            <Button Classes="embedded" Width="50">
+            <Button Width="50" Classes="embedded">
                 <Button.Styles>
                     <Style Selector="MenuItem">
                         <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
@@ -123,63 +123,63 @@
                 </Button.Flyout>
 
                 <Image
+                    Width="18"
                     Margin="3,0,0,0"
-                    Source="{SvgImage /Assets/fa-circle-plus.svg}"
-                    Width="18" />
+                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
             </Button>
 
             <!--  Import sessions button  -->
             <Button
+                Width="50"
                 Classes="embedded"
                 Command="{Binding OpenPageCommand}"
-                CommandParameter="{Binding ImportSessionsPage}"
-                Width="50">
-                <Image Source="{SvgImage /Assets/fa-file-import.svg}" Width="18" />
+                CommandParameter="{Binding ImportSessionsPage}">
+                <Image Width="18" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </Button>
 
             <!--  Import GPX button  -->
             <Button
+                Width="50"
                 Classes="embedded"
-                Command="{Binding OpenGpsTracksCommand}"
-                Width="50">
-                <Image Source="{SvgImage /Assets/fa-map.svg}" Width="18" />
+                Command="{Binding OpenGpsTracksCommand}">
+                <Image Width="18" Source="{SvgImage /Assets/fa-map.svg}" />
             </Button>
 
             <!--  Paired devices button  -->
             <Button
-                Classes="embedded"
-                Command="{Binding OpenClosePairedDevicesListCommand}"
                 Name="PairedDevicesButton"
-                Width="50">
-                <Image Source="{SvgImage /Assets/fa-link.svg}" Width="18" />
+                Width="50"
+                Classes="embedded"
+                Command="{Binding OpenClosePairedDevicesListCommand}">
+                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </Button>
         </StackPanel>
 
         <!--  Paired devices list  -->
         <ContentControl
-            Content="{Binding PairedDevicesPage}"
             Height="300"
-            IsVisible="{Binding IsPairedDevicesListOpen}"
             Margin="50,0,20,25"
-            Opacity="0.9"
-            VerticalAlignment="Bottom" />
+            VerticalAlignment="Bottom"
+            Content="{Binding PairedDevicesPage}"
+            IsVisible="{Binding IsPairedDevicesListOpen}"
+            Opacity="0.9" />
 
         <!--  New pairing request  -->
         <Grid
+            Margin="50,0,20,25"
+            VerticalAlignment="Bottom"
             Background="{StaticResource SufniBackgroundDisabled}"
             ColumnDefinitions="* 35"
             IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
-            Margin="50,0,20,25"
             Opacity="0.9"
-            RowDefinitions="auto 24"
-            VerticalAlignment="Bottom">
+            RowDefinitions="auto 24">
 
             <TextBlock
-                FontSize="16"
+                Grid.Row="0"
                 Grid.Column="0"
                 Grid.ColumnSpan="2"
-                Grid.Row="0"
-                Margin="10,10,10,10">
+                Margin="10,10,10,10"
+                FontSize="16">
                 <Run Text="Pairing request from " />
                 <LineBreak />
                 <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingId}" />
@@ -187,21 +187,21 @@
 
             <!--  PIN Display  -->
             <TextBlock
+                Grid.Row="1"
+                Grid.Column="0"
+                Margin="10,0,10,10"
+                VerticalAlignment="Center"
                 FontSize="24"
                 FontWeight="Bold"
-                Grid.Column="0"
-                Grid.Row="1"
                 LetterSpacing="10"
-                Margin="10,0,10,10"
-                Text="{Binding PairingServerViewModel.PairingPin}"
-                VerticalAlignment="Center" />
+                Text="{Binding PairingServerViewModel.PairingPin}" />
 
             <!--  Progress Ring  -->
             <Path
+                Grid.Row="1"
+                Grid.Column="1"
                 Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
                 Fill="{StaticResource SufniAccentColor}"
-                Grid.Column="1"
-                Grid.Row="1"
                 Stroke="{StaticResource SufniAccentColor}"
                 StrokeLineCap="Round" />
         </Grid>

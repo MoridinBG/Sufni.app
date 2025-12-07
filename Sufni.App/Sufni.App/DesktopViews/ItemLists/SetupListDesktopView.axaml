@@ -1,17 +1,17 @@
 ﻿<UserControl
-    Background="{StaticResource SufniRegion}"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.ItemLists.SetupListDesktopView"
-    x:DataType="vml:SetupListViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:c="clr-namespace:Sufni.App.DesktopViews.Controls"
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:SetupListViewModel"
+    Background="{StaticResource SufniRegion}"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vml:SetupListViewModel />
@@ -23,7 +23,7 @@
         <controls:SearchBar Grid.Row="0" Margin="0,20,0,20" />
 
         <!--  List of Setups  -->
-        <ScrollViewer Grid.Row="1" Name="Scroll">
+        <ScrollViewer Name="Scroll" Grid.Row="1">
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
@@ -35,22 +35,22 @@
 
         <!--  Notifications  -->
         <controls:NotificationsBar
-            Grid.Column="0"
             Grid.Row="2"
+            Grid.Column="0"
             Margin="5,0"
             ZIndex="10" />
 
         <!--  Error messages  -->
         <controls:ErrorMessagesBar
-            Grid.Column="0"
             Grid.Row="3"
+            Grid.Column="0"
             Margin="5,0"
             ZIndex="10" />
 
         <!--  Undo last deleted  -->
         <controls:UndoDeleteButton
-            Grid.Column="0"
             Grid.Row="0"
-            Grid.RowSpan="4" />
+            Grid.RowSpan="4"
+            Grid.Column="0" />
     </Grid>
 </UserControl>

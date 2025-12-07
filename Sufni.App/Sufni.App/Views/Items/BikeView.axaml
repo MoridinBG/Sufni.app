@@ -1,22 +1,22 @@
-<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.Views.Items.BikeView"
-    x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:c="using:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="using:Sufni.App.ViewModels.Items"
     xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:vm="using:Sufni.App.ViewModels.Items"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:BikeViewModel"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BikeViewModel />
     </Design.DataContext>
 
-    
+
     <!--  Ensure that the LeverageRatioPlotViews' LeverageRatioData property is set  -->
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
@@ -32,81 +32,81 @@
 
     <!--  Bike image  -->
     <Grid
-        ColumnDefinitions="auto *"
         Margin="20,10,20,10"
+        ColumnDefinitions="auto *"
         RowDefinitions="auto auto auto auto auto auto auto auto * auto auto auto">
 
         <!--  Name  -->
         <c:EditableTitle
-            Grid.ColumnSpan="2"
             Grid.Row="0"
-            HorizontalAlignment="Stretch"
-            Margin="0,0,0,10" />
+            Grid.ColumnSpan="2"
+            Margin="0,0,0,10"
+            HorizontalAlignment="Stretch" />
 
         <!--  Bike image  -->
         <Image
+            Name="BikeImage"
+            Grid.Row="1"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="1"
-            Name="BikeImage"
             Source="{Binding Image}" />
 
         <!--  Head angle  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="2"
+            Grid.Column="0"
             Margin="0,0,0,5"
             Text="Head angle (°)" />
         <TextBlock
-            Grid.Column="1"
             Grid.Row="2"
-            TextAlignment="Right"
+            Grid.Column="1"
             Margin="0,0,0,5"
-            Text="{Binding HeadAngle}" />
+            Text="{Binding HeadAngle}"
+            TextAlignment="Right" />
 
         <!--  Fork stroke  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="3"
+            Grid.Column="0"
             Margin="0,0,0,5"
             Text="Fork stroke (mm)" />
         <TextBlock
-            Grid.Column="1"
             Grid.Row="3"
-            TextAlignment="Right"
+            Grid.Column="1"
             Margin="0,0,0,5"
-            Text="{Binding ForksStroke}" />
+            Text="{Binding ForksStroke}"
+            TextAlignment="Right" />
 
         <!--  Shock stroke  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="4"
+            Grid.Column="0"
             Margin="0,0,10,5"
             Text="Shock stroke (mm)" />
         <TextBlock
-            Grid.Column="1"
             Grid.Row="4"
-            TextAlignment="Right"
+            Grid.Column="1"
             Margin="0,0,0,5"
-            Text="{Binding ShockStroke}" />
+            Text="{Binding ShockStroke}"
+            TextAlignment="Right" />
 
         <!--  Chainstay  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="5"
+            Grid.Column="0"
             Margin="0,0,0,5"
             Text="Chainstay (mm)" />
         <TextBlock
-            Grid.Column="1"
             Grid.Row="5"
-            TextAlignment="Right"
+            Grid.Column="1"
             Margin="0,0,0,5"
-            Text="{Binding Chainstay, StringFormat={}{0:0}}" />
+            Text="{Binding Chainstay, StringFormat={}{0:0}}"
+            TextAlignment="Right" />
 
-        <!-- Leverage ratio plot -->
+        <!--  Leverage ratio plot  -->
         <plots:LeverageRatioPlotView
-            Grid.Column="0"
             Grid.Row="6"
+            Grid.Column="0"
             Height="200"
             HorizontalAlignment="Stretch"
             IsHitTestVisible="False"
@@ -114,28 +114,28 @@
 
         <!--  Error messages for Bike instance  -->
         <c:ErrorMessagesBar
+            Grid.Row="9"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="9"
             Margin="0,5,0,0" />
 
         <!--  Import button  -->
         <Button
-            Content="import from file ..."
-            Command="{Binding ImportCommand}"
+            Grid.Row="10"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="10"
+            MinHeight="39"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Center"
-            MinHeight="39"
-            VerticalContentAlignment="Center" />
+            VerticalContentAlignment="Center"
+            Command="{Binding ImportCommand}"
+            Content="import from file ..." />
 
         <!--  Back, Save, Reset and Delete buttons  -->
         <c:CommonButtonLine
+            Grid.Row="11"
             Grid.Column="0"
-            Grid.ColumnSpan="2"
-            Grid.Row="11" />
+            Grid.ColumnSpan="2" />
 
     </Grid>
 

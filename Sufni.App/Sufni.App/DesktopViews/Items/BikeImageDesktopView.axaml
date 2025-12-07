@@ -1,10 +1,7 @@
-<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
+﻿<UserControl
     x:Class="Sufni.App.DesktopViews.Items.BikeImageDesktopView"
-    x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:paz="using:Avalonia.Controls.PanAndZoom"
@@ -12,7 +9,10 @@
     xmlns:vl="using:Sufni.App.Views.LinkageParts"
     xmlns:vm="using:Sufni.App.ViewModels.Items"
     xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:BikeViewModel"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BikeViewModel />
@@ -24,7 +24,7 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border>
-                        <ItemsPresenter ItemsPanel="{TemplateBinding ItemsPanel}" Name="PART_ItemsPresenter" />
+                        <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
                     </Border>
                 </ControlTemplate>
             </Setter>
@@ -32,11 +32,11 @@
     </UserControl.Styles>
 
     <paz:ZoomBorder
-        Focusable="True"
-        HorizontalAlignment="Stretch"
         Name="ZoomBorder"
-        Stretch="None"
+        HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
+        Focusable="True"
+        Stretch="None"
         ZoomSpeed="1.2">
 
         <Interaction.Behaviors>
@@ -59,11 +59,11 @@
 
                 <!--  Semi-opaque overlay to improve point visibility  -->
                 <Border
-                    Background="White"
                     HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Background="White"
                     IsVisible="{Binding OverlayVisible}"
-                    Opacity="0.7"
-                    VerticalAlignment="Stretch" />
+                    Opacity="0.7" />
 
                 <!--  Links  -->
                 <SelectingItemsControl
@@ -79,11 +79,11 @@
                     <SelectingItemsControl.ItemTemplate>
                         <DataTemplate DataType="vml:LinkViewModel">
                             <Line
-                                EndPoint="{Binding EndPoint}"
                                 Opacity="0.6"
-                                StartPoint="{Binding StartPoint}"
                                 Stroke="{Binding Brush}"
-                                StrokeThickness="10">
+                                StrokeThickness="10"
+                                StartPoint="{Binding StartPoint}"
+                                EndPoint="{Binding EndPoint}">
                                 <Interaction.Behaviors>
                                     <EventTriggerBehavior EventName="Tapped">
                                         <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).LinkTappedCommand}" PassEventArgsToCommand="True" />
@@ -102,7 +102,7 @@
                     ItemsSource="{Binding JointViewModels}"
                     SelectedItem="{Binding SelectedPoint}">
                     <SelectingItemsControl.Styles>
-                        <Style Selector="SelectingItemsControl &gt; ContentPresenter" x:DataType="vml:JointViewModel">
+                        <Style x:DataType="vml:JointViewModel" Selector="SelectingItemsControl &gt; ContentPresenter">
                             <Setter Property="(Canvas.Left)" Value="{Binding X, Mode=TwoWay}" />
                             <Setter Property="(Canvas.Top)" Value="{Binding Y, Mode=TwoWay}" />
                         </Style>

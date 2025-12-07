@@ -1,19 +1,19 @@
 ﻿<UserControl
-    Background="{StaticResource SufniRegion}"
-    d:DesignHeight="600"
-    d:DesignWidth="400"
-    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.Items.BikeImageControlsDesktopView"
-    x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
     xmlns:v="using:Sufni.App.DesktopViews.Items"
     xmlns:vm="using:Sufni.App.ViewModels.Items"
     xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
-    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="600"
+    d:DesignWidth="400"
+    x:DataType="vm:BikeViewModel"
+    Background="{StaticResource SufniRegion}"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BikeViewModel />
@@ -30,31 +30,31 @@
     </UserControl.Styles>
 
     <Grid
-        ColumnDefinitions="auto *"
         Margin="10"
+        ColumnDefinitions="auto *"
         RowDefinitions="auto auto auto auto auto auto auto *  auto * auto auto auto auto auto auto">
 
         <!--  Name  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="0"
+            Grid.Column="0"
             Margin="0,0,10,5"
             Text="Name" />
         <TextBox
-            Grid.Column="1"
             Grid.Row="0"
+            Grid.Column="1"
             Margin="0,0,0,5"
             Text="{Binding Name}" />
 
         <!--  Head angle  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="1"
+            Grid.Column="0"
             Margin="0,0,0,5"
             Text="Head angle (°)" />
         <NumericUpDown
-            Grid.Column="1"
             Grid.Row="1"
+            Grid.Column="1"
             Margin="0,0,0,5"
             Maximum="90"
             Minimum="0"
@@ -62,13 +62,13 @@
 
         <!--  Fork stroke  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="2"
+            Grid.Column="0"
             Margin="0,0,0,5"
             Text="Fork stroke (mm)" />
         <NumericUpDown
-            Grid.Column="1"
             Grid.Row="2"
+            Grid.Column="1"
             Margin="0,0,0,5"
             Maximum="300"
             Minimum="0"
@@ -76,13 +76,13 @@
 
         <!--  Shock stroke  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="3"
+            Grid.Column="0"
             Margin="0,0,10,5"
             Text="Shock stroke (mm)" />
         <NumericUpDown
-            Grid.Column="1"
             Grid.Row="3"
+            Grid.Column="1"
             Margin="0,0,0,5"
             Maximum="1000"
             Minimum="0"
@@ -90,26 +90,26 @@
 
         <!--  Chainstay  -->
         <TextBlock
-            Grid.Column="0"
             Grid.Row="4"
-            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Grid.Column="0"
             Margin="0,0,0,5"
+            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
             Text="Chainstay (mm)" />
         <NumericUpDown
-            Grid.Column="1"
             Grid.Row="4"
-            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Grid.Column="1"
             Margin="0,0,0,5"
+            IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
             Maximum="1000"
             Minimum="0"
             Value="{Binding Chainstay}" />
 
         <Grid
-            ColumnDefinitions="* auto"
+            Grid.Row="5"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="5"
-            Margin="0,0,0,15">
+            Margin="0,0,0,15"
+            ColumnDefinitions="* auto">
             <Grid.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
@@ -119,26 +119,26 @@
 
             <!--  Open bike picture  -->
             <Button
-                Command="{Binding OpenImageCommand}"
-                Content="Open image ..."
-                Grid.Column="0"
                 Grid.Row="0"
+                Grid.Column="0"
+                Margin="0,0,5,0"
                 HorizontalAlignment="Stretch"
-                Margin="0,0,5,0" />
+                Command="{Binding OpenImageCommand}"
+                Content="Open image ..." />
 
             <!--  Overlay  -->
             <CheckBox
-                Content="Draw overlay"
-                Grid.Column="1"
                 Grid.Row="0"
+                Grid.Column="1"
+                Content="Draw overlay"
                 IsChecked="{Binding OverlayVisible}" />
         </Grid>
 
         <!--  List of Points  -->
         <TextBlock
+            Grid.Row="6"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="6"
             Margin="0,0,0,5"
             Text="Points">
             <TextBlock.IsVisible>
@@ -150,16 +150,15 @@
             </TextBlock.IsVisible>
         </TextBlock>
         <ScrollViewer
+            Grid.Row="7"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Margin="2,0,2,6"
-            Grid.Row="7">
+            Margin="2,0,2,6">
 
             <DataGrid
                 BeginningEdit="DataGrid_OnBeginningEdit"
                 BorderBrush="Gray"
                 BorderThickness="1"
-            
                 GridLinesVisibility="All"
                 ItemsSource="{Binding JointViewModels}"
                 SelectedItem="{Binding SelectedPoint}">
@@ -180,22 +179,22 @@
 
                     <!--  Name  -->
                     <DataGridTextColumn
+                        Width="1.5*"
                         Binding="{Binding Name}"
                         Header="Name"
-                        IsReadOnly="False"
-                        Width="1.5*" />
+                        IsReadOnly="False" />
 
                     <!--  Type  -->
                     <DataGridTemplateColumn
+                        Width="1.5*"
                         Header="Type"
-                        IsReadOnly="False"
-                        Width="1.5*">
+                        IsReadOnly="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate DataType="vml:JointViewModel">
                                 <TextBlock
                                     HorizontalAlignment="Center"
-                                    Text="{Binding Type}"
-                                    VerticalAlignment="Center" />
+                                    VerticalAlignment="Center"
+                                    Text="{Binding Type}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                         <DataGridTemplateColumn.CellEditingTemplate>
@@ -211,26 +210,26 @@
 
                     <!--  X  -->
                     <DataGridTextColumn
+                        Width="*"
                         Binding="{Binding X, StringFormat={}{0:0.00}}"
                         Header="X (px)"
-                        IsReadOnly="True"
-                        Width="*" />
+                        IsReadOnly="True" />
 
                     <!--  Y  -->
                     <DataGridTextColumn
+                        Width="*"
                         Binding="{Binding Y, StringFormat={}{0:0.00}}"
                         Header="Y (px)"
-                        IsReadOnly="True"
-                        Width="*" />
+                        IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </ScrollViewer>
 
         <!--  List of Links  -->
         <TextBlock
+            Grid.Row="8"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="8"
             Margin="0,0,0,5"
             Text="Links">
             <TextBlock.IsVisible>
@@ -241,10 +240,10 @@
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
-        <ScrollViewer 
+        <ScrollViewer
+            Grid.Row="9"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="9"
             Margin="2,0,2,5">
 
             <DataGrid
@@ -271,15 +270,15 @@
 
                     <!--  Point A  -->
                     <DataGridTemplateColumn
+                        Width="*"
                         Header="Point A"
-                        IsReadOnly="False"
-                        Width="*">
+                        IsReadOnly="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate DataType="vml:LinkViewModel">
                                 <TextBlock
                                     HorizontalAlignment="Center"
-                                    Text="{Binding A.Name}"
-                                    VerticalAlignment="Center" />
+                                    VerticalAlignment="Center"
+                                    Text="{Binding A.Name}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                         <DataGridTemplateColumn.CellEditingTemplate>
@@ -301,15 +300,15 @@
 
                     <!--  Point B  -->
                     <DataGridTemplateColumn
+                        Width="*"
                         Header="Point B"
-                        IsReadOnly="False"
-                        Width="*">
+                        IsReadOnly="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate DataType="vml:LinkViewModel">
                                 <TextBlock
                                     HorizontalAlignment="Center"
-                                    Text="{Binding B.Name}"
-                                    VerticalAlignment="Center" />
+                                    VerticalAlignment="Center"
+                                    Text="{Binding B.Name}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                         <DataGridTemplateColumn.CellEditingTemplate>
@@ -331,21 +330,21 @@
 
                     <!--  Length  -->
                     <DataGridTextColumn
+                        Width="*"
                         Binding="{Binding Length, StringFormat={}{0:0.00}}"
                         Header="L (mm)"
-                        IsReadOnly="True"
-                        Width="*" />
+                        IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </ScrollViewer>
         <Button
-            Command="{Binding CreateLinkCommand}"
-            Content="Add new link"
+            Grid.Row="10"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="10"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center">
+            HorizontalContentAlignment="Center"
+            Command="{Binding CreateLinkCommand}"
+            Content="Add new link">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
@@ -355,48 +354,48 @@
             </Button.IsVisible>
         </Button>
 
-        <!-- Leverage ratio plot -->
+        <!--  Leverage ratio plot  -->
         <plots:LeverageRatioPlotView
+            Grid.Row="11"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="11"
-            IsHitTestVisible="False"
             Height="250"
             HorizontalAlignment="Stretch"
+            IsHitTestVisible="False"
             LeverageRatioData="{Binding LeverageRatioData}" />
 
         <controls:ErrorMessagesBar
+            Grid.Row="12"
             Grid.Column="0"
-            Grid.ColumnSpan="2"
-            Grid.Row="12" />
+            Grid.ColumnSpan="2" />
 
         <!--  Import  -->
         <Button
-            Command="{Binding ImportCommand}"
-            Content="Import from JSON"
+            Grid.Row="13"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="13"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center" />
+            HorizontalContentAlignment="Center"
+            Command="{Binding ImportCommand}"
+            Content="Import from JSON" />
 
         <!--  Export  -->
         <Button
-            Command="{Binding ExportCommand}"
-            Content="Export as JSON"
+            Grid.Row="14"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="14"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center" />
+            HorizontalContentAlignment="Center"
+            Command="{Binding ExportCommand}"
+            Content="Export as JSON" />
 
         <Button
-            Command="{Binding SaveCommand}"
-            Content="Save"
+            Grid.Row="15"
             Grid.Column="0"
             Grid.ColumnSpan="2"
-            Grid.Row="15"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center" />
+            HorizontalContentAlignment="Center"
+            Command="{Binding SaveCommand}"
+            Content="Save" />
     </Grid>
 </UserControl>
