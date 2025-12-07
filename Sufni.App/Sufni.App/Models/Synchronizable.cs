@@ -32,8 +32,11 @@ public class Synchronizable
 [Table("sync")]
 public class Synchronization
 {
-    [Column("last_sync_time")]
+    [Column("server_url")]
     [PrimaryKey]
+    public string? ServerUrl { get; set; }
+    
+    [Column("last_sync_time")]
     public long LastSyncTime { get; set; }
 }
 

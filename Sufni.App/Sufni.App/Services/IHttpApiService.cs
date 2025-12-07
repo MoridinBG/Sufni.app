@@ -7,6 +7,7 @@ namespace Sufni.App.Services;
 
 internal interface IHttpApiService
 {
+    public string? ServerUrl { get; set; }
     public Task RequestPairingAsync(string url, string deviceId);
     public Task ConfirmPairingAsync(string deviceId, string pin);
     public Task UnpairAsync(string deviceId);

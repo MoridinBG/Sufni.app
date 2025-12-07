@@ -19,13 +19,18 @@ internal class HttpApiService : IHttpApiService
     private const string RefreshTokenKey = "RefreshToken";
     private const string ServerUrlKey = "ServerUrl";
 
+    #region Public fields
+
+    public string? ServerUrl { get; set; }
+
+    #endregion
+
     #region Private fields
 
     private readonly HttpClient client = new(Handler);
 
     private Task Initialization { get; }
     private ISecureStorage? secureStorage;
-    private string? serverUrl;
     private string? refreshToken;
     private DateTimeOffset? tokenExpiry;
 
@@ -68,11 +73,11 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        Debug.Assert(serverUrl is not null);
+        Debug.Assert(ServerUrl is not null);
         Debug.Assert(refreshToken is not null);
         Debug.Assert(secureStorage is not null);
 
-        using var response = await client.PostAsJsonAsync($"{serverUrl}/pair/refresh",
+        using var response = await client.PostAsJsonAsync($"{ServerUrl}/pair/refresh",
             new RefreshRequest(refreshToken));
 
         // Clear out pairing information if we received a 401 - Unauthorized response before throwing an
@@ -102,7 +107,7 @@ internal class HttpApiService : IHttpApiService
         secureStorage = App.Current?.Services?.GetService<ISecureStorage>();
         Debug.Assert(secureStorage is not null);
 
-        serverUrl = await secureStorage.GetStringAsync(ServerUrlKey);
+        ServerUrl = await secureStorage.GetStringAsync(ServerUrlKey);
         refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
     }
 
@@ -121,8 +126,8 @@ internal class HttpApiService : IHttpApiService
             new PairingRequest(deviceId));
         response.EnsureSuccessStatusCode();
 
-        serverUrl = url;
-        await secureStorage.SetStringAsync(ServerUrlKey, serverUrl);
+        ServerUrl = url;
+        await secureStorage.SetStringAsync(ServerUrlKey, ServerUrl);
     }
 
     public async Task ConfirmPairingAsync(string deviceId, string pin)
@@ -132,7 +137,7 @@ internal class HttpApiService : IHttpApiService
         Debug.Assert(secureStorage is not null);
 
         using var response = await client.PostAsJsonAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointPairConfirm}",
+            $"{ServerUrl}{SynchronizationServerService.EndpointPairConfirm}",
             new PairingConfirm(deviceId, pin));
         response.EnsureSuccessStatusCode();
 
@@ -163,7 +168,7 @@ internal class HttpApiService : IHttpApiService
         client.DefaultRequestHeaders.Authorization = null;
 
         var response = await client.PostAsJsonAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointPairUnpair}",
+            $"{ServerUrl}{SynchronizationServerService.EndpointPairUnpair}",
             new UnpairRequest(deviceId, refreshToken));
         response.EnsureSuccessStatusCode();
     }
@@ -180,7 +185,7 @@ internal class HttpApiService : IHttpApiService
 
         try
         {
-            var response = await client.GetAsync($"{serverUrl}{SynchronizationServerService.EndpointPairStatus}");
+            var response = await client.GetAsync($"{ServerUrl}{SynchronizationServerService.EndpointPairStatus}");
             if (response.StatusCode == HttpStatusCode.Unauthorized) return false;
             response.EnsureSuccessStatusCode();
         }
@@ -205,7 +210,7 @@ internal class HttpApiService : IHttpApiService
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
         using var response = await client.GetAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointSyncPull}?since={since}");
+            $"{ServerUrl}{SynchronizationServerService.EndpointSyncPull}?since={since}");
         response.EnsureSuccessStatusCode();
         var entities = await response.Content.ReadFromJsonAsync<SynchronizationData>();
         Debug.Assert(entities != null);
@@ -219,7 +224,7 @@ internal class HttpApiService : IHttpApiService
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
         using var response = await client.PutAsJsonAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointSyncPush}", syncData);
+            $"{ServerUrl}{SynchronizationServerService.EndpointSyncPush}", syncData);
         response.EnsureSuccessStatusCode();
     }
 
@@ -230,7 +235,7 @@ internal class HttpApiService : IHttpApiService
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
         using var response = await client.GetAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointSessionIncomplete}");
+            $"{ServerUrl}{SynchronizationServerService.EndpointSessionIncomplete}");
         response.EnsureSuccessStatusCode();
         var incompleteSessions = await response.Content.ReadFromJsonAsync<List<Guid>>();
         return incompleteSessions ?? [];
@@ -242,7 +247,7 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
         
-        using var response = await client.GetAsync($"{serverUrl}{SynchronizationServerService.EndpointSessionData}{id}");
+        using var response = await client.GetAsync($"{ServerUrl}{SynchronizationServerService.EndpointSessionData}{id}");
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
@@ -258,7 +263,7 @@ internal class HttpApiService : IHttpApiService
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
         using var response = await client.PatchAsync(
-            $"{serverUrl}{SynchronizationServerService.EndpointSessionData}{id}",
+            $"{ServerUrl}{SynchronizationServerService.EndpointSessionData}{id}",
             new ByteArrayContent(data));
         response.EnsureSuccessStatusCode();
     }

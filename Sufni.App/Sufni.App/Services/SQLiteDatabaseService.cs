@@ -35,7 +35,7 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         await connection.EnableWriteAheadLoggingAsync();
-        var result = await connection.CreateTablesAsync(CreateFlags.None,
+        await connection.CreateTablesAsync(CreateFlags.None,
         [
             typeof(Board),
             typeof(Setup),
@@ -46,11 +46,6 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(PairedDevice),
             typeof(Track)
         ]);
-
-        if (result.Results[typeof(Synchronization)] == CreateTableResult.Created)
-        {
-            await connection.QueryAsync<Synchronization>("INSERT INTO sync VALUES (0)");
-        }
 
         await Cleanup();
     }
@@ -327,20 +322,22 @@ public class SqLiteDatabaseService : IDatabaseService
         return track.Id;
     }
 
-    public async Task<long> GetLastSyncTimeAsync()
+    public async Task<long> GetLastSyncTimeAsync(string? serverUrl)
     {
         await Initialization;
 
-        var s = await connection.Table<Synchronization>().FirstOrDefaultAsync();
+        var s = await connection.Table<Synchronization>()
+            .Where(s => s.ServerUrl == serverUrl)
+            .FirstOrDefaultAsync();
         return s?.LastSyncTime ?? 0;
     }
 
-    public async Task UpdateLastSyncTimeAsync()
+    public async Task UpdateLastSyncTimeAsync(string? serverUrl)
     {
         await Initialization;
 
-        await connection.QueryAsync<Synchronization>("UPDATE sync SET last_sync_time = ?",
-            (int)DateTimeOffset.Now.ToUnixTimeSeconds());
+        await connection.QueryAsync<Synchronization>("UPDATE sync SET last_sync_time = ? WHERE server_url = ?", 
+            (int)DateTimeOffset.Now.ToUnixTimeSeconds(), serverUrl);
     }
 
     public async Task<List<PairedDevice>> GetPairedDevicesAsync()

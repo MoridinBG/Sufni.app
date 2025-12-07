@@ -127,15 +127,16 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     public async Task SyncAll()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+        Debug.Assert(databaseService != null);
+        Debug.Assert(httpApiService != null);
 
-        var lastSyncTime = await databaseService.GetLastSyncTimeAsync();
+        var lastSyncTime = await databaseService.GetLastSyncTimeAsync(httpApiService.ServerUrl);
 
         await PushLocalChanges(lastSyncTime);
         await PullRemoteChanges(lastSyncTime);
         await PushIncompleteSessions();
         await PullIncompleteSessions();
 
-        await databaseService.UpdateLastSyncTimeAsync();
+        await databaseService.UpdateLastSyncTimeAsync(httpApiService.ServerUrl);
     }
 }

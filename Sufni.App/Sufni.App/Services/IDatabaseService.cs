@@ -25,8 +25,8 @@ public interface IDatabaseService
     public Task<SessionCache?> GetSessionCacheAsync(Guid sessionId);
     public Task<Guid> PutSessionCacheAsync(SessionCache sessionCache);
     public Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId);
-    public Task<long> GetLastSyncTimeAsync();
-    public Task UpdateLastSyncTimeAsync();
+    public Task<long> GetLastSyncTimeAsync(string? serverUrl);
+    public Task UpdateLastSyncTimeAsync(string? serverUrl);
     public Task<List<PairedDevice>> GetPairedDevicesAsync();
     public Task<PairedDevice?> GetPairedDeviceAsync(string token);
     public Task PutPairedDeviceAsync(PairedDevice token);
