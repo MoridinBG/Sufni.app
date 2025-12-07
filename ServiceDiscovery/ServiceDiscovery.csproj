@@ -6,23 +6,23 @@
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     </PropertyGroup>
 
-    <!-- Do not target net9.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
+    <!-- Do not target net10.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
     <PropertyGroup Condition="'!$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-        <TargetFrameworks>net9.0-ios;net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0-ios;net10.0</TargetFrameworks>
     </PropertyGroup>
     <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
     </PropertyGroup>
 
     <ItemGroup>
         <Compile Include="ServiceDiscovery.common.cs" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-ios'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
         <Compile Include="ServiceDiscovery.bonjour.cs" />
     </ItemGroup>
     
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
         <Compile Include="ServiceDiscovery.socket.cs" />
     </ItemGroup>
     

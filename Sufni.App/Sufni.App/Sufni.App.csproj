@@ -5,12 +5,12 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
-  <!-- Do not target net9.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
+  <!-- Do not target net10.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
   <PropertyGroup Condition="'!$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-    <TargetFrameworks>net9.0-windows;net9.0-android;net9.0-ios;net9.0-macos;net9.0</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows;net10.0-android;net10.0-ios;net10.0-macos;net10.0</TargetFrameworks>
   </PropertyGroup>
   <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-    <TargetFrameworks>net9.0-windows;net9.0-android;net9.0</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows;net10.0-android;net10.0</TargetFrameworks>
   </PropertyGroup>
   
   <ItemGroup>
@@ -47,7 +47,7 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-android' And '$(TargetFramework)' != 'net9.0-ios'">
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-android' And '$(TargetFramework)' != 'net10.0-ios'">
     <PackageReference Include="Microsoft.AspNetCore" Version="2.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.8" />
@@ -58,7 +58,7 @@
     <Compile Remove="Services\SynchronizationServerService.mobile.cs" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-android' Or '$(TargetFramework)' == 'net9.0-ios'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android' Or '$(TargetFramework)' == 'net10.0-ios'">
     <Compile Remove="Services\SynchronizationServerService.cs" />
   </ItemGroup>
 

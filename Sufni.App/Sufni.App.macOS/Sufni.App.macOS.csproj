@@ -3,8 +3,8 @@
     <ApplicationId>com.sghctoma.Sufni.App</ApplicationId>
     <OutputType>Exe</OutputType>
     <!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
-    One for Windows with net9.0-windows TFM, one for MacOS with net9.0-macos and one with net9.0 TFM for Linux.-->
-    <TargetFramework>net9.0-macos</TargetFramework>
+    One for Windows with net10.0-windows TFM, one for MacOS with net10.0-macos and one with net10.0 TFM for Linux.-->
+    <TargetFramework>net10.0-macos</TargetFramework>
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <Configurations>Debug;Release</Configurations>

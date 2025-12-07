@@ -6,38 +6,38 @@
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     </PropertyGroup>
     
-    <!-- Do not target net9.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
+    <!-- Do not target net10.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
     <PropertyGroup Condition="'!$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-        <TargetFrameworks>net9.0-windows;net9.0-android;net9.0-ios;net9.0-macos;net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0-windows;net10.0-android;net10.0-ios;net10.0-macos;net10.0</TargetFrameworks>
     </PropertyGroup>
     <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-        <TargetFrameworks>net9.0-windows;net9.0-android;net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0-windows;net10.0-android;net10.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
         <Compile Include="SecureStorage.common.cs" />
     </ItemGroup>
     
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
         <Compile Include="SecureStorage.win.cs" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.8" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-android'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
         <Compile Include="SecureStorage.android.cs" />
         <PackageReference Include="Xamarin.AndroidX.Security.SecurityCrypto" Version="1.1.0.4-alpha07" />
         <PackageReference Include="Xamarin.Google.Crypto.Tink.Android" Version="1.19.0" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-ios'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
         <Compile Include="SecureStorage.ios.cs" />
     </ItemGroup>
     
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-macos'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-macos'">
         <Compile Include="SecureStorage.ios.cs" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
         <PackageReference Include="Ace4896.DBus.Services.Secrets" Version="1.4.0" />
         <Compile Include="SecureStorage.linux.cs" />
     </ItemGroup>
