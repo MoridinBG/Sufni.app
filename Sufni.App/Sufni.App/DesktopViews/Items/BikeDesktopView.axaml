@@ -1,19 +1,26 @@
 ﻿<UserControl
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.Items.BikeDesktopView"
-    x:DataType="vm:BikeViewModel"
     xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="using:Sufni.App.DesktopViews.Items"
     xmlns:vm="using:Sufni.App.ViewModels.Items"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:BikeViewModel"
+    mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BikeViewModel />
     </Design.DataContext>
+
+    <!--  Ensure that the LeverageRatioPlotViews' LeverageRatioData property is set  -->
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
 
     <SplitView
         DisplayMode="Inline"
@@ -27,6 +34,7 @@
 
         <!--  Bike image / linkage  -->
         <v:BikeImageDesktopView />
+
     </SplitView>
 
 </UserControl>

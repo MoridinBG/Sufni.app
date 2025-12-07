@@ -73,6 +73,8 @@ public partial class BikeViewModel : ItemViewModelBase
     [ObservableProperty] private LinkViewModel? selectedLink;
     [ObservableProperty] private bool overlayVisible;
 
+    [ObservableProperty] private CoordinateList? leverageRatioData;
+
     #endregion Observable properties
 
     #region Property change handlers
@@ -277,7 +279,9 @@ public partial class BikeViewModel : ItemViewModelBase
         try
         {
             var solver = new KinematicSolver(bike.Linkage!);
-            solver.SolveSuspensionMotion();
+            var solution = solver.SolveSuspensionMotion();
+            var characteristics = new BikeCharacteristics(solution);
+            LeverageRatioData = characteristics.LeverageRatioData;
             return true;
         }
         catch (Exception)
@@ -584,6 +588,12 @@ public partial class BikeViewModel : ItemViewModelBase
         await using var stream = await file.OpenWriteAsync();
         await using var writer = new StreamWriter(stream, Encoding.UTF8);
         await writer.WriteAsync(bikeJson);
+    }
+
+    [RelayCommand]
+    private void Loaded()
+    {
+        CheckLinkage();
     }
 
     #endregion Commands

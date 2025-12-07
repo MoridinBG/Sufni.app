@@ -1,10 +1,9 @@
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using ScottPlot;
 using ScottPlot.Avalonia;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
 {

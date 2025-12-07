@@ -1,5 +1,6 @@
 using Avalonia;
 using Sufni.App.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 
 namespace Sufni.App.DesktopViews.Plots;

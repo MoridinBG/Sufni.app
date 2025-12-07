@@ -81,7 +81,7 @@
     <Application.Styles>
         <FluentTheme />
         <labs:ControlThemes />
-        <StyleInclude Source="/DesktopViews/Plots/SufniPlotView.axaml" />
+        <StyleInclude Source="/Views/Plots/SufniPlotView.axaml" />
         <StyleInclude Source="/Views/Plots/VelocityBandView.axaml" />
         <StyleInclude Source="/Views/MapView.axaml" />
         <StyleInclude Source="avares://AvaloniaProgressRing/Styles/ProgressRing.xaml" />

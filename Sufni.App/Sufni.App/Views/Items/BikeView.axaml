@@ -9,12 +9,20 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="using:Sufni.App.ViewModels.Items"
-    xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
+    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <vm:BikeViewModel />
     </Design.DataContext>
+
+    
+    <!--  Ensure that the LeverageRatioPlotViews' LeverageRatioData property is set  -->
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
 
     <UserControl.Styles>
         <Style Selector="TextBlock">
@@ -94,6 +102,15 @@
             TextAlignment="Right"
             Margin="0,0,0,5"
             Text="{Binding Chainstay, StringFormat={}{0:0}}" />
+
+        <!-- Leverage ratio plot -->
+        <plots:LeverageRatioPlotView
+            Grid.Column="0"
+            Grid.Row="6"
+            Height="200"
+            HorizontalAlignment="Stretch"
+            IsHitTestVisible="False"
+            LeverageRatioData="{Binding LeverageRatioData}" />
 
         <!--  Error messages for Bike instance  -->
         <c:ErrorMessagesBar
