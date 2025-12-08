@@ -185,9 +185,11 @@ internal class HttpApiService : IHttpApiService
 
         try
         {
-            var response = await client.GetAsync($"{ServerUrl}{SynchronizationServerService.EndpointPairStatus}");
-            if (response.StatusCode == HttpStatusCode.Unauthorized) return false;
-            response.EnsureSuccessStatusCode();
+            await RefreshTokensAsync();
+        }
+        catch (HttpRequestException e)
+        {
+            if (e.StatusCode == HttpStatusCode.Unauthorized) return false;
         }
         catch (Exception)
         {

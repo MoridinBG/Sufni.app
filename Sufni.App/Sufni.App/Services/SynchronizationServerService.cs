@@ -33,7 +33,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     public const string EndpointPairConfirm = "/pair/confirm";
     public const string EndpointPairRefresh = "/pair/refresh";
     public const string EndpointPairUnpair = "/pair/unpair";
-    public const string EndpointPairStatus = "/pair/status";
     public const string EndpointSyncPush = "/sync/push";
     public const string EndpointSyncPull = "/sync/pull";
     public const string EndpointSessionIncomplete = "/session/incomplete";
@@ -256,8 +255,6 @@ public class SynchronizationServerService : ISynchronizationServerService
             
             return Results.Ok();
         });
-
-        app.MapGet(EndpointPairStatus, [Authorize] (ClaimsPrincipal user) => Results.Ok());
 
         app.MapGet(EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
         {
