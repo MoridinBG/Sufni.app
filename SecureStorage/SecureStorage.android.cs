@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Android.Content;
+using Android.Runtime;
 using Android.Security.Keystore;
 using Java.Security;
 using Javax.Crypto;
@@ -49,7 +50,8 @@ public class SecureStorage : ISecureStorage
         var keyStore = KeyStore.GetInstance("AndroidKeyStore");
 
         keyStore?.Load(null);
-        return (ISecretKey?)keyStore?.GetKey(KeyAlias, null);
+        var key = keyStore?.GetKey(KeyAlias, null);
+        return key.JavaCast<ISecretKey>();
     }
 
     private static (byte[]? iv, byte[]? ciphertext) Encrypt(byte[] plain)
