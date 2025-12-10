@@ -16,11 +16,13 @@ public partial class TabPageViewModelBase : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private bool isDirty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private string? name;
 
     #endregion Observable properties
@@ -30,6 +32,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     protected virtual void EvaluateDirtiness() { IsDirty = false; }
     protected virtual Task SaveImplementation() { return Task.CompletedTask; }
     protected virtual Task ResetImplementation() { return Task.CompletedTask; }
+    protected virtual Task ExportImplementation() { return Task.CompletedTask; }
 
     protected virtual bool CanSave()
     {
@@ -41,6 +44,12 @@ public partial class TabPageViewModelBase : ViewModelBase
     {
         EvaluateDirtiness();
         return IsDirty;
+    }
+
+    protected virtual bool CanExport()
+    {
+        EvaluateDirtiness();
+        return !IsDirty;
     }
 
     #endregion Virtual methods
@@ -59,6 +68,12 @@ public partial class TabPageViewModelBase : ViewModelBase
     {
         await ResetImplementation();
         IsDirty = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task Export()
+    {
+        await ExportImplementation();
     }
 
     [RelayCommand]

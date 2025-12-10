@@ -276,13 +276,6 @@ public partial class BikeViewModel : ItemViewModelBase
         }
     }
 
-    private bool CanExport()
-    {
-        return HeadAngle is not null &&
-               ForksStroke is not null &&
-               (ShockStroke is null || (Image is not null && Chainstay is not null));
-    }
-
     private bool DidJointsChanged()
     {
         if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
@@ -406,6 +399,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
             SaveCommand.NotifyCanExecuteChanged();
             ResetCommand.NotifyCanExecuteChanged();
+            ExportCommand.NotifyCanExecuteChanged();
 
             if (!IsInDatabase)
             {
@@ -432,6 +426,20 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         UpdateFromBike();
         return Task.CompletedTask;
+    }
+
+    protected override async Task ExportImplementation()
+    {
+        var filesService = App.Current?.Services?.GetService<IFilesService>();
+        Debug.Assert(filesService != null);
+
+        var file = await filesService.SaveBikeFileAsync();
+        if (file is null) return;
+        
+        var bikeJson = bike.ToJson();
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new StreamWriter(stream, Encoding.UTF8);
+        await writer.WriteAsync(bikeJson);
     }
 
     #endregion TabPageViewModelBase overrides
@@ -556,28 +564,6 @@ public partial class BikeViewModel : ItemViewModelBase
         
         bike = bikeFromJson;
         UpdateFromBike();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task Export()
-    {
-        if (!CheckLinkage())
-        {
-            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-            return;
-        }
-
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null);
-
-        var file = await filesService.SaveBikeFileAsync();
-        if (file is null) return;
-        
-        var bikeToExport = ToBike();
-        var bikeJson = bikeToExport.ToJson();
-        await using var stream = await file.OpenWriteAsync();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        await writer.WriteAsync(bikeJson);
     }
 
     [RelayCommand]
