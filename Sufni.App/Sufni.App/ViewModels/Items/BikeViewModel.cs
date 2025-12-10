@@ -260,7 +260,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
     private bool CheckLinkage()
     {
-        if (ShockStroke is null) return true;
+        if (bike.Linkage is null || ShockStroke is null) return true;
 
         try
         {
@@ -392,15 +392,15 @@ public partial class BikeViewModel : ItemViewModelBase
         var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
         Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
-        if (!CheckLinkage())
-        {
-            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-            return;
-        }
-
         try
         {
             var newBike = ToBike();
+            if (!CheckLinkage())
+            {
+                ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+                return;
+            }
+
             Id = await databaseService.PutAsync(newBike);
             bike = newBike;
 
