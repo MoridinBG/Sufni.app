@@ -4,11 +4,39 @@ using System.Text;
 
 namespace Sufni.Kinematics;
 
-public readonly struct CoordinateList(List<double> x, List<double> y)
+public readonly struct CoordinateList(List<double> x, List<double> y) : IEquatable<CoordinateList>
 {
     public List<double> X { get; } = x;
     public List<double> Y { get; } = y;
     public int Count => X.Count;
+
+    #region Equality overrides / operators
+    
+    public bool Equals(CoordinateList other)
+    {
+        return X.Equals(other.X) && Y.Equals(other.Y);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is CoordinateList other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(X, Y);
+    }
+    public static bool operator ==(CoordinateList left, CoordinateList right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(CoordinateList left, CoordinateList right)
+    {
+        return !(left == right);
+    }
+
+    #endregion Equality overrides / operators
 }
 
 public class KinematicSolver
