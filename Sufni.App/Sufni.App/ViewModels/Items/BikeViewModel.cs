@@ -155,7 +155,8 @@ public partial class BikeViewModel : ItemViewModelBase
         var newBike = new Bike(Id, Name ?? $"bike {Id}")
         {
             HeadAngle = HeadAngle.Value,
-            ForkStroke = ForksStroke
+            ForkStroke = ForksStroke,
+            Chainstay = Chainstay
         };
 
         // If we don't have a rear suspension, we can return here

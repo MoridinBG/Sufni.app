@@ -101,6 +101,7 @@ public class Bike : Synchronizable
             chainstay ??= CalculateChainstay();
             return chainstay;
         }
+        init => chainstay = value;
     }
 
     // Just to satisfy sql-net-pcl's parameterless constructor requirement
