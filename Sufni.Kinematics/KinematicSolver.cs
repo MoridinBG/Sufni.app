@@ -11,9 +11,22 @@ public readonly struct CoordinateList(List<double> x, List<double> y)
     public int Count => X.Count;
 }
 
-public class KinematicSolver(Linkage linkage, int steps = 200, int iterations = 1000)
+public class KinematicSolver
 {
-    private readonly double shockMaxLength = linkage.Shock.Length;
+    private readonly double shockMaxLength;
+    private readonly Linkage linkage;
+    private readonly int steps;
+    private readonly int iterations;
+
+    public KinematicSolver(Linkage linkage, int steps = 200, int iterations = 1000)
+    {
+        var linkageJson = linkage.ToJson();
+        this.linkage = Linkage.FromJson(linkageJson);
+        
+        this.steps = steps;
+        this.iterations = iterations;
+        shockMaxLength = linkage.Shock.Length;
+    }
 
     #region Public methods
 
