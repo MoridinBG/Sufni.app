@@ -174,25 +174,8 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         var mapping = new JointNameMapping();
         JointViewModels.Add(new JointViewModel(mapping.FrontWheel, JointType.FrontWheel, 100, 150));
-
-        var bottomBracket = new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200);
-        var rearWheel = new JointViewModel(mapping.RearWheel, JointType.RearWheel, 100, 100);
-        bottomBracket.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(JointViewModel.X) or nameof(JointViewModel.Y))
-            {
-                UpdatePixelsToMillimeters(bottomBracket, rearWheel);
-            }
-        };
-        rearWheel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(JointViewModel.X) or nameof(JointViewModel.Y))
-            {
-                UpdatePixelsToMillimeters(bottomBracket, rearWheel);
-            }
-        };
-        JointViewModels.Add(bottomBracket);
-        JointViewModels.Add(rearWheel);
+        JointViewModels.Add(new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200)); 
+        JointViewModels.Add(new JointViewModel(mapping.RearWheel, JointType.RearWheel, 100, 100));
 
         var shockEye1 = new JointViewModel(mapping.ShockEye1, JointType.Floating, 100, 250);
         var shockEye2 = new JointViewModel(mapping.ShockEye2, JointType.Floating, 100, 300);
@@ -202,10 +185,12 @@ public partial class BikeViewModel : ItemViewModelBase
         LinkViewModels.Add(shockViewModel);
     }
 
-    private void UpdatePixelsToMillimeters(JointViewModel? bottomBracket = null, JointViewModel? rearWheel = null)
+    private void UpdatePixelsToMillimeters()
     {
-        var bb = bottomBracket ?? JointViewModels.First(p => p.Type == JointType.BottomBracket);
-        var rw = rearWheel ?? JointViewModels.First(p => p.Type == JointType.RearWheel);
+        var bb = JointViewModels.FirstOrDefault(p => p.Type == JointType.BottomBracket);
+        var rw = JointViewModels.FirstOrDefault(p => p.Type == JointType.RearWheel);
+        if (bb is null || rw is null) return;
+
         var distance = Math.Sqrt(Math.Pow(rw.X - bb.X, 2) + Math.Pow(rw.Y - bb.Y, 2));
         PixelsToMillimeters = Chainstay / distance;
     }
@@ -338,6 +323,10 @@ public partial class BikeViewModel : ItemViewModelBase
                             break;
                         case nameof(jvm.Name) or nameof(jvm.Type):
                             EvaluateDirtiness();
+                            break;
+                        case nameof(jvm.X) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
+                        case nameof(jvm.Y) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
+                            UpdatePixelsToMillimeters();
                             break;
                     }
                 };
