@@ -22,11 +22,11 @@
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.9" />
     <PackageReference Include="Avalonia.Controls.ItemsRepeater" Version="11.1.5" />
     <PackageReference Include="Avalonia.Labs.Controls" Version="11.3.1" />
-    <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.6.2" />
+    <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.6.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.9" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
-    <PackageReference Include="Mapsui.Avalonia" Version="5.0.2" />
+    <PackageReference Include="Mapsui.Avalonia" Version="5.0.0-beta.21" />
     <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
     <PackageReference Include="Avalonia.Controls.PanAndZoom" Version="11.3.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
