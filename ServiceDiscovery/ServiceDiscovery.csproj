@@ -27,6 +27,6 @@
     </ItemGroup>
     
     <ItemGroup>
-      <PackageReference Include="Tmds.MDns" Version="0.8.0" />
+      <PackageReference Include="Tmds.MDns" />
     </ItemGroup>
 </Project>

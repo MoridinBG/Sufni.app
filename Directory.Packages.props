@@ -1,0 +1,44 @@
+<Project>
+  <!--  https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Ace4896.DBus.Services.Secrets" Version="1.4.0" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.1" />
+    <PackageVersion Include="Tmds.MDns" Version="0.8.0" />
+    <PackageVersion Include="Avalonia" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Android" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Controls.ItemsRepeater" Version="11.1.5" />
+    <PackageVersion Include="Avalonia.Controls.PanAndZoom" Version="11.3.0" />
+    <PackageVersion Include="Avalonia.Desktop" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Labs.Controls" Version="11.3.1" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.iOS" Version="11.2.5" />
+    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageVersion Include="CsvHelper" Version="33.1.0" />
+    <PackageVersion Include="Deadpikle.AvaloniaProgressRing" Version="0.10.10" />
+    <PackageVersion Include="DynamicData" Version="9.4.1" />
+    <PackageVersion Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
+    <PackageVersion Include="Mapsui.Avalonia" Version="5.0.0-beta.21" />
+    <PackageVersion Include="MathNet.Numerics" Version="6.0.0-beta2" />
+    <PackageVersion Include="MessagePack" Version="3.1.4" />
+    <PackageVersion Include="Microsoft.AspNetCore" Version="2.3.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication" Version="2.3.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
+    <PackageVersion Include="QuikGraph" Version="2.5.0" />
+    <PackageVersion Include="ScottPlot" Version="5.1.57" />
+    <PackageVersion Include="ScottPlot.Avalonia" Version="5.1.57" />
+    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="11.3.6" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+    <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0" />
+    <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
+    <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
+  </ItemGroup>
+</Project>
