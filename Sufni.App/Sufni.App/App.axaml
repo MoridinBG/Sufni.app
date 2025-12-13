@@ -20,6 +20,7 @@
         <Color x:Key="SufniForegroundDisabled">#606060</Color>
         <Color x:Key="SufniBackgroundDisabled">#25292c</Color>
         <Color x:Key="SufniBackgroundPointerOver">#2c3032</Color>
+        <Color x:Key="SufniItemBackgroundPointerOver">#1f2327</Color>
         <Color x:Key="SufniBorderBrush">#505050</Color>
         <Color x:Key="SufniDangerColor">#bf312d</Color>
         <Color x:Key="SufniDangerColorDark">#9f110d</Color>
@@ -133,10 +134,10 @@
             <Setter Property="RenderTransform" Value="{x:Null}" />
         </Style>
         <Style Selector="Button.item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#1f2327" />
+            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
         </Style>
         <Style Selector="Button.item:pressed /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#1f2327" />
+            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
         </Style>
 
         <!--  Global styles for NumericUpDown  -->

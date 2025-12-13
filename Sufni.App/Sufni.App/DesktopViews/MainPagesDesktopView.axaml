@@ -26,12 +26,14 @@
         </Style>
         <Style Selector="TabItem">
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="2 0 2 0" />
             <Setter Property="MinHeight" Value="46" />
             <Setter Property="Height" Value="46" />
         </Style>
         <Style Selector="TabItem:selected">
             <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+        </Style>
+        <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
         </Style>
         <Style Selector="TabItem:pointerover:selected /template/ Border#PART_LayoutRoot">
             <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />

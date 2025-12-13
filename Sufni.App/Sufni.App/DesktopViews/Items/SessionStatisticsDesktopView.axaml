@@ -28,15 +28,15 @@
             <TabStrip.Items>
                 <TabItem
                     HorizontalAlignment="Center"
-                    FontSize="20"
+                    FontSize="16"
                     Header="Spring rate" />
                 <TabItem
                     HorizontalAlignment="Center"
-                    FontSize="20"
+                    FontSize="16"
                     Header="Damping" />
                 <TabItem
                     HorizontalAlignment="Center"
-                    FontSize="20"
+                    FontSize="16"
                     Header="Balance" />
             </TabStrip.Items>
         </TabStrip>

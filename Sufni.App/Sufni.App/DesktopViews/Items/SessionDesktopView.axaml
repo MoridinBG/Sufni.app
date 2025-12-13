@@ -38,8 +38,15 @@
         <Style Selector="TabStripItem:selected">
             <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
         </Style>
+        <Style Selector="TabItem /template/ ContentPresenter">
+            <!-- Adjust text vertical position by selected pipe height -->
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
         <Style Selector="TabItem:pointerover /template/ ContentPresenter">
             <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+        <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
         </Style>
         <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
             <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />

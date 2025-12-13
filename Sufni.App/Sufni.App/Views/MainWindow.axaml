@@ -49,6 +49,25 @@
                 Padding="0"
                 ItemsSource="{Binding Tabs}"
                 SelectedItem="{Binding CurrentView}">
+
+                <TabStrip.Styles>
+                    <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
+                        <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
+                    </Style>
+                    <Style Selector="TabStripItem:selected /template/ Border#PART_LayoutRoot">
+                        <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+                    </Style>
+                    <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+                        <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+                    </Style>
+                    <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
+                        <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+                        <Setter Property="Height" Value="2" />
+                        <!-- Adjust for padding in Border#PART_LayoutRoot -->
+                        <Setter Property="Margin" Value="-12,0,-12,0" />
+                    </Style>
+                </TabStrip.Styles>
+
                 <TabStrip.ItemTemplate>
                     <DataTemplate>
                         <Grid
