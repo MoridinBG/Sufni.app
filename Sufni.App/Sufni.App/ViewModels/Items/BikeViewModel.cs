@@ -256,15 +256,15 @@ public partial class BikeViewModel : ItemViewModelBase
         Name = bike.Name;
         HeadAngle = bike.HeadAngle;
         ForksStroke = bike.ForkStroke;
+
+        CheckLinkage(bike.Linkage!);
     }
 
-    private bool CheckLinkage()
+    private bool CheckLinkage(Linkage linkage)
     {
-        if (bike.Linkage is null || ShockStroke is null) return true;
-
         try
         {
-            var solver = new KinematicSolver(bike.Linkage!);
+            var solver = new KinematicSolver(linkage);
             var solution = solver.SolveSuspensionMotion();
             var characteristics = new BikeCharacteristics(solution);
             LeverageRatioData = characteristics.LeverageRatioData;
@@ -388,7 +388,7 @@ public partial class BikeViewModel : ItemViewModelBase
         try
         {
             var newBike = ToBike();
-            if (!CheckLinkage())
+            if (!CheckLinkage(newBike.Linkage!))
             {
                 ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
                 return;
@@ -569,7 +569,7 @@ public partial class BikeViewModel : ItemViewModelBase
     [RelayCommand]
     private void Loaded()
     {
-        CheckLinkage();
+        CheckLinkage(bike.Linkage!);
     }
 
     #endregion Commands
