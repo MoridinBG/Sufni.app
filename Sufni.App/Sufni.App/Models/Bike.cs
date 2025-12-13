@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Avalonia.Media.Imaging;
 using SQLite;
 using Sufni.Kinematics;
@@ -14,6 +16,38 @@ public class Bike : Synchronizable
 {
     private double? chainstay;
     private Linkage? linkage;
+
+    private static HashSet<string> excludedFromExport =
+    [
+        "id",
+        "client_updated",
+        "updated",
+        "deleted"
+    ];
+
+    public static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) },
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver
+        {
+            Modifiers =
+            {
+                typeInfo =>
+                {
+                    if (typeInfo.Type != typeof(Bike)) return;
+                    foreach (var prop in typeInfo.Properties)
+                    {
+                        if (excludedFromExport.Contains(prop.Name))
+                        {
+                            prop.ShouldSerialize = (_, _) => false;
+                        }
+                    }
+                }
+            }
+        }
+    };
 
     [JsonPropertyName("name")]
     [Column("name")]
@@ -116,12 +150,12 @@ public class Bike : Synchronizable
 
     public string ToJson()
     {
-        return JsonSerializer.Serialize(this, Linkage.SerializerOptions);
+        return JsonSerializer.Serialize(this, SerializerOptions);
     }
 
     public static Bike? FromJson(string json)
     {
-        var bike = JsonSerializer.Deserialize<Bike>(json, Linkage.SerializerOptions);
+        var bike = JsonSerializer.Deserialize<Bike>(json, SerializerOptions);
         bike?.Linkage?.ResolveJoints();
         return bike;
     }
