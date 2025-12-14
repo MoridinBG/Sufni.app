@@ -1,29 +1,51 @@
 ﻿<UserControl
+    Background="{StaticResource SufniRegion}"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    mc:Ignorable="d"
     x:Class="Sufni.App.DesktopViews.ItemLists.SetupListDesktopView"
+    x:DataType="vml:SetupListViewModel"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:c="clr-namespace:Sufni.App.DesktopViews.Controls"
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    x:DataType="vml:SetupListViewModel"
-    Background="{StaticResource SufniRegion}"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <vml:SetupListViewModel />
     </Design.DataContext>
 
-    <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+    <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
 
         <!--  Search bar  -->
-        <controls:SearchBar Grid.Row="0" Margin="0,20,0,20" />
+        <controls:SearchBar
+            Grid.Column="0"
+            Grid.Row="0"
+            Margin="0,20,0,20" />
+
+        <!--  Add button  -->
+        <Button
+            Classes="embedded"
+            Command="{Binding AddCommand}"
+            Grid.Column="1"
+            Grid.Row="0"
+            Margin="10,25,10,0"
+            VerticalAlignment="Top"
+            Width="20">
+            <Image
+                Margin="0,0,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}"
+                Width="18" />
+        </Button>
 
         <!--  List of Setups  -->
-        <ScrollViewer Name="Scroll" Grid.Row="1">
+        <ScrollViewer
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="1"
+            Name="Scroll">
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
@@ -35,22 +57,25 @@
 
         <!--  Notifications  -->
         <controls:NotificationsBar
-            Grid.Row="2"
             Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="2"
             Margin="5,0"
             ZIndex="10" />
 
         <!--  Error messages  -->
         <controls:ErrorMessagesBar
-            Grid.Row="3"
             Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Grid.Row="3"
             Margin="5,0"
             ZIndex="10" />
 
         <!--  Undo last deleted  -->
         <controls:UndoDeleteButton
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
             Grid.Row="0"
-            Grid.RowSpan="4"
-            Grid.Column="0" />
+            Grid.RowSpan="4" />
     </Grid>
 </UserControl>

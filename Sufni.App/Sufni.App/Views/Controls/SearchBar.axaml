@@ -18,7 +18,7 @@
     </Design.DataContext>
 
     <Grid
-        Margin="20,0,20,20"
+        Margin="20,0,0,20"
         ColumnDefinitions="*"
         RowDefinitions="39">
 
