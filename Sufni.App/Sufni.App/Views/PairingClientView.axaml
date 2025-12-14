@@ -95,19 +95,10 @@
         </Button>
 
         <!--  PIN code input  -->
-        <TextBox
+        <v:PinInput
             IsVisible="{Binding IsRequestSent}"
-            Text="{Binding Pin}"
-            Watermark="PIN" />
-
-        <!--  Confirm pairing button  -->
-        <Button
-            Margin="2"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            Command="{Binding ConfirmPairingCommand}"
-            Content="confirm"
-            IsVisible="{Binding IsRequestSent}" />
+            Pin="{Binding Pin}"
+            PinCompletedCommand="{Binding ConfirmPairingCommand}" />
 
         <!--  Unpair button  -->
         <Button

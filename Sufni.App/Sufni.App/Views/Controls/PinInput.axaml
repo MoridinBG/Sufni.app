@@ -1,0 +1,37 @@
+<UserControl
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d"
+    x:Class="Sufni.App.Views.Controls.PinInput"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Styles>
+        <Style Selector="TextBox">
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="MinWidth" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="MaxLength" Value="1" />
+
+            <!--  PIN does not work on Android  -->
+            <Setter Property="TextInputOptions.ContentType" Value="Number" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Orientation="Horizontal" Spacing="5">
+        <TextBox Name="Digit0" />
+        <TextBox Name="Digit1" />
+        <TextBox Name="Digit2" />
+        <TextBox Name="Digit3" />
+        <TextBox Name="Digit4" />
+        <TextBox Name="Digit5" />
+    </StackPanel>
+</UserControl>
