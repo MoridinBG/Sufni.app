@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Sufni.App.ViewModels;
 
@@ -56,22 +57,37 @@ public class BoolToColorConverter : IValueConverter
     }
 }
 
+public static class TabStripMiddleClickHandler
+{
+    public static void Register()
+    {
+        InputElement.PointerPressedEvent.AddClassHandler(
+            typeof(TabStripItem),
+            OnPointerPressed,
+            RoutingStrategies.Tunnel);
+    }
+
+    private static void OnPointerPressed(object? sender, RoutedEventArgs e)
+    {
+        var header = sender as Control;
+        Debug.Assert(header is not null);
+
+        var args = e as PointerPressedEventArgs;
+        Debug.Assert(args is not null);
+
+        var point = args.GetCurrentPoint(header);
+        if (!point.Properties.IsMiddleButtonPressed) return;
+
+        var vm = header.DataContext as TabPageViewModelBase;
+        vm?.CloseCommand.Execute(null);
+    }
+}
+
 public partial class MainWindow : Window
 {
     public MainWindow()
     {
         InitializeComponent();
-    }
-
-    private void TabHeader_PointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        var header = sender as Control;
-        Debug.Assert(header is not null);
-
-        var point = e.GetCurrentPoint(header);
-        if (!point.Properties.IsMiddleButtonPressed) return;
-
-        var vm = header.DataContext as TabPageViewModelBase;
-        vm?.CloseCommand.Execute(null);
+        TabStripMiddleClickHandler.Register();
     }
 }

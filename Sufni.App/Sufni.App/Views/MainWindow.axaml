@@ -72,8 +72,7 @@
                     <DataTemplate>
                         <Grid
                             Margin="10,0,0,0"
-                            ColumnDefinitions="* auto"
-                            PointerPressed="TabHeader_PointerPressed">
+                            ColumnDefinitions="* auto">
                             <TextBlock
                                 Grid.Column="0"
                                 HorizontalAlignment="Center"
