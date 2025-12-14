@@ -122,6 +122,11 @@
             HorizontalContentAlignment="Center"
             Command="{Binding OpenPreviousPageCommand}"
             Content="cancel" />
+
+        <!-- Notifications -->
+        <v:NotificationsBar Margin="2,4" />
+
+        <!-- Error messages -->
         <v:ErrorMessagesBar Margin="2,4" />
     </StackPanel>
 </UserControl>
