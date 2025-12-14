@@ -352,6 +352,13 @@ public class SqLiteDatabaseService : IDatabaseService
 
         return await connection.Table<PairedDevice>().Where(d => d.DeviceId == id).FirstOrDefaultAsync();
     }
+
+    public async Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token)
+    {
+        await Initialization;
+
+        return await connection.Table<PairedDevice>().Where(d => d.Token == token).FirstOrDefaultAsync();
+    }
     
     public async Task PutPairedDeviceAsync(PairedDevice device)
     {

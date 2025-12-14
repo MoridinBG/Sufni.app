@@ -240,7 +240,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         {
             Debug.Assert(databaseService is not null);
 
-            var pairedDevice = await databaseService.GetPairedDeviceAsync(req.RefreshToken);
+            var pairedDevice = await databaseService.GetPairedDeviceByTokenAsync(req.RefreshToken);
             if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
 
             var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
