@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using FriendlyNameProvider;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using ServiceDiscovery;
@@ -57,7 +58,8 @@ public partial class PairingClientViewModel : ViewModelBase
         DeviceId = await secureStorage.GetStringAsync(DeviceIdKey);
         if (DeviceId is null)
         {
-            DeviceId = Guid.NewGuid().ToString();
+            var friendlyNameProvider = App.Current?.Services?.GetService<IFriendlyNameProvider>();
+            DeviceId = friendlyNameProvider?.FriendlyName ?? Guid.NewGuid().ToString();
             await secureStorage.SetStringAsync(DeviceIdKey, DeviceId);
         }
 

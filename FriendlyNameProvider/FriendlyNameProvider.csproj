@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+
+    <!--  Do not target net10.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505)  -->
+    <PropertyGroup Condition="'!$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
+        <TargetFrameworks>net10.0-android;net10.0-ios;net10.0</TargetFrameworks>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
+        <TargetFrameworks>net10.0-android;net10.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="FriendlyNameProvider.common.cs" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+        <Compile Include="FriendlyNameProvider.android.cs" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+        <Compile Include="FriendlyNameProvider.ios.cs" />
+    </ItemGroup>
+</Project>

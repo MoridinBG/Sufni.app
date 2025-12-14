@@ -2,6 +2,7 @@
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
+using FriendlyNameProvider;
 using HapticFeedback;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
@@ -21,6 +22,7 @@ namespace Sufni.App.Android
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
             RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
+            RegisteredServices.Collection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
             RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
             RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
             RegisteredServices.Collection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>(provider => 

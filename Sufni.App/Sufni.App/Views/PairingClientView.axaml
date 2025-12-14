@@ -69,6 +69,9 @@
             </progRing:ProgressRing.IsActive>
         </progRing:ProgressRing>
 
+        <!--  Device name  -->
+        <TextBox Text="{Binding DeviceId}" Watermark="Device ID" />
+
         <!--  Send pairing request button  -->
         <Button
             Height="50"
@@ -123,10 +126,10 @@
             Command="{Binding OpenPreviousPageCommand}"
             Content="cancel" />
 
-        <!-- Notifications -->
+        <!--  Notifications  -->
         <v:NotificationsBar Margin="2,4" />
 
-        <!-- Error messages -->
+        <!--  Error messages  -->
         <v:ErrorMessagesBar Margin="2,4" />
     </StackPanel>
 </UserControl>
