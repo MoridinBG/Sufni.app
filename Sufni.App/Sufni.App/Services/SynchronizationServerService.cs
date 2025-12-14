@@ -24,6 +24,11 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
+public class PairingEventArgs(PairedDevice device) : EventArgs
+{
+    public PairedDevice Device { get; set; } = device;
+}
+
 public class SynchronizationServerService : ISynchronizationServerService
 {
     public const string ServiceType = "_sstsync._tcp";
@@ -59,9 +64,11 @@ public class SynchronizationServerService : ISynchronizationServerService
     private Task Initialization { get; }
     
     public Action<string, string>? PairingRequested { get; set; }
-    public Action? PairingConfirmed { get; set; }
     public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
     public Action<Guid>? SessionDataArrived { get; set; }
+
+    public event EventHandler? PairingConfirmed;
+    public event EventHandler? Unpaired;
 
     #region Constructors
 
@@ -225,7 +232,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             var pairedDevice = new PairedDevice(req.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
             await databaseService.PutPairedDeviceAsync(pairedDevice);
 
-            PairingConfirmed?.Invoke();
+            PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
             return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
         });
 
@@ -252,6 +259,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             if (device.Token != req.RefreshToken) return Results.Unauthorized();
 
             await databaseService.DeletePairedDeviceAsync(device.DeviceId);
+            Unpaired?.Invoke(this, new PairingEventArgs(device));
             
             return Results.Ok();
         });

@@ -4,6 +4,11 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
+public class PairingEventArgs(PairedDevice device) : EventArgs
+{
+    public PairedDevice Device { get; set; } = device;
+}
+
 public class SynchronizationServerService : ISynchronizationServerService
 {
     public const string ServiceType = "_sstsync._tcp";
@@ -25,7 +30,9 @@ public class SynchronizationServerService : ISynchronizationServerService
     }
 
     public Action<string, string>? PairingRequested { get; set; }
-    public Action? PairingConfirmed { get; set; }
     public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
     public Action<Guid>? SessionDataArrived { get; set; }
+
+    public event EventHandler? PairingConfirmed;
+    public event EventHandler? Unpaired;
 }

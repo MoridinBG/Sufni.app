@@ -346,35 +346,35 @@ public class SqLiteDatabaseService : IDatabaseService
         return await connection.Table<PairedDevice>().ToListAsync();
     }
 
-    public async Task<PairedDevice?> GetPairedDeviceAsync(string token)
+    public async Task<PairedDevice?> GetPairedDeviceAsync(string id)
     {
         await Initialization;
 
-        return await connection.Table<PairedDevice>().Where(r => r.Token == token).FirstOrDefaultAsync();
+        return await connection.Table<PairedDevice>().Where(d => d.DeviceId == id).FirstOrDefaultAsync();
     }
     
-    public async Task PutPairedDeviceAsync(PairedDevice token)
+    public async Task PutPairedDeviceAsync(PairedDevice device)
     {
         await Initialization;
 
         var existing = await connection.Table<PairedDevice>()
-            .Where(t => t.DeviceId == token.DeviceId)
+            .Where(t => t.DeviceId == device.DeviceId)
             .FirstOrDefaultAsync() is not null;
         if (existing)
         {
-            await connection.UpdateAsync(token);
+            await connection.UpdateAsync(device);
         }
         else
         {
-            await connection.InsertAsync(token);
+            await connection.InsertAsync(device);
         }
     }
 
-    public async Task DeletePairedDeviceAsync(string deviceId)
+    public async Task DeletePairedDeviceAsync(string id)
     {
         await Initialization;
         var token = await connection.Table<PairedDevice>()
-            .Where(t => t.DeviceId == deviceId)
+            .Where(t => t.DeviceId == id)
             .FirstOrDefaultAsync();
         if (token is not null)
         {

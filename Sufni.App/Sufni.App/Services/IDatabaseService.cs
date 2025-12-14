@@ -28,8 +28,8 @@ public interface IDatabaseService
     public Task<long> GetLastSyncTimeAsync(string? serverUrl);
     public Task UpdateLastSyncTimeAsync(string? serverUrl);
     public Task<List<PairedDevice>> GetPairedDevicesAsync();
-    public Task<PairedDevice?> GetPairedDeviceAsync(string token);
-    public Task PutPairedDeviceAsync(PairedDevice token);
-    public Task DeletePairedDeviceAsync(string deviceId);
+    public Task<PairedDevice?> GetPairedDeviceAsync(string id);
+    public Task PutPairedDeviceAsync(PairedDevice device);
+    public Task DeletePairedDeviceAsync(string id);
     public Task MergeAllAsync(SynchronizationData data);
 }

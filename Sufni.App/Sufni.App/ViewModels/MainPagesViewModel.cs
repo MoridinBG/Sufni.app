@@ -90,6 +90,23 @@ public partial class MainPagesViewModel : ViewModelBase
                 });
             };
 
+            synchronizationServer.PairingConfirmed += (_, e) =>
+            {
+                Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (e is not PairingEventArgs pdea) return;
+                    PairedDevicesPage.Source.AddOrUpdate(new PairedDeviceViewModel(pdea.Device));
+                });
+            };
+            synchronizationServer.Unpaired += (_, e) =>
+            {
+                Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (e is not PairingEventArgs pdea) return;
+                    PairedDevicesPage.Source.Remove(new PairedDeviceViewModel(pdea.Device));
+                });
+            };
+
             PairingServerViewModel = new();
         }
         else

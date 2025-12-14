@@ -47,7 +47,7 @@ public partial class PairingServerViewModel : ViewModelBase
         };
 
         // Hide the panel displaying the PIN when the pairing is done.
-        synchronizationServer.PairingConfirmed = () => PairingPin = null;
+        synchronizationServer.PairingConfirmed += (_, _) => PairingPin = null;
 
         if (!Design.IsDesignMode)
         {
