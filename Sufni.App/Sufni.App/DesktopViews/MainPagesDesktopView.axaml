@@ -68,7 +68,7 @@
             Background="{StaticResource SufniRegion}"
             SelectedIndex="{Binding SelectedIndex}"
             TabStripPlacement="Left">
-            <TabItem Name="SessionTabItem" Content="{Binding SessionsPage}">
+            <TabItem Name="SessionTabItem">
                 <TabItem.Header>
                     <StackPanel>
                         <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
@@ -79,8 +79,9 @@
                             Text="Sessions" />
                     </StackPanel>
                 </TabItem.Header>
+                <ContentControl Content="{Binding SessionsPage}" />
             </TabItem>
-            <TabItem Name="BikeSetupsTabItem" Content="{Binding SetupsPage}">
+            <TabItem Name="BikeSetupsTabItem">
                 <TabItem.Header>
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
@@ -90,8 +91,9 @@
                             Text="Setups" />
                     </StackPanel>
                 </TabItem.Header>
+                <ContentControl Content="{Binding SetupsPage}" />
             </TabItem>
-            <TabItem Name="BikesTabItem" Content="{Binding BikesPage}">
+            <TabItem Name="BikesTabItem">
                 <TabItem.Header>
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
@@ -101,6 +103,7 @@
                             Text="Bikes" />
                     </StackPanel>
                 </TabItem.Header>
+                <ContentControl Content="{Binding BikesPage}" />
             </TabItem>
         </TabControl>
 
