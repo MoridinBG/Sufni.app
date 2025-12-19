@@ -73,8 +73,8 @@
                     <StackPanel>
                         <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
                         <TextBlock
-                            Padding="0,0,4,0"
                             Margin="0,2,0,0"
+                            Padding="0,0,4,0"
                             HorizontalAlignment="Center"
                             FontSize="9"
                             Text="Sessions" />

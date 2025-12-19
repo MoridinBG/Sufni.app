@@ -39,7 +39,7 @@
             <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
         </Style>
         <Style Selector="TabItem /template/ ContentPresenter">
-            <!-- Adjust text vertical position by selected pipe height -->
+            <!--  Adjust text vertical position by selected pipe height  -->
             <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
         <Style Selector="TabItem:pointerover /template/ ContentPresenter">
