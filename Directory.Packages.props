@@ -23,7 +23,7 @@
     <PackageVersion Include="Deadpikle.AvaloniaProgressRing" Version="0.10.10" />
     <PackageVersion Include="DynamicData" Version="9.4.1" />
     <PackageVersion Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
-    <PackageVersion Include="Mapsui.Avalonia" Version="5.0.0-beta.21" />
+    <PackageVersion Include="Mapsui.Avalonia" Version="5.0.2" />
     <PackageVersion Include="MathNet.Numerics" Version="6.0.0-beta2" />
     <PackageVersion Include="MessagePack" Version="3.1.4" />
     <PackageVersion Include="Microsoft.AspNetCore" Version="2.3.0" />
@@ -35,7 +35,7 @@
     <PackageVersion Include="QuikGraph" Version="2.5.0" />
     <PackageVersion Include="ScottPlot" Version="5.1.57" />
     <PackageVersion Include="ScottPlot.Avalonia" Version="5.1.57" />
-    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="11.3.6" />
+    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="11.3.6.2" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0" />
     <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
