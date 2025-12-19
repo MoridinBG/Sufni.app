@@ -73,6 +73,7 @@
                     <StackPanel>
                         <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
                         <TextBlock
+                            Padding="0,0,4,0"
                             Margin="0,2,0,0"
                             HorizontalAlignment="Center"
                             FontSize="9"
@@ -86,6 +87,7 @@
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
                         <TextBlock
+                            Padding="0,0,4,0"
                             HorizontalAlignment="Center"
                             FontSize="9"
                             Text="Setups" />
@@ -98,6 +100,7 @@
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
                         <TextBlock
+                            Padding="0,0,4,0"
                             HorizontalAlignment="Center"
                             FontSize="9"
                             Text="Bikes" />
