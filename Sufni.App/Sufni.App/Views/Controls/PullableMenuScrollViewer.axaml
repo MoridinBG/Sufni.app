@@ -19,6 +19,7 @@
         <ContentControl
             Name="TopContainer"
             Grid.Row="0"
+            Margin="0,0,20,0"
             HorizontalAlignment="Stretch"
             Content="{Binding $parent[v:PullableMenuScrollViewer].TopContent}"
             ZIndex="10" />

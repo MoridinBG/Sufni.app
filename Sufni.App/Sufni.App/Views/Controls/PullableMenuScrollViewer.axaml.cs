@@ -130,12 +130,12 @@ public partial class PullableMenuScrollViewer : UserControl
         if (TopContainer.Margin.Top < -TopContainer.Bounds.Height / 2 &&
                 TopContainer.Margin.Top >= -TopContainer.Bounds.Height)
         {
-            TopContainer.Margin = new Thickness(0, -TopContainer.Bounds.Height, 0, 0);
+            TopContainer.Margin = new Thickness(0, -TopContainer.Bounds.Height, 20, 0);
             TopContainer.Opacity = 0;
         }
         else
         {
-            TopContainer.Margin = new Thickness(0, 0, 0, 0);
+            TopContainer.Margin = new Thickness(0, 0, 20, 0);
             TopContainer.Opacity = 1;
         }
 
@@ -159,7 +159,7 @@ public partial class PullableMenuScrollViewer : UserControl
             if (Scroll.Offset.Y == 0 && e.OffsetDelta.Y < 0)
             {
                 // Make sure to show TopContainer fully when we are at the top.
-                TopContainer.Margin = new Thickness(0, 0, 0, 0);
+                TopContainer.Margin = new Thickness(0, 0, 20, 0);
                 Scroll.Height = Bounds.Height - TopContainer.Bounds.Height;
             }
             else if (TopContainer.Margin.Top < 0 && TopContainer.Margin.Top > -TopContainer.Bounds.Height)
@@ -192,7 +192,7 @@ public partial class PullableMenuScrollViewer : UserControl
             // boundaries, and set these new values.
             newTop = Math.Min(newTop, 0);
             newTop = Math.Max(newTop, -TopContainer.Bounds.Height);
-            TopContainer.Margin = new Thickness(0, newTop, 0, 0);
+            TopContainer.Margin = new Thickness(0, newTop, 20, 0);
             newHeight = Math.Min(newHeight, Bounds.Height);
             newHeight = Math.Max(newHeight, Bounds.Height - TopContainer.Bounds.Height);
             Scroll.Height = newHeight;
