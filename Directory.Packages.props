@@ -40,6 +40,7 @@
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0" />
     <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
-    <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
+    <PackageVersion Include="sqlite-net-e" Version="1.11.0" />
+    <PackageVersion Include="SourceGear.sqlite3" Version="3.50.4.5" />
   </ItemGroup>
 </Project>

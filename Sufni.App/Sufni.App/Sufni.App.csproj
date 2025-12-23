@@ -38,7 +38,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="ScottPlot" />
     <PackageReference Include="ScottPlot.Avalonia" />
-    <PackageReference Include="sqlite-net-pcl" />
+    <PackageReference Include="sqlite-net-e" />
+    <PackageReference Include="SourceGear.sqlite3" />
     <PackageReference Include="Tmds.MDns" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
