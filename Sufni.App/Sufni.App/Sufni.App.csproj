@@ -45,6 +45,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-android' And '$(TargetFramework)' != 'net10.0-ios'">
     <PackageReference Include="Microsoft.AspNetCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel.Core" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication" />
     <PackageReference Include="Makaretu.Dns.Multicast.New" />
 

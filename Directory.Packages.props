@@ -27,6 +27,7 @@
     <PackageVersion Include="MathNet.Numerics" Version="6.0.0-beta2" />
     <PackageVersion Include="MessagePack" Version="3.1.4" />
     <PackageVersion Include="Microsoft.AspNetCore" Version="2.3.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Server.Kestrel.Core" Version="2.3.6" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication" Version="2.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="10.0.1" />
