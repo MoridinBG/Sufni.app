@@ -1,10 +1,10 @@
 ﻿<Window
-    x:Class="Sufni.App.Views.MainWindow"
+    x:Class="Sufni.App.DesktopViews.MainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:v="clr-namespace:Sufni.App.Views"
+    xmlns:v="clr-namespace:Sufni.App.DesktopViews"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     Title="Sufni.App"
     Width="1600"

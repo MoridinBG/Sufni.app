@@ -10,7 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Sufni.App.ViewModels;
 
-namespace Sufni.App.Views;
+namespace Sufni.App.DesktopViews;
 
 public class IsEqualConverter : IMultiValueConverter
 {

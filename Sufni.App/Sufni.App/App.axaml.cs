@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
 using Sufni.App.Views;
+using Sufni.App.DesktopViews;
 using System;
 using System.Diagnostics;
 using System.Linq;
