@@ -1,24 +1,22 @@
-Sufni.App
-============
+Sufni Suspension Telemetry
+==========================
 
-Sufni.App\* is a work-in-progress cross-platform (.NET core / Avalonia) application to process
-recorded sessions directly from a [Sufni Suspension Telemetry](https://github.com/sghctoma/sst)
-DAQ either via the DAQ's server, or its mass storage device (MSC) mode. As of
-now, the application has a limited functionality compared to the
-[web-based dashboard](https://github.com/sghctoma/sst/wiki/03-Dashboard), but
-it does not require an internet connection.
+![dashboard](pics/dashboard.png)
 
-| ![](pics/import.png) | ![](pics/sessions.png) | ![](pics/spring.png) | ![](pics/damper.png) |
-|---|---|---|---|
+Sufni\* Suspension Telemetry is a mountain bike suspension telemetry system that
+was born out of sheer curiosity. The [data acquisition unit](https://github.com/sghctoma/sst/wiki/02-Data-Acquisition-Unit) is built around the
+Raspberry Pi Pico W and uses affordable off-the-shelf components, so anybody
+with a bit of soldering skills can build it.
 
+Contrary to most (all?) suspension telemetry systems, Sufni uses rotary encoders
+to measure movement. They are cheap, reasonably accurate, and can reach pretty
+high sample rates. An additional benefit is that on some frames they are easier
+to attach to rear shocks than linear sensors, because they can fit into much
+tigther spaces.
 
-| ![](pics/balance.png) | ![](pics/notes.png) | ![](pics/linkage.png) | ![](pics/calibration.png) |
-|---|---|---|--|
+The application retrieves recorded sessions from the DAQ either over Wi-Fi or via its mass-storage device mode. Both the mobile and desktop apps can import data from the DAQ and synchronize sessions between them. A typical workflow is to transfer sessions to the mobile app on the trail for a quick review, then sync them to the desktop application later for more in-depth analysis.
 
-Important limitations:
+The user interface provides plots that help with setting spring rate, damping, and overall bike balance. In the desktop app, GPX tracks can be uploaded and synchronized with the travel plot, making it easy to see how the suspension behaved at specific sections of the trail.
 
- - No travel and velocity graphs, only histograms and balance
- - No interactive graphs, GPS map, video
-
-\* *Pronounced SHOOF-nee dot bridge. Sufni means tool shed in Hungarian, but
+\* *The word "sufni" (pronounced SHOOF-nee) means tool shed in Hungarian, but
 also used as an adjective denoting something as DIY, garage hack, etc.*
