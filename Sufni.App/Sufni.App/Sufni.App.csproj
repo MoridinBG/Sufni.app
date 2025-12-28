@@ -66,13 +66,7 @@
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Microsoft.AspNetCore.Authorization" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net10.0-windows' Or '$(TargetFramework)' == 'net10.0-macos'">
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.Authorization" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />

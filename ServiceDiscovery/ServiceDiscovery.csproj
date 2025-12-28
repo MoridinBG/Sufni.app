@@ -18,7 +18,7 @@
         <Compile Include="ServiceDiscovery.common.cs" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' Or '$(TargetFramework)' == 'net10.0-macos'">
         <Compile Include="ServiceDiscovery.bonjour.cs" />
     </ItemGroup>
     
