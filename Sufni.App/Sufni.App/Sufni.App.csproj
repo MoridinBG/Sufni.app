@@ -5,11 +5,10 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
-  <!-- Do not target net10.0-ios if we are building on Linux (There is no "ios" workload on Linux: https://github.com/dotnet/runtime/issues/85505) -->
-  <PropertyGroup Condition="'!$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
+  <PropertyGroup Condition="'$(CanTargetApplePlatforms)' == 'true'">
     <TargetFrameworks>net10.0-windows;net10.0-android;net10.0-ios;net10.0-macos;net10.0</TargetFrameworks>
   </PropertyGroup>
-  <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
+  <PropertyGroup Condition="'$(CanTargetApplePlatforms)' != 'true'">
     <TargetFrameworks>net10.0-windows;net10.0-android;net10.0</TargetFrameworks>
   </PropertyGroup>
   

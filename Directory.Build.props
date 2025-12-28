@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Centralized platform detection.
+    iOS/macOS workloads don't exist on Linux: https://github.com/dotnet/runtime/issues/85505
+  -->
+  <PropertyGroup>
+    <_IsLinux>$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))</_IsLinux>
+    <CanTargetApplePlatforms Condition="'$(_IsLinux)' != 'true'">true</CanTargetApplePlatforms>
+  </PropertyGroup>
+</Project>
