@@ -9,7 +9,8 @@
       "HapticFeedback/HapticFeedback.csproj",
       "ServiceDiscovery/ServiceDiscovery.csproj",
       "Sufni.Telemetry/Sufni.Telemetry.csproj",
-      "Sufni.Kinematics/Sufni.Kinematics.csproj"
+      "Sufni.Kinematics/Sufni.Kinematics.csproj",
+      "Sufni.Telemetry.Tests/Sufni.Telemetry.Tests.csproj"
     ]
   }
 }
