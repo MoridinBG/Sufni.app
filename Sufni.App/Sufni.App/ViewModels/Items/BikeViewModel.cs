@@ -532,7 +532,7 @@ public partial class BikeViewModel : ItemViewModelBase
         var file = await filesService.OpenBikeImageFileAsync();
         if (file is null) return;
 
-        Image = new Bitmap(file.Path.AbsolutePath);
+        Image = new Bitmap(file.Path.LocalPath);
     }
 
     [RelayCommand]
