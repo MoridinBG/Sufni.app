@@ -104,6 +104,38 @@ public class Bike : Synchronizable
     [Column("pixels_to_millimeters")]
     public double PixelsToMillimeters { get; set; }
 
+    [JsonPropertyName("front_wheel_diameter")]
+    [Column("front_wheel_diameter")]
+    public double? FrontWheelDiameterMm { get; set; }
+
+    [JsonPropertyName("rear_wheel_diameter")]
+    [Column("rear_wheel_diameter")]
+    public double? RearWheelDiameterMm { get; set; }
+
+    [JsonPropertyName("front_wheel_rim_size")]
+    [Column("front_wheel_rim_size")]
+    public EtrtoRimSize? FrontWheelRimSize { get; set; }
+
+    [JsonPropertyName("front_wheel_tire_width")]
+    [Column("front_wheel_tire_width")]
+    public double? FrontWheelTireWidth { get; set; }
+
+    [JsonPropertyName("rear_wheel_rim_size")]
+    [Column("rear_wheel_rim_size")]
+    public EtrtoRimSize? RearWheelRimSize { get; set; }
+
+    [JsonPropertyName("rear_wheel_tire_width")]
+    [Column("rear_wheel_tire_width")]
+    public double? RearWheelTireWidth { get; set; }
+
+    [JsonPropertyName("image_rotation_degrees")]
+    [Column("image_rotation_degrees")]
+    public double ImageRotationDegrees { get; set; }
+
+    [JsonIgnore]
+    [Ignore]
+    public bool HasWheels => FrontWheelDiameterMm.HasValue && RearWheelDiameterMm.HasValue;
+
     [JsonPropertyName("image")]
     [Column("image")]
     public byte[] ImageBytes
