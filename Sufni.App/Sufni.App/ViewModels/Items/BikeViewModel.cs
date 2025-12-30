@@ -116,6 +116,82 @@ public partial class BikeViewModel : ItemViewModelBase
 
     #endregion Observable properties
 
+    #region Wheel properties
+
+    public record RimSizeOption(EtrtoRimSize Value, string DisplayName);
+
+    public static RimSizeOption[] RimSizeOptions { get; } = Enum.GetValues<EtrtoRimSize>()
+        .Select(r => new RimSizeOption(r, r.DisplayName))
+        .ToArray();
+
+    public bool HasWheels =>
+        FrontWheelDiameter.HasValue &&
+        RearWheelDiameter.HasValue &&
+        GetFrontWheelJoint() != null &&
+        GetRearWheelJoint() != null;
+
+    public double? FrontWheelRadiusPixels =>
+        FrontWheelDiameter / 2.0 / PixelsToMillimeters;
+
+    public double? RearWheelRadiusPixels =>
+        RearWheelDiameter / 2.0 / PixelsToMillimeters;
+
+    public double FrontWheelCircleLeft => GetFrontWheelJoint()?.X - (FrontWheelRadiusPixels ?? 0) ?? 0;
+    public double FrontWheelCircleTop => GetFrontWheelJoint()?.Y - (FrontWheelRadiusPixels ?? 0) ?? 0;
+    public double FrontWheelCircleDiameter => (FrontWheelRadiusPixels ?? 0) * 2;
+
+    public double RearWheelCircleLeft => GetRearWheelJoint()?.X - (RearWheelRadiusPixels ?? 0) ?? 0;
+    public double RearWheelCircleTop => GetRearWheelJoint()?.Y - (RearWheelRadiusPixels ?? 0) ?? 0;
+    public double RearWheelCircleDiameter => (RearWheelRadiusPixels ?? 0) * 2;
+
+    public string FrontWheelDisplayText => FormatWheelDisplay(FrontWheelRimSize, FrontWheelTireWidth, FrontWheelDiameter);
+    public string RearWheelDisplayText => FormatWheelDisplay(RearWheelRimSize, RearWheelTireWidth, RearWheelDiameter);
+
+    private JointViewModel? GetFrontWheelJoint() =>
+        JointViewModels.FirstOrDefault(j => j.Type == JointType.FrontWheel);
+
+    private JointViewModel? GetRearWheelJoint() =>
+        JointViewModels.FirstOrDefault(j => j.Type == JointType.RearWheel);
+
+    private static string FormatWheelDisplay(EtrtoRimSize? rimSize, double? tireWidth, double? diameter)
+    {
+        if (!diameter.HasValue) return "";
+        if (rimSize.HasValue && tireWidth.HasValue)
+            return $"{rimSize.Value.DisplayName} / {tireWidth:0.00}\"";
+        return $"{diameter:0.0} mm";
+    }
+
+    private void NotifyFrontWheelPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(HasWheels));
+        OnPropertyChanged(nameof(FrontWheelRadiusPixels));
+        OnPropertyChanged(nameof(FrontWheelCircleLeft));
+        OnPropertyChanged(nameof(FrontWheelCircleTop));
+        OnPropertyChanged(nameof(FrontWheelCircleDiameter));
+        OnPropertyChanged(nameof(FrontWheelDisplayText));
+    }
+
+    private void NotifyRearWheelPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(HasWheels));
+        OnPropertyChanged(nameof(RearWheelRadiusPixels));
+        OnPropertyChanged(nameof(RearWheelCircleLeft));
+        OnPropertyChanged(nameof(RearWheelCircleTop));
+        OnPropertyChanged(nameof(RearWheelCircleDiameter));
+        OnPropertyChanged(nameof(RearWheelDisplayText));
+    }
+
+    private void NotifyWheelJointPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(HasWheels));
+        OnPropertyChanged(nameof(FrontWheelCircleLeft));
+        OnPropertyChanged(nameof(FrontWheelCircleTop));
+        OnPropertyChanged(nameof(RearWheelCircleLeft));
+        OnPropertyChanged(nameof(RearWheelCircleTop));
+    }
+
+    #endregion Wheel properties
+
     #region Property change handlers
 
     // Handle link selection coming from the table.
@@ -153,6 +229,85 @@ public partial class BikeViewModel : ItemViewModelBase
         {
             link.UpdateLength(PixelsToMillimeters);
         }
+        NotifyFrontWheelPropertiesChanged();
+        NotifyRearWheelPropertiesChanged();
+    }
+
+    partial void OnFrontWheelRimSizeChanged(EtrtoRimSize? value)
+    {
+        RecalculateFrontWheelDiameter();
+        EvaluateDirtiness();
+    }
+
+    partial void OnFrontWheelTireWidthChanged(double? value)
+    {
+        RecalculateFrontWheelDiameter();
+        EvaluateDirtiness();
+    }
+
+    partial void OnFrontWheelDiameterChanged(double? value)
+    {
+        // User manually edited diameter - clear rim size and tire width
+        // Use backing fields to avoid triggering their change handlers
+        frontWheelRimSize = null;
+        OnPropertyChanged(nameof(FrontWheelRimSize));
+        frontWheelTireWidth = null;
+        OnPropertyChanged(nameof(FrontWheelTireWidth));
+
+        NotifyFrontWheelPropertiesChanged();
+        EvaluateDirtiness();
+    }
+
+    partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
+    {
+        RecalculateRearWheelDiameter();
+        EvaluateDirtiness();
+    }
+
+    partial void OnRearWheelTireWidthChanged(double? value)
+    {
+        RecalculateRearWheelDiameter();
+        EvaluateDirtiness();
+    }
+
+    partial void OnRearWheelDiameterChanged(double? value)
+    {
+        // User manually edited diameter - clear rim size and tire width
+        // Use backing fields to avoid triggering their change handlers
+        rearWheelRimSize = null;
+        OnPropertyChanged(nameof(RearWheelRimSize));
+        rearWheelTireWidth = null;
+        OnPropertyChanged(nameof(RearWheelTireWidth));
+
+        NotifyRearWheelPropertiesChanged();
+        EvaluateDirtiness();
+    }
+
+    private void RecalculateFrontWheelDiameter()
+    {
+        if (FrontWheelRimSize.HasValue && FrontWheelTireWidth.HasValue)
+        {
+            var beadDiameter = FrontWheelRimSize.Value.BeadDiameterMm;
+            var diameter = beadDiameter + (FrontWheelTireWidth.Value * 2 * 25.4);
+            // Round to 1 decimal to match NumericUpDown display format.
+            // Otherwise the NumericUpDown rounds it,
+            // writes the value back and triggers cleanup of rim & width as in manual update
+            frontWheelDiameter = Math.Round(diameter, 1);
+            OnPropertyChanged(nameof(FrontWheelDiameter));
+        }
+        NotifyFrontWheelPropertiesChanged();
+    }
+
+    private void RecalculateRearWheelDiameter()
+    {
+        if (RearWheelRimSize.HasValue && RearWheelTireWidth.HasValue)
+        {
+            var beadDiameter = RearWheelRimSize.Value.BeadDiameterMm;
+            var diameter = beadDiameter + (RearWheelTireWidth.Value * 2 * 25.4);
+            rearWheelDiameter = Math.Round(diameter, 1);
+            OnPropertyChanged(nameof(RearWheelDiameter));
+        }
+        NotifyRearWheelPropertiesChanged();
     }
 
     #endregion Property change handlers
@@ -200,12 +355,21 @@ public partial class BikeViewModel : ItemViewModelBase
 
         // If we don't have a rear suspension, we can return here
         if (ShockStroke is null) return newBike;
-        
+
         Debug.Assert(PixelsToMillimeters is not null);
         newBike.ShockStroke = ShockStroke;
         newBike.Image = Image;
         newBike.PixelsToMillimeters = PixelsToMillimeters.Value;
         newBike.Linkage = CreateLinkage();
+
+        // Wheel properties
+        newBike.FrontWheelRimSize = FrontWheelRimSize;
+        newBike.FrontWheelTireWidth = FrontWheelTireWidth;
+        newBike.FrontWheelDiameterMm = FrontWheelDiameter;
+        newBike.RearWheelRimSize = RearWheelRimSize;
+        newBike.RearWheelTireWidth = RearWheelTireWidth;
+        newBike.RearWheelDiameterMm = RearWheelDiameter;
+        newBike.ImageRotationDegrees = ImageRotationDegrees;
 
         return newBike;
     }
@@ -296,6 +460,26 @@ public partial class BikeViewModel : ItemViewModelBase
         HeadAngle = bike.HeadAngle;
         ForksStroke = bike.ForkStroke;
 
+        // Wheel properties - use backing fields to avoid triggering change handlers
+        frontWheelRimSize = bike.FrontWheelRimSize;
+        frontWheelTireWidth = bike.FrontWheelTireWidth;
+        frontWheelDiameter = bike.FrontWheelDiameterMm;
+        rearWheelRimSize = bike.RearWheelRimSize;
+        rearWheelTireWidth = bike.RearWheelTireWidth;
+        rearWheelDiameter = bike.RearWheelDiameterMm;
+        imageRotationDegrees = bike.ImageRotationDegrees;
+
+        OnPropertyChanged(nameof(FrontWheelRimSize));
+        OnPropertyChanged(nameof(FrontWheelTireWidth));
+        OnPropertyChanged(nameof(FrontWheelDiameter));
+        OnPropertyChanged(nameof(RearWheelRimSize));
+        OnPropertyChanged(nameof(RearWheelTireWidth));
+        OnPropertyChanged(nameof(RearWheelDiameter));
+        OnPropertyChanged(nameof(ImageRotationDegrees));
+
+        NotifyFrontWheelPropertiesChanged();
+        NotifyRearWheelPropertiesChanged();
+
         CheckLinkage(bike.Linkage!);
     }
 
@@ -361,6 +545,10 @@ public partial class BikeViewModel : ItemViewModelBase
                         case nameof(jvm.Y) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
                             UpdatePixelsToMillimeters();
                             break;
+                        case nameof(jvm.X) when jvm.Type is JointType.FrontWheel or JointType.RearWheel:
+                        case nameof(jvm.Y) when jvm.Type is JointType.FrontWheel or JointType.RearWheel:
+                            NotifyWheelJointPropertiesChanged();
+                            break;
                     }
                 };
             }
@@ -407,16 +595,29 @@ public partial class BikeViewModel : ItemViewModelBase
             !MathUtils.AreEqual(ShockStroke, bike.ShockStroke) ||
             !MathUtils.AreEqual(Chainstay, bike.Chainstay) ||
             DidJointsChanged() ||
-            DidLinksChanged();
+            DidLinksChanged() ||
+            FrontWheelRimSize != bike.FrontWheelRimSize ||
+            !MathUtils.AreEqual(FrontWheelTireWidth, bike.FrontWheelTireWidth) ||
+            !MathUtils.AreEqual(FrontWheelDiameter, bike.FrontWheelDiameterMm) ||
+            RearWheelRimSize != bike.RearWheelRimSize ||
+            !MathUtils.AreEqual(RearWheelTireWidth, bike.RearWheelTireWidth) ||
+            !MathUtils.AreEqual(RearWheelDiameter, bike.RearWheelDiameterMm);
     }
 
     protected override bool CanSave()
     {
         EvaluateDirtiness();
+
+        // Both wheels must have valid diameter, or neither
+        var frontHasDiameter = FrontWheelDiameter.HasValue;
+        var rearHasDiameter = RearWheelDiameter.HasValue;
+        var wheelsValid = frontHasDiameter == rearHasDiameter;
+
         return IsDirty &&
                HeadAngle is not null &&
                ForksStroke is not null &&
-               (ShockStroke is null || (Image is not null && Chainstay is not null));
+               (ShockStroke is null || (Image is not null && Chainstay is not null)) &&
+               wheelsValid;
     }
 
     protected override async Task SaveImplementation()
