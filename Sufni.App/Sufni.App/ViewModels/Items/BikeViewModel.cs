@@ -65,6 +65,45 @@ public partial class BikeViewModel : ItemViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private double? chainstay;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private EtrtoRimSize? frontWheelRimSize;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? frontWheelTireWidth;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? frontWheelDiameter;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private EtrtoRimSize? rearWheelRimSize;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? rearWheelTireWidth;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? rearWheelDiameter;
+
+    [ObservableProperty]
+    private double imageRotationDegrees;
+
     [ObservableProperty] private double? pixelsToMillimeters;
 
     public ObservableCollection<JointViewModel> JointViewModels { get; } = [];
