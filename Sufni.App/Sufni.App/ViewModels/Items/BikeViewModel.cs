@@ -627,6 +627,41 @@ public partial class BikeViewModel : ItemViewModelBase
 
         try
         {
+            // Apply rotation if wheels are configured and joints exist
+            if (HasWheels && Image is not null && PixelsToMillimeters.HasValue)
+            {
+                var frontWheel = GetFrontWheelJoint();
+                var rearWheel = GetRearWheelJoint();
+                Debug.Assert(frontWheel is not null && rearWheel is not null);
+
+                var frontRadiusPx = FrontWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
+                var rearRadiusPx = RearWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
+
+                var (rotationAngle, _) = GroundCalculator.CalculateGroundRotation(
+                    frontWheel.X, frontWheel.Y, frontRadiusPx,
+                    rearWheel.X, rearWheel.Y, rearRadiusPx);
+
+                var newRotation = ImageRotationDegrees + rotationAngle;
+                var deltaRotation = newRotation - ImageRotationDegrees;
+
+                if (Math.Abs(deltaRotation) > 0.01)
+                {
+                    var centerX = Image.Size.Width / 2.0;
+                    var centerY = Image.Size.Height / 2.0;
+
+                    foreach (var joint in JointViewModels)
+                    {
+                        var (newX, newY) = CoordinateRotation.RotatePoint(
+                            joint.X, joint.Y, centerX, centerY, deltaRotation);
+                        joint.X = newX;
+                        joint.Y = newY;
+                    }
+
+                    ImageRotationDegrees = newRotation;
+                    NotifyWheelJointPropertiesChanged();
+                }
+            }
+
             var newBike = ToBike();
             if (!CheckLinkage(newBike.Linkage!))
             {
