@@ -15,12 +15,14 @@ public static class GroundCalculator
     {
         var frontContactY = frontWheelY + frontWheelRadius;
         var rearContactY = rearWheelY + rearWheelRadius;
-        
-        var dx = frontWheelX - rearWheelX;
+
+        // Use absolute horizontal distance to calculate tilt angle only,
+        // regardless of which wheel is left/right in the image
+        var dx = Math.Abs(frontWheelX - rearWheelX);
         var dy = frontContactY - rearContactY;
         var angleRadians = Math.Atan2(dy, dx);
         var angleDegrees = angleRadians * 180.0 / Math.PI;
-        
+
         var rotationAngle = -angleDegrees;
         var groundY = Math.Max(frontContactY, rearContactY);
 
