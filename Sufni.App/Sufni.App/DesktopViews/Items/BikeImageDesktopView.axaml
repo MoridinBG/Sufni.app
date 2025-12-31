@@ -53,46 +53,50 @@
         </paz:ZoomBorder.KeyBindings>
 
         <Viewbox>
-            <Panel Background="#252933">
-                <!--  Bike image  -->
-                <Image
-                    Name="BikeImage"
-                    RenderTransformOrigin="0.5,0.5"
-                    Source="{Binding Image}">
-                    <Image.RenderTransform>
-                        <RotateTransform Angle="{Binding ImageRotationDegrees}" />
-                    </Image.RenderTransform>
-                </Image>
+            <Canvas
+                Width="{Binding CanvasWidth}"
+                Height="{Binding CanvasHeight}"
+                Background="#252933">
+                <Panel Canvas.Left="{Binding ContentOffsetX}" Canvas.Top="{Binding ContentOffsetY}">
+                    <!--  Bike image  -->
+                    <Image
+                        Name="BikeImage"
+                        RenderTransformOrigin="0.5,0.5"
+                        Source="{Binding Image}">
+                        <Image.RenderTransform>
+                            <RotateTransform Angle="{Binding ImageRotationDegrees}" />
+                        </Image.RenderTransform>
+                    </Image>
 
-                <!--  Semi-opaque overlay to improve point visibility  -->
-                <Border
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
-                    Background="White"
-                    IsVisible="{Binding OverlayVisible}"
-                    Opacity="0.7" />
+                    <!--  Semi-opaque overlay to improve point visibility  -->
+                    <Border
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Background="White"
+                        IsVisible="{Binding OverlayVisible}"
+                        Opacity="0.7" />
 
-                <!--  Wheel circles  -->
-                <Canvas IsVisible="{Binding HasWheels}">
-                    <!--  Front wheel circle  -->
-                    <Ellipse
-                        Canvas.Left="{Binding FrontWheelCircleLeft}"
-                        Canvas.Top="{Binding FrontWheelCircleTop}"
-                        Width="{Binding FrontWheelCircleDiameter}"
-                        Height="{Binding FrontWheelCircleDiameter}"
-                        Fill="Transparent"
-                        Stroke="Yellow"
-                        StrokeThickness="3" />
-                    <!--  Rear wheel circle  -->
-                    <Ellipse
-                        Canvas.Left="{Binding RearWheelCircleLeft}"
-                        Canvas.Top="{Binding RearWheelCircleTop}"
-                        Width="{Binding RearWheelCircleDiameter}"
-                        Height="{Binding RearWheelCircleDiameter}"
-                        Fill="Transparent"
-                        Stroke="Yellow"
-                        StrokeThickness="3" />
-                </Canvas>
+                    <!--  Wheel circles  -->
+                    <Canvas IsVisible="{Binding HasWheels}">
+                        <!--  Front wheel circle  -->
+                        <Ellipse
+                            Canvas.Left="{Binding FrontWheelCircleLeft}"
+                            Canvas.Top="{Binding FrontWheelCircleTop}"
+                            Width="{Binding FrontWheelCircleDiameter}"
+                            Height="{Binding FrontWheelCircleDiameter}"
+                            Fill="Transparent"
+                            Stroke="Yellow"
+                            StrokeThickness="3" />
+                        <!--  Rear wheel circle  -->
+                        <Ellipse
+                            Canvas.Left="{Binding RearWheelCircleLeft}"
+                            Canvas.Top="{Binding RearWheelCircleTop}"
+                            Width="{Binding RearWheelCircleDiameter}"
+                            Height="{Binding RearWheelCircleDiameter}"
+                            Fill="Transparent"
+                            Stroke="Yellow"
+                            StrokeThickness="3" />
+                    </Canvas>
 
                 <!--  Links  -->
                 <SelectingItemsControl
@@ -157,7 +161,8 @@
                         </DataTemplate>
                     </SelectingItemsControl.ItemTemplate>
                 </SelectingItemsControl>
-            </Panel>
+                </Panel>
+            </Canvas>
         </Viewbox>
     </paz:ZoomBorder>
 </UserControl>
