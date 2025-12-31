@@ -99,6 +99,13 @@
                             StrokeThickness="3" />
                     </Canvas>
 
+                    <!--  Rear axle path  -->
+                    <Polyline
+                        Points="{Binding RearAxlePath}"
+                        Stroke="Cyan"
+                        StrokeThickness="2"
+                        IsVisible="{Binding RearAxlePath, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
                 <!--  Links  -->
                 <SelectingItemsControl
                     Background="Transparent"

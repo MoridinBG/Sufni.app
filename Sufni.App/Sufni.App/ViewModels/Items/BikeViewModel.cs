@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -113,6 +114,7 @@ public partial class BikeViewModel : ItemViewModelBase
     [ObservableProperty] private bool overlayVisible;
 
     [ObservableProperty] private CoordinateList? leverageRatioData;
+    [ObservableProperty] private List<Point>? rearAxlePath;
     
     public double ImageCenterX => (Image?.Size.Width ?? 0) / 2.0;
     public double ImageCenterY => (Image?.Size.Height ?? 0) / 2.0;
@@ -671,6 +673,22 @@ public partial class BikeViewModel : ItemViewModelBase
             var solution = solver.SolveSuspensionMotion();
             var characteristics = new BikeCharacteristics(solution);
             LeverageRatioData = characteristics.LeverageRatioData;
+
+            // Extract rear axle path and convert to canvas coordinates
+            if (Image is not null && PixelsToMillimeters is not null)
+            {
+                var mapping = new JointNameMapping();
+                var rearWheelSolution = solution[mapping.RearWheel];
+                var imageHeight = Image.Size.Height;
+                var pxToMm = PixelsToMillimeters.Value;
+
+                RearAxlePath = rearWheelSolution.X
+                    .Zip(rearWheelSolution.Y, (x, y) => new Point(
+                        x / pxToMm,
+                        imageHeight - y / pxToMm))
+                    .ToList();
+            }
+
             return true;
         }
         catch (Exception)
