@@ -56,7 +56,7 @@
             <Canvas
                 Width="{Binding CanvasWidth}"
                 Height="{Binding CanvasHeight}"
-                Background="#252933">
+                Background="Transparent">
                 <Panel Canvas.Left="{Binding ContentOffsetX}" Canvas.Top="{Binding ContentOffsetY}">
                     <!--  Bike image  -->
                     <Image
@@ -103,7 +103,7 @@
                 <SelectingItemsControl
                     Background="Transparent"
                     ClipToBounds="False"
-                    IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}"
                     ItemsSource="{Binding LinkViewModels}"
                     SelectedItem="{Binding SelectedLink}">
                     <SelectingItemsControl.ItemsPanel>
@@ -134,7 +134,7 @@
                     Background="Transparent"
                     Classes="draggable"
                     ClipToBounds="False"
-                    IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}"
                     ItemsSource="{Binding JointViewModels}"
                     SelectedItem="{Binding SelectedPoint}">
                     <SelectingItemsControl.Styles>

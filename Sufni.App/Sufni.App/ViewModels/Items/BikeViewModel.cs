@@ -202,6 +202,12 @@ public partial class BikeViewModel : ItemViewModelBase
 
     private const double CanvasPadding = 20;
 
+    // Forces the canvas to resize when the image is added
+    partial void OnImageChanged(Bitmap? value)
+    {
+        NotifyCanvasBoundsChanged();
+    }
+
     partial void OnImageRotationDegreesChanged(double value)
     {
         NotifyCanvasBoundsChanged();
