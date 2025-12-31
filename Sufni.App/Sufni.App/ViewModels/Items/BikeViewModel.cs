@@ -202,22 +202,108 @@ public partial class BikeViewModel : ItemViewModelBase
 
     private const double CanvasPadding = 20;
 
+    partial void OnImageRotationDegreesChanged(double value)
+    {
+        NotifyCanvasBoundsChanged();
+    }
+
+    private (double minX, double minY, double maxX, double maxY) GetImageBounds()
+    {
+        if (Image is null) return (0, 0, 0, 0);
+
+        var w = Image.Size.Width;
+        var h = Image.Size.Height;
+        var cx = 0.0;
+        var cy = 0.0;
+        var angle = ImageRotationDegrees;
+
+        // If no rotation, return standard bounds
+        if (Math.Abs(angle) < 0.01) return (0, 0, w, h);
+
+        var p1 = CoordinateRotation.RotatePoint(0, 0, cx, cy, angle);
+        var p2 = CoordinateRotation.RotatePoint(w, 0, cx, cy, angle);
+        var p3 = CoordinateRotation.RotatePoint(w, h, cx, cy, angle);
+        var p4 = CoordinateRotation.RotatePoint(0, h, cx, cy, angle);
+
+        // axis aligned bounding box after rotation
+        var minX = Math.Min(Math.Min(p1.x, p2.x), Math.Min(p3.x, p4.x));
+        var minY = Math.Min(Math.Min(p1.y, p2.y), Math.Min(p3.y, p4.y));
+        var maxX = Math.Max(Math.Max(p1.x, p2.x), Math.Max(p3.x, p4.x));
+        var maxY = Math.Max(Math.Max(p1.y, p2.y), Math.Max(p3.y, p4.y));
+
+        return (minX, minY, maxX, maxY);
+    }
+    
+    private (double minX, double minY, double maxX, double maxY) GetJointBounds()
+    {
+        if (JointViewModels.Count == 0) return (double.MaxValue, double.MaxValue, double.MinValue, double.MinValue);
+        
+        // Visual radius for joints to ensure they don't get clipped at the very edge
+        var r = 20.0; 
+        var minX = JointViewModels.Min(j => j.X) - r;
+        var minY = JointViewModels.Min(j => j.Y) - r;
+        var maxX = JointViewModels.Max(j => j.X) + r;
+        var maxY = JointViewModels.Max(j => j.Y) + r;
+        
+        return (minX, minY, maxX, maxY);
+    }
+
     // Calculate bounds that include image and wheel circles
-    private double ContentMinX => HasWheels
-        ? Math.Min(0, Math.Min(FrontWheelCircleLeft, RearWheelCircleLeft))
-        : 0;
+    private double ContentMinX
+    {
+        get
+        {
+            var img = GetImageBounds();
+            var joints = GetJointBounds();
+            var minX = Math.Min(img.minX, joints.minX);
+            
+            return HasWheels
+                ? Math.Min(minX, Math.Min(FrontWheelCircleLeft, RearWheelCircleLeft))
+                : minX;
+        }
+    }
 
-    private double ContentMinY => HasWheels
-        ? Math.Min(0, Math.Min(FrontWheelCircleTop, RearWheelCircleTop))
-        : 0;
+    private double ContentMinY
+    {
+        get
+        {
+            var img = GetImageBounds();
+            var joints = GetJointBounds();
+            var minY = Math.Min(img.minY, joints.minY);
+            
+            return HasWheels
+                ? Math.Min(minY, Math.Min(FrontWheelCircleTop, RearWheelCircleTop))
+                : minY;
+        }
+    }
 
-    private double ContentMaxX => HasWheels
-        ? Math.Max(Image?.Size.Width ?? 0, Math.Max(FrontWheelCircleLeft + FrontWheelCircleDiameter, RearWheelCircleLeft + RearWheelCircleDiameter))
-        : Image?.Size.Width ?? 0;
+    private double ContentMaxX
+    {
+        get
+        {
+            var img = GetImageBounds();
+            var joints = GetJointBounds();
+            var maxX = Math.Max(img.maxX, joints.maxX);
+            
+            return HasWheels
+                ? Math.Max(maxX, Math.Max(FrontWheelCircleLeft + FrontWheelCircleDiameter, RearWheelCircleLeft + RearWheelCircleDiameter))
+                : maxX;
+        }
+    }
 
-    private double ContentMaxY => HasWheels
-        ? Math.Max(Image?.Size.Height ?? 0, Math.Max(FrontWheelCircleTop + FrontWheelCircleDiameter, RearWheelCircleTop + RearWheelCircleDiameter))
-        : Image?.Size.Height ?? 0;
+    private double ContentMaxY
+    {
+        get
+        {
+            var img = GetImageBounds();
+            var joints = GetJointBounds();
+            var maxY = Math.Max(img.maxY, joints.maxY);
+            
+            return HasWheels
+                ? Math.Max(maxY, Math.Max(FrontWheelCircleTop + FrontWheelCircleDiameter, RearWheelCircleTop + RearWheelCircleDiameter))
+                : maxY;
+        }
+    }
 
     // Canvas size including padding
     public double CanvasWidth => ContentMaxX - ContentMinX + 2 * CanvasPadding;
@@ -586,13 +672,14 @@ public partial class BikeViewModel : ItemViewModelBase
                         case nameof(jvm.Name) or nameof(jvm.Type):
                             EvaluateDirtiness();
                             break;
-                        case nameof(jvm.X) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
-                        case nameof(jvm.Y) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
-                            UpdatePixelsToMillimeters();
-                            break;
-                        case nameof(jvm.X) when jvm.Type is JointType.FrontWheel or JointType.RearWheel:
-                        case nameof(jvm.Y) when jvm.Type is JointType.FrontWheel or JointType.RearWheel:
-                            NotifyWheelJointPropertiesChanged();
+                        case nameof(jvm.X):
+                        case nameof(jvm.Y):
+                            if (jvm.Type is JointType.BottomBracket or JointType.RearWheel)
+                                UpdatePixelsToMillimeters();
+                            if (jvm.Type is JointType.FrontWheel or JointType.RearWheel)
+                                NotifyWheelJointPropertiesChanged();
+                            
+                            NotifyCanvasBoundsChanged();
                             break;
                     }
                 };

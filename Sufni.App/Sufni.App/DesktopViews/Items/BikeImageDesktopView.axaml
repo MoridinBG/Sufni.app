@@ -61,7 +61,7 @@
                     <!--  Bike image  -->
                     <Image
                         Name="BikeImage"
-                        RenderTransformOrigin="0.5,0.5"
+                        RenderTransformOrigin="0,0"
                         Source="{Binding Image}">
                         <Image.RenderTransform>
                             <RotateTransform Angle="{Binding ImageRotationDegrees}" />
@@ -77,6 +77,7 @@
                         Opacity="0.7" />
 
                     <!--  Wheel circles  -->
+                    <!-- New canvas as it is in a panel to get offset -->
                     <Canvas IsVisible="{Binding HasWheels}">
                         <!--  Front wheel circle  -->
                         <Ellipse
@@ -101,6 +102,7 @@
                 <!--  Links  -->
                 <SelectingItemsControl
                     Background="Transparent"
+                    ClipToBounds="False"
                     IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
                     ItemsSource="{Binding LinkViewModels}"
                     SelectedItem="{Binding SelectedLink}">
@@ -131,6 +133,7 @@
                 <SelectingItemsControl
                     Background="Transparent"
                     Classes="draggable"
+                    ClipToBounds="False"
                     IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
                     ItemsSource="{Binding JointViewModels}"
                     SelectedItem="{Binding SelectedPoint}">
