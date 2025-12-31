@@ -22,5 +22,12 @@ public static class EtrtoRimSizeExtensions
             EtrtoRimSize.Inch29 => "29\" (622mm)",
             _ => rimSize.ToString()
         };
+
+        // Tires are supposedly as high as they are wide
+        // https://www.dirtmerchantbikes.com/special-events/2014/11/20/tire-comparison-test-report-2015-nobby-nic-high-roller-ii-neo-moto-hans-dampf
+        public double CalculateTotalDiameterMm(double tireWidthInches)
+        {
+            return rimSize.BeadDiameterMm + (tireWidthInches * 2 * 25.4);
+        }
     }
 }

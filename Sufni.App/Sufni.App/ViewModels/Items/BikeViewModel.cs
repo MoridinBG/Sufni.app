@@ -211,27 +211,10 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         if (Image is null) return (0, 0, 0, 0);
 
-        var w = Image.Size.Width;
-        var h = Image.Size.Height;
-        var cx = 0.0;
-        var cy = 0.0;
-        var angle = ImageRotationDegrees;
-
-        // If no rotation, return standard bounds
-        if (Math.Abs(angle) < 0.01) return (0, 0, w, h);
-
-        var p1 = CoordinateRotation.RotatePoint(0, 0, cx, cy, angle);
-        var p2 = CoordinateRotation.RotatePoint(w, 0, cx, cy, angle);
-        var p3 = CoordinateRotation.RotatePoint(w, h, cx, cy, angle);
-        var p4 = CoordinateRotation.RotatePoint(0, h, cx, cy, angle);
-
-        // axis aligned bounding box after rotation
-        var minX = Math.Min(Math.Min(p1.x, p2.x), Math.Min(p3.x, p4.x));
-        var minY = Math.Min(Math.Min(p1.y, p2.y), Math.Min(p3.y, p4.y));
-        var maxX = Math.Max(Math.Max(p1.x, p2.x), Math.Max(p3.x, p4.x));
-        var maxY = Math.Max(Math.Max(p1.y, p2.y), Math.Max(p3.y, p4.y));
-
-        return (minX, minY, maxX, maxY);
+        return CoordinateRotation.GetRotatedBounds(
+            Image.Size.Width, 
+            Image.Size.Height, 
+            ImageRotationDegrees);
     }
     
     private (double minX, double minY, double maxX, double maxY) GetJointBounds()
@@ -418,8 +401,7 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         if (FrontWheelRimSize.HasValue && FrontWheelTireWidth.HasValue)
         {
-            var beadDiameter = FrontWheelRimSize.Value.BeadDiameterMm;
-            var diameter = beadDiameter + (FrontWheelTireWidth.Value * 2 * 25.4);
+            var diameter = FrontWheelRimSize.Value.CalculateTotalDiameterMm(FrontWheelTireWidth.Value);
             // Round to 1 decimal to match NumericUpDown display format.
             // Otherwise the NumericUpDown rounds it,
             // writes the value back and triggers cleanup of rim & width as in manual update
@@ -526,7 +508,7 @@ public partial class BikeViewModel : ItemViewModelBase
         var rw = JointViewModels.FirstOrDefault(p => p.Type == JointType.RearWheel);
         if (bb is null || rw is null) return;
 
-        var distance = Math.Sqrt(Math.Pow(rw.X - bb.X, 2) + Math.Pow(rw.Y - bb.Y, 2));
+        var distance = GeometryUtils.CalculateDistance(rw, bb);
         PixelsToMillimeters = Chainstay / distance;
     }
 
@@ -778,16 +760,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
                 if (Math.Abs(deltaRotation) > 0.01)
                 {
-                    var centerX = 0.0;
-                    var centerY = 0.0;
-
-                    foreach (var joint in JointViewModels)
-                    {
-                        var (newX, newY) = CoordinateRotation.RotatePoint(
-                            joint.X, joint.Y, centerX, centerY, deltaRotation);
-                        joint.X = newX;
-                        joint.Y = newY;
-                    }
+                    CoordinateRotation.RotatePoints(JointViewModels, 0, 0, deltaRotation);
 
                     ImageRotationDegrees = newRotation;
                     NotifyWheelJointPropertiesChanged();

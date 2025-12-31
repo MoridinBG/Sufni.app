@@ -11,7 +11,7 @@ public enum JointType
     BottomBracket
 }
 
-public class CartesianCoordinate(double x, double y)
+public class CartesianCoordinate(double x, double y) : IPoint
 {
     #region Public properties
 
