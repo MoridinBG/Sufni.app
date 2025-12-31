@@ -7,6 +7,8 @@ public class JointNameMapping
     public string BottomBracket = "Bottom bracket";
     public string ShockEye1 = "Shock eye 1";
     public string ShockEye2 = "Shock eye 2";
+    public string HeadTube1 = "Head tube 1";
+    public string HeadTube2 = "Head tube 2";
 }
 
 public class BikeCharacteristics

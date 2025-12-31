@@ -351,6 +351,7 @@ public partial class BikeViewModel : ItemViewModelBase
         }
         NotifyFrontWheelPropertiesChanged();
         NotifyRearWheelPropertiesChanged();
+        RecalculateHeadAngle();
     }
 
     partial void OnFrontWheelRimSizeChanged(EtrtoRimSize? value)
@@ -376,6 +377,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
         NotifyFrontWheelPropertiesChanged();
         EvaluateDirtiness();
+        RecalculateHeadAngle();
     }
 
     partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
@@ -401,6 +403,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
         NotifyRearWheelPropertiesChanged();
         EvaluateDirtiness();
+        RecalculateHeadAngle();
     }
 
     private void RecalculateFrontWheelDiameter()
@@ -497,7 +500,7 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         var mapping = new JointNameMapping();
         JointViewModels.Add(new JointViewModel(mapping.FrontWheel, JointType.FrontWheel, 100, 150));
-        JointViewModels.Add(new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200)); 
+        JointViewModels.Add(new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200));
         JointViewModels.Add(new JointViewModel(mapping.RearWheel, JointType.RearWheel, 100, 100));
 
         var shockEye1 = new JointViewModel(mapping.ShockEye1, JointType.Floating, 100, 250);
@@ -506,6 +509,52 @@ public partial class BikeViewModel : ItemViewModelBase
         JointViewModels.Add(shockEye2);
         shockViewModel = new LinkViewModel(shockEye1, shockEye2, "Shock");
         LinkViewModels.Add(shockViewModel);
+    }
+
+    private void RecalculateHeadAngle()
+    {
+        if (PixelsToMillimeters == null || !FrontWheelDiameter.HasValue || !RearWheelDiameter.HasValue) return;
+        
+        var mapping = new JointNameMapping();
+        var ht1 = JointViewModels.FirstOrDefault(j => j.Name == mapping.HeadTube1);
+        var ht2 = JointViewModels.FirstOrDefault(j => j.Name == mapping.HeadTube2);
+        var fw = GetFrontWheelJoint();
+        var rw = GetRearWheelJoint();
+
+        if (ht1 == null || ht2 == null || fw == null || rw == null) return;
+
+        // Radii in pixels
+        var frPx = FrontWheelDiameter.Value / 2.0 / PixelsToMillimeters.Value;
+        var rrPx = RearWheelDiameter.Value / 2.0 / PixelsToMillimeters.Value;
+
+        // Ground Vector (Rear Contact -> Front Contact)
+        // Y is positive down.
+        // Contact point Y = CenterY + Radius
+        var fy = fw.Y + frPx;
+        var ry = rw.Y + rrPx;
+        
+        var dxGround = fw.X - rw.X;
+        var dyGround = fy - ry;
+        
+        // Head Tube Vector (Bottom -> Top)
+        // Typically HT top is higher (smaller Y) than bottom.
+        var top = ht1.Y < ht2.Y ? ht1 : ht2;
+        var bottom = ht1.Y < ht2.Y ? ht2 : ht1;
+        
+        var dxHt = top.X - bottom.X;
+        var dyHt = top.Y - bottom.Y;
+        
+        // Calculate unsigned angle between vectors
+        var magGround = Math.Sqrt(dxGround * dxGround + dyGround * dyGround);
+        var magHt = Math.Sqrt(dxHt * dxHt + dyHt * dyHt);
+        if (magGround < 0.001 || magHt < 0.001) return;
+
+        var dot = dxGround * dxHt + dyGround * dyHt;
+        var cos = Math.Clamp(dot / (magGround * magHt), -1.0, 1.0);
+        var angle = Math.Acos(cos) * 180.0 / Math.PI;
+        
+        // Standard Head Angle is 180 - angle between Forward and Up-Back vectors
+        HeadAngle = Math.Round(180.0 - angle, 1);
     }
 
     private void UpdatePixelsToMillimeters()
@@ -574,6 +623,17 @@ public partial class BikeViewModel : ItemViewModelBase
             Image = bike.Image;
         }
 
+        // Add missing HeadTube points if needed (migration for existing bikes)
+        var mapping = new JointNameMapping();
+        if (!JointViewModels.Any(j => j.Name == mapping.HeadTube1))
+        {
+            JointViewModels.Add(new JointViewModel(mapping.HeadTube1, JointType.HeadTube, 100, 50));
+        }
+        if (!JointViewModels.Any(j => j.Name == mapping.HeadTube2))
+        {
+            JointViewModels.Add(new JointViewModel(mapping.HeadTube2, JointType.HeadTube, 100, 120));
+        }
+
         Id = bike.Id;
         Name = bike.Name;
         HeadAngle = bike.HeadAngle;
@@ -598,6 +658,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
         NotifyFrontWheelPropertiesChanged();
         NotifyRearWheelPropertiesChanged();
+        RecalculateHeadAngle();
 
         CheckLinkage(bike.Linkage!);
     }
@@ -641,6 +702,8 @@ public partial class BikeViewModel : ItemViewModelBase
         JointViewModels.CollectionChanged += (_, e) =>
         {
             EvaluateDirtiness();
+            NotifyCanvasBoundsChanged();
+            RecalculateHeadAngle();
 
             if (e.Action != NotifyCollectionChangedAction.Add) return;
             Debug.Assert(e.NewItems is not null);
@@ -659,6 +722,8 @@ public partial class BikeViewModel : ItemViewModelBase
                             break;
                         case nameof(jvm.Name) or nameof(jvm.Type):
                             EvaluateDirtiness();
+                            if (jvm.Type == JointType.HeadTube)
+                                RecalculateHeadAngle();
                             break;
                         case nameof(jvm.X):
                         case nameof(jvm.Y):
@@ -668,6 +733,7 @@ public partial class BikeViewModel : ItemViewModelBase
                                 NotifyWheelJointPropertiesChanged();
                             
                             NotifyCanvasBoundsChanged();
+                            RecalculateHeadAngle();
                             break;
                     }
                 };
@@ -767,6 +833,17 @@ public partial class BikeViewModel : ItemViewModelBase
                 if (Math.Abs(deltaRotation) > 0.01)
                 {
                     CoordinateRotation.RotatePoints(JointViewModels, 0, 0, deltaRotation);
+
+                    // Force UI to recreate ContentPresenters with fresh bindings.
+                    // This is the only way I found to make points that have been dragged to rotate correctly
+                    // Otherwise only existing bikes with points loaded from the db are rotated as expected
+                    // New bikes and new points in existing bikes shift, until saved and reloaded
+                    var items = JointViewModels.ToList();
+                    JointViewModels.Clear();
+                    foreach (var item in items)
+                    {
+                        JointViewModels.Add(item);
+                    }
 
                     ImageRotationDegrees = newRotation;
                     NotifyWheelJointPropertiesChanged();
