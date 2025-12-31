@@ -23,7 +23,10 @@ public static class GroundCalculator
         var angleRadians = Math.Atan2(dy, dx);
         var angleDegrees = angleRadians * 180.0 / Math.PI;
 
-        var rotationAngle = -angleDegrees;
+        // Rotation direction depends on whether front wheel is left or right
+        // positionSign is +1 if front is right, -1 if front is left
+        var positionSign = Math.Sign(frontWheelX - rearWheelX);
+        var rotationAngle = -positionSign * angleDegrees;
         var groundY = Math.Max(frontContactY, rearContactY);
 
         return (rotationAngle, groundY);

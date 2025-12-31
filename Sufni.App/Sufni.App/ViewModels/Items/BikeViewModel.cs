@@ -113,6 +113,9 @@ public partial class BikeViewModel : ItemViewModelBase
     [ObservableProperty] private bool overlayVisible;
 
     [ObservableProperty] private CoordinateList? leverageRatioData;
+    
+    public double ImageCenterX => (Image?.Size.Width ?? 0) / 2.0;
+    public double ImageCenterY => (Image?.Size.Height ?? 0) / 2.0;
 
     #endregion Observable properties
 
@@ -169,6 +172,7 @@ public partial class BikeViewModel : ItemViewModelBase
         OnPropertyChanged(nameof(FrontWheelCircleTop));
         OnPropertyChanged(nameof(FrontWheelCircleDiameter));
         OnPropertyChanged(nameof(FrontWheelDisplayText));
+        NotifyCanvasBoundsChanged();
     }
 
     private void NotifyRearWheelPropertiesChanged()
@@ -179,6 +183,7 @@ public partial class BikeViewModel : ItemViewModelBase
         OnPropertyChanged(nameof(RearWheelCircleTop));
         OnPropertyChanged(nameof(RearWheelCircleDiameter));
         OnPropertyChanged(nameof(RearWheelDisplayText));
+        NotifyCanvasBoundsChanged();
     }
 
     private void NotifyWheelJointPropertiesChanged()
@@ -188,9 +193,49 @@ public partial class BikeViewModel : ItemViewModelBase
         OnPropertyChanged(nameof(FrontWheelCircleTop));
         OnPropertyChanged(nameof(RearWheelCircleLeft));
         OnPropertyChanged(nameof(RearWheelCircleTop));
+        NotifyCanvasBoundsChanged();
     }
 
     #endregion Wheel properties
+
+    #region Canvas bounds (for fitting wheels with padding)
+
+    private const double CanvasPadding = 20;
+
+    // Calculate bounds that include image and wheel circles
+    private double ContentMinX => HasWheels
+        ? Math.Min(0, Math.Min(FrontWheelCircleLeft, RearWheelCircleLeft))
+        : 0;
+
+    private double ContentMinY => HasWheels
+        ? Math.Min(0, Math.Min(FrontWheelCircleTop, RearWheelCircleTop))
+        : 0;
+
+    private double ContentMaxX => HasWheels
+        ? Math.Max(Image?.Size.Width ?? 0, Math.Max(FrontWheelCircleLeft + FrontWheelCircleDiameter, RearWheelCircleLeft + RearWheelCircleDiameter))
+        : Image?.Size.Width ?? 0;
+
+    private double ContentMaxY => HasWheels
+        ? Math.Max(Image?.Size.Height ?? 0, Math.Max(FrontWheelCircleTop + FrontWheelCircleDiameter, RearWheelCircleTop + RearWheelCircleDiameter))
+        : Image?.Size.Height ?? 0;
+
+    // Canvas size including padding
+    public double CanvasWidth => ContentMaxX - ContentMinX + 2 * CanvasPadding;
+    public double CanvasHeight => ContentMaxY - ContentMinY + 2 * CanvasPadding;
+
+    // Offset to apply to position content within the expanded canvas
+    public double ContentOffsetX => -ContentMinX + CanvasPadding;
+    public double ContentOffsetY => -ContentMinY + CanvasPadding;
+
+    private void NotifyCanvasBoundsChanged()
+    {
+        OnPropertyChanged(nameof(CanvasWidth));
+        OnPropertyChanged(nameof(CanvasHeight));
+        OnPropertyChanged(nameof(ContentOffsetX));
+        OnPropertyChanged(nameof(ContentOffsetY));
+    }
+
+    #endregion Canvas bounds
 
     #region Property change handlers
 
@@ -646,8 +691,8 @@ public partial class BikeViewModel : ItemViewModelBase
 
                 if (Math.Abs(deltaRotation) > 0.01)
                 {
-                    var centerX = Image.Size.Width / 2.0;
-                    var centerY = Image.Size.Height / 2.0;
+                    var centerX = 0.0;
+                    var centerY = 0.0;
 
                     foreach (var joint in JointViewModels)
                     {
