@@ -49,7 +49,9 @@ public class BikeCharacteristics
         HeadAngle = headAngle;
 
         MaxFrontTravel = Math.Sin(HeadAngle * Math.PI / 180.0) * frontStroke;
-        MaxRearTravel = Math.Abs(solution[this.mapping.RearWheel].Y[^1] - solution[this.mapping.RearWheel].Y[0]);
+        var rearWheelDx = solution[this.mapping.RearWheel].X[^1] - solution[this.mapping.RearWheel].X[0];
+        var rearWheelDy = solution[this.mapping.RearWheel].Y[^1] - solution[this.mapping.RearWheel].Y[0];
+        MaxRearTravel = Math.Sqrt(rearWheelDx * rearWheelDx + rearWheelDy * rearWheelDy);
         var dx = solution[this.mapping.ShockEye1].X[0] - solution[this.mapping.ShockEye2].X[0];
         var dy = solution[this.mapping.ShockEye1].Y[0] - solution[this.mapping.ShockEye2].Y[0];
         RearStroke = Math.Sqrt(dx * dx + dy * dy);
@@ -66,14 +68,17 @@ public class BikeCharacteristics
         var adjacentJoint2Motion = solution[adjacentJoint2];
         List<double> angles = [];
         List<double> travel = [];
-        var travel0 = solution["Rear wheel"].Y[0];
+        var x0 = solution["Rear wheel"].X[0];
+        var y0 = solution["Rear wheel"].Y[0];
         for (var i = 0; i < sensorJointMotion.X.Count; ++i)
         {
             angles.Add(GeometryUtils.CalculateAngleAtPoint(
                 sensorJointMotion.X[i], sensorJointMotion.Y[i],
                 adjacentJoint1Motion.X[i], adjacentJoint1Motion.Y[i],
                 adjacentJoint2Motion.X[i], adjacentJoint2Motion.Y[i]));
-            travel.Add(solution["Rear wheel"].Y[i] - travel0);
+            var dx = solution["Rear wheel"].X[i] - x0;
+            var dy = solution["Rear wheel"].Y[i] - y0;
+            travel.Add(Math.Sqrt(dx * dx + dy * dy));
         }
 
         return new CoordinateList([.. angles], [.. travel]);
@@ -85,9 +90,14 @@ public class BikeCharacteristics
 
     private CoordinateList CalculateLeverageRatioData()
     {
-        // Calculate wheel travels
-        var travel0 = solution[mapping.RearWheel].Y[0];
-        var wheelTravels = solution[mapping.RearWheel].Y.Select(t => t - travel0).ToList();
+        // Calculate wheel travels using distance from initial position
+        // This makes the calculation rotation-invariant
+        var x0 = solution[mapping.RearWheel].X[0];
+        var y0 = solution[mapping.RearWheel].Y[0];
+        var wheelTravels = solution[mapping.RearWheel].X
+            .Zip(solution[mapping.RearWheel].Y, (x, y) =>
+                Math.Sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)))
+            .ToList();
 
         // Calculate shock lengths
         IEnumerable<double> dx = [];
