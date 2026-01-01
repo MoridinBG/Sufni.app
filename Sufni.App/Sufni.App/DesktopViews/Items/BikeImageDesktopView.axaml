@@ -68,12 +68,18 @@
                     </Canvas>
 
                     <!--  Semi-opaque overlay to improve point visibility  -->
-                    <Border
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch"
-                        Background="White"
-                        IsVisible="{Binding OverlayVisible}"
-                        Opacity="0.7" />
+                    <Canvas IsVisible="{Binding OverlayVisible}">
+                        <Border
+                            Width="{Binding Image.Size.Width}"
+                            Height="{Binding Image.Size.Height}"
+                            Background="White"
+                            Opacity="0.7"
+                            RenderTransformOrigin="0,0">
+                            <Border.RenderTransform>
+                                <RotateTransform Angle="{Binding ImageRotationDegrees}" />
+                            </Border.RenderTransform>
+                        </Border>
+                    </Canvas>
 
                     <!--  Wheel circles  -->
                     <!-- New canvas as it is in a panel to get offset -->
