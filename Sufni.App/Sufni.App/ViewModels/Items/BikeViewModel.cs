@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -104,6 +105,48 @@ public partial class BikeViewModel : ItemViewModelBase
 
     [ObservableProperty]
     private double imageRotationDegrees;
+
+    private Bitmap? rotatedImageCache;
+    private double rotatedImageCacheAngle = double.NaN;
+    
+    public Bitmap? RotatedImage
+    {
+        get
+        {
+            if (Image is null) return null;
+            if (Math.Abs(ImageRotationDegrees) < 0.01) return Image;
+
+            // Return cached version if angle hasn't changed
+            if (rotatedImageCache is not null && Math.Abs(rotatedImageCacheAngle - ImageRotationDegrees) < 0.001)
+                return rotatedImageCache;
+
+            rotatedImageCache = CreateRotatedBitmap(Image, ImageRotationDegrees);
+            rotatedImageCacheAngle = ImageRotationDegrees;
+            return rotatedImageCache;
+        }
+    }
+    
+    // Canvas.Left position for the pre-rotated image to align with joint coordinates.
+    public double RotatedImageLeft
+    {
+        get
+        {
+            if (Image is null || Math.Abs(ImageRotationDegrees) < 0.01) return 0;
+            var bounds = CoordinateRotation.GetRotatedBounds(Image.Size.Width, Image.Size.Height, ImageRotationDegrees);
+            return bounds.minX; // Negative value to position image correctly
+        }
+    }
+    
+    // Canvas.Top position for the pre-rotated image to align with joint coordinates.
+    public double RotatedImageTop
+    {
+        get
+        {
+            if (Image is null || Math.Abs(ImageRotationDegrees) < 0.01) return 0;
+            var bounds = CoordinateRotation.GetRotatedBounds(Image.Size.Width, Image.Size.Height, ImageRotationDegrees);
+            return bounds.minY;
+        }
+    }
 
     [ObservableProperty] private double? pixelsToMillimeters;
 
@@ -207,11 +250,21 @@ public partial class BikeViewModel : ItemViewModelBase
     // Forces the canvas to resize when the image is added
     partial void OnImageChanged(Bitmap? value)
     {
+        rotatedImageCache = null;
+
+        OnPropertyChanged(nameof(RotatedImage));
+        OnPropertyChanged(nameof(RotatedImageLeft));
+        OnPropertyChanged(nameof(RotatedImageTop));
         NotifyCanvasBoundsChanged();
     }
 
     partial void OnImageRotationDegreesChanged(double value)
     {
+        rotatedImageCache = null;
+
+        OnPropertyChanged(nameof(RotatedImage));
+        OnPropertyChanged(nameof(RotatedImageLeft));
+        OnPropertyChanged(nameof(RotatedImageTop));
         NotifyCanvasBoundsChanged();
     }
 
@@ -580,6 +633,36 @@ public partial class BikeViewModel : ItemViewModelBase
         {
             link.IsSelected = false;
         }
+    }
+    
+    // Rotate an image around (0,0). 
+    // The resulting bitmap is sized to contain the full rotated image.
+    private static Bitmap CreateRotatedBitmap(Bitmap source, double angleDegrees)
+    {
+        var bounds = CoordinateRotation.GetRotatedBounds(source.Size.Width, source.Size.Height, angleDegrees);
+        var newWidth = (int)Math.Ceiling(bounds.maxX - bounds.minX);
+        var newHeight = (int)Math.Ceiling(bounds.maxY - bounds.minY);
+
+        // minX/minY at 0
+        var offsetX = -bounds.minX;
+        var offsetY = -bounds.minY;
+
+        var renderTarget = new RenderTargetBitmap(new PixelSize(newWidth, newHeight));
+        using (var ctx = renderTarget.CreateDrawingContext())
+        {
+            // Translation to account for negative coordinates after rotation
+            // then apply the rotation around (0,0)
+            var translateMatrix = Matrix.CreateTranslation(offsetX, offsetY);
+            var rotateMatrix = Matrix.CreateRotation(angleDegrees * Math.PI / 180.0);
+            var combinedMatrix = rotateMatrix * translateMatrix;
+
+            using (ctx.PushTransform(combinedMatrix))
+            {
+                ctx.DrawImage(source, new Rect(0, 0, source.Size.Width, source.Size.Height));
+            }
+        }
+
+        return renderTarget;
     }
 
     private Linkage CreateLinkage()

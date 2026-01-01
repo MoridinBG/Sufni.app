@@ -59,14 +59,13 @@
                 Background="Transparent">
                 <Panel Canvas.Left="{Binding ContentOffsetX}" Canvas.Top="{Binding ContentOffsetY}">
                     <!--  Bike image  -->
-                    <Image
-                        Name="BikeImage"
-                        RenderTransformOrigin="0,0"
-                        Source="{Binding Image}">
-                        <Image.RenderTransform>
-                            <RotateTransform Angle="{Binding ImageRotationDegrees}" />
-                        </Image.RenderTransform>
-                    </Image>
+                    <Canvas>
+                        <Image
+                            Name="BikeImage"
+                            Canvas.Left="{Binding RotatedImageLeft}"
+                            Canvas.Top="{Binding RotatedImageTop}"
+                            Source="{Binding RotatedImage}" />
+                    </Canvas>
 
                     <!--  Semi-opaque overlay to improve point visibility  -->
                     <Border
