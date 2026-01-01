@@ -157,7 +157,7 @@ public partial class BikeViewModel : ItemViewModelBase
     [ObservableProperty] private bool overlayVisible;
 
     [ObservableProperty] private CoordinateList? leverageRatioData;
-    [ObservableProperty] private List<Point>? rearAxlePath;
+    [ObservableProperty] private List<Point> rearAxlePath = [];
     
     public double ImageCenterX => (Image?.Size.Width ?? 0) / 2.0;
     public double ImageCenterY => (Image?.Size.Height ?? 0) / 2.0;
@@ -771,11 +771,16 @@ public partial class BikeViewModel : ItemViewModelBase
                         imageHeight - y / pxToMm))
                     .ToList();
             }
+            else
+            {
+                RearAxlePath = [];
+            }
 
             return true;
         }
         catch (Exception)
         {
+            RearAxlePath = [];
             return false;
         }
     }

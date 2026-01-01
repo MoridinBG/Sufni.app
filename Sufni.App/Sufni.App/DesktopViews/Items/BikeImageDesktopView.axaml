@@ -109,7 +109,7 @@
                         Points="{Binding RearAxlePath}"
                         Stroke="Cyan"
                         StrokeThickness="2"
-                        IsVisible="{Binding RearAxlePath, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        IsVisible="{Binding !!RearAxlePath.Count}" />
 
                 <!--  Links  -->
                 <SelectingItemsControl
