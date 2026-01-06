@@ -220,6 +220,18 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 {
                     var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
+                    Guid? trackId = null;
+                    var telemetryData = TelemetryData.FromBinary(psst);
+                    if (telemetryData.GpsData is { Length: > 0 })
+                    {
+                        var track = Track.FromGpsRecords(telemetryData.GpsData);
+                        if (track.Points.Count > 0)
+                        {
+                            await databaseService.PutAsync(track);
+                            trackId = track.Id;
+                        }
+                    }
+
                     var session = new Session(
                         id: Guid.NewGuid(),
                         name: telemetryFile.Name,
@@ -227,7 +239,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                         setup: SelectedSetup!.Value,
                         timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
                     {
-                        ProcessedData = psst
+                        ProcessedData = psst,
+                        FullTrack = trackId
                     };
 
                     await databaseService.PutSessionAsync(session);
