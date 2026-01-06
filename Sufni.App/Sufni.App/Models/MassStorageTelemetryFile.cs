@@ -27,17 +27,29 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
         var magic = reader.ReadBytes(3);
         var version = reader.ReadByte();
-        if (!magic.SequenceEqual("SST"u8.ToArray()) || version != 3)
+        if (!magic.SequenceEqual("SST"u8.ToArray()) || (version != 3 && version != 4))
         {
             throw new FormatException("Not an SST file");
         }
 
-        var sampleRate = reader.ReadUInt16();
-        var count = (this.fileInfo.Length - 16 /* sizeof(header) */) / 4 /* sizeof(record) */;
-        reader.ReadUInt16(); // padding
-        var timestamp = reader.ReadInt64();
+        long timestamp;
+        TimeSpan duration;
 
-        var duration = TimeSpan.FromSeconds((double)count / sampleRate);
+        if (version == 3)
+        {
+            var sampleRate = reader.ReadUInt16();
+            var count = (this.fileInfo.Length - 16) / 4;
+            reader.ReadUInt16(); // padding
+            timestamp = reader.ReadInt64();
+            duration = TimeSpan.FromSeconds((double)count / sampleRate);
+        }
+        else // version == 4
+        {
+            reader.ReadUInt32(); // padding
+            timestamp = reader.ReadInt64();
+            duration = SstV4TlvParser.ParseDuration(reader);
+        }
+
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
         StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");

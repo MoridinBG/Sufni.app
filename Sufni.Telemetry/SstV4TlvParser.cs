@@ -2,6 +2,43 @@ namespace Sufni.Telemetry;
 
 public class SstV4TlvParser : ISstParser
 {
+    public static TimeSpan ParseDuration(BinaryReader reader)
+    {
+        ushort sampleRate = 0;
+        long telemetrySamples = 0;
+
+        while (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            var type = reader.ReadByte();
+            var length = reader.ReadUInt16();
+
+            if (type == (byte)TlvChunkType.Rates)
+            {
+                var entryCount = length / 3;
+                for (int i = 0; i < entryCount; i++)
+                {
+                    var rType = reader.ReadByte();
+                    var rRate = reader.ReadUInt16();
+                    if (rType == (byte)TlvChunkType.Telemetry)
+                        sampleRate = rRate;
+                }
+            }
+            else if (type == (byte)TlvChunkType.Telemetry)
+            {
+                telemetrySamples += length / 4;
+                reader.BaseStream.Seek(length, SeekOrigin.Current);
+            }
+            else
+            {
+                reader.BaseStream.Seek(length, SeekOrigin.Current);
+            }
+        }
+
+        return sampleRate > 0
+            ? TimeSpan.FromSeconds((double)telemetrySamples / sampleRate)
+            : TimeSpan.Zero;
+    }
+
     public RawTelemetryData Parse(BinaryReader reader, byte version)
     {
         _ = reader.ReadUInt32(); // Padding
