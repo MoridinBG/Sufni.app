@@ -80,6 +80,70 @@ public class SstV4TlvParserTests
     }
 
     [Fact]
+    public void Parse_GpsChunk_ReturnsCorrectData()
+    {
+        // Arrange
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0); // Padding
+        writer.Write((long)0); // Timestamp
+
+        // Rates Chunk
+        writer.Write((byte)0x00);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        // Telemetry Chunk (minimal)
+        writer.Write((byte)0x01);
+        writer.Write((ushort)4);
+        writer.Write((ushort)500);
+        writer.Write((ushort)600);
+
+        // GPS Chunk (0x05) - 1 record = 46 bytes
+        writer.Write((byte)0x05);
+        writer.Write((ushort)46);
+        writer.Write((uint)20250106);  // Date: 2025-01-06
+        writer.Write((uint)43200000);  // Time: 12:00:00.000 (noon in ms)
+        writer.Write(47.123456);       // Latitude
+        writer.Write(19.654321);       // Longitude
+        writer.Write(150.5f);          // Altitude
+        writer.Write(25.3f);           // Speed
+        writer.Write(180.0f);          // Heading
+        writer.Write((byte)2);         // Fix mode (3D)
+        writer.Write((byte)12);        // Satellites
+        writer.Write(2.5f);            // EPE 2D
+        writer.Write(3.5f);            // EPE 3D
+
+        ms.Position = 0;
+        using var reader = new BinaryReader(ms);
+        reader.ReadBytes(4);
+
+        var parser = new SstV4TlvParser();
+
+        // Act
+        var result = parser.Parse(reader, 4);
+
+        // Assert
+        Assert.NotNull(result.GpsData);
+        Assert.Single(result.GpsData);
+        var gps = result.GpsData[0];
+        Assert.Equal(new DateTime(2025, 1, 6, 12, 0, 0, DateTimeKind.Utc), gps.Timestamp);
+        Assert.Equal(47.123456, gps.Latitude, 6);
+        Assert.Equal(19.654321, gps.Longitude, 6);
+        Assert.Equal(150.5f, gps.Altitude);
+        Assert.Equal(25.3f, gps.Speed);
+        Assert.Equal(180.0f, gps.Heading);
+        Assert.Equal(2, gps.FixMode);
+        Assert.Equal(12, gps.Satellites);
+        Assert.Equal(2.5f, gps.Epe2d);
+        Assert.Equal(3.5f, gps.Epe3d);
+    }
+
+    [Fact]
     public void Parse_UnknownChunkType_SkipsGracefully()
     {
         // Arrange

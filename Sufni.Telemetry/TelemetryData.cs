@@ -102,6 +102,7 @@ public class TelemetryData
     public Airtime[] Airtimes { get; set; }
     public MarkerData[] Markers { get; set; } = [];
     public RawImuData? ImuData { get; set; }
+    public GpsRecord[]? GpsData { get; set; }
     [IgnoreMember] public byte[] BinaryForm => MessagePackSerializer.Serialize(this);
 
     #endregion
@@ -315,6 +316,7 @@ public class TelemetryData
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
         td.Markers = rawData.Markers;
         td.ImuData = rawData.ImuData;
+        td.GpsData = rawData.GpsData;
 
         // Evaluate front and rear input arrays
         var fc = rawData.Front.Length;

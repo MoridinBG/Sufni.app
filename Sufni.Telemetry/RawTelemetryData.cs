@@ -16,7 +16,8 @@ public class RawTelemetryData
     public double RearAnomalyRate { get; set; }
     public MarkerData[] Markers { get; set; } = [];
     public RawImuData? ImuData { get; set; }
-    
+    public GpsRecord[]? GpsData { get; set; }
+
     #endregion Public properties
 
     #region Initializers

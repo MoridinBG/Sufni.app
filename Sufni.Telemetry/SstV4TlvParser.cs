@@ -11,6 +11,7 @@ public class SstV4TlvParser : ISstParser
         var rearList = new List<int>();
         var markers = new List<MarkerData>();
         RawImuData? imuData = null;
+        var gpsRecords = new List<GpsRecord>();
         var rates = new Dictionary<TlvChunkType, ushort>();
         
         var stream = reader.BaseStream;
@@ -93,6 +94,34 @@ public class SstV4TlvParser : ISstParser
                     }
                     break;
 
+                case TlvChunkType.Gps:
+                    var gpsRecordCount = length / 46;
+                    for (int i = 0; i < gpsRecordCount; i++)
+                    {
+                        var date = reader.ReadUInt32();
+                        var timeMs = reader.ReadUInt32();
+                        var latitude = reader.ReadDouble();
+                        var longitude = reader.ReadDouble();
+                        var altitude = reader.ReadSingle();
+                        var speed = reader.ReadSingle();
+                        var heading = reader.ReadSingle();
+                        var fixMode = reader.ReadByte();
+                        var satellites = reader.ReadByte();
+                        var epe2d = reader.ReadSingle();
+                        var epe3d = reader.ReadSingle();
+
+                        var year = (int)(date / 10000);
+                        var month = (int)(date / 100 % 100);
+                        var day = (int)(date % 100);
+                        var utcTimestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc)
+                            .AddMilliseconds(timeMs);
+
+                        gpsRecords.Add(new GpsRecord(
+                            utcTimestamp, latitude, longitude, altitude,
+                            speed, heading, fixMode, satellites, epe2d, epe3d));
+                    }
+                    break;
+
                 default:
                     stream.Seek(length, SeekOrigin.Current);
                     break;
@@ -110,7 +139,8 @@ public class SstV4TlvParser : ISstParser
             SampleRate = sampleRate,
             Timestamp = timestamp,
             Markers = markers.ToArray(),
-            ImuData = imuData is { Meta.Count: > 0 } ? imuData : null
+            ImuData = imuData is { Meta.Count: > 0 } ? imuData : null,
+            GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null
         };
 
         if (front.Length > 0)
