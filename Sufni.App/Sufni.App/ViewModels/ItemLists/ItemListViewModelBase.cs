@@ -138,7 +138,7 @@ public partial class ItemListViewModelBase : ViewModelBase
                 await databaseService.DeleteAsync<Setup>(LastDeleted.Id);
                 break;
             case SessionViewModel:
-                await databaseService.DeleteAsync<Session>(LastDeleted.Id);
+                await databaseService.DeleteSessionAsync(LastDeleted.Id);
                 break;
             case BikeViewModel:
                 await databaseService.DeleteAsync<Bike>(LastDeleted.Id);

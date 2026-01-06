@@ -64,6 +64,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                        """;
         await connection.ExecuteAsync(cleanSessionCachesQuery);
         await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
+        await connection.Table<Track>().DeleteAsync(t => t.Deleted != null && t.Deleted < oneDayAgo);
         await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
         await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
         await connection.Table<Bike>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
@@ -243,6 +244,35 @@ public class SqLiteDatabaseService : IDatabaseService
         return session.Id;
     }
 
+    public async Task DeleteSessionAsync(Guid id)
+    {
+        await Initialization;
+
+        var session = await connection.Table<Session>()
+            .Where(s => s.Id == id)
+            .FirstOrDefaultAsync();
+        if (session is null) return;
+
+        var trackId = session.FullTrack;
+
+        // Soft-delete the session
+        session.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+        await connection.UpdateAsync(session);
+
+        // If session had a track, check if any other sessions use it
+        if (trackId is not null)
+        {
+            var otherSessionsUsingTrack = await connection.Table<Session>()
+                .Where(s => s.FullTrack == trackId && s.Id != id && s.Deleted == null)
+                .CountAsync();
+
+            if (otherSessionsUsingTrack == 0)
+            {
+                await DeleteAsync<Track>(trackId.Value);
+            }
+        }
+    }
+
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
     {
         await Initialization;
@@ -314,7 +344,7 @@ public class SqLiteDatabaseService : IDatabaseService
 
         var session = sessions[0];
         var track = await connection.Table<Track>()
-            .Where(t => t.StartTime <= session.Timestamp && session.Timestamp <= t.EndTime)
+            .Where(t => t.Deleted == null && t.StartTime <= session.Timestamp && session.Timestamp <= t.EndTime)
             .FirstOrDefaultAsync();
         if (track is null) return null;
 
