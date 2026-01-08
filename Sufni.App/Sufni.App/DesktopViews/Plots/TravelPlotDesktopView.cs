@@ -18,7 +18,7 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
         set => SetValue(VelocityPlotViewProperty, value);
     }
 
-    public static readonly StyledProperty<MapView> MapViewProperty =
+    public static readonly StyledProperty<MapView> MapViewProperty = 
         AvaloniaProperty.Register<TravelPlotDesktopView, MapView>(nameof(MapView));
 
     public MapView MapView
