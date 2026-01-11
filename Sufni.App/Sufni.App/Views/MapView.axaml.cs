@@ -69,7 +69,7 @@ public class MapView : TemplatedControl
     private static TileLayer CreateJawgTileLayer()
     {
         var tileSource = new HttpTileSource(
-            new GlobalSphericalMercator(),
+            new GlobalSphericalMercator(minZoomLevel: 0, maxZoomLevel: 24, name: null),
             "https://tile.jawg.io/aa40616c-c117-442e-ae6f-901ffa0e14a4/{z}/{x}/{y}.png?access-token=lK4rYCmlPZb5Fj4GjObrgGYo0IQnEz00hWXR7lpmRUHQ2a9R6jwr8aEpaSJxh5tn",
             name: "Jawg Dark",
             attribution: new Attribution("Tiles Courtesy of Jawg Maps", "https://jawg.io")
