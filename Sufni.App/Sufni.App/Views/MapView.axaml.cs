@@ -14,14 +14,20 @@ using Mapsui.Nts.Extensions;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI.Avalonia;
+using Microsoft.Extensions.DependencyInjection;
 using NetTopologySuite.Geometries;
 using Sufni.App.Models;
+using Sufni.App.Services;
 
 namespace Sufni.App.Views;
 
 public class MapView : TemplatedControl
 {
     private MapControl? mapControl;
+    private ITileLayerService? tileLayerService;
+    private IDialogService? dialogService;
+    private ComboBox? tileProviderComboBox;
+    private Button? addCustomTileButton;
 
     private readonly WritableLayer positionMarkerLayer = new()
     {
@@ -51,8 +57,28 @@ public class MapView : TemplatedControl
     {
         base.OnApplyTemplate(e);
 
+        if (App.Current?.Services != null)
+        {
+            tileLayerService = App.Current.Services.GetService<ITileLayerService>();
+            dialogService = App.Current.Services.GetService<IDialogService>();
+            _ = tileLayerService?.InitializeAsync().ContinueWith(t => 
+                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(UpdateSelectedLayer));
+        }
+
         mapControl = e.NameScope.Find<MapControl>("MapControl");
-        mapControl?.Map.Layers.Add(CreateJawgTileLayer());
+        tileProviderComboBox = e.NameScope.Find<ComboBox>("TileProviderComboBox");
+        addCustomTileButton = e.NameScope.Find<Button>("AddCustomTileButton");
+
+        if (tileProviderComboBox != null && tileLayerService != null)
+        {
+            tileProviderComboBox.ItemsSource = tileLayerService.AvailableLayers;
+            tileProviderComboBox.SelectionChanged += TileProviderComboBox_SelectionChanged;
+        }
+
+        if (addCustomTileButton != null)
+        {
+            addCustomTileButton.Click += AddCustomTileButton_Click;
+        }
 
         var trackLayer = CreateFullTrackLayer();
         mapControl?.Map.Layers.Add(trackLayer);
@@ -66,16 +92,63 @@ public class MapView : TemplatedControl
         SetNormalizedCursorPosition(100);
     }
 
-    private static TileLayer CreateJawgTileLayer()
+    private async void AddCustomTileButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (dialogService == null || tileLayerService == null) return;
+        
+        var config = await dialogService.ShowAddTileLayerDialogAsync();
+        if (config != null)
+        {
+            await tileLayerService.AddCustomLayerAsync(config);
+            tileLayerService.SelectedLayer = config;
+            UpdateSelectedLayer();
+        }
+    }
+
+    private void TileProviderComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (tileLayerService == null || tileProviderComboBox?.SelectedItem is not TileLayerConfig selected) return;
+        
+        tileLayerService.SelectedLayer = selected;
+        UpdateTileLayer(selected);
+    }
+
+    private void UpdateSelectedLayer()
+    {
+        if (tileLayerService == null || tileProviderComboBox == null) return;
+        tileProviderComboBox.SelectedItem = tileLayerService.SelectedLayer;
+        UpdateTileLayer(tileLayerService.SelectedLayer);
+    }
+
+    private void UpdateTileLayer(TileLayerConfig config)
+    {
+        if (mapControl == null) return;
+
+        // Remove existing tile layers
+        var tileLayers = mapControl.Map.Layers.OfType<TileLayer>().ToList();
+        foreach (var layer in tileLayers)
+        {
+            mapControl.Map.Layers.Remove(layer);
+        }
+
+        // Create and add new layer
+        var layerToAdd = CreateTileLayer(config);
+        
+        // Insert at index 0 to be behind everything else
+        mapControl.Map.Layers.Insert(0, layerToAdd);
+        mapControl.Refresh();
+    }
+
+    private static TileLayer CreateTileLayer(TileLayerConfig config)
     {
         var tileSource = new HttpTileSource(
-            new GlobalSphericalMercator(minZoomLevel: 0, maxZoomLevel: 24, name: null),
-            "https://tile.jawg.io/aa40616c-c117-442e-ae6f-901ffa0e14a4/{z}/{x}/{y}.png?access-token=lK4rYCmlPZb5Fj4GjObrgGYo0IQnEz00hWXR7lpmRUHQ2a9R6jwr8aEpaSJxh5tn",
-            name: "Jawg Dark",
-            attribution: new Attribution("Tiles Courtesy of Jawg Maps", "https://jawg.io")
+            new GlobalSphericalMercator(0, config.MaxZoom, null),
+            config.UrlTemplate,
+            name: config.Name,
+            attribution: new Attribution(config.AttributionText, config.AttributionUrl)
         );
 
-        return new TileLayer(tileSource) { Name = "Jawg Dark" };
+        return new TileLayer(tileSource) { Name = config.Name };
     }
 
     private MemoryLayer CreateFullTrackLayer()

@@ -24,6 +24,7 @@ public partial class App : Application
         RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiService>();
         RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
+        RegisteredServices.Collection.AddSingleton<ITileLayerService, TileLayerService>();
 
         IsDesktop = RegisteredServices.Collection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
     }
