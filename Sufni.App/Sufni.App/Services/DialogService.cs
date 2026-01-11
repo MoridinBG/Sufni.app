@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.Models;
+using Sufni.App.Views;
 using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Services;
@@ -29,5 +32,32 @@ public class DialogService : IDialogService
                 "Page cannot be saved due to missing or wrong data. Are you sure you want to close it?");
         }
         return await dialog.ShowDialogAsync(owner);
+    }
+
+    public Task<TileLayerConfig?> ShowAddTileLayerDialogAsync()
+    {
+        Debug.Assert(owner != null, nameof(owner) + " != null");
+        
+        var tcs = new TaskCompletionSource<TileLayerConfig?>();
+        var window = new Window
+        {
+            Title = "Add Custom Layer",
+            Width = 400,
+            Height = 350,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false
+        };
+
+        var content = new AddTileLayerView();
+        content.Finished += (s, result) =>
+        {
+            tcs.TrySetResult(result);
+            window.Close();
+        };
+
+        window.Content = content;
+        
+        window.ShowDialog(owner);
+        return tcs.Task;
     }
 }
