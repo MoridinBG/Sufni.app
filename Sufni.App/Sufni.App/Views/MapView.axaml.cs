@@ -21,6 +21,8 @@ namespace Sufni.App.Views;
 
 public class MapView : TemplatedControl
 {
+    private MapControl? mapControl;
+
     private readonly WritableLayer positionMarkerLayer = new()
     {
         Name = "Position Marker",
@@ -49,7 +51,7 @@ public class MapView : TemplatedControl
     {
         base.OnApplyTemplate(e);
 
-        var mapControl = e.NameScope.Find<MapControl>("MapControl");
+        mapControl = e.NameScope.Find<MapControl>("MapControl");
         mapControl?.Map.Layers.Add(CreateJawgTileLayer());
 
         var trackLayer = CreateFullTrackLayer();
@@ -128,7 +130,7 @@ public class MapView : TemplatedControl
         var index = (int)Math.Ceiling((SessionTrackPoints.Count - 1) * pos);
         positionMarkerLayer.Clear();
         var feature = new PointFeature(SessionTrackPoints[index].X, SessionTrackPoints[index].Y);
-        feature.Styles.Add(new SymbolStyle 
+        feature.Styles.Add(new SymbolStyle
         {
             SymbolType = SymbolType.Ellipse,
             Line = new Pen(Color.Black),
@@ -137,6 +139,42 @@ public class MapView : TemplatedControl
         });
         positionMarkerLayer.Add(feature);
         positionMarkerLayer.DataHasChanged();
+    }
+
+    public void ZoomToNormalizedRange(double startNormalized, double endNormalized, double padding = 0.1)
+    {
+        if (SessionTrackPoints is null || mapControl is null || startNormalized >= endNormalized) return;
+
+        // Clamp to valid range
+        startNormalized = Math.Clamp(startNormalized, 0, 1);
+        endNormalized = Math.Clamp(endNormalized, 0, 1);
+        
+        var startIndex = (int)Math.Floor((SessionTrackPoints.Count - 1) * startNormalized);
+        var endIndex = (int)Math.Ceiling((SessionTrackPoints.Count - 1) * endNormalized);
+        
+        startIndex = Math.Max(0, startIndex);
+        endIndex = Math.Min(SessionTrackPoints.Count - 1, endIndex);
+        if (startIndex >= endIndex) return;
+        
+        var pointsInRange = SessionTrackPoints.Skip(startIndex).Take(endIndex - startIndex + 1).ToList();
+        var minX = pointsInRange.Min(p => p.X);
+        var maxX = pointsInRange.Max(p => p.X);
+        var minY = pointsInRange.Min(p => p.Y);
+        var maxY = pointsInRange.Max(p => p.Y);
+        
+        var width = maxX - minX;
+        var height = maxY - minY;
+        var paddingX = width * padding;
+        var paddingY = height * padding;
+
+        var extent = new Mapsui.MRect(
+            minX - paddingX,
+            minY - paddingY,
+            maxX + paddingX,
+            maxY + paddingY);
+        Console.WriteLine(extent);
+
+        mapControl.Map.Navigator.ZoomToBox(extent);
     }
 
     private MemoryLayer CreateSessionTrackLayer()

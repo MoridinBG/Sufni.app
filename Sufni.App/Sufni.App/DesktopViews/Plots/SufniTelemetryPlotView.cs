@@ -1,5 +1,8 @@
+using System;
 using Avalonia;
 using Sufni.App.Plots;
+using Sufni.App.ViewModels.Items;
+using Sufni.App.Views;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 
@@ -16,6 +19,15 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     {
         get => GetValue(TelemetryProperty);
         set => SetValue(TelemetryProperty, value);
+    }
+    
+    public static readonly StyledProperty<MapView> MapViewProperty =
+        AvaloniaProperty.Register<TravelPlotDesktopView, MapView>(nameof(MapView));
+
+    public MapView MapView
+    {
+        get => GetValue(MapViewProperty);
+        set => SetValue(MapViewProperty, value);
     }
     
     protected SufniTelemetryPlotView()
@@ -35,5 +47,18 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
 
             AvaPlot.Refresh();
         };
+    }
+    
+    protected void UpdateMapZoom()
+    {
+        if (AvaPlot is null || DataContext is not SessionViewModel vm || vm.TelemetryData is null) return;
+
+        var limits = AvaPlot.Plot.Axes.GetLimits();
+        var duration = vm.TelemetryData.Metadata.Duration;
+
+        var startNormalized = Math.Clamp(limits.Left / duration, 0.0, 1.0);
+        var endNormalized = Math.Clamp(limits.Right / duration, 0.0, 1.0);
+
+        MapView?.ZoomToNormalizedRange(startNormalized, endNormalized);
     }
 }

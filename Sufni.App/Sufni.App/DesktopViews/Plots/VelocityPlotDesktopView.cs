@@ -3,7 +3,6 @@ using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
 using Sufni.App.ViewModels.Items;
-using Sufni.App.Views;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -16,15 +15,6 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
     {
         get => GetValue(TravelPlotViewProperty);
         set => SetValue(TravelPlotViewProperty, value);
-    }
-
-    public static readonly StyledProperty<MapView> MapViewProperty =
-        AvaloniaProperty.Register<VelocityPlotDesktopView, MapView>(nameof(MapView));
-
-    public MapView MapView
-    {
-        get => GetValue(MapViewProperty);
-        set => SetValue(MapViewProperty, value);
     }
 
     protected override void CreatePlot()
@@ -58,5 +48,10 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
                 travelPlot.Plot.PlotControl!.Refresh();
             }
         };
+        
+                
+        // Update map zoom when plot is zoomed/panned
+        AvaPlot.PointerReleased += (_, _) => UpdateMapZoom();
+        AvaPlot.PointerWheelChanged += (_, _) => UpdateMapZoom();
     }
 }
