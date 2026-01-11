@@ -13,6 +13,7 @@ public class TileLayerService : ITileLayerService
     private readonly IDatabaseService databaseService;
     private const string SelectedLayerIdKey = "Map.SelectedLayerId";
     private const string CustomLayersKey = "Map.CustomLayers";
+    private Task? initializationTask;
 
     public ObservableCollection<TileLayerConfig> AvailableLayers { get; } = new();
 
@@ -33,7 +34,12 @@ public class TileLayerService : ITileLayerService
         this.databaseService = databaseService;
     }
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
+    {
+        return initializationTask ??= InitializeCoreAsync();
+    }
+
+    private async Task InitializeCoreAsync()
     {
         AvailableLayers.Clear();
 
