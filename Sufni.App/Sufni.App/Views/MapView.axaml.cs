@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using BruTile;
 using BruTile.Predefined;
 using BruTile.Web;
 using Mapsui.Layers;
@@ -14,20 +12,15 @@ using Mapsui.Nts.Extensions;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI.Avalonia;
-using Microsoft.Extensions.DependencyInjection;
 using NetTopologySuite.Geometries;
 using Sufni.App.Models;
-using Sufni.App.Services;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.Views;
 
-public class MapView : TemplatedControl
+public partial class MapView : UserControl
 {
     private MapControl? mapControl;
-    private ITileLayerService? tileLayerService;
-    private IDialogService? dialogService;
-    private ComboBox? tileProviderComboBox;
-    private Button? addCustomTileButton;
 
     private readonly WritableLayer positionMarkerLayer = new()
     {
@@ -35,106 +28,117 @@ public class MapView : TemplatedControl
         Style = new SymbolStyle { SymbolScale = 0.5 }
     };
 
-    public static readonly StyledProperty<List<TrackPoint>?> TrackPointsProperty =
-        AvaloniaProperty.Register<MapView, List<TrackPoint>?>(nameof(TrackPoints));
-    
-    public List<TrackPoint>? TrackPoints
+    public MapViewModel? ViewModel => DataContext as MapViewModel;
+
+    public MapView()
     {
-        get => GetValue(TrackPointsProperty);
-        set => SetValue(TrackPointsProperty, value);
-    }
+        InitializeComponent();
 
-    public static readonly StyledProperty<List<TrackPoint>?> SessionTrackPointsProperty =
-        AvaloniaProperty.Register<MapView, List<TrackPoint>?>(nameof(SessionTrackPoints));
-    
-    public List<TrackPoint>? SessionTrackPoints
-    {
-        get => GetValue(SessionTrackPointsProperty);
-        set => SetValue(SessionTrackPointsProperty, value);
-    }
-
-    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
-    {
-        base.OnApplyTemplate(e);
-
-        if (App.Current?.Services != null)
-        {
-            tileLayerService = App.Current.Services.GetService<ITileLayerService>();
-            dialogService = App.Current.Services.GetService<IDialogService>();
-            _ = tileLayerService?.InitializeAsync().ContinueWith(t => 
-                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(UpdateSelectedLayer));
-        }
-
-        mapControl = e.NameScope.Find<MapControl>("MapControl");
-        tileProviderComboBox = e.NameScope.Find<ComboBox>("TileProviderComboBox");
-        addCustomTileButton = e.NameScope.Find<Button>("AddCustomTileButton");
-
-        if (tileProviderComboBox != null && tileLayerService != null)
-        {
-            tileProviderComboBox.ItemsSource = tileLayerService.AvailableLayers;
-            tileProviderComboBox.SelectionChanged += TileProviderComboBox_SelectionChanged;
-        }
-
-        if (addCustomTileButton != null)
-        {
-            addCustomTileButton.Click += AddCustomTileButton_Click;
-        }
-
-        var trackLayer = CreateFullTrackLayer();
-        mapControl?.Map.Layers.Add(trackLayer);
-
-        var sessionTrackLayer = CreateSessionTrackLayer();
-        mapControl?.Map.Layers.Add(sessionTrackLayer);
-        mapControl?.Map.Layers.Add(CreateStartEndPointsLayer());
-        mapControl?.Map.Layers.Add(positionMarkerLayer);
-        mapControl?.Map.Navigator.CenterOnAndZoomTo(sessionTrackLayer.Extent!.Centroid, 10);
-
-        SetNormalizedCursorPosition(100);
-    }
-
-    private async void AddCustomTileButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (dialogService == null || tileLayerService == null) return;
+        mapControl = this.FindControl<MapControl>("MapControl");
         
-        var config = await dialogService.ShowAddTileLayerDialogAsync();
-        if (config != null)
+        // Setup initial layers
+        if (mapControl != null)
         {
-            await tileLayerService.AddCustomLayerAsync(config);
-            tileLayerService.SelectedLayer = config;
-            UpdateSelectedLayer();
+            var trackLayer = CreateFullTrackLayer(); // Initially empty until ViewModel updates
+            mapControl.Map.Layers.Add(trackLayer);
+
+            var sessionTrackLayer = CreateSessionTrackLayer(); // Initially empty
+            mapControl.Map.Layers.Add(sessionTrackLayer);
+            mapControl.Map.Layers.Add(CreateStartEndPointsLayer());
+            mapControl.Map.Layers.Add(positionMarkerLayer);
+        }
+
+        SetNormalizedCursorPosition(1);
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (ViewModel != null)
+        {
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            
+            // Initial sync
+            if (ViewModel.SelectedLayer != null)
+                UpdateTileLayer(ViewModel.SelectedLayer);
+            
+            UpdateTracks();
         }
     }
 
-    private void TileProviderComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (tileLayerService == null || tileProviderComboBox?.SelectedItem is not TileLayerConfig selected) return;
-        
-        tileLayerService.SelectedLayer = selected;
-        UpdateTileLayer(selected);
+        if (ViewModel == null) return;
+
+        if (e.PropertyName == nameof(MapViewModel.SelectedLayer) && ViewModel.SelectedLayer != null)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => UpdateTileLayer(ViewModel.SelectedLayer));
+        }
+        else if (e.PropertyName == nameof(MapViewModel.FullTrackPoints) || e.PropertyName == nameof(MapViewModel.SessionTrackPoints))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(UpdateTracks);
+        }
     }
 
-    private void UpdateSelectedLayer()
+    private void UpdateTracks()
     {
-        if (tileLayerService == null || tileProviderComboBox == null) return;
-        tileProviderComboBox.SelectedItem = tileLayerService.SelectedLayer;
-        UpdateTileLayer(tileLayerService.SelectedLayer);
+        if (mapControl == null || ViewModel == null) return;
+
+        // Update Full Track
+        var fullTrackLayer = mapControl.Map.Layers.FindLayer("Full Track").FirstOrDefault() as MemoryLayer;
+        if (fullTrackLayer != null && ViewModel.FullTrackPoints != null)
+        {
+            var lineString = new LineString(ViewModel.FullTrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
+            fullTrackLayer.Features = [new GeometryFeature { Geometry = lineString }];
+            fullTrackLayer.DataHasChanged();
+        }
+
+        // Update Session Track
+        var sessionTrackLayer = mapControl.Map.Layers.FindLayer("Session Track").FirstOrDefault() as MemoryLayer;
+        if (sessionTrackLayer != null && ViewModel.SessionTrackPoints != null)
+        {
+            var lineString = new LineString(ViewModel.SessionTrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
+            sessionTrackLayer.Features = [new GeometryFeature { Geometry = lineString }];
+            sessionTrackLayer.DataHasChanged();
+
+            // Zoom to session
+            if (sessionTrackLayer.Extent != null)
+            {
+                mapControl.Map.Navigator.CenterOnAndZoomTo(sessionTrackLayer.Extent.Centroid, 10);
+            }
+        }
+
+        // Update Markers
+        var markerLayer = mapControl.Map.Layers.FindLayer("Start/End Marker").FirstOrDefault() as MemoryLayer;
+        if (markerLayer != null && ViewModel.SessionTrackPoints != null && ViewModel.SessionTrackPoints.Any())
+        {
+            var start = ViewModel.SessionTrackPoints.First();
+            var end = ViewModel.SessionTrackPoints.Last();
+            
+            var startPointFeature = new PointFeature(start.X, start.Y);
+            startPointFeature.Styles.Add(new SymbolStyle { SymbolType = SymbolType.Ellipse, Line = new Pen(Color.Black), Fill = new Brush(Color.FromString("#229954")), SymbolScale = 0.5 });
+            
+            var endPointFeature = new PointFeature(end.X, end.Y);
+            endPointFeature.Styles.Add(new SymbolStyle { SymbolType = SymbolType.Ellipse, Line = new Pen(Color.Black), Fill = new Brush(Color.FromString("#E74C3C")), SymbolScale = 0.5 });
+
+            markerLayer.Features = [startPointFeature, endPointFeature];
+            markerLayer.DataHasChanged();
+        }
+
+        mapControl.Refresh();
     }
 
     private void UpdateTileLayer(TileLayerConfig config)
     {
         if (mapControl == null) return;
 
-        // Remove existing tile layers
         var tileLayers = mapControl.Map.Layers.OfType<TileLayer>().ToList();
         foreach (var layer in tileLayers)
         {
             mapControl.Map.Layers.Remove(layer);
         }
 
-        // Create and add new layer
         var layerToAdd = CreateTileLayer(config);
-        
-        // Insert at index 0 to be behind everything else
         mapControl.Map.Layers.Insert(0, layerToAdd);
         mapControl.Refresh();
     }
@@ -142,10 +146,10 @@ public class MapView : TemplatedControl
     private static TileLayer CreateTileLayer(TileLayerConfig config)
     {
         var tileSource = new HttpTileSource(
-            new GlobalSphericalMercator(0, config.MaxZoom, null),
+            new GlobalSphericalMercator(minZoomLevel: 0, maxZoomLevel: config.MaxZoom, name: null),
             config.UrlTemplate,
             name: config.Name,
-            attribution: new Attribution(config.AttributionText, config.AttributionUrl)
+            attribution: new BruTile.Attribution(config.AttributionText, config.AttributionUrl)
         );
 
         return new TileLayer(tileSource) { Name = config.Name };
@@ -153,56 +157,22 @@ public class MapView : TemplatedControl
 
     private MemoryLayer CreateFullTrackLayer()
     {
-        Debug.Assert(TrackPoints is not null);
-
-        var lineString = new LineString(TrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
-        var style = new VectorStyle { Line = new Pen(Color.FromString("#abdda4"), 2) }; // Spectral11 #04
-
-        return new MemoryLayer
-        {
-            Features = [new GeometryFeature { Geometry = lineString }],
-            Name = "Full Track",
-            Style = style
-        };
+        var style = new VectorStyle { Line = new Pen(Color.FromString("#abdda4"), 2) };
+        return new MemoryLayer { Name = "Full Track", Style = style };
     }
 
     private MemoryLayer CreateStartEndPointsLayer()
     {
-        Debug.Assert(SessionTrackPoints is not null);
-
-        var startPointFeature = new PointFeature(SessionTrackPoints[0].X, SessionTrackPoints[0].Y);
-        startPointFeature.Styles.Add(new SymbolStyle 
-        {
-            SymbolType = SymbolType.Ellipse,
-            Line = new Pen(Color.Black),
-            Fill = new Brush(Color.FromString("#229954")),
-            SymbolScale = 0.5
-        });
-
-        var endPointFeature = new PointFeature(SessionTrackPoints[^1].X, SessionTrackPoints[^1].Y);
-        endPointFeature.Styles.Add(new SymbolStyle 
-        {
-            SymbolType = SymbolType.Ellipse,
-            Line = new Pen(Color.Black),
-            Fill = new Brush(Color.FromString("#E74C3C")),
-            SymbolScale = 0.5
-        });
-
-        return new MemoryLayer
-        {
-            Features = [startPointFeature, endPointFeature],
-            Style = new SymbolStyle { SymbolScale = 0.5 },
-            Name = "Start/End Marker"
-        };
+        return new MemoryLayer { Name = "Start/End Marker", Style = new SymbolStyle { SymbolScale = 0.5 } };
     }
 
     public void SetNormalizedCursorPosition(double pos)
     {
-        if (SessionTrackPoints is null || pos < 0 || pos > 1) return;
+        if (ViewModel?.SessionTrackPoints == null || pos < 0 || pos > 1) return;
 
-        var index = (int)Math.Ceiling((SessionTrackPoints.Count - 1) * pos);
+        var index = (int)Math.Ceiling((ViewModel.SessionTrackPoints.Count - 1) * pos);
         positionMarkerLayer.Clear();
-        var feature = new PointFeature(SessionTrackPoints[index].X, SessionTrackPoints[index].Y);
+        var feature = new PointFeature(ViewModel.SessionTrackPoints[index].X, ViewModel.SessionTrackPoints[index].Y);
         feature.Styles.Add(new SymbolStyle
         {
             SymbolType = SymbolType.Ellipse,
@@ -212,24 +182,24 @@ public class MapView : TemplatedControl
         });
         positionMarkerLayer.Add(feature);
         positionMarkerLayer.DataHasChanged();
+        mapControl?.Refresh();
     }
 
     public void ZoomToNormalizedRange(double startNormalized, double endNormalized, double padding = 0.1)
     {
-        if (SessionTrackPoints is null || mapControl is null || startNormalized >= endNormalized) return;
+        if (ViewModel?.SessionTrackPoints == null || mapControl == null || startNormalized >= endNormalized) return;
 
-        // Clamp to valid range
         startNormalized = Math.Clamp(startNormalized, 0, 1);
         endNormalized = Math.Clamp(endNormalized, 0, 1);
         
-        var startIndex = (int)Math.Floor((SessionTrackPoints.Count - 1) * startNormalized);
-        var endIndex = (int)Math.Ceiling((SessionTrackPoints.Count - 1) * endNormalized);
+        var startIndex = (int)Math.Floor((ViewModel.SessionTrackPoints.Count - 1) * startNormalized);
+        var endIndex = (int)Math.Ceiling((ViewModel.SessionTrackPoints.Count - 1) * endNormalized);
         
         startIndex = Math.Max(0, startIndex);
-        endIndex = Math.Min(SessionTrackPoints.Count - 1, endIndex);
+        endIndex = Math.Min(ViewModel.SessionTrackPoints.Count - 1, endIndex);
         if (startIndex >= endIndex) return;
         
-        var pointsInRange = SessionTrackPoints.Skip(startIndex).Take(endIndex - startIndex + 1).ToList();
+        var pointsInRange = ViewModel.SessionTrackPoints.Skip(startIndex).Take(endIndex - startIndex + 1).ToList();
         var minX = pointsInRange.Min(p => p.X);
         var maxX = pointsInRange.Max(p => p.X);
         var minY = pointsInRange.Min(p => p.Y);
@@ -245,26 +215,13 @@ public class MapView : TemplatedControl
             minY - paddingY,
             maxX + paddingX,
             maxY + paddingY);
-        Console.WriteLine(extent);
 
         mapControl.Map.Navigator.ZoomToBox(extent);
     }
 
     private MemoryLayer CreateSessionTrackLayer()
     {
-        Debug.Assert(SessionTrackPoints is not null);
-
-        var lineString = new LineString(SessionTrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
-        var style = new VectorStyle { Line = new Pen(Color.FromString("#9e0142"), 5) }; // Spectral11 #11
-
-        var sessionTrackFeature = new GeometryFeature(lineString);
-        sessionTrackFeature.Styles.Add(style);
-
-        return new MemoryLayer
-        {
-            Features = [new GeometryFeature { Geometry = lineString }],
-            Name = "Session Track",
-            Style = style
-        };
+        var style = new VectorStyle { Line = new Pen(Color.FromString("#9e0142"), 5) };
+        return new MemoryLayer { Name = "Session Track", Style = style };
     }
 }

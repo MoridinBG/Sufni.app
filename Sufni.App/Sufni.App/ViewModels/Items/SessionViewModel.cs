@@ -34,6 +34,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     public DamperPageViewModel DamperPage { get; } = new();
     public NotesPageViewModel NotesPage { get; } = new();
+    public MapViewModel MapViewModel { get; }
 
     #endregion Public fields
 
@@ -106,6 +107,9 @@ public sealed partial class SessionViewModel : ItemViewModelBase
                 TrackPoints = fullTrack.GenerateSessionTrack(TelemetryData.Metadata.Timestamp, end);
                 await databaseService.PatchSessionTrackAsync(Id, TrackPoints);
             }
+
+            MapViewModel.FullTrackPoints = FullTrackPoints;
+            MapViewModel.SessionTrackPoints = TrackPoints;
         }
     }
 
@@ -263,6 +267,13 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         session = new Session();
         IsInDatabase = false;
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
+        
+        var tileLayerService = App.Current?.Services?.GetService<ITileLayerService>();
+        var dialogService = App.Current?.Services?.GetService<IDialogService>();
+        Debug.Assert(tileLayerService != null);
+        Debug.Assert(dialogService != null);
+        MapViewModel = new MapViewModel(tileLayerService, dialogService);
+        _ = MapViewModel.InitializeAsync();
     }
 
     public SessionViewModel(Session session, bool fromDatabase)
@@ -275,6 +286,13 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
         NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
         NotesPage.PropertyChanged += (_, _) => EvaluateDirtiness();
+        
+        var tileLayerService = App.Current?.Services?.GetService<ITileLayerService>();
+        var dialogService = App.Current?.Services?.GetService<IDialogService>();
+        Debug.Assert(tileLayerService != null);
+        Debug.Assert(dialogService != null);
+        MapViewModel = new MapViewModel(tileLayerService, dialogService);
+        _ = MapViewModel.InitializeAsync();
 
         ResetImplementation();
     }
