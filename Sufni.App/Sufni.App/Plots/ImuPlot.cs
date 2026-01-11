@@ -26,6 +26,10 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Axes.Right.MinorTickStyle.Length = 0;
         Plot.Axes.Right.MajorTickStyle.Width = 0;
         Plot.Axes.Right.MinorTickStyle.Width = 0;
+        
+        CursorLine = Plot.Add.VerticalLine(double.NaN);
+        CursorLine.LineWidth = 1;
+        CursorLine.LineColor = Colors.LightGray;
 
         if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
         {
@@ -135,9 +139,5 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         };
         Plot.Axes.Left.TickGenerator = tickGenValue;
         Plot.Axes.Right.TickGenerator = tickGenValue;
-
-        CursorLine = Plot.Add.VerticalLine(double.NaN);
-        CursorLine.LineWidth = 1;
-        CursorLine.LineColor = Colors.LightGray;
     }
 }

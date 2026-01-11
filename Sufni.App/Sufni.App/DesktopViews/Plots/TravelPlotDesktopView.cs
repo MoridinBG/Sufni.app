@@ -17,6 +17,15 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
         get => GetValue(VelocityPlotViewProperty);
         set => SetValue(VelocityPlotViewProperty, value);
     }
+    
+    public static readonly StyledProperty<SufniTelemetryPlotView> ImuPlotViewProperty =
+        AvaloniaProperty.Register<TravelPlotDesktopView, SufniTelemetryPlotView>(nameof(ImuPlotView));
+
+    public SufniTelemetryPlotView ImuPlotView
+    {
+        get => GetValue(ImuPlotViewProperty);
+        set => SetValue(ImuPlotViewProperty, value);
+    }
 
     public static readonly StyledProperty<MapView> MapViewProperty = 
         AvaloniaProperty.Register<TravelPlotDesktopView, MapView>(nameof(MapView));
@@ -36,9 +45,8 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (DataContext is not SessionViewModel vm) return;
+            if (DataContext is not SessionViewModel { TelemetryData: not null } vm) return;
 
-            Debug.Assert(vm.TelemetryData is not null);
             var normalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);
             MapView.SetNormalizedCursorPosition(normalizedCursorPosition);
 
@@ -52,6 +60,12 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
             {
                 velocityPlot.CursorLine!.Position = coords.X;
                 velocityPlot.Plot.PlotControl!.Refresh();
+            }
+            
+            if (ImuPlotView?.Plot is ImuPlot imuPlot)
+            {
+                imuPlot.CursorLine!.Position = coords.X;
+                imuPlot.Plot.PlotControl!.Refresh();
             }
         };
     }

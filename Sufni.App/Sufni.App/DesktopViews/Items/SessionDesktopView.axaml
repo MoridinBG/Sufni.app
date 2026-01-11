@@ -86,7 +86,8 @@
                 Grid.Column="0"
                 MapView="{Binding #Map}"
                 Telemetry="{Binding TelemetryData}"
-                VelocityPlotView="{Binding #Velocity}" />
+                VelocityPlotView="{Binding #Velocity}"
+                ImuPlotView="{Binding #Imu}"/>
 
             <!--  Splitter between travel and velocity  -->
             <GridSplitter
@@ -100,7 +101,8 @@
                 Grid.Column="0"
                 MapView="{Binding #Map}"
                 Telemetry="{Binding TelemetryData}"
-                TravelPlotView="{Binding #Travel}" />
+                TravelPlotView="{Binding #Travel}"
+                ImuPlotView="{Binding #Imu}"/>
 
             <GridSplitter
                 Grid.Row="3"

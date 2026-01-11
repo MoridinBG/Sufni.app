@@ -64,9 +64,8 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (DataContext is not SessionViewModel vm) return;
-
-            Debug.Assert(vm.TelemetryData is not null);
+            if (DataContext is not SessionViewModel { TelemetryData: not null } vm) return;
+            
             var normalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);
             MapView.SetNormalizedCursorPosition(normalizedCursorPosition);
 
