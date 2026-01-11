@@ -33,5 +33,7 @@ public interface IDatabaseService
     public Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token);
     public Task PutPairedDeviceAsync(PairedDevice device);
     public Task DeletePairedDeviceAsync(string id);
+    public Task<string?> GetAppSettingAsync(string key);
+    public Task PutAppSettingAsync(string key, string value);
     public Task MergeAllAsync(SynchronizationData data);
 }
