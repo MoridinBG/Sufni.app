@@ -17,6 +17,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public string Description { get; set; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
+    public bool Malformed { get; init; }
 
     public MassStorageTelemetryFile(FileInfo fileInfo)
     {
@@ -56,7 +57,8 @@ public class MassStorageTelemetryFile : ITelemetryFile
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
         StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
-        Name = malformed ? $"{fileInfo.Name} (Malformed)" : fileInfo.Name;
+        Malformed = malformed;
+        Name = fileInfo.Name;
         Description = $"Imported from {fileInfo.Name}";
     }
 

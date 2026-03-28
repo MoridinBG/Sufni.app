@@ -14,6 +14,7 @@ public class NetworkTelemetryFile : ITelemetryFile
     public string Description { get; set; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
+    public bool Malformed => false;
 
     private readonly IPEndPoint ipEndPoint;
 
