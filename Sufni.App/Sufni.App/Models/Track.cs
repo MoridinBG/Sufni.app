@@ -65,7 +65,9 @@ public class Track : Synchronizable
         return new Track
         {
             Points = records
-                .Where(r => r.FixMode > 0)
+                .Where(r => r.FixMode > 0 
+                            && double.IsFinite(r.Latitude) && double.IsFinite(r.Longitude) 
+                            && float.IsFinite(r.Altitude))
                 .OrderBy(r => r.Timestamp)
                 .Select(r =>
                 {
