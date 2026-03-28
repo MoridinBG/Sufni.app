@@ -36,7 +36,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         PropertyChanged += (_, e) =>
         {
             if (e.NewValue is null || AvaPlot is null || Plot is null) return;
-            
+
             switch (e.Property.Name)
             {
                 case nameof(Telemetry):
@@ -47,8 +47,27 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
 
             AvaPlot.Refresh();
         };
+
+        // Subscribe to map viewport changes for reverse-linking (map → plots)
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name != nameof(MapView)) return;
+            if (e.OldValue is MapView oldMapView)
+                oldMapView.ViewportNormalizedRangeChanged -= OnMapViewportRangeChanged;
+            if (e.NewValue is MapView newMapView)
+                newMapView.ViewportNormalizedRangeChanged += OnMapViewportRangeChanged;
+        };
     }
-    
+
+    private void OnMapViewportRangeChanged(double startNormalized, double endNormalized)
+    {
+        if (AvaPlot is null || DataContext is not SessionViewModel vm || vm.TelemetryData is null) return;
+
+        var duration = vm.TelemetryData.Metadata.Duration;
+        AvaPlot.Plot.Axes.SetLimitsX(startNormalized * duration, endNormalized * duration);
+        AvaPlot.Refresh();
+    }
+
     protected void UpdateMapZoom()
     {
         if (AvaPlot is null || DataContext is not SessionViewModel vm || vm.TelemetryData is null) return;

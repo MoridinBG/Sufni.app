@@ -28,6 +28,8 @@ public partial class MapView : UserControl
         Style = new SymbolStyle { SymbolScale = 0.5 }
     };
 
+    public event Action<double, double>? ViewportNormalizedRangeChanged;
+
     public MapViewModel? ViewModel => DataContext as MapViewModel;
 
     public MapView()
@@ -35,7 +37,7 @@ public partial class MapView : UserControl
         InitializeComponent();
 
         mapControl = this.FindControl<MapControl>("MapControl");
-        
+
         // Setup initial layers
         if (mapControl != null)
         {
@@ -46,6 +48,9 @@ public partial class MapView : UserControl
             mapControl.Map.Layers.Add(sessionTrackLayer);
             mapControl.Map.Layers.Add(CreateStartEndPointsLayer());
             mapControl.Map.Layers.Add(positionMarkerLayer);
+
+            mapControl.PointerReleased += (_, _) => NotifyViewportChanged();
+            mapControl.PointerWheelChanged += (_, _) => NotifyViewportChanged();
         }
 
         SetNormalizedCursorPosition(1);
@@ -217,6 +222,35 @@ public partial class MapView : UserControl
             maxY + paddingY);
 
         mapControl.Map.Navigator.ZoomToBox(extent);
+    }
+
+    private void NotifyViewportChanged()
+    {
+        if (ViewModel?.SessionTrackPoints == null || mapControl == null) return;
+
+        var viewport = mapControl.Map.Navigator.Viewport;
+        var halfWidth = viewport.Width * viewport.Resolution / 2;
+        var halfHeight = viewport.Height * viewport.Resolution / 2;
+        var minX = viewport.CenterX - halfWidth;
+        var maxX = viewport.CenterX + halfWidth;
+        var minY = viewport.CenterY - halfHeight;
+        var maxY = viewport.CenterY + halfHeight;
+
+        int firstVisible = -1, lastVisible = -1;
+        for (var i = 0; i < ViewModel.SessionTrackPoints.Count; i++)
+        {
+            var p = ViewModel.SessionTrackPoints[i];
+            if (p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY)
+            {
+                if (firstVisible == -1) firstVisible = i;
+                lastVisible = i;
+            }
+        }
+
+        if (firstVisible < 0 || lastVisible <= firstVisible) return;
+
+        var count = ViewModel.SessionTrackPoints.Count - 1;
+        ViewportNormalizedRangeChanged?.Invoke((double)firstVisible / count, (double)lastVisible / count);
     }
 
     private MemoryLayer CreateSessionTrackLayer()
