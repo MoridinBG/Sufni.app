@@ -49,6 +49,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
             foreach (var file in files)
             {
                 TelemetryFiles.Add(file);
+                if (file.Malformed)
+                    Notifications.Add($"{file.FileName} appears malformed: unknown chunks or incorrect length detected.");
             }
         });
 
