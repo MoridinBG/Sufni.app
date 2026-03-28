@@ -241,6 +241,41 @@ public partial class BikeViewModel : ItemViewModelBase
         NotifyCanvasBoundsChanged();
     }
 
+    private void RecalculateGroundRotation()
+    {
+        if (!HasWheels || Image is null || !PixelsToMillimeters.HasValue) return;
+
+        var frontWheel = GetFrontWheelJoint();
+        var rearWheel = GetRearWheelJoint();
+        Debug.Assert(frontWheel is not null && rearWheel is not null);
+
+        var frontRadiusPx = FrontWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
+        var rearRadiusPx = RearWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
+
+        var (rotationAngle, _) = GroundCalculator.CalculateGroundRotation(
+            frontWheel.X, frontWheel.Y, frontRadiusPx,
+            rearWheel.X, rearWheel.Y, rearRadiusPx);
+
+        var newRotation = ImageRotationDegrees + rotationAngle;
+        var deltaRotation = newRotation - ImageRotationDegrees;
+
+        if (Math.Abs(deltaRotation) > 0.01)
+        {
+            CoordinateRotation.RotatePoints(JointViewModels, 0, 0, deltaRotation);
+
+            // Force UI to recreate ContentPresenters with fresh bindings
+            var items = JointViewModels.ToList();
+            JointViewModels.Clear();
+            foreach (var item in items)
+            {
+                JointViewModels.Add(item);
+            }
+
+            ImageRotationDegrees = newRotation;
+            NotifyWheelJointPropertiesChanged();
+        }
+    }
+
     #endregion Wheel properties
 
     #region Canvas bounds (for fitting wheels with padding)
@@ -433,6 +468,7 @@ public partial class BikeViewModel : ItemViewModelBase
         NotifyFrontWheelPropertiesChanged();
         EvaluateDirtiness();
         RecalculateHeadAngle();
+        RecalculateGroundRotation();
     }
 
     partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
@@ -459,6 +495,7 @@ public partial class BikeViewModel : ItemViewModelBase
         NotifyRearWheelPropertiesChanged();
         EvaluateDirtiness();
         RecalculateHeadAngle();
+        RecalculateGroundRotation();
     }
 
     private void RecalculateFrontWheelDiameter()
@@ -473,6 +510,7 @@ public partial class BikeViewModel : ItemViewModelBase
             OnPropertyChanged(nameof(FrontWheelDiameter));
         }
         NotifyFrontWheelPropertiesChanged();
+        RecalculateGroundRotation();
     }
 
     private void RecalculateRearWheelDiameter()
@@ -485,6 +523,7 @@ public partial class BikeViewModel : ItemViewModelBase
             OnPropertyChanged(nameof(RearWheelDiameter));
         }
         NotifyRearWheelPropertiesChanged();
+        RecalculateGroundRotation();
     }
 
     #endregion Property change handlers
@@ -919,42 +958,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
         try
         {
-            // Apply rotation if wheels are configured and joints exist
-            if (HasWheels && Image is not null && PixelsToMillimeters.HasValue)
-            {
-                var frontWheel = GetFrontWheelJoint();
-                var rearWheel = GetRearWheelJoint();
-                Debug.Assert(frontWheel is not null && rearWheel is not null);
-
-                var frontRadiusPx = FrontWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
-                var rearRadiusPx = RearWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
-
-                var (rotationAngle, _) = GroundCalculator.CalculateGroundRotation(
-                    frontWheel.X, frontWheel.Y, frontRadiusPx,
-                    rearWheel.X, rearWheel.Y, rearRadiusPx);
-
-                var newRotation = ImageRotationDegrees + rotationAngle;
-                var deltaRotation = newRotation - ImageRotationDegrees;
-
-                if (Math.Abs(deltaRotation) > 0.01)
-                {
-                    CoordinateRotation.RotatePoints(JointViewModels, 0, 0, deltaRotation);
-
-                    // Force UI to recreate ContentPresenters with fresh bindings.
-                    // This is the only way I found to make points that have been dragged to rotate correctly
-                    // Otherwise only existing bikes with points loaded from the db are rotated as expected
-                    // New bikes and new points in existing bikes shift, until saved and reloaded
-                    var items = JointViewModels.ToList();
-                    JointViewModels.Clear();
-                    foreach (var item in items)
-                    {
-                        JointViewModels.Add(item);
-                    }
-
-                    ImageRotationDegrees = newRotation;
-                    NotifyWheelJointPropertiesChanged();
-                }
-            }
+            RecalculateGroundRotation();
 
             var newBike = ToBike();
             if (!CheckLinkage(newBike.Linkage!))
