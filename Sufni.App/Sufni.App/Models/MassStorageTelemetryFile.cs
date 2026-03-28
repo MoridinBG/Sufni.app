@@ -34,6 +34,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
         long timestamp;
         TimeSpan duration;
+        var malformed = false;
 
         if (version == 3)
         {
@@ -47,13 +48,15 @@ public class MassStorageTelemetryFile : ITelemetryFile
         {
             reader.ReadUInt32(); // padding
             timestamp = reader.ReadInt64();
-            duration = SstV4TlvParser.ParseDuration(reader);
+            var result = SstV4TlvParser.ParseDuration(reader);
+            duration = result.Duration;
+            malformed = result.Malformed;
         }
 
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
         StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
-        Name = fileInfo.Name;
+        Name = malformed ? $"{fileInfo.Name} (Malformed)" : fileInfo.Name;
         Description = $"Imported from {fileInfo.Name}";
     }
 

@@ -137,7 +137,7 @@
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Center"
                                         FontWeight="Black"
-                                        Text="{Binding FileName}"
+                                        Text="{Binding Name}"
                                         TextAlignment="Center" />
 
                                     <!--  Date  -->
