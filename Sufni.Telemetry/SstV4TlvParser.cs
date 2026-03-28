@@ -2,15 +2,25 @@ namespace Sufni.Telemetry;
 
 public class SstV4TlvParser : ISstParser
 {
-    public static TimeSpan ParseDuration(BinaryReader reader)
+    public static (TimeSpan Duration, bool Malformed) ParseDuration(BinaryReader reader)
     {
         ushort sampleRate = 0;
         long telemetrySamples = 0;
+        var malformed = false;
+        var stream = reader.BaseStream;
 
-        while (reader.BaseStream.Position < reader.BaseStream.Length)
+        while (stream.Position + 3 <= stream.Length)
         {
+            var chunkStart = stream.Position;
             var type = reader.ReadByte();
             var length = reader.ReadUInt16();
+            var chunkEnd = chunkStart + 3 + length;
+
+            if (chunkEnd > stream.Length)
+            {
+                malformed = true;
+                break;
+            }
 
             if (type == (byte)TlvChunkType.Rates)
             {
@@ -26,17 +36,15 @@ public class SstV4TlvParser : ISstParser
             else if (type == (byte)TlvChunkType.Telemetry)
             {
                 telemetrySamples += length / 4;
-                reader.BaseStream.Seek(length, SeekOrigin.Current);
             }
-            else
-            {
-                reader.BaseStream.Seek(length, SeekOrigin.Current);
-            }
-        }
 
-        return sampleRate > 0
+            stream.Position = chunkEnd;
+        }
+        
+        var duration = sampleRate > 0
             ? TimeSpan.FromSeconds((double)telemetrySamples / sampleRate)
             : TimeSpan.Zero;
+        return (duration, malformed);
     }
 
     public RawTelemetryData Parse(BinaryReader reader, byte version)
@@ -54,14 +62,25 @@ public class SstV4TlvParser : ISstParser
         var stream = reader.BaseStream;
         var telemetrySampleCount = 0;
 
-        while (stream.Position < stream.Length)
+        var malformed = false;
+
+        while (stream.Position + 3 <= stream.Length)
         {
+            var chunkStart = stream.Position;
             var typeByte = reader.ReadByte();
             var length = reader.ReadUInt16();
+            var chunkEnd = chunkStart + 3 + length;
 
-            if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
+            if (chunkEnd > stream.Length)
             {
-                stream.Seek(length, SeekOrigin.Current);
+                malformed = true;
+                break;
+            }
+            
+            if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
+            { 
+                malformed = true;
+                stream.Seek(long.Min(length, stream.Length), SeekOrigin.Current);
                 continue;
             }
 
@@ -101,9 +120,7 @@ public class SstV4TlvParser : ISstParser
                     break;
 
                 case TlvChunkType.ImuMeta:
-                    // Imu Meta should be only one and before Imu data, but just in case...
                     imuData = imuData ?? new RawImuData();
-                    
                     var imuMetaCount = reader.ReadByte();
                     imuData.SampleRate = rates.GetValueOrDefault(TlvChunkType.Imu, (ushort)0);
                     for (int i = 0; i < imuMetaCount; i++)
@@ -150,6 +167,12 @@ public class SstV4TlvParser : ISstParser
                         var year = (int)(date / 10000);
                         var month = (int)(date / 100 % 100);
                         var day = (int)(date % 100);
+
+                        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31)
+                        {
+                            continue;
+                        }
+
                         var utcTimestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc)
                             .AddMilliseconds(timeMs);
 
@@ -159,10 +182,10 @@ public class SstV4TlvParser : ISstParser
                     }
                     break;
 
-                default:
-                    stream.Seek(length, SeekOrigin.Current);
-                    break;
             }
+
+            // Ensure we're at the exact chunk boundary regardless of how many bytes the handler read
+            stream.Position = chunkEnd;
         }
 
         var front = frontList.ToArray();
@@ -177,7 +200,8 @@ public class SstV4TlvParser : ISstParser
             Timestamp = timestamp,
             Markers = markers.ToArray(),
             ImuData = imuData is { Meta.Count: > 0 } ? imuData : null,
-            GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null
+            GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null,
+            Malformed = malformed
         };
 
         if (front.Length > 0)

@@ -17,6 +17,7 @@ public class RawTelemetryData
     public MarkerData[] Markers { get; set; } = [];
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
+    public bool Malformed { get; set; }
 
     #endregion Public properties
 
