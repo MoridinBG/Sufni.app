@@ -9,11 +9,38 @@ namespace Sufni.App.ViewModels;
 
 public partial class TabPageViewModelBase : ViewModelBase
 {
-    #region Static services
+    #region Injected services
 
-    public static IDialogService DialogService { get; set; } = null!;
+    protected readonly INavigator navigator;
+    protected readonly IDialogService dialogService;
 
-    #endregion Static services
+    #endregion Injected services
+
+    #region Constructors
+
+    protected TabPageViewModelBase()
+    {
+        navigator = null!;
+        dialogService = null!;
+    }
+
+    protected TabPageViewModelBase(INavigator navigator, IDialogService dialogService)
+    {
+        this.navigator = navigator;
+        this.dialogService = dialogService;
+    }
+
+    #endregion Constructors
+
+    #region Navigation helpers
+
+    [RelayCommand]
+    protected void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
+
+    [RelayCommand]
+    protected void OpenPreviousPage() => navigator.OpenPreviousPage();
+
+    #endregion Navigation helpers
 
     #region Observable properties
 
@@ -85,26 +112,26 @@ public partial class TabPageViewModelBase : ViewModelBase
     {
         if (!IsDirty)
         {
-            Navigator.CloseTab(this);
+            navigator.CloseTab(this);
             return;
         }
 
-        var result = await DialogService.ShowCloseConfirmationAsync(CanSave());
+        var result = await dialogService.ShowCloseConfirmationAsync(CanSave());
         switch (result)
         {
             case PromptResult.Yes:
                 await Save();
-                Navigator.CloseTab(this);
+                navigator.CloseTab(this);
                 break;
             case PromptResult.No:
                 await Reset();
-                Navigator.CloseTab(this);
+                navigator.CloseTab(this);
                 break;
             case PromptResult.Cancel:
                 break;
             case PromptResult.Ok:
                 await Reset();
-                Navigator.CloseTab(this);
+                navigator.CloseTab(this);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

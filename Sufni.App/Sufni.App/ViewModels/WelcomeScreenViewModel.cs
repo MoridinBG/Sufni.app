@@ -1,13 +1,24 @@
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
+    private readonly IShellCoordinator shellCoordinator;
+
     #region Constructors
 
     public WelcomeScreenViewModel()
     {
+        shellCoordinator = null!;
+        Name = "Welcome";
+    }
+
+    public WelcomeScreenViewModel(INavigator navigator, IDialogService dialogService, IShellCoordinator shellCoordinator)
+        : base(navigator, dialogService)
+    {
+        this.shellCoordinator = shellCoordinator;
         Name = "Welcome";
     }
 
@@ -16,13 +27,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private static void AddBike() => ShellCoordinator.AddBike();
+    private void AddBike() => shellCoordinator.AddBike();
 
     [RelayCommand]
-    private static void AddSetup() => ShellCoordinator.AddSetup();
+    private void AddSetup() => shellCoordinator.AddSetup();
 
     [RelayCommand]
-    private static void ImportSession() => ShellCoordinator.OpenImportSessions();
+    private void ImportSession() => shellCoordinator.OpenImportSessions();
 
     #endregion Commands
 }

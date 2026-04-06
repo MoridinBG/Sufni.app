@@ -1,8 +1,10 @@
+using System;
+
 namespace Sufni.App.ViewModels;
 
-public class DesktopNavigator(MainWindowViewModel mainWindowViewModel) : INavigator
+public class DesktopNavigator(Func<MainWindowViewModel> mainWindowViewModelProvider) : INavigator
 {
-    public void OpenPage(ViewModelBase view) => mainWindowViewModel.OpenView(view);
+    public void OpenPage(ViewModelBase view) => mainWindowViewModelProvider().OpenView(view);
     public void OpenPreviousPage() { }
-    public void CloseTab(TabPageViewModelBase tab) => mainWindowViewModel.CloseTabPage(tab);
+    public void CloseTab(TabPageViewModelBase tab) => mainWindowViewModelProvider().CloseTabPage(tab);
 }

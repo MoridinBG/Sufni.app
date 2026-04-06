@@ -7,13 +7,15 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class ItemListViewModelBase : ViewModelBase
+public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
 {
     protected readonly IDatabaseService databaseService;
+    protected readonly INavigator navigator;
 
     #region Observable properties
 
@@ -88,12 +90,14 @@ public partial class ItemListViewModelBase : ViewModelBase
     public ItemListViewModelBase()
     {
         databaseService = null!;
+        navigator = null!;
         ConnectSource();
     }
 
-    protected ItemListViewModelBase(IDatabaseService databaseService)
+    protected ItemListViewModelBase(IDatabaseService databaseService, INavigator navigator)
     {
         this.databaseService = databaseService;
+        this.navigator = navigator;
         ConnectSource();
     }
 #pragma warning restore CS8618
@@ -101,6 +105,9 @@ public partial class ItemListViewModelBase : ViewModelBase
     #endregion Constructors
 
     #region Public methods
+
+    [RelayCommand]
+    protected void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
 
     public async Task Delete(ItemViewModelBase vm)
     {

@@ -11,6 +11,7 @@ using ScottPlot;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 
@@ -253,7 +254,8 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
     }
 
-    internal SessionViewModel(Session session, bool fromDatabase, IDatabaseService databaseService, IHttpApiService httpApiService)
+    internal SessionViewModel(Session session, bool fromDatabase, IDatabaseService databaseService, IHttpApiService httpApiService, INavigator navigator, IDialogService dialogService, IItemDeletionHost deletionHost)
+        : base(navigator, dialogService, deletionHost)
     {
         this.databaseService = databaseService;
         this.httpApiService = httpApiService;

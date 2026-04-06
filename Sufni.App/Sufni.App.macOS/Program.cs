@@ -4,6 +4,7 @@ using SecureStorage;
 using System;
 using ServiceDiscovery;
 using Sufni.App.Services;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.macOS
 {
@@ -22,6 +23,7 @@ namespace Sufni.App.macOS
             App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
             App.ServiceCollection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
+            App.ServiceCollection.AddSingleton<PairingServerViewModel>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()

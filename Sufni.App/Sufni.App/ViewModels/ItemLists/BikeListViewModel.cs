@@ -6,17 +6,28 @@ using DynamicData;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Factories;
+using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSource
+public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSource, IBikeViewModelHost
 {
     #region Private fields
 
     private readonly IBikeViewModelFactory bikeViewModelFactory;
 
     #endregion Private fields
+
+    #region Runtime host callbacks
+
+    public Func<Guid, bool>? CanDeleteBikeEvaluator { get; set; }
+
+    public bool CanDeleteBike(Guid bikeId) => CanDeleteBikeEvaluator?.Invoke(bikeId) ?? true;
+
+    public void OnBikeSaved(BikeViewModel vm) => OnAdded(vm);
+
+    #endregion Runtime host callbacks
 
     #region Observable properties
 
@@ -32,7 +43,7 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
         Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
     }
 
-    public BikeListViewModel(IDatabaseService databaseService, IBikeViewModelFactory bikeViewModelFactory) : base(databaseService)
+    public BikeListViewModel(IDatabaseService databaseService, IBikeViewModelFactory bikeViewModelFactory, INavigator navigator) : base(databaseService, navigator)
     {
         this.bikeViewModelFactory = bikeViewModelFactory;
         Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
@@ -51,7 +62,7 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
             var bikeList = await databaseService.GetAllAsync<Bike>();
             foreach (var bike in bikeList)
             {
-                Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true));
+                Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true, this));
             }
         }
         catch (Exception e)
@@ -75,7 +86,7 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
         try
         {
             var bike = new Bike(Guid.NewGuid(), "new bike");
-            var bvm = bikeViewModelFactory.Create(bike, false);
+            var bvm = bikeViewModelFactory.Create(bike, false, this);
             bvm.IsDirty = true;
 
             OpenPage(bvm);

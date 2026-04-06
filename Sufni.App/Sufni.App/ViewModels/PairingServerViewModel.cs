@@ -1,9 +1,7 @@
-using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
@@ -11,6 +9,7 @@ namespace Sufni.App.ViewModels;
 public partial class PairingServerViewModel : ViewModelBase
 {
     private readonly System.Timers.Timer timer = new(1000);
+    private readonly ISynchronizationServerService synchronizationServer;
 
     #region Observable properties
 
@@ -19,6 +18,20 @@ public partial class PairingServerViewModel : ViewModelBase
     [ObservableProperty] private double remaining;
 
     #endregion
+
+    #region Constructors
+
+    public PairingServerViewModel()
+    {
+        synchronizationServer = null!;
+    }
+
+    public PairingServerViewModel(ISynchronizationServerService synchronizationServer)
+    {
+        this.synchronizationServer = synchronizationServer;
+    }
+
+    #endregion Constructors
 
     #region Commands
 
@@ -32,11 +45,6 @@ public partial class PairingServerViewModel : ViewModelBase
             PairingPin = null;
             timer.Stop();
         };
-
-        Debug.Assert(App.Current is not null);
-        var synchronizationServer = App.Current.Services?.GetService<ISynchronizationServerService>();
-
-        Debug.Assert(synchronizationServer is not null);
 
         synchronizationServer.PairingRequested = (id, pin) =>
         {

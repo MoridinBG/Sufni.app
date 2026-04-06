@@ -8,7 +8,6 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private readonly WelcomeScreenViewModel welcomeScreenViewModel = new();
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
     private TabPageViewModelBase? previousActiveTab;
     private bool isClosing;
@@ -33,7 +32,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     #region Constructors
 
-    public MainWindowViewModel(MainPagesViewModel mainPagesViewModel)
+    public MainWindowViewModel(MainPagesViewModel mainPagesViewModel, WelcomeScreenViewModel welcomeScreenViewModel)
     {
         MainPagesViewModel = mainPagesViewModel;
 

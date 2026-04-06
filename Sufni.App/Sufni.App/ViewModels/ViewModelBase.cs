@@ -11,13 +11,6 @@ namespace Sufni.App.ViewModels
     {
         private const int Timeout = 3000;
 
-        #region Static services
-
-        public static INavigator Navigator { get; set; } = null!;
-        public static IShellCoordinator ShellCoordinator { get; set; } = null!;
-
-        #endregion Static services
-
         #region Observable properties
 
         [ObservableProperty] private bool isPointerOverNotifications;
@@ -80,18 +73,6 @@ namespace Sufni.App.ViewModels
         private void ClearNotifications(object? o)
         {
             Notifications.Clear();
-        }
-
-        [RelayCommand]
-        protected static void OpenPage(ViewModelBase view)
-        {
-            Navigator.OpenPage(view);
-        }
-
-        [RelayCommand]
-        protected static void OpenPreviousPage()
-        {
-            Navigator.OpenPreviousPage();
         }
 
         #endregion Commands

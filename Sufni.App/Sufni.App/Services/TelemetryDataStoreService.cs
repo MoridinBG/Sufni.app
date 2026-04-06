@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Sufni.App.Models;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -34,7 +33,7 @@ internal class DriveInfoComparer : IEqualityComparer<DriveInfo>
 internal class TelemetryDataStoreService : ITelemetryDataStoreService
 {
     private const string ServiceType = "_gosst._tcp";
-    private readonly IServiceDiscovery? serviceDiscovery;
+    private readonly IServiceDiscovery serviceDiscovery;
     private readonly DispatcherTimer massStorageScanTimer;
 
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = new();
@@ -111,10 +110,9 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
         return toRemove;
     }
 
-    public TelemetryDataStoreService()
+    public TelemetryDataStoreService([FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery)
     {
-        serviceDiscovery = App.Current?.Services?.GetKeyedService<IServiceDiscovery>("gosst");
-        Debug.Assert(serviceDiscovery != null, nameof(serviceDiscovery) + " != null");
+        this.serviceDiscovery = serviceDiscovery;
 
         serviceDiscovery.ServiceAdded += async (_, e) => await AddNetworkDataStore(e);
         serviceDiscovery.ServiceRemoved += (_, e) => RemoveNetworkDataStore(e);
@@ -135,16 +133,12 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
 
     public void StartBrowse()
     {
-        Debug.Assert(serviceDiscovery is not null);
-
         massStorageScanTimer.Start();
         serviceDiscovery.StartBrowse(ServiceType);
     }
 
     public void StopBrowse()
     {
-        Debug.Assert(serviceDiscovery is not null);
-
         massStorageScanTimer.Stop();
         serviceDiscovery.StopBrowse();
         DataStores.Clear();

@@ -8,12 +8,23 @@ using DynamicData;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Factories;
+using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public class SetupListViewModel : ItemListViewModelBase
+public class SetupListViewModel : ItemListViewModelBase, ISetupViewModelHost
 {
+    #region Runtime host callbacks
+
+    public Func<Task>? AfterSetupSavedCallback { get; set; }
+
+    public void OnSetupSaved(SetupViewModel vm) => OnAdded(vm);
+
+    public Task AfterSetupSavedAsync() => AfterSetupSavedCallback?.Invoke() ?? Task.CompletedTask;
+
+    #endregion Runtime host callbacks
+
     #region Private fields
 
     private readonly ISetupViewModelFactory setupViewModelFactory;
@@ -41,7 +52,8 @@ public class SetupListViewModel : ItemListViewModelBase
         IDatabaseService databaseService,
         ISetupViewModelFactory setupViewModelFactory,
         ImportSessionsViewModel importSessionsPage,
-        BikeListViewModel bikesPage) : base(databaseService)
+        BikeListViewModel bikesPage,
+        INavigator navigator) : base(databaseService, navigator)
     {
         this.setupViewModelFactory = setupViewModelFactory;
         this.importSessionsPage = importSessionsPage;
@@ -90,7 +102,8 @@ public class SetupListViewModel : ItemListViewModelBase
                 var svm = setupViewModelFactory.Create(
                     setup,
                     board?.Id,
-                    true);
+                    true,
+                    this);
                 svm.PropertyChanged += OnSetupDirtinessChanged;
                 Source.AddOrUpdate(svm);
             }
@@ -148,7 +161,7 @@ public class SetupListViewModel : ItemListViewModelBase
                 newSetupsBoardId = datastoreBoardId;
             }
 
-            var svm = setupViewModelFactory.Create(setup, newSetupsBoardId, false);
+            var svm = setupViewModelFactory.Create(setup, newSetupsBoardId, false, this);
             svm.IsDirty = true;
             svm.PropertyChanged += OnSetupDirtinessChanged;
 

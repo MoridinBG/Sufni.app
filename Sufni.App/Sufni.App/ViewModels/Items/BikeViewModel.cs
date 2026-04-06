@@ -15,6 +15,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
 
@@ -28,6 +29,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
     private readonly IDatabaseService databaseService;
     private readonly IFilesService filesService;
+    private readonly IBikeViewModelHost bikeHost;
     private Bike bike;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
@@ -125,6 +127,7 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         databaseService = null!;
         filesService = null!;
+        bikeHost = null!;
         IsInDatabase = false;
         bike = new Bike();
 
@@ -132,10 +135,12 @@ public partial class BikeViewModel : ItemViewModelBase
         SetupLinksListeners();
     }
 
-    public BikeViewModel(Bike bike, bool fromDatabase, IDatabaseService databaseService, IFilesService filesService)
+    public BikeViewModel(Bike bike, bool fromDatabase, IDatabaseService databaseService, IFilesService filesService, INavigator navigator, IDialogService dialogService, IBikeViewModelHost bikeHost)
+        : base(navigator, dialogService, bikeHost)
     {
         this.databaseService = databaseService;
         this.filesService = filesService;
+        this.bikeHost = bikeHost;
         IsInDatabase = fromDatabase;
         this.bike = bike;
 
@@ -405,7 +410,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
             if (!IsInDatabase)
             {
-                ShellCoordinator.OnBikeAdded(this);
+                bikeHost.OnBikeSaved(this);
             }
 
             IsInDatabase = true;
@@ -445,7 +450,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
     protected override bool CanDelete()
     {
-        return ShellCoordinator.CanDeleteBike(Id);
+        return bikeHost.CanDeleteBike(Id);
     }
 
     #endregion ItemViewModelBase overrides

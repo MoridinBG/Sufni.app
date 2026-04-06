@@ -1,8 +1,10 @@
+using System;
+
 namespace Sufni.App.ViewModels;
 
-public class MobileNavigator(MainViewModel mainViewModel) : INavigator
+public class MobileNavigator(Func<MainViewModel> mainViewModelProvider) : INavigator
 {
-    public void OpenPage(ViewModelBase view) => mainViewModel.OpenView(view);
-    public void OpenPreviousPage() => mainViewModel.OpenPreviousView();
+    public void OpenPage(ViewModelBase view) => mainViewModelProvider().OpenView(view);
+    public void OpenPreviousPage() => mainViewModelProvider().OpenPreviousView();
     public void CloseTab(TabPageViewModelBase tab) { }
 }

@@ -2,11 +2,19 @@
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
+using Sufni.App.ViewModels.Hosts;
 
 namespace Sufni.App.ViewModels.Items;
 
 public partial class ItemViewModelBase : TabPageViewModelBase
 {
+    #region Injected services
+
+    protected readonly IItemDeletionHost deletionHost;
+
+    #endregion Injected services
+
     #region Observable properties
 
     [ObservableProperty] private Guid id;
@@ -14,6 +22,21 @@ public partial class ItemViewModelBase : TabPageViewModelBase
     [ObservableProperty] private bool isComplete = true;
 
     #endregion Observable properties
+
+    #region Constructors
+
+    protected ItemViewModelBase()
+    {
+        deletionHost = null!;
+    }
+
+    protected ItemViewModelBase(INavigator navigator, IDialogService dialogService, IItemDeletionHost deletionHost)
+        : base(navigator, dialogService)
+    {
+        this.deletionHost = deletionHost;
+    }
+
+    #endregion Constructors
 
     #region Virtual methods / properties
 
@@ -26,7 +49,7 @@ public partial class ItemViewModelBase : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private async Task Delete(bool navigateBack)
     {
-        await ShellCoordinator.DeleteItem(this);
+        await deletionHost.Delete(this);
         if (navigateBack)
         {
             OpenPreviousPage();
@@ -36,8 +59,8 @@ public partial class ItemViewModelBase : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void UndoableDelete()
     {
-        ShellCoordinator.UndoableDelete(this);
-        Navigator.CloseTab(this);
+        deletionHost.UndoableDelete(this);
+        navigator.CloseTab(this);
     }
 
     [RelayCommand(CanExecute = nameof(CanDelete))]

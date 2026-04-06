@@ -24,7 +24,7 @@ public partial class SessionListViewModel : ItemListViewModelBase, ISessionSink
         sessionViewModelFactory = null!;
     }
 
-    public SessionListViewModel(IDatabaseService databaseService, ISessionViewModelFactory sessionViewModelFactory) : base(databaseService)
+    public SessionListViewModel(IDatabaseService databaseService, ISessionViewModelFactory sessionViewModelFactory, INavigator navigator) : base(databaseService, navigator)
     {
         this.sessionViewModelFactory = sessionViewModelFactory;
     }
@@ -40,7 +40,7 @@ public partial class SessionListViewModel : ItemListViewModelBase, ISessionSink
             var sessionList = await databaseService.GetSessionsAsync();
             foreach (var session in sessionList)
             {
-                Source.AddOrUpdate(sessionViewModelFactory.Create(session, true));
+                Source.AddOrUpdate(sessionViewModelFactory.Create(session, true, this));
             }
         }
         catch (Exception e)

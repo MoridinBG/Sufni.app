@@ -34,6 +34,18 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
+        {
+            ServiceCollection.AddSingleton<INavigator>(sp =>
+                new DesktopNavigator(() => sp.GetRequiredService<MainWindowViewModel>()));
+        }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime)
+        {
+            ServiceCollection.AddSingleton<INavigator>(sp =>
+                new MobileNavigator(() => sp.GetRequiredService<MainViewModel>()));
+        }
+
+        ServiceCollection.AddSingleton<IShellCoordinator>(sp => sp.GetRequiredService<MainPagesViewModel>());
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
@@ -49,7 +61,24 @@ public partial class App : Application
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
-        ServiceCollection.AddSingleton<MainPagesViewModel>();
+        ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
+            sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<IBikeViewModelFactory>(),
+            sp.GetRequiredService<ISetupViewModelFactory>(),
+            sp.GetRequiredService<ISessionViewModelFactory>(),
+            sp.GetRequiredService<IFilesService>(),
+            sp.GetRequiredService<INavigator>(),
+            sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<BikeListViewModel>(),
+            sp.GetRequiredService<SessionListViewModel>(),
+            sp.GetRequiredService<SetupListViewModel>(),
+            sp.GetRequiredService<ImportSessionsViewModel>(),
+            sp.GetRequiredService<PairedDeviceListViewModel>(),
+            sp.GetService<ISynchronizationServerService>(),
+            sp.GetService<ISynchronizationClientService>(),
+            sp.GetService<PairingClientViewModel>(),
+            sp.GetService<PairingServerViewModel>()));
+        ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
 
@@ -61,22 +90,15 @@ public partial class App : Application
         var mainViewModel = Services.GetRequiredService<MainViewModel>();
         var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
 
-        // Wire up static services for base classes
-        ViewModelBase.ShellCoordinator = Services.GetRequiredService<MainPagesViewModel>();
-        TabPageViewModelBase.DialogService = dialogService;
-
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                ViewModelBase.Navigator = new DesktopNavigator(mainWindowViewModel);
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                ViewModelBase.Navigator = new MobileNavigator(mainViewModel);
-
                 singleViewPlatform.MainView = new MainView
                 {
                     DataContext = mainViewModel

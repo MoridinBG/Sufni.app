@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Sufni.App.Services;
 
-internal interface IHttpApiService
+public interface IHttpApiService
 {
     public string? ServerUrl { get; set; }
     public Task RequestPairingAsync(string url, string deviceId);

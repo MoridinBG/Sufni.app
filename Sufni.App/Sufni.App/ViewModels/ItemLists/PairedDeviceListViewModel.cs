@@ -9,11 +9,19 @@ namespace Sufni.App.ViewModels.ItemLists;
 
 public partial class PairedDeviceListViewModel : ItemListViewModelBase
 {
+    private readonly IDialogService dialogService;
+
     #region Constructors
 
-    public PairedDeviceListViewModel() { }
+    public PairedDeviceListViewModel()
+    {
+        dialogService = null!;
+    }
 
-    public PairedDeviceListViewModel(IDatabaseService databaseService) : base(databaseService) { }
+    public PairedDeviceListViewModel(IDatabaseService databaseService, INavigator navigator, IDialogService dialogService) : base(databaseService, navigator)
+    {
+        this.dialogService = dialogService;
+    }
 
     #endregion Constructors
 
@@ -28,7 +36,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
             var pairedDeviceList = await databaseService.GetPairedDevicesAsync();
             foreach (var pairedDevice in pairedDeviceList)
             {
-                var svm = new PairedDeviceViewModel(pairedDevice);
+                var svm = new PairedDeviceViewModel(pairedDevice, navigator, dialogService, this);
                 Source.AddOrUpdate(svm);
             }
         }

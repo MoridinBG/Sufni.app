@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -8,7 +7,6 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
-using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Factories;
@@ -24,6 +22,9 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
     private readonly ISetupViewModelFactory setupViewModelFactory;
     private readonly ISessionViewModelFactory sessionViewModelFactory;
     private readonly IFilesService filesService;
+    private readonly ISynchronizationClientService? synchronizationClientService;
+    private readonly INavigator navigator;
+    private readonly IDialogService dialogService;
     private readonly ItemListViewModelBase[] pages;
 
     #region Observable properties
@@ -52,6 +53,9 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
         setupViewModelFactory = null!;
         sessionViewModelFactory = null!;
         filesService = null!;
+        synchronizationClientService = null;
+        navigator = null!;
+        dialogService = null!;
         importSessionsPage = new();
         bikesPage = new();
         setupsPage = new();
@@ -66,22 +70,33 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
         ISetupViewModelFactory setupViewModelFactory,
         ISessionViewModelFactory sessionViewModelFactory,
         IFilesService filesService,
+        INavigator navigator,
+        IDialogService dialogService,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
         ImportSessionsViewModel importSessionsPage,
-        PairedDeviceListViewModel pairedDevicesPage)
+        PairedDeviceListViewModel pairedDevicesPage,
+        ISynchronizationServerService? synchronizationServer = null,
+        ISynchronizationClientService? synchronizationClientService = null,
+        PairingClientViewModel? pairingClientPage = null,
+        PairingServerViewModel? pairingServerViewModel = null)
     {
         this.databaseService = databaseService;
         this.bikeViewModelFactory = bikeViewModelFactory;
         this.setupViewModelFactory = setupViewModelFactory;
         this.sessionViewModelFactory = sessionViewModelFactory;
         this.filesService = filesService;
+        this.navigator = navigator;
+        this.dialogService = dialogService;
+        this.synchronizationClientService = synchronizationClientService;
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
         ImportSessionsPage = importSessionsPage;
         PairedDevicesPage = pairedDevicesPage;
+        PairingClientPage = pairingClientPage;
+        PairingServerViewModel = pairingServerViewModel;
         pages = [SessionsPage, SetupsPage];
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
@@ -91,11 +106,15 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
         SessionsPage.MenuItems.Add(new("import", OpenPageCommand, importSessionsPage));
 
-        if (App.Current!.IsDesktop)
-        {
-            var synchronizationServer = App.Current.Services?.GetService<ISynchronizationServerService>();
-            Debug.Assert(synchronizationServer is not null);
+        // Wire runtime callbacks on the list pages after the page graph is assembled.
+        BikesPage.CanDeleteBikeEvaluator = bikeId => !SetupsPage.Items.Any(s =>
+            s is SetupViewModel { SelectedBike: not null } svm &&
+            svm.SelectedBike.Id == bikeId);
+        SetupsPage.AfterSetupSavedCallback = () => ImportSessionsPage.EvaluateSetupExists();
+        ImportSessionsPage.OpenSetupCreation = () => SetupsPage.AddCommand.Execute(null);
 
+        if (synchronizationServer is not null)
+        {
             // update UI when entities arrive from synced device
             synchronizationServer.SynchronizationDataArrived = data =>
             {
@@ -126,7 +145,7 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
                 Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (e is not PairingEventArgs pdea) return;
-                    PairedDevicesPage.Source.AddOrUpdate(new PairedDeviceViewModel(pdea.Device));
+                    PairedDevicesPage.Source.AddOrUpdate(new PairedDeviceViewModel(pdea.Device, navigator, dialogService, PairedDevicesPage));
                 });
             };
             synchronizationServer.Unpaired += (_, e) =>
@@ -134,15 +153,13 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
                 Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (e is not PairingEventArgs pdea) return;
-                    PairedDevicesPage.Source.Remove(new PairedDeviceViewModel(pdea.Device));
+                    PairedDevicesPage.Source.Remove(new PairedDeviceViewModel(pdea.Device, navigator, dialogService, PairedDevicesPage));
                 });
             };
-
-            PairingServerViewModel = new();
         }
-        else
+
+        if (PairingClientPage is not null)
         {
-            PairingClientPage = new();
             PairingClientPage.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName != nameof(PairingClientPage.IsPaired))
@@ -161,60 +178,9 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
 
     #region Public methods
 
-    public async Task DeleteItem(ItemViewModelBase item)
-    {
-        switch (item)
-        {
-            case BikeViewModel bvm:
-                await BikesPage.Delete(bvm);
-                break;
-            case SetupViewModel svm:
-                await SetupsPage.Delete(svm);
-                break;
-            case SessionViewModel svm:
-                await SessionsPage.Delete(svm);
-                break;
-        }
-    }
-
-    public void UndoableDelete(ItemViewModelBase item)
-    {
-        switch (item)
-        {
-            case BikeViewModel bvm:
-                BikesPage.UndoableDelete(bvm);
-                break;
-            case SetupViewModel svm:
-                SetupsPage.UndoableDelete(svm);
-                break;
-            case SessionViewModel svm:
-                SessionsPage.UndoableDelete(svm);
-                break;
-            case PairedDeviceViewModel pdvm:
-                PairedDevicesPage.UndoableDelete(pdvm);
-                break;
-        }
-    }
-
-    public void OnBikeAdded(ItemViewModelBase bike) => BikesPage.OnAdded(bike);
-
-    public void OnSetupAdded(ItemViewModelBase setup)
-    {
-        SetupsPage.OnAdded(setup);
-    }
-
-    public Task EvaluateSetupExists() => ImportSessionsPage.EvaluateSetupExists();
-
-    public bool CanDeleteBike(Guid bikeId)
-    {
-        return !SetupsPage.Items.Any(s =>
-            s is SetupViewModel { SelectedBike: not null } svm &&
-            svm.SelectedBike.Id == bikeId);
-    }
-
     public void AddBike() => BikesPage.AddCommand.Execute(null);
     public void AddSetup() => SetupsPage.AddCommand.Execute(null);
-    public void OpenImportSessions() => OpenPageCommand.Execute(ImportSessionsPage);
+    public void OpenImportSessions() => navigator.OpenPage(ImportSessionsPage);
 
     #endregion
 
@@ -242,7 +208,7 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
             }
             else
             {
-                BikesPage.Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true));
+                BikesPage.Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true, BikesPage));
             }
             BikesPage.Source.Refresh();
         }
@@ -257,7 +223,7 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
             else
             {
                 var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                SetupsPage.Source.AddOrUpdate(setupViewModelFactory.Create(setup, board?.Id, true));
+                SetupsPage.Source.AddOrUpdate(setupViewModelFactory.Create(setup, board?.Id, true, SetupsPage));
             }
             SetupsPage.Source.Refresh();
         }
@@ -270,7 +236,7 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
             }
             else
             {
-                SessionsPage.Source.AddOrUpdate(sessionViewModelFactory.Create(session, true));
+                SessionsPage.Source.AddOrUpdate(sessionViewModelFactory.Create(session, true, SessionsPage));
             }
             SessionsPage.Source.Refresh();
         }
@@ -287,14 +253,13 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
 
     private async void SyncInternal()
     {
-        var synchronizationService = App.Current?.Services?.GetService<ISynchronizationClientService>();
-        Debug.Assert(synchronizationService != null, nameof(synchronizationService) + " != null");
+        if (synchronizationClientService is null) return;
 
         SyncInProgress = true;
 
         try
         {
-            await synchronizationService.SyncAll();
+            await synchronizationClientService.SyncAll();
             await Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 await LoadDatabaseContent();
@@ -331,6 +296,9 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
     {
         IsPairedDevicesListOpen = !IsPairedDevicesListOpen;
     }
+
+    [RelayCommand]
+    private void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
 
     [RelayCommand]
     private async Task OpenGpsTracks()

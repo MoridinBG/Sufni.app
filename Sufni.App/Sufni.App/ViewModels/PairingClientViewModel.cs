@@ -15,7 +15,7 @@ namespace Sufni.App.ViewModels;
 public partial class PairingClientViewModel : ViewModelBase
 {
     private const string DeviceIdKey = "DeviceId";
-    
+
     #region Observable properties
 
     [ObservableProperty] private string? serverUrl;
@@ -28,9 +28,11 @@ public partial class PairingClientViewModel : ViewModelBase
 
     #region Private members
 
-    private ISecureStorage? secureStorage;
-    private IHttpApiService? httpApiService;
-    private IServiceDiscovery? serviceDiscovery;
+    private readonly ISecureStorage secureStorage;
+    private readonly IHttpApiService httpApiService;
+    private readonly IServiceDiscovery serviceDiscovery;
+    private readonly IFriendlyNameProvider friendlyNameProvider;
+    private readonly INavigator navigator;
 
     #endregion Private members
 
@@ -38,6 +40,26 @@ public partial class PairingClientViewModel : ViewModelBase
 
     public PairingClientViewModel()
     {
+        secureStorage = null!;
+        httpApiService = null!;
+        serviceDiscovery = null!;
+        friendlyNameProvider = null!;
+        navigator = null!;
+    }
+
+    public PairingClientViewModel(
+        ISecureStorage secureStorage,
+        IHttpApiService httpApiService,
+        [FromKeyedServices("sync")] IServiceDiscovery serviceDiscovery,
+        IFriendlyNameProvider friendlyNameProvider,
+        INavigator navigator)
+    {
+        this.secureStorage = secureStorage;
+        this.httpApiService = httpApiService;
+        this.serviceDiscovery = serviceDiscovery;
+        this.friendlyNameProvider = friendlyNameProvider;
+        this.navigator = navigator;
+
         _ = InitAsync();
     }
 
@@ -47,19 +69,10 @@ public partial class PairingClientViewModel : ViewModelBase
 
     private async Task InitAsync()
     {
-        secureStorage = App.Current?.Services?.GetService<ISecureStorage>();
-        httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
-        serviceDiscovery = App.Current?.Services?.GetKeyedService<IServiceDiscovery>("sync");
-
-        Debug.Assert(httpApiService is not null);
-        Debug.Assert(secureStorage is not null);
-        Debug.Assert(serviceDiscovery is not null);
-
         DeviceId = await secureStorage.GetStringAsync(DeviceIdKey);
         if (DeviceId is null)
         {
-            var friendlyNameProvider = App.Current?.Services?.GetService<IFriendlyNameProvider>();
-            DeviceId = friendlyNameProvider?.FriendlyName ?? Guid.NewGuid().ToString();
+            DeviceId = friendlyNameProvider.FriendlyName;
             await secureStorage.SetStringAsync(DeviceIdKey, DeviceId);
         }
 
@@ -85,7 +98,6 @@ public partial class PairingClientViewModel : ViewModelBase
     [RelayCommand]
     private async Task RequestPairing()
     {
-        Debug.Assert(httpApiService is not null);
         Debug.Assert(ServerUrl is not null);
         Debug.Assert(DeviceId is not null);
 
@@ -96,8 +108,6 @@ public partial class PairingClientViewModel : ViewModelBase
     [RelayCommand]
     private async Task ConfirmPairing()
     {
-        Debug.Assert(httpApiService is not null);
-        Debug.Assert(secureStorage is not null);
         Debug.Assert(ServerUrl is not null);
         Debug.Assert(Pin is not null);
         Debug.Assert(DeviceId is not null);
@@ -115,14 +125,12 @@ public partial class PairingClientViewModel : ViewModelBase
             ErrorMessages.Add($"Could not pair: {e.Message}");
         }
 
-        OpenPreviousPage();
+        navigator.OpenPreviousPage();
     }
 
     [RelayCommand]
     private async Task Unpair()
     {
-        Debug.Assert(httpApiService is not null);
-        Debug.Assert(secureStorage is not null);
         Debug.Assert(DeviceId is not null);
 
         try
@@ -143,16 +151,17 @@ public partial class PairingClientViewModel : ViewModelBase
     [RelayCommand]
     private void Loaded()
     {
-        Debug.Assert(serviceDiscovery is not null);
         serviceDiscovery.StartBrowse(SynchronizationServerService.ServiceType);
     }
 
     [RelayCommand]
     private void Unloaded()
     {
-        Debug.Assert(serviceDiscovery is not null);
         serviceDiscovery.StopBrowse();
     }
+
+    [RelayCommand]
+    private void OpenPreviousPage() => navigator.OpenPreviousPage();
 
     #endregion Commands
 }

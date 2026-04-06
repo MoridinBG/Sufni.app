@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.SensorConfigurations;
 
 namespace Sufni.App.ViewModels.Items;
@@ -19,6 +20,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     #region Private fields
 
     private readonly IDatabaseService databaseService;
+    private readonly ISetupViewModelHost setupHost;
     private Setup setup;
     private Guid? originalBoardId;
 
@@ -107,15 +109,18 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     public SetupViewModel()
     {
         databaseService = null!;
+        setupHost = null!;
         setup = new Setup();
         Id = setup.Id;
         BoardId = originalBoardId = boardId;
         Bikes = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
     }
 
-    public SetupViewModel(Setup setup, Guid? boardId, bool fromDatabase, IBikeSelectionSource bikeSelectionSource, IDatabaseService databaseService)
+    public SetupViewModel(Setup setup, Guid? boardId, bool fromDatabase, IBikeSelectionSource bikeSelectionSource, IDatabaseService databaseService, INavigator navigator, IDialogService dialogService, ISetupViewModelHost setupHost)
+        : base(navigator, dialogService, setupHost)
     {
         this.databaseService = databaseService;
+        this.setupHost = setupHost;
         this.setup = setup;
         IsInDatabase = fromDatabase;
         Id = setup.Id;
@@ -194,8 +199,8 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
             // We notify even if the setup was already in the database, since we need to reevaluate
             // if a setup exists for the import page.
-            ShellCoordinator.OnSetupAdded(this);
-            await ShellCoordinator.EvaluateSetupExists();
+            setupHost.OnSetupSaved(this);
+            await setupHost.AfterSetupSavedAsync();
 
             IsInDatabase = true;
             EvaluateDirtiness();

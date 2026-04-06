@@ -92,6 +92,12 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     #endregion Private members
 
+    #region Runtime callbacks
+
+    public Action? OpenSetupCreation { get; set; }
+
+    #endregion Runtime callbacks
+
     #region Constructors
 
     public ImportSessionsViewModel()
@@ -109,7 +115,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         ITelemetryDataStoreService telemetryDataStoreService,
         ISessionViewModelFactory sessionViewModelFactory,
         IFilesService filesService,
-        ISessionSink sessionSink)
+        ISessionSink sessionSink,
+        INavigator navigator,
+        IDialogService dialogService)
+        : base(navigator, dialogService)
     {
         Name = "Import Sessions";
         this.databaseService = databaseService;
@@ -238,7 +247,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        var svm = sessionViewModelFactory.Create(session, true);
+                        var svm = sessionViewModelFactory.Create(session, true, sessionSink);
                         sessionSink.Add(svm);
                         Notifications.Insert(0, $"{svm.Name} was successfully imported.");
                     });
@@ -293,7 +302,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private static void AddSetup() => ShellCoordinator.AddSetup();
+    private void AddSetup() => OpenSetupCreation?.Invoke();
 
     [RelayCommand]
     private void Loaded()
