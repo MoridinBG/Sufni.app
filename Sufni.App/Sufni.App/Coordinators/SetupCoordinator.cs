@@ -50,15 +50,16 @@ public sealed class SetupCoordinator(
         var snapshot = setupStore.Get(setupId);
         if (snapshot is null) return Task.CompletedTask;
 
-        var editor = new SetupEditorViewModel(
-            snapshot,
-            isNew: false,
-            bikeStore,
-            bikeCoordinator,
-            this,
-            navigator,
-            dialogService);
-        shell.Open(editor);
+        shell.OpenOrFocus<SetupEditorViewModel>(
+            editor => editor.Id == setupId,
+            () => new SetupEditorViewModel(
+                snapshot,
+                isNew: false,
+                bikeStore,
+                bikeCoordinator,
+                this,
+                navigator,
+                dialogService));
         return Task.CompletedTask;
     }
 

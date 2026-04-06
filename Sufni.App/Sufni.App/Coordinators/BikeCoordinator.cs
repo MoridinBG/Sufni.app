@@ -41,14 +41,15 @@ public sealed class BikeCoordinator(
         var snapshot = bikeStore.Get(bikeId);
         if (snapshot is null) return Task.CompletedTask;
 
-        var editor = new BikeEditorViewModel(
-            snapshot,
-            isNew: false,
-            this,
-            filesService,
-            navigator,
-            dialogService);
-        shell.Open(editor);
+        shell.OpenOrFocus<BikeEditorViewModel>(
+            editor => editor.Id == bikeId,
+            () => new BikeEditorViewModel(
+                snapshot,
+                isNew: false,
+                this,
+                filesService,
+                navigator,
+                dialogService));
         return Task.CompletedTask;
     }
 
