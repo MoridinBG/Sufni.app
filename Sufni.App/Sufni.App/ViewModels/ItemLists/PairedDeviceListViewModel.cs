@@ -2,17 +2,26 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using DynamicData;
+using Sufni.App.Services;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
 public partial class PairedDeviceListViewModel : ItemListViewModelBase
 {
+    #region Constructors
+
+    public PairedDeviceListViewModel() { }
+
+    public PairedDeviceListViewModel(IDatabaseService databaseService) : base(databaseService) { }
+
+    #endregion Constructors
+
     #region Private methods
 
     private async Task LoadPairedDevicesAsync()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
 
         try
         {
@@ -38,8 +47,6 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
         var pdvm = vm as PairedDeviceViewModel;
         Debug.Assert(pdvm is not null);
         Debug.Assert(pdvm.Name is not null);
-        Debug.Assert(databaseService is not null);
-
         await databaseService.DeletePairedDeviceAsync(pdvm.Name);
     }
 

@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 using Sufni.App.Models;
+using Sufni.App.Services;
+using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
@@ -14,6 +16,7 @@ public class SetupListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly ISetupViewModelFactory setupViewModelFactory;
     private readonly ImportSessionsViewModel importSessionsPage;
     private readonly BikeListViewModel bikesPage;
 
@@ -29,14 +32,20 @@ public class SetupListViewModel : ItemListViewModelBase
 
     public SetupListViewModel()
     {
-        importSessionsPage = new ImportSessionsViewModel();
-        bikesPage = new BikeListViewModel();
+        setupViewModelFactory = null!;
+        importSessionsPage = null!;
+        bikesPage = null!;
     }
 
-    public SetupListViewModel(ImportSessionsViewModel importSessionsPage, BikeListViewModel bikesPage)
+    public SetupListViewModel(
+        IDatabaseService databaseService,
+        ISetupViewModelFactory setupViewModelFactory,
+        ImportSessionsViewModel importSessionsPage,
+        BikeListViewModel bikesPage) : base(databaseService)
     {
+        this.setupViewModelFactory = setupViewModelFactory;
         this.importSessionsPage = importSessionsPage;
-        this.bikesPage =  bikesPage;
+        this.bikesPage = bikesPage;
     }
 
     #endregion Constructors
@@ -45,7 +54,7 @@ public class SetupListViewModel : ItemListViewModelBase
 
     private async Task LoadBoardsAsync()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
 
         try
         {
@@ -72,19 +81,16 @@ public class SetupListViewModel : ItemListViewModelBase
 
     private async Task LoadSetupsAsync()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         try
         {
             var setupList = await databaseService.GetAllAsync<Setup>();
             foreach (var setup in setupList)
             {
                 var board = Boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                var svm = new SetupViewModel(
+                var svm = setupViewModelFactory.Create(
                     setup,
                     board?.Id,
-                    true,
-                    bikesPage.Source);
+                    true);
                 svm.PropertyChanged += OnSetupDirtinessChanged;
                 Source.AddOrUpdate(svm);
             }
@@ -103,7 +109,7 @@ public class SetupListViewModel : ItemListViewModelBase
     {
         var svm = vm as SetupViewModel;
         Debug.Assert(svm != null, nameof(svm) + " != null");
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
+
 
         // If this setup is associated with a board ID, clear that association.
         if (svm.BoardId.HasValue)
@@ -126,8 +132,6 @@ public class SetupListViewModel : ItemListViewModelBase
 
     protected override void AddImplementation()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         try
         {
             var setup = new Setup(
@@ -144,10 +148,8 @@ public class SetupListViewModel : ItemListViewModelBase
                 newSetupsBoardId = datastoreBoardId;
             }
 
-            var svm = new SetupViewModel(setup, newSetupsBoardId, false, bikesPage.Source)
-            {
-                IsDirty = true
-            };
+            var svm = setupViewModelFactory.Create(setup, newSetupsBoardId, false);
+            svm.IsDirty = true;
             svm.PropertyChanged += OnSetupDirtinessChanged;
 
             OpenPage(svm);

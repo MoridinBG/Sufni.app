@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels.Items;
 
@@ -28,10 +26,7 @@ public partial class ItemViewModelBase : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private async Task Delete(bool navigateBack)
     {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        await mainPagesViewModel.DeleteItem(this);
+        await ShellCoordinator.DeleteItem(this);
         if (navigateBack)
         {
             OpenPreviousPage();
@@ -41,18 +36,8 @@ public partial class ItemViewModelBase : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void UndoableDelete()
     {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        mainPagesViewModel.UndoableDelete(this);
-
-        Debug.Assert(App.Current is not null);
-        if (App.Current.IsDesktop)
-        {
-            var vm = App.Current.Services?.GetService<MainWindowViewModel>();
-            Debug.Assert(vm != null);
-            vm.CloseTabPage(this);
-        }
+        ShellCoordinator.UndoableDelete(this);
+        Navigator.CloseTab(this);
     }
 
     [RelayCommand(CanExecute = nameof(CanDelete))]

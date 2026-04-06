@@ -3,7 +3,6 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels;
 
@@ -17,7 +16,7 @@ public partial class MainWindowViewModel : ViewModelBase
     #region Observable properties
 
     [ObservableProperty] private TabPageViewModelBase? currentView;
-    [ObservableProperty] private MainPagesViewModel? mainPagesViewModel;
+    [ObservableProperty] private MainPagesViewModel mainPagesViewModel;
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
 
     #endregion Observable properties
@@ -34,10 +33,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     #region Constructors
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(MainPagesViewModel mainPagesViewModel)
     {
-        mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
+        MainPagesViewModel = mainPagesViewModel;
 
         Tabs.Add(welcomeScreenViewModel);
         CurrentView = welcomeScreenViewModel;

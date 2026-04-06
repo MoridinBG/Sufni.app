@@ -19,9 +19,9 @@ namespace Sufni.App.Linux
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
-            RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
-            RegisteredServices.Collection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
+            App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            App.ServiceCollection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()

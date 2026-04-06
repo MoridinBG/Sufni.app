@@ -5,8 +5,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DynamicData;
-using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
@@ -20,6 +18,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     #region Private fields
 
+    private readonly IDatabaseService databaseService;
     private Setup setup;
     private Guid? originalBoardId;
 
@@ -50,8 +49,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private SensorConfigurationViewModel? shockSensorConfiguration;
 
-    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes => bikes;
-    private readonly ReadOnlyObservableCollection<ItemViewModelBase> bikes;
+    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes { get; }
     public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];
     public List<SensorType?> ShockSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Shock"))];
 
@@ -108,23 +106,21 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     public SetupViewModel()
     {
+        databaseService = null!;
         setup = new Setup();
         Id = setup.Id;
         BoardId = originalBoardId = boardId;
-        bikes = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
+        Bikes = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
     }
 
-    public SetupViewModel(Setup setup, Guid? boardId, bool fromDatabase, SourceCache<ItemViewModelBase, Guid> bikesSourceCache)
+    public SetupViewModel(Setup setup, Guid? boardId, bool fromDatabase, IBikeSelectionSource bikeSelectionSource, IDatabaseService databaseService)
     {
+        this.databaseService = databaseService;
         this.setup = setup;
         IsInDatabase = fromDatabase;
         Id = setup.Id;
         BoardId = originalBoardId = boardId;
-        
-        bikesSourceCache.Connect()
-            .Bind(out bikes)
-            .DisposeMany()
-            .Subscribe();
+        Bikes = bikeSelectionSource.Bikes;
 
         ResetImplementation();
     }
@@ -164,9 +160,6 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         try
         {
             ForkSensorConfiguration?.Save();
@@ -201,10 +194,8 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
             // We notify even if the setup was already in the database, since we need to reevaluate
             // if a setup exists for the import page.
-            var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-            Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-            mainPagesViewModel.SetupsPage.OnAdded(this);
-            await mainPagesViewModel.ImportSessionsPage.EvaluateSetupExists();
+            ShellCoordinator.OnSetupAdded(this);
+            await ShellCoordinator.EvaluateSetupExists();
 
             IsInDatabase = true;
             EvaluateDirtiness();

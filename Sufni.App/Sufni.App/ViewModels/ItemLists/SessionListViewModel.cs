@@ -3,24 +3,44 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using DynamicData;
 using DynamicData.Binding;
+using Sufni.App.Services;
+using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class SessionListViewModel : ItemListViewModelBase
+public partial class SessionListViewModel : ItemListViewModelBase, ISessionSink
 {
+    #region Private fields
+
+    private readonly ISessionViewModelFactory sessionViewModelFactory;
+
+    #endregion Private fields
+
+    #region Constructors
+
+    public SessionListViewModel()
+    {
+        sessionViewModelFactory = null!;
+    }
+
+    public SessionListViewModel(IDatabaseService databaseService, ISessionViewModelFactory sessionViewModelFactory) : base(databaseService)
+    {
+        this.sessionViewModelFactory = sessionViewModelFactory;
+    }
+
+    #endregion Constructors
+
     #region Private methods
 
     private async Task LoadSessionsAsync()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         try
         {
             var sessionList = await databaseService.GetSessionsAsync();
             foreach (var session in sessionList)
             {
-                Source.AddOrUpdate(new SessionViewModel(session, true));
+                Source.AddOrUpdate(sessionViewModelFactory.Create(session, true));
             }
         }
         catch (Exception e)
@@ -55,4 +75,10 @@ public partial class SessionListViewModel : ItemListViewModelBase
     }
 
     #endregion ItemListViewModelBase overrides
+
+    #region ISessionSink
+
+    public void Add(SessionViewModel session) => Source.AddOrUpdate(session);
+
+    #endregion ISessionSink
 }

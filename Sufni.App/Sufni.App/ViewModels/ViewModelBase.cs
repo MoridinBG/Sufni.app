@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Timers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels
 {
@@ -12,10 +11,17 @@ namespace Sufni.App.ViewModels
     {
         private const int Timeout = 3000;
 
+        #region Static services
+
+        public static INavigator Navigator { get; set; } = null!;
+        public static IShellCoordinator ShellCoordinator { get; set; } = null!;
+
+        #endregion Static services
+
         #region Observable properties
 
         [ObservableProperty] private bool isPointerOverNotifications;
-        
+
         public ObservableCollection<string> ErrorMessages { get; } = [];
         public ObservableCollection<string> Notifications { get; } = [];
 
@@ -79,31 +85,13 @@ namespace Sufni.App.ViewModels
         [RelayCommand]
         protected static void OpenPage(ViewModelBase view)
         {
-            Debug.Assert(App.Current is not null);
-            var isDesktop = App.Current.IsDesktop;
-            if (isDesktop)
-            {
-                var vm = App.Current.Services?.GetService<MainWindowViewModel>();
-                Debug.Assert(vm != null, nameof(vm) + " != null");
-                vm.OpenView(view);
-            }
-            else
-            {
-                var vm = App.Current.Services?.GetService<MainViewModel>();
-                Debug.Assert(vm != null, nameof(vm) + " != null");
-                vm.OpenView(view);
-            }
+            Navigator.OpenPage(view);
         }
 
         [RelayCommand]
         protected static void OpenPreviousPage()
         {
-            Debug.Assert(App.Current is not null);
-            Debug.Assert(!App.Current.IsDesktop);
-
-            var vm = App.Current.Services?.GetService<MainViewModel>();
-            Debug.Assert(vm != null, nameof(vm) + " != null");
-            vm.OpenPreviousView();
+            Navigator.OpenPreviousPage();
         }
 
         #endregion Commands

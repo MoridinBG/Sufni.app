@@ -13,7 +13,6 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.LinkageParts;
@@ -27,6 +26,8 @@ public partial class BikeViewModel : ItemViewModelBase
 
     #region Private fields
 
+    private readonly IDatabaseService databaseService;
+    private readonly IFilesService filesService;
     private Bike bike;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
@@ -122,6 +123,8 @@ public partial class BikeViewModel : ItemViewModelBase
 
     public BikeViewModel()
     {
+        databaseService = null!;
+        filesService = null!;
         IsInDatabase = false;
         bike = new Bike();
 
@@ -129,16 +132,18 @@ public partial class BikeViewModel : ItemViewModelBase
         SetupLinksListeners();
     }
 
-    public BikeViewModel(Bike bike, bool fromDatabase)
+    public BikeViewModel(Bike bike, bool fromDatabase, IDatabaseService databaseService, IFilesService filesService)
     {
+        this.databaseService = databaseService;
+        this.filesService = filesService;
         IsInDatabase = fromDatabase;
         this.bike = bike;
-        
+
         SetupJointsListeners();
         SetupLinksListeners();
-        
+
         UpdateFromBike();
-        
+
         // If this is a BikeViewModel created from scratch, we need to add the mandatory joints.
         if (!fromDatabase) AddInitialJoints();
     }
@@ -382,9 +387,6 @@ public partial class BikeViewModel : ItemViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         try
         {
             var newBike = ToBike();
@@ -403,9 +405,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
             if (!IsInDatabase)
             {
-                var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-                Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-                mainPagesViewModel.BikesPage.OnAdded(this);
+                ShellCoordinator.OnBikeAdded(this);
             }
 
             IsInDatabase = true;
@@ -430,9 +430,6 @@ public partial class BikeViewModel : ItemViewModelBase
 
     protected override async Task ExportImplementation()
     {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null);
-
         var file = await filesService.SaveBikeFileAsync();
         if (file is null) return;
         
@@ -448,12 +445,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
     protected override bool CanDelete()
     {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        return !mainPagesViewModel.SetupsPage.Items.Any(s =>
-            s is SetupViewModel { SelectedBike: not null } svm &&
-            svm.SelectedBike.Id == Id);
+        return ShellCoordinator.CanDeleteBike(Id);
     }
 
     #endregion ItemViewModelBase overrides
@@ -526,9 +518,6 @@ public partial class BikeViewModel : ItemViewModelBase
     [RelayCommand]
     private async Task OpenImage(CancellationToken token)
     {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null, nameof(filesService) + " != null");
-
         var file = await filesService.OpenBikeImageFileAsync();
         if (file is null) return;
 
@@ -546,9 +535,6 @@ public partial class BikeViewModel : ItemViewModelBase
     [RelayCommand]
     private async Task Import()
     {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null);
-
         var file = await filesService.OpenBikeFileAsync();
         if (file is null) return;
 

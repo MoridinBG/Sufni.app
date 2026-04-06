@@ -11,14 +11,19 @@ using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels;
 
-public partial class MainPagesViewModel : ViewModelBase
+public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
 {
-    private readonly IDatabaseService? databaseService;
+    private readonly IDatabaseService databaseService;
+    private readonly IBikeViewModelFactory bikeViewModelFactory;
+    private readonly ISetupViewModelFactory setupViewModelFactory;
+    private readonly ISessionViewModelFactory sessionViewModelFactory;
+    private readonly IFilesService filesService;
     private readonly ItemListViewModelBase[] pages;
 
     #region Observable properties
@@ -42,12 +47,41 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel()
     {
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        BikesPage = new BikeListViewModel();
-        SessionsPage = new SessionListViewModel();
-        PairedDevicesPage = new  PairedDeviceListViewModel();
-        ImportSessionsPage = new ImportSessionsViewModel(SessionsPage.Source);
-        SetupsPage = new SetupListViewModel(ImportSessionsPage, BikesPage);
+        databaseService = null!;
+        bikeViewModelFactory = null!;
+        setupViewModelFactory = null!;
+        sessionViewModelFactory = null!;
+        filesService = null!;
+        importSessionsPage = new();
+        bikesPage = new();
+        setupsPage = new();
+        sessionsPage = new();
+        pairedDevicesPage = new();
+        pages = [];
+    }
+
+    public MainPagesViewModel(
+        IDatabaseService databaseService,
+        IBikeViewModelFactory bikeViewModelFactory,
+        ISetupViewModelFactory setupViewModelFactory,
+        ISessionViewModelFactory sessionViewModelFactory,
+        IFilesService filesService,
+        BikeListViewModel bikesPage,
+        SessionListViewModel sessionsPage,
+        SetupListViewModel setupsPage,
+        ImportSessionsViewModel importSessionsPage,
+        PairedDeviceListViewModel pairedDevicesPage)
+    {
+        this.databaseService = databaseService;
+        this.bikeViewModelFactory = bikeViewModelFactory;
+        this.setupViewModelFactory = setupViewModelFactory;
+        this.sessionViewModelFactory = sessionViewModelFactory;
+        this.filesService = filesService;
+        BikesPage = bikesPage;
+        SessionsPage = sessionsPage;
+        SetupsPage = setupsPage;
+        ImportSessionsPage = importSessionsPage;
+        PairedDevicesPage = pairedDevicesPage;
         pages = [SessionsPage, SetupsPage];
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
@@ -59,9 +93,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
         if (App.Current!.IsDesktop)
         {
-            Debug.Assert(databaseService is  not null);
-            Debug.Assert(App.Current is not null);
-
             var synchronizationServer = App.Current.Services?.GetService<ISynchronizationServerService>();
             Debug.Assert(synchronizationServer is not null);
 
@@ -132,8 +163,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public async Task DeleteItem(ItemViewModelBase item)
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         switch (item)
         {
             case BikeViewModel bvm:
@@ -167,6 +196,26 @@ public partial class MainPagesViewModel : ViewModelBase
         }
     }
 
+    public void OnBikeAdded(ItemViewModelBase bike) => BikesPage.OnAdded(bike);
+
+    public void OnSetupAdded(ItemViewModelBase setup)
+    {
+        SetupsPage.OnAdded(setup);
+    }
+
+    public Task EvaluateSetupExists() => ImportSessionsPage.EvaluateSetupExists();
+
+    public bool CanDeleteBike(Guid bikeId)
+    {
+        return !SetupsPage.Items.Any(s =>
+            s is SetupViewModel { SelectedBike: not null } svm &&
+            svm.SelectedBike.Id == bikeId);
+    }
+
+    public void AddBike() => BikesPage.AddCommand.Execute(null);
+    public void AddSetup() => SetupsPage.AddCommand.Execute(null);
+    public void OpenImportSessions() => OpenPageCommand.Execute(ImportSessionsPage);
+
     #endregion
 
     #region Private methods
@@ -185,8 +234,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private async Task MergeFromDatabase(SynchronizationData data)
     {
-        Debug.Assert(databaseService is not null);
-
         foreach (var bike in data.Bikes)
         {
             if (bike.Deleted is not null)
@@ -195,7 +242,7 @@ public partial class MainPagesViewModel : ViewModelBase
             }
             else
             {
-                BikesPage.Source.AddOrUpdate(new BikeViewModel(bike, true));
+                BikesPage.Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true));
             }
             BikesPage.Source.Refresh();
         }
@@ -210,7 +257,7 @@ public partial class MainPagesViewModel : ViewModelBase
             else
             {
                 var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                SetupsPage.Source.AddOrUpdate(new SetupViewModel(setup, board?.Id, true, BikesPage.Source));
+                SetupsPage.Source.AddOrUpdate(setupViewModelFactory.Create(setup, board?.Id, true));
             }
             SetupsPage.Source.Refresh();
         }
@@ -223,7 +270,7 @@ public partial class MainPagesViewModel : ViewModelBase
             }
             else
             {
-                SessionsPage.Source.AddOrUpdate(new SessionViewModel(session, true));
+                SessionsPage.Source.AddOrUpdate(sessionViewModelFactory.Create(session, true));
             }
             SessionsPage.Source.Refresh();
         }
@@ -288,11 +335,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenGpsTracks()
     {
-        var fileService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(fileService is not null);
-        Debug.Assert(databaseService is not null);
-
-        var files = await fileService.OpenGpxFilesAsync();
+        var files = await filesService.OpenGpxFilesAsync();
         foreach (var file in files)
         {
             await using var stream = await file.OpenReadAsync();

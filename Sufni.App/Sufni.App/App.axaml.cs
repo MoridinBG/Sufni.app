@@ -4,6 +4,8 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
+using Sufni.App.ViewModels.Factories;
+using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views;
 using Sufni.App.DesktopViews;
 using System;
@@ -15,18 +17,11 @@ namespace Sufni.App;
 
 public partial class App : Application
 {
+    public static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
+
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
     public bool IsDesktop { get; private set; }
-
-    public App()
-    {
-        RegisteredServices.Collection.AddSingleton<IHttpApiService, HttpApiService>();
-        RegisteredServices.Collection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
-        RegisteredServices.Collection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
-
-        IsDesktop = RegisteredServices.Collection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
-    }
 
     public override void Initialize()
     {
@@ -36,33 +31,51 @@ public partial class App : Application
         this.AttachDeveloperTools();
 #endif
     }
-    
+
     public override void OnFrameworkInitializationCompleted()
     {
-        RegisteredServices.Collection.AddSingleton<IFilesService>(_ => new FilesService());
-        RegisteredServices.Collection.AddSingleton<IDialogService>(_ => new DialogService());
-        RegisteredServices.Collection.AddSingleton<MainPagesViewModel>();
-        RegisteredServices.Collection.AddSingleton<MainViewModel>();
-        RegisteredServices.Collection.AddSingleton<MainWindowViewModel>();
-        Services = RegisteredServices.Collection.BuildServiceProvider();
+        ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
+        ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
+        ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
+        ServiceCollection.AddSingleton<IFilesService>(_ => new FilesService());
+        ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
+        ServiceCollection.AddSingleton<IBikeViewModelFactory, BikeViewModelFactory>();
+        ServiceCollection.AddSingleton<ISetupViewModelFactory, SetupViewModelFactory>();
+        ServiceCollection.AddSingleton<ISessionViewModelFactory, SessionViewModelFactory>();
+        ServiceCollection.AddSingleton<BikeListViewModel>();
+        ServiceCollection.AddSingleton<IBikeSelectionSource>(sp => sp.GetRequiredService<BikeListViewModel>());
+        ServiceCollection.AddSingleton<SessionListViewModel>();
+        ServiceCollection.AddSingleton<ISessionSink>(sp => sp.GetRequiredService<SessionListViewModel>());
+        ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
+        ServiceCollection.AddSingleton<ImportSessionsViewModel>();
+        ServiceCollection.AddSingleton<SetupListViewModel>();
+        ServiceCollection.AddSingleton<MainPagesViewModel>();
+        ServiceCollection.AddSingleton<MainViewModel>();
+        ServiceCollection.AddSingleton<MainWindowViewModel>();
 
-        var fileService = Services.GetService<IFilesService>();
-        var dialogService = Services.GetService<IDialogService>();
-        var mainViewModel = Services.GetService<MainViewModel>();
-        var mainWindowViewModel = Services.GetService<MainWindowViewModel>();
-        Debug.Assert(fileService is not null);
-        Debug.Assert(dialogService is not null);
+        IsDesktop = ServiceCollection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
+        Services = ServiceCollection.BuildServiceProvider();
+
+        var fileService = Services.GetRequiredService<IFilesService>();
+        var dialogService = Services.GetRequiredService<IDialogService>();
+        var mainViewModel = Services.GetRequiredService<MainViewModel>();
+        var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
+
+        // Wire up static services for base classes
+        ViewModelBase.ShellCoordinator = Services.GetRequiredService<MainPagesViewModel>();
+        TabPageViewModelBase.DialogService = dialogService;
 
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
+                ViewModelBase.Navigator = new DesktopNavigator(mainWindowViewModel);
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                Debug.Assert(mainViewModel is not null);
+                ViewModelBase.Navigator = new MobileNavigator(mainViewModel);
 
                 singleViewPlatform.MainView = new MainView
                 {

@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels;
 
@@ -18,31 +16,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private static void AddBike()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null);
-
-        mainPagesViewModel.BikesPage.AddCommand.Execute(null);
-    }
+    private static void AddBike() => ShellCoordinator.AddBike();
 
     [RelayCommand]
-    private static void AddSetup()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null);
-
-        mainPagesViewModel.SetupsPage.AddCommand.Execute(null);
-    }
+    private static void AddSetup() => ShellCoordinator.AddSetup();
 
     [RelayCommand]
-    private static void ImportSession()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null);
-
-        mainPagesViewModel.OpenPageCommand.Execute(mainPagesViewModel.ImportSessionsPage);
-    }
+    private static void ImportSession() => ShellCoordinator.OpenImportSessions();
 
     #endregion Commands
 }

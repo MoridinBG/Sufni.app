@@ -11,8 +11,7 @@ using System.Diagnostics;
 using System.Threading;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using DynamicData;
-using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.Items;
 using Sufni.Telemetry;
 
@@ -24,7 +23,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     public ObservableCollection<ITelemetryDataStore>? TelemetryDataStores { get; set; }
     public ObservableCollection<ITelemetryFile> TelemetryFiles { get; } = [];
-    private readonly SourceCache<ItemViewModelBase, Guid> sessions;
+    private readonly ISessionSink sessionSink;
 
     [ObservableProperty] private ITelemetryDataStore? selectedDataStore;
     [ObservableProperty] private bool newDataStoresAvailable;
@@ -57,8 +56,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     async partial void OnSelectedDataStoreChanged(ITelemetryDataStore? value)
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         if (value == null)
         {
             TelemetryFiles.Clear();
@@ -88,27 +85,38 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     #region Private members
 
-    private readonly IDatabaseService? databaseService;
-    private readonly ITelemetryDataStoreService? telemetryDataStoreService;
+    private readonly IDatabaseService databaseService;
+    private readonly ITelemetryDataStoreService telemetryDataStoreService;
+    private readonly ISessionViewModelFactory sessionViewModelFactory;
+    private readonly IFilesService filesService;
 
     #endregion Private members
 
     #region Constructors
 
-    // This is only here for the designer
-    public ImportSessionsViewModel() : this(new SourceCache<ItemViewModelBase, Guid>(m => m.Id)) { }
-
-    public ImportSessionsViewModel(SourceCache<ItemViewModelBase, Guid> sessions)
+    public ImportSessionsViewModel()
     {
         Name = "Import Sessions";
+        databaseService = null!;
+        telemetryDataStoreService = null!;
+        sessionViewModelFactory = null!;
+        filesService = null!;
+        sessionSink = null!;
+    }
 
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        telemetryDataStoreService = App.Current?.Services?.GetService<ITelemetryDataStoreService>();
-
-        this.sessions = sessions;
-
-        Debug.Assert(databaseService != null, nameof(telemetryDataStoreService) + " != null");
-        Debug.Assert(telemetryDataStoreService != null, nameof(telemetryDataStoreService) + " != null");
+    public ImportSessionsViewModel(
+        IDatabaseService databaseService,
+        ITelemetryDataStoreService telemetryDataStoreService,
+        ISessionViewModelFactory sessionViewModelFactory,
+        IFilesService filesService,
+        ISessionSink sessionSink)
+    {
+        Name = "Import Sessions";
+        this.databaseService = databaseService;
+        this.telemetryDataStoreService = telemetryDataStoreService;
+        this.sessionViewModelFactory = sessionViewModelFactory;
+        this.filesService = filesService;
+        this.sessionSink = sessionSink;
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
         TelemetryDataStores.CollectionChanged += (_, e) =>
@@ -152,8 +160,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     public async Task EvaluateSetupExists()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         var boards = await databaseService.GetAllAsync<Board>();
         var selectedBoard = boards.FirstOrDefault(b => b?.Id == SelectedDataStore?.BoardId, null);
         SelectedSetup = selectedBoard?.SetupId;
@@ -166,8 +172,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task OpenDataStore()
     {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null, nameof(filesService) + " != null");
         Debug.Assert(TelemetryDataStores != null, nameof(TelemetryDataStores) + " != null");
 
         var folder = await filesService.OpenDataStoreFolderAsync();
@@ -196,7 +200,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         {
             Debug.Assert(SelectedSetup != null);
             Debug.Assert(SelectedDataStore != null);
-            Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
 
             ImportInProgress = true;
 
@@ -235,8 +238,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        var svm = new SessionViewModel(session, true);
-                        sessions.AddOrUpdate(svm);
+                        var svm = sessionViewModelFactory.Create(session, true);
+                        sessionSink.Add(svm);
                         Notifications.Insert(0, $"{svm.Name} was successfully imported.");
                     });
                 }
@@ -290,25 +293,17 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private static void AddSetup()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        mainPagesViewModel.SetupsPage.AddCommand.Execute(null);
-    }
+    private static void AddSetup() => ShellCoordinator.AddSetup();
 
     [RelayCommand]
     private void Loaded()
     {
-        Debug.Assert(telemetryDataStoreService is not null);
         telemetryDataStoreService.StartBrowse();
     }
 
     [RelayCommand]
     private void Unloaded()
     {
-        Debug.Assert(telemetryDataStoreService is not null);
         TelemetryFiles.Clear();
         telemetryDataStoreService.StopBrowse();
     }

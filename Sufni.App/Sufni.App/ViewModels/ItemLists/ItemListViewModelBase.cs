@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
-using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Items;
@@ -14,7 +13,7 @@ namespace Sufni.App.ViewModels.ItemLists;
 
 public partial class ItemListViewModelBase : ViewModelBase
 {
-    protected readonly IDatabaseService? databaseService;
+    protected readonly IDatabaseService databaseService;
 
     #region Observable properties
 
@@ -88,7 +87,13 @@ public partial class ItemListViewModelBase : ViewModelBase
 #pragma warning disable CS8618 // "items" is populated in the ConnectSource method
     public ItemListViewModelBase()
     {
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
+        databaseService = null!;
+        ConnectSource();
+    }
+
+    protected ItemListViewModelBase(IDatabaseService databaseService)
+    {
+        this.databaseService = databaseService;
         ConnectSource();
     }
 #pragma warning restore CS8618
@@ -129,7 +134,6 @@ public partial class ItemListViewModelBase : ViewModelBase
     [RelayCommand]
     public async Task FinalizeDelete()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
         Debug.Assert(LastDeleted != null, nameof(LastDeleted) + " != null");
 
         switch (LastDeleted)

@@ -18,12 +18,12 @@ namespace Sufni.App.iOS
     {
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
-            RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            RegisteredServices.Collection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
-            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
-            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
-            RegisteredServices.Collection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>();
-            RegisteredServices.Collection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+            App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
+            App.ServiceCollection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
+            App.ServiceCollection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>();
+            App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
             return base.CustomizeAppBuilder(builder)
                 .WithInterFont()
                 .With(new SkiaOptions { UseOpacitySaveLayer = true });

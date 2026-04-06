@@ -7,7 +7,6 @@ using Avalonia;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using ScottPlot;
 using Sufni.App.Models;
 using Sufni.App.Plots;
@@ -24,6 +23,8 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     
     #region Private fields
 
+    private readonly IDatabaseService databaseService;
+    private readonly IHttpApiService httpApiService;
     private Session session;
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
@@ -57,9 +58,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     private async Task LoadTelemetryData()
     {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null);
-
         TelemetryData = await databaseService.GetSessionPsstAsync(Id);
         if (TelemetryData is null)
         {
@@ -87,8 +85,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     private async Task LoadTrack()
     {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null);
         Debug.Assert(TelemetryData is not null);
 
         session.FullTrack ??= await databaseService.AssociateSessionWithTrackAsync(Id);
@@ -117,11 +113,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     {
         if (IsInDatabase) return;
 
-        var httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         var psst = await httpApiService.GetSessionPsstAsync(Id) ?? throw new Exception("Session data could not be downloaded from server.");
         await databaseService.PatchSessionPsstAsync(Id, psst);
         session.HasProcessedData = true;
@@ -130,9 +121,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     private async Task<bool> LoadCache()
     {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         var cache = await databaseService.GetSessionCacheAsync(Id);
         if (cache is null)
         {
@@ -249,8 +237,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
             Dispatcher.UIThread.Post(() => { Pages.Remove(BalancePage); });
         }
 
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null);
         await databaseService.PutSessionCacheAsync(sessionCache);
     }
 
@@ -260,13 +246,17 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     public SessionViewModel()
     {
+        databaseService = null!;
+        httpApiService = null!;
         session = new Session();
         IsInDatabase = false;
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
     }
 
-    public SessionViewModel(Session session, bool fromDatabase)
+    internal SessionViewModel(Session session, bool fromDatabase, IDatabaseService databaseService, IHttpApiService httpApiService)
     {
+        this.databaseService = databaseService;
+        this.httpApiService = httpApiService;
         this.session = session;
         IsInDatabase = fromDatabase;
         IsComplete = session.HasProcessedData;
@@ -293,9 +283,6 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        var databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         try
         {
             var newSession = new Session(
