@@ -25,7 +25,7 @@ public sealed class BikeCoordinator(
         var editor = new BikeEditorViewModel(
             snapshot,
             isNew: true,
-            databaseService,
+            this,
             filesService,
             navigator,
             dialogService)
@@ -44,7 +44,7 @@ public sealed class BikeCoordinator(
         var editor = new BikeEditorViewModel(
             snapshot,
             isNew: false,
-            databaseService,
+            this,
             filesService,
             navigator,
             dialogService);
@@ -52,46 +52,29 @@ public sealed class BikeCoordinator(
         return Task.CompletedTask;
     }
 
-    public async Task<BikeSaveResult> SaveAsync(BikeEditorState state, long baselineUpdated)
+    public async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
     {
         // Optimistic conflict detection: if the store's current version
         // is newer than the baseline the editor opened on, someone else
-        // (another tab, sync) has written in the meantime.
-        if (!state.IsNew)
+        // (another tab, sync) has written in the meantime. For a brand
+        // new bike the store has no entry, so this falls through.
+        var current = bikeStore.Get(bike.Id);
+        if (current is not null && current.Updated > baselineUpdated)
         {
-            var current = bikeStore.Get(state.Id);
-            if (current is not null && current.Updated > baselineUpdated)
-            {
-                return new BikeSaveResult(BikeSaveOutcome.ConflictDetected);
-            }
+            return new BikeSaveResult.Conflict(current);
         }
 
         try
         {
-            var bike = new Bike(state.Id, state.Name)
-            {
-                HeadAngle = state.HeadAngle,
-                ForkStroke = state.ForkStroke,
-                Chainstay = state.Chainstay
-            };
-
-            if (state.ShockStroke is not null)
-            {
-                bike.Linkage = state.Linkage;
-                bike.ShockStroke = state.ShockStroke;
-                bike.Image = state.Image;
-                bike.PixelsToMillimeters = state.PixelsToMillimeters;
-            }
-
             await databaseService.PutAsync(bike);
             var saved = BikeSnapshot.From(bike);
             bikeStore.Upsert(saved);
 
-            return new BikeSaveResult(BikeSaveOutcome.Saved, NewBaselineUpdated: saved.Updated);
+            return new BikeSaveResult.Saved(saved.Updated);
         }
         catch (Exception e)
         {
-            return new BikeSaveResult(BikeSaveOutcome.Failed, e.Message);
+            return new BikeSaveResult.Failed(e.Message);
         }
     }
 

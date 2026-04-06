@@ -8,4 +8,5 @@ public interface IDialogService
 {
     public void SetOwner(Window owner);
     public Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true);
+    public Task<bool> ShowConfirmationAsync(string title, string message);
 }

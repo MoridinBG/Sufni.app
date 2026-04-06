@@ -1,5 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using Sufni.App.Models;
+using Sufni.App.Stores;
 
 namespace Sufni.App.Coordinators;
 
@@ -27,14 +29,16 @@ public interface ISetupCoordinator
     Task OpenEditAsync(Guid setupId);
 
     /// <summary>
-    /// Persist the editor's state. The coordinator checks
+    /// Persist a setup built by the editor along with the desired
+    /// board association. The coordinator checks
     /// <paramref name="baselineUpdated"/> against the store's current
-    /// version and returns <see cref="SetupSaveOutcome.ConflictDetected"/>
-    /// if another write has landed since the editor opened. On success
-    /// it persists the setup, fixes up the board association, and
-    /// upserts the new snapshot into the store.
+    /// version and returns <see cref="SetupSaveResult.Conflict"/> if
+    /// another write has landed since the editor opened. On success it
+    /// persists the setup, fixes up the board association (clearing
+    /// the previously stored board if it changed), and upserts the new
+    /// snapshot into the store.
     /// </summary>
-    Task<SetupSaveResult> SaveAsync(SetupEditorState state, long baselineUpdated);
+    Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated);
 
     /// <summary>
     /// Delete a setup. Clears the board association first if any.
@@ -43,32 +47,17 @@ public interface ISetupCoordinator
 }
 
 /// <summary>
-/// Plain data DTO of the setup editor's current editable state. Built
-/// by <c>SetupEditorViewModel</c> on save and handed to
-/// <see cref="ISetupCoordinator.SaveAsync"/>. The coordinator never
-/// touches the editor directly.
-///
-/// <see cref="OriginalBoardId"/> is the board the setup was associated
-/// with at the time the editor opened — the coordinator needs it to
-/// clear the old association if the user reassigned the board.
+/// Outcome of <see cref="ISetupCoordinator.SaveAsync"/>. Sealed
+/// hierarchy with a private constructor so callers must pattern-match
+/// on the three known cases.
 /// </summary>
-public sealed record SetupEditorState(
-    Guid Id,
-    bool IsNew,
-    string Name,
-    Guid BikeId,
-    Guid? BoardId,
-    Guid? OriginalBoardId,
-    string? FrontSensorConfigurationJson,
-    string? RearSensorConfigurationJson);
-
-public sealed record SetupSaveResult(SetupSaveOutcome Outcome, string? ErrorMessage = null, long NewBaselineUpdated = 0);
-
-public enum SetupSaveOutcome
+public abstract record SetupSaveResult
 {
-    Saved,
-    ConflictDetected,
-    Failed
+    private SetupSaveResult() { }
+
+    public sealed record Saved(long NewBaselineUpdated) : SetupSaveResult;
+    public sealed record Conflict(SetupSnapshot CurrentSnapshot) : SetupSaveResult;
+    public sealed record Failed(string ErrorMessage) : SetupSaveResult;
 }
 
 public sealed record SetupDeleteResult(SetupDeleteOutcome Outcome, string? ErrorMessage = null);

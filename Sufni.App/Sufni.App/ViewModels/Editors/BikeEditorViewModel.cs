@@ -13,6 +13,7 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -27,15 +28,24 @@ namespace Sufni.App.ViewModels.Editors;
 /// value is kept as <see cref="BaselineUpdated"/> for optimistic
 /// conflict detection at save time.
 /// </summary>
-public partial class BikeEditorViewModel : TabPageViewModelBase
+public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
 
+    // Explicit interface implementation: the generated commands are
+    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
+    // non-generic IRelayCommand interface property with.
+    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
+    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
+    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
+    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
+    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
+
     #region Private fields
 
-    private readonly IDatabaseService databaseService;
+    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IFilesService filesService;
     private Bike bike;
     private uint pointNumber = 1;
@@ -131,7 +141,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     public BikeEditorViewModel()
     {
-        databaseService = null!;
+        bikeCoordinator = null;
         filesService = null!;
         bike = new Bike();
         IsInDatabase = false;
@@ -143,13 +153,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     public BikeEditorViewModel(
         BikeSnapshot snapshot,
         bool isNew,
-        IDatabaseService databaseService,
+        IBikeCoordinator bikeCoordinator,
         IFilesService filesService,
         INavigator navigator,
         IDialogService dialogService)
         : base(navigator, dialogService)
     {
-        this.databaseService = databaseService;
+        this.bikeCoordinator = bikeCoordinator;
         this.filesService = filesService;
         IsInDatabase = !isNew;
         Id = snapshot.Id;
@@ -419,35 +429,86 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        try
+        if (bikeCoordinator is null) return;
+
+        var newBike = ToBike();
+        if (!CheckLinkage(newBike.Linkage!))
         {
-            var newBike = ToBike();
-            if (!CheckLinkage(newBike.Linkage!))
-            {
-                ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-                return;
-            }
-
-            Id = await databaseService.PutAsync(newBike);
-            bike = newBike;
-            BaselineUpdated = newBike.Updated;
-
-            SaveCommand.NotifyCanExecuteChanged();
-            ResetCommand.NotifyCanExecuteChanged();
-            ExportCommand.NotifyCanExecuteChanged();
-
-            IsInDatabase = true;
-
-            Debug.Assert(App.Current is not null);
-            if (!App.Current.IsDesktop)
-            {
-                OpenPreviousPage();
-            }
+            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+            return;
         }
-        catch (Exception e)
+
+        var result = await bikeCoordinator.SaveAsync(newBike, BaselineUpdated);
+
+        switch (result)
         {
-            ErrorMessages.Add($"Bike could not be saved: {e.Message}");
+            case BikeSaveResult.Saved saved:
+                bike = newBike;
+                bike.Updated = saved.NewBaselineUpdated;
+                BaselineUpdated = saved.NewBaselineUpdated;
+
+                SaveCommand.NotifyCanExecuteChanged();
+                ResetCommand.NotifyCanExecuteChanged();
+                ExportCommand.NotifyCanExecuteChanged();
+
+                IsInDatabase = true;
+
+                Debug.Assert(App.Current is not null);
+                if (!App.Current.IsDesktop)
+                {
+                    OpenPreviousPage();
+                }
+                break;
+
+            case BikeSaveResult.Conflict conflict:
+                var reload = await dialogService.ShowConfirmationAsync(
+                    "Bike changed elsewhere",
+                    "This bike has been updated from another source. Discard your changes and reload?");
+                if (reload)
+                {
+                    bike = BikeFromSnapshot(conflict.CurrentSnapshot);
+                    BaselineUpdated = conflict.CurrentSnapshot.Updated;
+                    UpdateFromBike();
+                    EvaluateDirtiness();
+                }
+                break;
+
+            case BikeSaveResult.Failed failed:
+                ErrorMessages.Add($"Bike could not be saved: {failed.ErrorMessage}");
+                break;
         }
+    }
+
+    [RelayCommand]
+    private async Task Delete(bool navigateBack)
+    {
+        if (bikeCoordinator is null) return;
+
+        if (!IsInDatabase)
+        {
+            if (navigateBack) OpenPreviousPage();
+            return;
+        }
+
+        var result = await bikeCoordinator.DeleteAsync(Id);
+        switch (result.Outcome)
+        {
+            case BikeDeleteOutcome.Deleted:
+                if (navigateBack) OpenPreviousPage();
+                break;
+            case BikeDeleteOutcome.InUse:
+                ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");
+                break;
+            case BikeDeleteOutcome.Failed:
+                ErrorMessages.Add($"Bike could not be deleted: {result.ErrorMessage}");
+                break;
+        }
+    }
+
+    [RelayCommand]
+    private void FakeDelete()
+    {
+        // Exists so the editor button strip can bind to a delete command.
     }
 
     protected override Task ResetImplementation()

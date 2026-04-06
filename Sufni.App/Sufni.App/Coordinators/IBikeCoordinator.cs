@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using Avalonia.Media.Imaging;
-using Sufni.Kinematics;
+using Sufni.App.Models;
+using Sufni.App.Stores;
 
 namespace Sufni.App.Coordinators;
 
@@ -25,13 +25,13 @@ public interface IBikeCoordinator
     Task OpenEditAsync(Guid bikeId);
 
     /// <summary>
-    /// Persist the editor's state. The coordinator checks
+    /// Persist a bike built by the editor. The coordinator checks
     /// <paramref name="baselineUpdated"/> against the store's current
-    /// version and returns <see cref="BikeSaveOutcome.ConflictDetected"/>
-    /// if another write has landed since the editor opened. On success
-    /// it upserts the new snapshot into the store.
+    /// version and returns <see cref="BikeSaveResult.Conflict"/> if
+    /// another write has landed since the editor opened. On success it
+    /// upserts the new snapshot into the store.
     /// </summary>
-    Task<BikeSaveResult> SaveAsync(BikeEditorState state, long baselineUpdated);
+    Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated);
 
     /// <summary>
     /// Delete a bike. Fails with <see cref="BikeDeleteOutcome.InUse"/>
@@ -49,30 +49,17 @@ public interface IBikeCoordinator
 }
 
 /// <summary>
-/// Plain data DTO of the editor's current editable state. Built by
-/// <c>BikeEditorViewModel</c> on save and handed to
-/// <see cref="IBikeCoordinator.SaveAsync"/>. The coordinator never
-/// touches the editor directly.
+/// Outcome of <see cref="IBikeCoordinator.SaveAsync"/>. Sealed
+/// hierarchy with a private constructor so callers must pattern-match
+/// on the three known cases.
 /// </summary>
-public sealed record BikeEditorState(
-    Guid Id,
-    bool IsNew,
-    string Name,
-    double HeadAngle,
-    double? ForkStroke,
-    double? ShockStroke,
-    double? Chainstay,
-    double PixelsToMillimeters,
-    Linkage? Linkage,
-    Bitmap? Image);
-
-public sealed record BikeSaveResult(BikeSaveOutcome Outcome, string? ErrorMessage = null, long NewBaselineUpdated = 0);
-
-public enum BikeSaveOutcome
+public abstract record BikeSaveResult
 {
-    Saved,
-    ConflictDetected,
-    Failed
+    private BikeSaveResult() { }
+
+    public sealed record Saved(long NewBaselineUpdated) : BikeSaveResult;
+    public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
+    public sealed record Failed(string ErrorMessage) : BikeSaveResult;
 }
 
 public sealed record BikeDeleteResult(BikeDeleteOutcome Outcome, string? ErrorMessage = null);

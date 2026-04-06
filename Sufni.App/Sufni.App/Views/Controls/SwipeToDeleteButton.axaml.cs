@@ -8,7 +8,7 @@ using Avalonia.Media.Transformation;
 using Avalonia.Svg.Skia;
 using HapticFeedback;
 using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.Views.Controls;
 
@@ -61,7 +61,7 @@ public partial class SwipeToDeleteButton : UserControl
     {
         if (e.Property.Name == "SwipeState" && sender is Swipe swipe && e.NewValue is SwipeState.LeftVisible)
         {
-            var vm = swipe.DataContext as ItemViewModelBase;
+            var vm = swipe.DataContext as IListItemRow;
             if (vm is not null && vm.UndoableDeleteCommand.CanExecute(false))
             {
                 vm.UndoableDeleteCommand.Execute(false);

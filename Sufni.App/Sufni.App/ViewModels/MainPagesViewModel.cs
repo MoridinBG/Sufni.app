@@ -98,7 +98,7 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
-        pages = [SessionsPage, SetupsPage];
+        pages = [SessionsPage, SetupsPage, BikesPage];
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
         BikesPage.MenuItems.Add(new("add", BikesPage.AddCommand));

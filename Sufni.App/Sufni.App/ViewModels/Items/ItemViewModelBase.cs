@@ -3,18 +3,29 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Services;
+using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.Items;
 
-public partial class ItemViewModelBase : TabPageViewModelBase, IListItemRow
+public partial class ItemViewModelBase : TabPageViewModelBase, IListItemRow, IEditorActions
 {
     // Explicit interface implementation: TabPageViewModelBase generates
     // OpenPageCommand as IRelayCommand<ViewModelBase>, which C# does not
     // accept as a covariant override of the interface's IRelayCommand
     // property. Forward to the generated command.
     IRelayCommand IListItemRow.OpenPageCommand => OpenPageCommand;
+
+    // Same reason for the editor button strip surface: the generated
+    // commands are IAsyncRelayCommand or IAsyncRelayCommand<T>, which
+    // C# will not implicitly satisfy a non-generic IRelayCommand
+    // property declaration with.
+    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
+    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
+    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
+    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
+    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
 
     #region Injected services
 

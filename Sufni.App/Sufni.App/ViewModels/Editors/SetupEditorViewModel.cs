@@ -24,15 +24,24 @@ namespace Sufni.App.ViewModels.Editors;
 /// conflict detection at save time. The bike combobox is populated
 /// from <see cref="IBikeStore"/>.
 /// </summary>
-public partial class SetupEditorViewModel : TabPageViewModelBase
+public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
 
+    // Explicit interface implementation: the generated commands are
+    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
+    // non-generic IRelayCommand interface property with.
+    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
+    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
+    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
+    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
+    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
+
     #region Private fields
 
-    private readonly IDatabaseService databaseService;
+    private readonly ISetupCoordinator? setupCoordinator;
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly ReadOnlyObservableCollection<BikeSnapshot> bikes;
     private Setup setup;
@@ -122,7 +131,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     public SetupEditorViewModel()
     {
-        databaseService = null!;
+        setupCoordinator = null;
         bikeCoordinator = null!;
         bikes = new ReadOnlyObservableCollection<BikeSnapshot>([]);
         setup = new Setup();
@@ -135,12 +144,12 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         bool isNew,
         IBikeStore bikeStore,
         IBikeCoordinator bikeCoordinator,
-        IDatabaseService databaseService,
+        ISetupCoordinator setupCoordinator,
         INavigator navigator,
         IDialogService dialogService)
         : base(navigator, dialogService)
     {
-        this.databaseService = databaseService;
+        this.setupCoordinator = setupCoordinator;
         this.bikeCoordinator = bikeCoordinator;
 
         bikeStore.Connect()
@@ -212,51 +221,58 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        try
+        if (setupCoordinator is null) return;
+
+        ForkSensorConfiguration?.Save();
+        ShockSensorConfiguration?.Save();
+
+        var newSetup = new Setup(Id, Name ?? $"setup #{Id}")
         {
-            ForkSensorConfiguration?.Save();
-            ShockSensorConfiguration?.Save();
+            BikeId = SelectedBike?.Id ?? Guid.Empty,
+            FrontSensorConfigurationJson = ForkSensorConfiguration?.ToJson(),
+            RearSensorConfigurationJson = ShockSensorConfiguration?.ToJson()
+        };
 
-            var newSetup = new Setup(Id, Name ?? $"setup #{Id}")
-            {
-                BikeId = SelectedBike?.Id ?? Guid.Empty,
-                FrontSensorConfigurationJson = ForkSensorConfiguration?.ToJson(),
-                RearSensorConfigurationJson = ShockSensorConfiguration?.ToJson()
-            };
-            Id = await databaseService.PutAsync(newSetup);
+        var result = await setupCoordinator.SaveAsync(newSetup, BoardId, BaselineUpdated);
 
-            // If this setup was already associated with another board, clear that association.
-            // Do not delete the board though, it might be picked up later.
-            if (originalBoardId.HasValue && IsInDatabase && originalBoardId != BoardId)
-            {
-                await databaseService.PutAsync(new Board(originalBoardId.Value, null));
-            }
-
-            // If the board ID changed, or this is a new setup, associate it with the board ID.
-            if (BoardId.HasValue && (!IsInDatabase || originalBoardId != BoardId))
-            {
-                await databaseService.PutAsync(new Board(BoardId.Value, Id));
-            }
-
-            setup = newSetup;
-            originalBoardId = BoardId;
-            BaselineUpdated = newSetup.Updated;
-
-            SaveCommand.NotifyCanExecuteChanged();
-            ResetCommand.NotifyCanExecuteChanged();
-
-            IsInDatabase = true;
-            EvaluateDirtiness();
-
-            Debug.Assert(App.Current is not null);
-            if (!App.Current.IsDesktop)
-            {
-                OpenPreviousPage();
-            }
-        }
-        catch (Exception e)
+        switch (result)
         {
-            ErrorMessages.Add($"Setup could not be saved: {e.Message}");
+            case SetupSaveResult.Saved saved:
+                setup = newSetup;
+                setup.Updated = saved.NewBaselineUpdated;
+                originalBoardId = BoardId;
+                BaselineUpdated = saved.NewBaselineUpdated;
+
+                SaveCommand.NotifyCanExecuteChanged();
+                ResetCommand.NotifyCanExecuteChanged();
+
+                IsInDatabase = true;
+                EvaluateDirtiness();
+
+                Debug.Assert(App.Current is not null);
+                if (!App.Current.IsDesktop)
+                {
+                    OpenPreviousPage();
+                }
+                break;
+
+            case SetupSaveResult.Conflict conflict:
+                var reload = await dialogService.ShowConfirmationAsync(
+                    "Setup changed elsewhere",
+                    "This setup has been updated from another source. Discard your changes and reload?");
+                if (reload)
+                {
+                    setup = SetupFromSnapshot(conflict.CurrentSnapshot);
+                    originalBoardId = conflict.CurrentSnapshot.BoardId;
+                    BaselineUpdated = conflict.CurrentSnapshot.Updated;
+                    await ResetImplementation();
+                    EvaluateDirtiness();
+                }
+                break;
+
+            case SetupSaveResult.Failed failed:
+                ErrorMessages.Add($"Setup could not be saved: {failed.ErrorMessage}");
+                break;
         }
     }
 
@@ -283,6 +299,35 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     {
         if (bike is null) return;
         await bikeCoordinator.OpenEditAsync(bike.Id);
+    }
+
+    [RelayCommand]
+    private async Task Delete(bool navigateBack)
+    {
+        if (setupCoordinator is null) return;
+
+        if (!IsInDatabase)
+        {
+            if (navigateBack) OpenPreviousPage();
+            return;
+        }
+
+        var result = await setupCoordinator.DeleteAsync(Id);
+        switch (result.Outcome)
+        {
+            case SetupDeleteOutcome.Deleted:
+                if (navigateBack) OpenPreviousPage();
+                break;
+            case SetupDeleteOutcome.Failed:
+                ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
+                break;
+        }
+    }
+
+    [RelayCommand]
+    private void FakeDelete()
+    {
+        // Exists so the editor button strip can bind to a delete command.
     }
 
     #endregion Commands

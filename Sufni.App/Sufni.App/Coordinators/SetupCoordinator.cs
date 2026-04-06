@@ -35,7 +35,7 @@ public sealed class SetupCoordinator(
             isNew: true,
             bikeStore,
             bikeCoordinator,
-            databaseService,
+            this,
             navigator,
             dialogService)
         {
@@ -55,58 +55,55 @@ public sealed class SetupCoordinator(
             isNew: false,
             bikeStore,
             bikeCoordinator,
-            databaseService,
+            this,
             navigator,
             dialogService);
         shell.Open(editor);
         return Task.CompletedTask;
     }
 
-    public async Task<SetupSaveResult> SaveAsync(SetupEditorState state, long baselineUpdated)
+    public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
     {
         // Optimistic conflict detection: if the store's current version
         // is newer than the baseline the editor opened on, someone else
-        // (another tab, sync) has written in the meantime.
-        if (!state.IsNew)
+        // (another tab, sync) has written in the meantime. For a brand
+        // new setup the store has no entry, so this falls through.
+        var current = setupStore.Get(setup.Id);
+        if (current is not null && current.Updated > baselineUpdated)
         {
-            var current = setupStore.Get(state.Id);
-            if (current is not null && current.Updated > baselineUpdated)
-            {
-                return new SetupSaveResult(SetupSaveOutcome.ConflictDetected);
-            }
+            return new SetupSaveResult.Conflict(current);
         }
 
         try
         {
-            var setup = new Setup(state.Id, state.Name)
-            {
-                BikeId = state.BikeId,
-                FrontSensorConfigurationJson = state.FrontSensorConfigurationJson,
-                RearSensorConfigurationJson = state.RearSensorConfigurationJson
-            };
+            // The previously stored board association — null for a brand
+            // new setup or one that wasn't associated with a board.
+            var originalBoardId = current?.BoardId;
+
             await databaseService.PutAsync(setup);
 
             // If this setup was already associated with another board, clear that association.
             // Do not delete the board though, it might be picked up later.
-            if (state.OriginalBoardId.HasValue && !state.IsNew && state.OriginalBoardId != state.BoardId)
+            if (originalBoardId.HasValue && originalBoardId != boardId)
             {
-                await databaseService.PutAsync(new Board(state.OriginalBoardId.Value, null));
+                await databaseService.PutAsync(new Board(originalBoardId.Value, null));
             }
 
-            // If the board ID changed, or this is a new setup, associate it with the board ID.
-            if (state.BoardId.HasValue && (state.IsNew || state.OriginalBoardId != state.BoardId))
+            // If the board ID changed (or this is the first time we set
+            // it), associate the new board with this setup.
+            if (boardId.HasValue && originalBoardId != boardId)
             {
-                await databaseService.PutAsync(new Board(state.BoardId.Value, setup.Id));
+                await databaseService.PutAsync(new Board(boardId.Value, setup.Id));
             }
 
-            var saved = SetupSnapshot.From(setup, state.BoardId);
+            var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
 
-            return new SetupSaveResult(SetupSaveOutcome.Saved, NewBaselineUpdated: saved.Updated);
+            return new SetupSaveResult.Saved(saved.Updated);
         }
         catch (Exception e)
         {
-            return new SetupSaveResult(SetupSaveOutcome.Failed, e.Message);
+            return new SetupSaveResult.Failed(e.Message);
         }
     }
 
