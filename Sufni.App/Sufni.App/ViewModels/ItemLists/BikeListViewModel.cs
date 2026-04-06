@@ -11,8 +11,14 @@ using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSource, IBikeViewModelHost
+public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSource, IBikeViewModelHost, IBikeCreator
 {
+    #region IBikeCreator
+
+    public void AddBike() => AddCommand.Execute(null);
+
+    #endregion IBikeCreator
+
     #region Private fields
 
     private readonly IBikeViewModelFactory bikeViewModelFactory;

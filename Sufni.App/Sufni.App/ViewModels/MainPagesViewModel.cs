@@ -15,7 +15,7 @@ using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels;
 
-public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
+public partial class MainPagesViewModel : ViewModelBase
 {
     private readonly IDatabaseService databaseService;
     private readonly IBikeViewModelFactory bikeViewModelFactory;
@@ -110,7 +110,6 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
         BikesPage.CanDeleteBikeEvaluator = bikeId => !SetupsPage.Items.Any(s =>
             s is SetupViewModel { SelectedBike: not null } svm &&
             svm.SelectedBike.Id == bikeId);
-        SetupsPage.AfterSetupSavedCallback = () => ImportSessionsPage.EvaluateSetupExists();
         ImportSessionsPage.OpenSetupCreation = () => SetupsPage.AddCommand.Execute(null);
 
         if (synchronizationServer is not null)
@@ -175,14 +174,6 @@ public partial class MainPagesViewModel : ViewModelBase, IShellCoordinator
     }
 
     #endregion Constructors
-
-    #region Public methods
-
-    public void AddBike() => BikesPage.AddCommand.Execute(null);
-    public void AddSetup() => SetupsPage.AddCommand.Execute(null);
-    public void OpenImportSessions() => navigator.OpenPage(ImportSessionsPage);
-
-    #endregion
 
     #region Private methods
 

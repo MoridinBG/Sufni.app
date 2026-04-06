@@ -5,20 +5,31 @@ namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
-    private readonly IShellCoordinator shellCoordinator;
+    private readonly IBikeCreator bikeCreator;
+    private readonly ISetupCreator setupCreator;
+    private readonly IImportSessionsOpener importSessionsOpener;
 
     #region Constructors
 
     public WelcomeScreenViewModel()
     {
-        shellCoordinator = null!;
+        bikeCreator = null!;
+        setupCreator = null!;
+        importSessionsOpener = null!;
         Name = "Welcome";
     }
 
-    public WelcomeScreenViewModel(INavigator navigator, IDialogService dialogService, IShellCoordinator shellCoordinator)
+    public WelcomeScreenViewModel(
+        INavigator navigator,
+        IDialogService dialogService,
+        IBikeCreator bikeCreator,
+        ISetupCreator setupCreator,
+        IImportSessionsOpener importSessionsOpener)
         : base(navigator, dialogService)
     {
-        this.shellCoordinator = shellCoordinator;
+        this.bikeCreator = bikeCreator;
+        this.setupCreator = setupCreator;
+        this.importSessionsOpener = importSessionsOpener;
         Name = "Welcome";
     }
 
@@ -27,13 +38,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private void AddBike() => shellCoordinator.AddBike();
+    private void AddBike() => bikeCreator.AddBike();
 
     [RelayCommand]
-    private void AddSetup() => shellCoordinator.AddSetup();
+    private void AddSetup() => setupCreator.AddSetup();
 
     [RelayCommand]
-    private void ImportSession() => shellCoordinator.OpenImportSessions();
+    private void ImportSession() => importSessionsOpener.OpenImportSessions();
 
     #endregion Commands
 }

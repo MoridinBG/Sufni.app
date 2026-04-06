@@ -45,7 +45,6 @@ public partial class App : Application
                 new MobileNavigator(() => sp.GetRequiredService<MainViewModel>()));
         }
 
-        ServiceCollection.AddSingleton<IShellCoordinator>(sp => sp.GetRequiredService<MainPagesViewModel>());
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
@@ -56,11 +55,14 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionViewModelFactory, SessionViewModelFactory>();
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<IBikeSelectionSource>(sp => sp.GetRequiredService<BikeListViewModel>());
+        ServiceCollection.AddSingleton<IBikeCreator>(sp => sp.GetRequiredService<BikeListViewModel>());
         ServiceCollection.AddSingleton<SessionListViewModel>();
         ServiceCollection.AddSingleton<ISessionSink>(sp => sp.GetRequiredService<SessionListViewModel>());
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
+        ServiceCollection.AddSingleton<IImportSessionsOpener>(sp => sp.GetRequiredService<ImportSessionsViewModel>());
         ServiceCollection.AddSingleton<SetupListViewModel>();
+        ServiceCollection.AddSingleton<ISetupCreator>(sp => sp.GetRequiredService<SetupListViewModel>());
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
             sp.GetRequiredService<IDatabaseService>(),
             sp.GetRequiredService<IBikeViewModelFactory>(),

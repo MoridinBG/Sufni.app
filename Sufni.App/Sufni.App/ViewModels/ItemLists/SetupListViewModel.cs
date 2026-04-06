@@ -13,23 +13,26 @@ using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public class SetupListViewModel : ItemListViewModelBase, ISetupViewModelHost
+public class SetupListViewModel : ItemListViewModelBase, ISetupViewModelHost, ISetupCreator
 {
     #region Runtime host callbacks
 
-    public Func<Task>? AfterSetupSavedCallback { get; set; }
-
     public void OnSetupSaved(SetupViewModel vm) => OnAdded(vm);
 
-    public Task AfterSetupSavedAsync() => AfterSetupSavedCallback?.Invoke() ?? Task.CompletedTask;
+    public Task AfterSetupSavedAsync() => importSessionsPage.EvaluateSetupExists();
 
     #endregion Runtime host callbacks
+
+    #region ISetupCreator
+
+    public void AddSetup() => AddCommand.Execute(null);
+
+    #endregion ISetupCreator
 
     #region Private fields
 
     private readonly ISetupViewModelFactory setupViewModelFactory;
     private readonly ImportSessionsViewModel importSessionsPage;
-    private readonly BikeListViewModel bikesPage;
 
     #endregion Private fields
 
@@ -45,19 +48,16 @@ public class SetupListViewModel : ItemListViewModelBase, ISetupViewModelHost
     {
         setupViewModelFactory = null!;
         importSessionsPage = null!;
-        bikesPage = null!;
     }
 
     public SetupListViewModel(
         IDatabaseService databaseService,
         ISetupViewModelFactory setupViewModelFactory,
         ImportSessionsViewModel importSessionsPage,
-        BikeListViewModel bikesPage,
         INavigator navigator) : base(databaseService, navigator)
     {
         this.setupViewModelFactory = setupViewModelFactory;
         this.importSessionsPage = importSessionsPage;
-        this.bikesPage = bikesPage;
     }
 
     #endregion Constructors

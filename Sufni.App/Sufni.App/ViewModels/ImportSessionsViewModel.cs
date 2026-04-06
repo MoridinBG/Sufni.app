@@ -17,8 +17,14 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels;
 
-public partial class ImportSessionsViewModel : TabPageViewModelBase
+public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSessionsOpener
 {
+    #region IImportSessionsOpener
+
+    public void OpenImportSessions() => navigator.OpenPage(this);
+
+    #endregion IImportSessionsOpener
+
     #region Observable properties
 
     public ObservableCollection<ITelemetryDataStore>? TelemetryDataStores { get; set; }
