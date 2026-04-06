@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
-using Sufni.App.ViewModels.Items;
 using Sufni.App.ViewModels.LinkageParts;
 
 namespace Sufni.App.ViewModels.SensorConfigurations;
@@ -20,8 +19,8 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     [ObservableProperty] private JointViewModel? adjacentJoint1;
     [ObservableProperty] private JointViewModel? adjacentJoint2;
 
-    private ObservableCollection<JointViewModel> jointViewModels = [];
-    public ObservableCollection<JointViewModel> JointViewModels
+    private IReadOnlyList<JointViewModel> jointViewModels = [];
+    public IReadOnlyList<JointViewModel> JointViewModels
     {
         get => jointViewModels;
         set
@@ -96,18 +95,18 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
 
     #region Constructors
 
-    public RotationalShockSensorConfigurationViewModel(BikeViewModel? bikeViewModel) : this(new RotationalShockSensorConfiguration(), bikeViewModel) { }
+    public RotationalShockSensorConfigurationViewModel(IReadOnlyList<JointViewModel>? joints) : this(new RotationalShockSensorConfiguration(), joints) { }
 
-    public RotationalShockSensorConfigurationViewModel(RotationalShockSensorConfiguration configuration, BikeViewModel? bikeViewModel)
+    public RotationalShockSensorConfigurationViewModel(RotationalShockSensorConfiguration configuration, IReadOnlyList<JointViewModel>? joints)
     {
         Type = SensorType.RotationalShock;
         sensorConfiguration = configuration;
 
-        if  (bikeViewModel is null) return;
-        JointViewModels = bikeViewModel.JointViewModels;
-        SensorJoint = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.CentralJoint);
-        AdjacentJoint1 = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint1);
-        AdjacentJoint2 = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint2);
+        if (joints is null) return;
+        JointViewModels = joints;
+        SensorJoint = joints.FirstOrDefault(jvm => jvm.Name == configuration.CentralJoint);
+        AdjacentJoint1 = joints.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint1);
+        AdjacentJoint2 = joints.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint2);
     }
 
     #endregion Constructors

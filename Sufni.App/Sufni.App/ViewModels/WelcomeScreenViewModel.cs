@@ -1,20 +1,22 @@
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
-    private readonly IBikeCreator bikeCreator;
-    private readonly ISetupCreator setupCreator;
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsOpener importSessionsOpener;
 
     #region Constructors
 
     public WelcomeScreenViewModel()
     {
-        bikeCreator = null!;
-        setupCreator = null!;
+        bikeCoordinator = null!;
+        setupCoordinator = null!;
         importSessionsOpener = null!;
         Name = "Welcome";
     }
@@ -22,13 +24,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     public WelcomeScreenViewModel(
         INavigator navigator,
         IDialogService dialogService,
-        IBikeCreator bikeCreator,
-        ISetupCreator setupCreator,
+        IBikeCoordinator bikeCoordinator,
+        ISetupCoordinator setupCoordinator,
         IImportSessionsOpener importSessionsOpener)
         : base(navigator, dialogService)
     {
-        this.bikeCreator = bikeCreator;
-        this.setupCreator = setupCreator;
+        this.bikeCoordinator = bikeCoordinator;
+        this.setupCoordinator = setupCoordinator;
         this.importSessionsOpener = importSessionsOpener;
         Name = "Welcome";
     }
@@ -38,10 +40,10 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private void AddBike() => bikeCreator.AddBike();
+    private async Task AddBike() => await bikeCoordinator.OpenCreateAsync();
 
     [RelayCommand]
-    private void AddSetup() => setupCreator.AddSetup();
+    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync();
 
     [RelayCommand]
     private void ImportSession() => importSessionsOpener.OpenImportSessions();

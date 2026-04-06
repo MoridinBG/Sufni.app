@@ -1,6 +1,7 @@
 ﻿using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using System.Collections.ObjectModel;
@@ -95,7 +96,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
     private readonly ISessionViewModelFactory sessionViewModelFactory;
     private readonly IFilesService filesService;
-    private readonly Func<ISetupCreator> setupCreatorProvider;
+    private readonly ISetupCoordinator setupCoordinator;
 
     #endregion Private members
 
@@ -109,7 +110,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         sessionViewModelFactory = null!;
         filesService = null!;
         sessionSink = null!;
-        setupCreatorProvider = null!;
+        setupCoordinator = null!;
     }
 
     public ImportSessionsViewModel(
@@ -120,7 +121,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         ISessionSink sessionSink,
         INavigator navigator,
         IDialogService dialogService,
-        Func<ISetupCreator> setupCreatorProvider)
+        ISetupCoordinator setupCoordinator)
         : base(navigator, dialogService)
     {
         Name = "Import Sessions";
@@ -129,7 +130,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         this.sessionViewModelFactory = sessionViewModelFactory;
         this.filesService = filesService;
         this.sessionSink = sessionSink;
-        this.setupCreatorProvider = setupCreatorProvider;
+        this.setupCoordinator = setupCoordinator;
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
         TelemetryDataStores.CollectionChanged += (_, e) =>
@@ -306,7 +307,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
     }
 
     [RelayCommand]
-    private void AddSetup() => setupCreatorProvider().AddSetup();
+    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync(SelectedDataStore?.BoardId);
 
     [RelayCommand]
     private void Loaded()

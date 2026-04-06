@@ -2,7 +2,10 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Coordinators;
+using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
@@ -38,11 +41,15 @@ public partial class App : Application
         {
             ServiceCollection.AddSingleton<INavigator>(sp =>
                 new DesktopNavigator(() => sp.GetRequiredService<MainWindowViewModel>()));
+            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
+                new DesktopShellCoordinator(() => sp.GetRequiredService<MainWindowViewModel>()));
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
             ServiceCollection.AddSingleton<INavigator>(sp =>
                 new MobileNavigator(() => sp.GetRequiredService<MainViewModel>()));
+            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
+                new MobileShellCoordinator(() => sp.GetRequiredService<MainViewModel>()));
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
@@ -50,26 +57,27 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
         ServiceCollection.AddSingleton<IFilesService>(_ => new FilesService());
         ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
-        ServiceCollection.AddSingleton<IBikeViewModelFactory, BikeViewModelFactory>();
-        ServiceCollection.AddSingleton<ISetupViewModelFactory, SetupViewModelFactory>();
+        ServiceCollection.AddSingleton<BikeStore>();
+        ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
+        ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
+        ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
+        ServiceCollection.AddSingleton<IBikeCoordinator, BikeCoordinator>();
+        ServiceCollection.AddSingleton<SetupStore>();
+        ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
+        ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
+        ServiceCollection.AddSingleton<ISetupCoordinator, SetupCoordinator>();
         ServiceCollection.AddSingleton<ISessionViewModelFactory, SessionViewModelFactory>();
-        ServiceCollection.AddSingleton<Func<SetupListViewModel>>(sp => () => sp.GetRequiredService<SetupListViewModel>());
-        ServiceCollection.AddSingleton<Func<ISetupCreator>>(sp => () => sp.GetRequiredService<ISetupCreator>());
-        ServiceCollection.AddSingleton<IBikeUsageQuery, BikeUsageQuery>();
         ServiceCollection.AddSingleton<BikeListViewModel>();
-        ServiceCollection.AddSingleton<IBikeSelectionSource>(sp => sp.GetRequiredService<BikeListViewModel>());
-        ServiceCollection.AddSingleton<IBikeCreator>(sp => sp.GetRequiredService<BikeListViewModel>());
         ServiceCollection.AddSingleton<SessionListViewModel>();
         ServiceCollection.AddSingleton<ISessionSink>(sp => sp.GetRequiredService<SessionListViewModel>());
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<IImportSessionsOpener>(sp => sp.GetRequiredService<ImportSessionsViewModel>());
         ServiceCollection.AddSingleton<SetupListViewModel>();
-        ServiceCollection.AddSingleton<ISetupCreator>(sp => sp.GetRequiredService<SetupListViewModel>());
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
             sp.GetRequiredService<IDatabaseService>(),
-            sp.GetRequiredService<IBikeViewModelFactory>(),
-            sp.GetRequiredService<ISetupViewModelFactory>(),
+            sp.GetRequiredService<IBikeStoreWriter>(),
+            sp.GetRequiredService<ISetupStoreWriter>(),
             sp.GetRequiredService<ISessionViewModelFactory>(),
             sp.GetRequiredService<IFilesService>(),
             sp.GetRequiredService<INavigator>(),

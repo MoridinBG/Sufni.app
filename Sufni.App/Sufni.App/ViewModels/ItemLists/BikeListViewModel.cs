@@ -1,43 +1,33 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using DynamicData;
-using Sufni.App.Models;
-using Sufni.App.Services;
-using Sufni.App.ViewModels.Factories;
-using Sufni.App.ViewModels.Hosts;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.Coordinators;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSource, IBikeViewModelHost, IBikeCreator
+// Inherits from ItemListViewModelBase so the shared SearchBar and
+// UndoDeleteButton (which still bind against ItemListViewModelBase) keep
+// working without changes. The base's SourceCache<ItemViewModelBase> is
+// unused — the new flow projects from IBikeStore into a separate
+// `bikeRows` collection that shadows the base's Items property.
+public partial class BikeListViewModel : ItemListViewModelBase
 {
-    #region IBikeCreator
-
-    public void AddBike() => AddCommand.Execute(null);
-
-    #endregion IBikeCreator
-
     #region Private fields
 
-    private readonly IBikeViewModelFactory bikeViewModelFactory;
-    private readonly IBikeUsageQuery bikeUsageQuery;
-    private readonly ReadOnlyObservableCollection<ItemViewModelBase> unfilteredBikes;
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
+    private readonly BehaviorSubject<Func<BikeSnapshot, bool>> filterSubject = new(_ => true);
 
     #endregion Private fields
 
-    #region Host callbacks
-
-    public bool CanDeleteBike(Guid bikeId) => !bikeUsageQuery.IsBikeInUse(bikeId);
-
-    public void OnBikeSaved(BikeViewModel vm) => OnAdded(vm);
-
-    #endregion Host callbacks
-
     #region Observable properties
 
-    [ObservableProperty] private bool hasBikes;
+    public new ReadOnlyObservableCollection<BikeRowViewModel> Items => bikeRows;
 
     #endregion Observable properties
 
@@ -45,87 +35,64 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
 
     public BikeListViewModel()
     {
-        bikeViewModelFactory = null!;
-        bikeUsageQuery = null!;
-        Source.Connect()
-            .Bind(out unfilteredBikes)
-            .Subscribe();
-        Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
+        bikeCoordinator = null!;
+        bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>([]);
     }
 
-    public BikeListViewModel(
-        IDatabaseService databaseService,
-        IBikeViewModelFactory bikeViewModelFactory,
-        INavigator navigator,
-        IBikeUsageQuery bikeUsageQuery) : base(databaseService, navigator)
+    public BikeListViewModel(IBikeStore bikeStore, IBikeCoordinator bikeCoordinator)
     {
-        this.bikeViewModelFactory = bikeViewModelFactory;
-        this.bikeUsageQuery = bikeUsageQuery;
-        Source.Connect()
-            .Bind(out unfilteredBikes)
+        this.bikeCoordinator = bikeCoordinator;
+
+        bikeStore.Connect()
+            .Filter(filterSubject)
+            .TransformWithInlineUpdate(
+                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator),
+                (row, snapshot) => row.Update(snapshot))
+            .Bind(out bikeRows)
             .Subscribe();
-        Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
+
+        // The base's OnSearchTextChanged partial method only refreshes
+        // the (empty) base SourceCache. We need to refresh our own
+        // filter subject when the user types.
+        PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SearchText)) RebuildFilter();
+        };
     }
 
     #endregion Constructors
 
     #region Private methods
 
-    private async Task LoadBikesAsync()
+    private void RebuildFilter()
     {
-
-
-        try
-        {
-            var bikeList = await databaseService.GetAllAsync<Bike>();
-            foreach (var bike in bikeList)
-            {
-                Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true, this));
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Bike: {e.Message}");
-        }
+        var current = SearchText;
+        filterSubject.OnNext(snapshot =>
+            string.IsNullOrEmpty(current) ||
+            snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase));
     }
 
     #endregion Private methods
-    
+
     #region ItemListViewModelBase overrides
 
-    protected override async Task DeleteImplementation(ItemViewModelBase vm)
-    {
-
-        await databaseService.DeleteAsync<Bike>(vm.Id);
-    }
+    public override Task LoadFromDatabase() => Task.CompletedTask;
 
     protected override void AddImplementation()
     {
-        try
-        {
-            var bike = new Bike(Guid.NewGuid(), "new bike");
-            var bvm = bikeViewModelFactory.Create(bike, false, this);
-            bvm.IsDirty = true;
-
-            OpenPage(bvm);
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not add Linkage: {e.Message}");
-        }
-    }
-
-    public override async Task LoadFromDatabase()
-    {
-        Source.Clear();
-        await LoadBikesAsync();
+        _ = bikeCoordinator.OpenCreateAsync();
     }
 
     #endregion ItemListViewModelBase overrides
 
-    #region IBikeSelectionSource
+    #region Commands
 
-    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes => unfilteredBikes;
+    [RelayCommand]
+    private async Task RowSelected(BikeRowViewModel? row)
+    {
+        if (row is null) return;
+        await bikeCoordinator.OpenEditAsync(row.Id);
+    }
 
-    #endregion IBikeSelectionSource
+    #endregion Commands
 }

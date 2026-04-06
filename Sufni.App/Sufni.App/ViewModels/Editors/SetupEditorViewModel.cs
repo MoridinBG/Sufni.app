@@ -5,22 +5,36 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using DynamicData;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
-using Sufni.App.ViewModels.Hosts;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.LinkageParts;
 using Sufni.App.ViewModels.SensorConfigurations;
 
-namespace Sufni.App.ViewModels.Items;
+namespace Sufni.App.ViewModels.Editors;
 
-public sealed partial class SetupViewModel : ItemViewModelBase
+/// <summary>
+/// Editor view model for a setup. Created by <c>SetupCoordinator</c>
+/// from a <see cref="SetupSnapshot"/>; the snapshot's <c>Updated</c>
+/// value is kept as <see cref="BaselineUpdated"/> for optimistic
+/// conflict detection at save time. The bike combobox is populated
+/// from <see cref="IBikeStore"/>.
+/// </summary>
+public partial class SetupEditorViewModel : TabPageViewModelBase
 {
-    public bool IsInDatabase;
+    public Guid Id { get; private set; }
+    public long BaselineUpdated { get; private set; }
+    public bool IsInDatabase { get; private set; }
 
     #region Private fields
 
     private readonly IDatabaseService databaseService;
-    private readonly ISetupViewModelHost setupHost;
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly ReadOnlyObservableCollection<BikeSnapshot> bikes;
     private Setup setup;
     private Guid? originalBoardId;
 
@@ -36,7 +50,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private BikeViewModel? selectedBike;
+    private BikeSnapshot? selectedBike;
 
     [ObservableProperty] private SensorType? forkSensorType;
     [ObservableProperty] private SensorType? shockSensorType;
@@ -46,12 +60,12 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private SensorConfigurationViewModel? forkSensorConfiguration;
 
-    [ObservableProperty] 
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private SensorConfigurationViewModel? shockSensorConfiguration;
 
-    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes { get; }
+    public ReadOnlyObservableCollection<BikeSnapshot> Bikes => bikes;
     public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];
     public List<SensorType?> ShockSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Shock"))];
 
@@ -61,12 +75,12 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     // RotationalShockSensorConfigurationViewModel needs a list of Joints, so that sensor position
     // can be defined.
-    partial void OnSelectedBikeChanged(BikeViewModel? value)
+    partial void OnSelectedBikeChanged(BikeSnapshot? value)
     {
         if (value is null) return;
         if (ShockSensorConfiguration is RotationalShockSensorConfigurationViewModel sensorConfiguration)
         {
-            sensorConfiguration.JointViewModels = value.JointViewModels;
+            sensorConfiguration.JointViewModels = JointsFromSnapshot(value);
         }
     }
 
@@ -75,16 +89,16 @@ public sealed partial class SetupViewModel : ItemViewModelBase
         if (ForkSensorConfiguration is not null && value == ForkSensorConfiguration.Type) return;
         ForkSensorConfiguration = SensorConfigurationViewModel.Create(value);
     }
-    
+
     partial void OnShockSensorTypeChanged(SensorType? value)
     {
         if (ShockSensorConfiguration is not null && value == ShockSensorConfiguration.Type) return;
-        ShockSensorConfiguration = SensorConfigurationViewModel.Create(value, SelectedBike);
+        ShockSensorConfiguration = SensorConfigurationViewModel.Create(value, JointsFromSnapshot(SelectedBike));
     }
 
     partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? value)
     {
-        if  (value is null) return;
+        if (value is null) return;
         value.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == "IsDirty") EvaluateDirtiness();
@@ -94,7 +108,7 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? value)
     {
-        if  (value is null) return;
+        if (value is null) return;
         value.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == "IsDirty") EvaluateDirtiness();
@@ -106,31 +120,64 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
     #region Constructors
 
-    public SetupViewModel()
+    public SetupEditorViewModel()
     {
         databaseService = null!;
-        setupHost = null!;
+        bikeCoordinator = null!;
+        bikes = new ReadOnlyObservableCollection<BikeSnapshot>([]);
         setup = new Setup();
         Id = setup.Id;
-        BoardId = originalBoardId = boardId;
-        Bikes = new ReadOnlyObservableCollection<ItemViewModelBase>([]);
+        IsInDatabase = false;
     }
 
-    public SetupViewModel(Setup setup, Guid? boardId, bool fromDatabase, IBikeSelectionSource bikeSelectionSource, IDatabaseService databaseService, INavigator navigator, IDialogService dialogService, ISetupViewModelHost setupHost)
-        : base(navigator, dialogService, setupHost)
+    public SetupEditorViewModel(
+        SetupSnapshot snapshot,
+        bool isNew,
+        IBikeStore bikeStore,
+        IBikeCoordinator bikeCoordinator,
+        IDatabaseService databaseService,
+        INavigator navigator,
+        IDialogService dialogService)
+        : base(navigator, dialogService)
     {
         this.databaseService = databaseService;
-        this.setupHost = setupHost;
-        this.setup = setup;
-        IsInDatabase = fromDatabase;
-        Id = setup.Id;
-        BoardId = originalBoardId = boardId;
-        Bikes = bikeSelectionSource.Bikes;
+        this.bikeCoordinator = bikeCoordinator;
+
+        bikeStore.Connect()
+            .Bind(out bikes)
+            .Subscribe();
+
+        IsInDatabase = !isNew;
+        Id = snapshot.Id;
+        BaselineUpdated = snapshot.Updated;
+        setup = SetupFromSnapshot(snapshot);
+        originalBoardId = snapshot.BoardId;
 
         ResetImplementation();
     }
 
     #endregion
+
+    #region Private methods
+
+    private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
+    {
+        BikeId = snapshot.BikeId,
+        FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
+        RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
+        Updated = snapshot.Updated
+    };
+
+    private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
+    {
+        if (snapshot?.Linkage is null || snapshot.Image is null) return [];
+
+        var jvms = snapshot.Linkage.Joints
+            .Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
+        return [.. jvms];
+    }
+
+    #endregion Private methods
 
     #region TabPageViewModelBase overrides
 
@@ -193,14 +240,10 @@ public sealed partial class SetupViewModel : ItemViewModelBase
 
             setup = newSetup;
             originalBoardId = BoardId;
+            BaselineUpdated = newSetup.Updated;
 
             SaveCommand.NotifyCanExecuteChanged();
             ResetCommand.NotifyCanExecuteChanged();
-
-            // We notify even if the setup was already in the database, since we need to reevaluate
-            // if a setup exists for the import page.
-            setupHost.OnSetupSaved(this);
-            await setupHost.AfterSetupSavedAsync();
 
             IsInDatabase = true;
             EvaluateDirtiness();
@@ -221,15 +264,26 @@ public sealed partial class SetupViewModel : ItemViewModelBase
     {
         Name = setup.Name;
         BoardId = originalBoardId;
-        SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId) as BikeViewModel;
+        SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId);
 
         ForkSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.FrontSensorConfigurationJson);
-        ShockSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.RearSensorConfigurationJson, SelectedBike);
+        ShockSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.RearSensorConfigurationJson, JointsFromSnapshot(SelectedBike));
         ForkSensorType = ForkSensorConfiguration?.Type;
         ShockSensorType = ShockSensorConfiguration?.Type;
-        
+
         return Task.CompletedTask;
     }
 
     #endregion TabPageViewModelBase overrides
+
+    #region Commands
+
+    [RelayCommand]
+    private async Task EditBike(BikeSnapshot? bike)
+    {
+        if (bike is null) return;
+        await bikeCoordinator.OpenEditAsync(bike.Id);
+    }
+
+    #endregion Commands
 }

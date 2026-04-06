@@ -145,14 +145,8 @@ public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
 
         switch (LastDeleted)
         {
-            case SetupViewModel:
-                await databaseService.DeleteAsync<Setup>(LastDeleted.Id);
-                break;
             case SessionViewModel:
                 await databaseService.DeleteAsync<Session>(LastDeleted.Id);
-                break;
-            case BikeViewModel:
-                await databaseService.DeleteAsync<Bike>(LastDeleted.Id);
                 break;
         }
         LastDeleted = null;

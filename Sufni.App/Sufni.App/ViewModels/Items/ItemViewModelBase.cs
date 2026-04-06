@@ -4,11 +4,18 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Hosts;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.Items;
 
-public partial class ItemViewModelBase : TabPageViewModelBase
+public partial class ItemViewModelBase : TabPageViewModelBase, IListItemRow
 {
+    // Explicit interface implementation: TabPageViewModelBase generates
+    // OpenPageCommand as IRelayCommand<ViewModelBase>, which C# does not
+    // accept as a covariant override of the interface's IRelayCommand
+    // property. Forward to the generated command.
+    IRelayCommand IListItemRow.OpenPageCommand => OpenPageCommand;
+
     #region Injected services
 
     protected readonly IItemDeletionHost deletionHost;

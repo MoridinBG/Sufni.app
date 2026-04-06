@@ -1,41 +1,36 @@
-﻿<UserControl
-    x:Class="Sufni.App.DesktopViews.Items.SetupDesktopView"
+<UserControl
+    x:Class="Sufni.App.Views.Editors.SetupEditorView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:s="clr-namespace:Sufni.App.Stores"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
     d:DesignHeight="600"
     d:DesignWidth="500"
-    x:DataType="vm:SetupViewModel"
+    x:DataType="vm:SetupEditorViewModel"
     Background="{StaticResource SufniRegion}"
     Focusable="True"
     mc:Ignorable="d">
 
     <Design.DataContext>
-        <vm:SetupViewModel />
+        <vm:SetupEditorViewModel />
     </Design.DataContext>
 
     <Grid
         MinWidth="300"
-        Margin="20,0,20,10"
+        Margin="20,10,20,10"
         HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
         ColumnDefinitions="auto *"
-        RowDefinitions="auto auto auto auto auto auto auto * auto 40 39">
+        RowDefinitions="auto auto auto auto auto auto auto * auto auto">
+
         <!--  Name  -->
-        <Label
+        <v:EditableTitle
             Grid.Row="0"
-            Grid.Column="0"
-            VerticalAlignment="Center"
-            Content="Name: " />
-        <TextBox
-            Grid.Row="0"
-            Grid.Column="1"
-            Margin="2"
-            HorizontalAlignment="Stretch"
-            Text="{Binding Name}" />
+            Grid.ColumnSpan="2"
+            Margin="0,0,0,10"
+            HorizontalAlignment="Stretch" />
 
         <!--  Board ID  -->
         <Label
@@ -65,20 +60,8 @@
             SelectedItem="{Binding SelectedBike}">
 
             <ComboBox.DataTemplates>
-                <DataTemplate DataType="vm:BikeViewModel">
-                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                        <TextBlock Text="{Binding Name}" />
-                        <Button
-                            Padding="10,0,0,0"
-                            Classes="embedded"
-                            Command="{Binding OpenPageCommand}"
-                            CommandParameter="{Binding}">
-                            <Image
-                                Width="12"
-                                Height="12"
-                                Source="{SvgImage /Assets/fa-edit.svg}" />
-                        </Button>
-                    </StackPanel>
+                <DataTemplate DataType="s:BikeSnapshot">
+                    <TextBlock Text="{Binding Name}" />
                 </DataTemplate>
             </ComboBox.DataTemplates>
         </ComboBox>
@@ -136,35 +119,10 @@
             Grid.ColumnSpan="2"
             Margin="0,5,0,0" />
 
-        <!--  Save and Reset buttons  -->
-        <Grid
-            Grid.Row="10"
+        <!--  Back, Save, Reset and Delete buttons  -->
+        <v:CommonButtonLine
+            Grid.Row="9"
             Grid.Column="0"
-            Grid.ColumnSpan="2"
-            ColumnDefinitions="* auto">
-            <Button
-                Grid.Column="0"
-                Margin="0,0,10,0"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Command="{Binding SaveCommand}"
-                Content="Save" />
-
-            <Button
-                Grid.Column="1"
-                Width="39"
-                Height="39"
-                Margin="0,0,5,0"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Command="{Binding ResetCommand}">
-                <Image
-                    Width="16"
-                    Height="16"
-                    Source="{SvgImage /Assets/fa-rotate-left.svg}" />
-            </Button>
-        </Grid>
+            Grid.ColumnSpan="2" />
     </Grid>
 </UserControl>

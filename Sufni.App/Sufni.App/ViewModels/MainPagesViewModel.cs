@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Stores;
 using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ViewModels.Items;
@@ -18,8 +19,8 @@ namespace Sufni.App.ViewModels;
 public partial class MainPagesViewModel : ViewModelBase
 {
     private readonly IDatabaseService databaseService;
-    private readonly IBikeViewModelFactory bikeViewModelFactory;
-    private readonly ISetupViewModelFactory setupViewModelFactory;
+    private readonly IBikeStoreWriter bikeStoreWriter;
+    private readonly ISetupStoreWriter setupStoreWriter;
     private readonly ISessionViewModelFactory sessionViewModelFactory;
     private readonly IFilesService filesService;
     private readonly ISynchronizationClientService? synchronizationClientService;
@@ -49,8 +50,8 @@ public partial class MainPagesViewModel : ViewModelBase
     public MainPagesViewModel()
     {
         databaseService = null!;
-        bikeViewModelFactory = null!;
-        setupViewModelFactory = null!;
+        bikeStoreWriter = null!;
+        setupStoreWriter = null!;
         sessionViewModelFactory = null!;
         filesService = null!;
         synchronizationClientService = null;
@@ -66,8 +67,8 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel(
         IDatabaseService databaseService,
-        IBikeViewModelFactory bikeViewModelFactory,
-        ISetupViewModelFactory setupViewModelFactory,
+        IBikeStoreWriter bikeStoreWriter,
+        ISetupStoreWriter setupStoreWriter,
         ISessionViewModelFactory sessionViewModelFactory,
         IFilesService filesService,
         INavigator navigator,
@@ -83,8 +84,8 @@ public partial class MainPagesViewModel : ViewModelBase
         PairingServerViewModel? pairingServerViewModel = null)
     {
         this.databaseService = databaseService;
-        this.bikeViewModelFactory = bikeViewModelFactory;
-        this.setupViewModelFactory = setupViewModelFactory;
+        this.bikeStoreWriter = bikeStoreWriter;
+        this.setupStoreWriter = setupStoreWriter;
         this.sessionViewModelFactory = sessionViewModelFactory;
         this.filesService = filesService;
         this.navigator = navigator;
@@ -175,8 +176,8 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-        await BikesPage.LoadFromDatabase();
-        await SetupsPage.LoadFromDatabase();
+        await bikeStoreWriter.RefreshAsync();
+        await setupStoreWriter.RefreshAsync();
         await SessionsPage.LoadFromDatabase();
         await PairedDevicesPage.LoadFromDatabase();
 
@@ -189,13 +190,12 @@ public partial class MainPagesViewModel : ViewModelBase
         {
             if (bike.Deleted is not null)
             {
-                BikesPage.Source.RemoveKey(bike.Id);
+                bikeStoreWriter.Remove(bike.Id);
             }
             else
             {
-                BikesPage.Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true, BikesPage));
+                bikeStoreWriter.Upsert(BikeSnapshot.From(bike));
             }
-            BikesPage.Source.Refresh();
         }
 
         var boards = await databaseService.GetAllAsync<Board>();
@@ -203,14 +203,13 @@ public partial class MainPagesViewModel : ViewModelBase
         {
             if (setup.Deleted is not null)
             {
-                SetupsPage.Source.RemoveKey(setup.Id);
+                setupStoreWriter.Remove(setup.Id);
             }
             else
             {
                 var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                SetupsPage.Source.AddOrUpdate(setupViewModelFactory.Create(setup, board?.Id, true, SetupsPage));
+                setupStoreWriter.Upsert(SetupSnapshot.From(setup, board?.Id));
             }
-            SetupsPage.Source.Refresh();
         }
 
         foreach (var session in data.Sessions)

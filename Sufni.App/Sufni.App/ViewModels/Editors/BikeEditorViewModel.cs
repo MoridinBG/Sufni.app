@@ -15,21 +15,28 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.ViewModels.Hosts;
+using Sufni.App.Stores;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
 
-namespace Sufni.App.ViewModels.Items;
+namespace Sufni.App.ViewModels.Editors;
 
-public partial class BikeViewModel : ItemViewModelBase
+/// <summary>
+/// Editor view model for a bike. Created by <c>BikeCoordinator</c>
+/// from a <see cref="BikeSnapshot"/>; the snapshot's <c>Updated</c>
+/// value is kept as <see cref="BaselineUpdated"/> for optimistic
+/// conflict detection at save time.
+/// </summary>
+public partial class BikeEditorViewModel : TabPageViewModelBase
 {
-    public bool IsInDatabase;
+    public Guid Id { get; private set; }
+    public long BaselineUpdated { get; private set; }
+    public bool IsInDatabase { get; private set; }
 
     #region Private fields
 
     private readonly IDatabaseService databaseService;
     private readonly IFilesService filesService;
-    private readonly IBikeViewModelHost bikeHost;
     private Bike bike;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
@@ -61,7 +68,7 @@ public partial class BikeViewModel : ItemViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private Bitmap? image;
-    
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
@@ -82,7 +89,6 @@ public partial class BikeViewModel : ItemViewModelBase
 
     #region Property change handlers
 
-    // Handle link selection coming from the table.
     partial void OnSelectedLinkChanged(LinkViewModel? value)
     {
         if (SelectedLink is null) return;
@@ -90,7 +96,7 @@ public partial class BikeViewModel : ItemViewModelBase
         SelectedLink.IsSelected = true;
         SelectedPoint = null;
     }
-    // Handle point selection coming from the table.
+
     partial void OnSelectedPointChanged(JointViewModel? value)
     {
         if (SelectedPoint is null) return;
@@ -123,39 +129,60 @@ public partial class BikeViewModel : ItemViewModelBase
 
     #region Constructors
 
-    public BikeViewModel()
+    public BikeEditorViewModel()
     {
         databaseService = null!;
         filesService = null!;
-        bikeHost = null!;
-        IsInDatabase = false;
         bike = new Bike();
+        IsInDatabase = false;
 
         SetupJointsListeners();
         SetupLinksListeners();
     }
 
-    public BikeViewModel(Bike bike, bool fromDatabase, IDatabaseService databaseService, IFilesService filesService, INavigator navigator, IDialogService dialogService, IBikeViewModelHost bikeHost)
-        : base(navigator, dialogService, bikeHost)
+    public BikeEditorViewModel(
+        BikeSnapshot snapshot,
+        bool isNew,
+        IDatabaseService databaseService,
+        IFilesService filesService,
+        INavigator navigator,
+        IDialogService dialogService)
+        : base(navigator, dialogService)
     {
         this.databaseService = databaseService;
         this.filesService = filesService;
-        this.bikeHost = bikeHost;
-        IsInDatabase = fromDatabase;
-        this.bike = bike;
+        IsInDatabase = !isNew;
+        Id = snapshot.Id;
+        BaselineUpdated = snapshot.Updated;
+
+        bike = BikeFromSnapshot(snapshot);
 
         SetupJointsListeners();
         SetupLinksListeners();
 
         UpdateFromBike();
 
-        // If this is a BikeViewModel created from scratch, we need to add the mandatory joints.
-        if (!fromDatabase) AddInitialJoints();
+        // Brand new bike: start with the mandatory joints.
+        if (isNew) AddInitialJoints();
     }
 
     #endregion Constructors
 
     #region Private methods
+
+    private static Bike BikeFromSnapshot(BikeSnapshot snapshot)
+    {
+        var b = new Bike(snapshot.Id, snapshot.Name)
+        {
+            HeadAngle = snapshot.HeadAngle,
+            ForkStroke = snapshot.ForkStroke,
+            PixelsToMillimeters = snapshot.PixelsToMillimeters,
+            Linkage = snapshot.Linkage,
+            Image = snapshot.Image,
+            Updated = snapshot.Updated
+        };
+        return b;
+    }
 
     private Bike ToBike()
     {
@@ -171,7 +198,7 @@ public partial class BikeViewModel : ItemViewModelBase
 
         // If we don't have a rear suspension, we can return here
         if (ShockStroke is null) return newBike;
-        
+
         Debug.Assert(PixelsToMillimeters is not null);
         newBike.ShockStroke = ShockStroke;
         newBike.Image = Image;
@@ -185,7 +212,7 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         var mapping = new JointNameMapping();
         JointViewModels.Add(new JointViewModel(mapping.FrontWheel, JointType.FrontWheel, 100, 150));
-        JointViewModels.Add(new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200)); 
+        JointViewModels.Add(new JointViewModel(mapping.BottomBracket, JointType.BottomBracket, 100, 200));
         JointViewModels.Add(new JointViewModel(mapping.RearWheel, JointType.RearWheel, 100, 100));
 
         var shockEye1 = new JointViewModel(mapping.ShockEye1, JointType.Floating, 100, 250);
@@ -289,11 +316,11 @@ public partial class BikeViewModel : ItemViewModelBase
     private bool DidJointsChanged()
     {
         if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
-        
+
         var joints2 = JointViewModels.Select(jvm => jvm.ToJoint(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
         return bike.Linkage.Joints.Count != joints2.Count || !bike.Linkage.Joints.All(j => joints2.Contains(j));
     }
-    
+
     private bool DidLinksChanged()
     {
         if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
@@ -337,7 +364,7 @@ public partial class BikeViewModel : ItemViewModelBase
             }
         };
     }
-    
+
     private void SetupLinksListeners()
     {
         LinkViewModels.CollectionChanged += (_, e) =>
@@ -354,7 +381,7 @@ public partial class BikeViewModel : ItemViewModelBase
                 lvm.PropertyChanged += (_, pce) =>
                 {
                     if (pce.PropertyName is
-                        nameof(lvm.A) or 
+                        nameof(lvm.A) or
                         nameof(lvm.B))
                     {
                         EvaluateDirtiness();
@@ -365,7 +392,7 @@ public partial class BikeViewModel : ItemViewModelBase
     }
 
     #endregion Private methods
-    
+
     #region TabPageViewModelBase overrides
 
     protected override void EvaluateDirtiness()
@@ -403,15 +430,11 @@ public partial class BikeViewModel : ItemViewModelBase
 
             Id = await databaseService.PutAsync(newBike);
             bike = newBike;
+            BaselineUpdated = newBike.Updated;
 
             SaveCommand.NotifyCanExecuteChanged();
             ResetCommand.NotifyCanExecuteChanged();
             ExportCommand.NotifyCanExecuteChanged();
-
-            if (!IsInDatabase)
-            {
-                bikeHost.OnBikeSaved(this);
-            }
 
             IsInDatabase = true;
 
@@ -437,7 +460,7 @@ public partial class BikeViewModel : ItemViewModelBase
     {
         var file = await filesService.SaveBikeFileAsync();
         if (file is null) return;
-        
+
         var bikeJson = bike.ToJson();
         await using var stream = await file.OpenWriteAsync();
         await using var writer = new StreamWriter(stream, Encoding.UTF8);
@@ -445,15 +468,6 @@ public partial class BikeViewModel : ItemViewModelBase
     }
 
     #endregion TabPageViewModelBase overrides
-
-    #region ItemViewModelBase overrides
-
-    protected override bool CanDelete()
-    {
-        return bikeHost.CanDeleteBike(Id);
-    }
-
-    #endregion ItemViewModelBase overrides
 
     #region Commands
 
@@ -552,7 +566,7 @@ public partial class BikeViewModel : ItemViewModelBase
             ErrorMessages.Add("JSON file was not a valid bike file.");
             return;
         }
-        
+
         bike = bikeFromJson;
         UpdateFromBike();
     }

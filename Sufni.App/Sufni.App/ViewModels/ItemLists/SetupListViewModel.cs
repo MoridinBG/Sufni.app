@@ -1,44 +1,35 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using DynamicData;
-using Sufni.App.Models;
-using Sufni.App.Services;
-using Sufni.App.ViewModels.Factories;
-using Sufni.App.ViewModels.Hosts;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.Coordinators;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public class SetupListViewModel : ItemListViewModelBase, ISetupViewModelHost, ISetupCreator
+// Inherits from ItemListViewModelBase so the shared SearchBar and
+// UndoDeleteButton (which still bind against ItemListViewModelBase) keep
+// working without changes. The base's SourceCache<ItemViewModelBase> is
+// unused — the new flow projects from ISetupStore into a separate
+// `setupRows` collection that shadows the base's Items property.
+public partial class SetupListViewModel : ItemListViewModelBase
 {
-    #region Runtime host callbacks
-
-    public void OnSetupSaved(SetupViewModel vm) => OnAdded(vm);
-
-    public Task AfterSetupSavedAsync() => importSessionsPage.EvaluateSetupExists();
-
-    #endregion Runtime host callbacks
-
-    #region ISetupCreator
-
-    public void AddSetup() => AddCommand.Execute(null);
-
-    #endregion ISetupCreator
-
     #region Private fields
 
-    private readonly ISetupViewModelFactory setupViewModelFactory;
+    private readonly ISetupStore setupStore;
+    private readonly ISetupCoordinator setupCoordinator;
     private readonly ImportSessionsViewModel importSessionsPage;
+    private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
+    private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
 
     #endregion Private fields
 
     #region Observable properties
 
-    private ObservableCollection<Board> Boards { get; } = [];
+    public new ReadOnlyObservableCollection<SetupRowViewModel> Items => setupRows;
 
     #endregion Observable properties
 
@@ -46,132 +37,74 @@ public class SetupListViewModel : ItemListViewModelBase, ISetupViewModelHost, IS
 
     public SetupListViewModel()
     {
-        setupViewModelFactory = null!;
+        setupStore = null!;
+        setupCoordinator = null!;
         importSessionsPage = null!;
+        setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>([]);
     }
 
     public SetupListViewModel(
-        IDatabaseService databaseService,
-        ISetupViewModelFactory setupViewModelFactory,
-        ImportSessionsViewModel importSessionsPage,
-        INavigator navigator) : base(databaseService, navigator)
+        ISetupStore setupStore,
+        ISetupCoordinator setupCoordinator,
+        ImportSessionsViewModel importSessionsPage)
     {
-        this.setupViewModelFactory = setupViewModelFactory;
+        this.setupStore = setupStore;
+        this.setupCoordinator = setupCoordinator;
         this.importSessionsPage = importSessionsPage;
+
+        setupStore.Connect()
+            .Filter(filterSubject)
+            .TransformWithInlineUpdate(
+                snapshot => new SetupRowViewModel(snapshot, setupCoordinator),
+                (row, snapshot) => row.Update(snapshot))
+            .Bind(out setupRows)
+            .Subscribe();
+
+        // The base's OnSearchTextChanged partial method only refreshes
+        // the (empty) base SourceCache. We need to refresh our own
+        // filter subject when the user types.
+        PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SearchText)) RebuildFilter();
+        };
     }
 
     #endregion Constructors
 
     #region Private methods
 
-    private async Task LoadBoardsAsync()
+    private void RebuildFilter()
     {
-
-
-        try
-        {
-            var boards = await databaseService.GetAllAsync<Board>();
-
-            foreach (var board in boards)
-            {
-                Boards.Add(board);
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Boards: {e.Message}");
-        }
-    }
-
-    private static void OnSetupDirtinessChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(SetupViewModel.IsDirty) && sender is SetupViewModel { IsDirty: false } svm)
-        {
-            svm.SelectedBike?.DeleteCommand.NotifyCanExecuteChanged();
-        }
-    }
-
-    private async Task LoadSetupsAsync()
-    {
-        try
-        {
-            var setupList = await databaseService.GetAllAsync<Setup>();
-            foreach (var setup in setupList)
-            {
-                var board = Boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                var svm = setupViewModelFactory.Create(
-                    setup,
-                    board?.Id,
-                    true,
-                    this);
-                svm.PropertyChanged += OnSetupDirtinessChanged;
-                Source.AddOrUpdate(svm);
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Setups: {e.Message}");
-        }
+        var current = SearchText;
+        filterSubject.OnNext(snapshot =>
+            string.IsNullOrEmpty(current) ||
+            snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase));
     }
 
     #endregion Private methods
 
     #region ItemListViewModelBase overrides
 
-    protected override async Task DeleteImplementation(ItemViewModelBase vm)
-    {
-        var svm = vm as SetupViewModel;
-        Debug.Assert(svm != null, nameof(svm) + " != null");
-
-
-        // If this setup is associated with a board ID, clear that association.
-        if (svm.BoardId.HasValue)
-        {
-            await databaseService.PutAsync(new Board(svm.BoardId.Value, null));
-        }
-
-        // Notify associated calibrations and linkages about the deletion
-        await databaseService.DeleteAsync<Setup>(vm.Id);
-        svm.SelectedBike?.DeleteCommand.NotifyCanExecuteChanged();
-    }
-
-    public override async Task LoadFromDatabase()
-    {
-        Source.Clear();
-        Boards.Clear();
-        await LoadBoardsAsync();
-        await LoadSetupsAsync();
-    }
+    public override Task LoadFromDatabase() => Task.CompletedTask;
 
     protected override void AddImplementation()
     {
-        try
-        {
-            var setup = new Setup(
-                Guid.NewGuid(),
-                "new setup");
-
-            // Use the SST datastore's board ID only if it's not already associated to another setup;
-            Guid? newSetupsBoardId = null;
-            var datastoreBoardId = importSessionsPage.SelectedDataStore?.BoardId;
-            var datastoreBoard = Boards.FirstOrDefault(b =>
-                b?.Id == datastoreBoardId && b?.SetupId is not null, null);
-            if (datastoreBoard is null || datastoreBoard.SetupId is null)
-            {
-                newSetupsBoardId = datastoreBoardId;
-            }
-
-            var svm = setupViewModelFactory.Create(setup, newSetupsBoardId, false, this);
-            svm.IsDirty = true;
-            svm.PropertyChanged += OnSetupDirtinessChanged;
-
-            OpenPage(svm);
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not add Setup: {e.Message}");
-        }
+        // The coordinator validates the suggested board id (ignores
+        // it if a setup is already associated with it), so just pass
+        // the currently-selected datastore's board id straight through.
+        _ = setupCoordinator.OpenCreateAsync(importSessionsPage.SelectedDataStore?.BoardId);
     }
 
     #endregion ItemListViewModelBase overrides
+
+    #region Commands
+
+    [RelayCommand]
+    private async Task RowSelected(SetupRowViewModel? row)
+    {
+        if (row is null) return;
+        await setupCoordinator.OpenEditAsync(row.Id);
+    }
+
+    #endregion Commands
 }

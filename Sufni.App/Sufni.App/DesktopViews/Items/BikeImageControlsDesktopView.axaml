@@ -7,16 +7,16 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
     xmlns:v="using:Sufni.App.DesktopViews.Items"
-    xmlns:vm="using:Sufni.App.ViewModels.Items"
+    xmlns:vm="using:Sufni.App.ViewModels.Editors"
     xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
     d:DesignHeight="600"
     d:DesignWidth="400"
-    x:DataType="vm:BikeViewModel"
+    x:DataType="vm:BikeEditorViewModel"
     Background="{StaticResource SufniRegion}"
     mc:Ignorable="d">
 
     <Design.DataContext>
-        <vm:BikeViewModel />
+        <vm:BikeEditorViewModel />
     </Design.DataContext>
 
     <UserControl.Styles>
@@ -286,7 +286,7 @@
                                 <ComboBox
                                     HorizontalAlignment="Stretch"
                                     IsDropDownOpen="True"
-                                    ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeViewModel)DataContext).JointViewModels}"
+                                    ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).JointViewModels}"
                                     SelectedItem="{Binding A}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -316,7 +316,7 @@
                                 <ComboBox
                                     HorizontalAlignment="Stretch"
                                     IsDropDownOpen="True"
-                                    ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeViewModel)DataContext).JointViewModels}"
+                                    ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).JointViewModels}"
                                     SelectedItem="{Binding B}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
