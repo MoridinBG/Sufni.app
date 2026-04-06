@@ -95,14 +95,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
     private readonly ISessionViewModelFactory sessionViewModelFactory;
     private readonly IFilesService filesService;
+    private readonly Func<ISetupCreator> setupCreatorProvider;
 
     #endregion Private members
-
-    #region Runtime callbacks
-
-    public Action? OpenSetupCreation { get; set; }
-
-    #endregion Runtime callbacks
 
     #region Constructors
 
@@ -114,6 +109,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         sessionViewModelFactory = null!;
         filesService = null!;
         sessionSink = null!;
+        setupCreatorProvider = null!;
     }
 
     public ImportSessionsViewModel(
@@ -123,7 +119,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         IFilesService filesService,
         ISessionSink sessionSink,
         INavigator navigator,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        Func<ISetupCreator> setupCreatorProvider)
         : base(navigator, dialogService)
     {
         Name = "Import Sessions";
@@ -132,6 +129,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         this.sessionViewModelFactory = sessionViewModelFactory;
         this.filesService = filesService;
         this.sessionSink = sessionSink;
+        this.setupCreatorProvider = setupCreatorProvider;
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
         TelemetryDataStores.CollectionChanged += (_, e) =>
@@ -308,7 +306,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
     }
 
     [RelayCommand]
-    private void AddSetup() => OpenSetupCreation?.Invoke();
+    private void AddSetup() => setupCreatorProvider().AddSetup();
 
     [RelayCommand]
     private void Loaded()

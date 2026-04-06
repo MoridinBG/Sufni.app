@@ -53,6 +53,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeViewModelFactory, BikeViewModelFactory>();
         ServiceCollection.AddSingleton<ISetupViewModelFactory, SetupViewModelFactory>();
         ServiceCollection.AddSingleton<ISessionViewModelFactory, SessionViewModelFactory>();
+        ServiceCollection.AddSingleton<Func<SetupListViewModel>>(sp => () => sp.GetRequiredService<SetupListViewModel>());
+        ServiceCollection.AddSingleton<Func<ISetupCreator>>(sp => () => sp.GetRequiredService<ISetupCreator>());
+        ServiceCollection.AddSingleton<IBikeUsageQuery, BikeUsageQuery>();
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<IBikeSelectionSource>(sp => sp.GetRequiredService<BikeListViewModel>());
         ServiceCollection.AddSingleton<IBikeCreator>(sp => sp.GetRequiredService<BikeListViewModel>());

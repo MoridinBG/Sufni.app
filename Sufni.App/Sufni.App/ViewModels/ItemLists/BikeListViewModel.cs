@@ -22,18 +22,18 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
     #region Private fields
 
     private readonly IBikeViewModelFactory bikeViewModelFactory;
+    private readonly IBikeUsageQuery bikeUsageQuery;
+    private readonly ReadOnlyObservableCollection<ItemViewModelBase> unfilteredBikes;
 
     #endregion Private fields
 
-    #region Runtime host callbacks
+    #region Host callbacks
 
-    public Func<Guid, bool>? CanDeleteBikeEvaluator { get; set; }
-
-    public bool CanDeleteBike(Guid bikeId) => CanDeleteBikeEvaluator?.Invoke(bikeId) ?? true;
+    public bool CanDeleteBike(Guid bikeId) => !bikeUsageQuery.IsBikeInUse(bikeId);
 
     public void OnBikeSaved(BikeViewModel vm) => OnAdded(vm);
 
-    #endregion Runtime host callbacks
+    #endregion Host callbacks
 
     #region Observable properties
 
@@ -46,12 +46,24 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
     public BikeListViewModel()
     {
         bikeViewModelFactory = null!;
+        bikeUsageQuery = null!;
+        Source.Connect()
+            .Bind(out unfilteredBikes)
+            .Subscribe();
         Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
     }
 
-    public BikeListViewModel(IDatabaseService databaseService, IBikeViewModelFactory bikeViewModelFactory, INavigator navigator) : base(databaseService, navigator)
+    public BikeListViewModel(
+        IDatabaseService databaseService,
+        IBikeViewModelFactory bikeViewModelFactory,
+        INavigator navigator,
+        IBikeUsageQuery bikeUsageQuery) : base(databaseService, navigator)
     {
         this.bikeViewModelFactory = bikeViewModelFactory;
+        this.bikeUsageQuery = bikeUsageQuery;
+        Source.Connect()
+            .Bind(out unfilteredBikes)
+            .Subscribe();
         Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
     }
 
@@ -113,7 +125,7 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
 
     #region IBikeSelectionSource
 
-    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes => Items;
+    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes => unfilteredBikes;
 
     #endregion IBikeSelectionSource
 }

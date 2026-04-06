@@ -72,7 +72,7 @@ public partial class PairingClientViewModel : ViewModelBase
         DeviceId = await secureStorage.GetStringAsync(DeviceIdKey);
         if (DeviceId is null)
         {
-            DeviceId = friendlyNameProvider.FriendlyName;
+            DeviceId = friendlyNameProvider.FriendlyName ?? Guid.NewGuid().ToString();
             await secureStorage.SetStringAsync(DeviceIdKey, DeviceId);
         }
 

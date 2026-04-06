@@ -106,12 +106,6 @@ public partial class MainPagesViewModel : ViewModelBase
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
         SessionsPage.MenuItems.Add(new("import", OpenPageCommand, importSessionsPage));
 
-        // Wire runtime callbacks on the list pages after the page graph is assembled.
-        BikesPage.CanDeleteBikeEvaluator = bikeId => !SetupsPage.Items.Any(s =>
-            s is SetupViewModel { SelectedBike: not null } svm &&
-            svm.SelectedBike.Id == bikeId);
-        ImportSessionsPage.OpenSetupCreation = () => SetupsPage.AddCommand.Execute(null);
-
         if (synchronizationServer is not null)
         {
             // update UI when entities arrive from synced device
