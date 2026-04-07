@@ -7,6 +7,7 @@ using HapticFeedback;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using ServiceDiscovery;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
 
@@ -29,6 +30,7 @@ namespace Sufni.App.Android
             App.ServiceCollection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>(provider => 
                 new HapticFeedback.HapticFeedback(Window!)); 
             App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+            App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
             App.ServiceCollection.AddSingleton<PairingClientViewModel>();
 
             return base.CustomizeAppBuilder(builder)

@@ -145,9 +145,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         IBikeStore bikeStore,
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService)
-        : base(navigator, dialogService)
+        : base(shell, dialogService)
     {
         this.setupCoordinator = setupCoordinator;
         this.bikeCoordinator = bikeCoordinator;

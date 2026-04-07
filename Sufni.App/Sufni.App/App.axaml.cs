@@ -38,15 +38,11 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
-            ServiceCollection.AddSingleton<INavigator>(sp =>
-                new DesktopNavigator(() => sp.GetRequiredService<MainWindowViewModel>()));
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
                 new DesktopShellCoordinator(() => sp.GetRequiredService<MainWindowViewModel>()));
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
-            ServiceCollection.AddSingleton<INavigator>(sp =>
-                new MobileNavigator(() => sp.GetRequiredService<MainViewModel>()));
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
                 new MobileShellCoordinator(() => sp.GetRequiredService<MainViewModel>()));
         }
@@ -73,6 +69,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceCoordinator, PairedDeviceCoordinator>();
+        ServiceCollection.AddSingleton<ISyncCoordinator, SyncCoordinator>();
         ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
                 sp.GetRequiredService<IDatabaseService>(),
@@ -92,14 +89,13 @@ public partial class App : Application
             sp.GetRequiredService<IPairedDeviceStoreWriter>(),
             sp.GetRequiredService<IImportSessionsCoordinator>(),
             sp.GetRequiredService<IFilesService>(),
-            sp.GetRequiredService<INavigator>(),
+            sp.GetRequiredService<ISyncCoordinator>(),
+            sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
-            sp.GetService<ISynchronizationServerService>(),
-            sp.GetService<ISynchronizationClientService>(),
             sp.GetService<PairingClientViewModel>(),
             sp.GetService<PairingServerViewModel>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
@@ -120,6 +116,27 @@ public partial class App : Application
         // depends on it until the user opens the paired-devices side
         // panel.
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
+
+        // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
+        // before the pairing screen is opened.
+        if (!IsDesktop)
+        {
+            _ = Services.GetService<IPairingClientCoordinator>();
+        }
+
+        // Desktop-only: eagerly resolve so the constructor's
+        // PairingRequested/PairingConfirmed event subscriptions wire up
+        // before the desktop view loads.
+        if (IsDesktop)
+        {
+            _ = Services.GetService<IPairingServerCoordinator>();
+            _ = Services.GetService<IInboundSyncCoordinator>();
+        }
+
+        // Shared sync coordinator: eagerly resolved so its
+        // IsPairedChanged subscription on the pairing client coordinator
+        // (when present) wires up at startup.
+        _ = Services.GetRequiredService<ISyncCoordinator>();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogService = Services.GetRequiredService<IDialogService>();

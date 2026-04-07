@@ -4,7 +4,6 @@ using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
@@ -22,7 +21,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
     private readonly IDatabaseService databaseService;
     private readonly IHttpApiService httpApiService;
     private readonly IShellCoordinator shell;
-    private readonly INavigator navigator;
     private readonly IDialogService dialogService;
 
     public SessionCoordinator(
@@ -30,7 +28,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
         IDatabaseService databaseService,
         IHttpApiService httpApiService,
         IShellCoordinator shell,
-        INavigator navigator,
         IDialogService dialogService,
         ISynchronizationServerService? synchronizationServer = null)
     {
@@ -38,7 +35,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
         this.databaseService = databaseService;
         this.httpApiService = httpApiService;
         this.shell = shell;
-        this.navigator = navigator;
         this.dialogService = dialogService;
 
         if (synchronizationServer is not null)
@@ -62,7 +58,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
                 this,
                 sessionStore,
                 databaseService,
-                navigator,
+                shell,
                 dialogService));
         return Task.CompletedTask;
     }
@@ -127,11 +123,11 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    private void OnSynchronizationDataArrived(SynchronizationData data)
+    private void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)
     {
         Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            foreach (var session in data.Sessions)
+            foreach (var session in e.Data.Sessions)
             {
                 if (session.Deleted is not null)
                 {
@@ -149,11 +145,11 @@ public sealed class SessionCoordinator : ISessionCoordinator
         });
     }
 
-    private void OnSessionDataArrived(Guid id)
+    private void OnSessionDataArrived(object? sender, SessionDataArrivedEventArgs e)
     {
         Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            var fresh = await databaseService.GetSessionAsync(id);
+            var fresh = await databaseService.GetSessionAsync(e.SessionId);
             if (fresh is not null)
             {
                 sessionStore.Upsert(SessionSnapshot.From(fresh));

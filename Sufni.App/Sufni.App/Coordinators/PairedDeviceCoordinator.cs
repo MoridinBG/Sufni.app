@@ -48,21 +48,19 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
         }
     }
 
-    private void OnPairingConfirmed(object? sender, EventArgs e)
+    private void OnPairingConfirmed(object? sender, PairingEventArgs e)
     {
-        if (e is not PairingEventArgs pdea) return;
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            pairedDeviceStore.Upsert(PairedDeviceSnapshot.From(pdea.Device));
+            pairedDeviceStore.Upsert(PairedDeviceSnapshot.From(e.Device));
         });
     }
 
-    private void OnUnpaired(object? sender, EventArgs e)
+    private void OnUnpaired(object? sender, PairingEventArgs e)
     {
-        if (e is not PairingEventArgs pdea) return;
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            pairedDeviceStore.Remove(pdea.Device.DeviceId);
+            pairedDeviceStore.Remove(e.Device.DeviceId);
         });
     }
 }

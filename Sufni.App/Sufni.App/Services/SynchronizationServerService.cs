@@ -63,12 +63,11 @@ public class SynchronizationServerService : ISynchronizationServerService
     
     private Task Initialization { get; }
     
-    public Action<string, string>? PairingRequested { get; set; }
-    public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
-    public Action<Guid>? SessionDataArrived { get; set; }
-
-    public event EventHandler? PairingConfirmed;
-    public event EventHandler? Unpaired;
+    public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
+    public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
+    public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
+    public event EventHandler<PairingEventArgs>? PairingConfirmed;
+    public event EventHandler<PairingEventArgs>? Unpaired;
 
     #region Constructors
 
@@ -214,7 +213,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         {
             var pin = GeneratePin();
             pendingPairings[pin] = (req.DeviceId, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
-            PairingRequested?.Invoke(req.DeviceId, pin);
+            PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, pin));
             return Results.Ok();
         });
 
@@ -273,7 +272,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         {
             await databaseService.MergeAllAsync(data);
 
-            SynchronizationDataArrived?.Invoke(data);
+            SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
             return Results.NoContent();
         });
 
@@ -312,7 +311,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.NotFound();
             }
 
-            SessionDataArrived?.Invoke(id);
+            SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
             return Results.NoContent();
         });
 

@@ -4,7 +4,6 @@ using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
@@ -15,7 +14,6 @@ public sealed class BikeCoordinator(
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IFilesService filesService,
-    INavigator navigator,
     IDialogService dialogService) : IBikeCoordinator
 {
     public Task OpenCreateAsync()
@@ -27,7 +25,7 @@ public sealed class BikeCoordinator(
             isNew: true,
             this,
             filesService,
-            navigator,
+            shell,
             dialogService)
         {
             IsDirty = true
@@ -48,7 +46,7 @@ public sealed class BikeCoordinator(
                 isNew: false,
                 this,
                 filesService,
-                navigator,
+                shell,
                 dialogService));
         return Task.CompletedTask;
     }

@@ -22,12 +22,12 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     }
 
     public WelcomeScreenViewModel(
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService,
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
         IImportSessionsCoordinator importSessionsCoordinator)
-        : base(navigator, dialogService)
+        : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.setupCoordinator = setupCoordinator;

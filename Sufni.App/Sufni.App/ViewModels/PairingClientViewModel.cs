@@ -1,21 +1,15 @@
-﻿using System;
+using System;
 using System.Diagnostics;
-using System.Net.Http;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using FriendlyNameProvider;
-using Microsoft.Extensions.DependencyInjection;
-using SecureStorage;
-using ServiceDiscovery;
-using Sufni.App.Services;
+using Sufni.App.Coordinators;
 
 namespace Sufni.App.ViewModels;
 
 public partial class PairingClientViewModel : ViewModelBase
 {
-    private const string DeviceIdKey = "DeviceId";
-
     #region Observable properties
 
     [ObservableProperty] private string? serverUrl;
@@ -28,11 +22,8 @@ public partial class PairingClientViewModel : ViewModelBase
 
     #region Private members
 
-    private readonly ISecureStorage secureStorage;
-    private readonly IHttpApiService httpApiService;
-    private readonly IServiceDiscovery serviceDiscovery;
-    private readonly IFriendlyNameProvider friendlyNameProvider;
-    private readonly INavigator navigator;
+    private readonly IPairingClientCoordinator coordinator;
+    private readonly IShellCoordinator shell;
 
     #endregion Private members
 
@@ -40,55 +31,43 @@ public partial class PairingClientViewModel : ViewModelBase
 
     public PairingClientViewModel()
     {
-        secureStorage = null!;
-        httpApiService = null!;
-        serviceDiscovery = null!;
-        friendlyNameProvider = null!;
-        navigator = null!;
+        coordinator = null!;
+        shell = null!;
     }
 
     public PairingClientViewModel(
-        ISecureStorage secureStorage,
-        IHttpApiService httpApiService,
-        [FromKeyedServices("sync")] IServiceDiscovery serviceDiscovery,
-        IFriendlyNameProvider friendlyNameProvider,
-        INavigator navigator)
+        IPairingClientCoordinator coordinator,
+        IShellCoordinator shell)
     {
-        this.secureStorage = secureStorage;
-        this.httpApiService = httpApiService;
-        this.serviceDiscovery = serviceDiscovery;
-        this.friendlyNameProvider = friendlyNameProvider;
-        this.navigator = navigator;
+        this.coordinator = coordinator;
+        this.shell = shell;
 
-        _ = InitAsync();
+        DeviceId = coordinator.DeviceId;
+        ServerUrl = coordinator.ServerUrl;
+        IsPaired = coordinator.IsPaired;
+
+        coordinator.DeviceIdChanged += OnDeviceIdChanged;
+        coordinator.ServerUrlChanged += OnServerUrlChanged;
+        coordinator.IsPairedChanged += OnIsPairedChanged;
     }
 
     #endregion
 
     #region Private methods
 
-    private async Task InitAsync()
+    private void OnDeviceIdChanged(object? sender, EventArgs e)
     {
-        DeviceId = await secureStorage.GetStringAsync(DeviceIdKey);
-        if (DeviceId is null)
-        {
-            DeviceId = friendlyNameProvider.FriendlyName ?? Guid.NewGuid().ToString();
-            await secureStorage.SetStringAsync(DeviceIdKey, DeviceId);
-        }
+        Dispatcher.UIThread.InvokeAsync(() => DeviceId = coordinator.DeviceId);
+    }
 
-        IsPaired = await httpApiService.IsPairedAsync();
+    private void OnServerUrlChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() => ServerUrl = coordinator.ServerUrl);
+    }
 
-        serviceDiscovery.ServiceAdded += (_, e) =>
-        {
-            var address = e.Announcement.Address.IsIPv4MappedToIPv6
-                ? e.Announcement.Address.MapToIPv4()
-                : e.Announcement.Address;
-            var host = address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                ? $"[{address}]"
-                : address.ToString();
-            ServerUrl = $"https://{host}:{e.Announcement.Port}";
-        };
-        serviceDiscovery.ServiceRemoved += (_, _) => ServerUrl = null;
+    private void OnIsPairedChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() => IsPaired = coordinator.IsPaired);
     }
 
     #endregion Private methods
@@ -98,34 +77,38 @@ public partial class PairingClientViewModel : ViewModelBase
     [RelayCommand]
     private async Task RequestPairing()
     {
-        Debug.Assert(ServerUrl is not null);
         Debug.Assert(DeviceId is not null);
 
-        await httpApiService.RequestPairingAsync(ServerUrl, DeviceId);
-        IsRequestSent =  true;
+        var result = await coordinator.RequestPairingAsync(DeviceId);
+        switch (result)
+        {
+            case RequestPairingResult.Sent:
+                IsRequestSent = true;
+                break;
+            case RequestPairingResult.Failed failed:
+                ErrorMessages.Add($"Could not request pairing: {failed.ErrorMessage}");
+                break;
+        }
     }
 
     [RelayCommand]
     private async Task ConfirmPairing()
     {
-        Debug.Assert(ServerUrl is not null);
         Debug.Assert(Pin is not null);
         Debug.Assert(DeviceId is not null);
 
-        try
+        var result = await coordinator.ConfirmPairingAsync(DeviceId, Pin);
+        switch (result)
         {
-            await httpApiService.ConfirmPairingAsync(DeviceId, Pin);
-            IsPaired = true;
-            Pin = null;
-            IsRequestSent = false;
-            ErrorMessages.Clear();
+            case ConfirmPairingResult.Paired:
+                Pin = null;
+                IsRequestSent = false;
+                ErrorMessages.Clear();
+                break;
+            case ConfirmPairingResult.Failed failed:
+                ErrorMessages.Add($"Could not pair: {failed.ErrorMessage}");
+                break;
         }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not pair: {e.Message}");
-        }
-
-        navigator.OpenPreviousPage();
     }
 
     [RelayCommand]
@@ -133,35 +116,34 @@ public partial class PairingClientViewModel : ViewModelBase
     {
         Debug.Assert(DeviceId is not null);
 
-        try
+        var result = await coordinator.UnpairAsync(DeviceId);
+        switch (result)
         {
-            IsPaired = false;
-            await httpApiService.UnpairAsync(DeviceId);
-        }
-        catch (HttpRequestException e)
-        {
-            Notifications.Add($"Could unpair only locally: {e.Message}");
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not unpair: {e.Message}");
+            case UnpairResult.Unpaired:
+                break;
+            case UnpairResult.LocalOnly localOnly:
+                Notifications.Add($"Could unpair only locally: {localOnly.Reason}");
+                break;
+            case UnpairResult.Failed failed:
+                ErrorMessages.Add($"Could not unpair: {failed.ErrorMessage}");
+                break;
         }
     }
 
     [RelayCommand]
     private void Loaded()
     {
-        serviceDiscovery.StartBrowse(SynchronizationServerService.ServiceType);
+        coordinator.StartBrowsing();
     }
 
     [RelayCommand]
     private void Unloaded()
     {
-        serviceDiscovery.StopBrowse();
+        coordinator.StopBrowsing();
     }
 
     [RelayCommand]
-    private void OpenPreviousPage() => navigator.OpenPreviousPage();
+    private void OpenPreviousPage() => shell.GoBack();
 
     #endregion Commands
 }

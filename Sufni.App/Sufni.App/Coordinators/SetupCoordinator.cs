@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
@@ -14,7 +13,6 @@ public sealed class SetupCoordinator(
     IBikeCoordinator bikeCoordinator,
     IDatabaseService databaseService,
     IShellCoordinator shell,
-    INavigator navigator,
     IDialogService dialogService) : ISetupCoordinator
 {
     public Task OpenCreateAsync(Guid? suggestedBoardId = null)
@@ -36,7 +34,7 @@ public sealed class SetupCoordinator(
             bikeStore,
             bikeCoordinator,
             this,
-            navigator,
+            shell,
             dialogService)
         {
             IsDirty = true
@@ -58,7 +56,7 @@ public sealed class SetupCoordinator(
                 bikeStore,
                 bikeCoordinator,
                 this,
-                navigator,
+                shell,
                 dialogService));
         return Task.CompletedTask;
     }

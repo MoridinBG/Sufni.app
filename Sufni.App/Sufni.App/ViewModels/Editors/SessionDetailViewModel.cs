@@ -291,9 +291,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         ISessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
         IDatabaseService databaseService,
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService)
-        : base(navigator, dialogService)
+        : base(shell, dialogService)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.sessionStore = sessionStore;

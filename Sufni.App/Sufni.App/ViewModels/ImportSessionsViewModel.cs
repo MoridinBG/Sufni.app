@@ -106,11 +106,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IDatabaseService databaseService,
         ITelemetryDataStoreService telemetryDataStoreService,
         IFilesService filesService,
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService,
         ISetupCoordinator setupCoordinator,
         IImportSessionsCoordinator importSessionsCoordinator)
-        : base(navigator, dialogService)
+        : base(shell, dialogService)
     {
         Name = "Import Sessions";
         this.databaseService = databaseService;

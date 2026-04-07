@@ -155,9 +155,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         bool isNew,
         IBikeCoordinator bikeCoordinator,
         IFilesService filesService,
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService)
-        : base(navigator, dialogService)
+        : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.filesService = filesService;
