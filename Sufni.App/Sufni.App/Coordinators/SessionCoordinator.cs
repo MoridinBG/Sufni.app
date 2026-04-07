@@ -98,13 +98,17 @@ public sealed class SessionCoordinator : ISessionCoordinator
         try
         {
             await databaseService.DeleteAsync<Session>(sessionId);
-            sessionStore.Remove(sessionId);
-            return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
         }
         catch (Exception e)
         {
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
+
+        // Close any open editor BEFORE removing the snapshot so no
+        // editor binding observes a missing row mid-teardown.
+        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId);
+        sessionStore.Remove(sessionId);
+        return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
     }
 
     public async Task EnsureTelemetryDataAvailableAsync(Guid sessionId)

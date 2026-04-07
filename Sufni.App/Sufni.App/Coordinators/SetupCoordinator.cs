@@ -108,24 +108,38 @@ public sealed class SetupCoordinator(
 
     public async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
     {
+        var snapshot = setupStore.Get(setupId);
+
         try
         {
-            var snapshot = setupStore.Get(setupId);
-
-            // If this setup is associated with a board ID, clear that association.
-            if (snapshot?.BoardId is not null)
-            {
-                await databaseService.PutAsync(new Board(snapshot.BoardId.Value, null));
-            }
-
             await databaseService.DeleteAsync<Setup>(setupId);
-            setupStore.Remove(setupId);
-
-            return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
         }
         catch (Exception e)
         {
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
         }
+
+        // Best-effort: clear the board association after the setup row
+        // is gone. If this throws, the dangling board row is harmless —
+        // setupStore.FindByBoardId will already return null for the
+        // deleted setup.
+        if (snapshot?.BoardId is not null)
+        {
+            try
+            {
+                await databaseService.PutAsync(new Board(snapshot.BoardId.Value, null));
+            }
+            catch
+            {
+                // Ignored; see comment above.
+            }
+        }
+
+        // Close any open editor BEFORE removing the snapshot so no
+        // editor binding observes a missing row mid-teardown.
+        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId);
+        setupStore.Remove(setupId);
+
+        return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
     }
 }

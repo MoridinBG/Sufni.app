@@ -35,6 +35,15 @@ public interface IShellCoordinator
     void Close(ViewModelBase view);
 
     /// <summary>
+    /// Close the first view of type <typeparamref name="T"/> matching
+    /// <paramref name="match"/>, if any. On desktop this iterates the
+    /// open tabs and closes the matching one. On mobile this is a no-op:
+    /// a list page and an editor for one of its rows are not on the back
+    /// stack at the same time, so there is nothing to close.
+    /// </summary>
+    void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase;
+
+    /// <summary>
     /// Pop the current view on mobile (e.g. hardware back button). No-op
     /// on desktop.
     /// </summary>

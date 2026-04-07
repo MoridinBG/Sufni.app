@@ -87,13 +87,17 @@ public sealed class BikeCoordinator(
         try
         {
             await databaseService.DeleteAsync<Bike>(bikeId);
-            bikeStore.Remove(bikeId);
-            return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
         }
         catch (Exception e)
         {
             return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
         }
+
+        // Close any open editor BEFORE removing the snapshot so no
+        // editor binding observes a missing row mid-teardown.
+        shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId);
+        bikeStore.Remove(bikeId);
+        return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
     }
 
     public async Task<bool> CanDeleteAsync(Guid bikeId) =>

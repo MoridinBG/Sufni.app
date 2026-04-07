@@ -23,6 +23,16 @@ public sealed class DesktopShellCoordinator(Func<MainWindowViewModel> mainWindow
         }
     }
 
+    public void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase
+    {
+        var window = mainWindowProvider();
+        var existing = window.Tabs.OfType<T>().FirstOrDefault(match);
+        if (existing is TabPageViewModelBase tab)
+        {
+            window.CloseTabPage(tab);
+        }
+    }
+
     public void GoBack()
     {
         // Desktop has no back stack.
