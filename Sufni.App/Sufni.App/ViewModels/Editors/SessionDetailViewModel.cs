@@ -85,7 +85,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [ObservableProperty] private string? videoUrl;
     [ObservableProperty] private double? mapVideoWidth;
     [ObservableProperty] private bool isComplete;
-    [ObservableProperty] private DateTime? timestamp;
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties

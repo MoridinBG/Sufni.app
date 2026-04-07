@@ -1,68 +1,52 @@
 using System;
-using System.Diagnostics;
-using System.Threading.Tasks;
+using System.Collections.ObjectModel;
 using DynamicData;
-using Sufni.App.Services;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.Coordinators;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
+// Inherits from ItemListViewModelBase for the shared search-bar /
+// date-filter / menu-item state. The items collection is owned locally
+// — `pairedDeviceRows` is a typed projection from the store, exposed
+// via the `new` shadow on `Items`.
 public partial class PairedDeviceListViewModel : ItemListViewModelBase
 {
-    private readonly IDialogService dialogService;
+    #region Private fields
+
+    private readonly IPairedDeviceCoordinator pairedDeviceCoordinator;
+    private readonly ReadOnlyObservableCollection<PairedDeviceRowViewModel> pairedDeviceRows;
+
+    #endregion Private fields
+
+    #region Observable properties
+
+    public ReadOnlyObservableCollection<PairedDeviceRowViewModel> Items => pairedDeviceRows;
+
+    #endregion Observable properties
 
     #region Constructors
 
     public PairedDeviceListViewModel()
     {
-        dialogService = null!;
+        pairedDeviceCoordinator = null!;
+        pairedDeviceRows = new ReadOnlyObservableCollection<PairedDeviceRowViewModel>([]);
     }
 
-    public PairedDeviceListViewModel(IDatabaseService databaseService, INavigator navigator, IDialogService dialogService) : base(databaseService, navigator)
+    public PairedDeviceListViewModel(
+        IPairedDeviceStore pairedDeviceStore,
+        IPairedDeviceCoordinator pairedDeviceCoordinator)
     {
-        this.dialogService = dialogService;
+        this.pairedDeviceCoordinator = pairedDeviceCoordinator;
+
+        pairedDeviceStore.Connect()
+            .TransformWithInlineUpdate(
+                snapshot => new PairedDeviceRowViewModel(snapshot, pairedDeviceCoordinator, ErrorMessages.Add),
+                (row, snapshot) => row.Update(snapshot))
+            .Bind(out pairedDeviceRows)
+            .Subscribe();
     }
 
     #endregion Constructors
-
-    #region Private methods
-
-    private async Task LoadPairedDevicesAsync()
-    {
-
-
-        try
-        {
-            var pairedDeviceList = await databaseService.GetPairedDevicesAsync();
-            foreach (var pairedDevice in pairedDeviceList)
-            {
-                var svm = new PairedDeviceViewModel(pairedDevice, navigator, dialogService, this);
-                Source.AddOrUpdate(svm);
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Paired devices: {e.Message}");
-        }
-    }
-
-    #endregion Private methods
-    
-    #region ItemListViewModelBase overrides
-
-    protected override async Task DeleteImplementation(ItemViewModelBase vm)
-    {
-        var pdvm = vm as PairedDeviceViewModel;
-        Debug.Assert(pdvm is not null);
-        Debug.Assert(pdvm.Name is not null);
-        await databaseService.DeletePairedDeviceAsync(pdvm.Name);
-    }
-
-    public override async Task LoadFromDatabase()
-    {
-        Source.Clear();
-        await LoadPairedDevicesAsync();
-    }
-
-    #endregion ItemListViewModelBase overrides
 }

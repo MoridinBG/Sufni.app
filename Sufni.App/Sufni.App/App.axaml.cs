@@ -69,6 +69,10 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<PairedDeviceStore>();
+        ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
+        ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
+        ServiceCollection.AddSingleton<IPairedDeviceCoordinator, PairedDeviceCoordinator>();
         ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
                 sp.GetRequiredService<IDatabaseService>(),
@@ -85,10 +89,10 @@ public partial class App : Application
             sp.GetRequiredService<IBikeStoreWriter>(),
             sp.GetRequiredService<ISetupStoreWriter>(),
             sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<IPairedDeviceStoreWriter>(),
             sp.GetRequiredService<IImportSessionsCoordinator>(),
             sp.GetRequiredService<IFilesService>(),
             sp.GetRequiredService<INavigator>(),
-            sp.GetRequiredService<IDialogService>(),
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
@@ -110,6 +114,12 @@ public partial class App : Application
         // any sync arrives. Nothing else depends on it directly until a
         // session row or editor is opened.
         _ = Services.GetRequiredService<ISessionCoordinator>();
+
+        // Same reason for the paired-device coordinator: its constructor
+        // subscribes to PairingConfirmed/Unpaired and nothing else
+        // depends on it until the user opens the paired-devices side
+        // panel.
+        _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogService = Services.GetRequiredService<IDialogService>();

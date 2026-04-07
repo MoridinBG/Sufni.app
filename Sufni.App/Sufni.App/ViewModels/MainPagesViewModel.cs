@@ -6,13 +6,11 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DynamicData;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels;
 
@@ -22,11 +20,11 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
     private readonly ISessionStoreWriter sessionStoreWriter;
+    private readonly IPairedDeviceStoreWriter pairedDeviceStoreWriter;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly INavigator navigator;
-    private readonly IDialogService dialogService;
     private readonly ItemListViewModelBase[] pages;
 
     #region Observable properties
@@ -54,11 +52,11 @@ public partial class MainPagesViewModel : ViewModelBase
         bikeStoreWriter = null!;
         setupStoreWriter = null!;
         sessionStoreWriter = null!;
+        pairedDeviceStoreWriter = null!;
         importSessionsCoordinator = null!;
         filesService = null!;
         synchronizationClientService = null;
         navigator = null!;
-        dialogService = null!;
         importSessionsPage = new();
         bikesPage = new();
         setupsPage = new();
@@ -72,10 +70,10 @@ public partial class MainPagesViewModel : ViewModelBase
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
         ISessionStoreWriter sessionStoreWriter,
+        IPairedDeviceStoreWriter pairedDeviceStoreWriter,
         IImportSessionsCoordinator importSessionsCoordinator,
         IFilesService filesService,
         INavigator navigator,
-        IDialogService dialogService,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
@@ -90,10 +88,10 @@ public partial class MainPagesViewModel : ViewModelBase
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
         this.sessionStoreWriter = sessionStoreWriter;
+        this.pairedDeviceStoreWriter = pairedDeviceStoreWriter;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.filesService = filesService;
         this.navigator = navigator;
-        this.dialogService = dialogService;
         this.synchronizationClientService = synchronizationClientService;
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
@@ -114,30 +112,14 @@ public partial class MainPagesViewModel : ViewModelBase
         if (synchronizationServer is not null)
         {
             // update bike/setup stores when entities arrive from synced
-            // device. Sessions are owned by SessionCoordinator, which
-            // subscribes to the same event in its constructor (via +=).
+            // device. Sessions are owned by SessionCoordinator, paired
+            // devices by PairedDeviceCoordinator — both subscribe to the
+            // same events in their constructors (via +=).
             synchronizationServer.SynchronizationDataArrived += data =>
             {
                 Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     await MergeFromDatabase(data);
-                });
-            };
-
-            synchronizationServer.PairingConfirmed += (_, e) =>
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    if (e is not PairingEventArgs pdea) return;
-                    PairedDevicesPage.Source.AddOrUpdate(new PairedDeviceViewModel(pdea.Device, navigator, dialogService, PairedDevicesPage));
-                });
-            };
-            synchronizationServer.Unpaired += (_, e) =>
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    if (e is not PairingEventArgs pdea) return;
-                    PairedDevicesPage.Source.Remove(new PairedDeviceViewModel(pdea.Device, navigator, dialogService, PairedDevicesPage));
                 });
             };
         }
@@ -169,7 +151,7 @@ public partial class MainPagesViewModel : ViewModelBase
         await bikeStoreWriter.RefreshAsync();
         await setupStoreWriter.RefreshAsync();
         await sessionStoreWriter.RefreshAsync();
-        await PairedDevicesPage.LoadFromDatabase();
+        await pairedDeviceStoreWriter.RefreshAsync();
 
         DatabaseLoaded = true;
     }

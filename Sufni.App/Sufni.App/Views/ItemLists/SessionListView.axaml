@@ -45,11 +45,5 @@
             Grid.Column="0"
             Margin="5,0"
             ZIndex="10" />
-
-        <!--  Undo last deleted  -->
-        <controls:UndoDeleteButton
-            Grid.Row="0"
-            Grid.RowSpan="4"
-            Grid.Column="0" />
     </Grid>
 </UserControl>

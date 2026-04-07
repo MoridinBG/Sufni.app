@@ -12,11 +12,10 @@ using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-// Inherits from ItemListViewModelBase so the shared SearchBar /
-// UndoDeleteButton / PullableMenuScrollViewer keep resolving against the
-// base type. The base SourceCache<ItemViewModelBase> is unused — the
-// new flow projects ISessionStore.Connect() into a separate
-// `sessionRows` collection that shadows the base Items property.
+// Inherits from ItemListViewModelBase for the shared search-bar /
+// date-filter / menu-item state. The items collection is owned locally
+// — `sessionRows` is a typed projection from the store, exposed via
+// the `new` shadow on `Items`.
 public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
@@ -29,7 +28,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #region Observable properties
 
-    public new ReadOnlyObservableCollection<SessionRowViewModel> Items => sessionRows;
+    public ReadOnlyObservableCollection<SessionRowViewModel> Items => sessionRows;
 
     #endregion Observable properties
 
@@ -55,10 +54,8 @@ public partial class SessionListViewModel : ItemListViewModelBase
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
             .Subscribe();
 
-        // The base's OnSearchTextChanged / OnDateFilterFromChanged /
-        // OnDateFilterToChanged partial methods only refresh the (empty)
-        // base SourceCache. We need to push a fresh predicate to our own
-        // filter subject when any of those change.
+        // Push a fresh predicate to our filter subject whenever the
+        // search text or date-filter bounds change.
         PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(SearchText) or nameof(DateFilterFrom) or nameof(DateFilterTo))
@@ -80,8 +77,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
         filterSubject.OnNext(snapshot =>
         {
-            // Search matches name OR description (legacy ConnectSource
-            // checked both).
+            // Search matches name OR description.
             var textMatch =
                 string.IsNullOrEmpty(search) ||
                 snapshot.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
@@ -99,12 +95,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
     }
 
     #endregion Private methods
-
-    #region ItemListViewModelBase overrides
-
-    public override Task LoadFromDatabase() => Task.CompletedTask;
-
-    #endregion ItemListViewModelBase overrides
 
     #region Commands
 

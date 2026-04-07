@@ -1,21 +1,19 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DynamicData;
-using Sufni.App.Services;
-using Sufni.App.ViewModels.Hosts;
-using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
+/// <summary>
+/// Shared search-bar / date-filter / menu-item state for the entity
+/// list view models. After Slice 3 every concrete list owns its own
+/// store-backed projection and exposes it via a `new` shadow on
+/// <c>Items</c>; the base contributes only the cross-cutting filter
+/// state and the menu-item collection.
+/// </summary>
+public partial class ItemListViewModelBase : ViewModelBase
 {
-    protected readonly IDatabaseService databaseService;
-    protected readonly INavigator navigator;
-
     #region Observable properties
 
     [ObservableProperty] private string? searchText;
@@ -23,36 +21,12 @@ public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
     [ObservableProperty] private DateTime? dateFilterFrom;
     [ObservableProperty] private DateTime? dateFilterTo;
     [ObservableProperty] private bool dateFilterVisible;
-    [ObservableProperty] private ItemViewModelBase? lastDeleted;
 
-    public readonly SourceCache<ItemViewModelBase, Guid> Source = new(x => x.Id);
-    public ReadOnlyObservableCollection<ItemViewModelBase> Items => items;
-    protected ReadOnlyObservableCollection<ItemViewModelBase> items;
     public ObservableCollection<PullMenuItemViewModel> MenuItems { get; set; } = [];
 
     #endregion Observable properties
 
     #region Property change handlers
-
-    partial void OnSearchTextChanged(string? value)
-    {
-        Source.Refresh();
-    }
-
-    public void OnAdded(ItemViewModelBase vm)
-    {
-        Source.AddOrUpdate(vm);
-    }
-
-    partial void OnDateFilterFromChanged(DateTime? value)
-    {
-        Source.Refresh();
-    }
-
-    partial void OnDateFilterToChanged(DateTime? value)
-    {
-        Source.Refresh();
-    }
 
     partial void OnSearchBoxIsFocusedChanged(bool value)
     {
@@ -61,66 +35,14 @@ public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
             DateFilterVisible = true;
         }
     }
-    
+
     #endregion Property change handlers
-    
+
     #region Virtual methods
 
-    public virtual Task LoadFromDatabase() { return Task.CompletedTask; }
-    public virtual void ConnectSource()
-    {
-        Source.Connect()
-            .Filter(vm => string.IsNullOrEmpty(SearchText) ||
-                            (vm.Name is not null && vm.Name.Contains(SearchText,
-                                StringComparison.CurrentCultureIgnoreCase)))
-            .Bind(out items)
-            .DisposeMany()
-            .Subscribe();
-    }
-
     protected virtual void AddImplementation() { }
-    protected virtual Task DeleteImplementation(ItemViewModelBase vm) { return Task.CompletedTask; }
 
     #endregion Virtual methods
-
-    #region Constructors
-
-#pragma warning disable CS8618 // "items" is populated in the ConnectSource method
-    public ItemListViewModelBase()
-    {
-        databaseService = null!;
-        navigator = null!;
-        ConnectSource();
-    }
-
-    protected ItemListViewModelBase(IDatabaseService databaseService, INavigator navigator)
-    {
-        this.databaseService = databaseService;
-        this.navigator = navigator;
-        ConnectSource();
-    }
-#pragma warning restore CS8618
-
-    #endregion Constructors
-
-    #region Public methods
-
-    [RelayCommand]
-    protected void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
-
-    public async Task Delete(ItemViewModelBase vm)
-    {
-        Source.Remove(vm);
-        await DeleteImplementation(vm);
-    }
-
-    public void UndoableDelete(ItemViewModelBase vm)
-    {
-        LastDeleted = vm;
-        Source.Remove(vm);
-    }
-
-    #endregion Public methods
 
     #region Commands
 
@@ -135,27 +57,6 @@ public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
     {
         SearchText = null;
         DateFilterVisible = false;
-    }
-
-    [RelayCommand]
-    public Task FinalizeDelete()
-    {
-        Debug.Assert(LastDeleted != null, nameof(LastDeleted) + " != null");
-        // SessionViewModel was the last case here; bikes / setups now
-        // delete via their coordinators directly. Paired devices still
-        // use the legacy host pattern but do their own DB delete in
-        // PairedDeviceViewModel, so this no-op is correct.
-        LastDeleted = null;
-        return Task.CompletedTask;
-    }
-
-    [RelayCommand]
-    public void UndoDelete()
-    {
-        Debug.Assert(LastDeleted != null, nameof(LastDeleted) + " != null");
-
-        Source.AddOrUpdate(LastDeleted);
-        LastDeleted = null;
     }
 
     [RelayCommand]

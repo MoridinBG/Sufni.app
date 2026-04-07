@@ -10,11 +10,10 @@ using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-// Inherits from ItemListViewModelBase so the shared SearchBar and
-// UndoDeleteButton (which still bind against ItemListViewModelBase) keep
-// working without changes. The base's SourceCache<ItemViewModelBase> is
-// unused — the new flow projects from ISetupStore into a separate
-// `setupRows` collection that shadows the base's Items property.
+// Inherits from ItemListViewModelBase for the shared search-bar /
+// date-filter / menu-item state. The items collection is owned locally
+// — `setupRows` is a typed projection from the store, exposed via the
+// `new` shadow on `Items`.
 public partial class SetupListViewModel : ItemListViewModelBase
 {
     #region Private fields
@@ -29,7 +28,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     #region Observable properties
 
-    public new ReadOnlyObservableCollection<SetupRowViewModel> Items => setupRows;
+    public ReadOnlyObservableCollection<SetupRowViewModel> Items => setupRows;
 
     #endregion Observable properties
 
@@ -60,9 +59,8 @@ public partial class SetupListViewModel : ItemListViewModelBase
             .Bind(out setupRows)
             .Subscribe();
 
-        // The base's OnSearchTextChanged partial method only refreshes
-        // the (empty) base SourceCache. We need to refresh our own
-        // filter subject when the user types.
+        // Push a fresh predicate to our filter subject whenever the
+        // search text changes.
         PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(SearchText)) RebuildFilter();
@@ -84,8 +82,6 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #endregion Private methods
 
     #region ItemListViewModelBase overrides
-
-    public override Task LoadFromDatabase() => Task.CompletedTask;
 
     protected override void AddImplementation()
     {

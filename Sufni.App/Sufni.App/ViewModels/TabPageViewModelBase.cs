@@ -56,6 +56,12 @@ public partial class TabPageViewModelBase : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private string? name;
 
+    // Used by the EditableTitle control as the optional subtitle. Bike
+    // and setup editors leave this null (and the subtitle hides);
+    // SessionDetailViewModel sets it to the recording's local-time
+    // timestamp after Loaded.
+    [ObservableProperty] private DateTime? timestamp;
+
     #endregion Observable properties
 
     #region Virtual methods
