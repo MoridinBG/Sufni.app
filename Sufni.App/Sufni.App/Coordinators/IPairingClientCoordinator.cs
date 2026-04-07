@@ -52,6 +52,14 @@ public interface IPairingClientCoordinator
     event EventHandler? ServerUrlChanged;
     event EventHandler? IsPairedChanged;
 
+    /// <summary>
+    /// Fires after <see cref="ConfirmPairingAsync"/> successfully
+    /// pairs with a server. Distinct from <see cref="IsPairedChanged"/>,
+    /// which also fires on the startup <c>IsPairedAsync</c> probe —
+    /// this event only fires for a fresh, user-initiated pair.
+    /// </summary>
+    event EventHandler? PairingConfirmed;
+
     void StartBrowsing();
     void StopBrowsing();
 

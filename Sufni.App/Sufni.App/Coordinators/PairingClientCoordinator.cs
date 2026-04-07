@@ -42,6 +42,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     public event EventHandler? DisplayNameChanged;
     public event EventHandler? ServerUrlChanged;
     public event EventHandler? IsPairedChanged;
+    public event EventHandler? PairingConfirmed;
 
     public PairingClientCoordinator(
         ISecureStorage secureStorage,
@@ -151,6 +152,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             isPaired = true;
             IsPairedChanged?.Invoke(this, EventArgs.Empty);
             shell.GoBack();
+            PairingConfirmed?.Invoke(this, EventArgs.Empty);
             return new ConfirmPairingResult.Paired();
         }
         catch (Exception e)
