@@ -5,20 +5,22 @@ using FriendlyNameProvider;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using ServiceDiscovery;
+using Sufni.App.Models;
 using Sufni.App.Services;
 
 namespace Sufni.App.Coordinators;
 
 /// <summary>
-/// Mobile-only singleton owning DeviceId / ServerUrl / IsPaired
-/// state and the pair/confirm/unpair HTTP plumbing. Replaces the
-/// equivalent code that previously lived inside
+/// Mobile-only singleton owning DeviceId / DisplayName / ServerUrl /
+/// IsPaired state and the pair/confirm/unpair HTTP plumbing. Replaces
+/// the equivalent code that previously lived inside
 /// <c>PairingClientViewModel</c>. The view model becomes a thin
 /// observer of this coordinator.
 /// </summary>
 public sealed class PairingClientCoordinator : IPairingClientCoordinator
 {
     private const string DeviceIdKey = "DeviceId";
+    private const string DisplayNameKey = "DisplayName";
 
     private readonly ISecureStorage secureStorage;
     private readonly IHttpApiService httpApiService;
@@ -27,14 +29,17 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private readonly IShellCoordinator shell;
 
     private string? deviceId;
+    private string? displayName;
     private string? serverUrl;
     private bool isPaired;
 
     public string? DeviceId => deviceId;
+    public string? DisplayName => displayName;
     public string? ServerUrl => serverUrl;
     public bool IsPaired => isPaired;
 
     public event EventHandler? DeviceIdChanged;
+    public event EventHandler? DisplayNameChanged;
     public event EventHandler? ServerUrlChanged;
     public event EventHandler? IsPairedChanged;
 
@@ -62,10 +67,20 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         deviceId = await secureStorage.GetStringAsync(DeviceIdKey);
         if (deviceId is null)
         {
-            deviceId = friendlyNameProvider.FriendlyName ?? Guid.NewGuid().ToString();
+            deviceId = Guid.NewGuid().ToString();
             await secureStorage.SetStringAsync(DeviceIdKey, deviceId);
         }
         DeviceIdChanged?.Invoke(this, EventArgs.Empty);
+
+        // DisplayName falls back to the platform friendly name (which
+        // may itself be null) when nothing has been committed yet. The
+        // fallback is not persisted — it stays a default until the user
+        // successfully pairs with one, at which point ConfirmPairingAsync
+        // commits it back.
+        displayName = PairedDevice.NormalizeDisplayName(
+                          await secureStorage.GetStringAsync(DisplayNameKey))
+                      ?? PairedDevice.NormalizeDisplayName(friendlyNameProvider.FriendlyName);
+        DisplayNameChanged?.Invoke(this, EventArgs.Empty);
 
         isPaired = await httpApiService.IsPairedAsync();
         IsPairedChanged?.Invoke(this, EventArgs.Empty);
@@ -99,16 +114,17 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         serviceDiscovery.StopBrowse();
     }
 
-    public async Task<RequestPairingResult> RequestPairingAsync(string deviceId)
+    public async Task<RequestPairingResult> RequestPairingAsync(string? displayName)
     {
         if (serverUrl is null)
         {
             return new RequestPairingResult.Failed("No server discovered.");
         }
 
+        var normalized = PairedDevice.NormalizeDisplayName(displayName);
         try
         {
-            await httpApiService.RequestPairingAsync(serverUrl, deviceId);
+            await httpApiService.RequestPairingAsync(serverUrl, deviceId!, normalized);
             return new RequestPairingResult.Sent();
         }
         catch (Exception e)
@@ -117,21 +133,19 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         }
     }
 
-    public async Task<ConfirmPairingResult> ConfirmPairingAsync(string deviceId, string pin)
+    public async Task<ConfirmPairingResult> ConfirmPairingAsync(string? displayName, string pin)
     {
+        var normalized = PairedDevice.NormalizeDisplayName(displayName);
         try
         {
-            await httpApiService.ConfirmPairingAsync(deviceId, pin);
+            await httpApiService.ConfirmPairingAsync(deviceId!, normalized, pin);
 
-            // If the user edited the DeviceId before confirming, persist
-            // the paired-under value so a later Unpair targets the right
-            // row instead of the old canonical id (the server returns
-            // 200 for unknown ids, leaving the desktop's row stale).
-            if (this.deviceId != deviceId)
+            await secureStorage.SetStringAsync(DisplayNameKey, normalized);
+
+            if (this.displayName != normalized)
             {
-                this.deviceId = deviceId;
-                await secureStorage.SetStringAsync(DeviceIdKey, deviceId);
-                DeviceIdChanged?.Invoke(this, EventArgs.Empty);
+                this.displayName = normalized;
+                DisplayNameChanged?.Invoke(this, EventArgs.Empty);
             }
 
             isPaired = true;
@@ -145,11 +159,11 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         }
     }
 
-    public async Task<UnpairResult> UnpairAsync(string deviceId)
+    public async Task<UnpairResult> UnpairAsync()
     {
         try
         {
-            await httpApiService.UnpairAsync(deviceId);
+            await httpApiService.UnpairAsync(deviceId!);
             // HttpApiService clears local credentials before the network
             // call, so a successful return means both halves succeeded.
             isPaired = false;

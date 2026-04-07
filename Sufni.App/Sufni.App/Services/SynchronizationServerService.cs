@@ -50,7 +50,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly IDatabaseService databaseService;
     private readonly ISecureStorage secureStorage;
 
-    private readonly ConcurrentDictionary<string, (string deviceId, DateTime expiresAt)> pendingPairings = new();
+    private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
     private static string GeneratePin() => RandomNumberGenerator.GetInt32(100000, 999999).ToString();
 
@@ -211,19 +211,26 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPost(EndpointPairRequest, ([FromBody] PairingRequest req) =>
         {
+            var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
             var pin = GeneratePin();
-            pendingPairings[pin] = (req.DeviceId, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
-            PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, pin));
+            pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
+            PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
             return Results.Ok();
         });
 
         app.MapPost(EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
         {
             if (!pendingPairings.TryRemove(req.Pin, out var record)) return Results.Unauthorized();
-            if (record.deviceId != req.DeviceId || record.expiresAt < DateTime.UtcNow) return Results.Unauthorized();
+            var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
+            if (record.deviceId != req.DeviceId ||
+                record.displayName != displayName ||
+                record.expiresAt < DateTime.UtcNow)
+            {
+                return Results.Unauthorized();
+            }
 
             var accessToken = GenerateAccessToken(req.DeviceId);
-            var pairedDevice = new PairedDevice(req.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
+            var pairedDevice = new PairedDevice(req.DeviceId, displayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
             await databaseService.PutPairedDeviceAsync(pairedDevice);
 
             PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
@@ -236,7 +243,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
 
             var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
-            var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
+            var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
             await databaseService.PutPairedDeviceAsync(newPairedDevice);
 
             return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));

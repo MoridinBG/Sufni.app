@@ -13,7 +13,7 @@ public partial class PairingClientViewModel : ViewModelBase
     #region Observable properties
 
     [ObservableProperty] private string? serverUrl;
-    [ObservableProperty] private string? deviceId;
+    [ObservableProperty] private string? displayName;
     [ObservableProperty] private string? pin;
     [ObservableProperty] private bool isRequestSent;
     [ObservableProperty] private bool isPaired;
@@ -42,11 +42,11 @@ public partial class PairingClientViewModel : ViewModelBase
         this.coordinator = coordinator;
         this.shell = shell;
 
-        DeviceId = coordinator.DeviceId;
+        DisplayName = coordinator.DisplayName;
         ServerUrl = coordinator.ServerUrl;
         IsPaired = coordinator.IsPaired;
 
-        coordinator.DeviceIdChanged += OnDeviceIdChanged;
+        coordinator.DisplayNameChanged += OnDisplayNameChanged;
         coordinator.ServerUrlChanged += OnServerUrlChanged;
         coordinator.IsPairedChanged += OnIsPairedChanged;
     }
@@ -55,9 +55,9 @@ public partial class PairingClientViewModel : ViewModelBase
 
     #region Private methods
 
-    private void OnDeviceIdChanged(object? sender, EventArgs e)
+    private void OnDisplayNameChanged(object? sender, EventArgs e)
     {
-        Dispatcher.UIThread.InvokeAsync(() => DeviceId = coordinator.DeviceId);
+        Dispatcher.UIThread.InvokeAsync(() => DisplayName = coordinator.DisplayName);
     }
 
     private void OnServerUrlChanged(object? sender, EventArgs e)
@@ -77,9 +77,7 @@ public partial class PairingClientViewModel : ViewModelBase
     [RelayCommand]
     private async Task RequestPairing()
     {
-        Debug.Assert(DeviceId is not null);
-
-        var result = await coordinator.RequestPairingAsync(DeviceId);
+        var result = await coordinator.RequestPairingAsync(DisplayName);
         switch (result)
         {
             case RequestPairingResult.Sent:
@@ -95,9 +93,8 @@ public partial class PairingClientViewModel : ViewModelBase
     private async Task ConfirmPairing()
     {
         Debug.Assert(Pin is not null);
-        Debug.Assert(DeviceId is not null);
 
-        var result = await coordinator.ConfirmPairingAsync(DeviceId, Pin);
+        var result = await coordinator.ConfirmPairingAsync(DisplayName, Pin);
         switch (result)
         {
             case ConfirmPairingResult.Paired:
@@ -114,9 +111,7 @@ public partial class PairingClientViewModel : ViewModelBase
     [RelayCommand]
     private async Task Unpair()
     {
-        Debug.Assert(DeviceId is not null);
-
-        var result = await coordinator.UnpairAsync(DeviceId);
+        var result = await coordinator.UnpairAsync();
         switch (result)
         {
             case UnpairResult.Unpaired:

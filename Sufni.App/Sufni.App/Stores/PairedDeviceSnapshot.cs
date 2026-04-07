@@ -12,8 +12,9 @@ namespace Sufni.App.Stores;
 /// </summary>
 public sealed record PairedDeviceSnapshot(
     string DeviceId,
+    string? DisplayName,
     DateTime Expires)
 {
     public static PairedDeviceSnapshot From(PairedDevice device) =>
-        new(device.DeviceId, device.Expires);
+        new(device.DeviceId, device.DisplayName, device.Expires);
 }

@@ -16,7 +16,20 @@ public partial class PairingServerViewModel : ViewModelBase
 
     [ObservableProperty] private string? pairingPin;
     [ObservableProperty] private string? requestingId;
+    [ObservableProperty] private string? requestingDisplayName;
     [ObservableProperty] private double remaining;
+
+    /// <summary>
+    /// Human-readable label for the pairing prompt: prefer the
+    /// requester's <see cref="RequestingDisplayName"/>, fall back to
+    /// the opaque <see cref="RequestingId"/> when no display name was
+    /// supplied (e.g. older clients) or it is blank/whitespace.
+    /// </summary>
+    public string? RequestingName =>
+        string.IsNullOrWhiteSpace(RequestingDisplayName) ? RequestingId : RequestingDisplayName;
+
+    partial void OnRequestingIdChanged(string? value) => OnPropertyChanged(nameof(RequestingName));
+    partial void OnRequestingDisplayNameChanged(string? value) => OnPropertyChanged(nameof(RequestingName));
 
     #endregion
 
@@ -47,6 +60,7 @@ public partial class PairingServerViewModel : ViewModelBase
         {
             PairingPin = e.Pin;
             RequestingId = e.DeviceId;
+            RequestingDisplayName = e.DisplayName;
             Remaining = 0.999;
             timer.Start();
         };

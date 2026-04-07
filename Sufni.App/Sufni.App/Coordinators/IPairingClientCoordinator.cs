@@ -17,12 +17,22 @@ namespace Sufni.App.Coordinators;
 public interface IPairingClientCoordinator
 {
     /// <summary>
-    /// Local, canonical device id loaded from secure storage on
-    /// construction. The VM keeps an editable copy bound to the text
-    /// box; the coordinator's value only changes when the user
-    /// successfully pairs with a (possibly modified) DeviceId.
+    /// Stable, opaque device id loaded from secure storage on
+    /// construction. Generated as a fresh <see cref="Guid"/> on first
+    /// run. Not user-editable — the human-readable label lives on
+    /// <see cref="DisplayName"/>.
     /// </summary>
     string? DeviceId { get; }
+
+    /// <summary>
+    /// Optional human-readable label for this device. Loaded from
+    /// secure storage if previously committed; otherwise defaults to
+    /// the platform's friendly name (which may itself be null).
+    /// The VM keeps an editable copy bound to the text box; the
+    /// coordinator's value only persists when the user successfully
+    /// pairs with a (possibly modified) display name.
+    /// </summary>
+    string? DisplayName { get; }
 
     /// <summary>
     /// Latest discovered server URL, null when no server is currently
@@ -38,15 +48,16 @@ public interface IPairingClientCoordinator
     bool IsPaired { get; }
 
     event EventHandler? DeviceIdChanged;
+    event EventHandler? DisplayNameChanged;
     event EventHandler? ServerUrlChanged;
     event EventHandler? IsPairedChanged;
 
     void StartBrowsing();
     void StopBrowsing();
 
-    Task<RequestPairingResult> RequestPairingAsync(string deviceId);
-    Task<ConfirmPairingResult> ConfirmPairingAsync(string deviceId, string pin);
-    Task<UnpairResult> UnpairAsync(string deviceId);
+    Task<RequestPairingResult> RequestPairingAsync(string? displayName);
+    Task<ConfirmPairingResult> ConfirmPairingAsync(string? displayName, string pin);
+    Task<UnpairResult> UnpairAsync();
 }
 
 public abstract record RequestPairingResult

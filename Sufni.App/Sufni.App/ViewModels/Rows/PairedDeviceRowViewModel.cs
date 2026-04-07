@@ -27,14 +27,19 @@ public partial class PairedDeviceRowViewModel : ObservableObject, IListItemRow
     private readonly Action<string>? reportError;
 
     public string DeviceId { get; private set; }
+    public string? DisplayName { get; private set; }
 
     [ObservableProperty] private DateTime expires;
 
     /// <summary>
-    /// The control template binds <c>Text="{Binding Name}"</c>, so
-    /// <see cref="Name"/> just forwards <see cref="DeviceId"/>.
+    /// The control template binds <c>Text="{Binding Name}"</c>. Prefer
+    /// the human-readable <see cref="DisplayName"/> when present, fall
+    /// back to the opaque <see cref="DeviceId"/> when it is null,
+    /// empty, or whitespace (older rows stored before the
+    /// <c>display_name</c> column existed have a NULL display name).
     /// </summary>
-    public string? Name => DeviceId;
+    public string? Name =>
+        string.IsNullOrWhiteSpace(DisplayName) ? DeviceId : DisplayName;
 
     public DateTime? Timestamp => Expires;
     public bool IsComplete => true;
@@ -54,12 +59,14 @@ public partial class PairedDeviceRowViewModel : ObservableObject, IListItemRow
         this.coordinator = coordinator;
         this.reportError = reportError;
         DeviceId = snapshot.DeviceId;
+        DisplayName = snapshot.DisplayName;
         Expires = snapshot.Expires;
     }
 
     public void Update(PairedDeviceSnapshot snapshot)
     {
         DeviceId = snapshot.DeviceId;
+        DisplayName = snapshot.DisplayName;
         Expires = snapshot.Expires;
         OnPropertyChanged(nameof(Timestamp));
         OnPropertyChanged(nameof(Name));
