@@ -163,32 +163,25 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<UnpairResult> UnpairAsync()
     {
+        UnpairResult result;
         try
         {
             await httpApiService.UnpairAsync(deviceId!);
-            // HttpApiService clears local credentials before the network
-            // call, so a successful return means both halves succeeded.
-            isPaired = false;
-            IsPairedChanged?.Invoke(this, EventArgs.Empty);
-            return new UnpairResult.Unpaired();
+            result = new UnpairResult.Unpaired();
         }
         catch (HttpRequestException e)
         {
-            // Local credentials are already gone (HttpApiService.UnpairAsync
-            // wipes them before issuing the network call), so the device
-            // is locally unpaired regardless of the network failure.
-            isPaired = false;
-            IsPairedChanged?.Invoke(this, EventArgs.Empty);
-            return new UnpairResult.LocalOnly(e.Message);
+            result = new UnpairResult.LocalOnly(e.Message);
         }
         catch (Exception e)
         {
-            // For consistency with the existing behaviour: HttpApiService
-            // clears credentials before the network call, so we treat
-            // the local state as unpaired here too.
-            isPaired = false;
-            IsPairedChanged?.Invoke(this, EventArgs.Empty);
-            return new UnpairResult.Failed(e.Message);
+            result = new UnpairResult.Failed(e.Message);
         }
+
+        // HttpApiService clears local credentials before the network
+        // call, so we are locally unpaired regardless of outcome.
+        isPaired = false;
+        IsPairedChanged?.Invoke(this, EventArgs.Empty);
+        return result;
     }
 }

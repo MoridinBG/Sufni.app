@@ -1,6 +1,8 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Reactive.Disposables;
 using System.Timers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,10 +23,12 @@ namespace Sufni.App.ViewModels
         #endregion Observable properties
         
         #region Private fields
-        
+
         // Timer for notifications. They are closed 3 seconds after the last messages arrived,unless
         // the pointer is over them. In such case, the timer starts when the pointer leaves.
         private readonly Timer notificationsTimer = new(Timeout);
+
+        private CompositeDisposable? scopedSubscriptions;
 
         #endregion Private fields
 
@@ -76,5 +80,25 @@ namespace Sufni.App.ViewModels
         }
 
         #endregion Commands
+
+        #region Scoped subscriptions
+
+        // Page-lifetime subscriptions: created lazily on Loaded, disposed
+        // on Unloaded. Use this rather than constructor-time subscriptions
+        // when the VM is a singleton or its view can be detached/reattached.
+        protected void EnsureScopedSubscription(Action<CompositeDisposable> setup)
+        {
+            if (scopedSubscriptions is not null) return;
+            scopedSubscriptions = new CompositeDisposable();
+            setup(scopedSubscriptions);
+        }
+
+        protected void DisposeScopedSubscriptions()
+        {
+            scopedSubscriptions?.Dispose();
+            scopedSubscriptions = null;
+        }
+
+        #endregion Scoped subscriptions
     }
 }

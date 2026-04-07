@@ -4,15 +4,9 @@ using System.Threading.Tasks;
 namespace Sufni.App.Coordinators;
 
 /// <summary>
-/// Owns the mobile pairing-client workflow. Mobile-only — registered as
-/// a singleton in <c>Sufni.App.iOS/AppDelegate.cs</c> and
-/// <c>Sufni.App.Android/MainActivity.cs</c>. Holds the canonical
-/// device id, the latest discovered server URL, and the
-/// <see cref="IsPaired"/> source of truth. Service-discovery
-/// browsing has the lifetime of the coordinator (and thus of the
-/// app), so the underlying mDNS subscription is started and stopped
-/// via <see cref="StartBrowsing"/> / <see cref="StopBrowsing"/> from
-/// the pairing client view's Loaded/Unloaded.
+/// Owns the mobile pairing-client workflow. Holds the device id, the
+/// latest discovered server URL, and the <see cref="IsPaired"/> source
+/// of truth.
 /// </summary>
 public interface IPairingClientCoordinator
 {

@@ -9,11 +9,9 @@ using Sufni.App.ViewModels.Editors;
 namespace Sufni.App.Coordinators;
 
 /// <summary>
-/// Owns the session feature workflow. Subscribes to the
-/// synchronization server's session events in its constructor and
-/// keeps the <see cref="ISessionStore"/> in sync. Registered as a
-/// singleton; eagerly resolved at app startup so the constructor's
-/// event subscriptions actually run (see step 2.9 in REFACTOR-PLAN.md).
+/// Owns the session feature workflow. Subscribes to the synchronization
+/// server's session events in its constructor and keeps the
+/// <see cref="ISessionStore"/> in sync.
 /// </summary>
 public sealed class SessionCoordinator : ISessionCoordinator
 {
@@ -66,7 +64,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
     public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
     {
         var current = sessionStore.Get(session.Id);
-        if (current is not null && current.Updated > baselineUpdated)
+        if (current.IsNewerThan(baselineUpdated))
         {
             return new SessionSaveResult.Conflict(current);
         }
@@ -104,8 +102,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
 
-        // Close any open editor BEFORE removing the snapshot so no
-        // editor binding observes a missing row mid-teardown.
         shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId);
         sessionStore.Remove(sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);

@@ -58,12 +58,8 @@ public sealed class BikeCoordinator(
 
     public async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
     {
-        // Optimistic conflict detection: if the store's current version
-        // is newer than the baseline the editor opened on, someone else
-        // (another tab, sync) has written in the meantime. For a brand
-        // new bike the store has no entry, so this falls through.
         var current = bikeStore.Get(bike.Id);
-        if (current is not null && current.Updated > baselineUpdated)
+        if (current.IsNewerThan(baselineUpdated))
         {
             return new BikeSaveResult.Conflict(current);
         }
@@ -98,8 +94,6 @@ public sealed class BikeCoordinator(
             return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
         }
 
-        // Close any open editor BEFORE removing the snapshot so no
-        // editor binding observes a missing row mid-teardown.
         shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId);
         bikeStore.Remove(bikeId);
         return new BikeDeleteResult(BikeDeleteOutcome.Deleted);

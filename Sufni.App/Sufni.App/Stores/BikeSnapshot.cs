@@ -7,12 +7,7 @@ namespace Sufni.App.Stores;
 
 /// <summary>
 /// Immutable view of a bike as currently known to the store. Consumers
-/// (rows, editors, queries) read from snapshots; they never mutate them.
-/// To get an updated version, ask the store.
-///
-/// The <see cref="Updated"/> field is the version used for optimistic
-/// conflict detection at save time — see the "Store / editor snapshot
-/// and conflict protocol" section of REFACTOR-PLAN.md.
+/// read from snapshots; to get an updated version, ask the store.
 /// </summary>
 public sealed record BikeSnapshot(
     Guid Id,
@@ -24,7 +19,7 @@ public sealed record BikeSnapshot(
     double PixelsToMillimeters,
     Linkage? Linkage,
     Bitmap? Image,
-    long Updated)
+    long Updated) : IVersionedSnapshot
 {
     public static BikeSnapshot From(Bike bike) => new(
         bike.Id,

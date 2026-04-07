@@ -105,17 +105,12 @@ public partial class App : Application
         IsDesktop = ServiceCollection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
         Services = ServiceCollection.BuildServiceProvider();
 
-        // Eagerly resolve SessionCoordinator so its constructor runs and
-        // the synchronization-server event subscriptions are wired before
-        // any sync arrives. Nothing else depends on it directly until a
-        // session row or editor is opened.
+        // Coordinators with constructor-time event subscriptions are
+        // eagerly resolved here so the subscriptions are wired before any
+        // sync, pairing, or telemetry arrival can happen.
         _ = Services.GetRequiredService<ISessionCoordinator>();
-
-        // Same reason for the paired-device coordinator: its constructor
-        // subscribes to PairingConfirmed/Unpaired and nothing else
-        // depends on it until the user opens the paired-devices side
-        // panel.
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
+        _ = Services.GetRequiredService<ISyncCoordinator>();
 
         // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
         // before the pairing screen is opened.
@@ -132,11 +127,6 @@ public partial class App : Application
             _ = Services.GetService<IPairingServerCoordinator>();
             _ = Services.GetService<IInboundSyncCoordinator>();
         }
-
-        // Shared sync coordinator: eagerly resolved so its
-        // IsPairedChanged subscription on the pairing client coordinator
-        // (when present) wires up at startup.
-        _ = Services.GetRequiredService<ISyncCoordinator>();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogService = Services.GetRequiredService<IDialogService>();

@@ -18,9 +18,7 @@ public sealed class SetupCoordinator(
 {
     public Task OpenCreateAsync(Guid? suggestedBoardId = null)
     {
-        // Honour the suggested board ID only if it isn't already
-        // associated with another setup. This is the check that used
-        // to live in SetupListViewModel.AddImplementation.
+        // Honour the suggested board ID only if no other setup claims it.
         Guid? actualBoardId = null;
         if (suggestedBoardId.HasValue && setupStore.FindByBoardId(suggestedBoardId.Value) is null)
         {
@@ -70,37 +68,16 @@ public sealed class SetupCoordinator(
 
     public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
     {
-        // Optimistic conflict detection: if the store's current version
-        // is newer than the baseline the editor opened on, someone else
-        // (another tab, sync) has written in the meantime. For a brand
-        // new setup the store has no entry, so this falls through.
         var current = setupStore.Get(setup.Id);
-        if (current is not null && current.Updated > baselineUpdated)
+        if (current.IsNewerThan(baselineUpdated))
         {
             return new SetupSaveResult.Conflict(current);
         }
 
         try
         {
-            // The previously stored board association — null for a brand
-            // new setup or one that wasn't associated with a board.
-            var originalBoardId = current?.BoardId;
-
             await databaseService.PutAsync(setup);
-
-            // If this setup was already associated with another board, clear that association.
-            // Do not delete the board though, it might be picked up later.
-            if (originalBoardId.HasValue && originalBoardId != boardId)
-            {
-                await databaseService.PutAsync(new Board(originalBoardId.Value, null));
-            }
-
-            // If the board ID changed (or this is the first time we set
-            // it), associate the new board with this setup.
-            if (boardId.HasValue && originalBoardId != boardId)
-            {
-                await databaseService.PutAsync(new Board(boardId.Value, setup.Id));
-            }
+            await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
@@ -126,27 +103,30 @@ public sealed class SetupCoordinator(
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
         }
 
-        // Best-effort: clear the board association after the setup row
-        // is gone. If this throws, the dangling board row is harmless —
-        // setupStore.FindByBoardId will already return null for the
-        // deleted setup.
-        if (snapshot?.BoardId is not null)
-        {
-            try
-            {
-                await databaseService.PutAsync(new Board(snapshot.BoardId.Value, null));
-            }
-            catch
-            {
-                // Ignored; see comment above.
-            }
-        }
+        // Best-effort: a dangling board row is harmless.
+        try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
+        catch { /* ignored */ }
 
-        // Close any open editor BEFORE removing the snapshot so no
-        // editor binding observes a missing row mid-teardown.
         shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId);
         setupStore.Remove(setupId);
 
         return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
+    }
+
+    // Clear the previous board's setup pointer (if any) and set the new
+    // board's setup pointer (if any). No-op when the assignment hasn't
+    // changed. Boards are never deleted — they may be picked up later.
+    private async Task ReassignBoardAsync(Guid? originalBoardId, Guid? newBoardId, Guid setupId)
+    {
+        if (originalBoardId == newBoardId) return;
+
+        if (originalBoardId.HasValue)
+        {
+            await databaseService.PutAsync(new Board(originalBoardId.Value, null));
+        }
+        if (newBoardId.HasValue)
+        {
+            await databaseService.PutAsync(new Board(newBoardId.Value, setupId));
+        }
     }
 }

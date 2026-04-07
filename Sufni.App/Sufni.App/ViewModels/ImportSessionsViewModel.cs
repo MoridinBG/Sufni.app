@@ -8,7 +8,6 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Diagnostics;
@@ -91,7 +90,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupStore? setupStore;
-    private CompositeDisposable? subscriptions;
 
     #endregion Private members
 
@@ -283,17 +281,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     {
         telemetryDataStoreService.StartBrowse();
 
-        // Re-resolve SelectedSetup from the store whenever a setup is
-        // added/updated/removed (e.g. saved from the welcome flow). This
-        // supersedes the legacy `EvaluateSetupExists` push from the
-        // setup-saved code path. Tied to page lifecycle so each
-        // show/hide builds a fresh subscription — the import VM is a
-        // singleton so a constructor-time subscription would silently
-        // drop on first close.
-        if (setupStore is not null && subscriptions is null)
+        // Re-resolve SelectedSetup whenever the setup store changes
+        // (e.g. saved from the welcome flow).
+        if (setupStore is not null)
         {
-            subscriptions = new CompositeDisposable();
-            subscriptions.Add(setupStore.Connect().Subscribe(_ =>
+            EnsureScopedSubscription(s => s.Add(setupStore.Connect().Subscribe(_ =>
                 Dispatcher.UIThread.Post(() =>
                 {
                     var boardId = SelectedDataStore?.BoardId;
@@ -304,7 +296,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                     }
 
                     SelectedSetup = setupStore.FindByBoardId(boardId.Value)?.Id;
-                })));
+                }))));
         }
     }
 
@@ -314,8 +306,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         TelemetryFiles.Clear();
         telemetryDataStoreService.StopBrowse();
 
-        subscriptions?.Dispose();
-        subscriptions = null;
+        DisposeScopedSubscriptions();
     }
 
     #endregion Commands

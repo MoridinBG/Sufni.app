@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
@@ -21,22 +20,8 @@ namespace Sufni.App.ViewModels.Editors;
 
 /// <summary>
 /// Editor view model for a session's detail tab. Constructed by
-/// <c>SessionCoordinator</c> from a <see cref="SessionSnapshot"/>; the
-/// snapshot's <c>Updated</c> value is kept as
-/// <see cref="BaselineUpdated"/> for optimistic conflict detection at
-/// save time. Save and delete route through the coordinator. The local
-/// mobile telemetry-fetch path goes through
-/// <see cref="ISessionCoordinator.EnsureTelemetryDataAvailableAsync"/>.
-///
-/// The editor subscribes to <c>ISessionStore.Watch(Id)</c> in its
-/// <c>Loaded</c> command and disposes the subscription in
-/// <c>Unloaded</c>. The Watch handler is gated on
-/// <c>initialLoadCompleted</c> so the initial load does not race the
-/// reaction triggered by the editor's own
-/// <c>EnsureTelemetryDataAvailableAsync</c> call. After the initial
-/// load, subsequent Watch emissions (sync arrival, recalculation)
-/// trigger an automatic <c>LoadTelemetryData</c>. See
-/// "Telemetry-arrival semantics" in REFACTOR-PLAN.md.
+/// <see cref="SessionCoordinator"/> from a <see cref="SessionSnapshot"/>;
+/// save and delete route back through the coordinator.
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions
 {
@@ -63,7 +48,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
 
-    private CompositeDisposable? subscriptions;
     private bool initialLoadCompleted;
     private bool lastObservedHasProcessedData;
     private Rect? lastLoadedBounds;
@@ -494,15 +478,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         }
         finally
         {
-            // Subscribe AFTER the initial load so the editor's own
-            // EnsureTelemetryDataAvailableAsync call (which upserts the
-            // store) doesn't race the Watch handler with the data we're
-            // about to load ourselves. See "Telemetry-arrival semantics"
-            // in REFACTOR-PLAN.md.
-            if (sessionStore is not null && subscriptions is null)
+            // Subscribe AFTER the initial load so EnsureTelemetryDataAvailableAsync
+            // doesn't race the Watch handler.
+            if (sessionStore is not null)
             {
-                subscriptions = new CompositeDisposable();
-                subscriptions.Add(sessionStore.Watch(Id).Subscribe(OnSnapshotChanged));
+                EnsureScopedSubscription(s => s.Add(sessionStore.Watch(Id).Subscribe(OnSnapshotChanged)));
             }
             initialLoadCompleted = true;
 
@@ -524,8 +504,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [RelayCommand]
     private void Unloaded()
     {
-        subscriptions?.Dispose();
-        subscriptions = null;
+        DisposeScopedSubscriptions();
     }
 
     private void OnSnapshotChanged(SessionSnapshot snapshot)

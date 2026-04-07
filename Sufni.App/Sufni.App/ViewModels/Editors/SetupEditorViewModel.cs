@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -49,7 +48,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
     private Setup setup;
     private Guid? originalBoardId;
-    private CompositeDisposable? subscriptions;
 
     #endregion Private fields
 
@@ -340,25 +338,21 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     [RelayCommand]
     private void Loaded()
     {
-        if (bikeStore is null || subscriptions is not null) return;
+        if (bikeStore is null) return;
 
-        subscriptions = new CompositeDisposable();
-        subscriptions.Add(
+        EnsureScopedSubscription(s => s.Add(
             bikeStore.Connect()
                 .Bind(bikesSource)
-                .Subscribe());
+                .Subscribe()));
 
-        // Re-resolve SelectedBike now that the collection is populated
-        // — the constructor's ResetImplementation ran while bikesSource
-        // was still empty.
+        // Re-resolve SelectedBike now the bikesSource is populated.
         SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId);
     }
 
     [RelayCommand]
     private void Unloaded()
     {
-        subscriptions?.Dispose();
-        subscriptions = null;
+        DisposeScopedSubscriptions();
 
         // Clear the source so a subsequent Loaded rebuilds from scratch.
         bikesSource.Clear();

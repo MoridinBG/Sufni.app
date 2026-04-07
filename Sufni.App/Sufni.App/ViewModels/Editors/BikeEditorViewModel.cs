@@ -4,7 +4,6 @@ using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reactive.Disposables;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,7 +54,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private Bike bike;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
-    private CompositeDisposable? subscriptions;
 
     #endregion Private fields
 
@@ -661,26 +659,21 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         CheckLinkage(bike.Linkage!);
 
-        // Subscribe to setup-store changes so the Delete / FakeDelete
-        // CanExecute reflects "in use" updates while the editor is
-        // visible. The subscription is recreated on every Loaded so
-        // detach/reattach (desktop tab switching) rebuilds it cleanly.
-        if (setupStore is not null && subscriptions is null)
+        // Refresh Delete CanExecute when "in use" status changes.
+        if (setupStore is not null)
         {
-            subscriptions = new CompositeDisposable();
-            subscriptions.Add(setupStore.Connect().Subscribe(_ =>
+            EnsureScopedSubscription(s => s.Add(setupStore.Connect().Subscribe(_ =>
             {
                 DeleteCommand.NotifyCanExecuteChanged();
                 FakeDeleteCommand.NotifyCanExecuteChanged();
-            }));
+            })));
         }
     }
 
     [RelayCommand]
     private void Unloaded()
     {
-        subscriptions?.Dispose();
-        subscriptions = null;
+        DisposeScopedSubscriptions();
     }
 
     #endregion Commands
