@@ -320,6 +320,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     {
         var s = new Session(snapshot.Id, snapshot.Name, snapshot.Description, snapshot.SetupId, snapshot.Timestamp)
         {
+            FullTrack = snapshot.FullTrackId,
             FrontSpringRate = snapshot.FrontSpringRate,
             FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
             FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,

@@ -182,12 +182,21 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private static Bike BikeFromSnapshot(BikeSnapshot snapshot)
     {
+        // Order matters: Linkage must be set before ShockStroke, because
+        // Bike.ShockStroke's setter writes through to Linkage.ShockStroke
+        // and silently no-ops when Linkage is null. Chainstay uses an
+        // init-only setter on Bike and is restored explicitly here so
+        // UpdateFromBike does not have to fall back to the lazy
+        // CalculateChainstay() path — the snapshot is already the
+        // canonical view of the bike's chainstay value.
         var b = new Bike(snapshot.Id, snapshot.Name)
         {
             HeadAngle = snapshot.HeadAngle,
             ForkStroke = snapshot.ForkStroke,
+            Chainstay = snapshot.Chainstay,
             PixelsToMillimeters = snapshot.PixelsToMillimeters,
             Linkage = snapshot.Linkage,
+            ShockStroke = snapshot.ShockStroke,
             Image = snapshot.Image,
             Updated = snapshot.Updated
         };
