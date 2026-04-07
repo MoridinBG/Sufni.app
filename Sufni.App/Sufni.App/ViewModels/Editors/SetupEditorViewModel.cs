@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
+using DynamicData.Binding;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
@@ -43,9 +45,11 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private readonly ISetupCoordinator? setupCoordinator;
     private readonly IBikeCoordinator bikeCoordinator;
-    private readonly ReadOnlyObservableCollection<BikeSnapshot> bikes;
+    private readonly IBikeStore? bikeStore;
+    private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
     private Setup setup;
     private Guid? originalBoardId;
+    private CompositeDisposable? subscriptions;
 
     #endregion Private fields
 
@@ -74,7 +78,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private SensorConfigurationViewModel? shockSensorConfiguration;
 
-    public ReadOnlyObservableCollection<BikeSnapshot> Bikes => bikes;
+    public ReadOnlyObservableCollection<BikeSnapshot> Bikes { get; }
     public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];
     public List<SensorType?> ShockSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Shock"))];
 
@@ -133,7 +137,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         setupCoordinator = null;
         bikeCoordinator = null!;
-        bikes = new ReadOnlyObservableCollection<BikeSnapshot>([]);
+        bikeStore = null;
+        Bikes = new ReadOnlyObservableCollection<BikeSnapshot>(bikesSource);
         setup = new Setup();
         Id = setup.Id;
         IsInDatabase = false;
@@ -151,10 +156,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         this.setupCoordinator = setupCoordinator;
         this.bikeCoordinator = bikeCoordinator;
-
-        bikeStore.Connect()
-            .Bind(out bikes)
-            .Subscribe();
+        this.bikeStore = bikeStore;
+        Bikes = new ReadOnlyObservableCollection<BikeSnapshot>(bikesSource);
 
         IsInDatabase = !isNew;
         Id = snapshot.Id;
@@ -162,6 +165,10 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         setup = SetupFromSnapshot(snapshot);
         originalBoardId = snapshot.BoardId;
 
+        // Populate name / sensor / board fields immediately so the
+        // editor renders correctly even before Loaded fires. SelectedBike
+        // is resolved a second time from Loaded, after the bike-store
+        // bind subscription publishes its initial snapshot.
         ResetImplementation();
     }
 
@@ -328,6 +335,33 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     private void FakeDelete()
     {
         // Exists so the editor button strip can bind to a delete command.
+    }
+
+    [RelayCommand]
+    private void Loaded()
+    {
+        if (bikeStore is null || subscriptions is not null) return;
+
+        subscriptions = new CompositeDisposable();
+        subscriptions.Add(
+            bikeStore.Connect()
+                .Bind(bikesSource)
+                .Subscribe());
+
+        // Re-resolve SelectedBike now that the collection is populated
+        // — the constructor's ResetImplementation ran while bikesSource
+        // was still empty.
+        SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId);
+    }
+
+    [RelayCommand]
+    private void Unloaded()
+    {
+        subscriptions?.Dispose();
+        subscriptions = null;
+
+        // Clear the source so a subsequent Loaded rebuilds from scratch.
+        bikesSource.Clear();
     }
 
     #endregion Commands

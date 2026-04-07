@@ -12,6 +12,7 @@ public sealed class SetupCoordinator(
     IBikeStore bikeStore,
     IBikeCoordinator bikeCoordinator,
     IDatabaseService databaseService,
+    ITelemetryDataStoreService telemetryDataStoreService,
     IShellCoordinator shell,
     IDialogService dialogService) : ISetupCoordinator
 {
@@ -41,6 +42,12 @@ public sealed class SetupCoordinator(
         };
         shell.Open(editor);
         return Task.CompletedTask;
+    }
+
+    public Task OpenCreateForDetectedBoardAsync()
+    {
+        var detected = telemetryDataStoreService.DetectConnectedBoardId();
+        return OpenCreateAsync(detected);
     }
 
     public Task OpenEditAsync(Guid setupId)

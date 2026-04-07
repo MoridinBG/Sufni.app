@@ -11,12 +11,16 @@ namespace Sufni.App.ViewModels.Rows;
 /// Presentation wrapper around a <see cref="BikeSnapshot"/> for use
 /// inside a list. Row view models are cheap, non-editable and refresh
 /// themselves via <see cref="Update"/> when the underlying snapshot
-/// changes. Open/delete commands route through
-/// <see cref="IBikeCoordinator"/>.
+/// changes. <see cref="OpenPage"/> routes through
+/// <see cref="IBikeCoordinator"/>; <see cref="UndoableDelete"/> hands
+/// the row back to the owning list view model via the
+/// <c>requestDelete</c> callback so the list can run its pending-delete
+/// undo window before finalizing.
 /// </summary>
 public partial class BikeRowViewModel : ObservableObject, IListItemRow
 {
     private readonly IBikeCoordinator? bikeCoordinator;
+    private readonly Action<BikeRowViewModel>? requestDelete;
 
     public Guid Id { get; private set; }
 
@@ -30,11 +34,16 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow
     public BikeRowViewModel()
     {
         bikeCoordinator = null;
+        requestDelete = null;
     }
 
-    public BikeRowViewModel(BikeSnapshot snapshot, IBikeCoordinator bikeCoordinator)
+    public BikeRowViewModel(
+        BikeSnapshot snapshot,
+        IBikeCoordinator bikeCoordinator,
+        Action<BikeRowViewModel> requestDelete)
     {
         this.bikeCoordinator = bikeCoordinator;
+        this.requestDelete = requestDelete;
         Update(snapshot);
     }
 
@@ -52,10 +61,9 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow
     }
 
     [RelayCommand]
-    private async Task UndoableDelete()
+    private void UndoableDelete()
     {
-        if (bikeCoordinator is null) return;
-        await bikeCoordinator.DeleteAsync(Id);
+        requestDelete?.Invoke(this);
     }
 
     [RelayCommand]
@@ -64,10 +72,6 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow
         // Exists so the controls can bind to a delete command on this row.
     }
 
-    // Explicit interface implementations: the source generator emits
-    // IAsyncRelayCommand for async [RelayCommand] methods, which C#
-    // does not accept as an implicit implementation of the interface's
-    // IRelayCommand property.
     IRelayCommand IListItemRow.OpenPageCommand => OpenPageCommand;
     IRelayCommand IListItemRow.UndoableDeleteCommand => UndoableDeleteCommand;
     IRelayCommand IListItemRow.FakeDeleteCommand => FakeDeleteCommand;

@@ -39,13 +39,6 @@ public interface IBikeCoordinator
     /// referenced by a setup.
     /// </summary>
     Task<BikeDeleteResult> DeleteAsync(Guid bikeId);
-
-    /// <summary>
-    /// True if the bike can be deleted right now. Used to enable/disable
-    /// row-level delete commands; the authoritative check still happens
-    /// inside <see cref="DeleteAsync"/>.
-    /// </summary>
-    Task<bool> CanDeleteAsync(Guid bikeId);
 }
 
 /// <summary>

@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reactive.Disposables;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,8 +14,10 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DynamicData;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.LinkageParts;
@@ -47,9 +50,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IFilesService filesService;
+    private readonly IBikeDependencyQuery? dependencyQuery;
+    private readonly ISetupStore? setupStore;
     private Bike bike;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
+    private CompositeDisposable? subscriptions;
 
     #endregion Private fields
 
@@ -143,6 +149,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         bikeCoordinator = null;
         filesService = null!;
+        dependencyQuery = null;
+        setupStore = null;
         bike = new Bike();
         IsInDatabase = false;
 
@@ -155,12 +163,16 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         bool isNew,
         IBikeCoordinator bikeCoordinator,
         IFilesService filesService,
+        IBikeDependencyQuery dependencyQuery,
+        ISetupStore setupStore,
         IShellCoordinator shell,
         IDialogService dialogService)
         : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.filesService = filesService;
+        this.dependencyQuery = dependencyQuery;
+        this.setupStore = setupStore;
         IsInDatabase = !isNew;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
@@ -488,7 +500,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
-    [RelayCommand]
+    private bool CanDelete() =>
+        !IsInDatabase || dependencyQuery is null || !dependencyQuery.IsBikeInUse(Id);
+
+    [RelayCommand(CanExecute = nameof(CanDelete))]
     private async Task Delete(bool navigateBack)
     {
         if (bikeCoordinator is null) return;
@@ -514,7 +529,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDelete))]
     private void FakeDelete()
     {
         // Exists so the editor button strip can bind to a delete command.
@@ -645,6 +660,27 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private void Loaded()
     {
         CheckLinkage(bike.Linkage!);
+
+        // Subscribe to setup-store changes so the Delete / FakeDelete
+        // CanExecute reflects "in use" updates while the editor is
+        // visible. The subscription is recreated on every Loaded so
+        // detach/reattach (desktop tab switching) rebuilds it cleanly.
+        if (setupStore is not null && subscriptions is null)
+        {
+            subscriptions = new CompositeDisposable();
+            subscriptions.Add(setupStore.Connect().Subscribe(_ =>
+            {
+                DeleteCommand.NotifyCanExecuteChanged();
+                FakeDeleteCommand.NotifyCanExecuteChanged();
+            }));
+        }
+    }
+
+    [RelayCommand]
+    private void Unloaded()
+    {
+        subscriptions?.Dispose();
+        subscriptions = null;
     }
 
     #endregion Commands

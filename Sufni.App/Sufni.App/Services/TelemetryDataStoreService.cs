@@ -143,4 +143,27 @@ internal class TelemetryDataStoreService : ITelemetryDataStoreService
         serviceDiscovery.StopBrowse();
         DataStores.Clear();
     }
+
+    public Guid? DetectConnectedBoardId()
+    {
+        // Pure read: do not construct a MassStorageTelemetryDataStore,
+        // its constructor creates the uploaded/ subdirectory as a side
+        // effect. Mass-storage only — the network case requires async
+        // mDNS discovery and is not the realistic first-run scenario.
+        try
+        {
+            var drive = DriveInfo.GetDrives()
+                .FirstOrDefault(d => d is { IsReady: true } &&
+                                     File.Exists(Path.Combine(d.RootDirectory.FullName, "BOARDID")));
+            if (drive is null) return null;
+
+            var serialHex = File.ReadAllText(
+                Path.Combine(drive.RootDirectory.FullName, "BOARDID")).ToLower();
+            return UuidUtil.CreateDeviceUuid(serialHex);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

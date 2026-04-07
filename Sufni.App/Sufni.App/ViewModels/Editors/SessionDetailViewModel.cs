@@ -101,7 +101,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         TelemetryData = await databaseService.GetSessionPsstAsync(Id);
         if (TelemetryData is null)
         {
-            throw new Exception("Database error");
+            // Desktop sync server case: the metadata row arrived via
+            // SyncPush but the psst blob upload (PatchSessionData) has
+            // not landed yet. Leave TelemetryData null and let the
+            // Watch subscription installed in Loaded fire LoadTelemetryData
+            // again when the blob arrives. OnTelemetryDataChanged maps
+            // null → IsComplete = false so the UI shows "loading" state.
+            return;
         }
 
         if (TelemetryData.Front.Present)
@@ -473,12 +479,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
             Debug.Assert(App.Current is not null);
             if (App.Current.IsDesktop)
             {
-                if (sessionCoordinator is not null)
-                {
-                    await sessionCoordinator.EnsureTelemetryDataAvailableAsync(Id);
-                }
+                // Desktop is the sync receiver: it does not have an
+                // HttpApiService.ServerUrl to download the psst from,
+                // so don't go through EnsureTelemetryDataAvailableAsync
+                // here. If the blob is missing the Watch subscription
+                // installed below will trigger another LoadTelemetryData
+                // when the client uploads it. LoadTrack is only called
+                // once telemetry actually loaded — it dereferences
+                // TelemetryData.Metadata.
                 await LoadTelemetryData();
-                await LoadTrack();
+                if (TelemetryData is not null)
+                {
+                    await LoadTrack();
+                }
             }
             else if (!await LoadCache())
             {
@@ -531,7 +544,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                     // Desktop binds plot views directly to TelemetryData,
                     // so reloading the blob is enough.
                     await LoadTelemetryData();
-                    await LoadTrack();
+                    if (TelemetryData is not null)
+                    {
+                        await LoadTrack();
+                    }
                 }
                 else
                 {

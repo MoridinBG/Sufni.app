@@ -10,6 +10,7 @@ namespace Sufni.App.Coordinators;
 
 public sealed class BikeCoordinator(
     IBikeStoreWriter bikeStore,
+    ISetupStore setupStore,
     IDatabaseService databaseService,
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
@@ -25,6 +26,8 @@ public sealed class BikeCoordinator(
             isNew: true,
             this,
             filesService,
+            dependencyQuery,
+            setupStore,
             shell,
             dialogService)
         {
@@ -46,6 +49,8 @@ public sealed class BikeCoordinator(
                 isNew: false,
                 this,
                 filesService,
+                dependencyQuery,
+                setupStore,
                 shell,
                 dialogService));
         return Task.CompletedTask;
@@ -99,7 +104,4 @@ public sealed class BikeCoordinator(
         bikeStore.Remove(bikeId);
         return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
     }
-
-    public async Task<bool> CanDeleteAsync(Guid bikeId) =>
-        !await dependencyQuery.IsBikeInUseAsync(bikeId);
 }

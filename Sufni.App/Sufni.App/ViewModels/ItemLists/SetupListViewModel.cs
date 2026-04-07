@@ -23,6 +23,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
     private readonly ImportSessionsViewModel importSessionsPage;
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
+    private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
 
@@ -54,7 +55,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
         setupStore.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new SetupRowViewModel(snapshot, setupCoordinator),
+                snapshot => new SetupRowViewModel(snapshot, setupCoordinator, RequestRowDelete),
                 (row, snapshot) => row.Update(snapshot))
             .Bind(out setupRows)
             .Subscribe();
@@ -69,19 +70,23 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     #endregion Constructors
 
-    #region Private methods
+    #region ItemListViewModelBase overrides
 
-    private void RebuildFilter()
+    protected override void RebuildFilter()
     {
         var current = SearchText;
+        var pendingId = pendingDelete?.Id;
         filterSubject.OnNext(snapshot =>
-            string.IsNullOrEmpty(current) ||
-            snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase));
+            (pendingId is null || snapshot.Id != pendingId) &&
+            (string.IsNullOrEmpty(current) ||
+             snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
     }
 
-    #endregion Private methods
-
-    #region ItemListViewModelBase overrides
+    protected override void OnPendingDeleteUndone()
+    {
+        pendingDelete = null;
+        RebuildFilter();
+    }
 
     protected override void AddImplementation()
     {
@@ -92,6 +97,35 @@ public partial class SetupListViewModel : ItemListViewModelBase
     }
 
     #endregion ItemListViewModelBase overrides
+
+    #region Private methods
+
+    private async void RequestRowDelete(SetupRowViewModel row)
+    {
+        var snapshot = setupStore.Get(row.Id);
+        if (snapshot is null) return;
+
+        await FlushPendingDeleteAsync();
+
+        pendingDelete = (snapshot.Id, snapshot.Name);
+        RebuildFilter();
+
+        StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
+    }
+
+    private async Task FinalizeSetupDeleteAsync(Guid setupId)
+    {
+        pendingDelete = null;
+        RebuildFilter();
+
+        var result = await setupCoordinator.DeleteAsync(setupId);
+        if (result.Outcome == SetupDeleteOutcome.Failed)
+        {
+            ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
+        }
+    }
+
+    #endregion Private methods
 
     #region Commands
 

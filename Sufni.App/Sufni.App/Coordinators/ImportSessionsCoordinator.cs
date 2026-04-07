@@ -26,7 +26,8 @@ public sealed class ImportSessionsCoordinator(
     public async Task<SessionImportResult> ImportAsync(
         ITelemetryDataStore dataStore,
         IReadOnlyList<ITelemetryFile> files,
-        Guid setupId)
+        Guid setupId,
+        IProgress<SessionImportEvent>? progress = null)
     {
         var imported = new List<SessionSnapshot>();
         var failures = new List<(string FileName, string ErrorMessage)>();
@@ -72,10 +73,12 @@ public sealed class ImportSessionsCoordinator(
                     var snapshot = SessionSnapshot.From(session);
                     sessionStore.Upsert(snapshot);
                     imported.Add(snapshot);
+                    progress?.Report(new SessionImportEvent.Imported(snapshot));
                 }
                 catch (Exception e)
                 {
                     failures.Add((telemetryFile.Name, e.Message));
+                    progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
                 }
             }
             else if (telemetryFile.ShouldBeImported is null)
@@ -87,6 +90,7 @@ public sealed class ImportSessionsCoordinator(
                 catch (Exception e)
                 {
                     failures.Add((telemetryFile.Name, e.Message));
+                    progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
                 }
             }
         }

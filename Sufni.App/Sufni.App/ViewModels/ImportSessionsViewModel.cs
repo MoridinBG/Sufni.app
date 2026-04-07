@@ -1,11 +1,14 @@
 ﻿using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DynamicData;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Stores;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Diagnostics;
@@ -87,6 +90,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly IFilesService filesService;
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
+    private readonly ISetupStore? setupStore;
+    private CompositeDisposable? subscriptions;
 
     #endregion Private members
 
@@ -100,6 +105,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         filesService = null!;
         setupCoordinator = null!;
         importSessionsCoordinator = null!;
+        setupStore = null;
     }
 
     public ImportSessionsViewModel(
@@ -109,7 +115,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         ISetupCoordinator setupCoordinator,
-        IImportSessionsCoordinator importSessionsCoordinator)
+        IImportSessionsCoordinator importSessionsCoordinator,
+        ISetupStore setupStore)
         : base(shell, dialogService)
     {
         Name = "Import Sessions";
@@ -118,6 +125,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         this.filesService = filesService;
         this.setupCoordinator = setupCoordinator;
         this.importSessionsCoordinator = importSessionsCoordinator;
+        this.setupStore = setupStore;
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
         TelemetryDataStores.CollectionChanged += (_, e) =>
@@ -204,26 +212,33 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
             ImportInProgress = true;
 
+            // The import is launched on a non-pool Thread, so a
+            // Progress<T>'s captured sync context will not be the UI
+            // thread — marshal manually with Dispatcher.UIThread.Post
+            // so per-file events stream into the UI as they happen.
+            var progress = new Progress<SessionImportEvent>();
+            progress.ProgressChanged += (_, evt) => Dispatcher.UIThread.Post(() =>
+            {
+                switch (evt)
+                {
+                    case SessionImportEvent.Imported imported:
+                        Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
+                        break;
+                    case SessionImportEvent.Failed failed:
+                        ErrorMessages.Add($"Could not import {failed.FileName}: {failed.ErrorMessage}");
+                        break;
+                }
+            });
+
             // The coordinator owns the per-file lifecycle (psst generation,
             // PutSessionAsync, OnImported, store upsert, OnTrashed for
             // unimported files). The VM keeps the data-store browse and
             // file-list refresh because they are screen-scoped UI state.
-            var result = await importSessionsCoordinator.ImportAsync(
+            await importSessionsCoordinator.ImportAsync(
                 SelectedDataStore,
                 TelemetryFiles.ToList(),
-                SelectedSetup!.Value);
-
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                foreach (var snapshot in result.Imported)
-                {
-                    Notifications.Insert(0, $"{snapshot.Name} was successfully imported.");
-                }
-                foreach (var (fileName, errorMessage) in result.Failures)
-                {
-                    ErrorMessages.Add($"Could not import {fileName}: {errorMessage}");
-                }
-            });
+                SelectedSetup!.Value,
+                progress);
 
             var files = await SelectedDataStore.GetFiles();
             TelemetryFiles.Clear();
@@ -267,6 +282,30 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private void Loaded()
     {
         telemetryDataStoreService.StartBrowse();
+
+        // Re-resolve SelectedSetup from the store whenever a setup is
+        // added/updated/removed (e.g. saved from the welcome flow). This
+        // supersedes the legacy `EvaluateSetupExists` push from the
+        // setup-saved code path. Tied to page lifecycle so each
+        // show/hide builds a fresh subscription — the import VM is a
+        // singleton so a constructor-time subscription would silently
+        // drop on first close.
+        if (setupStore is not null && subscriptions is null)
+        {
+            subscriptions = new CompositeDisposable();
+            subscriptions.Add(setupStore.Connect().Subscribe(_ =>
+                Dispatcher.UIThread.Post(() =>
+                {
+                    var boardId = SelectedDataStore?.BoardId;
+                    if (boardId is null)
+                    {
+                        SelectedSetup = null;
+                        return;
+                    }
+
+                    SelectedSetup = setupStore.FindByBoardId(boardId.Value)?.Id;
+                })));
+        }
     }
 
     [RelayCommand]
@@ -274,6 +313,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     {
         TelemetryFiles.Clear();
         telemetryDataStoreService.StopBrowse();
+
+        subscriptions?.Dispose();
+        subscriptions = null;
     }
 
     #endregion Commands
