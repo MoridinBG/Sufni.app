@@ -96,18 +96,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     #region Private methods
 
-    private async Task LoadTelemetryData()
+    private async Task<bool> LoadTelemetryData()
     {
         TelemetryData = await databaseService.GetSessionPsstAsync(Id);
         if (TelemetryData is null)
         {
-            // Desktop sync server case: the metadata row arrived via
-            // SyncPush but the psst blob upload (PatchSessionData) has
-            // not landed yet. Leave TelemetryData null and let the
-            // Watch subscription installed in Loaded fire LoadTelemetryData
-            // again when the blob arrives. OnTelemetryDataChanged maps
-            // null → IsComplete = false so the UI shows "loading" state.
-            return;
+            return false;
         }
 
         if (TelemetryData.Front.Present)
@@ -127,6 +121,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
             DamperPage.RearLscPercentage = rvb.LowSpeedCompression;
             DamperPage.RearHscPercentage = rvb.HighSpeedCompression;
         }
+
+        return true;
     }
 
     private async Task LoadTrack()
@@ -479,16 +475,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
             Debug.Assert(App.Current is not null);
             if (App.Current.IsDesktop)
             {
-                // Desktop is the sync receiver: it does not have an
-                // HttpApiService.ServerUrl to download the psst from,
-                // so don't go through EnsureTelemetryDataAvailableAsync
-                // here. If the blob is missing the Watch subscription
-                // installed below will trigger another LoadTelemetryData
-                // when the client uploads it. LoadTrack is only called
-                // once telemetry actually loaded — it dereferences
-                // TelemetryData.Metadata.
-                await LoadTelemetryData();
-                if (TelemetryData is not null)
+                // Desktop is the sync receiver, no ServerUrl to fetch
+                // from. If the blob isn't here yet the Watch subscription
+                // installed below will retry when it lands.
+                if (await LoadTelemetryData())
                 {
                     await LoadTrack();
                 }
@@ -515,6 +505,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                 subscriptions.Add(sessionStore.Watch(Id).Subscribe(OnSnapshotChanged));
             }
             initialLoadCompleted = true;
+
+            // SourceCache.Watch only emits future events, so an upsert
+            // that landed during the load above was never delivered.
+            // Sweep once to recover. Desktop only — mobile's CreateCache
+            // already drove its own upsert to completion above.
+            if (sessionStore is not null && App.Current is { IsDesktop: true })
+            {
+                var current = sessionStore.Get(Id);
+                if (current is not null && current.HasProcessedData != lastObservedHasProcessedData)
+                {
+                    OnSnapshotChanged(current);
+                }
+            }
         }
     }
 
@@ -543,8 +546,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                 {
                     // Desktop binds plot views directly to TelemetryData,
                     // so reloading the blob is enough.
-                    await LoadTelemetryData();
-                    if (TelemetryData is not null)
+                    if (await LoadTelemetryData())
                     {
                         await LoadTrack();
                     }
