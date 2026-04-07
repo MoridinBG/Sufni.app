@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
-using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Hosts;
 using Sufni.App.ViewModels.Items;
@@ -139,17 +138,15 @@ public partial class ItemListViewModelBase : ViewModelBase, IItemDeletionHost
     }
 
     [RelayCommand]
-    public async Task FinalizeDelete()
+    public Task FinalizeDelete()
     {
         Debug.Assert(LastDeleted != null, nameof(LastDeleted) + " != null");
-
-        switch (LastDeleted)
-        {
-            case SessionViewModel:
-                await databaseService.DeleteAsync<Session>(LastDeleted.Id);
-                break;
-        }
+        // SessionViewModel was the last case here; bikes / setups now
+        // delete via their coordinators directly. Paired devices still
+        // use the legacy host pattern but do their own DB delete in
+        // PairedDeviceViewModel, so this no-op is correct.
         LastDeleted = null;
+        return Task.CompletedTask;
     }
 
     [RelayCommand]

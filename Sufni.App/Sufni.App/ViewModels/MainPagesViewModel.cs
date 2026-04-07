@@ -7,10 +7,10 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ViewModels.Items;
 
@@ -21,7 +21,8 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IDatabaseService databaseService;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
-    private readonly ISessionViewModelFactory sessionViewModelFactory;
+    private readonly ISessionStoreWriter sessionStoreWriter;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly INavigator navigator;
@@ -52,7 +53,8 @@ public partial class MainPagesViewModel : ViewModelBase
         databaseService = null!;
         bikeStoreWriter = null!;
         setupStoreWriter = null!;
-        sessionViewModelFactory = null!;
+        sessionStoreWriter = null!;
+        importSessionsCoordinator = null!;
         filesService = null!;
         synchronizationClientService = null;
         navigator = null!;
@@ -69,7 +71,8 @@ public partial class MainPagesViewModel : ViewModelBase
         IDatabaseService databaseService,
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
-        ISessionViewModelFactory sessionViewModelFactory,
+        ISessionStoreWriter sessionStoreWriter,
+        IImportSessionsCoordinator importSessionsCoordinator,
         IFilesService filesService,
         INavigator navigator,
         IDialogService dialogService,
@@ -86,7 +89,8 @@ public partial class MainPagesViewModel : ViewModelBase
         this.databaseService = databaseService;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
-        this.sessionViewModelFactory = sessionViewModelFactory;
+        this.sessionStoreWriter = sessionStoreWriter;
+        this.importSessionsCoordinator = importSessionsCoordinator;
         this.filesService = filesService;
         this.navigator = navigator;
         this.dialogService = dialogService;
@@ -105,32 +109,18 @@ public partial class MainPagesViewModel : ViewModelBase
         SetupsPage.MenuItems.Add(new("sync", SyncCommand));
         SetupsPage.MenuItems.Add(new("add", SetupsPage.AddCommand));
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
-        SessionsPage.MenuItems.Add(new("import", OpenPageCommand, importSessionsPage));
+        SessionsPage.MenuItems.Add(new("import", OpenImportCommand));
 
         if (synchronizationServer is not null)
         {
-            // update UI when entities arrive from synced device
-            synchronizationServer.SynchronizationDataArrived = data =>
+            // update bike/setup stores when entities arrive from synced
+            // device. Sessions are owned by SessionCoordinator, which
+            // subscribes to the same event in its constructor (via +=).
+            synchronizationServer.SynchronizationDataArrived += data =>
             {
                 Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     await MergeFromDatabase(data);
-                });
-            };
-
-            // update UI when session data arrives from synced device
-            synchronizationServer.SessionDataArrived = id =>
-            {
-                Dispatcher.UIThread.InvokeAsync(async () =>
-                {
-                    var data = await databaseService.GetSessionPsstAsync(id);
-
-                    if (SessionsPage.Source.Items.First(s => s.Id == id) is SessionViewModel session)
-                    {
-                        session.TelemetryData = data;
-                        SessionsPage.Source.AddOrUpdate(session);
-                        SessionsPage.Source.Refresh();
-                    }
                 });
             };
 
@@ -178,7 +168,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
         await bikeStoreWriter.RefreshAsync();
         await setupStoreWriter.RefreshAsync();
-        await SessionsPage.LoadFromDatabase();
+        await sessionStoreWriter.RefreshAsync();
         await PairedDevicesPage.LoadFromDatabase();
 
         DatabaseLoaded = true;
@@ -210,19 +200,6 @@ public partial class MainPagesViewModel : ViewModelBase
                 var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
                 setupStoreWriter.Upsert(SetupSnapshot.From(setup, board?.Id));
             }
-        }
-
-        foreach (var session in data.Sessions)
-        {
-            if (session.Deleted is not null)
-            {
-                SessionsPage.Source.RemoveKey(session.Id);
-            }
-            else
-            {
-                SessionsPage.Source.AddOrUpdate(sessionViewModelFactory.Create(session, true, SessionsPage));
-            }
-            SessionsPage.Source.Refresh();
         }
     }
 
@@ -283,6 +260,9 @@ public partial class MainPagesViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
+
+    [RelayCommand]
+    private async Task OpenImport() => await importSessionsCoordinator.OpenAsync();
 
     [RelayCommand]
     private async Task OpenGpsTracks()

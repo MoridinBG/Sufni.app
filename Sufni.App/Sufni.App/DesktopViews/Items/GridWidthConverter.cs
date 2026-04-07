@@ -25,11 +25,3 @@ public class GridWidthConverter : IValueConverter
         throw new NotSupportedException();
     }
 }
-
-public partial class SessionDesktopView : UserControl
-{
-    public SessionDesktopView()
-    {
-        InitializeComponent();
-    }
-}

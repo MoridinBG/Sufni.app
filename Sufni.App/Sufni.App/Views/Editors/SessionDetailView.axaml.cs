@@ -3,17 +3,17 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Sufni.App.ViewModels.SessionPages;
 
-namespace Sufni.App.Views.Items;
+namespace Sufni.App.Views.Editors;
 
-public partial class SessionView : UserControl
+public partial class SessionDetailView : UserControl
 {
     private bool sizeChanging;
-    public SessionView()
+    public SessionDetailView()
     {
         InitializeComponent();
-        TabHeaders.Items.CollectionChanged += (_, _) => 
+        TabHeaders.Items.CollectionChanged += (_, _) =>
         {
-            if (TabHeaders.ItemCount > 0) 
+            if (TabHeaders.ItemCount > 0)
             {
                 (TabHeaders.Items[0] as PageViewModelBase)!.Selected = true;
             }

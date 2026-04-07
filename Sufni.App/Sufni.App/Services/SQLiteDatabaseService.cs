@@ -153,6 +153,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                  full_track_id,
                                  front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                  rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
+                                 updated,
                                  CASE
                                     WHEN data IS NOT NULL THEN 1
                                     ELSE 0
@@ -165,6 +166,34 @@ public class SqLiteDatabaseService : IDatabaseService
                              """;
         var sessions = await connection.QueryAsync<Session>(query);
         return sessions;
+    }
+
+    public async Task<Session?> GetSessionAsync(Guid id)
+    {
+        await Initialization;
+
+        const string query = """
+                             SELECT
+                                 id,
+                                 name,
+                                 setup_id,
+                                 description,
+                                 timestamp,
+                                 full_track_id,
+                                 front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
+                                 rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
+                                 updated,
+                                 CASE
+                                    WHEN data IS NOT NULL THEN 1
+                                    ELSE 0
+                                 END AS has_data
+                             FROM
+                                 session
+                             WHERE
+                                 deleted IS NULL AND id = ?
+                             """;
+        var sessions = await connection.QueryAsync<Session>(query, id);
+        return sessions.Count == 1 ? sessions[0] : null;
     }
 
     public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
@@ -215,7 +244,8 @@ public class SqLiteDatabaseService : IDatabaseService
                                      name=?,
                                      description=?,
                                      front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                     rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?
+                                     rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                     updated=?
                                  WHERE
                                      id=?
                                  """;
@@ -233,6 +263,7 @@ public class SqLiteDatabaseService : IDatabaseService
                     session.RearLowSpeedCompression,
                     session.RearLowSpeedRebound,
                     session.RearHighSpeedRebound,
+                    session.Updated,
                     session.Id]);
         }
         else

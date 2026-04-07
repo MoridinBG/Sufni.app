@@ -2,36 +2,74 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ScottPlot;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Services;
-using Sufni.App.ViewModels.Hosts;
+using Sufni.App.Stores;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 
-namespace Sufni.App.ViewModels.Items;
+namespace Sufni.App.ViewModels.Editors;
 
-public sealed partial class SessionViewModel : ItemViewModelBase
+/// <summary>
+/// Editor view model for a session's detail tab. Constructed by
+/// <c>SessionCoordinator</c> from a <see cref="SessionSnapshot"/>; the
+/// snapshot's <c>Updated</c> value is kept as
+/// <see cref="BaselineUpdated"/> for optimistic conflict detection at
+/// save time. Save and delete route through the coordinator. The local
+/// mobile telemetry-fetch path goes through
+/// <see cref="ISessionCoordinator.EnsureTelemetryDataAvailableAsync"/>.
+///
+/// The editor subscribes to <c>ISessionStore.Watch(Id)</c> in its
+/// <c>Loaded</c> command and disposes the subscription in
+/// <c>Unloaded</c>. The Watch handler is gated on
+/// <c>initialLoadCompleted</c> so the initial load does not race the
+/// reaction triggered by the editor's own
+/// <c>EnsureTelemetryDataAvailableAsync</c> call. After the initial
+/// load, subsequent Watch emissions (sync arrival, recalculation)
+/// trigger an automatic <c>LoadTelemetryData</c>. See
+/// "Telemetry-arrival semantics" in REFACTOR-PLAN.md.
+/// </summary>
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions
 {
-    public bool IsInDatabase;
+    public Guid Id { get; private set; }
+    public long BaselineUpdated { get; private set; }
+
     public string Description => NotesPage.Description ?? "";
-    
+
+    // Explicit interface implementation: the generated commands are
+    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
+    // non-generic IRelayCommand interface property with.
+    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
+    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
+    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
+    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
+    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
+
     #region Private fields
 
+    private readonly ISessionCoordinator? sessionCoordinator;
+    private readonly ISessionStore? sessionStore;
     private readonly IDatabaseService databaseService;
-    private readonly IHttpApiService httpApiService;
     private Session session;
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
 
+    private CompositeDisposable? subscriptions;
+    private bool initialLoadCompleted;
+    private bool lastObservedHasProcessedData;
+    private Rect? lastLoadedBounds;
+
     #endregion Private fields
-    
+
     #region Public fields
 
     public DamperPageViewModel DamperPage { get; } = new();
@@ -40,12 +78,14 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     #endregion Public fields
 
     #region Observable properties
-    
+
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private string? videoUrl;
     [ObservableProperty] private double? mapVideoWidth;
+    [ObservableProperty] private bool isComplete;
+    [ObservableProperty] private DateTime? timestamp;
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties
@@ -73,7 +113,7 @@ public sealed partial class SessionViewModel : ItemViewModelBase
             DamperPage.FrontLscPercentage = fvb.LowSpeedCompression;
             DamperPage.FrontHscPercentage = fvb.HighSpeedCompression;
         }
-        
+
         if (TelemetryData.Rear.Present)
         {
             var rvb = TelemetryData.CalculateVelocityBands(SuspensionType.Rear, 200);
@@ -107,18 +147,8 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     }
 
     #endregion
-    
+
     #region Private methods [cache, mobile-only]
-
-    private async Task FetchTelemetryDataIfNeeded()
-    {
-        if (IsInDatabase) return;
-
-        var psst = await httpApiService.GetSessionPsstAsync(Id) ?? throw new Exception("Session data could not be downloaded from server.");
-        await databaseService.PatchSessionPsstAsync(Id, psst);
-        session.HasProcessedData = true;
-        IsComplete = true;
-    }
 
     private async Task<bool> LoadCache()
     {
@@ -154,10 +184,13 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
         return true;
     }
-    
+
     private async Task CreateCache(object? bounds)
     {
-        await FetchTelemetryDataIfNeeded();
+        if (sessionCoordinator is not null)
+        {
+            await sessionCoordinator.EnsureTelemetryDataAvailableAsync(Id);
+        }
         await LoadTelemetryData();
         Debug.Assert(TelemetryData is not null);
 
@@ -245,23 +278,32 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     #region Constructors
 
-    public SessionViewModel()
+    public SessionDetailViewModel()
     {
+        sessionCoordinator = null;
+        sessionStore = null;
         databaseService = null!;
-        httpApiService = null!;
         session = new Session();
-        IsInDatabase = false;
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
     }
 
-    internal SessionViewModel(Session session, bool fromDatabase, IDatabaseService databaseService, IHttpApiService httpApiService, INavigator navigator, IDialogService dialogService, IItemDeletionHost deletionHost)
-        : base(navigator, dialogService, deletionHost)
+    internal SessionDetailViewModel(
+        SessionSnapshot snapshot,
+        ISessionCoordinator sessionCoordinator,
+        ISessionStore sessionStore,
+        IDatabaseService databaseService,
+        INavigator navigator,
+        IDialogService dialogService)
+        : base(navigator, dialogService)
     {
+        this.sessionCoordinator = sessionCoordinator;
+        this.sessionStore = sessionStore;
         this.databaseService = databaseService;
-        this.httpApiService = httpApiService;
-        this.session = session;
-        IsInDatabase = fromDatabase;
-        IsComplete = session.HasProcessedData;
+        session = SessionFromSnapshot(snapshot);
+        Id = snapshot.Id;
+        BaselineUpdated = snapshot.Updated;
+        IsComplete = snapshot.HasProcessedData;
+        lastObservedHasProcessedData = snapshot.HasProcessedData;
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
@@ -273,47 +315,98 @@ public sealed partial class SessionViewModel : ItemViewModelBase
 
     #endregion
 
+    #region Private methods
+
+    private static Session SessionFromSnapshot(SessionSnapshot snapshot)
+    {
+        var s = new Session(snapshot.Id, snapshot.Name, snapshot.Description, snapshot.SetupId, snapshot.Timestamp)
+        {
+            FrontSpringRate = snapshot.FrontSpringRate,
+            FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
+            FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
+            FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
+            FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
+            RearSpringRate = snapshot.RearSpringRate,
+            RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
+            RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
+            RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
+            RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
+            HasProcessedData = snapshot.HasProcessedData,
+            Updated = snapshot.Updated,
+        };
+        return s;
+    }
+
+    #endregion Private methods
+
     #region TabPageViewModelBase overrides
 
     protected override void EvaluateDirtiness()
     {
         IsDirty =
-            !IsInDatabase ||
             Name != session.Name ||
             NotesPage.IsDirty(session);
     }
 
     protected override async Task SaveImplementation()
     {
-        try
-        {
-            var newSession = new Session(
-                id: session.Id,
-                name: Name ?? $"session #{session.Id}",
-                description: NotesPage.Description ?? $"session #{session.Id}",
-                setup: session.Setup)
-            {
-                FrontSpringRate = NotesPage.ForkSettings.SpringRate,
-                FrontHighSpeedCompression = NotesPage.ForkSettings.HighSpeedCompression,
-                FrontLowSpeedCompression = NotesPage.ForkSettings.LowSpeedCompression,
-                FrontLowSpeedRebound = NotesPage.ForkSettings.LowSpeedRebound,
-                FrontHighSpeedRebound = NotesPage.ForkSettings.HighSpeedRebound,
-                RearSpringRate = NotesPage.ShockSettings.SpringRate,
-                RearHighSpeedCompression = NotesPage.ShockSettings.HighSpeedCompression,
-                RearLowSpeedCompression = NotesPage.ShockSettings.LowSpeedCompression,
-                RearLowSpeedRebound = NotesPage.ShockSettings.LowSpeedRebound,
-                RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
-                HasProcessedData = IsComplete,
-            };
+        if (sessionCoordinator is null) return;
 
-            await databaseService.PutSessionAsync(newSession);
-            session = newSession;
-            IsDirty = false;
-            IsInDatabase = true;
-        }
-        catch (Exception e)
+        var newSession = new Session(
+            id: session.Id,
+            name: Name ?? $"session #{session.Id}",
+            description: NotesPage.Description ?? $"session #{session.Id}",
+            setup: session.Setup,
+            timestamp: session.Timestamp)
         {
-            ErrorMessages.Add($"Session could not be saved: {e.Message}");
+            FrontSpringRate = NotesPage.ForkSettings.SpringRate,
+            FrontHighSpeedCompression = NotesPage.ForkSettings.HighSpeedCompression,
+            FrontLowSpeedCompression = NotesPage.ForkSettings.LowSpeedCompression,
+            FrontLowSpeedRebound = NotesPage.ForkSettings.LowSpeedRebound,
+            FrontHighSpeedRebound = NotesPage.ForkSettings.HighSpeedRebound,
+            RearSpringRate = NotesPage.ShockSettings.SpringRate,
+            RearHighSpeedCompression = NotesPage.ShockSettings.HighSpeedCompression,
+            RearLowSpeedCompression = NotesPage.ShockSettings.LowSpeedCompression,
+            RearLowSpeedRebound = NotesPage.ShockSettings.LowSpeedRebound,
+            RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
+            HasProcessedData = IsComplete,
+            FullTrack = session.FullTrack,
+        };
+
+        var result = await sessionCoordinator.SaveAsync(newSession, BaselineUpdated);
+        switch (result)
+        {
+            case SessionSaveResult.Saved saved:
+                session = newSession;
+                session.Updated = saved.NewBaselineUpdated;
+                BaselineUpdated = saved.NewBaselineUpdated;
+                IsDirty = false;
+
+                Debug.Assert(App.Current is not null);
+                if (!App.Current.IsDesktop)
+                {
+                    OpenPreviousPage();
+                }
+                break;
+
+            case SessionSaveResult.Conflict conflict:
+                var reload = await dialogService.ShowConfirmationAsync(
+                    "Session changed elsewhere",
+                    "This session has been updated from another source. Discard your changes and reload?");
+                if (reload)
+                {
+                    session = SessionFromSnapshot(conflict.CurrentSnapshot);
+                    BaselineUpdated = conflict.CurrentSnapshot.Updated;
+                    IsComplete = conflict.CurrentSnapshot.HasProcessedData;
+                    lastObservedHasProcessedData = conflict.CurrentSnapshot.HasProcessedData;
+                    await ResetImplementation();
+                    EvaluateDirtiness();
+                }
+                break;
+
+            case SessionSaveResult.Failed failed:
+                ErrorMessages.Add($"Session could not be saved: {failed.ErrorMessage}");
+                break;
         }
     }
 
@@ -340,6 +433,29 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         return Task.CompletedTask;
     }
 
+    [RelayCommand]
+    private async Task Delete(bool navigateBack)
+    {
+        if (sessionCoordinator is null) return;
+
+        var result = await sessionCoordinator.DeleteAsync(Id);
+        switch (result.Outcome)
+        {
+            case SessionDeleteOutcome.Deleted:
+                if (navigateBack) OpenPreviousPage();
+                break;
+            case SessionDeleteOutcome.Failed:
+                ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
+                break;
+        }
+    }
+
+    [RelayCommand]
+    private void FakeDelete()
+    {
+        // Exists so the editor button strip can bind to a delete command.
+    }
+
     #endregion TabPageViewModelBase overrides
 
     #region Commands
@@ -347,11 +463,20 @@ public sealed partial class SessionViewModel : ItemViewModelBase
     [RelayCommand]
     private async Task Loaded(Rect? bounds = null)
     {
+        // Remembered for the Watch handler so the mobile branch can
+        // re-run CreateCache (which needs the scroll viewer bounds for
+        // SVG sizing) when telemetry arrives later.
+        lastLoadedBounds = bounds;
+
         try
         {
             Debug.Assert(App.Current is not null);
             if (App.Current.IsDesktop)
             {
+                if (sessionCoordinator is not null)
+                {
+                    await sessionCoordinator.EnsureTelemetryDataAvailableAsync(Id);
+                }
                 await LoadTelemetryData();
                 await LoadTrack();
             }
@@ -364,6 +489,66 @@ public sealed partial class SessionViewModel : ItemViewModelBase
         {
             ErrorMessages.Add($"Could not load session data: {e.Message}");
         }
+        finally
+        {
+            // Subscribe AFTER the initial load so the editor's own
+            // EnsureTelemetryDataAvailableAsync call (which upserts the
+            // store) doesn't race the Watch handler with the data we're
+            // about to load ourselves. See "Telemetry-arrival semantics"
+            // in REFACTOR-PLAN.md.
+            if (sessionStore is not null && subscriptions is null)
+            {
+                subscriptions = new CompositeDisposable();
+                subscriptions.Add(sessionStore.Watch(Id).Subscribe(OnSnapshotChanged));
+            }
+            initialLoadCompleted = true;
+        }
+    }
+
+    [RelayCommand]
+    private void Unloaded()
+    {
+        subscriptions?.Dispose();
+        subscriptions = null;
+    }
+
+    private void OnSnapshotChanged(SessionSnapshot snapshot)
+    {
+        if (snapshot is null) return;
+        if (!initialLoadCompleted) return;
+        if (snapshot.HasProcessedData == lastObservedHasProcessedData) return;
+
+        lastObservedHasProcessedData = snapshot.HasProcessedData;
+        if (!snapshot.HasProcessedData) return;
+
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                Debug.Assert(App.Current is not null);
+                if (App.Current.IsDesktop)
+                {
+                    // Desktop binds plot views directly to TelemetryData,
+                    // so reloading the blob is enough.
+                    await LoadTelemetryData();
+                    await LoadTrack();
+                }
+                else
+                {
+                    // Mobile binds to the SVG histograms / balance plots
+                    // populated by CreateCache. Re-run that to refresh
+                    // them. Skip if Loaded never ran (no bounds known yet).
+                    if (lastLoadedBounds is not null)
+                    {
+                        await CreateCache(lastLoadedBounds);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                ErrorMessages.Add($"Could not refresh session data: {e.Message}");
+            }
+        });
     }
 
     #endregion

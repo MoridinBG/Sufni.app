@@ -12,25 +12,15 @@ using System.Diagnostics;
 using System.Threading;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Sufni.App.ViewModels.Factories;
-using Sufni.App.ViewModels.Items;
-using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels;
 
-public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSessionsOpener
+public partial class ImportSessionsViewModel : TabPageViewModelBase
 {
-    #region IImportSessionsOpener
-
-    public void OpenImportSessions() => navigator.OpenPage(this);
-
-    #endregion IImportSessionsOpener
-
     #region Observable properties
 
     public ObservableCollection<ITelemetryDataStore>? TelemetryDataStores { get; set; }
     public ObservableCollection<ITelemetryFile> TelemetryFiles { get; } = [];
-    private readonly ISessionSink sessionSink;
 
     [ObservableProperty] private ITelemetryDataStore? selectedDataStore;
     [ObservableProperty] private bool newDataStoresAvailable;
@@ -94,9 +84,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
 
     private readonly IDatabaseService databaseService;
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
-    private readonly ISessionViewModelFactory sessionViewModelFactory;
     private readonly IFilesService filesService;
     private readonly ISetupCoordinator setupCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
 
     #endregion Private members
 
@@ -107,30 +97,27 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
         Name = "Import Sessions";
         databaseService = null!;
         telemetryDataStoreService = null!;
-        sessionViewModelFactory = null!;
         filesService = null!;
-        sessionSink = null!;
         setupCoordinator = null!;
+        importSessionsCoordinator = null!;
     }
 
     public ImportSessionsViewModel(
         IDatabaseService databaseService,
         ITelemetryDataStoreService telemetryDataStoreService,
-        ISessionViewModelFactory sessionViewModelFactory,
         IFilesService filesService,
-        ISessionSink sessionSink,
         INavigator navigator,
         IDialogService dialogService,
-        ISetupCoordinator setupCoordinator)
+        ISetupCoordinator setupCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator)
         : base(navigator, dialogService)
     {
         Name = "Import Sessions";
         this.databaseService = databaseService;
         this.telemetryDataStoreService = telemetryDataStoreService;
-        this.sessionViewModelFactory = sessionViewModelFactory;
         this.filesService = filesService;
-        this.sessionSink = sessionSink;
         this.setupCoordinator = setupCoordinator;
+        this.importSessionsCoordinator = importSessionsCoordinator;
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
         TelemetryDataStores.CollectionChanged += (_, e) =>
@@ -217,59 +204,26 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase, IImportSess
 
             ImportInProgress = true;
 
-            var setup = await databaseService.GetAsync<Setup>(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
-            var bike = await databaseService.GetAsync<Bike>(setup.BikeId);
-            Debug.Assert(bike is not null);
+            // The coordinator owns the per-file lifecycle (psst generation,
+            // PutSessionAsync, OnImported, store upsert, OnTrashed for
+            // unimported files). The VM keeps the data-store browse and
+            // file-list refresh because they are screen-scoped UI state.
+            var result = await importSessionsCoordinator.ImportAsync(
+                SelectedDataStore,
+                TelemetryFiles.ToList(),
+                SelectedSetup!.Value);
 
-            var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-            var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
-
-            var bikeData = new BikeData(
-                bike.HeadAngle,
-                frontSensorConfiguration?.MaxTravel,
-                rearSensorConfiguration?.MaxTravel,
-                frontSensorConfiguration?.MeasurementToTravel,
-                rearSensorConfiguration?.MeasurementToTravel);
-
-            foreach (var telemetryFile in TelemetryFiles.Where(f => f.ShouldBeImported.HasValue && f.ShouldBeImported.Value))
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                try
+                foreach (var snapshot in result.Imported)
                 {
-                    var psst = await telemetryFile.GeneratePsstAsync(bikeData);
-
-                    var session = new Session(
-                        id: Guid.NewGuid(),
-                        name: telemetryFile.Name,
-                        description: telemetryFile.Description,
-                        setup: SelectedSetup!.Value,
-                        timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
-                    {
-                        ProcessedData = psst
-                    };
-
-                    await databaseService.PutSessionAsync(session);
-                    await telemetryFile.OnImported();
-
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        var svm = sessionViewModelFactory.Create(session, true, sessionSink);
-                        sessionSink.Add(svm);
-                        Notifications.Insert(0, $"{svm.Name} was successfully imported.");
-                    });
+                    Notifications.Insert(0, $"{snapshot.Name} was successfully imported.");
                 }
-                catch (Exception e)
+                foreach (var (fileName, errorMessage) in result.Failures)
                 {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        ErrorMessages.Add($"Could not import {telemetryFile.Name}: {e.Message}");
-                    });
+                    ErrorMessages.Add($"Could not import {fileName}: {errorMessage}");
                 }
-            }
-
-            foreach (var telemetryFile in TelemetryFiles.Where(f => !f.ShouldBeImported.HasValue))
-            {
-                await telemetryFile.OnTrashed();
-            }
+            });
 
             var files = await SelectedDataStore.GetFiles();
             TelemetryFiles.Clear();

@@ -1,21 +1,27 @@
-﻿<UserControl
-    x:Class="Sufni.App.Views.Items.SessionView"
+<UserControl
+    x:Class="Sufni.App.Views.Editors.SessionDetailView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
     d:DesignHeight="600"
     d:DesignWidth="500"
-    x:DataType="vm:SessionViewModel"
+    x:DataType="vm:SessionDetailViewModel"
     Background="{StaticResource SufniRegion}"
     Focusable="True"
     mc:Ignorable="d">
 
     <Design.DataContext>
-        <vm:SessionViewModel />
+        <vm:SessionDetailViewModel />
     </Design.DataContext>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
 
     <Grid Margin="20,10,20,10" RowDefinitions="auto auto * auto auto">
 

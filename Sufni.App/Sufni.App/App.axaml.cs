@@ -7,7 +7,6 @@ using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views;
 using Sufni.App.DesktopViews;
@@ -66,19 +65,27 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
         ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
         ServiceCollection.AddSingleton<ISetupCoordinator, SetupCoordinator>();
-        ServiceCollection.AddSingleton<ISessionViewModelFactory, SessionViewModelFactory>();
+        ServiceCollection.AddSingleton<SessionStore>();
+        ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
+        ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
+        ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
+            new ImportSessionsCoordinator(
+                sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<ISessionStoreWriter>(),
+                sp.GetRequiredService<IShellCoordinator>(),
+                () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();
-        ServiceCollection.AddSingleton<ISessionSink>(sp => sp.GetRequiredService<SessionListViewModel>());
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
-        ServiceCollection.AddSingleton<IImportSessionsOpener>(sp => sp.GetRequiredService<ImportSessionsViewModel>());
         ServiceCollection.AddSingleton<SetupListViewModel>();
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
             sp.GetRequiredService<IDatabaseService>(),
             sp.GetRequiredService<IBikeStoreWriter>(),
             sp.GetRequiredService<ISetupStoreWriter>(),
-            sp.GetRequiredService<ISessionViewModelFactory>(),
+            sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<IImportSessionsCoordinator>(),
             sp.GetRequiredService<IFilesService>(),
             sp.GetRequiredService<INavigator>(),
             sp.GetRequiredService<IDialogService>(),
@@ -97,6 +104,12 @@ public partial class App : Application
 
         IsDesktop = ServiceCollection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
         Services = ServiceCollection.BuildServiceProvider();
+
+        // Eagerly resolve SessionCoordinator so its constructor runs and
+        // the synchronization-server event subscriptions are wired before
+        // any sync arrives. Nothing else depends on it directly until a
+        // session row or editor is opened.
+        _ = Services.GetRequiredService<ISessionCoordinator>();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogService = Services.GetRequiredService<IDialogService>();

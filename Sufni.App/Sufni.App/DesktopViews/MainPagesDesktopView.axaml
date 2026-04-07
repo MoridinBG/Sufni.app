@@ -140,8 +140,7 @@
             <Button
                 Width="50"
                 Classes="embedded"
-                Command="{Binding OpenPageCommand}"
-                CommandParameter="{Binding ImportSessionsPage}">
+                Command="{Binding OpenImportCommand}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </Button>
 

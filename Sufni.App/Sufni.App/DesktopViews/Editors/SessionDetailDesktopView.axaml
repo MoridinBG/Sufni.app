@@ -1,5 +1,5 @@
-﻿<UserControl
-    x:Class="Sufni.App.DesktopViews.Items.SessionDesktopView"
+<UserControl
+    x:Class="Sufni.App.DesktopViews.Editors.SessionDetailDesktopView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -8,22 +8,25 @@
     xmlns:pages="clr-namespace:Sufni.App.Views.SessionPages"
     xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
     xmlns:v="clr-namespace:Sufni.App.Views"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
     d:DesignHeight="800"
     d:DesignWidth="800"
-    x:DataType="vm:SessionViewModel"
+    x:DataType="vm:SessionDetailViewModel"
     Background="{StaticResource SufniRegion}"
     Focusable="True"
     mc:Ignorable="d">
 
     <Design.DataContext>
-        <vm:SessionViewModel />
+        <vm:SessionDetailViewModel />
     </Design.DataContext>
 
     <!--  Ensure that the SufniTelemetryPlotViews' Telemetry property is set  -->
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
         </EventTriggerBehavior>
     </Interaction.Behaviors>
 

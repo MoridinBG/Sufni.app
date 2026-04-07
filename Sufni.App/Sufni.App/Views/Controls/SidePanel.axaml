@@ -40,8 +40,7 @@
 
     <StackPanel>
         <MenuItem
-            Command="{Binding OpenPageCommand}"
-            CommandParameter="{Binding ImportSessionsPage}"
+            Command="{Binding OpenImportCommand}"
             Header="import">
             <MenuItem.Icon>
                 <Image Width="12" Source="{SvgImage /Assets/fa-file-import.svg}" />

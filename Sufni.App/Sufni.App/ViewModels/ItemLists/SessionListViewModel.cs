@@ -1,84 +1,119 @@
-﻿using System;
-using System.Diagnostics;
+using System;
+using System.Collections.ObjectModel;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
-using Sufni.App.Services;
-using Sufni.App.ViewModels.Factories;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.Coordinators;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class SessionListViewModel : ItemListViewModelBase, ISessionSink
+// Inherits from ItemListViewModelBase so the shared SearchBar /
+// UndoDeleteButton / PullableMenuScrollViewer keep resolving against the
+// base type. The base SourceCache<ItemViewModelBase> is unused — the
+// new flow projects ISessionStore.Connect() into a separate
+// `sessionRows` collection that shadows the base Items property.
+public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
-    private readonly ISessionViewModelFactory sessionViewModelFactory;
+    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
+    private readonly BehaviorSubject<Func<SessionSnapshot, bool>> filterSubject = new(_ => true);
 
     #endregion Private fields
+
+    #region Observable properties
+
+    public new ReadOnlyObservableCollection<SessionRowViewModel> Items => sessionRows;
+
+    #endregion Observable properties
 
     #region Constructors
 
     public SessionListViewModel()
     {
-        sessionViewModelFactory = null!;
+        sessionCoordinator = null!;
+        sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>([]);
     }
 
-    public SessionListViewModel(IDatabaseService databaseService, ISessionViewModelFactory sessionViewModelFactory, INavigator navigator) : base(databaseService, navigator)
+    public SessionListViewModel(ISessionStore sessionStore, ISessionCoordinator sessionCoordinator)
     {
-        this.sessionViewModelFactory = sessionViewModelFactory;
+        this.sessionCoordinator = sessionCoordinator;
+
+        sessionStore.Connect()
+            .Filter(filterSubject)
+            .TransformWithInlineUpdate(
+                snapshot => new SessionRowViewModel(snapshot, sessionCoordinator),
+                (row, snapshot) => row.Update(snapshot))
+            .SortAndBind(
+                out sessionRows,
+                SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
+            .Subscribe();
+
+        // The base's OnSearchTextChanged / OnDateFilterFromChanged /
+        // OnDateFilterToChanged partial methods only refresh the (empty)
+        // base SourceCache. We need to push a fresh predicate to our own
+        // filter subject when any of those change.
+        PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(SearchText) or nameof(DateFilterFrom) or nameof(DateFilterTo))
+            {
+                RebuildFilter();
+            }
+        };
     }
 
     #endregion Constructors
 
     #region Private methods
 
-    private async Task LoadSessionsAsync()
+    private void RebuildFilter()
     {
-        try
+        var search = SearchText;
+        var fromDate = DateFilterFrom;
+        var toDate = DateFilterTo;
+
+        filterSubject.OnNext(snapshot =>
         {
-            var sessionList = await databaseService.GetSessionsAsync();
-            foreach (var session in sessionList)
-            {
-                Source.AddOrUpdate(sessionViewModelFactory.Create(session, true, this));
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Sessions: {e.Message}");
-        }
+            // Search matches name OR description (legacy ConnectSource
+            // checked both).
+            var textMatch =
+                string.IsNullOrEmpty(search) ||
+                snapshot.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                snapshot.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase);
+            if (!textMatch) return false;
+
+            if (snapshot.Timestamp is null) return true;
+
+            var ts = DateTimeOffset.FromUnixTimeSeconds(snapshot.Timestamp.Value).LocalDateTime;
+            if (fromDate is not null && ts < fromDate) return false;
+            if (toDate is not null && ts > toDate) return false;
+
+            return true;
+        });
     }
 
     #endregion Private methods
 
     #region ItemListViewModelBase overrides
 
-    public override void ConnectSource()
-    {
-        Source.Connect()
-            .Filter(vm => string.IsNullOrEmpty(SearchText) ||
-                           (vm.Name is not null &&
-                            vm.Name!.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)) ||
-                           (vm is SessionViewModel svm &&
-                            svm.Description.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)))
-            .Filter(svm => (DateFilterFrom is null || svm.Timestamp >= DateFilterFrom) &&
-                           (DateFilterTo is null || svm.Timestamp <= DateFilterTo))
-            .SortAndBind(out items, SortExpressionComparer<ItemViewModelBase>.Descending(svm => svm.Timestamp!))
-            .DisposeMany()
-            .Subscribe();
-    }
-
-    public override async Task LoadFromDatabase()
-    {
-        Source.Clear();
-        await LoadSessionsAsync();
-    }
+    public override Task LoadFromDatabase() => Task.CompletedTask;
 
     #endregion ItemListViewModelBase overrides
 
-    #region ISessionSink
+    #region Commands
 
-    public void Add(SessionViewModel session) => Source.AddOrUpdate(session);
+    [RelayCommand]
+    private async Task RowSelected(SessionRowViewModel? row)
+    {
+        if (row is null) return;
+        await sessionCoordinator.OpenEditAsync(row.Id);
+    }
 
-    #endregion ISessionSink
+    #endregion Commands
 }
