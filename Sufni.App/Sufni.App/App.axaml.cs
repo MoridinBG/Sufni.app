@@ -38,13 +38,17 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
+            ServiceCollection.AddSingleton<IMainWindowShellHost>(sp =>
+                sp.GetRequiredService<MainWindowViewModel>());
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new DesktopShellCoordinator(() => sp.GetRequiredService<MainWindowViewModel>()));
+                new DesktopShellCoordinator(() => sp.GetRequiredService<IMainWindowShellHost>()));
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
+            ServiceCollection.AddSingleton<IMainViewShellHost>(sp =>
+                sp.GetRequiredService<MainViewModel>());
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new MobileShellCoordinator(() => sp.GetRequiredService<MainViewModel>()));
+                new MobileShellCoordinator(() => sp.GetRequiredService<IMainViewShellHost>()));
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
