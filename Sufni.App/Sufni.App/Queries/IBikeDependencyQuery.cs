@@ -1,4 +1,5 @@
 using System;
+using System.Reactive;
 using System.Threading.Tasks;
 
 namespace Sufni.App.Queries;
@@ -24,4 +25,13 @@ public interface IBikeDependencyQuery
     /// inside the bike coordinator's delete path.
     /// </summary>
     bool IsBikeInUse(Guid bikeId);
+
+    /// <summary>
+    /// Fires whenever the result of <see cref="IsBikeInUse"/> may have
+    /// changed for any bike. Subscribers (typically delete-aware row
+    /// or editor view models) refresh their <c>CanExecute</c> state in
+    /// response. Emits an initial value on subscribe so subscribers can
+    /// bootstrap from current state without a separate priming call.
+    /// </summary>
+    IObservable<Unit> Changes { get; }
 }

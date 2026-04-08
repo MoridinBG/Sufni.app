@@ -184,6 +184,14 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
         // Brand new bike: start with the mandatory joints.
         if (isNew) AddInitialJoints();
+
+        // UpdateFromBike's collection clears fire EvaluateDirtiness while
+        // Name/HeadAngle/etc. are still null, leaving IsDirty stale-true.
+        // Recompute now that all VM fields are populated. The override
+        // only reads fields populated above, so the virtual dispatch is
+        // safe here.
+        // ReSharper disable once VirtualMemberCallInConstructor
+        EvaluateDirtiness();
     }
 
     #endregion Constructors
@@ -326,8 +334,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         CheckLinkage(bike.Linkage!);
     }
 
-    private bool CheckLinkage(Linkage linkage)
+    private bool CheckLinkage(Linkage? linkage)
     {
+        if (linkage is null) return true;
+
         try
         {
             var solver = new KinematicSolver(linkage);

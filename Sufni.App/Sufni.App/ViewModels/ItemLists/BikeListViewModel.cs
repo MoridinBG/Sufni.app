@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Sufni.App.Coordinators;
+using Sufni.App.Queries;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -20,8 +21,9 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     private readonly IBikeStore bikeStore;
     private readonly IBikeCoordinator bikeCoordinator;
+    private readonly IBikeDependencyQuery dependencyQuery;
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
-    private readonly BehaviorSubject<Func<BikeSnapshot, bool>> filterSubject = new(_ => true);
+    private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
     private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
@@ -38,19 +40,32 @@ public partial class BikeListViewModel : ItemListViewModelBase
     {
         bikeStore = null!;
         bikeCoordinator = null!;
+        dependencyQuery = null!;
         bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>([]);
     }
 
-    public BikeListViewModel(IBikeStore bikeStore, IBikeCoordinator bikeCoordinator)
+    public BikeListViewModel(
+        IBikeStore bikeStore,
+        IBikeCoordinator bikeCoordinator,
+        IBikeDependencyQuery dependencyQuery)
     {
         this.bikeStore = bikeStore;
         this.bikeCoordinator = bikeCoordinator;
+        this.dependencyQuery = dependencyQuery;
 
+        // Pipeline order matters:
+        //   1. Transform creates a row per snapshot.
+        //   2. DisposeMany sits between Transform and Filter so it
+        //      only fires when a row leaves the source store, not
+        //      when the filter merely hides it.
+        //   3. Filter operates on rows (so the predicate sees the
+        //      same Id/Name we already exposed on the row VM).
         bikeStore.Connect()
-            .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator, RequestRowDelete),
+                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator, RequestRowDelete, dependencyQuery),
                 (row, snapshot) => row.Update(snapshot))
+            .DisposeMany()
+            .Filter(filterSubject)
             .Bind(out bikeRows)
             .Subscribe();
 
@@ -70,10 +85,10 @@ public partial class BikeListViewModel : ItemListViewModelBase
     {
         var current = SearchText;
         var pendingId = pendingDelete?.Id;
-        filterSubject.OnNext(snapshot =>
-            (pendingId is null || snapshot.Id != pendingId) &&
+        filterSubject.OnNext(row =>
+            (pendingId is null || row.Id != pendingId) &&
             (string.IsNullOrEmpty(current) ||
-             snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
+             (row.Name?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false)));
     }
 
     protected override void OnPendingDeleteUndone()
