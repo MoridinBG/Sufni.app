@@ -119,9 +119,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private async Task LoadTelemetryFilesAsync(ITelemetryDataStore dataStore)
     {
-        if (telemetryDataStoreService is null)
-            return;
-
         var files = await telemetryDataStoreService.LoadFilesAsync(dataStore);
         if (!IsCurrentTelemetryFilesLoad(dataStore))
             return;
@@ -131,9 +128,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private async Task RefreshTelemetryFilesAfterImportAsync(ITelemetryDataStore dataStore)
     {
-        if (telemetryDataStoreService is null)
-            return;
-
         var files = await telemetryDataStoreService.LoadFilesAsync(dataStore);
         if (!IsCurrentTelemetryFilesLoad(dataStore))
             return;
@@ -214,9 +208,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task OpenDataStore()
     {
-        if (filesService is null || telemetryDataStoreService is null)
-            return;
-
         var folder = await filesService.OpenDataStoreFolderAsync();
         if (folder is null) return;
 
@@ -283,9 +274,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private void Loaded()
     {
-        if (telemetryDataStoreService is null || setupStore is null)
-            return;
-
         telemetryDataStoreService.StartBrowse();
         ResolveSelectedSetup();
 
