@@ -52,6 +52,7 @@ public partial class App : Application
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
+        ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
         ServiceCollection.AddSingleton<IFilesService>(_ => new FilesService());
@@ -79,6 +80,7 @@ public partial class App : Application
                 sp.GetRequiredService<IDatabaseService>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IShellCoordinator>(),
+                sp.GetRequiredService<IBackgroundTaskRunner>(),
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();

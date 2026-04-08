@@ -77,7 +77,8 @@ public class SetupCoordinatorTests
     public async Task OpenCreateForDetectedBoardAsync_ForwardsDetectedBoardId()
     {
         var boardId = Guid.NewGuid();
-        telemetry.DetectConnectedBoardId().Returns(boardId);
+        telemetry.DetectConnectedBoardIdAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Guid?>(boardId));
         setupStore.FindByBoardId(boardId).Returns((SetupSnapshot?)null);
 
         SetupEditorViewModel? captured = null;
@@ -86,7 +87,7 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().OpenCreateForDetectedBoardAsync();
 
-        telemetry.Received(1).DetectConnectedBoardId();
+        await telemetry.Received(1).DetectConnectedBoardIdAsync(Arg.Any<CancellationToken>());
         Assert.NotNull(captured);
         Assert.Equal(boardId, captured!.BoardId);
     }

@@ -6,6 +6,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
+using System.Threading;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -14,6 +15,7 @@ public class ImportSessionsCoordinatorTests
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
+    private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITelemetryDataStore dataStore = Substitute.For<ITelemetryDataStore>();
 
     /// <summary>
@@ -26,8 +28,15 @@ public class ImportSessionsCoordinatorTests
         () => throw new InvalidOperationException(
             "The resolver should not be invoked directly from tests.");
 
+    public ImportSessionsCoordinatorTests()
+    {
+        backgroundTaskRunner
+            .RunAsync(Arg.Any<Func<Task<SessionImportResult>>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => callInfo.Arg<Func<Task<SessionImportResult>>>()());
+    }
+
     private ImportSessionsCoordinator CreateCoordinator() => new(
-        database, sessionStore, shell, importSessionsResolver);
+        database, sessionStore, shell, backgroundTaskRunner, importSessionsResolver);
 
     // ----- OpenAsync -----
 
@@ -284,6 +293,18 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("ok", result.Imported[0].Name);
         await database.Received(1).PutSessionAsync(Arg.Is<Session>(s => s.Name == "ok"));
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Name == "ok"));
+    }
+
+    [Fact]
+    public async Task ImportAsync_RoutesWorkflowThroughBackgroundTaskRunner()
+    {
+        var (setup, _) = SeedSetupAndBike();
+
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportAsync(dataStore, Array.Empty<ITelemetryFile>(), setup.Id);
+
+        await backgroundTaskRunner.Received(1)
+            .RunAsync(Arg.Any<Func<Task<SessionImportResult>>>(), Arg.Any<CancellationToken>());
     }
 
     // ----- helpers -----
