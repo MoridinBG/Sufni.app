@@ -54,7 +54,7 @@ public class ImportSessionsViewModelTests
         setupStore);
 
     [Fact]
-    public void SelectingNullClearsFilesAndSetupWithoutClearingNewDataStoresAvailable()
+    public void SelectingNull_ClearsFilesAndSetup_WithoutClearingNewDataStoresAvailable()
     {
         using var _ = new TestSynchronizationContextScope();
         var viewModel = CreateViewModel();
@@ -73,7 +73,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void SelectingDataStoreClearsNotificationResolvesSetupAndLoadsFiles()
+    public void SelectingDataStore_ClearsNotification_ResolvesSetup_AndLoadsFiles()
     {
         using var _ = new TestSynchronizationContextScope();
         var boardId = Guid.NewGuid();
@@ -96,7 +96,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void PendingSelectionLoadKeepsExistingFilesVisibleUntilReplacementCompletes()
+    public void PendingSelectionLoad_KeepsExistingFilesVisible_UntilReplacementCompletes()
     {
         using var _ = new TestSynchronizationContextScope();
         var firstStore = CreateDataStore(name: "first");
@@ -125,7 +125,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void StaleSelectionLoadIsIgnored()
+    public void StaleSelectionLoad_IsIgnored()
     {
         using var _ = new TestSynchronizationContextScope();
         var firstStore = CreateDataStore(name: "first");
@@ -152,7 +152,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public async Task StalePostImportRefreshIsIgnoredAfterLaterSelectionChange()
+    public async Task StalePostImportRefresh_IsIgnored_AfterLaterSelectionChange()
     {
         using var _ = new TestSynchronizationContextScope();
         var boardId = Guid.NewGuid();
@@ -188,7 +188,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void DataStoreCollectionChangesUpdateSelectionAndAvailability()
+    public void DataStoreCollectionChanges_UpdateSelectionAndAvailability()
     {
         using var _ = new TestSynchronizationContextScope();
         var firstStore = CreateDataStore(name: "first");
@@ -211,7 +211,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public async Task OpeningDuplicateDataStoreReportsNotificationAndSelectsExistingStore()
+    public async Task OpeningDuplicateDataStore_ReportsNotification_AndSelectsExistingStore()
     {
         using var _ = new TestSynchronizationContextScope();
         var folder = Substitute.For<Avalonia.Platform.Storage.IStorageFolder>();
@@ -229,7 +229,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public async Task OpeningDataStoreSelectsReturnedStore()
+    public async Task OpeningDataStore_SelectsReturnedStore()
     {
         using var _ = new TestSynchronizationContextScope();
         var folder = Substitute.For<Avalonia.Platform.Storage.IStorageFolder>();
@@ -246,7 +246,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public async Task ImportProgressUpdatesNotificationsAndErrors()
+    public async Task ImportProgress_UpdatesNotificationsAndErrors()
     {
         using var _ = new TestSynchronizationContextScope();
         var boardId = Guid.NewGuid();
@@ -283,7 +283,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void LoadedStartsBrowseAndSubscribesToSetupStoreChanges()
+    public void Loaded_StartsBrowse_AndSubscribesToSetupStoreChanges()
     {
         using var _ = new TestSynchronizationContextScope();
         var boardId = Guid.NewGuid();
@@ -299,7 +299,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void UnloadedClearsStateStopsBrowseAndDisposesSubscriptions()
+    public void Unloaded_ClearsState_StopsBrowse_AndDisposesSubscriptions()
     {
         using var _ = new TestSynchronizationContextScope();
         var boardId = Guid.NewGuid();

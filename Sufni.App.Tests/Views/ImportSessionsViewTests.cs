@@ -25,13 +25,13 @@ namespace Sufni.App.Tests.Views;
 public class ImportSessionsViewTests
 {
     [AvaloniaFact]
-    public async Task ImportSessionsView_DisablesEditorsWhileImportRuns()
+    public async Task ImportSessionsView_DisablesEditors_WhileImportRuns()
     {
         await AssertEditorsDisabledWhileImportRunsAsync(() => new ImportSessionsView());
     }
 
     [AvaloniaFact]
-    public async Task ImportSessionsDesktopView_DisablesEditorsWhileImportRuns()
+    public async Task ImportSessionsDesktopView_DisablesEditors_WhileImportRuns()
     {
         await AssertEditorsDisabledWhileImportRunsAsync(() => new ImportSessionsDesktopView());
     }
