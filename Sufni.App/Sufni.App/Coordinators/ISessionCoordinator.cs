@@ -1,6 +1,8 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Models;
+using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
 
 namespace Sufni.App.Coordinators;
@@ -19,6 +21,26 @@ public interface ISessionCoordinator
     /// the store. No-op if the session is not in the store.
     /// </summary>
     Task OpenEditAsync(Guid sessionId);
+
+    /// <summary>
+    /// Load the data required by the desktop session-detail experience.
+    /// Returns explicit outcomes for loaded, telemetry-pending, and
+    /// failed states so the editor can apply the result in one pass.
+    /// </summary>
+    Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Load the data required by the mobile session-detail experience.
+    /// Uses the cache when available, otherwise ensures telemetry is
+    /// available, builds/persists the cache, and returns an explicit
+    /// outcome for the editor to apply.
+    /// </summary>
+    Task<SessionMobileLoadResult> LoadMobileDetailAsync(
+        Guid sessionId,
+        SessionPresentationDimensions dimensions,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Persist a session built by the editor. The coordinator checks

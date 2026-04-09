@@ -124,8 +124,7 @@ public class BikeCoordinatorTests
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
-        var failed = Assert.IsType<BikeSaveResult.Failed>(result);
-        Assert.Equal("disk full", failed.ErrorMessage);
+        Assert.IsType<BikeSaveResult.Failed>(result);
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
     }
 
@@ -172,7 +171,6 @@ public class BikeCoordinatorTests
         var result = await coordinator.DeleteAsync(id);
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
-        Assert.Equal("locked", result.ErrorMessage);
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!);
     }

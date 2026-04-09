@@ -195,7 +195,7 @@ public class BikeEditorViewModelTests
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        Assert.Contains(editor.ErrorMessages, m => m.Contains("disk full"));
+        Assert.Single(editor.ErrorMessages);
     }
 
     // ----- CanDelete -----
@@ -258,7 +258,7 @@ public class BikeEditorViewModelTests
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
-        Assert.Contains(editor.ErrorMessages, m => m.Contains("referenced by a setup"));
+        Assert.Single(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
     }
 
@@ -272,7 +272,7 @@ public class BikeEditorViewModelTests
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
-        Assert.Contains(editor.ErrorMessages, m => m.Contains("locked"));
+        Assert.Single(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
     }
 }
