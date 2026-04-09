@@ -53,6 +53,7 @@ public partial class App : Application
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
+        ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
         ServiceCollection.AddSingleton<IFilesService>(_ => new FilesService());
@@ -69,6 +70,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SessionStore>();
         ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
+        ServiceCollection.AddSingleton<ITrackCoordinator, TrackCoordinator>();
         ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
@@ -88,13 +90,12 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
-            sp.GetRequiredService<IDatabaseService>(),
             sp.GetRequiredService<IBikeStoreWriter>(),
             sp.GetRequiredService<ISetupStoreWriter>(),
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<IPairedDeviceStoreWriter>(),
             sp.GetRequiredService<IImportSessionsCoordinator>(),
-            sp.GetRequiredService<IFilesService>(),
+            sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISyncCoordinator>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<BikeListViewModel>(),

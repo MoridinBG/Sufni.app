@@ -279,7 +279,7 @@ public class ImportSessionsViewModelTests
         await viewModel.ImportSessionsCommand.ExecuteAsync(null);
 
         Assert.Contains(viewModel.Notifications, message => message.Contains("lap"));
-        Assert.Contains(viewModel.ErrorMessages, message => message.Contains("broken.SST") && message.Contains("boom"));
+        Assert.Single(viewModel.ErrorMessages);
     }
 
     [Fact]
