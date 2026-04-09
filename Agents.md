@@ -265,6 +265,17 @@ Query: answers a business question; it does not own the shared entity collection
 Coordinator: owns workflows with side effects and store writes.
 Service or factory: owns infrastructure-facing work such as picker integration, datastore creation, and background execution.
 
+# Testing
+
+When writing new code, write unit tests for it. When changing code verify and update the existing tests.
+When adding or changing tests, first read `TESTING-GUIDE.md`.
+
+- Test one unit through its public interface.
+- Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.
+- Reuse helpers from `Sufni.App.Tests/Infrastructure/` before adding local duplicates.
+- Cover desktop/mobile branches with `TestApp.SetIsDesktop(true/false)` when behavior differs, and cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
+- Prefer deterministic async control such as `TaskCompletionSource<T>` and `TestSynchronizationContextScope` over timing-based waits.
+
 # Key Dependencies
 
 Avalonia, CommunityToolkit.Mvvm, ScottPlot(.Avalonia), Mapsui(.Avalonia),

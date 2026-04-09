@@ -14,18 +14,7 @@ public class TrackCoordinatorTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
-    private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
-
-    public TrackCoordinatorTests()
-    {
-        backgroundTaskRunner
-            .RunAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => callInfo.Arg<Func<Task>>()());
-
-        backgroundTaskRunner
-            .RunAsync(Arg.Any<Func<Task<SessionTrackPresentationData>>>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => callInfo.Arg<Func<Task<SessionTrackPresentationData>>>()());
-    }
+    private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
     private TrackCoordinator CreateCoordinator() => new(database, filesService, backgroundTaskRunner);
 

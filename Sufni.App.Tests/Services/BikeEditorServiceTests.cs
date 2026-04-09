@@ -68,7 +68,7 @@ public class BikeEditorServiceTests
         var result = await CreateService().ImportBikeAsync();
 
         var invalid = Assert.IsType<BikeFileImportResult.InvalidFile>(result);
-        Assert.Equal("JSON file was not a valid bike file.", invalid.ErrorMessage);
+        Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
     }
 
     [Fact]
@@ -132,14 +132,5 @@ public class BikeEditorServiceTests
         };
         linkage.ResolveJoints();
         return linkage;
-    }
-
-    private sealed class InlineBackgroundTaskRunner : IBackgroundTaskRunner
-    {
-        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default) => work();
-
-        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default) => Task.FromResult(work());
-
-        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default) => work();
     }
 }

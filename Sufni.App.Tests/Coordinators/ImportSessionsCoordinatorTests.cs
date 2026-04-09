@@ -4,9 +4,10 @@ using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
-using System.Threading;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -15,7 +16,7 @@ public class ImportSessionsCoordinatorTests
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
-    private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
+    private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
     private readonly ITelemetryDataStore dataStore = Substitute.For<ITelemetryDataStore>();
 
     /// <summary>
@@ -27,13 +28,6 @@ public class ImportSessionsCoordinatorTests
     private Func<ImportSessionsViewModel> importSessionsResolver =
         () => throw new InvalidOperationException(
             "The resolver should not be invoked directly from tests.");
-
-    public ImportSessionsCoordinatorTests()
-    {
-        backgroundTaskRunner
-            .RunAsync(Arg.Any<Func<Task<SessionImportResult>>>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => callInfo.Arg<Func<Task<SessionImportResult>>>()());
-    }
 
     private ImportSessionsCoordinator CreateCoordinator() => new(
         database, sessionStore, shell, backgroundTaskRunner, importSessionsResolver);
@@ -303,8 +297,7 @@ public class ImportSessionsCoordinatorTests
         var coordinator = CreateCoordinator();
         await coordinator.ImportAsync(dataStore, Array.Empty<ITelemetryFile>(), setup.Id);
 
-        await backgroundTaskRunner.Received(1)
-            .RunAsync(Arg.Any<Func<Task<SessionImportResult>>>(), Arg.Any<CancellationToken>());
+        Assert.Equal(1, backgroundTaskRunner.InvocationCount);
     }
 
     // ----- helpers -----
@@ -319,21 +312,6 @@ public class ImportSessionsCoordinatorTests
         database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(bike));
         return (setup, bike);
     }
-
-    private static ITelemetryFile CreateTelemetryFile(
-        string name = "file",
-        string description = "",
-        DateTime? startTime = null,
-        bool? shouldBeImported = true)
-    {
-        var file = Substitute.For<ITelemetryFile>();
-        file.Name.Returns(name);
-        file.Description.Returns(description);
-        file.StartTime.Returns(startTime ?? new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        file.ShouldBeImported.Returns(shouldBeImported);
-        return file;
-    }
-
     /// <summary>
     /// `IProgress<T>.Report` is void — using a capture list lets tests
     /// assert on the sequence of progress events synchronously without
