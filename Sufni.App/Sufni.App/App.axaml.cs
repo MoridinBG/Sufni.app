@@ -53,6 +53,7 @@ public partial class App : Application
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
+        ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();

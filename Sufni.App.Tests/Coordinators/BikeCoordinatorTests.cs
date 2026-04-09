@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Queries;
@@ -15,15 +16,14 @@ namespace Sufni.App.Tests.Coordinators;
 public class BikeCoordinatorTests
 {
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
-    private readonly ISetupStore setupStore = Substitute.For<ISetupStore>();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
-    private readonly IFilesService filesService = Substitute.For<IFilesService>();
+    private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
 
     private BikeCoordinator CreateCoordinator() => new(
-        bikeStore, setupStore, database, dependencyQuery, shell, filesService, dialogService);
+        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService);
 
     // ----- OpenCreateAsync -----
 
@@ -75,6 +75,69 @@ public class BikeCoordinatorTests
             Arg.Any<Func<BikeEditorViewModel>>());
     }
 
+    [Fact]
+    public async Task LoadAnalysisAsync_DelegatesToBikeEditorService()
+    {
+        var linkage = new Sufni.Kinematics.Linkage();
+        var expected = new BikeEditorAnalysisResult.Unavailable();
+        bikeEditorService.AnalyzeLinkageAsync(linkage, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await CreateCoordinator().LoadAnalysisAsync(linkage);
+
+        Assert.Same(expected, result);
+    }
+
+    [Fact]
+    public async Task LoadImageAsync_DelegatesToBikeEditorService()
+    {
+        var expected = new BikeImageLoadResult.Canceled();
+        bikeEditorService.LoadImageAsync(Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await CreateCoordinator().LoadImageAsync();
+
+        Assert.Same(expected, result);
+    }
+
+    [Fact]
+    public async Task ImportBikeAsync_NormalizesImportedBikeToNewDraft()
+    {
+        var importedBike = new Bike(Guid.NewGuid(), "imported")
+        {
+            HeadAngle = 64,
+            ForkStroke = 150,
+            Updated = 10,
+            ClientUpdated = 5,
+            Deleted = 1,
+        };
+        bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
+            .Returns(new BikeFileImportResult.Imported(importedBike));
+        bikeEditorService.AnalyzeLinkageAsync(importedBike.Linkage, Arg.Any<CancellationToken>())
+            .Returns(new BikeEditorAnalysisResult.Unavailable());
+
+        var result = await CreateCoordinator().ImportBikeAsync();
+
+        var imported = Assert.IsType<BikeImportResult.Imported>(result);
+        Assert.Equal("imported", imported.Data.Bike.Name);
+        Assert.NotEqual(Guid.Empty, imported.Data.Bike.Id);
+        Assert.NotEqual(importedBike.Id, imported.Data.Bike.Id);
+        Assert.Equal(0, imported.Data.Bike.Updated);
+        Assert.Equal(0, imported.Data.Bike.ClientUpdated);
+        Assert.Null(imported.Data.Bike.Deleted);
+        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
+    }
+
+    [Fact]
+    public async Task ExportBikeAsync_DelegatesToBikeEditorService()
+    {
+        var bike = new Bike(Guid.NewGuid(), "export me") { HeadAngle = 65, ForkStroke = 160 };
+        var expected = new BikeExportResult.Exported();
+        bikeEditorService.ExportBikeAsync(bike, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await CreateCoordinator().ExportBikeAsync(bike);
+
+        Assert.Same(expected, result);
+    }
+
     // ----- SaveAsync -----
 
     [Fact]
@@ -93,6 +156,7 @@ public class BikeCoordinatorTests
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7));
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
+        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
     }
 
     [Fact]
@@ -125,6 +189,29 @@ public class BikeCoordinatorTests
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
         Assert.IsType<BikeSaveResult.Failed>(result);
+        bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+    }
+
+    [Fact]
+    public async Task SaveAsync_ReturnsInvalidLinkage_WhenAnalysisUnavailable()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+        bikeEditorService.AnalyzeLinkageAsync(Arg.Any<Sufni.Kinematics.Linkage>(), Arg.Any<CancellationToken>())
+            .Returns(new BikeEditorAnalysisResult.Unavailable());
+        var coordinator = CreateCoordinator();
+
+        var bike = new Bike(existing.Id, "full sus")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            Linkage = new Sufni.Kinematics.Linkage(),
+        };
+
+        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
+
+        Assert.IsType<BikeSaveResult.InvalidLinkage>(result);
+        await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
     }
 
