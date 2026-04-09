@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.ViewModels.LinkageParts;
@@ -107,7 +106,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             AdjacentJoint2 = AdjacentJoint2.Name
         };
 
-        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
+        return SensorConfiguration.ToJson(sc);
     }
 
     #endregion SensorConfigurationViewModel overrides

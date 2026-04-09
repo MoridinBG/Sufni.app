@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using Mapsui.Projections;
@@ -31,8 +30,8 @@ public class Track : Synchronizable
     [Column("points")]
     public string PointsJson
     {
-        get => JsonSerializer.Serialize(Points);
-        set => Points = JsonSerializer.Deserialize<List<TrackPoint>>(value) ?? [];
+        get => AppJson.Serialize(Points);
+        set => Points = AppJson.Deserialize<List<TrackPoint>>(value) ?? [];
     }
 
     [JsonIgnore]

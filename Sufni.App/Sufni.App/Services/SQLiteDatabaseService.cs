@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
@@ -301,7 +300,7 @@ public class SqLiteDatabaseService : IDatabaseService
             throw new Exception($"Session {id} does not exist.");
         }
 
-        var pointsJson = JsonSerializer.Serialize(points);
+        var pointsJson = AppJson.Serialize(points);
         await connection.ExecuteAsync("UPDATE session SET track=? WHERE id=?", [pointsJson, id]);
     }
 

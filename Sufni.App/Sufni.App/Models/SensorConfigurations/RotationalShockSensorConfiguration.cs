@@ -1,9 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using MathNet.Numerics;
+using Sufni.App.Models;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models.SensorConfigurations;
@@ -51,7 +51,7 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike.Linkage is not null);
 
-        var sc = JsonSerializer.Deserialize<RotationalShockSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<RotationalShockSensorConfiguration>(json);
         if (sc is null) return null;
 
         var central = bike.Linkage.Joints.First(j => j.Name == sc.CentralJoint);

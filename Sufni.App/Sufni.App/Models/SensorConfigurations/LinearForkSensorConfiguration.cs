@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sufni.App.Models;
 
 namespace Sufni.App.Models.SensorConfigurations;
 
@@ -32,7 +32,7 @@ public class LinearForkSensorConfiguration : SensorConfiguration
 
     public new static ISensorConfiguration? FromJson(string json, Bike bike)
     {
-        var sc = JsonSerializer.Deserialize<LinearForkSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<LinearForkSensorConfiguration>(json);
         if (sc is null) return null;
 
         sc.bike = bike;

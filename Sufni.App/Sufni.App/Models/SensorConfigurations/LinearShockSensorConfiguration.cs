@@ -1,8 +1,8 @@
 using System;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using MathNet.Numerics;
+using Sufni.App.Models;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models.SensorConfigurations;
@@ -38,7 +38,7 @@ public class LinearShockSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike.Linkage is not null);
 
-        var sc = JsonSerializer.Deserialize<LinearShockSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<LinearShockSensorConfiguration>(json);
         if (sc is null) return null;
 
         sc.bike = bike;

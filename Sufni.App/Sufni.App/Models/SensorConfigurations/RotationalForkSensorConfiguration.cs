@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sufni.App.Models;
 
 namespace Sufni.App.Models.SensorConfigurations;
 
@@ -40,7 +40,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike.Linkage is not null);
 
-        var sc = JsonSerializer.Deserialize<RotationalForkSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<RotationalForkSensorConfiguration>(json);
         if (sc is null) return null;
 
         sc.startAngle = Math.Acos(sc.MaxLength / 2.0 / sc.ArmLength);
