@@ -1,14 +1,14 @@
-﻿<UserControl
+<UserControl
     x:Class="Sufni.App.Views.Controls.UndoDeleteButton"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:v="clr-namespace:Sufni.App.Views"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.ItemLists"
-    d:DesignHeight="600"
+    d:DesignHeight="50"
     d:DesignWidth="500"
     x:DataType="vm:ItemListViewModelBase"
+    IsVisible="{Binding IsUndoVisible}"
     mc:Ignorable="d">
 
     <UserControl.Styles>
@@ -17,9 +17,9 @@
         </Style>
     </UserControl.Styles>
 
-    <Panel IsVisible="{Binding LastDeleted, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Panel>
         <Button
-            Name="DeleteButton"
+            Name="DismissButton"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
             Classes="embedded"
@@ -33,7 +33,7 @@
             VerticalAlignment="Bottom"
             VerticalContentAlignment="Center"
             Background="#f0f0f0"
-            Content="Item deleted."
+            Content="{Binding PendingName, StringFormat='{}{0} deleted.'}"
             CornerRadius="2"
             Foreground="{StaticResource SufniRegion}"
             IsHitTestVisible="False" />

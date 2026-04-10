@@ -5,11 +5,11 @@ using System.Threading.Tasks;
 
 namespace Sufni.App.Services;
 
-internal interface IHttpApiService
+public interface IHttpApiService
 {
     public string? ServerUrl { get; set; }
-    public Task RequestPairingAsync(string url, string deviceId);
-    public Task ConfirmPairingAsync(string deviceId, string pin);
+    public Task RequestPairingAsync(string url, string deviceId, string? displayName);
+    public Task ConfirmPairingAsync(string deviceId, string? displayName, string pin);
     public Task UnpairAsync(string deviceId);
     public Task<bool> IsPairedAsync();
     public Task<SynchronizationData> PullSyncAsync(long since = 0);
