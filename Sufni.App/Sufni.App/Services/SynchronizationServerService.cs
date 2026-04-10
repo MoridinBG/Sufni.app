@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Net;
@@ -60,9 +61,9 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly string certPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Sufni.App", "certificate.pfx");
-    
+
     private Task Initialization { get; }
-    
+
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
@@ -119,7 +120,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, // Server Auth
             critical: false));
         var cert = req.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(5));
-        var pfx = cert.Export(X509ContentType.Pfx,  certPassword);
+        var pfx = cert.Export(X509ContentType.Pfx, certPassword);
         await File.WriteAllBytesAsync(certPath, pfx);
     }
 
@@ -136,7 +137,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             await GenerateCertificate();
             return;
         }
-        
+
         // Check if the certificate has not expired.
         var cert = X509CertificateLoader.LoadPkcs12FromFile(certPath, certPassword);
         if (cert.NotAfter < DateTimeOffset.Now)
@@ -144,18 +145,18 @@ public class SynchronizationServerService : ISynchronizationServerService
             await GenerateCertificate();
         }
     }
-    
+
     private string GenerateAccessToken(string deviceId)
     {
         Debug.Assert(jwtSecret is not null);
-        
+
         var tokenHandler = new JwtSecurityTokenHandler();
         var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, deviceId)]),
             Expires = DateTime.UtcNow.AddMinutes(TokenTtlMinutes),
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)), 
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
                 SecurityAlgorithms.HmacSha256Signature)
         };
         return tokenHandler.WriteToken(tokenHandler.CreateToken(descriptor));
@@ -164,11 +165,11 @@ public class SynchronizationServerService : ISynchronizationServerService
     private async Task<WebApplication> BuildApplication(int port)
     {
         await Initialization;
-        
+
         Debug.Assert(jwtSecret is not null);
 
         var builder = WebApplication.CreateBuilder();
-        
+
         builder.WebHost.ConfigureKestrel(options =>
         {
             options.ConfigureHttpsDefaults(httpsOptions =>
@@ -180,7 +181,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 listenOptions.UseHttps(certPath, certPassword);
             });
         });
-        
+
         var key = Encoding.ASCII.GetBytes(jwtSecret);
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
         {
@@ -203,9 +204,10 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     #region Public methods
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The synchronization server is a desktop-only feature and these minimal API delegates are explicitly rooted in this method.")]
     public async Task StartAsync()
     {
-        var app =  await BuildApplication(Port);
+        var app = await BuildApplication(Port);
         app.UseAuthentication();
         app.UseAuthorization();
 
@@ -257,7 +259,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             await databaseService.DeletePairedDeviceAsync(device.DeviceId);
             Unpaired?.Invoke(this, new PairingEventArgs(device));
-            
+
             return Results.Ok();
         });
 
@@ -292,7 +294,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         app.MapGet($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
         {
             var data = await databaseService.GetSessionPsstAsync(id);
-            if  (data is null) return Results.NotFound(new { msg = "Session does not exist!" });
+            if (data is null) return Results.NotFound(new { msg = "Session does not exist!" });
 
             var name = $"{id}.psst";
 

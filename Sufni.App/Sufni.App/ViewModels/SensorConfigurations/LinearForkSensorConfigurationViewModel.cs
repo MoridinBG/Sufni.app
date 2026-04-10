@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
 
@@ -39,7 +38,7 @@ public partial class LinearForkSensorConfigurationViewModel : SensorConfiguratio
             Length = Length.Value,
             Resolution = Resolution.Value
         };
-        
+
         EvaluateDirtiness();
     }
 
@@ -54,7 +53,7 @@ public partial class LinearForkSensorConfigurationViewModel : SensorConfiguratio
             Resolution = Resolution.Value
         };
 
-        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
+        return SensorConfiguration.ToJson(sc);
     }
 
     #endregion SensorConfigurationViewModel overrides

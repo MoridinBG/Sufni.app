@@ -28,10 +28,4 @@ public class SynchronizationServerService : ISynchronizationServerService
     {
         throw new NotImplementedException();
     }
-
-    public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
-    public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
-    public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
-    public event EventHandler<PairingEventArgs>? PairingConfirmed;
-    public event EventHandler<PairingEventArgs>? Unpaired;
 }

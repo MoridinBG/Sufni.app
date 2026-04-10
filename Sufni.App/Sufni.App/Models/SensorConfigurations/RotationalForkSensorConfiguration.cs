@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sufni.App.Models;
 
 namespace Sufni.App.Models.SensorConfigurations;
 
@@ -15,7 +15,8 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     [JsonPropertyName("max_length")] public double MaxLength { get; init; }
     [JsonPropertyName("arm_length")] public double ArmLength { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.RotationalFork;
-    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    [JsonIgnore]
+    public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -27,7 +28,8 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
             };
         }
     }
-    [JsonIgnore] public override double MaxTravel
+    [JsonIgnore]
+    public override double MaxTravel
     {
         get
         {
@@ -40,7 +42,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike.Linkage is not null);
 
-        var sc = JsonSerializer.Deserialize<RotationalForkSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<RotationalForkSensorConfiguration>(json);
         if (sc is null) return null;
 
         sc.startAngle = Math.Acos(sc.MaxLength / 2.0 / sc.ArmLength);

@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sufni.App.Models;
 
 namespace Sufni.App.Models.SensorConfigurations;
 
@@ -25,16 +26,10 @@ public class SensorConfiguration : ISensorConfiguration
     [JsonPropertyName("type")] public virtual SensorType Type { get; set; }
     [JsonIgnore] public virtual Func<ushort, double> MeasurementToTravel { get; } = null!;
     [JsonIgnore] public virtual double MaxTravel { get; }
-    [JsonIgnore] public static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = false,
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
-    };
 
     public static ISensorConfiguration? FromJson(string json, Bike bike)
     {
-        var s = JsonSerializer.Deserialize<SensorConfiguration>(json, SerializerOptions);
+        var s = AppJson.Deserialize<SensorConfiguration>(json);
         if (s is null) return null;
 
         return s.Type switch
@@ -49,17 +44,29 @@ public class SensorConfiguration : ISensorConfiguration
 
     public static ISensorConfiguration? FromJson(string json)
     {
-        var s = JsonSerializer.Deserialize<SensorConfiguration>(json, SerializerOptions);
+        var s = AppJson.Deserialize<SensorConfiguration>(json);
         if (s is null) return null;
         ISensorConfiguration? x = s.Type switch
         {
-            SensorType.LinearFork => JsonSerializer.Deserialize<LinearForkSensorConfiguration>(json, SerializerOptions),
-            SensorType.RotationalFork => JsonSerializer.Deserialize<RotationalForkSensorConfiguration>(json, SerializerOptions),
-            SensorType.LinearShock => JsonSerializer.Deserialize<LinearShockSensorConfiguration>(json, SerializerOptions),
-            SensorType.RotationalShock => JsonSerializer.Deserialize<RotationalShockSensorConfiguration>(json, SerializerOptions),
+            SensorType.LinearFork => AppJson.Deserialize<LinearForkSensorConfiguration>(json),
+            SensorType.RotationalFork => AppJson.Deserialize<RotationalForkSensorConfiguration>(json),
+            SensorType.LinearShock => AppJson.Deserialize<LinearShockSensorConfiguration>(json),
+            SensorType.RotationalShock => AppJson.Deserialize<RotationalShockSensorConfiguration>(json),
             _ => null
         };
 
         return x;
+    }
+
+    public static string ToJson(ISensorConfiguration configuration)
+    {
+        return configuration switch
+        {
+            LinearForkSensorConfiguration linearFork => AppJson.Serialize(linearFork),
+            RotationalForkSensorConfiguration rotationalFork => AppJson.Serialize(rotationalFork),
+            LinearShockSensorConfiguration linearShock => AppJson.Serialize(linearShock),
+            RotationalShockSensorConfiguration rotationalShock => AppJson.Serialize(rotationalShock),
+            _ => throw new JsonException($"Unsupported sensor configuration type '{configuration.GetType().Name}'.")
+        };
     }
 }

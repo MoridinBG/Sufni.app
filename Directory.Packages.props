@@ -2,10 +2,12 @@
   <!--  https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management  -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Ace4896.DBus.Services.Secrets" Version="1.4.0" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.1" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageVersion Include="Tmds.MDns" Version="0.8.0" />
     <PackageVersion Include="Avalonia" Version="11.3.10" />
     <PackageVersion Include="Avalonia.Android" Version="11.3.10" />

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
 
@@ -23,7 +22,7 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
         IsDirty = !MathUtils.AreEqual(MaxLength, sensorConfiguration.MaxLength) ||
                   !MathUtils.AreEqual(ArmLength, sensorConfiguration.ArmLength);
     }
-    
+
     public override bool CanSave()
     {
         return MaxLength is not null && ArmLength is not null;
@@ -39,7 +38,7 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
             MaxLength = MaxLength.Value,
             ArmLength = ArmLength.Value
         };
-        
+
         EvaluateDirtiness();
     }
 
@@ -54,7 +53,7 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
             ArmLength = ArmLength.Value
         };
 
-        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
+        return SensorConfiguration.ToJson(sc);
     }
 
     #endregion SensorConfigurationViewModel overrides
