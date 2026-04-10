@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.iOS;
 using Foundation;
-using FriendlyNameProvider;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using ServiceDiscovery;
@@ -20,7 +19,7 @@ namespace Sufni.App.iOS
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
             App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            App.ServiceCollection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
+            App.ServiceCollection.AddSingleton<IFriendlyNameProvider, IosFriendlyNameProvider>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
             App.ServiceCollection.AddSingleton<IHapticFeedback, IosHapticFeedback>();

@@ -42,7 +42,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\FriendlyNameProvider\FriendlyNameProvider.csproj" />
     <ProjectReference Include="..\..\SecureStorage\SecureStorage.csproj" />
     <ProjectReference Include="..\..\ServiceDiscovery\ServiceDiscovery.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />

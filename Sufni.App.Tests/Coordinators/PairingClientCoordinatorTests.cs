@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
-using FriendlyNameProvider;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using SecureStorage;
