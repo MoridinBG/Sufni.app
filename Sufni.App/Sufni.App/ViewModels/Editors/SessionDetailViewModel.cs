@@ -14,6 +14,7 @@ using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 
@@ -67,6 +68,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     public DamperPageViewModel DamperPage { get; } = new();
     public NotesPageViewModel NotesPage { get; } = new();
+    public MapViewModel? MapViewModel { get; }
 
     #endregion Public fields
 
@@ -85,6 +87,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         IsComplete = value != null;
+    }
+
+    partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
+    {
+        if (MapViewModel is null)
+        {
+            return;
+        }
+
+        MapViewModel.FullTrackPoints = value;
+    }
+
+    partial void OnTrackPointsChanged(List<TrackPoint>? value)
+    {
+        if (MapViewModel is null)
+        {
+            return;
+        }
+
+        MapViewModel.SessionTrackPoints = value;
     }
 
     #region Private methods
@@ -327,12 +349,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         sessionStore = null;
         session = new Session();
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
+        MapViewModel = null;
     }
 
     internal SessionDetailViewModel(
         SessionSnapshot snapshot,
         ISessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
+        ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
         : base(shell, dialogService)
@@ -345,6 +369,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
+        MapViewModel = new MapViewModel(tileLayerService, dialogService);
+        _ = MapViewModel.InitializeAsync();
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
         NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtiness();

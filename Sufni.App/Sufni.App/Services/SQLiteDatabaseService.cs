@@ -52,7 +52,8 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(SessionCache),
             typeof(Synchronization),
             typeof(PairedDevice),
-            typeof(Track)
+            typeof(Track),
+            typeof(AppSetting)
         ]);
     }
 
@@ -481,6 +482,32 @@ public class SqLiteDatabaseService : IDatabaseService
         if (token is not null)
         {
             await DeleteEntityAsync(token);
+        }
+    }
+
+    public async Task<string?> GetAppSettingAsync(string key)
+    {
+        await Initialization;
+        var setting = await connection.Table<AppSetting>()
+            .Where(s => s.Key == key)
+            .FirstOrDefaultAsync();
+        return setting?.Value;
+    }
+
+    public async Task PutAppSettingAsync(string key, string value)
+    {
+        await Initialization;
+        var existing = await connection.Table<AppSetting>()
+            .Where(s => s.Key == key)
+            .FirstOrDefaultAsync() is not null;
+        var setting = new AppSetting { Key = key, Value = value };
+        if (existing)
+        {
+            await connection.UpdateAsync(setting);
+        }
+        else
+        {
+            await connection.InsertAsync(setting);
         }
     }
 

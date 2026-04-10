@@ -24,7 +24,6 @@ public partial class App : Application
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
     public bool IsDesktop { get; private set; }
-
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -57,6 +56,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
+        ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
         ServiceCollection.AddSingleton<IFilesService>(_ => new FilesService());
         ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
         ServiceCollection.AddSingleton<BikeStore>();
