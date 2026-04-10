@@ -17,6 +17,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public string Description { get; set; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
+    public bool Malformed { get; init; }
 
     public MassStorageTelemetryFile(FileInfo fileInfo)
     {
@@ -27,20 +28,36 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
         var magic = reader.ReadBytes(3);
         var version = reader.ReadByte();
-        if (!magic.SequenceEqual("SST"u8.ToArray()) || version != 3)
+        if (!magic.SequenceEqual("SST"u8.ToArray()) || (version != 3 && version != 4))
         {
             throw new FormatException("Not an SST file");
         }
 
-        var sampleRate = reader.ReadUInt16();
-        var count = (this.fileInfo.Length - 16 /* sizeof(header) */) / 4 /* sizeof(record) */;
-        reader.ReadUInt16(); // padding
-        var timestamp = reader.ReadInt64();
+        long timestamp;
+        TimeSpan duration;
+        var malformed = false;
 
-        var duration = TimeSpan.FromSeconds((double)count / sampleRate);
+        if (version == 3)
+        {
+            var sampleRate = reader.ReadUInt16();
+            var count = (this.fileInfo.Length - 16) / 4;
+            reader.ReadUInt16(); // padding
+            timestamp = reader.ReadInt64();
+            duration = TimeSpan.FromSeconds((double)count / sampleRate);
+        }
+        else // version == 4
+        {
+            reader.ReadUInt32(); // padding
+            timestamp = reader.ReadInt64();
+            var result = SstV4TlvParser.ParseDuration(reader);
+            duration = result.Duration;
+            malformed = result.Malformed;
+        }
+
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
         StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
+        Malformed = malformed;
         Name = fileInfo.Name;
         Description = $"Imported from {fileInfo.Name}";
     }
@@ -57,8 +74,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
             Timestamp = rawTelemetryData.Timestamp,
             Duration = (double)rawTelemetryData.Front.Length / rawTelemetryData.SampleRate
         };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear,
-            rawTelemetryData.FrontAnomalyRate, rawTelemetryData.RearAnomalyRate, telemetryMetadata, bikeData);
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
         return telemetryData.BinaryForm;
     }
 
