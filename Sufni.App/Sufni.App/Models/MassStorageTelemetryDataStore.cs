@@ -17,7 +17,7 @@ public sealed class MassStorageTelemetryDataStore : ITelemetryDataStore
     public Task<List<ITelemetryFile>> GetFiles()
     {
         var files = DriveInfo.RootDirectory.GetFiles("*.SST")
-            .TrySelect<FileInfo, ITelemetryFile, FormatException>(f => new MassStorageTelemetryFile(f), null)
+            .TrySelect<FileInfo, ITelemetryFile, Exception>(f => new MassStorageTelemetryFile(f), null)
             .OrderByDescending(f => f.StartTime)
             .ToList();
         return Task.FromResult(files);
