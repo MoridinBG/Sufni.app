@@ -43,12 +43,18 @@ public class RawTelemetryDataTests
         writer.Write((byte)4);
         writer.Write((uint)0); // padding
         writer.Write((long)88888);
-        
+
         // Telemetry rate
         writer.Write((byte)0x00);
         writer.Write((ushort)3);
         writer.Write((byte)0x01);
         writer.Write((ushort)1000);
+
+        // Minimal telemetry chunk
+        writer.Write((byte)0x01);
+        writer.Write((ushort)4);
+        writer.Write((ushort)123);
+        writer.Write((ushort)456);
 
         ms.Position = 0;
 
@@ -72,7 +78,7 @@ public class RawTelemetryDataTests
         writer.Write((ushort)1000);
         writer.Write((ushort)0); // padding
         writer.Write((long)0);
-        
+
         // Spike: 100, 100, 100, 2000, 2000, 2000, 100, 100, 100...
         // The detector looks for sudden jumps.
         for (int i = 0; i < 100; i++)
@@ -80,11 +86,11 @@ public class RawTelemetryDataTests
             writer.Write((ushort)100); // Stable baseline
             writer.Write((ushort)100);
         }
-        
+
         // Sudden jump (Spike)
-        writer.Write((ushort)2000); 
         writer.Write((ushort)2000);
-        
+        writer.Write((ushort)2000);
+
         for (int i = 0; i < 100; i++)
         {
             writer.Write((ushort)100);

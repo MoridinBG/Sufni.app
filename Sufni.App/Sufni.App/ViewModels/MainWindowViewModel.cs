@@ -3,13 +3,11 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels;
 
-public partial class MainWindowViewModel : ViewModelBase
+public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 {
-    private readonly WelcomeScreenViewModel welcomeScreenViewModel = new();
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
     private TabPageViewModelBase? previousActiveTab;
     private bool isClosing;
@@ -17,8 +15,13 @@ public partial class MainWindowViewModel : ViewModelBase
     #region Observable properties
 
     [ObservableProperty] private TabPageViewModelBase? currentView;
-    [ObservableProperty] private MainPagesViewModel? mainPagesViewModel;
+    [ObservableProperty] private MainPagesViewModel mainPagesViewModel;
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
+
+    // The shell host interface exposes Tabs as a plain enumerable to keep
+    // the test surface narrow. The view model still publishes the
+    // observable collection for binding.
+    IEnumerable<TabPageViewModelBase> IMainWindowShellHost.Tabs => Tabs;
 
     #endregion Observable properties
 
@@ -34,10 +37,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     #region Constructors
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(MainPagesViewModel mainPagesViewModel, WelcomeScreenViewModel welcomeScreenViewModel)
     {
-        mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
+        MainPagesViewModel = mainPagesViewModel;
 
         Tabs.Add(welcomeScreenViewModel);
         CurrentView = welcomeScreenViewModel;
