@@ -401,34 +401,74 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var watch = new Subject<SessionSnapshot>();
         var initialResult = new SessionDesktopLoadResult.TelemetryPending();
-        var refreshPending = new TaskCompletionSource<SessionDesktopLoadResult>();
+        var refreshLoadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refreshPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finalLoadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finalPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finalTelemetry = TestTelemetryData.Create();
+        var finalResultApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var callCount = 0;
 
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
+                var cancellationToken = callInfo.ArgAt<CancellationToken>(1);
                 callCount++;
                 return callCount switch
                 {
                     1 => Task.FromResult<SessionDesktopLoadResult>(initialResult),
-                    2 => AwaitWithCancellation(refreshPending.Task, callInfo.ArgAt<CancellationToken>(1)),
-                    _ => Task.FromResult<SessionDesktopLoadResult>(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-                        finalTelemetry,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8))))
+                    2 => StartRefreshLoad(refreshPending.Task, cancellationToken),
+                    _ => StartFinalLoad(finalPending.Task, cancellationToken)
                 };
+
+                Task<SessionDesktopLoadResult> StartRefreshLoad(
+                    Task<SessionDesktopLoadResult> task,
+                    CancellationToken token)
+                {
+                    refreshLoadStarted.TrySetResult();
+                    return AwaitWithCancellation(task, token);
+                }
+
+                Task<SessionDesktopLoadResult> StartFinalLoad(
+                    Task<SessionDesktopLoadResult> task,
+                    CancellationToken token)
+                {
+                    finalLoadStarted.TrySetResult();
+                    return AwaitWithCancellation(task, token);
+                }
             });
         TestApp.SetIsDesktop(true);
 
         var editor = CreateEditor(snapshot, watch.AsObservable());
+
+        void MarkWhenFinalStateApplied()
+        {
+            if (ReferenceEquals(editor.TelemetryData, finalTelemetry) &&
+                editor.DamperPage.FrontHscPercentage == 1)
+            {
+                finalResultApplied.TrySetResult();
+            }
+        }
+
+        editor.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SessionDetailViewModel.TelemetryData))
+            {
+                MarkWhenFinalStateApplied();
+            }
+        };
+        editor.DamperPage.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(DamperPageViewModel.FrontHscPercentage))
+            {
+                MarkWhenFinalStateApplied();
+            }
+        };
+
         await editor.LoadedCommand.ExecuteAsync(null);
 
         watch.OnNext(snapshot with { HasProcessedData = true });
-        await Task.Yield();
+        await refreshLoadStarted.Task;
         watch.OnNext(snapshot with { HasProcessedData = false });
         watch.OnNext(snapshot with { HasProcessedData = true });
         refreshPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
@@ -439,9 +479,16 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(9, 9, 9, 9, 9, 9, 9, 9))));
 
-        await WaitForConditionAsync(() =>
-            ReferenceEquals(editor.TelemetryData, finalTelemetry) &&
-            editor.DamperPage.FrontHscPercentage == 1);
+        await finalLoadStarted.Task;
+        finalPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
+            finalTelemetry,
+            null,
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8))));
+
+        await finalResultApplied.Task;
 
         Assert.Same(finalTelemetry, editor.TelemetryData);
         await sessionCoordinator.Received(3).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
@@ -451,20 +498,5 @@ public class SessionDetailViewModelTests
     private static async Task<T> AwaitWithCancellation<T>(Task<T> task, CancellationToken cancellationToken)
     {
         return await task.WaitAsync(cancellationToken);
-    }
-
-    private static async Task WaitForConditionAsync(Func<bool> condition)
-    {
-        for (var i = 0; i < 100; i++)
-        {
-            if (condition())
-            {
-                return;
-            }
-
-            await Task.Yield();
-        }
-
-        Assert.True(condition());
     }
 }

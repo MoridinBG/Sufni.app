@@ -492,20 +492,11 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public void Constructor_DoesNotSubscribe_WhenSyncServerNull()
+    public void Constructor_DoesNotThrow_WhenSyncServerNull()
     {
         // Smoke test: with no sync server we should still get a working
         // coordinator and never NRE on construction.
         var coordinator = CreateCoordinator(sync: null);
         Assert.NotNull(coordinator);
-    }
-
-    private sealed class InlineBackgroundTaskRunner : IBackgroundTaskRunner
-    {
-        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default) => work();
-
-        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default) => Task.FromResult(work());
-
-        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default) => work();
     }
 }

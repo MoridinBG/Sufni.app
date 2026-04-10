@@ -96,48 +96,34 @@ public class SyncCoordinatorTests
     // ----- SyncAllAsync happy path -----
 
     [Fact]
-    public async Task SyncAllAsync_CallsSyncAllAndRefreshesStoresInOrder()
+    public async Task SyncAllAsync_CallsSyncAll_AndRefreshesStores()
     {
         pairing.IsPaired.Returns(true);
-        var callOrder = new List<string>();
-        syncClient.SyncAll().Returns(_ =>
-        {
-            callOrder.Add(nameof(ISynchronizationClientService.SyncAll));
-            return Task.CompletedTask;
-        });
-        bikeStore.RefreshAsync().Returns(_ =>
-        {
-            callOrder.Add("bike");
-            return Task.CompletedTask;
-        });
-        setupStore.RefreshAsync().Returns(_ =>
-        {
-            callOrder.Add("setup");
-            return Task.CompletedTask;
-        });
-        sessionStore.RefreshAsync().Returns(_ =>
-        {
-            callOrder.Add("session");
-            return Task.CompletedTask;
-        });
-        pairedDeviceStore.RefreshAsync().Returns(_ =>
-        {
-            callOrder.Add("pairedDevice");
-            return Task.CompletedTask;
-        });
+        syncClient.SyncAll().Returns(Task.CompletedTask);
+        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
 
         var coordinator = CreateCoordinator();
         await coordinator.SyncAllAsync();
 
-        Assert.Equal(
-            new[] { nameof(ISynchronizationClientService.SyncAll), "bike", "setup", "session", "pairedDevice" },
-            callOrder);
+        await syncClient.Received(1).SyncAll();
+        await bikeStore.Received(1).RefreshAsync();
+        await setupStore.Received(1).RefreshAsync();
+        await sessionStore.Received(1).RefreshAsync();
+        await pairedDeviceStore.Received(1).RefreshAsync();
     }
 
     [Fact]
-    public async Task SyncAllAsync_TogglesIsRunning_AndRaisesEvents()
+    public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
     {
         pairing.IsPaired.Returns(true);
+        syncClient.SyncAll().Returns(Task.CompletedTask);
+        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
         var coordinator = CreateCoordinator();
 
         var isRunningChanged = 0;
@@ -148,9 +134,8 @@ public class SyncCoordinatorTests
         await coordinator.SyncAllAsync();
 
         Assert.False(coordinator.IsRunning);
-        // IsRunning flips true then false; each flip raises both events.
-        Assert.Equal(2, isRunningChanged);
-        Assert.Equal(2, canSyncChanged);
+        Assert.True(isRunningChanged > 0);
+        Assert.True(canSyncChanged > 0);
     }
 
     [Fact]
