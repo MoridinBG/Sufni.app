@@ -47,10 +47,10 @@ public class SynchronizationServerService : ISynchronizationServerService
     private const int RefreshTtlDays = 30;
     private const int Port = 5575;
 
-    private readonly IDatabaseService? databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-    private readonly ISecureStorage? secureStorage = App.Current?.Services?.GetService<ISecureStorage>();
-    
-    private readonly ConcurrentDictionary<string, (string deviceId, DateTime expiresAt)> pendingPairings = new();
+    private readonly IDatabaseService databaseService;
+    private readonly ISecureStorage secureStorage;
+
+    private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
     private static string GeneratePin() => RandomNumberGenerator.GetInt32(100000, 999999).ToString();
 
@@ -63,17 +63,18 @@ public class SynchronizationServerService : ISynchronizationServerService
     
     private Task Initialization { get; }
     
-    public Action<string, string>? PairingRequested { get; set; }
-    public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
-    public Action<Guid>? SessionDataArrived { get; set; }
-
-    public event EventHandler? PairingConfirmed;
-    public event EventHandler? Unpaired;
+    public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
+    public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
+    public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
+    public event EventHandler<PairingEventArgs>? PairingConfirmed;
+    public event EventHandler<PairingEventArgs>? Unpaired;
 
     #region Constructors
 
-    public SynchronizationServerService()
+    public SynchronizationServerService(IDatabaseService databaseService, ISecureStorage secureStorage)
     {
+        this.databaseService = databaseService;
+        this.secureStorage = secureStorage;
         Initialization = Init();
     }
 
@@ -94,9 +95,6 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private async Task Init()
     {
-        Debug.Assert(secureStorage is not null);
-        Debug.Assert(databaseService is not null);
-
         jwtSecret = await secureStorage.GetStringAsync("jwt_secret");
         if (string.IsNullOrEmpty(jwtSecret))
         {
@@ -127,8 +125,6 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private async Task GenerateCertificateIfNeeded()
     {
-        Debug.Assert(secureStorage is not null);
-
         certPassword = await secureStorage.GetStringAsync("cert_password");
 
         // If there was no stored certificate password, or the certificate file is missing, we generate
@@ -215,21 +211,26 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPost(EndpointPairRequest, ([FromBody] PairingRequest req) =>
         {
+            var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
             var pin = GeneratePin();
-            pendingPairings[pin] = (req.DeviceId, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
-            PairingRequested?.Invoke(req.DeviceId, pin);
+            pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
+            PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
             return Results.Ok();
         });
 
         app.MapPost(EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
         {
-            Debug.Assert(databaseService is not null);
-
             if (!pendingPairings.TryRemove(req.Pin, out var record)) return Results.Unauthorized();
-            if (record.deviceId != req.DeviceId || record.expiresAt < DateTime.UtcNow) return Results.Unauthorized();
+            var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
+            if (record.deviceId != req.DeviceId ||
+                record.displayName != displayName ||
+                record.expiresAt < DateTime.UtcNow)
+            {
+                return Results.Unauthorized();
+            }
 
             var accessToken = GenerateAccessToken(req.DeviceId);
-            var pairedDevice = new PairedDevice(req.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
+            var pairedDevice = new PairedDevice(req.DeviceId, displayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
             await databaseService.PutPairedDeviceAsync(pairedDevice);
 
             PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
@@ -238,13 +239,11 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPost(EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
         {
-            Debug.Assert(databaseService is not null);
-
             var pairedDevice = await databaseService.GetPairedDeviceByTokenAsync(req.RefreshToken);
             if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
 
             var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
-            var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, DateTime.UtcNow.AddDays(RefreshTtlDays));
+            var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
             await databaseService.PutPairedDeviceAsync(newPairedDevice);
 
             return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
@@ -252,8 +251,6 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPost(EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
         {
-            Debug.Assert(databaseService is not null);
-
             var device = await databaseService.GetPairedDeviceAsync(req.DeviceId);
             if (device is null) return Results.Ok();
             if (device.Token != req.RefreshToken) return Results.Unauthorized();
@@ -266,8 +263,6 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapGet(EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
         {
-            Debug.Assert(databaseService is not null);
-
             var data = new SynchronizationData
             {
                 Boards = await databaseService.GetChangedAsync<Board>(since),
@@ -282,26 +277,20 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPut(EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
         {
-            Debug.Assert(databaseService is not null);
-
             await databaseService.MergeAllAsync(data);
 
-            SynchronizationDataArrived?.Invoke(data);
+            SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
             return Results.NoContent();
         });
 
         app.MapGet(EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
         {
-            Debug.Assert(databaseService is not null);
-
             var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
             return Results.Ok(incompleteSessions);
         });
 
         app.MapGet($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
         {
-            Debug.Assert(databaseService is not null);
-
             var data = await databaseService.GetSessionPsstAsync(id);
             if  (data is null) return Results.NotFound(new { msg = "Session does not exist!" });
 
@@ -316,8 +305,6 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         app.MapPatch($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
         {
-            Debug.Assert(databaseService is not null);
-
             await using var memoryStream = new MemoryStream();
             await request.BodyReader.CopyToAsync(memoryStream);
             var data = memoryStream.ToArray();
@@ -331,7 +318,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.NotFound();
             }
 
-            SessionDataArrived?.Invoke(id);
+            SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
             return Results.NoContent();
         });
 

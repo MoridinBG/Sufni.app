@@ -1,0 +1,137 @@
+<UserControl
+    x:Class="Sufni.App.Views.Editors.SetupEditorView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:s="clr-namespace:Sufni.App.Stores"
+    xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:SetupEditorViewModel"
+    Background="{StaticResource SufniRegion}"
+    Focusable="True"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:SetupEditorViewModel />
+    </Design.DataContext>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <Grid
+        MinWidth="300"
+        Margin="20,10,20,10"
+        HorizontalAlignment="Stretch"
+        ColumnDefinitions="auto *"
+        RowDefinitions="auto auto auto auto auto auto auto * auto auto">
+
+        <!--  Name  -->
+        <v:EditableTitle
+            Grid.Row="0"
+            Grid.ColumnSpan="2"
+            Margin="0,0,0,10"
+            HorizontalAlignment="Stretch" />
+
+        <!--  Board ID  -->
+        <Label
+            Grid.Row="1"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Board ID: " />
+        <TextBox
+            Grid.Row="1"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            Text="{Binding BoardId}" />
+
+        <!--  Bike  -->
+        <Label
+            Grid.Row="2"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Bike: " />
+        <ComboBox
+            Grid.Row="2"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding Bikes}"
+            SelectedItem="{Binding SelectedBike}">
+
+            <ComboBox.DataTemplates>
+                <DataTemplate DataType="s:BikeSnapshot">
+                    <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+            </ComboBox.DataTemplates>
+        </ComboBox>
+
+        <!--  Fork sensor type  -->
+        <Label
+            Grid.Row="3"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Fork sensor: " />
+        <ComboBox
+            Grid.Row="3"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding ForkSensorTypes}"
+            PlaceholderText=" -- not in use --"
+            SelectedItem="{Binding ForkSensorType}" />
+
+        <!--  Fork sensor configuration  -->
+        <ContentControl
+            Grid.Row="4"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="20,0,0,0"
+            Content="{Binding ForkSensorConfiguration}" />
+
+        <!--  Shock sensor type  -->
+        <Label
+            Grid.Row="5"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Shock sensor: " />
+        <ComboBox
+            Grid.Row="5"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding ShockSensorTypes}"
+            PlaceholderText=" -- not in use --"
+            SelectedItem="{Binding ShockSensorType}" />
+
+        <!--  Shock sensor configuration  -->
+        <ContentControl
+            Grid.Row="6"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="20,0,0,0"
+            Content="{Binding ShockSensorConfiguration}" />
+
+        <!--  Error messages for Setup instance  -->
+        <v:ErrorMessagesBar
+            Grid.Row="8"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="0,5,0,0" />
+
+        <!--  Back, Save, Reset and Delete buttons  -->
+        <v:CommonButtonLine
+            Grid.Row="9"
+            Grid.Column="0"
+            Grid.ColumnSpan="2" />
+    </Grid>
+</UserControl>
