@@ -50,11 +50,3 @@ public class NullToGridLengthConverter : IValueConverter
         throw new NotSupportedException();
     }
 }
-
-public partial class SessionDesktopView : UserControl
-{
-    public SessionDesktopView()
-    {
-        InitializeComponent();
-    }
-}
