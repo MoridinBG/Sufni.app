@@ -141,6 +141,19 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         foreach (var file in files)
         {
             TelemetryFiles.Add(file);
+            NotifyIfMalformed(file);
+        }
+    }
+
+    private void NotifyIfMalformed(ITelemetryFile file)
+    {
+        if (string.IsNullOrWhiteSpace(file.MalformedMessage))
+            return;
+
+        var message = $"{file.FileName} is malformed: {file.MalformedMessage}";
+        if (!Notifications.Contains(message))
+        {
+            Notifications.Add(message);
         }
     }
 

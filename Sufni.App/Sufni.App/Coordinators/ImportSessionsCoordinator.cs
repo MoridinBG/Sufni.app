@@ -57,6 +57,14 @@ public sealed class ImportSessionsCoordinator(
             {
                 try
                 {
+                    if (!string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage))
+                    {
+                        var malformedMessage = telemetryFile.MalformedMessage;
+                        failures.Add((telemetryFile.Name, malformedMessage));
+                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, malformedMessage));
+                        continue;
+                    }
+
                     var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
                     var session = new Session(
