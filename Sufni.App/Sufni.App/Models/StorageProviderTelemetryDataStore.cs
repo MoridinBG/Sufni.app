@@ -39,7 +39,14 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         {
             if (item.Name.EndsWith(".SST") && item is IStorageFile file)
             {
-                files.Add(new StorageProviderTelemetryFile(file));
+                try
+                {
+                    files.Add(await StorageProviderTelemetryFile.CreateAsync(file));
+                }
+                catch (Exception)
+                {
+                    // Invalid files are skipped instead of failing the whole listing.
+                }
             }
         }
 

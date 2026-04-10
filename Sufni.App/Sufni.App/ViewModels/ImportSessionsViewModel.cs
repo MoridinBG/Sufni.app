@@ -150,7 +150,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         if (!file.Malformed)
             return;
 
-        var message = $"{file.FileName} appears malformed: unknown chunks or incorrect length detected.";
+        var message = string.IsNullOrWhiteSpace(file.MalformedMessage)
+            ? $"{file.FileName} is malformed."
+            : $"{file.FileName} is malformed: {file.MalformedMessage}";
         if (!Notifications.Contains(message))
         {
             Notifications.Add(message);

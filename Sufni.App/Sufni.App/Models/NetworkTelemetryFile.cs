@@ -15,6 +15,8 @@ public class NetworkTelemetryFile : ITelemetryFile
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
     public bool Malformed => false;
+    public string? MalformedMessage => null;
+    public bool HasUnknown => false;
 
     private readonly IPEndPoint ipEndPoint;
 
@@ -30,7 +32,9 @@ public class NetworkTelemetryFile : ITelemetryFile
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
             Timestamp = rawTelemetryData.Timestamp,
-            Duration = (double)rawTelemetryData.Front.Length / rawTelemetryData.SampleRate
+            Duration = rawTelemetryData.SampleRate > 0
+                ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
+                : 0.0
         };
         var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
         return telemetryData.BinaryForm;
