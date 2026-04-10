@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
@@ -10,21 +9,14 @@ namespace Sufni.App.ViewModels.Rows;
 /// <summary>
 /// Presentation wrapper around a <see cref="PairedDeviceSnapshot"/>
 /// for use inside the paired-devices side panel. Refreshes itself via
-/// <see cref="Update"/> when the underlying snapshot changes. The
-/// unpair command routes through
-/// <see cref="IPairedDeviceCoordinator"/>.
-///
-/// The row owns no error state itself (it inherits from
-/// <see cref="ObservableObject"/>, not <see cref="ViewModelBase"/>),
-/// so unpair failures are surfaced via the <c>reportError</c> callback
-/// that the list view model passes to the constructor. The list VM
-/// pushes those messages into its inherited <c>ErrorMessages</c>
-/// collection.
+/// <see cref="Update"/> when the underlying snapshot changes.
+/// <see cref="UndoableDelete"/> hands the row back to the owning list
+/// view model via the <c>requestDelete</c> callback so the list can run
+/// its pending-delete undo window before finalizing.
 /// </summary>
 public partial class PairedDeviceRowViewModel : ObservableObject, IListItemRow
 {
-    private readonly IPairedDeviceCoordinator? coordinator;
-    private readonly Action<string>? reportError;
+    private readonly Action<PairedDeviceRowViewModel>? requestDelete;
 
     public string DeviceId { get; private set; }
     public string? DisplayName { get; private set; }
@@ -47,17 +39,14 @@ public partial class PairedDeviceRowViewModel : ObservableObject, IListItemRow
     public PairedDeviceRowViewModel()
     {
         DeviceId = string.Empty;
-        coordinator = null;
-        reportError = null;
+        requestDelete = null;
     }
 
     public PairedDeviceRowViewModel(
         PairedDeviceSnapshot snapshot,
-        IPairedDeviceCoordinator coordinator,
-        Action<string> reportError)
+        Action<PairedDeviceRowViewModel> requestDelete)
     {
-        this.coordinator = coordinator;
-        this.reportError = reportError;
+        this.requestDelete = requestDelete;
         DeviceId = snapshot.DeviceId;
         DisplayName = snapshot.DisplayName;
         Expires = snapshot.Expires;
@@ -73,14 +62,9 @@ public partial class PairedDeviceRowViewModel : ObservableObject, IListItemRow
     }
 
     [RelayCommand]
-    private async Task UndoableDelete()
+    private void UndoableDelete()
     {
-        if (coordinator is null) return;
-        var result = await coordinator.UnpairAsync(DeviceId);
-        if (result is PairedDeviceUnpairResult.Failed failed)
-        {
-            reportError?.Invoke(failed.ErrorMessage);
-        }
+        requestDelete?.Invoke(this);
     }
 
     [RelayCommand]

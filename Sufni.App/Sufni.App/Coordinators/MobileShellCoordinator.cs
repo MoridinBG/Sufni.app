@@ -3,7 +3,7 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class MobileShellCoordinator(Func<MainViewModel> mainViewProvider) : IShellCoordinator
+public sealed class MobileShellCoordinator(Func<IMainViewShellHost> mainViewProvider) : IShellCoordinator
 {
     public void Open(ViewModelBase view) => mainViewProvider().OpenView(view);
 
@@ -20,6 +20,12 @@ public sealed class MobileShellCoordinator(Func<MainViewModel> mainViewProvider)
         {
             main.OpenPreviousView();
         }
+    }
+
+    // On mobile a list page and an editor for one of its rows are not on
+    // the back stack at the same time, so there is nothing to close.
+    public void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase
+    {
     }
 
     public void GoBack() => mainViewProvider().OpenPreviousView();

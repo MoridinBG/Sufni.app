@@ -20,9 +20,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly ISessionStore sessionStore;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<SessionSnapshot, bool>> filterSubject = new(_ => true);
+    private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
 
@@ -36,18 +38,20 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     public SessionListViewModel()
     {
+        sessionStore = null!;
         sessionCoordinator = null!;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>([]);
     }
 
     public SessionListViewModel(ISessionStore sessionStore, ISessionCoordinator sessionCoordinator)
     {
+        this.sessionStore = sessionStore;
         this.sessionCoordinator = sessionCoordinator;
 
         sessionStore.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new SessionRowViewModel(snapshot, sessionCoordinator),
+                snapshot => new SessionRowViewModel(snapshot, sessionCoordinator, RequestRowDelete),
                 (row, snapshot) => row.Update(snapshot))
             .SortAndBind(
                 out sessionRows,
@@ -67,16 +71,19 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #endregion Constructors
 
-    #region Private methods
+    #region ItemListViewModelBase overrides
 
-    private void RebuildFilter()
+    protected override void RebuildFilter()
     {
         var search = SearchText;
         var fromDate = DateFilterFrom;
         var toDate = DateFilterTo;
+        var pendingId = pendingDelete?.Id;
 
         filterSubject.OnNext(snapshot =>
         {
+            if (pendingId is not null && snapshot.Id == pendingId) return false;
+
             // Search matches name OR description.
             var textMatch =
                 string.IsNullOrEmpty(search) ||
@@ -92,6 +99,41 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
             return true;
         });
+    }
+
+    protected override void OnPendingDeleteUndone()
+    {
+        pendingDelete = null;
+        RebuildFilter();
+    }
+
+    #endregion ItemListViewModelBase overrides
+
+    #region Private methods
+
+    private async void RequestRowDelete(SessionRowViewModel row)
+    {
+        var snapshot = sessionStore.Get(row.Id);
+        if (snapshot is null) return;
+
+        await FlushPendingDeleteAsync();
+
+        pendingDelete = (snapshot.Id, snapshot.Name);
+        RebuildFilter();
+
+        StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
+    }
+
+    private async Task FinalizeSessionDeleteAsync(Guid sessionId)
+    {
+        pendingDelete = null;
+        RebuildFilter();
+
+        var result = await sessionCoordinator.DeleteAsync(sessionId);
+        if (result.Outcome == SessionDeleteOutcome.Failed)
+        {
+            ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
+        }
     }
 
     #endregion Private methods

@@ -13,6 +13,7 @@ public sealed class ImportSessionsCoordinator(
     IDatabaseService databaseService,
     ISessionStoreWriter sessionStore,
     IShellCoordinator shell,
+    IBackgroundTaskRunner backgroundTaskRunner,
     Func<ImportSessionsViewModel> importSessionsResolver) : IImportSessionsCoordinator
 {
     public Task OpenAsync()
@@ -26,7 +27,17 @@ public sealed class ImportSessionsCoordinator(
     public async Task<SessionImportResult> ImportAsync(
         ITelemetryDataStore dataStore,
         IReadOnlyList<ITelemetryFile> files,
-        Guid setupId)
+        Guid setupId,
+        IProgress<SessionImportEvent>? progress = null)
+    {
+        return await backgroundTaskRunner.RunAsync(
+            () => ImportCoreAsync(files, setupId, progress));
+    }
+
+    private async Task<SessionImportResult> ImportCoreAsync(
+        IReadOnlyList<ITelemetryFile> files,
+        Guid setupId,
+        IProgress<SessionImportEvent>? progress)
     {
         var imported = new List<SessionSnapshot>();
         var failures = new List<(string FileName, string ErrorMessage)>();
@@ -36,15 +47,7 @@ public sealed class ImportSessionsCoordinator(
         var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
             ?? throw new Exception("Bike is missing");
 
-        var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-        var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
-
-        var bikeData = new BikeData(
-            bike.HeadAngle,
-            frontSensorConfiguration?.MaxTravel,
-            rearSensorConfiguration?.MaxTravel,
-            frontSensorConfiguration?.MeasurementToTravel,
-            rearSensorConfiguration?.MeasurementToTravel);
+        var bikeData = CreateBikeData(setup, bike);
 
         foreach (var telemetryFile in files)
         {
@@ -72,10 +75,12 @@ public sealed class ImportSessionsCoordinator(
                     var snapshot = SessionSnapshot.From(session);
                     sessionStore.Upsert(snapshot);
                     imported.Add(snapshot);
+                    progress?.Report(new SessionImportEvent.Imported(snapshot));
                 }
                 catch (Exception e)
                 {
                     failures.Add((telemetryFile.Name, e.Message));
+                    progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
                 }
             }
             else if (telemetryFile.ShouldBeImported is null)
@@ -87,10 +92,24 @@ public sealed class ImportSessionsCoordinator(
                 catch (Exception e)
                 {
                     failures.Add((telemetryFile.Name, e.Message));
+                    progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
                 }
             }
         }
 
         return new SessionImportResult(imported, failures);
+    }
+
+    private static BikeData CreateBikeData(Setup setup, Bike bike)
+    {
+        var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
+        var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
+
+        return new BikeData(
+            bike.HeadAngle,
+            frontSensorConfiguration?.MaxTravel,
+            rearSensorConfiguration?.MaxTravel,
+            frontSensorConfiguration?.MeasurementToTravel,
+            rearSensorConfiguration?.MeasurementToTravel);
     }
 }

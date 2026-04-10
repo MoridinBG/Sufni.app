@@ -20,12 +20,31 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     [ObservableProperty] private JointViewModel? adjacentJoint2;
 
     private IReadOnlyList<JointViewModel> jointViewModels = [];
+    private bool initialResolutionDone;
     public IReadOnlyList<JointViewModel> JointViewModels
     {
         get => jointViewModels;
         set
         {
             jointViewModels = value;
+
+            if (!initialResolutionDone && value.Count > 0)
+            {
+                // First non-empty joint list - initial load.
+                SensorJoint    = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.CentralJoint);
+                AdjacentJoint1 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint1);
+                AdjacentJoint2 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint2);
+                initialResolutionDone = true;
+            }
+            else if (initialResolutionDone)
+            {
+                // User picked a different bike
+                SensorJoint    = null;
+                AdjacentJoint1 = null;
+                AdjacentJoint2 = null;
+            }
+            // else: empty list before any real one — wait for the real one.
+
             UpdateJointsForSensorPlacement();
         }
     }
@@ -103,10 +122,9 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
         sensorConfiguration = configuration;
 
         if (joints is null) return;
+        // The JointViewModels setter performs the initial resolution
+        // from configuration.CentralJoint / AdjacentJoint1 / AdjacentJoint2.
         JointViewModels = joints;
-        SensorJoint = joints.FirstOrDefault(jvm => jvm.Name == configuration.CentralJoint);
-        AdjacentJoint1 = joints.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint1);
-        AdjacentJoint2 = joints.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint2);
     }
 
     #endregion Constructors

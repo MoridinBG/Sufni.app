@@ -43,7 +43,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private async Task AddBike() => await bikeCoordinator.OpenCreateAsync();
 
     [RelayCommand]
-    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync();
+    private async Task AddSetup() => await setupCoordinator.OpenCreateForDetectedBoardAsync();
 
     [RelayCommand]
     private async Task ImportSession() => await importSessionsCoordinator.OpenAsync();
