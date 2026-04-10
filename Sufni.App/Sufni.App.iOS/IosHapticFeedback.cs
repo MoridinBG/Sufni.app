@@ -1,8 +1,10 @@
-﻿using System.Linq;
+using System.Linq;
+using Sufni.App.Services;
+using UIKit;
 
-namespace HapticFeedback;
+namespace Sufni.App.iOS;
 
-public class HapticFeedback : IHapticFeedback
+public sealed class IosHapticFeedback : IHapticFeedback
 {
     public void Click()
     {

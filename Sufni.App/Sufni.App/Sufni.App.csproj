@@ -42,14 +42,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="Services\SynchronizationServerService.mobile.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\FriendlyNameProvider\FriendlyNameProvider.csproj" />
     <ProjectReference Include="..\..\SecureStorage\SecureStorage.csproj" />
     <ProjectReference Include="..\..\ServiceDiscovery\ServiceDiscovery.csproj" />
-    <ProjectReference Include="..\..\HapticFeedback\HapticFeedback.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
   </ItemGroup>

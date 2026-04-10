@@ -9,7 +9,6 @@
       "Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj",
       "SecureStorage/SecureStorage.csproj",
       "FriendlyNameProvider/FriendlyNameProvider.csproj",
-      "HapticFeedback/HapticFeedback.csproj",
       "ServiceDiscovery/ServiceDiscovery.csproj",
       "Sufni.Telemetry/Sufni.Telemetry.csproj",
       "Sufni.Kinematics/Sufni.Kinematics.csproj",

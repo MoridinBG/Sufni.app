@@ -3,7 +3,6 @@ using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
 using FriendlyNameProvider;
-using HapticFeedback;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using ServiceDiscovery;
@@ -27,8 +26,7 @@ namespace Sufni.App.Android
             App.ServiceCollection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
-            App.ServiceCollection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>(provider => 
-                new HapticFeedback.HapticFeedback(Window!)); 
+            App.ServiceCollection.AddSingleton<IHapticFeedback>(_ => new AndroidHapticFeedback(Window!));
             App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
             App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
             App.ServiceCollection.AddSingleton<PairingClientViewModel>();
