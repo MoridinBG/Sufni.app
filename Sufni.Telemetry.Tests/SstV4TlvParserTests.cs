@@ -160,6 +160,12 @@ public class SstV4TlvParserTests
         writer.Write((ushort)5);
         writer.Write(new byte[] { 1, 2, 3, 4, 5 });
 
+        // Rates Chunk
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
         // Telemetry Chunk
         writer.Write((byte)0x01);
         writer.Write((ushort)4);
@@ -178,5 +184,96 @@ public class SstV4TlvParserTests
         // Assert
         Assert.Single(result.Front);
         Assert.Equal(500, result.Front[0]);
+    }
+
+    [Fact]
+    public void Inspect_UnknownChunkType_ReturnsValidInspectionWithHasUnknown()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)0xFF);
+        writer.Write((ushort)5);
+        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)4);
+        writer.Write((ushort)500);
+        writer.Write((ushort)600);
+
+        ms.Position = 0;
+
+        var result = RawTelemetryData.InspectStream(ms);
+
+        var inspection = Assert.IsType<ValidSstFileInspection>(result);
+        Assert.True(inspection.HasUnknown);
+        Assert.Equal(4, inspection.Version);
+        Assert.Equal(1000, inspection.TelemetrySampleRate);
+        Assert.Equal(TimeSpan.FromSeconds(1.0 / 1000.0), inspection.Duration);
+    }
+
+    [Fact]
+    public void Inspect_InvalidTelemetryChunkLength_ReturnsMalformedInspection()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)5);
+        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
+
+        ms.Position = 0;
+
+        var result = RawTelemetryData.InspectStream(ms);
+
+        var inspection = Assert.IsType<MalformedSstFileInspection>(result);
+        Assert.Equal((byte)4, inspection.Version);
+        Assert.NotNull(inspection.StartTime);
+        Assert.NotEmpty(inspection.Message);
+    }
+
+    [Fact]
+    public void Parse_InvalidTelemetryChunkLength_ThrowsFormatException()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)5);
+        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
+
+        ms.Position = 0;
+
+        Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
     }
 }
