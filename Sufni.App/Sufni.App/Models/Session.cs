@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using SQLite;
 
@@ -52,8 +51,8 @@ public class Session : Synchronizable
     [Column("track")]
     public string? TrackJson
     {
-        get => JsonSerializer.Serialize(Track);
-        set => Track = value != null ? JsonSerializer.Deserialize<List<TrackPoint>>(value) : null;
+        get => AppJson.Serialize(Track);
+        set => Track = value != null ? AppJson.Deserialize<List<TrackPoint>>(value) : null;
     }
 
     [JsonIgnore]

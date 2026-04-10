@@ -1,20 +1,17 @@
 ﻿using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Stores;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using System.Threading.Tasks;
 using System.Linq;
-using System.Diagnostics;
+using System.Reactive.Linq;
 using System.Threading;
-using Avalonia.Platform.Storage;
-using Avalonia.Threading;
-using DynamicData;
-using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.ViewModels.Items;
-using Sufni.Telemetry;
+using System.Threading.Tasks;
 
 namespace Sufni.App.ViewModels;
 
@@ -22,13 +19,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 {
     #region Observable properties
 
-    public ObservableCollection<ITelemetryDataStore>? TelemetryDataStores { get; set; }
+    public ObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
     public ObservableCollection<ITelemetryFile> TelemetryFiles { get; } = [];
-    private readonly SourceCache<ItemViewModelBase, Guid> sessions;
 
     [ObservableProperty] private ITelemetryDataStore? selectedDataStore;
     [ObservableProperty] private bool newDataStoresAvailable;
-    [ObservableProperty] private bool importInProgress;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
@@ -36,267 +31,249 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     #endregion Observable properties
 
-    #region Property change handlers
-
-    private async void GetDataStoreFiles(object? dataStore)
-    {
-        ImportInProgress = true;
-
-        TelemetryFiles.Clear();
-        var files = await (dataStore as ITelemetryDataStore)!.GetFiles();
-        Dispatcher.UIThread.Post(() =>
-        {
-            foreach (var file in files)
-            {
-                TelemetryFiles.Add(file);
-                if (file.Malformed)
-                    Notifications.Add($"{file.FileName} appears malformed: unknown chunks or incorrect length detected.");
-            }
-        });
-
-        ImportInProgress = false;
-    }
-
-    async partial void OnSelectedDataStoreChanged(ITelemetryDataStore? value)
-    {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        if (value == null)
-        {
-            TelemetryFiles.Clear();
-            SelectedSetup = null;
-            return;
-        }
-
-        // Need to clear the DataStoresAvailable flag so that the notification does not show
-        // up when the first datastore appears and auto-selected.
-        ClearNewDataStoresAvailable();
-
-        try
-        {
-            var boards = await databaseService.GetAllAsync<Board>();
-            var selectedBoard = boards.FirstOrDefault(b => b?.Id == value.BoardId, null);
-            SelectedSetup = selectedBoard?.SetupId;
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Error while changing data store: {e.Message}");
-        }
-
-        new Thread(GetDataStoreFiles).Start(value);
-    }
-
-    #endregion Property change handlers
-
     #region Private members
 
-    private readonly IDatabaseService? databaseService;
-    private readonly ITelemetryDataStoreService? telemetryDataStoreService;
+    private readonly ITelemetryDataStoreService telemetryDataStoreService;
+    private readonly IFilesService filesService;
+    private readonly ISetupCoordinator setupCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
+    private readonly ISetupStore setupStore;
 
     #endregion Private members
 
     #region Constructors
 
-    // This is only here for the designer
-    public ImportSessionsViewModel() : this(new SourceCache<ItemViewModelBase, Guid>(m => m.Id)) { }
-
-    public ImportSessionsViewModel(SourceCache<ItemViewModelBase, Guid> sessions)
+    public ImportSessionsViewModel()
     {
         Name = "Import Sessions";
+        TelemetryDataStores = [];
+        telemetryDataStoreService = null!;
+        filesService = null!;
+        setupCoordinator = null!;
+        importSessionsCoordinator = null!;
+        setupStore = null!;
+    }
 
-        databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-        telemetryDataStoreService = App.Current?.Services?.GetService<ITelemetryDataStoreService>();
-
-        this.sessions = sessions;
-
-        Debug.Assert(databaseService != null, nameof(telemetryDataStoreService) + " != null");
-        Debug.Assert(telemetryDataStoreService != null, nameof(telemetryDataStoreService) + " != null");
+    public ImportSessionsViewModel(
+        ITelemetryDataStoreService telemetryDataStoreService,
+        IFilesService filesService,
+        IShellCoordinator shell,
+        IDialogService dialogService,
+        ISetupCoordinator setupCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator,
+        ISetupStore setupStore)
+        : base(shell, dialogService)
+    {
+        Name = "Import Sessions";
+        this.telemetryDataStoreService = telemetryDataStoreService;
+        this.filesService = filesService;
+        this.setupCoordinator = setupCoordinator;
+        this.importSessionsCoordinator = importSessionsCoordinator;
+        this.setupStore = setupStore;
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
-        TelemetryDataStores.CollectionChanged += (_, e) =>
-        {
-            var comparer = new TelemetryDataStoreComparer();
-            var removed = (ITelemetryDataStore)e.OldItems?[0]!;
-            switch (e.Action)
-            {
-                case NotifyCollectionChangedAction.Add:
-                    Dispatcher.UIThread.Invoke(() =>
-                    {
-                        NewDataStoresAvailable = true;
-                        SelectedDataStore ??= TelemetryDataStores[0];
-                    });
-                    break;
-                case NotifyCollectionChangedAction.Remove:
-                    Dispatcher.UIThread.Invoke(() =>
-                    {
-                        if (TelemetryDataStores.Count == 0 || !comparer.Equals(SelectedDataStore, removed)) return;
-                        // XXX: The files from the correct datastore show up, but the ComboBox won't show the datastore
-                        //      as selected. Probably has something to do with this fix, since it only handle adds:
-                        //      https://github.com/AvaloniaUI/Avalonia/pull/4593/commits/8dfc65d17be00b7f7c96c294dabe7616916951b2
-                        SelectedDataStore = TelemetryDataStores[^1];
-                    });
-                    break;
-                case NotifyCollectionChangedAction.Replace:
-                case NotifyCollectionChangedAction.Move:
-                case NotifyCollectionChangedAction.Reset:
-                    return;
-            }
-        };
+        TelemetryDataStores.CollectionChanged += OnTelemetryDataStoresCollectionChanged;
         if (TelemetryDataStores.Count > 0)
         {
             SelectedDataStore = TelemetryDataStores[0];
         }
     }
 
-    #endregion
+    #endregion Constructors
 
-    #region Public methods
+    #region Property change handlers
 
-    public async Task EvaluateSetupExists()
+    partial void OnSelectedDataStoreChanged(ITelemetryDataStore? value)
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-        var boards = await databaseService.GetAllAsync<Board>();
-        var selectedBoard = boards.FirstOrDefault(b => b?.Id == SelectedDataStore?.BoardId, null);
-        SelectedSetup = selectedBoard?.SetupId;
+        _ = HandleSelectedDataStoreChangedAsync(value);
     }
 
-    #endregion
+    #endregion Property change handlers
 
-    #region Commands
+    #region Private methods
+
+    private async Task HandleSelectedDataStoreChangedAsync(ITelemetryDataStore? value)
+    {
+        if (value is null)
+        {
+            TelemetryFiles.Clear();
+            SelectedSetup = null;
+            return;
+        }
+
+        ClearNewDataStoresAvailable();
+        ResolveSelectedSetup();
+
+        try
+        {
+            await LoadTelemetryFilesAsync(value);
+        }
+        catch (Exception e)
+        {
+            if (IsCurrentTelemetryFilesLoad(value))
+            {
+                ErrorMessages.Add($"Error while changing data store: {e.Message}");
+            }
+        }
+    }
+
+    private async Task LoadTelemetryFilesAsync(ITelemetryDataStore dataStore)
+    {
+        var files = await telemetryDataStoreService.LoadFilesAsync(dataStore);
+        if (!IsCurrentTelemetryFilesLoad(dataStore))
+            return;
+
+        ApplyTelemetryFiles(files);
+    }
+
+    private async Task RefreshTelemetryFilesAfterImportAsync(ITelemetryDataStore dataStore)
+    {
+        var files = await telemetryDataStoreService.LoadFilesAsync(dataStore);
+        if (!IsCurrentTelemetryFilesLoad(dataStore))
+            return;
+
+        ApplyTelemetryFiles(files);
+    }
+
+    private void ApplyTelemetryFiles(IReadOnlyList<ITelemetryFile> files)
+    {
+        TelemetryFiles.Clear();
+        foreach (var file in files)
+        {
+            TelemetryFiles.Add(file);
+            NotifyIfMalformed(file);
+        }
+    }
+
+    private void NotifyIfMalformed(ITelemetryFile file)
+    {
+        if (string.IsNullOrWhiteSpace(file.MalformedMessage))
+            return;
+
+        var message = $"{file.FileName} is malformed: {file.MalformedMessage}";
+        if (!Notifications.Contains(message))
+        {
+            Notifications.Add(message);
+        }
+    }
+
+    private bool IsCurrentTelemetryFilesLoad(ITelemetryDataStore originStore) =>
+        ReferenceEquals(SelectedDataStore, originStore);
+
+    private Progress<SessionImportEvent> CreateImportProgress() =>
+        new(evt =>
+        {
+            switch (evt)
+            {
+                case SessionImportEvent.Imported imported:
+                    Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
+                    break;
+                case SessionImportEvent.Failed failed:
+                    ErrorMessages.Add($"Could not import {failed.FileName}: {failed.ErrorMessage}");
+                    break;
+            }
+        });
+
+    private void ResolveSelectedSetup()
+    {
+        if (setupStore is null)
+        {
+            SelectedSetup = null;
+            return;
+        }
+
+        var boardId = SelectedDataStore?.BoardId;
+        SelectedSetup = boardId.HasValue
+            ? setupStore.FindByBoardId(boardId.Value)?.Id
+            : null;
+    }
+
+    private void OnTelemetryDataStoresCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        var comparer = new TelemetryDataStoreComparer();
+        var removed = e.OldItems?.OfType<ITelemetryDataStore>().FirstOrDefault();
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                NewDataStoresAvailable = true;
+                SelectedDataStore ??= TelemetryDataStores[0];
+                break;
+            case NotifyCollectionChangedAction.Remove:
+                if (TelemetryDataStores.Count == 0)
+                {
+                    SelectedDataStore = null;
+                    return;
+                }
+
+                if (removed is not null && comparer.Equals(SelectedDataStore, removed))
+                {
+                    SelectedDataStore = TelemetryDataStores[^1];
+                }
+                break;
+            case NotifyCollectionChangedAction.Replace:
+            case NotifyCollectionChangedAction.Move:
+            case NotifyCollectionChangedAction.Reset:
+                break;
+        }
+    }
 
     [RelayCommand]
     private async Task OpenDataStore()
     {
-        var filesService = App.Current?.Services?.GetService<IFilesService>();
-        Debug.Assert(filesService != null, nameof(filesService) + " != null");
-        Debug.Assert(TelemetryDataStores != null, nameof(TelemetryDataStores) + " != null");
-
         var folder = await filesService.OpenDataStoreFolderAsync();
         if (folder is null) return;
 
-        var massStorages = TelemetryDataStores.OfType<MassStorageTelemetryDataStore>()
-            .Select(ds => ds.DriveInfo.RootDirectory.FullName)
-            .ToArray();
-        var folderLocalPath = folder.TryGetLocalPath();
-        if (massStorages.Contains(folderLocalPath))
-        {
-            Notifications.Add("Folder is already opened in mass-storage mode!");
-            return;
-        }
-
-        var dataStore = new StorageProviderTelemetryDataStore(folder);
-        await dataStore.Initialization;
-
-        TelemetryDataStores.Add(dataStore);
-        SelectedDataStore = dataStore;
-    }
-
-    private async void ImportSessionsInternal()
-    {
         try
         {
-            Debug.Assert(SelectedSetup != null);
-            Debug.Assert(SelectedDataStore != null);
-            Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
-            ImportInProgress = true;
-
-            var setup = await databaseService.GetAsync<Setup>(SelectedSetup!.Value) ?? throw new Exception("Setup is missing");
-            var bike = await databaseService.GetAsync<Bike>(setup.BikeId);
-            Debug.Assert(bike is not null);
-
-            var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-            var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
-
-            var bikeData = new BikeData(
-                bike.HeadAngle,
-                frontSensorConfiguration?.MaxTravel,
-                rearSensorConfiguration?.MaxTravel,
-                frontSensorConfiguration?.MeasurementToTravel,
-                rearSensorConfiguration?.MeasurementToTravel);
-
-            foreach (var telemetryFile in TelemetryFiles.Where(f => f.ShouldBeImported.HasValue && f.ShouldBeImported.Value))
+            var result = await telemetryDataStoreService.TryAddStorageProviderAsync(folder);
+            switch (result)
             {
-                try
-                {
-                    var psst = await telemetryFile.GeneratePsstAsync(bikeData);
-
-                    Guid? trackId = null;
-                    var telemetryData = TelemetryData.FromBinary(psst);
-                    if (telemetryData.GpsData is { Length: > 0 })
-                    {
-                        var track = Track.FromGpsRecords(telemetryData.GpsData);
-                        if (track.Points.Count > 0)
-                        {
-                            await databaseService.PutAsync(track);
-                            trackId = track.Id;
-                        }
-                    }
-
-                    var session = new Session(
-                        id: Guid.NewGuid(),
-                        name: telemetryFile.Name,
-                        description: telemetryFile.Description,
-                        setup: SelectedSetup!.Value,
-                        timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
-                    {
-                        ProcessedData = psst,
-                        FullTrack = trackId
-                    };
-
-                    await databaseService.PutSessionAsync(session);
-                    await telemetryFile.OnImported();
-
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        var svm = new SessionViewModel(session, true);
-                        sessions.AddOrUpdate(svm);
-                        Notifications.Insert(0, $"{svm.Name} was successfully imported.");
-                    });
-                }
-                catch (Exception e)
-                {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        ErrorMessages.Add($"Could not import {telemetryFile.Name}: {e.Message}");
-                    });
-                }
+                case StorageProviderRegistrationResult.Added added:
+                    SelectedDataStore = added.DataStore;
+                    break;
+                case StorageProviderRegistrationResult.AlreadyOpen alreadyOpen:
+                    Notifications.Add("Folder is already opened.");
+                    SelectedDataStore = alreadyOpen.DataStore;
+                    break;
             }
-
-            foreach (var telemetryFile in TelemetryFiles.Where(f => !f.ShouldBeImported.HasValue))
-            {
-                await telemetryFile.OnTrashed();
-            }
-
-            var files = await SelectedDataStore.GetFiles();
-            TelemetryFiles.Clear();
-            foreach (var file in files)
-            {
-                TelemetryFiles.Add(file);
-            }
-
-            ImportInProgress = false;
         }
         catch (Exception e)
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                ErrorMessages.Add($"Import failed: {e.Message}");
-            });
+            ErrorMessages.Add($"Could not open folder: {e.Message}");
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanImportSessions))]
-    private void ImportSessions()
+    private async Task ImportSessions()
     {
-        new Thread(ImportSessionsInternal).Start();
+        if (SelectedDataStore is not { } dataStore || SelectedSetup is not { } setupId)
+            return;
+
+        var files = TelemetryFiles.ToList();
+
+        try
+        {
+            var progress = CreateImportProgress();
+            await importSessionsCoordinator.ImportAsync(
+                dataStore,
+                files,
+                setupId,
+                progress);
+
+            await RefreshTelemetryFilesAfterImportAsync(dataStore);
+        }
+        catch (Exception e)
+        {
+            ErrorMessages.Add($"Import failed: {e.Message}");
+        }
     }
 
-    private bool CanImportSessions()
-    {
-        return SelectedSetup != null;
-    }
+    private bool CanImportSessions() => SelectedSetup != null;
+
+    #endregion Private methods
+
+    #region Commands
 
     [RelayCommand]
     private void ClearNewDataStoresAvailable()
@@ -305,27 +282,35 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private static void AddSetup()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel != null, nameof(mainPagesViewModel) + " != null");
-
-        mainPagesViewModel.SetupsPage.AddCommand.Execute(null);
-    }
+    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync(SelectedDataStore?.BoardId);
 
     [RelayCommand]
     private void Loaded()
     {
-        Debug.Assert(telemetryDataStoreService is not null);
         telemetryDataStoreService.StartBrowse();
+        ResolveSelectedSetup();
+
+        EnsureScopedSubscription(s =>
+        {
+            var changes = SynchronizationContext.Current is { } synchronizationContext
+                ? setupStore.Connect().ObserveOn(synchronizationContext)
+                : setupStore.Connect();
+            s.Add(changes.Subscribe(_ => ResolveSelectedSetup()));
+        });
     }
 
     [RelayCommand]
     private void Unloaded()
     {
-        Debug.Assert(telemetryDataStoreService is not null);
+        DisposeScopedSubscriptions();
+        SelectedDataStore = null;
+        SelectedSetup = null;
+        NewDataStoresAvailable = false;
         TelemetryFiles.Clear();
-        telemetryDataStoreService.StopBrowse();
+        if (telemetryDataStoreService is not null)
+        {
+            telemetryDataStoreService.StopBrowse();
+        }
     }
 
     #endregion Commands

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using Mapsui.Projections;
@@ -32,8 +31,8 @@ public class Track : Synchronizable
     [Column("points")]
     public string PointsJson
     {
-        get => JsonSerializer.Serialize(Points);
-        set => Points = JsonSerializer.Deserialize<List<TrackPoint>>(value) ?? [];
+        get => AppJson.Serialize(Points);
+        set => Points = AppJson.Deserialize<List<TrackPoint>>(value) ?? [];
     }
 
     [JsonIgnore]
@@ -65,7 +64,9 @@ public class Track : Synchronizable
         return new Track
         {
             Points = records
-                .Where(r => r.FixMode > 0)
+                .Where(r => r.FixMode > 0 
+                            && double.IsFinite(r.Latitude) && double.IsFinite(r.Longitude) 
+                            && float.IsFinite(r.Altitude))
                 .OrderBy(r => r.Timestamp)
                 .Select(r =>
                 {
@@ -89,7 +90,7 @@ public class Track : Synchronizable
         foreach (var pt in trkpts)
         {
             var timeString = pt.Element(ns + "time")?.Value;
-            if (string.IsNullOrEmpty(timeString) || 
+            if (string.IsNullOrEmpty(timeString) ||
                 !DateTime.TryParse(timeString, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var time))
             {
                 continue;

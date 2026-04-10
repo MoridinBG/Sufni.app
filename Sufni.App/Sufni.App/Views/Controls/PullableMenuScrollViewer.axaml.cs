@@ -13,8 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.Labs.Controls.Base.Pan;
 using Avalonia.Media;
 using Avalonia.Threading;
-using HapticFeedback;
-using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Behaviors;
 using Sufni.App.ViewModels;
 
 namespace Sufni.App.Views.Controls;
@@ -58,7 +57,6 @@ public partial class PullableMenuScrollViewer : UserControl
     private double totalPulled;
     private double sameDirectionTotalScrolled;
     private int? selectedIndex;
-    private readonly IHapticFeedback? hapticFeedback = App.Current?.Services?.GetService<IHapticFeedback>();
     public PullableMenuScrollViewer()
     {
         InitializeComponent();
@@ -280,7 +278,7 @@ public partial class PullableMenuScrollViewer : UserControl
                 curr.Command is not null &&
                 curr.Command.CanExecute(curr.CommandParameter))
             {
-                hapticFeedback?.LongPress();
+                RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent));
                 curr.Selected = true;
             }
 

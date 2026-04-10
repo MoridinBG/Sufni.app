@@ -1,10 +1,11 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Reactive.Disposables;
 using System.Timers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ViewModels
 {
@@ -15,17 +16,19 @@ namespace Sufni.App.ViewModels
         #region Observable properties
 
         [ObservableProperty] private bool isPointerOverNotifications;
-        
+
         public ObservableCollection<string> ErrorMessages { get; } = [];
         public ObservableCollection<string> Notifications { get; } = [];
 
         #endregion Observable properties
         
         #region Private fields
-        
+
         // Timer for notifications. They are closed 3 seconds after the last messages arrived,unless
         // the pointer is over them. In such case, the timer starts when the pointer leaves.
         private readonly Timer notificationsTimer = new(Timeout);
+
+        private CompositeDisposable? scopedSubscriptions;
 
         #endregion Private fields
 
@@ -76,36 +79,26 @@ namespace Sufni.App.ViewModels
             Notifications.Clear();
         }
 
-        [RelayCommand]
-        protected static void OpenPage(ViewModelBase view)
-        {
-            Debug.Assert(App.Current is not null);
-            var isDesktop = App.Current.IsDesktop;
-            if (isDesktop)
-            {
-                var vm = App.Current.Services?.GetService<MainWindowViewModel>();
-                Debug.Assert(vm != null, nameof(vm) + " != null");
-                vm.OpenView(view);
-            }
-            else
-            {
-                var vm = App.Current.Services?.GetService<MainViewModel>();
-                Debug.Assert(vm != null, nameof(vm) + " != null");
-                vm.OpenView(view);
-            }
-        }
-
-        [RelayCommand]
-        protected static void OpenPreviousPage()
-        {
-            Debug.Assert(App.Current is not null);
-            Debug.Assert(!App.Current.IsDesktop);
-
-            var vm = App.Current.Services?.GetService<MainViewModel>();
-            Debug.Assert(vm != null, nameof(vm) + " != null");
-            vm.OpenPreviousView();
-        }
-
         #endregion Commands
+
+        #region Scoped subscriptions
+
+        // Page-lifetime subscriptions: created lazily on Loaded, disposed
+        // on Unloaded. Use this rather than constructor-time subscriptions
+        // when the VM is a singleton or its view can be detached/reattached.
+        protected void EnsureScopedSubscription(Action<CompositeDisposable> setup)
+        {
+            if (scopedSubscriptions is not null) return;
+            scopedSubscriptions = new CompositeDisposable();
+            setup(scopedSubscriptions);
+        }
+
+        protected void DisposeScopedSubscriptions()
+        {
+            scopedSubscriptions?.Dispose();
+            scopedSubscriptions = null;
+        }
+
+        #endregion Scoped subscriptions
     }
 }
