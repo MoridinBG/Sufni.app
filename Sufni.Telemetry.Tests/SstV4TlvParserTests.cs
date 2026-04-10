@@ -160,6 +160,12 @@ public class SstV4TlvParserTests
         writer.Write((ushort)5);
         writer.Write(new byte[] { 1, 2, 3, 4, 5 });
 
+        // Rates Chunk
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
         // Telemetry Chunk
         writer.Write((byte)0x01);
         writer.Write((ushort)4);
@@ -241,7 +247,7 @@ public class SstV4TlvParserTests
         var result = RawTelemetryData.InspectStream(ms);
 
         var inspection = Assert.IsType<MalformedSstFileInspection>(result);
-        Assert.Equal(4, inspection.Version);
+        Assert.Equal((byte)4, inspection.Version);
         Assert.NotNull(inspection.StartTime);
         Assert.NotEmpty(inspection.Message);
     }

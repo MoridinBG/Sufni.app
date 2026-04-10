@@ -290,6 +290,33 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportAsync_MalformedFile_IsRejectedWithoutParsing()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var file = CreateTelemetryFile(
+            name: "bad",
+            shouldBeImported: true,
+            malformed: true,
+            malformedMessage: "invalid telemetry payload");
+
+        var progressEvents = new List<SessionImportEvent>();
+        var progress = new ProgressCapture(progressEvents);
+
+        var coordinator = CreateCoordinator();
+        var result = await coordinator.ImportAsync(dataStore, new[] { file }, setup.Id, progress);
+
+        Assert.Empty(result.Imported);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("bad", failure.FileName);
+        await file.DidNotReceive().GeneratePsstAsync(Arg.Any<BikeData>());
+        await file.DidNotReceive().OnImported();
+
+        var reported = Assert.Single(progressEvents);
+        var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
+        Assert.Equal("bad", failed.FileName);
+    }
+
+    [Fact]
     public async Task ImportAsync_RoutesWorkflowThroughBackgroundTaskRunner()
     {
         var (setup, _) = SeedSetupAndBike();
