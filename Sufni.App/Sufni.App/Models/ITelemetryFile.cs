@@ -11,9 +11,9 @@ public interface ITelemetryFile
     public bool? ShouldBeImported { get; set; }
     public bool Imported { get; set; }
     public string Description { get; set; }
+    public byte Version { get; }
     public DateTime StartTime { get; }
     public string Duration { get; }
-    public bool Malformed { get; }
     public string? MalformedMessage { get; }
     public bool HasUnknown { get; }
 

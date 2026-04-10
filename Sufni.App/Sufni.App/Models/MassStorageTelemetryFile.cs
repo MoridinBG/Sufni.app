@@ -14,9 +14,9 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public bool? ShouldBeImported { get; set; }
     public bool Imported { get; set; }
     public string Description { get; set; }
+    public byte Version { get; private set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; } = "unknown";
-    public bool Malformed { get; private set; }
     public string? MalformedMessage { get; private set; }
     public bool HasUnknown { get; private set; }
 
@@ -70,19 +70,19 @@ public class MassStorageTelemetryFile : ITelemetryFile
         {
             case ValidSstFileInspection valid:
                 ShouldBeImported = valid.Duration.TotalSeconds >= 5 ? true : null;
+                Version = valid.Version;
                 StartTime = valid.StartTime;
                 Duration = valid.Duration.ToString(@"hh\:mm\:ss");
-                Malformed = false;
                 MalformedMessage = null;
                 HasUnknown = valid.HasUnknown;
                 break;
             case MalformedSstFileInspection malformed:
                 ShouldBeImported = false;
+                Version = malformed.Version ?? 0;
                 StartTime = malformed.StartTime ?? fallbackStartTime;
                 Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
-                Malformed = true;
                 MalformedMessage = malformed.Message;
-                HasUnknown = malformed.HasUnknown;
+                HasUnknown = false;
                 break;
         }
     }

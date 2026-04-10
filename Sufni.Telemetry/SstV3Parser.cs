@@ -2,19 +2,22 @@ namespace Sufni.Telemetry;
 
 public class SstV3Parser : ISstParser
 {
+    private const int HeaderPayloadSize = 12;
     private const int HeaderSize = 16;
+    private const int TelemetryRecordSize = 4;
+    private const int SignedEncoderThreshold = 2048;
+    private const int SignedEncoderRange = 4096;
 
     public SstFileInspection Inspect(BinaryReader reader, byte version)
     {
         var stream = reader.BaseStream;
-        if (stream.Length - stream.Position < HeaderSize - 4)
+        if (stream.Length - stream.Position < HeaderPayloadSize)
         {
             return new MalformedSstFileInspection(
                 Version: version,
                 StartTime: null,
                 Duration: null,
                 TelemetrySampleRate: null,
-                HasUnknown: false,
                 Message: "SST v3 header is truncated.");
         }
 
@@ -31,18 +34,16 @@ public class SstV3Parser : ISstParser
                 StartTime: startTime,
                 Duration: null,
                 TelemetrySampleRate: sampleRate,
-                HasUnknown: false,
                 Message: "SST v3 telemetry payload is truncated.");
         }
 
-        if (payloadLength % 4 != 0)
+        if (payloadLength % TelemetryRecordSize != 0)
         {
             return new MalformedSstFileInspection(
                 Version: version,
                 StartTime: startTime,
                 Duration: null,
                 TelemetrySampleRate: sampleRate,
-                HasUnknown: false,
                 Message: "SST v3 telemetry payload length is invalid.");
         }
 
@@ -53,11 +54,10 @@ public class SstV3Parser : ISstParser
                 StartTime: startTime,
                 Duration: null,
                 TelemetrySampleRate: sampleRate,
-                HasUnknown: false,
                 Message: "SST v3 telemetry sample rate is invalid.");
         }
 
-        var count = payloadLength / 4;
+        var count = payloadLength / TelemetryRecordSize;
         var duration = TimeSpan.FromSeconds((double)count / sampleRate);
         return new ValidSstFileInspection(version, startTime, duration, sampleRate, false);
     }
@@ -65,7 +65,7 @@ public class SstV3Parser : ISstParser
     public RawTelemetryData Parse(BinaryReader reader, byte version)
     {
         var stream = reader.BaseStream;
-        if (stream.Length - stream.Position < HeaderSize - 4)
+        if (stream.Length - stream.Position < HeaderPayloadSize)
             throw new FormatException("SST v3 header is truncated.");
 
         var sampleRate = reader.ReadUInt16();
@@ -73,13 +73,13 @@ public class SstV3Parser : ISstParser
         var timestamp = (int)reader.ReadInt64();
 
         var payloadLength = stream.Length - HeaderSize;
-        if (payloadLength < 0 || payloadLength % 4 != 0)
+        if (payloadLength < 0 || payloadLength % TelemetryRecordSize != 0)
             throw new FormatException("SST v3 telemetry payload length is invalid.");
 
         if (sampleRate == 0)
             throw new FormatException("SST v3 telemetry sample rate is invalid.");
 
-        var count = (int)(payloadLength / 4);
+        var count = (int)(payloadLength / TelemetryRecordSize);
 
         var front = new int[count];
         var rear = new int[count];
@@ -87,8 +87,8 @@ public class SstV3Parser : ISstParser
         {
             var f = (int)reader.ReadUInt16();
             var r = (int)reader.ReadUInt16();
-            if (f >= 2048) f -= 4096;
-            if (r >= 2048) r -= 4096;
+            if (f >= SignedEncoderThreshold) f -= SignedEncoderRange;
+            if (r >= SignedEncoderThreshold) r -= SignedEncoderRange;
             front[i] = f;
             rear[i] = r;
         }

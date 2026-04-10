@@ -291,7 +291,6 @@ public class ImportSessionsViewModelTests
         var malformedFile = CreateTelemetryFile(
             name: "bad",
             shouldBeImported: false,
-            malformed: true,
             malformedMessage: "telemetry payload is invalid");
 
         telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
