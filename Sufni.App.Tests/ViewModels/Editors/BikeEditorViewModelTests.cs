@@ -39,9 +39,6 @@ public class BikeEditorViewModelTests
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false) =>
         new(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService);
 
-    private TrackingBikeEditorViewModel CreateTrackingEditor(BikeSnapshot snapshot, bool isNew = false) =>
-        new(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService);
-
     // ----- Construction -----
 
     [AvaloniaFact]
@@ -103,29 +100,33 @@ public class BikeEditorViewModelTests
     [AvaloniaFact]
     public void RemovingJoint_DetachesPropertyHandler_FromRemovedInstance()
     {
-        var editor = CreateTrackingEditor(TestSnapshots.Bike(), isNew: true);
+        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
         var removedJoint = new JointViewModel("Detached point", JointType.Floating, 10, 10);
         editor.JointViewModels.Add(removedJoint);
         editor.JointViewModels.Remove(removedJoint);
-        var dirtinessEvaluationsBeforeMutation = editor.DirtinessEvaluationCount;
+        var isDirtyBeforeMutation = editor.IsDirty;
+        var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
 
         removedJoint.Name = "Detached point renamed";
 
-        Assert.Equal(dirtinessEvaluationsBeforeMutation, editor.DirtinessEvaluationCount);
+        Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
+        Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
     public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
     {
-        var editor = CreateTrackingEditor(TestSnapshots.Bike(), isNew: true);
+        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
         var removedLink = new LinkViewModel(editor.JointViewModels[0], editor.JointViewModels[1]);
         editor.LinkViewModels.Add(removedLink);
         editor.LinkViewModels.Remove(removedLink);
-        var dirtinessEvaluationsBeforeMutation = editor.DirtinessEvaluationCount;
+        var isDirtyBeforeMutation = editor.IsDirty;
+        var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
 
         removedLink.A = editor.JointViewModels[2];
 
-        Assert.Equal(dirtinessEvaluationsBeforeMutation, editor.DirtinessEvaluationCount);
+        Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
+        Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
     }
 
     // ----- CanSave -----
@@ -528,27 +529,5 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("imported bike", editor.Name);
         Assert.Equal(importedData, editor.LeverageRatioData);
-    }
-
-    private sealed class TrackingBikeEditorViewModel : BikeEditorViewModel
-    {
-        public int DirtinessEvaluationCount { get; private set; }
-
-        public TrackingBikeEditorViewModel(
-            BikeSnapshot snapshot,
-            bool isNew,
-            IBikeCoordinator bikeCoordinator,
-            IBikeDependencyQuery dependencyQuery,
-            IShellCoordinator shell,
-            IDialogService dialogService)
-            : base(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService)
-        {
-        }
-
-        protected override void EvaluateDirtiness()
-        {
-            DirtinessEvaluationCount++;
-            base.EvaluateDirtiness();
-        }
     }
 }

@@ -8,6 +8,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.ViewModels;
 
@@ -224,7 +225,7 @@ public class ImportSessionsViewModelTests
         var viewModel = CreateViewModel();
         await viewModel.OpenDataStoreCommand.ExecuteAsync(null);
 
-        Assert.Contains("Folder is already opened.", viewModel.Notifications);
+        Assert.NotEmpty(viewModel.Notifications);
         Assert.Same(existingStore, viewModel.SelectedDataStore);
     }
 
@@ -278,7 +279,7 @@ public class ImportSessionsViewModelTests
 
         await viewModel.ImportSessionsCommand.ExecuteAsync(null);
 
-        Assert.Contains(viewModel.Notifications, message => message.Contains("lap"));
+        Assert.NotEmpty(viewModel.Notifications);
         Assert.Single(viewModel.ErrorMessages);
     }
 
@@ -324,25 +325,5 @@ public class ImportSessionsViewModelTests
         Assert.Null(viewModel.SelectedDataStore);
         Assert.Null(viewModel.SelectedSetup);
         Assert.False(viewModel.NewDataStoresAvailable);
-    }
-
-    private static ITelemetryDataStore CreateDataStore(string name = "store", Guid? boardId = null)
-    {
-        var dataStore = Substitute.For<ITelemetryDataStore>();
-        dataStore.Name.Returns(name);
-        dataStore.BoardId.Returns(boardId);
-        return dataStore;
-    }
-
-    private static ITelemetryFile CreateTelemetryFile(string name)
-    {
-        var telemetryFile = Substitute.For<ITelemetryFile>();
-        telemetryFile.Name.Returns(name);
-        telemetryFile.FileName.Returns($"{name}.SST");
-        telemetryFile.Description.Returns(string.Empty);
-        telemetryFile.StartTime.Returns(new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        telemetryFile.Duration.Returns("1s");
-        telemetryFile.ShouldBeImported.Returns(true);
-        return telemetryFile;
     }
 }

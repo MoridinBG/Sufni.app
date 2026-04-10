@@ -19,6 +19,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.Views;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Views;
 
@@ -136,25 +137,5 @@ public class ImportSessionsViewTests
         resources["SufniRegion"] = Brushes.Gray;
         resources["SufniBorderBrush"] = Brushes.Black;
         resources["SufniAccentColor"] = Brushes.CornflowerBlue;
-    }
-
-    private static ITelemetryDataStore CreateDataStore(string name = "store", Guid? boardId = null)
-    {
-        var dataStore = Substitute.For<ITelemetryDataStore>();
-        dataStore.Name.Returns(name);
-        dataStore.BoardId.Returns(boardId);
-        return dataStore;
-    }
-
-    private static ITelemetryFile CreateTelemetryFile(string name)
-    {
-        var telemetryFile = Substitute.For<ITelemetryFile>();
-        telemetryFile.Name.Returns(name);
-        telemetryFile.FileName.Returns($"{name}.SST");
-        telemetryFile.Description.Returns(string.Empty);
-        telemetryFile.StartTime.Returns(new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        telemetryFile.Duration.Returns("1s");
-        telemetryFile.ShouldBeImported.Returns(true);
-        return telemetryFile;
     }
 }
