@@ -10,7 +10,7 @@ namespace Sufni.App.Plots;
 public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 {
     public VerticalLine? CursorLine { get; set; }
-    
+
     protected Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
@@ -26,7 +26,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Axes.Right.MinorTickStyle.Length = 0;
         Plot.Axes.Right.MajorTickStyle.Width = 0;
         Plot.Axes.Right.MinorTickStyle.Width = 0;
-        
+
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;
         CursorLine.LineColor = Colors.LightGray;
@@ -40,7 +40,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         var activeLocations = imuData.ActiveLocations;
         var records = imuData.Records;
         var locationCount = activeLocations.Count;
-        
+
         var signals = new Dictionary<byte, List<double>>();
         foreach (var loc in activeLocations)
         {
@@ -53,27 +53,27 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             var locIndex = i % locationCount;
             var locId = activeLocations[locIndex];
             var record = records[i];
-            
+
             var meta = imuData.Meta.FirstOrDefault(m => m.LocationId == locId);
             if (meta == null) continue;
-            
+
             double accelScale = meta.AccelLsbPerG;
             if (accelScale == 0) accelScale = 1.0; // Fallback if meta is missing/zero
-            
+
             double ax = (double)record.Ax / accelScale;
             double ay = (double)record.Ay / accelScale;
             double az = (double)record.Az / accelScale;
-            
+
             // Remove gravity from Z axis
             az -= 1.0;
-            
+
             // Calculate magnitude of the linear acceleration
             double mag = Math.Sqrt(ax * ax + ay * ay + az * az);
             signals[locId].Add(mag);
         }
 
         var step = 1.0 / imuData.SampleRate;
-        
+
         double minVal = 0.0;
         double maxVal = 0.0;
         bool hasData = false;
@@ -82,7 +82,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         {
             var data = signals[locId].ToArray();
             if (data.Length == 0) continue;
-            
+
             if (!hasData)
             {
                 minVal = data.Min();
@@ -98,12 +98,12 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             // 0=Frame, 1=Fork (Front), 2=Shock (Rear)
             Color color = locId switch
             {
-                0 => FrameColor, 
-                1 => FrontColor, 
-                2 => RearColor,  
+                0 => FrameColor,
+                1 => FrontColor,
+                2 => RearColor,
                 _ => Colors.Gray
             };
-            
+
             var signal = Plot.Add.Signal(data, step, color);
             signal.Axes.XAxis = Plot.Axes.Bottom;
             signal.Axes.YAxis = Plot.Axes.Left;
@@ -117,11 +117,11 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         }
 
         // Lock the vertical, and set limits on the horizontal axis
-        var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
+        var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
             0, telemetryData.Metadata.Duration, minVal, maxVal);
         Plot.Axes.Rules.Add(rule);
-        
-        var ruleRight = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
+
+        var ruleRight = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right,
             0, telemetryData.Metadata.Duration, minVal, maxVal);
         Plot.Axes.Rules.Add(ruleRight);
 
@@ -129,7 +129,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
         {
             TargetTickCount = 20,
-            LabelFormatter  = d => $"{d:0.###}"
+            LabelFormatter = d => $"{d:0.###}"
         };
         Plot.Axes.Bottom.TickGenerator = tickGenTime;
 

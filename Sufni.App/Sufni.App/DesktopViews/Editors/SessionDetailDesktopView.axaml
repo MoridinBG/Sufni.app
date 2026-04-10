@@ -185,7 +185,7 @@
         <!--  Splitter between top and bottom half  -->
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-        <Grid ColumnDefinitions="* auto 400" Row="2">
+        <Grid Grid.Row="2" ColumnDefinitions="* auto 400">
 
             <!--  Statistic graphs  -->
             <items:SessionStatisticsDesktopView Grid.Column="0" />
