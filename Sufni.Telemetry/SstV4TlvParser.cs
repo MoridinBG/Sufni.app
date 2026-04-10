@@ -2,67 +2,28 @@ namespace Sufni.Telemetry;
 
 public class SstV4TlvParser : ISstParser
 {
-    public static (TimeSpan Duration, bool Malformed) ParseDuration(BinaryReader reader)
-    {
-        ushort sampleRate = 0;
-        long telemetrySamples = 0;
-        var malformed = false;
-        var stream = reader.BaseStream;
+    private const int HeaderSize = 16;
 
-        while (stream.Position + 3 <= stream.Length)
+    public SstFileInspection Inspect(BinaryReader reader, byte version)
+    {
+        var stream = reader.BaseStream;
+        if (stream.Length - stream.Position < HeaderSize - 4)
         {
-            var chunkStart = stream.Position;
-            var type = reader.ReadByte();
-            var length = reader.ReadUInt16();
-            var chunkEnd = chunkStart + 3 + length;
-
-            if (chunkEnd > stream.Length)
-            {
-                malformed = true;
-                break;
-            }
-
-            if (type == (byte)TlvChunkType.Rates)
-            {
-                var entryCount = length / 3;
-                for (int i = 0; i < entryCount; i++)
-                {
-                    var rType = reader.ReadByte();
-                    var rRate = reader.ReadUInt16();
-                    if (rType == (byte)TlvChunkType.Telemetry)
-                        sampleRate = rRate;
-                }
-            }
-            else if (type == (byte)TlvChunkType.Telemetry)
-            {
-                telemetrySamples += length / 4;
-            }
-
-            stream.Position = chunkEnd;
+            return new MalformedSstFileInspection(
+                Version: version,
+                StartTime: null,
+                Duration: null,
+                TelemetrySampleRate: null,
+                HasUnknown: false,
+                Message: "SST v4 header is truncated.");
         }
-        
-        var duration = sampleRate > 0
-            ? TimeSpan.FromSeconds((double)telemetrySamples / sampleRate)
-            : TimeSpan.Zero;
-        return (duration, malformed);
-    }
 
-    public RawTelemetryData Parse(BinaryReader reader, byte version)
-    {
-        _ = reader.ReadUInt32(); // Padding
-        var timestamp = (int)reader.ReadInt64();
+        _ = reader.ReadUInt32();
+        var timestamp = reader.ReadInt64();
 
-        var frontList = new List<int>();
-        var rearList = new List<int>();
-        var markers = new List<MarkerData>();
-        RawImuData? imuData = null;
-        var gpsRecords = new List<GpsRecord>();
-        var rates = new Dictionary<TlvChunkType, ushort>();
-        
-        var stream = reader.BaseStream;
-        var telemetrySampleCount = 0;
-
-        var malformed = false;
+        ushort? sampleRate = null;
+        long telemetrySamples = 0;
+        var hasUnknown = false;
 
         while (stream.Position + 3 <= stream.Length)
         {
@@ -73,14 +34,190 @@ public class SstV4TlvParser : ISstParser
 
             if (chunkEnd > stream.Length)
             {
-                malformed = true;
-                break;
+                return CreateMalformedInspection(
+                    version,
+                    timestamp,
+                    sampleRate,
+                    telemetrySamples,
+                    hasUnknown,
+                    "SST v4 chunk extends past end of file.");
             }
-            
+
             if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
-            { 
-                malformed = true;
-                stream.Seek(long.Min(length, stream.Length), SeekOrigin.Current);
+            {
+                hasUnknown = true;
+                stream.Position = chunkEnd;
+                continue;
+            }
+
+            var type = (TlvChunkType)typeByte;
+            switch (type)
+            {
+                case TlvChunkType.Rates:
+                    {
+                        if (length % 3 != 0)
+                        {
+                            return CreateMalformedInspection(
+                                version,
+                                timestamp,
+                                sampleRate,
+                                telemetrySamples,
+                                hasUnknown,
+                                "SST v4 rates chunk length is invalid.");
+                        }
+
+                        var entryCount = length / 3;
+                        for (int i = 0; i < entryCount; i++)
+                        {
+                            var rateType = reader.ReadByte();
+                            var rate = reader.ReadUInt16();
+                            if (rateType == (byte)TlvChunkType.Telemetry)
+                                sampleRate = rate;
+                            else if (!Enum.IsDefined(typeof(TlvChunkType), rateType))
+                                hasUnknown = true;
+                        }
+                        break;
+                    }
+                case TlvChunkType.Telemetry:
+                    if (length % 4 != 0)
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            hasUnknown,
+                            "SST v4 telemetry chunk length is invalid.");
+                    }
+
+                    telemetrySamples += length / 4;
+                    break;
+                case TlvChunkType.Marker:
+                    if (length != 0)
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            hasUnknown,
+                            "SST v4 marker chunk length is invalid.");
+                    }
+
+                    break;
+                case TlvChunkType.ImuMeta:
+                    if (length < 1)
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            hasUnknown,
+                            "SST v4 IMU metadata chunk length is invalid.");
+                    }
+
+                    var imuMetaCount = reader.ReadByte();
+                    if (length != 1 + imuMetaCount * 9)
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            hasUnknown,
+                            "SST v4 IMU metadata chunk length is invalid.");
+                    }
+
+                    break;
+                case TlvChunkType.Imu:
+                    if (length % 12 != 0)
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            hasUnknown,
+                            "SST v4 IMU chunk length is invalid.");
+                    }
+
+                    break;
+                case TlvChunkType.Gps:
+                    if (length % 46 != 0)
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            hasUnknown,
+                            "SST v4 GPS chunk length is invalid.");
+                    }
+
+                    break;
+            }
+
+            stream.Position = chunkEnd;
+        }
+
+        if (stream.Position != stream.Length)
+        {
+            return CreateMalformedInspection(
+                version,
+                timestamp,
+                sampleRate,
+                telemetrySamples,
+                hasUnknown,
+                "SST v4 file ends with an incomplete chunk header.");
+        }
+
+        if (sampleRate is not > 0)
+        {
+            return CreateMalformedInspection(
+                version,
+                timestamp,
+                sampleRate,
+                telemetrySamples,
+                hasUnknown,
+                "SST v4 telemetry sample rate is missing or invalid.");
+        }
+
+        var duration = TimeSpan.FromSeconds((double)telemetrySamples / sampleRate.Value);
+        var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
+        return new ValidSstFileInspection(version, startTime, duration, sampleRate.Value, hasUnknown);
+    }
+
+    public RawTelemetryData Parse(BinaryReader reader, byte version)
+    {
+        var stream = reader.BaseStream;
+        if (stream.Length - stream.Position < HeaderSize - 4)
+            throw new FormatException("SST v4 header is truncated.");
+
+        _ = reader.ReadUInt32(); // Padding
+        var timestamp = (int)reader.ReadInt64();
+
+        var frontList = new List<int>();
+        var rearList = new List<int>();
+        var markers = new List<MarkerData>();
+        RawImuData? imuData = null;
+        var gpsRecords = new List<GpsRecord>();
+        var rates = new Dictionary<TlvChunkType, ushort>();
+        var telemetrySampleCount = 0;
+
+        while (stream.Position + 3 <= stream.Length)
+        {
+            var chunkStart = stream.Position;
+            var typeByte = reader.ReadByte();
+            var length = reader.ReadUInt16();
+            var chunkEnd = chunkStart + 3 + length;
+
+            if (chunkEnd > stream.Length)
+                throw new FormatException("SST v4 chunk extends past end of file.");
+
+            if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
+            {
+                stream.Position = chunkEnd;
                 continue;
             }
 
@@ -89,16 +226,25 @@ public class SstV4TlvParser : ISstParser
             switch (type)
             {
                 case TlvChunkType.Rates:
+                    if (length % 3 != 0)
+                        throw new FormatException("SST v4 rates chunk length is invalid.");
+
                     var entryCount = length / 3;
                     for (int i = 0; i < entryCount; i++)
                     {
-                        var rType = (TlvChunkType)reader.ReadByte();
+                        var rTypeByte = reader.ReadByte();
                         var rRate = reader.ReadUInt16();
-                        rates[rType] = rRate;
+                        if (Enum.IsDefined(typeof(TlvChunkType), rTypeByte))
+                        {
+                            rates[(TlvChunkType)rTypeByte] = rRate;
+                        }
                     }
                     break;
 
                 case TlvChunkType.Telemetry:
+                    if (length % 4 != 0)
+                        throw new FormatException("SST v4 telemetry chunk length is invalid.");
+
                     var recordCount = length / 4;
                     for (int i = 0; i < recordCount; i++)
                     {
@@ -113,6 +259,9 @@ public class SstV4TlvParser : ISstParser
                     break;
 
                 case TlvChunkType.Marker:
+                    if (length != 0)
+                        throw new FormatException("SST v4 marker chunk length is invalid.");
+
                     if (rates.TryGetValue(TlvChunkType.Telemetry, out var tRate) && tRate > 0)
                     {
                         markers.Add(new MarkerData((double)telemetrySampleCount / tRate));
@@ -120,8 +269,14 @@ public class SstV4TlvParser : ISstParser
                     break;
 
                 case TlvChunkType.ImuMeta:
+                    if (length < 1)
+                        throw new FormatException("SST v4 IMU metadata chunk length is invalid.");
+
                     imuData = imuData ?? new RawImuData();
                     var imuMetaCount = reader.ReadByte();
+                    if (length != 1 + imuMetaCount * 9)
+                        throw new FormatException("SST v4 IMU metadata chunk length is invalid.");
+
                     imuData.SampleRate = rates.GetValueOrDefault(TlvChunkType.Imu, (ushort)0);
                     for (int i = 0; i < imuMetaCount; i++)
                     {
@@ -134,6 +289,9 @@ public class SstV4TlvParser : ISstParser
                     break;
 
                 case TlvChunkType.Imu:
+                    if (length % 12 != 0)
+                        throw new FormatException("SST v4 IMU chunk length is invalid.");
+
                     imuData = imuData ?? new RawImuData();
                     var imuRecordCount = length / 12;
                     for (int i = 0; i < imuRecordCount; i++)
@@ -149,6 +307,9 @@ public class SstV4TlvParser : ISstParser
                     break;
 
                 case TlvChunkType.Gps:
+                    if (length % 46 != 0)
+                        throw new FormatException("SST v4 GPS chunk length is invalid.");
+
                     var gpsRecordCount = length / 46;
                     for (int i = 0; i < gpsRecordCount; i++)
                     {
@@ -188,9 +349,18 @@ public class SstV4TlvParser : ISstParser
             stream.Position = chunkEnd;
         }
 
+        if (stream.Position != stream.Length)
+            throw new FormatException("SST v4 file ends with an incomplete chunk header.");
+
         var front = frontList.ToArray();
         var rear = rearList.ToArray();
         var sampleRate = rates.GetValueOrDefault(TlvChunkType.Telemetry, (ushort)0);
+
+        if (sampleRate == 0)
+            throw new FormatException("SST v4 telemetry sample rate is missing or invalid.");
+
+        if (front.Length == 0 && rear.Length == 0)
+            throw new FormatException("SST v4 telemetry data is missing.");
 
         var rtd = new RawTelemetryData
         {
@@ -201,7 +371,7 @@ public class SstV4TlvParser : ISstParser
             Markers = markers.ToArray(),
             ImuData = imuData is { Meta.Count: > 0 } ? imuData : null,
             GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null,
-            Malformed = malformed
+            Malformed = false
         };
 
         if (front.Length > 0)
@@ -219,5 +389,34 @@ public class SstV4TlvParser : ISstParser
         }
 
         return rtd;
+    }
+
+    private static MalformedSstFileInspection CreateMalformedInspection(
+        byte version,
+        long? timestamp,
+        ushort? sampleRate,
+        long telemetrySamples,
+        bool hasUnknown,
+        string message)
+    {
+        DateTime? startTime = null;
+        if (timestamp.HasValue)
+        {
+            startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).LocalDateTime;
+        }
+
+        TimeSpan? duration = null;
+        if (sampleRate is > 0)
+        {
+            duration = TimeSpan.FromSeconds((double)telemetrySamples / sampleRate.Value);
+        }
+
+        return new MalformedSstFileInspection(
+            Version: version,
+            StartTime: startTime,
+            Duration: duration,
+            TelemetrySampleRate: sampleRate,
+            HasUnknown: hasUnknown,
+            Message: message);
     }
 }
