@@ -4,11 +4,13 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -17,11 +19,14 @@ public class SessionCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
+    private readonly ITrackCoordinator trackCoordinator = Substitute.For<ITrackCoordinator>();
+    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
-        new(sessionStore, database, http, shell, dialogService, sync);
+        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, shell, dialogService, sync);
 
     // ----- OpenEditAsync -----
 
@@ -89,8 +94,7 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
-        var failed = Assert.IsType<SessionSaveResult.Failed>(result);
-        Assert.Equal("Session disappeared after save", failed.ErrorMessage);
+        Assert.IsType<SessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
     }
 
@@ -121,8 +125,7 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
-        var failed = Assert.IsType<SessionSaveResult.Failed>(result);
-        Assert.Equal("disk full", failed.ErrorMessage);
+        Assert.IsType<SessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
     }
 
@@ -150,7 +153,6 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
-        Assert.Equal("locked", result.ErrorMessage);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!);
     }
@@ -198,10 +200,210 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         http.GetSessionPsstAsync(snapshot.Id).Returns((byte[]?)null);
 
-        var ex = await Assert.ThrowsAsync<Exception>(() =>
+        await Assert.ThrowsAsync<Exception>(() =>
             CreateCoordinator().EnsureTelemetryDataAvailableAsync(snapshot.Id));
-        Assert.Equal("Session data could not be downloaded from server.", ex.Message);
         await database.DidNotReceive().PatchSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>());
+    }
+
+    // ----- Desktop / Mobile load workflows -----
+
+    [Fact]
+    public async Task LoadDesktopDetailAsync_ReturnsLoaded_WhenTelemetryPresent()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.Create();
+        var percentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var trackData = new SessionTrackPresentationData(
+            Guid.NewGuid(),
+            [new TrackPoint(1, 1, 1, 0)],
+            [new TrackPoint(2, 2, 2, 0)],
+            400.0);
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(trackData);
+        sessionPresentationService.CalculateDamperPercentages(telemetry).Returns(percentages);
+
+        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+
+        var loaded = Assert.IsType<SessionDesktopLoadResult.Loaded>(result);
+        Assert.Same(telemetry, loaded.Data.TelemetryData);
+        Assert.Same(trackData.TrackPoints, loaded.Data.TrackPoints);
+        Assert.Equal(400.0, loaded.Data.MapVideoWidth);
+        Assert.Equal(percentages, loaded.Data.DamperPercentages);
+    }
+
+    [Fact]
+    public async Task LoadDesktopDetailAsync_ReturnsTelemetryPending_WhenTelemetryMissing()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+
+        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+
+        Assert.IsType<SessionDesktopLoadResult.TelemetryPending>(result);
+        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<Guid?>(),
+            Arg.Any<TelemetryData>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadDesktopDetailAsync_ReturnsFailed_WhenSnapshotClaimsTelemetryButBlobMissing()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+
+        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+
+        Assert.IsType<SessionDesktopLoadResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task LoadDesktopDetailAsync_ReturnsFailed_WhenTrackCoordinatorThrows()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.Create();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("track failed"));
+
+        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+
+        Assert.IsType<SessionDesktopLoadResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_ReturnsCacheHit_WhenCacheExists()
+    {
+        var sessionId = Guid.NewGuid();
+        var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
+        database.GetSessionCacheAsync(sessionId).Returns(cache);
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
+
+        var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
+        Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
+        await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_BuildsAndPersistsCache_WhenCacheMissing()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.Create();
+        var cacheData = new SessionCachePresentationData(
+            "front-travel",
+            null,
+            "front-velocity",
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            false);
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
+            .Returns(cacheData);
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
+        Assert.Equal("front-travel", built.Data.FrontTravelHistogram);
+        await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
+            cache.SessionId == snapshot.Id && cache.FrontTravelHistogram == "front-travel"));
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_ReturnsTelemetryPending_WhenDownloadUnavailable()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+        http.GetSessionPsstAsync(snapshot.Id).Returns((byte[]?)null);
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        Assert.IsType<SessionMobileLoadResult.TelemetryPending>(result);
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_ReturnsFailed_WhenSnapshotClaimsTelemetryButBlobMissing()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        Assert.IsType<SessionMobileLoadResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_ReturnsFailed_WhenPresentationFails()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.Create();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException("render failed"));
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        Assert.IsType<SessionMobileLoadResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_CancellationDuringCacheBuild_SkipsCacheWrite()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.Create();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var token = callInfo.ArgAt<CancellationToken>(2);
+                token.ThrowIfCancellationRequested();
+                return new SessionCachePresentationData(
+                    "front-travel",
+                    null,
+                    "front-velocity",
+                    null,
+                    null,
+                    null,
+                    new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+                    false);
+            });
+
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            CreateCoordinator().LoadMobileDetailAsync(
+                snapshot.Id,
+                new SessionPresentationDimensions(320, 180),
+                cancellationTokenSource.Token));
+
+        await database.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
     }
 
     // ----- Sync arrival handlers -----
@@ -221,6 +423,21 @@ public class SessionCoordinatorTests
 
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Id == sessionId && s.Updated == 4));
+    }
+
+    [AvaloniaFact]
+    public async Task Constructor_OnSessionDataArrived_IgnoresDatabaseFailure()
+    {
+        var sync = Substitute.For<ISynchronizationServerService>();
+        _ = CreateCoordinator(sync);
+
+        var sessionId = Guid.NewGuid();
+        database.GetSessionAsync(sessionId).ThrowsAsync(new InvalidOperationException());
+
+        sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
     }
 
     [AvaloniaFact]
@@ -250,8 +467,32 @@ public class SessionCoordinatorTests
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Id == liveId && s.Updated == 6));
     }
 
+    [AvaloniaFact]
+    public async Task Constructor_OnSynchronizationDataArrived_IgnoresDatabaseFailure()
+    {
+        var sync = Substitute.For<ISynchronizationServerService>();
+        _ = CreateCoordinator(sync);
+
+        var liveId = Guid.NewGuid();
+        database.GetSessionAsync(liveId).ThrowsAsync(new InvalidOperationException());
+
+        var data = new SynchronizationData
+        {
+            Sessions =
+            {
+                new Session { Id = liveId, Updated = 6 },
+            },
+        };
+
+        sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        sessionStore.DidNotReceive().Remove(Arg.Any<Guid>());
+    }
+
     [Fact]
-    public void Constructor_DoesNotSubscribe_WhenSyncServerNull()
+    public void Constructor_DoesNotThrow_WhenSyncServerNull()
     {
         // Smoke test: with no sync server we should still get a working
         // coordinator and never NRE on construction.

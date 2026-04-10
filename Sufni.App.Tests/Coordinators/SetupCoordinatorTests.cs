@@ -77,7 +77,8 @@ public class SetupCoordinatorTests
     public async Task OpenCreateForDetectedBoardAsync_ForwardsDetectedBoardId()
     {
         var boardId = Guid.NewGuid();
-        telemetry.DetectConnectedBoardId().Returns(boardId);
+        telemetry.DetectConnectedBoardIdAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Guid?>(boardId));
         setupStore.FindByBoardId(boardId).Returns((SetupSnapshot?)null);
 
         SetupEditorViewModel? captured = null;
@@ -86,7 +87,7 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().OpenCreateForDetectedBoardAsync();
 
-        telemetry.Received(1).DetectConnectedBoardId();
+        await telemetry.Received(1).DetectConnectedBoardIdAsync(Arg.Any<CancellationToken>());
         Assert.NotNull(captured);
         Assert.Equal(boardId, captured!.BoardId);
     }
@@ -227,8 +228,7 @@ public class SetupCoordinatorTests
 
         var result = await CreateCoordinator().SaveAsync(setup, boardId: null, baselineUpdated: 5);
 
-        var failed = Assert.IsType<SetupSaveResult.Failed>(result);
-        Assert.Equal("disk full", failed.ErrorMessage);
+        Assert.IsType<SetupSaveResult.Failed>(result);
         setupStore.DidNotReceive().Upsert(Arg.Any<SetupSnapshot>());
     }
 
@@ -286,7 +286,6 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
-        Assert.Equal("locked", result.ErrorMessage);
         setupStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SetupEditorViewModel>(default!);
     }

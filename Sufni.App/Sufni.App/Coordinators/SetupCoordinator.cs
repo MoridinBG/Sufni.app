@@ -42,10 +42,10 @@ public sealed class SetupCoordinator(
         return Task.CompletedTask;
     }
 
-    public Task OpenCreateForDetectedBoardAsync()
+    public async Task OpenCreateForDetectedBoardAsync()
     {
-        var detected = telemetryDataStoreService.DetectConnectedBoardId();
-        return OpenCreateAsync(detected);
+        var detected = await telemetryDataStoreService.DetectConnectedBoardIdAsync();
+        await OpenCreateAsync(detected);
     }
 
     public Task OpenEditAsync(Guid setupId)

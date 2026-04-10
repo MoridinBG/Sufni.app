@@ -126,7 +126,11 @@
                                         HorizontalContentAlignment="Center"
                                         Classes="importchoice"
                                         IsChecked="{Binding ShouldBeImported}"
-                                        IsThreeState="True" />
+                                        IsThreeState="True">
+                                        <ToggleButton.IsEnabled>
+                                            <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
+                                        </ToggleButton.IsEnabled>
+                                    </ToggleButton>
 
                                     <!--  Name  -->
                                     <TextBlock
@@ -179,7 +183,11 @@
                                     Grid.Row="1"
                                     Grid.Column="1"
                                     Margin="2"
-                                    Text="{Binding Name}" />
+                                    Text="{Binding Name}">
+                                    <TextBox.IsEnabled>
+                                        <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
+                                    </TextBox.IsEnabled>
+                                </TextBox>
                                 <Label
                                     Grid.Row="2"
                                     Grid.Column="0"
@@ -194,7 +202,11 @@
                                     VerticalAlignment="Stretch"
                                     AcceptsReturn="True"
                                     Text="{Binding Description}"
-                                    TextWrapping="Wrap" />
+                                    TextWrapping="Wrap">
+                                    <TextBox.IsEnabled>
+                                        <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
+                                    </TextBox.IsEnabled>
+                                </TextBox>
                             </Grid>
                         </Expander>
                     </DataTemplate>
@@ -275,7 +287,8 @@
             Grid.Column="0"
             Grid.ColumnSpan="3"
             Background="#0d0d0d"
-            IsVisible="{Binding ImportInProgress}"
+            IsHitTestVisible="False"
+            IsVisible="{Binding ImportSessionsCommand.IsRunning}"
             Opacity="0.7" />
         <progRing:ProgressRing
             Grid.Row="0"
@@ -286,11 +299,12 @@
             Height="40"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
+            IsHitTestVisible="False"
             Foreground="{StaticResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="!TelemetryDataStores.Count" />
-                    <Binding Path="ImportInProgress" />
+                    <Binding Path="ImportSessionsCommand.IsRunning" />
                 </MultiBinding>
             </progRing:ProgressRing.IsActive>
         </progRing:ProgressRing>
