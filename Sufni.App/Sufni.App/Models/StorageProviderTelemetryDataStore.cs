@@ -12,6 +12,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
     public Task Initialization { get; }
     public string Name { get; }
     public Guid? BoardId { get; private set; }
+    internal string? LocalPath { get; }
     private IStorageFolder Folder { get; }
 
     public bool IsAvailable()
@@ -38,7 +39,14 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         {
             if (item.Name.EndsWith(".SST") && item is IStorageFile file)
             {
-                files.Add(new StorageProviderTelemetryFile(file));
+                try
+                {
+                    files.Add(await StorageProviderTelemetryFile.CreateAsync(file));
+                }
+                catch (Exception)
+                {
+                    // Invalid files are skipped instead of failing the whole listing.
+                }
             }
         }
 
@@ -81,6 +89,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
     {
         Folder = folder;
         Name = folder.Name;
+        LocalPath = folder.TryGetLocalPath();
         Initialization = Init();
     }
 }

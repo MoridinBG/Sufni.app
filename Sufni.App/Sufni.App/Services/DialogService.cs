@@ -30,4 +30,13 @@ public class DialogService : IDialogService
         }
         return await dialog.ShowDialogAsync(owner);
     }
+
+    public async Task<bool> ShowConfirmationAsync(string title, string message)
+    {
+        Debug.Assert(owner != null, nameof(owner) + " != null");
+
+        var dialog = new OkCancelDialogWindow(title, message);
+        var result = await dialog.ShowDialogAsync(owner);
+        return result == PromptResult.Ok;
+    }
 }

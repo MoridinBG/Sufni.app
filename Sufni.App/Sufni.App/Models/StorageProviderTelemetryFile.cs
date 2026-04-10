@@ -10,55 +10,43 @@ namespace Sufni.App.Models;
 public class StorageProviderTelemetryFile : ITelemetryFile
 {
     private readonly IStorageFile storageFile;
-    private Task Initialization { get; }
 
     public string Name { get; set; }
     public string FileName => storageFile.Name;
     public bool? ShouldBeImported { get; set; }
     public bool Imported { get; set; }
     public string Description { get; set; }
+    public byte Version { get; private set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; }
-    public bool Malformed => false;
+    public string? MalformedMessage { get; private set; }
+    public bool HasUnknown { get; private set; }
 
     private async Task Init()
     {
         await using var stream = await storageFile.OpenReadAsync();
-        using var reader = new BinaryReader(stream);
-
-        var magic = reader.ReadBytes(3);
-        var version = reader.ReadByte();
-        if (!magic.SequenceEqual("SST"u8.ToArray()) || version != 3)
-        {
-            throw new FormatException("Not an SST file");
-        }
-
-        var sampleRate = reader.ReadUInt16();
-        var count = (stream.Length - 16 /* sizeof(header) */) / 4 /* sizeof(record) */;
-        reader.ReadUInt16(); // padding
-        var timestamp = reader.ReadInt64();
-
-        var duration = TimeSpan.FromSeconds((double)count / sampleRate);
-        ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
-        StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
-        Duration = duration.ToString(@"hh\:mm\:ss");
-        Name = storageFile.Name;
-        Description = $"Imported from {storageFile.Name}";
+        var inspection = RawTelemetryData.InspectStream(stream);
+        ApplyInspection(inspection);
     }
 
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
-    // Init() takes care of this.
-    public StorageProviderTelemetryFile(IStorageFile storageFile)
+    private StorageProviderTelemetryFile(IStorageFile storageFile)
     {
         this.storageFile = storageFile;
-        Initialization = Init();
+        Name = storageFile.Name;
+        Description = $"Imported from {storageFile.Name}";
+        StartTime = ResolveFallbackStartTime(storageFile);
+        Duration = "unknown";
     }
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
+
+    public static async Task<StorageProviderTelemetryFile> CreateAsync(IStorageFile storageFile)
+    {
+        var telemetryFile = new StorageProviderTelemetryFile(storageFile);
+        await telemetryFile.Init();
+        return telemetryFile;
+    }
 
     public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
-        await Initialization;
-
         await using var stream = await storageFile.OpenReadAsync();
         var rawTelemetryData = RawTelemetryData.FromStream(stream);
         var telemetryMetadata = new Metadata
@@ -67,7 +55,9 @@ public class StorageProviderTelemetryFile : ITelemetryFile
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
             Timestamp = rawTelemetryData.Timestamp,
-            Duration = (double)rawTelemetryData.Front.Length / rawTelemetryData.SampleRate
+            Duration = rawTelemetryData.SampleRate > 0
+                ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
+                : 0.0
         };
         var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
         return telemetryData.BinaryForm;
@@ -75,8 +65,6 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
     public async Task OnImported()
     {
-        await Initialization;
-
         Imported = true;
         var parent = await storageFile.GetParentAsync();
         var parentItems = parent!.GetItemsAsync();
@@ -98,8 +86,6 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
     public async Task OnTrashed()
     {
-        await Initialization;
-
         var parent = await storageFile.GetParentAsync();
         var parentItems = parent!.GetItemsAsync();
         IStorageFolder? trash = null;
@@ -116,5 +102,38 @@ public class StorageProviderTelemetryFile : ITelemetryFile
         }
 
         await storageFile.MoveAsync(trash);
+    }
+
+    private void ApplyInspection(SstFileInspection inspection)
+    {
+        switch (inspection)
+        {
+            case ValidSstFileInspection valid:
+                ShouldBeImported = valid.Duration.TotalSeconds >= 5 ? true : null;
+                Version = valid.Version;
+                StartTime = valid.StartTime;
+                Duration = valid.Duration.ToString(@"hh\:mm\:ss");
+                MalformedMessage = null;
+                HasUnknown = valid.HasUnknown;
+                break;
+            case MalformedSstFileInspection malformed:
+                ShouldBeImported = false;
+                Version = malformed.Version ?? 0;
+                StartTime = malformed.StartTime ?? ResolveFallbackStartTime(storageFile);
+                Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
+                MalformedMessage = malformed.Message;
+                break;
+        }
+    }
+
+    private static DateTime ResolveFallbackStartTime(IStorageFile storageFile)
+    {
+        var localPath = storageFile.TryGetLocalPath();
+        if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+        {
+            return new FileInfo(localPath).LastWriteTime;
+        }
+
+        return DateTimeOffset.UnixEpoch.LocalDateTime;
     }
 }

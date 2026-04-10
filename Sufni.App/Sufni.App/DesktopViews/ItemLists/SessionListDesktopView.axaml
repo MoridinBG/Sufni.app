@@ -35,8 +35,7 @@
             Margin="10,25,10,0"
             VerticalAlignment="Top"
             Classes="embedded"
-            Command="{Binding OpenPageCommand}"
-            CommandParameter="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).ImportSessionsPage}">
+            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenImportCommand}">
             <Image
                 Width="18"
                 Margin="0,0,30,0"
