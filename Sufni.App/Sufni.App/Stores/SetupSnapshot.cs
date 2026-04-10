@@ -16,7 +16,7 @@ public sealed record SetupSnapshot(
     Guid? BoardId,
     string? FrontSensorConfigurationJson,
     string? RearSensorConfigurationJson,
-    long Updated)
+    long Updated) : IVersionedSnapshot
 {
     public static SetupSnapshot From(Setup setup, Guid? boardId) => new(
         setup.Id,

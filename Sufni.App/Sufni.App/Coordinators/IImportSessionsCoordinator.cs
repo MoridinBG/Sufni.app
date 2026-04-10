@@ -28,13 +28,32 @@ public interface IImportSessionsCoordinator
     /// with <c>ShouldBeImported == false</c> are left alone (matching
     /// legacy semantics). Returns per-file successes and failures so
     /// the caller can render notifications.
+    ///
+    /// If <paramref name="progress"/> is supplied, per-file events are
+    /// reported as soon as each file completes so the caller can
+    /// stream notifications instead of batching them after the entire
+    /// import finishes.
     /// </summary>
     Task<SessionImportResult> ImportAsync(
         ITelemetryDataStore dataStore,
         IReadOnlyList<ITelemetryFile> files,
-        Guid setupId);
+        Guid setupId,
+        IProgress<SessionImportEvent>? progress = null);
 }
 
 public sealed record SessionImportResult(
     IReadOnlyList<SessionSnapshot> Imported,
     IReadOnlyList<(string FileName, string ErrorMessage)> Failures);
+
+/// <summary>
+/// Per-file event reported during a streaming import. Sealed
+/// hierarchy with a private constructor so callers must pattern-match
+/// on the two known cases.
+/// </summary>
+public abstract record SessionImportEvent
+{
+    private SessionImportEvent() { }
+
+    public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
+    public sealed record Failed(string FileName, string ErrorMessage) : SessionImportEvent;
+}

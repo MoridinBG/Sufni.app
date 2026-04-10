@@ -59,6 +59,7 @@ public sealed class SyncCoordinator : ISyncCoordinator
                 IsPairedChanged?.Invoke(this, EventArgs.Empty);
                 CanSyncChanged?.Invoke(this, EventArgs.Empty);
             };
+            pairingClientCoordinator.PairingConfirmed += (_, _) => _ = SyncAllAsync();
         }
     }
 

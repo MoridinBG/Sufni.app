@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Sufni.App.Coordinators;
+using Sufni.App.Queries;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -18,9 +19,12 @@ public partial class BikeListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly IBikeStore bikeStore;
     private readonly IBikeCoordinator bikeCoordinator;
+    private readonly IBikeDependencyQuery dependencyQuery;
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
-    private readonly BehaviorSubject<Func<BikeSnapshot, bool>> filterSubject = new(_ => true);
+    private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
+    private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
 
@@ -34,19 +38,34 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     public BikeListViewModel()
     {
+        bikeStore = null!;
         bikeCoordinator = null!;
+        dependencyQuery = null!;
         bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>([]);
     }
 
-    public BikeListViewModel(IBikeStore bikeStore, IBikeCoordinator bikeCoordinator)
+    public BikeListViewModel(
+        IBikeStore bikeStore,
+        IBikeCoordinator bikeCoordinator,
+        IBikeDependencyQuery dependencyQuery)
     {
+        this.bikeStore = bikeStore;
         this.bikeCoordinator = bikeCoordinator;
+        this.dependencyQuery = dependencyQuery;
 
+        // Pipeline order matters:
+        //   1. Transform creates a row per snapshot.
+        //   2. DisposeMany sits between Transform and Filter so it
+        //      only fires when a row leaves the source store, not
+        //      when the filter merely hides it.
+        //   3. Filter operates on rows (so the predicate sees the
+        //      same Id/Name we already exposed on the row VM).
         bikeStore.Connect()
-            .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator),
+                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator, RequestRowDelete, dependencyQuery),
                 (row, snapshot) => row.Update(snapshot))
+            .DisposeMany()
+            .Filter(filterSubject)
             .Bind(out bikeRows)
             .Subscribe();
 
@@ -60,19 +79,23 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     #endregion Constructors
 
-    #region Private methods
+    #region ItemListViewModelBase overrides
 
-    private void RebuildFilter()
+    protected override void RebuildFilter()
     {
         var current = SearchText;
-        filterSubject.OnNext(snapshot =>
-            string.IsNullOrEmpty(current) ||
-            snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase));
+        var pendingId = pendingDelete?.Id;
+        filterSubject.OnNext(row =>
+            (pendingId is null || row.Id != pendingId) &&
+            (string.IsNullOrEmpty(current) ||
+             (row.Name?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false)));
     }
 
-    #endregion Private methods
-
-    #region ItemListViewModelBase overrides
+    protected override void OnPendingDeleteUndone()
+    {
+        pendingDelete = null;
+        RebuildFilter();
+    }
 
     protected override void AddImplementation()
     {
@@ -80,6 +103,41 @@ public partial class BikeListViewModel : ItemListViewModelBase
     }
 
     #endregion ItemListViewModelBase overrides
+
+    #region Private methods
+
+    private async void RequestRowDelete(BikeRowViewModel row)
+    {
+        var snapshot = bikeStore.Get(row.Id);
+        if (snapshot is null) return;
+
+        // Commit any in-flight pending delete first.
+        await FlushPendingDeleteAsync();
+
+        pendingDelete = (snapshot.Id, snapshot.Name);
+        RebuildFilter();
+
+        StartUndoWindow(snapshot.Name, () => FinalizeBikeDeleteAsync(snapshot.Id));
+    }
+
+    private async Task FinalizeBikeDeleteAsync(Guid bikeId)
+    {
+        pendingDelete = null;
+        RebuildFilter();
+
+        var result = await bikeCoordinator.DeleteAsync(bikeId);
+        switch (result.Outcome)
+        {
+            case BikeDeleteOutcome.InUse:
+                ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");
+                break;
+            case BikeDeleteOutcome.Failed:
+                ErrorMessages.Add($"Bike could not be deleted: {result.ErrorMessage}");
+                break;
+        }
+    }
+
+    #endregion Private methods
 
     #region Commands
 

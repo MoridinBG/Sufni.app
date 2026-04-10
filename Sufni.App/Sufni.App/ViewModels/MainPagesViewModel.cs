@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -13,13 +12,12 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IDatabaseService databaseService;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
     private readonly ISessionStoreWriter sessionStoreWriter;
     private readonly IPairedDeviceStoreWriter pairedDeviceStoreWriter;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
-    private readonly IFilesService filesService;
+    private readonly ITrackCoordinator trackCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly ItemListViewModelBase[] pages;
@@ -46,13 +44,12 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel()
     {
-        databaseService = null!;
         bikeStoreWriter = null!;
         setupStoreWriter = null!;
         sessionStoreWriter = null!;
         pairedDeviceStoreWriter = null!;
         importSessionsCoordinator = null!;
-        filesService = null!;
+        trackCoordinator = null!;
         syncCoordinator = null!;
         shell = null!;
         importSessionsPage = new();
@@ -64,13 +61,12 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     public MainPagesViewModel(
-        IDatabaseService databaseService,
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
         ISessionStoreWriter sessionStoreWriter,
         IPairedDeviceStoreWriter pairedDeviceStoreWriter,
         IImportSessionsCoordinator importSessionsCoordinator,
-        IFilesService filesService,
+        ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
         BikeListViewModel bikesPage,
@@ -81,13 +77,12 @@ public partial class MainPagesViewModel : ViewModelBase
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
-        this.databaseService = databaseService;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
         this.sessionStoreWriter = sessionStoreWriter;
         this.pairedDeviceStoreWriter = pairedDeviceStoreWriter;
         this.importSessionsCoordinator = importSessionsCoordinator;
-        this.filesService = filesService;
+        this.trackCoordinator = trackCoordinator;
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
         BikesPage = bikesPage;
@@ -199,15 +194,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenGpsTracks()
     {
-        var files = await filesService.OpenGpxFilesAsync();
-        foreach (var file in files)
-        {
-            await using var stream = await file.OpenReadAsync();
-            using var reader = new StreamReader(stream);
-            var gpx = await reader.ReadToEndAsync();
-            var track = Track.FromGpx(gpx);
-            await databaseService.PutAsync(track);
-        }
+        await trackCoordinator.ImportGpxAsync();
     }
 
     #endregion
