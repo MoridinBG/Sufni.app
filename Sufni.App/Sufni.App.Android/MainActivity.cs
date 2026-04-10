@@ -3,7 +3,6 @@ using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
-using ServiceDiscovery;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
@@ -22,8 +21,8 @@ namespace Sufni.App.Android
         {
             App.ServiceCollection.AddSingleton<ISecureStorage, AndroidSecureStorage>();
             App.ServiceCollection.AddSingleton<IFriendlyNameProvider, AndroidFriendlyNameProvider>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("sync");
             App.ServiceCollection.AddSingleton<IHapticFeedback>(_ => new AndroidHapticFeedback(Window!));
             App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
             App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();

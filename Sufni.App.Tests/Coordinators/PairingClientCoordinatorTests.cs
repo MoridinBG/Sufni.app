@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Reflection;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using ServiceDiscovery;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
 
@@ -25,8 +24,8 @@ public class PairingClientCoordinatorTests
 
     /// <summary>
     /// `ServiceAnnouncement.Port` and `.Address` have internal setters
-    /// and `ServiceDiscovery` does not expose its internals to the test
-    /// project, so tests that need to raise a populated
+    /// and the service-discovery models do not expose their internals to
+    /// the test project, so tests that need to raise a populated
     /// `ServiceAdded` / `ServiceRemoved` event fall back to reflection.
     /// </summary>
     private static ServiceAnnouncement MakeAnnouncement(IPAddress address, ushort port)
