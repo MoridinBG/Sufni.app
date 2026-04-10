@@ -8,12 +8,13 @@ using Mapsui.Projections;
 using MathNet.Numerics;
 using MathNet.Numerics.Interpolation;
 using SQLite;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
-public class TrackPoint(long time, double x, double y, double? elevation)
+public class TrackPoint(double time, double x, double y, double? elevation)
 {
-    [JsonPropertyName("time")] public long Time { get; set; } = time;
+    [JsonPropertyName("time")] public double Time { get; set; } = time;
     [JsonPropertyName("x")] public double X { get; set; } = x;
     [JsonPropertyName("y")] public double Y { get; set; } = y;
     [JsonPropertyName("ele")] public double? Elevation { get; set; } = elevation;
@@ -38,7 +39,7 @@ public class Track : Synchronizable
     [Column("start_time")]
     public long StartTime
     {
-        get => Points[0].Time;
+        get => (long)Points[0].Time;
         set => _ = value;
     }
 
@@ -46,7 +47,7 @@ public class Track : Synchronizable
     [Column("end_time")]
     public long EndTime
     {
-        get => Points[^1].Time;
+        get => (long)Points[^1].Time;
         set => _ = value;
     }
 
@@ -55,6 +56,26 @@ public class Track : Synchronizable
         return new Track
         {
             Points = ParseGpx(gpx)
+        };
+    }
+
+    public static Track FromGpsRecords(GpsRecord[] records)
+    {
+        return new Track
+        {
+            Points = records
+                .Where(r => r.FixMode > 0 
+                            && double.IsFinite(r.Latitude) && double.IsFinite(r.Longitude) 
+                            && float.IsFinite(r.Altitude))
+                .OrderBy(r => r.Timestamp)
+                .Select(r =>
+                {
+                    var (mx, my) = SphericalMercator.FromLonLat(r.Longitude, r.Latitude);
+                    return new TrackPoint(
+                        new DateTimeOffset(r.Timestamp).ToUnixTimeMilliseconds() / 1000.0,
+                        mx, my, r.Altitude);
+                })
+                .ToList()
         };
     }
 
@@ -90,7 +111,7 @@ public class Track : Synchronizable
             }
 
             var (mx, my) = SphericalMercator.FromLonLat(lon, lat);
-            points.Add(new TrackPoint(new DateTimeOffset(time).ToUnixTimeSeconds(), mx, my, elevation));
+            points.Add(new TrackPoint(new DateTimeOffset(time).ToUnixTimeMilliseconds() / 1000.0, mx, my, elevation));
         }
 
         return points;
@@ -110,7 +131,7 @@ public class Track : Synchronizable
         var endIdx = indices.Last() + 1;
 
         var session = Points.Skip(startIdx).Take(endIdx - startIdx).ToList();
-        var sessionTimes = session.Select(tp => (double)(tp.Time - start)).ToArray();
+        var sessionTimes = session.Select(tp => tp.Time - start).ToArray();
         sessionTimes[0] = 0;
 
         var x = Generate.LinearSpaced(
@@ -123,7 +144,7 @@ public class Track : Synchronizable
 
         var interpolated = x.Select(t =>
             new TrackPoint(
-                start + (long)Math.Round(t),
+                start + t,
                 xInterpolate.Interpolate(t),
                 yInterpolate.Interpolate(t),
                 0

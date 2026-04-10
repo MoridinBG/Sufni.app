@@ -67,6 +67,18 @@ public sealed class ImportSessionsCoordinator(
 
                     var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
+                    Guid? fullTrackId = null;
+                    var telemetryData = TelemetryData.FromBinary(psst);
+                    if (telemetryData.GpsData is { Length: > 0 })
+                    {
+                        var track = Track.FromGpsRecords(telemetryData.GpsData);
+                        if (track.Points.Count > 0)
+                        {
+                            await databaseService.PutAsync(track);
+                            fullTrackId = track.Id;
+                        }
+                    }
+
                     var session = new Session(
                         id: Guid.NewGuid(),
                         name: telemetryFile.Name,
@@ -74,7 +86,8 @@ public sealed class ImportSessionsCoordinator(
                         setup: setupId,
                         timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
                     {
-                        ProcessedData = psst
+                        ProcessedData = psst,
+                        FullTrack = fullTrackId
                     };
 
                     await databaseService.PutSessionAsync(session);
