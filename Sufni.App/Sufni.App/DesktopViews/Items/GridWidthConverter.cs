@@ -25,3 +25,28 @@ public class GridWidthConverter : IValueConverter
         throw new NotSupportedException();
     }
 }
+
+public class NullToGridLengthConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null)
+            return new GridLength(0);
+
+        var param = parameter as string ?? "Auto";
+        if (param.EndsWith('*'))
+        {
+            var starValue = param.Length > 1 ? double.Parse(param[..^1], CultureInfo.InvariantCulture) : 1;
+            return new GridLength(starValue, GridUnitType.Star);
+        }
+        if (param.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            return GridLength.Auto;
+
+        return new GridLength(double.Parse(param, CultureInfo.InvariantCulture), GridUnitType.Pixel);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
