@@ -1,0 +1,304 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "desktop: build macOS",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0-macos"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "desktop: build Linux",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "desktop: build Windows",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.Windows/Sufni.App.Windows.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0-windows"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "desktop: build solution",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "Sufni.Desktop.sln", "-c", "Debug"],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "mobile: build Android solution",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "Sufni.Android.sln", "-c", "Debug"],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "mobile: build Android device (arm64)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0-android",
+        "-r",
+        "android-arm64",
+        "-p:RuntimeIdentifier=android-arm64"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "mobile: build Android emulator (x64)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0-android",
+        "-r",
+        "android-x64",
+        "-p:RuntimeIdentifier=android-x64"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "mobile: build iOS solution",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "Sufni.iOS.sln", "-c", "Debug"],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "mobile: build iOS simulator (arm64)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.iOS/Sufni.App.iOS.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0-ios",
+        "-r",
+        "iossimulator-arm64",
+        "-p:RuntimeIdentifier=iossimulator-arm64"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "mobile: build iOS device",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "Sufni.App/Sufni.App.iOS/Sufni.App.iOS.csproj",
+        "-c",
+        "Debug",
+        "-f",
+        "net10.0-ios",
+        "-r",
+        "ios-arm64",
+        "-p:RuntimeIdentifier=ios-arm64"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "publish: macOS app (arm64)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj",
+        "-c",
+        "Release",
+        "-r",
+        "osx-arm64"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "publish: Linux x64",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj",
+        "-c",
+        "Release",
+        "-r",
+        "linux-x64",
+        "--self-contained",
+        "true",
+        "-p:UseMonoRuntime=false"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "publish: Windows x64",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "Sufni.App/Sufni.App.Windows/Sufni.App.Windows.csproj",
+        "-c",
+        "Release",
+        "-r",
+        "win-x64",
+        "--self-contained",
+        "true",
+        "-p:UseMonoRuntime=false"
+      ],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$msCompile"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    }
+  ]
+}

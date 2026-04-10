@@ -2,10 +2,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
-using Sufni.App.ViewModels.Items;
 using Sufni.App.ViewModels.LinkageParts;
 
 namespace Sufni.App.ViewModels.SensorConfigurations;
@@ -20,13 +18,32 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     [ObservableProperty] private JointViewModel? adjacentJoint1;
     [ObservableProperty] private JointViewModel? adjacentJoint2;
 
-    private ObservableCollection<JointViewModel> jointViewModels = [];
-    public ObservableCollection<JointViewModel> JointViewModels
+    private IReadOnlyList<JointViewModel> jointViewModels = [];
+    private bool initialResolutionDone;
+    public IReadOnlyList<JointViewModel> JointViewModels
     {
         get => jointViewModels;
         set
         {
             jointViewModels = value;
+
+            if (!initialResolutionDone && value.Count > 0)
+            {
+                // First non-empty joint list - initial load.
+                SensorJoint = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.CentralJoint);
+                AdjacentJoint1 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint1);
+                AdjacentJoint2 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint2);
+                initialResolutionDone = true;
+            }
+            else if (initialResolutionDone)
+            {
+                // User picked a different bike
+                SensorJoint = null;
+                AdjacentJoint1 = null;
+                AdjacentJoint2 = null;
+            }
+            // else: empty list before any real one — wait for the real one.
+
             UpdateJointsForSensorPlacement();
         }
     }
@@ -72,7 +89,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             AdjacentJoint1 = AdjacentJoint1.Name,
             AdjacentJoint2 = AdjacentJoint2.Name
         };
-        
+
         EvaluateDirtiness();
     }
 
@@ -89,25 +106,24 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             AdjacentJoint2 = AdjacentJoint2.Name
         };
 
-        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
+        return SensorConfiguration.ToJson(sc);
     }
 
     #endregion SensorConfigurationViewModel overrides
 
     #region Constructors
 
-    public RotationalShockSensorConfigurationViewModel(BikeViewModel? bikeViewModel) : this(new RotationalShockSensorConfiguration(), bikeViewModel) { }
+    public RotationalShockSensorConfigurationViewModel(IReadOnlyList<JointViewModel>? joints) : this(new RotationalShockSensorConfiguration(), joints) { }
 
-    public RotationalShockSensorConfigurationViewModel(RotationalShockSensorConfiguration configuration, BikeViewModel? bikeViewModel)
+    public RotationalShockSensorConfigurationViewModel(RotationalShockSensorConfiguration configuration, IReadOnlyList<JointViewModel>? joints)
     {
         Type = SensorType.RotationalShock;
         sensorConfiguration = configuration;
 
-        if  (bikeViewModel is null) return;
-        JointViewModels = bikeViewModel.JointViewModels;
-        SensorJoint = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.CentralJoint);
-        AdjacentJoint1 = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint1);
-        AdjacentJoint2 = bikeViewModel.JointViewModels.FirstOrDefault(jvm => jvm.Name == configuration.AdjacentJoint2);
+        if (joints is null) return;
+        // The JointViewModels setter performs the initial resolution
+        // from configuration.CentralJoint / AdjacentJoint1 / AdjacentJoint2.
+        JointViewModels = joints;
     }
 
     #endregion Constructors
