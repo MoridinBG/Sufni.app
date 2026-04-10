@@ -147,12 +147,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private void NotifyIfMalformed(ITelemetryFile file)
     {
-        if (!file.Malformed)
+        if (string.IsNullOrWhiteSpace(file.MalformedMessage))
             return;
 
-        var message = string.IsNullOrWhiteSpace(file.MalformedMessage)
-            ? $"{file.FileName} is malformed."
-            : $"{file.FileName} is malformed: {file.MalformedMessage}";
+        var message = $"{file.FileName} is malformed: {file.MalformedMessage}";
         if (!Notifications.Contains(message))
         {
             Notifications.Add(message);

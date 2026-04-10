@@ -12,9 +12,9 @@ public class NetworkTelemetryFile : ITelemetryFile
     public bool? ShouldBeImported { get; set; }
     public bool Imported { get; set; }
     public string Description { get; set; }
+    public byte Version { get; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
-    public bool Malformed => false;
     public string? MalformedMessage => null;
     public bool HasUnknown => false;
 
@@ -53,11 +53,10 @@ public class NetworkTelemetryFile : ITelemetryFile
         await SstTcpClient.TrashFile(ipEndPoint, idInt);
     }
 
-    public NetworkTelemetryFile(IPEndPoint source, ushort sampleRate, string name, ulong size, ulong timestamp)
+    public NetworkTelemetryFile(IPEndPoint source, string name, byte version, ulong timestamp, TimeSpan duration)
     {
-        var count = (size - 16 /* sizeof(header) */) / 4 /* sizeof(record) */;
-        var duration = TimeSpan.FromSeconds((double)count / sampleRate);
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
+        Version = version;
         StartTime = DateTimeOffset.FromUnixTimeSeconds((int)timestamp).LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
         Name = name;

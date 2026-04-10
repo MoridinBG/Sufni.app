@@ -296,7 +296,6 @@ public class ImportSessionsCoordinatorTests
         var file = CreateTelemetryFile(
             name: "bad",
             shouldBeImported: true,
-            malformed: true,
             malformedMessage: "invalid telemetry payload");
 
         var progressEvents = new List<SessionImportEvent>();

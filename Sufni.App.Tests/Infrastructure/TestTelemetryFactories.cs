@@ -19,7 +19,7 @@ public static class TestTelemetryFactories
         DateTime? startTime = null,
         string duration = "1s",
         bool? shouldBeImported = true,
-        bool malformed = false,
+        byte version = 4,
         string? malformedMessage = null,
         bool hasUnknown = false)
     {
@@ -27,10 +27,10 @@ public static class TestTelemetryFactories
         telemetryFile.Name.Returns(name);
         telemetryFile.FileName.Returns($"{name}.SST");
         telemetryFile.Description.Returns(description);
+        telemetryFile.Version.Returns(version);
         telemetryFile.StartTime.Returns(startTime ?? new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         telemetryFile.Duration.Returns(duration);
         telemetryFile.ShouldBeImported.Returns(shouldBeImported);
-        telemetryFile.Malformed.Returns(malformed);
         telemetryFile.MalformedMessage.Returns(malformedMessage);
         telemetryFile.HasUnknown.Returns(hasUnknown);
         return telemetryFile;
