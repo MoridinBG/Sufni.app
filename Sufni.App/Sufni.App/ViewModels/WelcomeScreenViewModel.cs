@@ -1,15 +1,37 @@
-using System.Diagnostics;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Coordinators;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
+
     #region Constructors
 
     public WelcomeScreenViewModel()
     {
+        bikeCoordinator = null!;
+        setupCoordinator = null!;
+        importSessionsCoordinator = null!;
+        Name = "Welcome";
+    }
+
+    public WelcomeScreenViewModel(
+        IShellCoordinator shell,
+        IDialogService dialogService,
+        IBikeCoordinator bikeCoordinator,
+        ISetupCoordinator setupCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator)
+        : base(shell, dialogService)
+    {
+        this.bikeCoordinator = bikeCoordinator;
+        this.setupCoordinator = setupCoordinator;
+        this.importSessionsCoordinator = importSessionsCoordinator;
         Name = "Welcome";
     }
 
@@ -18,31 +40,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private static void AddBike()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null);
-
-        mainPagesViewModel.BikesPage.AddCommand.Execute(null);
-    }
+    private async Task AddBike() => await bikeCoordinator.OpenCreateAsync();
 
     [RelayCommand]
-    private static void AddSetup()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null);
-
-        mainPagesViewModel.SetupsPage.AddCommand.Execute(null);
-    }
+    private async Task AddSetup() => await setupCoordinator.OpenCreateForDetectedBoardAsync();
 
     [RelayCommand]
-    private static void ImportSession()
-    {
-        var mainPagesViewModel = App.Current?.Services?.GetService<MainPagesViewModel>();
-        Debug.Assert(mainPagesViewModel is not null);
-
-        mainPagesViewModel.OpenPageCommand.Execute(mainPagesViewModel.ImportSessionsPage);
-    }
+    private async Task ImportSession() => await importSessionsCoordinator.OpenAsync();
 
     #endregion Commands
 }
