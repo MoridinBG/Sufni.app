@@ -21,7 +21,14 @@ maps use Mapsui.
 
 # Solution Layout
 
-Inspect `Sufni.App.sln` for the full list of projects. The ones that matter:
+Use `Sufni.App.sln` as the full-matrix solution. For day-to-day work,
+scenario-specific solutions now exist beside it:
+
+- `Sufni.Desktop.sln`
+- `Sufni.Android.sln`
+- `Sufni.iOS.sln`
+
+The projects that matter most:
 
 - `Sufni.Telemetry/` — pure C# telemetry processing (SST parsing, filters,
   stroke detection, histograms). No platform dependencies.
@@ -29,12 +36,17 @@ Inspect `Sufni.App.sln` for the full list of projects. The ones that matter:
   leverage ratio).
 - `Sufni.App/Sufni.App/` — main Avalonia application. Most UI and business
   logic lives here.
-- `Sufni.App/Sufni.App.{Windows,macOS,Linux,Android,iOS}/` — thin per-platform
-  heads that reference `Sufni.App` and bootstrap Avalonia.
-- `ServiceDiscovery/`, `SecureStorage/`, `HapticFeedback/`,
-  `FriendlyNameProvider/` — small cross-platform support libraries. Each one
-  has a `*.common.cs` interface file alongside per-platform implementations
-  (`*.ios.cs`, `*.android.cs`, `*.win.cs`, etc.).
+- `Sufni.App/Sufni.App.Desktop/` — desktop-only layer for sync server,
+  ASP.NET Core hosting, and other desktop-only infrastructure.
+- `Sufni.App/Sufni.App.{Windows,macOS,Linux}/` — desktop heads that reference
+  `Sufni.App.Desktop` and bootstrap Avalonia.
+- `Sufni.App/Sufni.App.{Android,iOS}/` — mobile heads that reference
+  `Sufni.App` directly and bootstrap Avalonia.
+- Platform-service abstractions now live in
+  `Sufni.App/Sufni.App/Services/` (`IServiceDiscovery`, `ISecureStorage`,
+  `IHapticFeedback`, `IFriendlyNameProvider`). Their implementations live in
+  the owning platform heads, with socket-based service discovery in shared
+  code and Bonjour implementations in the Apple heads.
 
 Full details: [ARCHITECTURE.md § Project Structure](ARCHITECTURE.md#project-structure)
 and [§ Platform Abstractions](ARCHITECTURE.md#platform-abstractions).
