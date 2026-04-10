@@ -1,12 +1,16 @@
-﻿using System.Diagnostics;
+using System;
+using System.Diagnostics;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Sufni.App.Services;
 using SecureStorageDictionary = System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>;
 
-namespace SecureStorage;
+namespace Sufni.App.Windows;
 
-public class SecureStorage : ISecureStorage
+public class WindowsSecureStorage : ISecureStorage
 {
     private static readonly byte[] AdditionalEntropy =
     {
@@ -28,7 +32,7 @@ public class SecureStorage : ISecureStorage
     private readonly SecureStorageDictionary secureStorage = new();
     private Task Initialization { get; }
 
-    public SecureStorage()
+    public WindowsSecureStorage()
     {
         Initialization = InitAsync();
     }
@@ -138,7 +142,7 @@ public class SecureStorage : ISecureStorage
     {
         await Initialization;
 
-        secureStorage.Remove(key, out _);
+        secureStorage.TryRemove(key, out _);
         await SaveAsync();
     }
 

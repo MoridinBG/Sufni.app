@@ -1,15 +1,6 @@
-using System;
-using System.Threading.Tasks;
-using Sufni.App.Models;
-
 namespace Sufni.App.Services;
 
-public class PairingEventArgs(PairedDevice device) : EventArgs
-{
-    public PairedDevice Device { get; set; } = device;
-}
-
-public class SynchronizationServerService : ISynchronizationServerService
+public static class SynchronizationProtocol
 {
     public const string ServiceType = "_sstsync._tcp";
     public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
@@ -23,9 +14,4 @@ public class SynchronizationServerService : ISynchronizationServerService
     public const string EndpointSyncPull = "/sync/pull";
     public const string EndpointSessionIncomplete = "/session/incomplete";
     public const string EndpointSessionData = "/session/data/";
-
-    public Task StartAsync()
-    {
-        throw new NotImplementedException();
-    }
 }

@@ -1,4 +1,6 @@
-namespace SecureStorage;
+using System.Threading.Tasks;
+
+namespace Sufni.App.Services;
 
 public interface ISecureStorage
 {

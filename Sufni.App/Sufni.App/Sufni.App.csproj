@@ -3,15 +3,9 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(CanTargetApplePlatforms)' == 'true'">
-    <TargetFrameworks>net10.0-windows;net10.0-android;net10.0-ios;net10.0-macos;net10.0</TargetFrameworks>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(CanTargetApplePlatforms)' != 'true'">
-    <TargetFrameworks>net10.0-windows;net10.0-android;net10.0</TargetFrameworks>
-  </PropertyGroup>
-  
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
@@ -47,32 +41,9 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-android' And '$(TargetFramework)' != 'net10.0-ios'">
-    <PackageReference Include="Microsoft.AspNetCore" />
-    <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel.Core" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication" />
-    <PackageReference Include="Makaretu.Dns.Multicast.New" />
-
-    <Compile Remove="Services\SynchronizationServerService.mobile.cs" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android' Or '$(TargetFramework)' == 'net10.0-ios'">
-    <Compile Remove="Services\SynchronizationServerService.cs" />
-  </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\..\FriendlyNameProvider\FriendlyNameProvider.csproj" />
-    <ProjectReference Include="..\..\SecureStorage\SecureStorage.csproj" />
-    <ProjectReference Include="..\..\ServiceDiscovery\ServiceDiscovery.csproj" />
-    <ProjectReference Include="..\..\HapticFeedback\HapticFeedback.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net10.0-windows' Or '$(TargetFramework)' == 'net10.0-macos'">
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Microsoft.AspNetCore.Authorization" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 
 </Project>

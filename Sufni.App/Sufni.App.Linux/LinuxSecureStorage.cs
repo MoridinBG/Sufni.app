@@ -1,9 +1,13 @@
+using System;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using DBus.Services.Secrets;
+using Sufni.App.Services;
 
-namespace SecureStorage;
+namespace Sufni.App.Linux;
 
-public class SecureStorage : ISecureStorage
+public class LinuxSecureStorage : ISecureStorage
 {
     private const string ContentTypeText = "text/plain; charset=utf8";
     private const string ContentTypeBytes = "application/octet-stream";
@@ -12,7 +16,7 @@ public class SecureStorage : ISecureStorage
     private Collection? defaultCollection;
     private Task Initialization { get; }
 
-    public SecureStorage()
+    public LinuxSecureStorage()
     {
         Initialization = InitAsync();
     }

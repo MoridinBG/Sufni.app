@@ -16,20 +16,30 @@ All commands are run from the repository root (`Sufni.App/`).
 - Android builds need the Android SDK. Either set `ANDROID_HOME` to the
   SDK root or pass `-p:AndroidSdkDirectory=<path>` on the command line.
   Without it the build fails with `error XA5300: The Android SDK
-  directory could not be found`. `adb` (from `platform-tools`) must be
+directory could not be found`. `adb` (from `platform-tools`) must be
   on `PATH` for device management.
 
 ## Solution layout
 
-Each head project under `Sufni.App/` targets one platform and references
-the shared `Sufni.App/Sufni.App/Sufni.App.csproj`:
+Committed solutions map directly to developer scenarios:
 
-| Head project        | TargetFramework   | Output bundle / binary                                           |
-| ------------------- | ----------------- | ---------------------------------------------------------------- |
-| `Sufni.App.macOS`   | `net10.0-macos`   | `bin/Debug/net10.0-macos/<rid>/Sufni.App.macOS.app`              |
-| `Sufni.App.Linux`   | `net10.0`         | `bin/Debug/net10.0/Sufni.App.Linux.dll`                          |
-| `Sufni.App.Windows` | `net10.0-windows` | `bin/Debug/net10.0-windows/Sufni.App.Windows.exe`                |
-| `Sufni.App.iOS`     | `net10.0-ios`     | `bin/Debug/net10.0-ios/<rid>/Sufni.App.iOS.app`                  |
+| Solution            | Intended use                                                         |
+| ------------------- | -------------------------------------------------------------------- |
+| `Sufni.App.sln`     | Full matrix / repo-wide solution                                     |
+| `Sufni.Desktop.sln` | Desktop work: shared app, desktop layer, desktop heads, shared tests |
+| `Sufni.Android.sln` | Android work: shared app, Android head, neutral libraries            |
+| `Sufni.iOS.sln`     | iOS work: shared app, iOS head, neutral libraries                    |
+
+Each head project under `Sufni.App/` targets one platform and references
+the shared `Sufni.App/Sufni.App/Sufni.App.csproj` directly or through the
+desktop layer where appropriate:
+
+| Head project        | TargetFramework   | Output bundle / binary                                              |
+| ------------------- | ----------------- | ------------------------------------------------------------------- |
+| `Sufni.App.macOS`   | `net10.0-macos`   | `bin/Debug/net10.0-macos/<rid>/Sufni.App.macOS.app`                 |
+| `Sufni.App.Linux`   | `net10.0`         | `bin/Debug/net10.0/Sufni.App.Linux.dll`                             |
+| `Sufni.App.Windows` | `net10.0-windows` | `bin/Debug/net10.0-windows/Sufni.App.Windows.exe`                   |
+| `Sufni.App.iOS`     | `net10.0-ios`     | `bin/Debug/net10.0-ios/<rid>/Sufni.App.iOS.app`                     |
 | `Sufni.App.Android` | `net10.0-android` | `bin/Debug/net10.0-android/<rid>/com.sghctoma.Sufni.App-Signed.apk` |
 
 ## macOS

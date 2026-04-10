@@ -1,10 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
-using FriendlyNameProvider;
 using Microsoft.Extensions.DependencyInjection;
-using SecureStorage;
-using ServiceDiscovery;
 using Sufni.App.Models;
 using Sufni.App.Services;
 
@@ -109,7 +106,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public void StartBrowsing()
     {
-        serviceDiscovery.StartBrowse(SynchronizationServerService.ServiceType);
+        serviceDiscovery.StartBrowse(SynchronizationProtocol.ServiceType);
     }
 
     public void StopBrowsing()

@@ -1,16 +1,16 @@
-﻿using Android.Views;
+using Android.Views;
+using Sufni.App.Services;
 
-namespace HapticFeedback;
+namespace Sufni.App.Android;
 
-public class HapticFeedback(Window window) : IHapticFeedback
+public sealed class AndroidHapticFeedback(Window window) : IHapticFeedback
 {
     public void Click()
     {
         var activity = window.Context as Activity;
-#pragma warning disable CA1416 // Validate platform compatibility 
-                               // Mmininum SDK is 23, so this is not an issue here.
+#pragma warning disable CA1416
         activity?.Window?.DecorView?.PerformHapticFeedback(FeedbackConstants.ContextClick);
-#pragma warning restore CA1416 // Validate platform compatibility
+#pragma warning restore CA1416
     }
 
     public void LongPress()

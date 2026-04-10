@@ -1,0 +1,95 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Sufni macOS",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "desktop: build macOS",
+      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug -f net10.0-macos"
+    },
+    {
+      "name": "Sufni macOS (debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "desktop: build macOS",
+      "program": "${workspaceFolder}/Sufni.App/Sufni.App.macOS/bin/Debug/net10.0-macos/osx-arm64/Sufni.App.macOS.app/Contents/MacOS/Sufni.App.macOS",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Sufni Linux (Linux host)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "desktop: build Linux",
+      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj -c Debug -f net10.0"
+    },
+    {
+      "name": "Sufni Windows (Windows host)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "desktop: build Windows",
+      "command": "dotnet run --no-build --project Sufni.App/Sufni.App.Windows/Sufni.App.Windows.csproj -c Debug -f net10.0-windows"
+    },
+    {
+      "name": "Sufni iOS Simulator (arm64)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "mobile: build iOS simulator (arm64)",
+      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --launchsim Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/iossimulator-arm64/Sufni.App.iOS.app --device=:v2:udid=${input:iosSimulatorUdid} -sdk \"$(xcrun --sdk iphonesimulator --show-sdk-version)\" --sdkroot \"$(xcode-select -p)\""
+    },
+    {
+      "name": "Sufni iOS Device",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "mobile: build iOS device",
+      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
+    },
+    {
+      "name": "Sufni Android (arm64)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "command": "dotnet build Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj -c Debug -f net10.0-android -r android-arm64 -p:RuntimeIdentifier=android-arm64 -t:Run"
+    },
+    {
+      "name": "Sufni Android (x64 emulator)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "command": "dotnet build Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj -c Debug -f net10.0-android -r android-x64 -p:RuntimeIdentifier=android-x64 -t:Run"
+    },
+    {
+      "name": "Start Android Emulator",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "command": "ANDROID_SDK=\"${ANDROID_SDK_ROOT:-$ANDROID_HOME}\" && test -n \"$ANDROID_SDK\" && \"$ANDROID_SDK/emulator/emulator\" -avd ${input:androidAvd}"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "iosSimulatorUdid",
+      "type": "promptString",
+      "description": "Simulator UDID from xcrun simctl list devices available"
+    },
+    {
+      "id": "iosDeviceName",
+      "type": "promptString",
+      "description": "Device name from mlaunch --listdev",
+      "default": "iPhone"
+    },
+    {
+      "id": "androidAvd",
+      "type": "promptString",
+      "description": "AVD name from $ANDROID_HOME/emulator/emulator -list-avds"
+    }
+  ]
+}

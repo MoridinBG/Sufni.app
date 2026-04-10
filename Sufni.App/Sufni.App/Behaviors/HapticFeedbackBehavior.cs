@@ -7,7 +7,7 @@ namespace Sufni.App.Behaviors;
 
 // Aliased so the field type below stays unambiguous against the
 // behavior class name.
-using PlatformHaptics = global::HapticFeedback.IHapticFeedback;
+using PlatformHaptics = global::Sufni.App.Services.IHapticFeedback;
 
 public static class HapticFeedbackBehavior
 {
