@@ -284,6 +284,32 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
+    public void SelectingMalformedFileSource_AddsSingleNotificationAcrossReloads()
+    {
+        using var _ = new TestSynchronizationContextScope();
+        var dataStore = CreateDataStore();
+        var malformedFile = CreateTelemetryFile(
+            name: "bad",
+            shouldBeImported: false,
+            malformed: true,
+            malformedMessage: "telemetry payload is invalid");
+
+        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { malformedFile }));
+
+        var viewModel = CreateViewModel();
+
+        viewModel.SelectedDataStore = dataStore;
+        Assert.Single(viewModel.Notifications);
+
+        viewModel.SelectedDataStore = null;
+        viewModel.SelectedDataStore = dataStore;
+
+        Assert.Single(viewModel.Notifications);
+        Assert.Single(viewModel.TelemetryFiles);
+    }
+
+    [Fact]
     public void Loaded_StartsBrowse_AndSubscribesToSetupStoreChanges()
     {
         using var _ = new TestSynchronizationContextScope();
