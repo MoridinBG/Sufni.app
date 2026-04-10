@@ -33,6 +33,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private string? serverUrl;
     private bool isPaired;
 
+    private Task Initialization { get; }
+
     public string? DeviceId => deviceId;
     public string? DisplayName => displayName;
     public string? ServerUrl => serverUrl;
@@ -60,10 +62,10 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         serviceDiscovery.ServiceAdded += OnServiceAdded;
         serviceDiscovery.ServiceRemoved += OnServiceRemoved;
 
-        _ = InitAsync();
+        Initialization = Init();
     }
 
-    private async Task InitAsync()
+    private async Task Init()
     {
         deviceId = await secureStorage.GetStringAsync(DeviceIdKey);
         if (deviceId is null)
@@ -117,6 +119,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<RequestPairingResult> RequestPairingAsync(string? displayName)
     {
+        await Initialization;
+
         if (serverUrl is null)
         {
             return new RequestPairingResult.Failed("No server discovered.");
@@ -136,6 +140,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<ConfirmPairingResult> ConfirmPairingAsync(string? displayName, string pin)
     {
+        await Initialization;
+
         var normalized = PairedDevice.NormalizeDisplayName(displayName);
         try
         {
@@ -163,6 +169,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<UnpairResult> UnpairAsync()
     {
+        await Initialization;
+
         UnpairResult result;
         try
         {
