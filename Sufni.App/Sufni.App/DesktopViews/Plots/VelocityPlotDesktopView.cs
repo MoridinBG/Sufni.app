@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
-using Sufni.App.Views;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -16,7 +15,7 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
         get => GetValue(TravelPlotViewProperty);
         set => SetValue(TravelPlotViewProperty, value);
     }
-    
+
     public static readonly StyledProperty<SufniTelemetryPlotView> ImuPlotViewProperty =
         AvaloniaProperty.Register<VelocityPlotDesktopView, SufniTelemetryPlotView>(nameof(ImuPlotView));
 
@@ -24,15 +23,6 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
     {
         get => GetValue(ImuPlotViewProperty);
         set => SetValue(ImuPlotViewProperty, value);
-    }
-
-    public static readonly StyledProperty<MapView> MapViewProperty =
-        AvaloniaProperty.Register<VelocityPlotDesktopView, MapView>(nameof(MapView));
-
-    public MapView MapView
-    {
-        get => GetValue(MapViewProperty);
-        set => SetValue(MapViewProperty, value);
     }
 
     protected override void CreatePlot()
@@ -48,7 +38,7 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (Telemetry is null || Telemetry.Metadata.Duration <= 0) return;
+            if (Telemetry is null || Telemetry.Metadata.Duration <= 0 || MapView is null) return;
 
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             MapView.SetNormalizedCursorPosition(normalizedCursorPosition);
@@ -64,12 +54,15 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
                 travelPlot.CursorLine!.Position = coords.X;
                 travelPlot.Plot.PlotControl!.Refresh();
             }
-            
+
             if (ImuPlotView?.Plot is ImuPlot imuPlot)
             {
                 imuPlot.CursorLine!.Position = coords.X;
                 imuPlot.Plot.PlotControl!.Refresh();
             }
         };
+
+        AvaPlot.PointerReleased += (_, _) => UpdateMapZoom();
+        AvaPlot.PointerWheelChanged += (_, _) => UpdateMapZoom();
     }
 }

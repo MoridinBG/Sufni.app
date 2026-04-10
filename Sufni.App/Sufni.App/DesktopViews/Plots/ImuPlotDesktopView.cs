@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
-using Sufni.App.Views;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -24,15 +23,6 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
     {
         get => GetValue(TravelPlotViewProperty);
         set => SetValue(TravelPlotViewProperty, value);
-    }
-
-    public static readonly StyledProperty<MapView> MapViewProperty =
-        AvaloniaProperty.Register<ImuPlotDesktopView, MapView>(nameof(MapView));
-
-    public MapView MapView
-    {
-        get => GetValue(MapViewProperty);
-        set => SetValue(MapViewProperty, value);
     }
 
     protected override void CreatePlot()
@@ -63,7 +53,7 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (Telemetry is null || Telemetry.Metadata.Duration <= 0) return;
+            if (Telemetry is null || Telemetry.Metadata.Duration <= 0 || MapView is null) return;
 
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             MapView.SetNormalizedCursorPosition(normalizedCursorPosition);

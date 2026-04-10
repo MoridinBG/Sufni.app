@@ -26,6 +26,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
+    private readonly ITileLayerService tileLayerService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
@@ -36,6 +37,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         IBackgroundTaskRunner backgroundTaskRunner,
         ITrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
+        ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService,
         ISynchronizationServerService? synchronizationServer = null)
@@ -46,6 +48,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.trackCoordinator = trackCoordinator;
         this.sessionPresentationService = sessionPresentationService;
+        this.tileLayerService = tileLayerService;
         this.shell = shell;
         this.dialogService = dialogService;
 
@@ -69,6 +72,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
                 snapshot,
                 this,
                 sessionStore,
+                tileLayerService,
                 shell,
                 dialogService));
         return Task.CompletedTask;

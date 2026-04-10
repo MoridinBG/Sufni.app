@@ -18,14 +18,21 @@ public class SessionDetailViewModelTests
 {
     private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+
+    public SessionDetailViewModelTests()
+    {
+        tileLayerService.AvailableLayers.Returns([]);
+        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
+    }
 
     private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot, IObservable<SessionSnapshot>? watch = null)
     {
         sessionStore.Watch(snapshot.Id).Returns(watch ?? Observable.Empty<SessionSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, shell, dialogService);
+        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, tileLayerService, shell, dialogService);
     }
 
     // ----- Construction -----

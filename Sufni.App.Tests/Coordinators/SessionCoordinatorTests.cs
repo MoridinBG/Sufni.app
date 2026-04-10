@@ -21,12 +21,19 @@ public class SessionCoordinatorTests
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly ITrackCoordinator trackCoordinator = Substitute.For<ITrackCoordinator>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
+    public SessionCoordinatorTests()
+    {
+        tileLayerService.AvailableLayers.Returns([]);
+        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
+    }
+
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
-        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, shell, dialogService, sync);
+        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, tileLayerService, shell, dialogService, sync);
 
     // ----- OpenEditAsync -----
 

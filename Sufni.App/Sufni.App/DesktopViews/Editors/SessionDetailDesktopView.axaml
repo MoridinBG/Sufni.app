@@ -176,9 +176,8 @@
                     Grid.Row="2"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
-                    IsVisible="{Binding TrackPoints, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    SessionTrackPoints="{Binding TrackPoints}"
-                    TrackPoints="{Binding FullTrackPoints}" />
+                    DataContext="{Binding MapViewModel}"
+                    IsVisible="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).TrackPoints, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </Grid>
         </Grid>
 
