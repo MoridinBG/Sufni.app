@@ -2,12 +2,10 @@
   "solution": {
     "path": "Sufni.App.sln",
     "projects": [
-      "Sufni.App/Sufni.App/Sufni.App.csproj",
       "Sufni.App/Sufni.App.Android/Sufni.App.Android.csproj",
       "Sufni.App/Sufni.App.Windows/Sufni.App.Windows.csproj",
       "Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj",
       "Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj",
-      "ServiceDiscovery/ServiceDiscovery.csproj",
       "Sufni.Telemetry/Sufni.Telemetry.csproj",
       "Sufni.Kinematics/Sufni.Kinematics.csproj",
       "Sufni.App.Tests/Sufni.App.Tests.csproj"

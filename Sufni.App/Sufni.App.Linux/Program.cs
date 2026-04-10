@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using ServiceDiscovery;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
@@ -21,7 +20,7 @@ namespace Sufni.App.Linux
         public static AppBuilder BuildAvaloniaApp()
         {
             App.ServiceCollection.AddSingleton<ISecureStorage, LinuxSecureStorage>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
             App.ServiceCollection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
             App.ServiceCollection.AddSingleton<IPairingServerCoordinator, PairingServerCoordinator>();
             App.ServiceCollection.AddSingleton<IInboundSyncCoordinator, InboundSyncCoordinator>();
