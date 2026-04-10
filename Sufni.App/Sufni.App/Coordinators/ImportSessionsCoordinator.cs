@@ -57,6 +57,16 @@ public sealed class ImportSessionsCoordinator(
             {
                 try
                 {
+                    if (telemetryFile.Malformed)
+                    {
+                        var malformedMessage = string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage)
+                            ? "Malformed files cannot be imported."
+                            : telemetryFile.MalformedMessage;
+                        failures.Add((telemetryFile.Name, malformedMessage));
+                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, malformedMessage));
+                        continue;
+                    }
+
                     var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
                     var session = new Session(

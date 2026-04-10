@@ -14,6 +14,8 @@ public interface ITelemetryFile
     public DateTime StartTime { get; }
     public string Duration { get; }
     public bool Malformed { get; }
+    public string? MalformedMessage { get; }
+    public bool HasUnknown { get; }
 
     public Task<byte[]> GeneratePsstAsync(BikeData bikeData);
     public Task OnImported();
