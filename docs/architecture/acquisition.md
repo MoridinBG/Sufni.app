@@ -70,7 +70,7 @@ Request:  [0x03, 0x00, 0x00, 0x00, fileId_LE(4)]
 Response: [size_LE(4), padding(4)]  → ack [0x04] → data[size] → confirm [0x05]
 ```
 
-- `fileId = 0` is a magic value that returns the directory listing instead of a file. The directory contains the board ID (8 bytes), sample rate (uint16), then 25-byte entries (9-char name + uint64 size + uint64 timestamp).
+- `fileId = 0` is a magic value that returns the directory listing instead of a file. The directory contains the board ID (8 bytes), sample rate (uint16), then 30-byte entries (9-char name + uint64 size + uint64 timestamp + uint32 durationMs + version byte).
 - `fileId < 0` (negative) triggers a remote delete; the server responds with status code 10.
 
 Network add / remove handling follows the same split as mass storage: any initialization work completes first, and only the `DataStores` collection mutation is marshaled back to the UI thread.

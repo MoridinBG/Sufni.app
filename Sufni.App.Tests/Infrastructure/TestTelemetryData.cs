@@ -30,7 +30,18 @@ public static class TestTelemetryData
             FrontMeasurementToTravel: frontPresent ? MeasurementToTravel : null,
             RearMeasurementToTravel: rearPresent ? MeasurementToTravel : null);
 
-        return TelemetryData.FromRecording(front, rear, 0.0, 0.0, metadata, bikeData);
+        var rawData = new RawTelemetryData
+        {
+            Version = (byte)metadata.Version,
+            SampleRate = (ushort)metadata.SampleRate,
+            Timestamp = metadata.Timestamp,
+            Front = front,
+            Rear = rear,
+            FrontAnomalyRate = 0.0,
+            RearAnomalyRate = 0.0,
+        };
+
+        return TelemetryData.FromRecording(rawData, metadata, bikeData);
     }
 
     private static ushort[] BuildWave(int sampleCount, double phase)
