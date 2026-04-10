@@ -50,7 +50,7 @@ public partial class PairingServerViewModel : ViewModelBase
         // the right level for these subscriptions and the timer hookup.
         timer.Elapsed += (_, _) =>
         {
-            Remaining -= 1.0 / SynchronizationServerService.PinTtlSeconds;
+            Remaining -= 1.0 / SynchronizationProtocol.PinTtlSeconds;
             if (!(Remaining <= 0)) return;
             PairingPin = null;
             timer.Stop();

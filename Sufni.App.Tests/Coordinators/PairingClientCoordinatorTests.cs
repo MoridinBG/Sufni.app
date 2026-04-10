@@ -198,7 +198,7 @@ public class PairingClientCoordinatorTests
 
         coordinator.StartBrowsing();
 
-        serviceDiscovery.Received(1).StartBrowse(SynchronizationServerService.ServiceType);
+        serviceDiscovery.Received(1).StartBrowse(SynchronizationProtocol.ServiceType);
     }
 
     [Fact]

@@ -109,7 +109,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public void StartBrowsing()
     {
-        serviceDiscovery.StartBrowse(SynchronizationServerService.ServiceType);
+        serviceDiscovery.StartBrowse(SynchronizationProtocol.ServiceType);
     }
 
     public void StopBrowsing()

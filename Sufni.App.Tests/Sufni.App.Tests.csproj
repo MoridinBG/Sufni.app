@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sufni.App\Sufni.App\Sufni.App.csproj" />
+    <ProjectReference Include="..\Sufni.App\Sufni.App.Desktop\Sufni.App.Desktop.csproj" />
   </ItemGroup>
 
   <ItemGroup>
