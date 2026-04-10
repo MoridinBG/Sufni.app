@@ -3,6 +3,6 @@
     MacOSOnly mode: Build only macOS
   -->
   <PropertyGroup Condition="'$(MacOSOnly)' == 'true' And '$(TargetFrameworks)' != ''">
-    <TargetFrameworks>net10.0-macos</TargetFrameworks>
+    <TargetFrameworks>net10.0-ios;net10.0-macos</TargetFrameworks>
   </PropertyGroup>
 </Project>

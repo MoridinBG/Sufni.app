@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
@@ -13,15 +12,13 @@ public sealed class SetupCoordinator(
     IBikeStore bikeStore,
     IBikeCoordinator bikeCoordinator,
     IDatabaseService databaseService,
+    ITelemetryDataStoreService telemetryDataStoreService,
     IShellCoordinator shell,
-    INavigator navigator,
     IDialogService dialogService) : ISetupCoordinator
 {
     public Task OpenCreateAsync(Guid? suggestedBoardId = null)
     {
-        // Honour the suggested board ID only if it isn't already
-        // associated with another setup. This is the check that used
-        // to live in SetupListViewModel.AddImplementation.
+        // Honour the suggested board ID only if no other setup claims it.
         Guid? actualBoardId = null;
         if (suggestedBoardId.HasValue && setupStore.FindByBoardId(suggestedBoardId.Value) is null)
         {
@@ -36,13 +33,19 @@ public sealed class SetupCoordinator(
             bikeStore,
             bikeCoordinator,
             this,
-            navigator,
+            shell,
             dialogService)
         {
             IsDirty = true
         };
         shell.Open(editor);
         return Task.CompletedTask;
+    }
+
+    public async Task OpenCreateForDetectedBoardAsync()
+    {
+        var detected = await telemetryDataStoreService.DetectConnectedBoardIdAsync();
+        await OpenCreateAsync(detected);
     }
 
     public Task OpenEditAsync(Guid setupId)
@@ -58,44 +61,23 @@ public sealed class SetupCoordinator(
                 bikeStore,
                 bikeCoordinator,
                 this,
-                navigator,
+                shell,
                 dialogService));
         return Task.CompletedTask;
     }
 
     public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
     {
-        // Optimistic conflict detection: if the store's current version
-        // is newer than the baseline the editor opened on, someone else
-        // (another tab, sync) has written in the meantime. For a brand
-        // new setup the store has no entry, so this falls through.
         var current = setupStore.Get(setup.Id);
-        if (current is not null && current.Updated > baselineUpdated)
+        if (current.IsNewerThan(baselineUpdated))
         {
             return new SetupSaveResult.Conflict(current);
         }
 
         try
         {
-            // The previously stored board association — null for a brand
-            // new setup or one that wasn't associated with a board.
-            var originalBoardId = current?.BoardId;
-
             await databaseService.PutAsync(setup);
-
-            // If this setup was already associated with another board, clear that association.
-            // Do not delete the board though, it might be picked up later.
-            if (originalBoardId.HasValue && originalBoardId != boardId)
-            {
-                await databaseService.PutAsync(new Board(originalBoardId.Value, null));
-            }
-
-            // If the board ID changed (or this is the first time we set
-            // it), associate the new board with this setup.
-            if (boardId.HasValue && originalBoardId != boardId)
-            {
-                await databaseService.PutAsync(new Board(boardId.Value, setup.Id));
-            }
+            await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
@@ -110,24 +92,41 @@ public sealed class SetupCoordinator(
 
     public async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
     {
+        var snapshot = setupStore.Get(setupId);
+
         try
         {
-            var snapshot = setupStore.Get(setupId);
-
-            // If this setup is associated with a board ID, clear that association.
-            if (snapshot?.BoardId is not null)
-            {
-                await databaseService.PutAsync(new Board(snapshot.BoardId.Value, null));
-            }
-
             await databaseService.DeleteAsync<Setup>(setupId);
-            setupStore.Remove(setupId);
-
-            return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
         }
         catch (Exception e)
         {
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
+        }
+
+        // Best-effort: a dangling board row is harmless.
+        try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
+        catch { /* ignored */ }
+
+        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId);
+        setupStore.Remove(setupId);
+
+        return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
+    }
+
+    // Clear the previous board's setup pointer (if any) and set the new
+    // board's setup pointer (if any). No-op when the assignment hasn't
+    // changed. Boards are never deleted — they may be picked up later.
+    private async Task ReassignBoardAsync(Guid? originalBoardId, Guid? newBoardId, Guid setupId)
+    {
+        if (originalBoardId == newBoardId) return;
+
+        if (originalBoardId.HasValue)
+        {
+            await databaseService.PutAsync(new Board(originalBoardId.Value, null));
+        }
+        if (newBoardId.HasValue)
+        {
+            await databaseService.PutAsync(new Board(newBoardId.Value, setupId));
         }
     }
 }

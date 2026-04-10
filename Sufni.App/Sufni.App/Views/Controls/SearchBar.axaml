@@ -67,7 +67,7 @@
             Classes="embedded">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).PairingClientPage.IsPaired" />
+                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).IsPaired" />
                     <Binding Path="!$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
                     <Binding Path="!#CloseButton.IsVisible" />
                 </MultiBinding>

@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.Views.Controls;
 
@@ -11,7 +12,7 @@ public partial class TabPageViewModelBase : ViewModelBase
 {
     #region Injected services
 
-    protected readonly INavigator navigator;
+    protected readonly IShellCoordinator shell;
     protected readonly IDialogService dialogService;
 
     #endregion Injected services
@@ -20,13 +21,13 @@ public partial class TabPageViewModelBase : ViewModelBase
 
     protected TabPageViewModelBase()
     {
-        navigator = null!;
+        shell = null!;
         dialogService = null!;
     }
 
-    protected TabPageViewModelBase(INavigator navigator, IDialogService dialogService)
+    protected TabPageViewModelBase(IShellCoordinator shell, IDialogService dialogService)
     {
-        this.navigator = navigator;
+        this.shell = shell;
         this.dialogService = dialogService;
     }
 
@@ -35,10 +36,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     #region Navigation helpers
 
     [RelayCommand]
-    protected void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
-
-    [RelayCommand]
-    protected void OpenPreviousPage() => navigator.OpenPreviousPage();
+    protected void OpenPreviousPage() => shell.GoBack();
 
     #endregion Navigation helpers
 
@@ -55,6 +53,12 @@ public partial class TabPageViewModelBase : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private string? name;
+
+    // Used by the EditableTitle control as the optional subtitle. Bike
+    // and setup editors leave this null (and the subtitle hides);
+    // SessionDetailViewModel sets it to the recording's local-time
+    // timestamp after Loaded.
+    [ObservableProperty] private DateTime? timestamp;
 
     #endregion Observable properties
 
@@ -112,7 +116,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     {
         if (!IsDirty)
         {
-            navigator.CloseTab(this);
+            shell.Close(this);
             return;
         }
 
@@ -121,17 +125,17 @@ public partial class TabPageViewModelBase : ViewModelBase
         {
             case PromptResult.Yes:
                 await Save();
-                navigator.CloseTab(this);
+                shell.Close(this);
                 break;
             case PromptResult.No:
                 await Reset();
-                navigator.CloseTab(this);
+                shell.Close(this);
                 break;
             case PromptResult.Cancel:
                 break;
             case PromptResult.Ok:
                 await Reset();
-                navigator.CloseTab(this);
+                shell.Close(this);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

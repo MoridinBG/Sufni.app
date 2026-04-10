@@ -69,8 +69,18 @@
             </progRing:ProgressRing.IsActive>
         </progRing:ProgressRing>
 
-        <!--  Device name  -->
-        <TextBox Text="{Binding DeviceId}" Watermark="Device ID" />
+        <!--  Display name. Locked once a pairing request is in flight
+             or the device is already paired — otherwise an edit between
+             request and confirm would change what we send on confirm
+             and the server would reject the mismatch.  -->
+        <TextBox Text="{Binding DisplayName}" Watermark="Display name">
+            <TextBox.IsEnabled>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="!IsRequestSent" />
+                    <Binding Path="!IsPaired" />
+                </MultiBinding>
+            </TextBox.IsEnabled>
+        </TextBox>
 
         <!--  Send pairing request button  -->
         <Button

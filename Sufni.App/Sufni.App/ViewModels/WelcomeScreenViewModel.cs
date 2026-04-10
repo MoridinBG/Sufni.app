@@ -22,12 +22,12 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     }
 
     public WelcomeScreenViewModel(
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService,
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
         IImportSessionsCoordinator importSessionsCoordinator)
-        : base(navigator, dialogService)
+        : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.setupCoordinator = setupCoordinator;
@@ -43,7 +43,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private async Task AddBike() => await bikeCoordinator.OpenCreateAsync();
 
     [RelayCommand]
-    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync();
+    private async Task AddSetup() => await setupCoordinator.OpenCreateForDetectedBoardAsync();
 
     [RelayCommand]
     private async Task ImportSession() => await importSessionsCoordinator.OpenAsync();

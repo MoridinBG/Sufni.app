@@ -18,6 +18,7 @@ public sealed record SessionSnapshot(
     string Description,
     Guid? SetupId,
     long? Timestamp,
+    Guid? FullTrackId,
     bool HasProcessedData,
     string? FrontSpringRate,
     uint? FrontHighSpeedCompression,
@@ -29,7 +30,7 @@ public sealed record SessionSnapshot(
     uint? RearLowSpeedCompression,
     uint? RearLowSpeedRebound,
     uint? RearHighSpeedRebound,
-    long Updated)
+    long Updated) : IVersionedSnapshot
 {
     public static SessionSnapshot From(Session session) => new(
         session.Id,
@@ -37,6 +38,7 @@ public sealed record SessionSnapshot(
         session.Description,
         session.Setup,
         session.Timestamp,
+        session.FullTrack,
         session.HasProcessedData,
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,

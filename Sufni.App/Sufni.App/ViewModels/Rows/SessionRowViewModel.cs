@@ -10,12 +10,16 @@ namespace Sufni.App.ViewModels.Rows;
 /// <summary>
 /// Presentation wrapper around a <see cref="SessionSnapshot"/> for use
 /// inside the session list. Refreshes itself via <see cref="Update"/>
-/// when the underlying snapshot changes. Open/delete commands route
-/// through <see cref="ISessionCoordinator"/>.
+/// when the underlying snapshot changes. <see cref="OpenPage"/> routes
+/// through <see cref="ISessionCoordinator"/>;
+/// <see cref="UndoableDelete"/> hands the row back to the owning list
+/// view model via the <c>requestDelete</c> callback so the list can run
+/// its pending-delete undo window before finalizing.
 /// </summary>
 public partial class SessionRowViewModel : ObservableObject, IListItemRow
 {
     private readonly ISessionCoordinator? sessionCoordinator;
+    private readonly Action<SessionRowViewModel>? requestDelete;
 
     public Guid Id { get; private set; }
 
@@ -26,11 +30,16 @@ public partial class SessionRowViewModel : ObservableObject, IListItemRow
     public SessionRowViewModel()
     {
         sessionCoordinator = null;
+        requestDelete = null;
     }
 
-    public SessionRowViewModel(SessionSnapshot snapshot, ISessionCoordinator sessionCoordinator)
+    public SessionRowViewModel(
+        SessionSnapshot snapshot,
+        ISessionCoordinator sessionCoordinator,
+        Action<SessionRowViewModel> requestDelete)
     {
         this.sessionCoordinator = sessionCoordinator;
+        this.requestDelete = requestDelete;
         Update(snapshot);
     }
 
@@ -52,10 +61,9 @@ public partial class SessionRowViewModel : ObservableObject, IListItemRow
     }
 
     [RelayCommand]
-    private async Task UndoableDelete()
+    private void UndoableDelete()
     {
-        if (sessionCoordinator is null) return;
-        await sessionCoordinator.DeleteAsync(Id);
+        requestDelete?.Invoke(this);
     }
 
     [RelayCommand]

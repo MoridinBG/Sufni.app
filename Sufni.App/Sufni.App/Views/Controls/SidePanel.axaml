@@ -67,7 +67,7 @@
         <MenuItem
             Command="{Binding SyncCommand}"
             Header="synchronize"
-            IsVisible="{Binding PairingClientPage.IsPaired, FallbackValue={x:False}}">
+            IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
                 <Image
                     Width="12"
@@ -79,7 +79,7 @@
             Command="{Binding OpenPageCommand}"
             CommandParameter="{Binding PairingClientPage}"
             Header="pair"
-            IsVisible="{Binding !PairingClientPage.IsPaired}">
+            IsVisible="{Binding !IsPaired}">
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </MenuItem.Icon>
@@ -88,7 +88,7 @@
             Command="{Binding OpenPageCommand}"
             CommandParameter="{Binding PairingClientPage}"
             Header="unpair"
-            IsVisible="{Binding PairingClientPage.IsPaired, FallbackValue={x:False}}">
+            IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
             </MenuItem.Icon>

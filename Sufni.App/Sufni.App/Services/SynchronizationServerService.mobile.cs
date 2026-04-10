@@ -29,10 +29,9 @@ public class SynchronizationServerService : ISynchronizationServerService
         throw new NotImplementedException();
     }
 
-    public Action<string, string>? PairingRequested { get; set; }
-    public Action<SynchronizationData>? SynchronizationDataArrived { get; set; }
-    public Action<Guid>? SessionDataArrived { get; set; }
-
-    public event EventHandler? PairingConfirmed;
-    public event EventHandler? Unpaired;
+    public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
+    public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
+    public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
+    public event EventHandler<PairingEventArgs>? PairingConfirmed;
+    public event EventHandler<PairingEventArgs>? Unpaired;
 }

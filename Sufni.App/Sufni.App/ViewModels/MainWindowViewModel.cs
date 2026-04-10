@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Sufni.App.ViewModels;
 
-public partial class MainWindowViewModel : ViewModelBase
+public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 {
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
     private TabPageViewModelBase? previousActiveTab;
@@ -17,6 +17,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private TabPageViewModelBase? currentView;
     [ObservableProperty] private MainPagesViewModel mainPagesViewModel;
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
+
+    // The shell host interface exposes Tabs as a plain enumerable to keep
+    // the test surface narrow. The view model still publishes the
+    // observable collection for binding.
+    IEnumerable<TabPageViewModelBase> IMainWindowShellHost.Tabs => Tabs;
 
     #endregion Observable properties
 
