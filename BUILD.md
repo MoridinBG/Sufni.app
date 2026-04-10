@@ -21,8 +21,18 @@ All commands are run from the repository root (`Sufni.App/`).
 
 ## Solution layout
 
+Committed solutions now map directly to developer scenarios:
+
+| Solution             | Intended use                                                            |
+| -------------------- | ----------------------------------------------------------------------- |
+| `Sufni.App.sln`      | Full matrix / repo-wide solution                                        |
+| `Sufni.Desktop.sln`  | Desktop work: shared app, desktop layer, desktop heads, shared tests    |
+| `Sufni.Android.sln`  | Android work: shared app, Android head, neutral libraries               |
+| `Sufni.iOS.sln`      | iOS work: shared app, iOS head, neutral libraries                       |
+
 Each head project under `Sufni.App/` targets one platform and references
-the shared `Sufni.App/Sufni.App/Sufni.App.csproj`:
+the shared `Sufni.App/Sufni.App/Sufni.App.csproj` directly or through the
+desktop layer where appropriate:
 
 | Head project        | TargetFramework   | Output bundle / binary                                           |
 | ------------------- | ----------------- | ---------------------------------------------------------------- |
