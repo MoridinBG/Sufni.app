@@ -1,3 +1,4 @@
+using System;
 using Sufni.App.ViewModels;
 
 namespace Sufni.App.Coordinators;
@@ -17,11 +18,30 @@ public interface IShellCoordinator
     void Open(ViewModelBase view);
 
     /// <summary>
+    /// Open a view if no existing one of type <typeparamref name="T"/>
+    /// matches <paramref name="match"/>; otherwise focus the existing
+    /// one. The factory is only invoked when needed. On desktop this
+    /// prevents duplicate tabs for the same entity. On mobile —
+    /// where navigation is a stack — the factory always runs and the
+    /// new view is pushed.
+    /// </summary>
+    void OpenOrFocus<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase;
+
+    /// <summary>
     /// Close a specific view. On desktop this removes its tab. On mobile
     /// this pops the stack only if <paramref name="view"/> is the current
     /// view; otherwise it does nothing.
     /// </summary>
     void Close(ViewModelBase view);
+
+    /// <summary>
+    /// Close the first view of type <typeparamref name="T"/> matching
+    /// <paramref name="match"/>, if any. On desktop this iterates the
+    /// open tabs and closes the matching one. On mobile this is a no-op:
+    /// a list page and an editor for one of its rows are not on the back
+    /// stack at the same time, so there is nothing to close.
+    /// </summary>
+    void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase;
 
     /// <summary>
     /// Pop the current view on mobile (e.g. hardware back button). No-op

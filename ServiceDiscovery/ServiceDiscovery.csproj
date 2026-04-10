@@ -10,7 +10,7 @@
         <TargetFrameworks>net10.0-ios;net10.0;net10.0-macos</TargetFrameworks>
     </PropertyGroup>
     <PropertyGroup Condition="'$(CanTargetApplePlatforms)' != 'true'">
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -21,7 +21,7 @@
         <Compile Include="ServiceDiscovery.bonjour.cs" />
     </ItemGroup>
     
-    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net10.0-windows'">
         <Compile Include="ServiceDiscovery.socket.cs" />
     </ItemGroup>
     

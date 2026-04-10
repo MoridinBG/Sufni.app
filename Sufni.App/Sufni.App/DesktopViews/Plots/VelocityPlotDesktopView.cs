@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
 
 namespace Sufni.App.DesktopViews.Plots;
@@ -40,7 +40,7 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (DataContext is not SessionViewModel vm) return;
+            if (DataContext is not SessionDetailViewModel vm) return;
 
             Debug.Assert(vm.TelemetryData is not null);
             var normalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);

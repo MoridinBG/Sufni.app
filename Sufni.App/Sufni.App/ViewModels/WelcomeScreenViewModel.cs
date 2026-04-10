@@ -1,35 +1,37 @@
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
-    private readonly IBikeCreator bikeCreator;
-    private readonly ISetupCreator setupCreator;
-    private readonly IImportSessionsOpener importSessionsOpener;
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
 
     #region Constructors
 
     public WelcomeScreenViewModel()
     {
-        bikeCreator = null!;
-        setupCreator = null!;
-        importSessionsOpener = null!;
+        bikeCoordinator = null!;
+        setupCoordinator = null!;
+        importSessionsCoordinator = null!;
         Name = "Welcome";
     }
 
     public WelcomeScreenViewModel(
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService,
-        IBikeCreator bikeCreator,
-        ISetupCreator setupCreator,
-        IImportSessionsOpener importSessionsOpener)
-        : base(navigator, dialogService)
+        IBikeCoordinator bikeCoordinator,
+        ISetupCoordinator setupCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator)
+        : base(shell, dialogService)
     {
-        this.bikeCreator = bikeCreator;
-        this.setupCreator = setupCreator;
-        this.importSessionsOpener = importSessionsOpener;
+        this.bikeCoordinator = bikeCoordinator;
+        this.setupCoordinator = setupCoordinator;
+        this.importSessionsCoordinator = importSessionsCoordinator;
         Name = "Welcome";
     }
 
@@ -38,13 +40,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private void AddBike() => bikeCreator.AddBike();
+    private async Task AddBike() => await bikeCoordinator.OpenCreateAsync();
 
     [RelayCommand]
-    private void AddSetup() => setupCreator.AddSetup();
+    private async Task AddSetup() => await setupCoordinator.OpenCreateForDetectedBoardAsync();
 
     [RelayCommand]
-    private void ImportSession() => importSessionsOpener.OpenImportSessions();
+    private async Task ImportSession() => await importSessionsCoordinator.OpenAsync();
 
     #endregion Commands
 }

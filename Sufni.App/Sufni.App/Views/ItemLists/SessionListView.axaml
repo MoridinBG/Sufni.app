@@ -2,6 +2,7 @@
     x:Class="Sufni.App.Views.ItemLists.SessionListView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="clr-namespace:Sufni.App.Behaviors"
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -12,6 +13,7 @@
     d:DesignWidth="500"
     x:DataType="vml:SessionListViewModel"
     Background="{StaticResource SufniRegion}"
+    behaviors:HapticFeedbackBehavior.IsEnabled="True"
     mc:Ignorable="d">
 
     <Design.DataContext>

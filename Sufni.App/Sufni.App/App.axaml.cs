@@ -2,9 +2,11 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Sufni.App.Coordinators;
+using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Stores;
 using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views;
 using Sufni.App.DesktopViews;
@@ -36,51 +38,72 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
-            ServiceCollection.AddSingleton<INavigator>(sp =>
-                new DesktopNavigator(() => sp.GetRequiredService<MainWindowViewModel>()));
+            ServiceCollection.AddSingleton<IMainWindowShellHost>(sp =>
+                sp.GetRequiredService<MainWindowViewModel>());
+            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
+                new DesktopShellCoordinator(() => sp.GetRequiredService<IMainWindowShellHost>()));
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
-            ServiceCollection.AddSingleton<INavigator>(sp =>
-                new MobileNavigator(() => sp.GetRequiredService<MainViewModel>()));
+            ServiceCollection.AddSingleton<IMainViewShellHost>(sp =>
+                sp.GetRequiredService<MainViewModel>());
+            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
+                new MobileShellCoordinator(() => sp.GetRequiredService<IMainViewShellHost>()));
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
+        ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
+        ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
+        ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
         ServiceCollection.AddSingleton<IFilesService>(_ => new FilesService());
         ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
-        ServiceCollection.AddSingleton<IBikeViewModelFactory, BikeViewModelFactory>();
-        ServiceCollection.AddSingleton<ISetupViewModelFactory, SetupViewModelFactory>();
-        ServiceCollection.AddSingleton<ISessionViewModelFactory, SessionViewModelFactory>();
-        ServiceCollection.AddSingleton<Func<SetupListViewModel>>(sp => () => sp.GetRequiredService<SetupListViewModel>());
-        ServiceCollection.AddSingleton<Func<ISetupCreator>>(sp => () => sp.GetRequiredService<ISetupCreator>());
-        ServiceCollection.AddSingleton<IBikeUsageQuery, BikeUsageQuery>();
+        ServiceCollection.AddSingleton<BikeStore>();
+        ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
+        ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
+        ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
+        ServiceCollection.AddSingleton<IBikeCoordinator, BikeCoordinator>();
+        ServiceCollection.AddSingleton<SetupStore>();
+        ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
+        ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
+        ServiceCollection.AddSingleton<ISetupCoordinator, SetupCoordinator>();
+        ServiceCollection.AddSingleton<SessionStore>();
+        ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
+        ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
+        ServiceCollection.AddSingleton<ITrackCoordinator, TrackCoordinator>();
+        ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<PairedDeviceStore>();
+        ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
+        ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
+        ServiceCollection.AddSingleton<IPairedDeviceCoordinator, PairedDeviceCoordinator>();
+        ServiceCollection.AddSingleton<ISyncCoordinator, SyncCoordinator>();
+        ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
+            new ImportSessionsCoordinator(
+                sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<ISessionStoreWriter>(),
+                sp.GetRequiredService<IShellCoordinator>(),
+                sp.GetRequiredService<IBackgroundTaskRunner>(),
+                () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
-        ServiceCollection.AddSingleton<IBikeSelectionSource>(sp => sp.GetRequiredService<BikeListViewModel>());
-        ServiceCollection.AddSingleton<IBikeCreator>(sp => sp.GetRequiredService<BikeListViewModel>());
         ServiceCollection.AddSingleton<SessionListViewModel>();
-        ServiceCollection.AddSingleton<ISessionSink>(sp => sp.GetRequiredService<SessionListViewModel>());
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
-        ServiceCollection.AddSingleton<IImportSessionsOpener>(sp => sp.GetRequiredService<ImportSessionsViewModel>());
         ServiceCollection.AddSingleton<SetupListViewModel>();
-        ServiceCollection.AddSingleton<ISetupCreator>(sp => sp.GetRequiredService<SetupListViewModel>());
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
-            sp.GetRequiredService<IDatabaseService>(),
-            sp.GetRequiredService<IBikeViewModelFactory>(),
-            sp.GetRequiredService<ISetupViewModelFactory>(),
-            sp.GetRequiredService<ISessionViewModelFactory>(),
-            sp.GetRequiredService<IFilesService>(),
-            sp.GetRequiredService<INavigator>(),
-            sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<IBikeStoreWriter>(),
+            sp.GetRequiredService<ISetupStoreWriter>(),
+            sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<IPairedDeviceStoreWriter>(),
+            sp.GetRequiredService<IImportSessionsCoordinator>(),
+            sp.GetRequiredService<ITrackCoordinator>(),
+            sp.GetRequiredService<ISyncCoordinator>(),
+            sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
-            sp.GetService<ISynchronizationServerService>(),
-            sp.GetService<ISynchronizationClientService>(),
             sp.GetService<PairingClientViewModel>(),
             sp.GetService<PairingServerViewModel>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
@@ -89,6 +112,29 @@ public partial class App : Application
 
         IsDesktop = ServiceCollection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
         Services = ServiceCollection.BuildServiceProvider();
+
+        // Coordinators with constructor-time event subscriptions are
+        // eagerly resolved here so the subscriptions are wired before any
+        // sync, pairing, or telemetry arrival can happen.
+        _ = Services.GetRequiredService<ISessionCoordinator>();
+        _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
+        _ = Services.GetRequiredService<ISyncCoordinator>();
+
+        // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
+        // before the pairing screen is opened.
+        if (!IsDesktop)
+        {
+            _ = Services.GetService<IPairingClientCoordinator>();
+        }
+
+        // Desktop-only: eagerly resolve so the constructor's
+        // PairingRequested/PairingConfirmed event subscriptions wire up
+        // before the desktop view loads.
+        if (IsDesktop)
+        {
+            _ = Services.GetService<IPairingServerCoordinator>();
+            _ = Services.GetService<IInboundSyncCoordinator>();
+        }
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogService = Services.GetRequiredService<IDialogService>();

@@ -3,19 +3,18 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Interactivity;
 using Avalonia.Labs.Controls;
 using Avalonia.Media.Transformation;
 using Avalonia.Svg.Skia;
-using HapticFeedback;
-using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.Behaviors;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.Views.Controls;
 
 public partial class SwipeToDeleteButton : UserControl
 {
     private bool animationPlayed = false;
-    private readonly IHapticFeedback? hapticFeedback = App.Current?.Services?.GetService<IHapticFeedback>();
 
     public SwipeToDeleteButton()
     {
@@ -40,7 +39,7 @@ public partial class SwipeToDeleteButton : UserControl
 
                 if (offset > deleteButton.Width && !animationPlayed)
                 {
-                    hapticFeedback?.LongPress();
+                    RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent));
                     deleteButton.SetCurrentValue(Avalonia.Svg.Skia.Svg.CssProperty, ".default { fill: #bf312d; }");
 
                     animationPlayed = true;
@@ -61,7 +60,7 @@ public partial class SwipeToDeleteButton : UserControl
     {
         if (e.Property.Name == "SwipeState" && sender is Swipe swipe && e.NewValue is SwipeState.LeftVisible)
         {
-            var vm = swipe.DataContext as ItemViewModelBase;
+            var vm = swipe.DataContext as IListItemRow;
             if (vm is not null && vm.UndoableDeleteCommand.CanExecute(false))
             {
                 vm.UndoableDeleteCommand.Execute(false);

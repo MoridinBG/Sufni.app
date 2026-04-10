@@ -12,6 +12,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
     public Task Initialization { get; }
     public string Name { get; }
     public Guid? BoardId { get; private set; }
+    internal string? LocalPath { get; }
     private IStorageFolder Folder { get; }
 
     public bool IsAvailable()
@@ -81,6 +82,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
     {
         Folder = folder;
         Name = folder.Name;
+        LocalPath = folder.TryGetLocalPath();
         Initialization = Init();
     }
 }
