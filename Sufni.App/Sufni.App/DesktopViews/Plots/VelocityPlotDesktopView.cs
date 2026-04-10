@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
-using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
 
 namespace Sufni.App.DesktopViews.Plots;
@@ -16,6 +15,15 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
     {
         get => GetValue(TravelPlotViewProperty);
         set => SetValue(TravelPlotViewProperty, value);
+    }
+    
+    public static readonly StyledProperty<SufniTelemetryPlotView> ImuPlotViewProperty =
+        AvaloniaProperty.Register<VelocityPlotDesktopView, SufniTelemetryPlotView>(nameof(ImuPlotView));
+
+    public SufniTelemetryPlotView ImuPlotView
+    {
+        get => GetValue(ImuPlotViewProperty);
+        set => SetValue(ImuPlotViewProperty, value);
     }
 
     public static readonly StyledProperty<MapView> MapViewProperty =
@@ -40,10 +48,9 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (DataContext is not SessionDetailViewModel vm) return;
+            if (Telemetry is null || Telemetry.Metadata.Duration <= 0) return;
 
-            Debug.Assert(vm.TelemetryData is not null);
-            var normalizedCursorPosition = Math.Clamp(coords.X / vm.TelemetryData.Metadata.Duration, 0.0, 1.0);
+            var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             MapView.SetNormalizedCursorPosition(normalizedCursorPosition);
 
             if (Plot is VelocityPlot velocityPlot)
@@ -56,6 +63,12 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
             {
                 travelPlot.CursorLine!.Position = coords.X;
                 travelPlot.Plot.PlotControl!.Refresh();
+            }
+            
+            if (ImuPlotView?.Plot is ImuPlot imuPlot)
+            {
+                imuPlot.CursorLine!.Position = coords.X;
+                imuPlot.Plot.PlotControl!.Refresh();
             }
         };
     }

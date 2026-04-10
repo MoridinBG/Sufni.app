@@ -62,10 +62,19 @@
 
     <Grid RowDefinitions="* auto *">
 
-        <Grid Grid.Row="0" RowDefinitions="3* auto 2*">
+        <Grid Grid.Row="0">
             <Grid.Resources>
                 <items:GridWidthConverter x:Key="GridWidthConverter" />
+                <items:NullToGridLengthConverter x:Key="NullToGridLengthConverter" />
             </Grid.Resources>
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="3*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="2*" />
+                <RowDefinition Height="{Binding TelemetryData.ImuData, Converter={StaticResource NullToGridLengthConverter}, ConverterParameter=Auto}" />
+                <RowDefinition Height="{Binding TelemetryData.ImuData, Converter={StaticResource NullToGridLengthConverter}, ConverterParameter=2*}" />
+            </Grid.RowDefinitions>
 
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -80,7 +89,8 @@
                 Grid.Column="0"
                 MapView="{Binding #Map}"
                 Telemetry="{Binding TelemetryData}"
-                VelocityPlotView="{Binding #Velocity}" />
+                VelocityPlotView="{Binding #Velocity}"
+                ImuPlotView="{Binding #Imu}"/>
 
             <!--  Splitter between travel and velocity  -->
             <GridSplitter
@@ -88,19 +98,42 @@
                 Grid.Column="0"
                 ResizeDirection="Rows" />
 
-            <!--  Velocity  -->
             <plots:VelocityPlotDesktopView
                 Name="Velocity"
                 Grid.Row="2"
                 Grid.Column="0"
                 MapView="{Binding #Map}"
                 Telemetry="{Binding TelemetryData}"
-                TravelPlotView="{Binding #Travel}" />
+                TravelPlotView="{Binding #Travel}"
+                ImuPlotView="{Binding #Imu}"/>
+
+            <GridSplitter
+                Grid.Row="3"
+                Grid.Column="0"
+                ResizeDirection="Rows"
+                ResizeBehavior="PreviousAndNext">
+                <GridSplitter.IsVisible>
+                    <Binding Path="TelemetryData.ImuData" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </GridSplitter.IsVisible>
+            </GridSplitter>
+
+            <plots:ImuPlotDesktopView
+                Name="Imu"
+                Grid.Row="4"
+                Grid.Column="0"
+                MapView="{Binding #Map}"
+                Telemetry="{Binding TelemetryData}"
+                TravelPlotView="{Binding #Travel}"
+                VelocityPlotView="{Binding #Velocity}">
+                <plots:ImuPlotDesktopView.IsVisible>
+                    <Binding Path="TelemetryData.ImuData" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </plots:ImuPlotDesktopView.IsVisible>
+            </plots:ImuPlotDesktopView>
 
             <!--  Splitter between travel+velocity and video+map  -->
             <GridSplitter
                 Grid.Row="0"
-                Grid.RowSpan="3"
+                Grid.RowSpan="5"
                 Grid.Column="1"
                 Margin="0,39,0,0"
                 ResizeDirection="Columns">
@@ -115,7 +148,7 @@
             <!--  Video and Map  -->
             <Grid
                 Grid.Row="0"
-                Grid.RowSpan="3"
+                Grid.RowSpan="5"
                 Grid.Column="2"
                 Margin="0,39,0,0"
                 IsVisible="True"
@@ -152,7 +185,7 @@
         <!--  Splitter between top and bottom half  -->
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-        <Grid ColumnDefinitions="* auto 400" Row="2">
+        <Grid Grid.Row="2" ColumnDefinitions="* auto 400">
 
             <!--  Statistic graphs  -->
             <items:SessionStatisticsDesktopView Grid.Column="0" />
