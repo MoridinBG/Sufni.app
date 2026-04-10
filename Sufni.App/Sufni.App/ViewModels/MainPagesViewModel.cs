@@ -1,31 +1,25 @@
 using System;
-using System.IO;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DynamicData;
+using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Factories;
 using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ViewModels.Items;
 
 namespace Sufni.App.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IDatabaseService databaseService;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
-    private readonly ISessionViewModelFactory sessionViewModelFactory;
-    private readonly IFilesService filesService;
-    private readonly ISynchronizationClientService? synchronizationClientService;
-    private readonly INavigator navigator;
-    private readonly IDialogService dialogService;
+    private readonly ISessionStoreWriter sessionStoreWriter;
+    private readonly IPairedDeviceStoreWriter pairedDeviceStoreWriter;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
+    private readonly ITrackCoordinator trackCoordinator;
+    private readonly ISyncCoordinator syncCoordinator;
+    private readonly IShellCoordinator shell;
     private readonly ItemListViewModelBase[] pages;
 
     #region Observable properties
@@ -40,6 +34,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private PairingServerViewModel? pairingServerViewModel;
     [ObservableProperty] private int selectedIndex;
     [ObservableProperty] private bool syncInProgress;
+    [ObservableProperty] private bool isPaired;
     [ObservableProperty] private bool isMenuPaneOpen;
     [ObservableProperty] private bool isPairedDevicesListOpen;
 
@@ -49,14 +44,14 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel()
     {
-        databaseService = null!;
         bikeStoreWriter = null!;
         setupStoreWriter = null!;
-        sessionViewModelFactory = null!;
-        filesService = null!;
-        synchronizationClientService = null;
-        navigator = null!;
-        dialogService = null!;
+        sessionStoreWriter = null!;
+        pairedDeviceStoreWriter = null!;
+        importSessionsCoordinator = null!;
+        trackCoordinator = null!;
+        syncCoordinator = null!;
+        shell = null!;
         importSessionsPage = new();
         bikesPage = new();
         setupsPage = new();
@@ -66,31 +61,30 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     public MainPagesViewModel(
-        IDatabaseService databaseService,
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
-        ISessionViewModelFactory sessionViewModelFactory,
-        IFilesService filesService,
-        INavigator navigator,
-        IDialogService dialogService,
+        ISessionStoreWriter sessionStoreWriter,
+        IPairedDeviceStoreWriter pairedDeviceStoreWriter,
+        IImportSessionsCoordinator importSessionsCoordinator,
+        ITrackCoordinator trackCoordinator,
+        ISyncCoordinator syncCoordinator,
+        IShellCoordinator shell,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
-        ISynchronizationServerService? synchronizationServer = null,
-        ISynchronizationClientService? synchronizationClientService = null,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
-        this.databaseService = databaseService;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
-        this.sessionViewModelFactory = sessionViewModelFactory;
-        this.filesService = filesService;
-        this.navigator = navigator;
-        this.dialogService = dialogService;
-        this.synchronizationClientService = synchronizationClientService;
+        this.sessionStoreWriter = sessionStoreWriter;
+        this.pairedDeviceStoreWriter = pairedDeviceStoreWriter;
+        this.importSessionsCoordinator = importSessionsCoordinator;
+        this.trackCoordinator = trackCoordinator;
+        this.syncCoordinator = syncCoordinator;
+        this.shell = shell;
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
@@ -105,67 +99,47 @@ public partial class MainPagesViewModel : ViewModelBase
         SetupsPage.MenuItems.Add(new("sync", SyncCommand));
         SetupsPage.MenuItems.Add(new("add", SetupsPage.AddCommand));
         SessionsPage.MenuItems.Add(new("sync", SyncCommand));
-        SessionsPage.MenuItems.Add(new("import", OpenPageCommand, importSessionsPage));
+        SessionsPage.MenuItems.Add(new("import", OpenImportCommand));
 
-        if (synchronizationServer is not null)
-        {
-            // update UI when entities arrive from synced device
-            synchronizationServer.SynchronizationDataArrived = data =>
-            {
-                Dispatcher.UIThread.InvokeAsync(async () =>
-                {
-                    await MergeFromDatabase(data);
-                });
-            };
+        syncCoordinator.SyncCompleted += OnSyncCompleted;
+        syncCoordinator.SyncFailed += OnSyncFailed;
+        syncCoordinator.IsRunningChanged += OnSyncIsRunningChanged;
+        syncCoordinator.IsPairedChanged += OnSyncIsPairedChanged;
+        syncCoordinator.CanSyncChanged += OnSyncCanSyncChanged;
 
-            // update UI when session data arrives from synced device
-            synchronizationServer.SessionDataArrived = id =>
-            {
-                Dispatcher.UIThread.InvokeAsync(async () =>
-                {
-                    var data = await databaseService.GetSessionPsstAsync(id);
-
-                    if (SessionsPage.Source.Items.First(s => s.Id == id) is SessionViewModel session)
-                    {
-                        session.TelemetryData = data;
-                        SessionsPage.Source.AddOrUpdate(session);
-                        SessionsPage.Source.Refresh();
-                    }
-                });
-            };
-
-            synchronizationServer.PairingConfirmed += (_, e) =>
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    if (e is not PairingEventArgs pdea) return;
-                    PairedDevicesPage.Source.AddOrUpdate(new PairedDeviceViewModel(pdea.Device, navigator, dialogService, PairedDevicesPage));
-                });
-            };
-            synchronizationServer.Unpaired += (_, e) =>
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    if (e is not PairingEventArgs pdea) return;
-                    PairedDevicesPage.Source.Remove(new PairedDeviceViewModel(pdea.Device, navigator, dialogService, PairedDevicesPage));
-                });
-            };
-        }
-
-        if (PairingClientPage is not null)
-        {
-            PairingClientPage.PropertyChanged += (_, args) =>
-            {
-                if (args.PropertyName != nameof(PairingClientPage.IsPaired))
-                {
-                    return;
-                }
-
-                SyncCommand.NotifyCanExecuteChanged();
-            };
-        }
+        // Seed the mirrors from the coordinator's current state in case
+        // any of them already changed before construction (e.g. the
+        // pairing-client coordinator's startup IsPairedAsync probe).
+        SyncInProgress = syncCoordinator.IsRunning;
+        IsPaired = syncCoordinator.IsPaired;
 
         _ = LoadDatabaseContent();
+    }
+
+    private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)
+    {
+        pages[SelectedIndex].Notifications.Add(e.Message);
+        pages[SelectedIndex].ErrorMessages.Clear();
+    }
+
+    private void OnSyncFailed(object? sender, SyncFailedEventArgs e)
+    {
+        pages[SelectedIndex].ErrorMessages.Add(e.ErrorMessage);
+    }
+
+    private void OnSyncIsRunningChanged(object? sender, EventArgs e)
+    {
+        SyncInProgress = syncCoordinator.IsRunning;
+    }
+
+    private void OnSyncIsPairedChanged(object? sender, EventArgs e)
+    {
+        IsPaired = syncCoordinator.IsPaired;
+    }
+
+    private void OnSyncCanSyncChanged(object? sender, EventArgs e)
+    {
+        SyncCommand.NotifyCanExecuteChanged();
     }
 
     #endregion Constructors
@@ -178,52 +152,10 @@ public partial class MainPagesViewModel : ViewModelBase
 
         await bikeStoreWriter.RefreshAsync();
         await setupStoreWriter.RefreshAsync();
-        await SessionsPage.LoadFromDatabase();
-        await PairedDevicesPage.LoadFromDatabase();
+        await sessionStoreWriter.RefreshAsync();
+        await pairedDeviceStoreWriter.RefreshAsync();
 
         DatabaseLoaded = true;
-    }
-
-    private async Task MergeFromDatabase(SynchronizationData data)
-    {
-        foreach (var bike in data.Bikes)
-        {
-            if (bike.Deleted is not null)
-            {
-                bikeStoreWriter.Remove(bike.Id);
-            }
-            else
-            {
-                bikeStoreWriter.Upsert(BikeSnapshot.From(bike));
-            }
-        }
-
-        var boards = await databaseService.GetAllAsync<Board>();
-        foreach (var setup in data.Setups)
-        {
-            if (setup.Deleted is not null)
-            {
-                setupStoreWriter.Remove(setup.Id);
-            }
-            else
-            {
-                var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                setupStoreWriter.Upsert(SetupSnapshot.From(setup, board?.Id));
-            }
-        }
-
-        foreach (var session in data.Sessions)
-        {
-            if (session.Deleted is not null)
-            {
-                SessionsPage.Source.RemoveKey(session.Id);
-            }
-            else
-            {
-                SessionsPage.Source.AddOrUpdate(sessionViewModelFactory.Create(session, true, SessionsPage));
-            }
-            SessionsPage.Source.Refresh();
-        }
     }
 
     #endregion
@@ -232,41 +164,13 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private bool CanSync()
     {
-        return PairingClientPage is { IsPaired: true };
-    }
-
-    private async void SyncInternal()
-    {
-        if (synchronizationClientService is null) return;
-
-        SyncInProgress = true;
-
-        try
-        {
-            await synchronizationClientService.SyncAll();
-            await Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                await LoadDatabaseContent();
-
-                pages[SelectedIndex].Notifications.Add("Sync successful");
-                pages[SelectedIndex].ErrorMessages.Clear();
-            });
-        }
-        catch (Exception e)
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                pages[SelectedIndex].ErrorMessages.Add($"Sync failed: {e.Message}");
-            });
-        }
-
-        SyncInProgress = false;
+        return syncCoordinator.CanSync;
     }
 
     [RelayCommand(CanExecute = nameof(CanSync))]
-    private void Sync()
+    private async Task Sync()
     {
-        new Thread(SyncInternal).Start();
+        await syncCoordinator.SyncAllAsync();
     }
 
     [RelayCommand]
@@ -282,20 +186,15 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenPage(ViewModelBase view) => navigator.OpenPage(view);
+    private void OpenPage(ViewModelBase view) => shell.Open(view);
+
+    [RelayCommand]
+    private async Task OpenImport() => await importSessionsCoordinator.OpenAsync();
 
     [RelayCommand]
     private async Task OpenGpsTracks()
     {
-        var files = await filesService.OpenGpxFilesAsync();
-        foreach (var file in files)
-        {
-            await using var stream = await file.OpenReadAsync();
-            using var reader = new StreamReader(stream);
-            var gpx = await reader.ReadToEndAsync();
-            var track = Track.FromGpx(gpx);
-            await databaseService.PutAsync(track);
-        }
+        await trackCoordinator.ImportGpxAsync();
     }
 
     #endregion

@@ -117,6 +117,11 @@ public class Bike : Synchronizable
         }
         set
         {
+            if (value.Length == 0)
+            {
+                Image = null;
+                return;
+            }
             var stream = new MemoryStream(value);
             Image = new Bitmap(stream);
         }

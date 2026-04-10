@@ -23,6 +23,17 @@ public interface ISetupCoordinator
     Task OpenCreateAsync(Guid? suggestedBoardId = null);
 
     /// <summary>
+    /// Open the editor for a new setup, probing the OS for a connected
+    /// mass-storage DAQ at this instant and pre-populating the board
+    /// association if one is found. Used by the welcome screen's
+    /// "Add Setup" command so a first-run user with a DAQ already
+    /// plugged in lands in an editor that's wired to the right board.
+    /// Mass-storage only — the network case is async and not the
+    /// realistic first-run scenario.
+    /// </summary>
+    Task OpenCreateForDetectedBoardAsync();
+
+    /// <summary>
     /// Open the editor for an existing setup, hydrated from the store.
     /// No-op if the setup is not in the store.
     /// </summary>
