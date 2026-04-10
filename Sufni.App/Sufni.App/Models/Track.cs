@@ -69,7 +69,7 @@ public class Track : Synchronizable
         foreach (var pt in trkpts)
         {
             var timeString = pt.Element(ns + "time")?.Value;
-            if (string.IsNullOrEmpty(timeString) || 
+            if (string.IsNullOrEmpty(timeString) ||
                 !DateTime.TryParse(timeString, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var time))
             {
                 continue;

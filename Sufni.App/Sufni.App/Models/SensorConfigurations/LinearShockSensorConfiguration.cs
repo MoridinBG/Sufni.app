@@ -16,7 +16,8 @@ public class LinearShockSensorConfiguration : SensorConfiguration
     [JsonPropertyName("length")] public double Length { get; init; }
     [JsonPropertyName("resolution")] public int Resolution { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.LinearShock;
-    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    [JsonIgnore]
+    public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -24,7 +25,8 @@ public class LinearShockSensorConfiguration : SensorConfiguration
             return measurement => leverageRatioPolynomial.Evaluate(measurement * measurementToStroke);
         }
     }
-    [JsonIgnore] public override double MaxTravel
+    [JsonIgnore]
+    public override double MaxTravel
     {
         get
         {

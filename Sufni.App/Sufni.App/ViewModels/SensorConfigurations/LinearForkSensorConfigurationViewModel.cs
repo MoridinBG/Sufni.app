@@ -38,7 +38,7 @@ public partial class LinearForkSensorConfigurationViewModel : SensorConfiguratio
             Length = Length.Value,
             Resolution = Resolution.Value
         };
-        
+
         EvaluateDirtiness();
     }
 

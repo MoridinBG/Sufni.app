@@ -38,7 +38,7 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
             Length = Length.Value,
             Resolution = Resolution.Value
         };
-        
+
         EvaluateDirtiness();
     }
 

@@ -14,14 +14,16 @@ public class LinearForkSensorConfiguration : SensorConfiguration
     [JsonPropertyName("length")] public double Length { get; init; }
     [JsonPropertyName("resolution")] public int Resolution { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.LinearFork;
-    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    [JsonIgnore]
+    public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
             return measurement => measurement * measurementToStroke * strokeToTravel;
         }
     }
-    [JsonIgnore] public override double MaxTravel
+    [JsonIgnore]
+    public override double MaxTravel
     {
         get
         {

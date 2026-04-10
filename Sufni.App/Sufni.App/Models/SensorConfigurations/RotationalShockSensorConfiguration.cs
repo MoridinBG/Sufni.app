@@ -21,7 +21,8 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     [JsonPropertyName("adjacent_joint_1")] public string AdjacentJoint1 { get; init; } = null!;
     [JsonPropertyName("adjacent_joint_2")] public string AdjacentJoint2 { get; init; } = null!;
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.RotationalShock;
-    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    [JsonIgnore]
+    public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -36,7 +37,8 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
             };
         }
     }
-    [JsonIgnore] public override double MaxTravel
+    [JsonIgnore]
+    public override double MaxTravel
     {
         get
         {

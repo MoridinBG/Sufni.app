@@ -22,7 +22,7 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
         IsDirty = !MathUtils.AreEqual(MaxLength, sensorConfiguration.MaxLength) ||
                   !MathUtils.AreEqual(ArmLength, sensorConfiguration.ArmLength);
     }
-    
+
     public override bool CanSave()
     {
         return MaxLength is not null && ArmLength is not null;
@@ -38,7 +38,7 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
             MaxLength = MaxLength.Value,
             ArmLength = ArmLength.Value
         };
-        
+
         EvaluateDirtiness();
     }
 
