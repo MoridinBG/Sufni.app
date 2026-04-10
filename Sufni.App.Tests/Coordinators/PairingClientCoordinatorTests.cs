@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Reflection;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using SecureStorage;
 using ServiceDiscovery;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;

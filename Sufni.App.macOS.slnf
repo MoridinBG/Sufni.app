@@ -4,7 +4,6 @@
     "projects": [
       "Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj",
       "Sufni.App/Sufni.App/Sufni.App.csproj",
-      "SecureStorage/SecureStorage.csproj",
       "ServiceDiscovery/ServiceDiscovery.csproj",
       "Sufni.Telemetry/Sufni.Telemetry.csproj",
       "Sufni.Kinematics/Sufni.Kinematics.csproj",

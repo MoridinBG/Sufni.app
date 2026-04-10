@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Ace4896.DBus.Services.Secrets" />
   </ItemGroup>
 
   <ItemGroup>

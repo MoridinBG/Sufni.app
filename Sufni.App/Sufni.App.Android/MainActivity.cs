@@ -3,7 +3,6 @@ using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
-using SecureStorage;
 using ServiceDiscovery;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
@@ -21,7 +20,7 @@ namespace Sufni.App.Android
     {
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
-            App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
+            App.ServiceCollection.AddSingleton<ISecureStorage, AndroidSecureStorage>();
             App.ServiceCollection.AddSingleton<IFriendlyNameProvider, AndroidFriendlyNameProvider>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");

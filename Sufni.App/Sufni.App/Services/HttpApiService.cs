@@ -9,7 +9,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using SecureStorage;
 
 namespace Sufni.App.Services;
 
