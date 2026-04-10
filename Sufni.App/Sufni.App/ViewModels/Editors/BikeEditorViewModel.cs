@@ -1,19 +1,19 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Sufni.App.BikeEditing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DynamicData;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Queries;
@@ -48,12 +48,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #region Private fields
 
     private readonly IBikeCoordinator? bikeCoordinator;
-    private readonly IFilesService filesService;
     private readonly IBikeDependencyQuery? dependencyQuery;
-    private readonly ISetupStore? setupStore;
     private Bike bike;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
+    private CancellationTokenSource? replaceableWorkflowCts;
+    private readonly Dictionary<JointViewModel, PropertyChangedEventHandler> jointPropertyChangedHandlers = [];
+    private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
 
     #endregion Private fields
 
@@ -98,6 +99,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     [ObservableProperty] private bool overlayVisible;
 
     [ObservableProperty] private CoordinateList? leverageRatioData;
+
+    [ObservableProperty] private bool isPlotBusy;
 
     #endregion Observable properties
 
@@ -146,9 +149,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     public BikeEditorViewModel()
     {
         bikeCoordinator = null;
-        filesService = null!;
         dependencyQuery = null;
-        setupStore = null;
         bike = new Bike();
         IsInDatabase = false;
 
@@ -160,17 +161,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         BikeSnapshot snapshot,
         bool isNew,
         IBikeCoordinator bikeCoordinator,
-        IFilesService filesService,
         IBikeDependencyQuery dependencyQuery,
-        ISetupStore setupStore,
         IShellCoordinator shell,
         IDialogService dialogService)
         : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
-        this.filesService = filesService;
         this.dependencyQuery = dependencyQuery;
-        this.setupStore = setupStore;
         IsInDatabase = !isNew;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
@@ -303,6 +300,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         JointViewModels.Clear();
         LinkViewModels.Clear();
+        shockViewModel = null;
+
+        ShockStroke = bike.ShockStroke;
+        Image = bike.Image;
 
         if (bike.Linkage is not null)
         {
@@ -323,33 +324,181 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             LinkViewModels.Add(shockViewModel);
             ShockStroke = bike.Linkage.ShockStroke;
             Chainstay = bike.Chainstay; // this also updates PixelsToMillimeters
-            Image = bike.Image;
+        }
+        else
+        {
+            Chainstay = bike.Chainstay;
+            PixelsToMillimeters = null;
         }
 
         Id = bike.Id;
         Name = bike.Name;
         HeadAngle = bike.HeadAngle;
         ForksStroke = bike.ForkStroke;
-
-        CheckLinkage(bike.Linkage!);
     }
 
-    private bool CheckLinkage(Linkage? linkage)
+    private CancellationTokenSource StartReplaceableWorkflow()
     {
-        if (linkage is null) return true;
+        CancelReplaceableWorkflow();
+        replaceableWorkflowCts = new CancellationTokenSource();
+        return replaceableWorkflowCts;
+    }
 
+    private void CancelReplaceableWorkflow()
+    {
+        replaceableWorkflowCts?.Cancel();
+        replaceableWorkflowCts = null;
+        IsPlotBusy = false;
+    }
+
+    private bool IsCurrentWorkflow(CancellationTokenSource workflowCts) =>
+        replaceableWorkflowCts == workflowCts && !workflowCts.IsCancellationRequested;
+
+    private void TryCompleteCurrentWorkflow(CancellationTokenSource workflowCts)
+    {
+        workflowCts.Dispose();
+
+        if (replaceableWorkflowCts != workflowCts) return;
+
+        replaceableWorkflowCts = null;
+        IsPlotBusy = false;
+    }
+
+    private void QueuePlotRefresh() => _ = RefreshAnalysisAsync(showPlotBusyOverlay: true);
+
+    private async Task RefreshAnalysisAsync(bool showPlotBusyOverlay = false)
+    {
+        if (bikeCoordinator is null) return;
+
+        var workflowCts = StartReplaceableWorkflow();
+        IsPlotBusy = showPlotBusyOverlay;
         try
         {
-            var solver = new KinematicSolver(linkage);
-            var solution = solver.SolveSuspensionMotion();
-            var characteristics = new BikeCharacteristics(solution);
-            LeverageRatioData = characteristics.LeverageRatioData;
-            return true;
+            var result = await bikeCoordinator.LoadAnalysisAsync(bike.Linkage, workflowCts.Token);
+            if (!IsCurrentWorkflow(workflowCts)) return;
+
+            ApplyAnalysisResult(result);
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (workflowCts.IsCancellationRequested)
         {
-            return false;
         }
+        catch (Exception e)
+        {
+            if (!IsCurrentWorkflow(workflowCts)) return;
+
+            ApplyAnalysisResult(new BikeEditorAnalysisResult.Failed(e.Message));
+        }
+        finally
+        {
+            TryCompleteCurrentWorkflow(workflowCts);
+        }
+    }
+
+    private void ApplyAnalysisResult(BikeEditorAnalysisResult result)
+    {
+        switch (result)
+        {
+            case BikeEditorAnalysisResult.Computed computed:
+                LeverageRatioData = computed.Data.LeverageRatioData;
+                break;
+            case BikeEditorAnalysisResult.Unavailable:
+                LeverageRatioData = null;
+                break;
+            case BikeEditorAnalysisResult.Failed failed:
+                LeverageRatioData = null;
+                ErrorMessages.Add($"Linkage analysis failed: {failed.ErrorMessage}");
+                break;
+        }
+    }
+
+    private void ApplyImportedBike(ImportedBikeEditorData data)
+    {
+        bike = data.Bike;
+        BaselineUpdated = 0;
+        IsInDatabase = false;
+
+        UpdateFromBike();
+        ApplyAnalysisResult(data.AnalysisResult);
+        EvaluateDirtiness();
+
+        DeleteCommand.NotifyCanExecuteChanged();
+        FakeDeleteCommand.NotifyCanExecuteChanged();
+    }
+
+    private void AttachJointPropertyChangedHandler(JointViewModel jointViewModel)
+    {
+        if (jointPropertyChangedHandlers.ContainsKey(jointViewModel)) return;
+
+        PropertyChangedEventHandler handler = (_, pce) =>
+        {
+            switch (pce.PropertyName)
+            {
+                case nameof(jointViewModel.WasPossiblyDragged) when jointViewModel.WasPossiblyDragged:
+                    jointViewModel.WasPossiblyDragged = false;
+                    EvaluateDirtiness();
+                    break;
+                case nameof(jointViewModel.Name) or nameof(jointViewModel.Type):
+                    EvaluateDirtiness();
+                    break;
+                case nameof(jointViewModel.X) when jointViewModel.Type is JointType.BottomBracket or JointType.RearWheel:
+                case nameof(jointViewModel.Y) when jointViewModel.Type is JointType.BottomBracket or JointType.RearWheel:
+                    UpdatePixelsToMillimeters();
+                    break;
+            }
+        };
+
+        jointPropertyChangedHandlers[jointViewModel] = handler;
+        jointViewModel.PropertyChanged += handler;
+    }
+
+    private void DetachJointPropertyChangedHandler(JointViewModel jointViewModel)
+    {
+        if (!jointPropertyChangedHandlers.Remove(jointViewModel, out var handler)) return;
+
+        jointViewModel.PropertyChanged -= handler;
+    }
+
+    private void DetachAllJointPropertyChangedHandlers()
+    {
+        foreach (var pair in jointPropertyChangedHandlers)
+        {
+            pair.Key.PropertyChanged -= pair.Value;
+        }
+
+        jointPropertyChangedHandlers.Clear();
+    }
+
+    private void AttachLinkPropertyChangedHandler(LinkViewModel linkViewModel)
+    {
+        if (linkPropertyChangedHandlers.ContainsKey(linkViewModel)) return;
+
+        PropertyChangedEventHandler handler = (_, pce) =>
+        {
+            if (pce.PropertyName is nameof(linkViewModel.A) or nameof(linkViewModel.B))
+            {
+                EvaluateDirtiness();
+            }
+        };
+
+        linkPropertyChangedHandlers[linkViewModel] = handler;
+        linkViewModel.PropertyChanged += handler;
+    }
+
+    private void DetachLinkPropertyChangedHandler(LinkViewModel linkViewModel)
+    {
+        if (!linkPropertyChangedHandlers.Remove(linkViewModel, out var handler)) return;
+
+        linkViewModel.PropertyChanged -= handler;
+    }
+
+    private void DetachAllLinkPropertyChangedHandlers()
+    {
+        foreach (var pair in linkPropertyChangedHandlers)
+        {
+            pair.Key.PropertyChanged -= pair.Value;
+        }
+
+        linkPropertyChangedHandlers.Clear();
     }
 
     private bool DidJointsChanged()
@@ -376,30 +525,30 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         {
             EvaluateDirtiness();
 
-            if (e.Action != NotifyCollectionChangedAction.Add) return;
-            Debug.Assert(e.NewItems is not null);
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                DetachAllJointPropertyChangedHandlers();
+                return;
+            }
+
+            if (e.OldItems is not null)
+            {
+                foreach (var item in e.OldItems)
+                {
+                    if (item is JointViewModel jointViewModel)
+                    {
+                        DetachJointPropertyChangedHandler(jointViewModel);
+                    }
+                }
+            }
+
+            if (e.NewItems is null) return;
             foreach (var item in e.NewItems)
             {
-                var jvm = item as JointViewModel;
-                Debug.Assert(jvm is not null);
-
-                jvm.PropertyChanged += (_, pce) =>
+                if (item is JointViewModel jointViewModel)
                 {
-                    switch (pce.PropertyName)
-                    {
-                        case nameof(jvm.WasPossiblyDragged) when jvm.WasPossiblyDragged:
-                            jvm.WasPossiblyDragged = false;
-                            EvaluateDirtiness();
-                            break;
-                        case nameof(jvm.Name) or nameof(jvm.Type):
-                            EvaluateDirtiness();
-                            break;
-                        case nameof(jvm.X) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
-                        case nameof(jvm.Y) when jvm.Type is JointType.BottomBracket or JointType.RearWheel:
-                            UpdatePixelsToMillimeters();
-                            break;
-                    }
-                };
+                    AttachJointPropertyChangedHandler(jointViewModel);
+                }
             }
         };
     }
@@ -410,22 +559,30 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         {
             EvaluateDirtiness();
 
-            if (e.Action != NotifyCollectionChangedAction.Add) return;
-            Debug.Assert(e.NewItems is not null);
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                DetachAllLinkPropertyChangedHandlers();
+                return;
+            }
+
+            if (e.OldItems is not null)
+            {
+                foreach (var item in e.OldItems)
+                {
+                    if (item is LinkViewModel linkViewModel)
+                    {
+                        DetachLinkPropertyChangedHandler(linkViewModel);
+                    }
+                }
+            }
+
+            if (e.NewItems is null) return;
             foreach (var item in e.NewItems)
             {
-                var lvm = item as LinkViewModel;
-                Debug.Assert(lvm is not null);
-
-                lvm.PropertyChanged += (_, pce) =>
+                if (item is LinkViewModel linkViewModel)
                 {
-                    if (pce.PropertyName is
-                        nameof(lvm.A) or
-                        nameof(lvm.B))
-                    {
-                        EvaluateDirtiness();
-                    }
-                };
+                    AttachLinkPropertyChangedHandler(linkViewModel);
+                }
             }
         };
     }
@@ -461,12 +618,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         if (bikeCoordinator is null) return;
 
         var newBike = ToBike();
-        if (!CheckLinkage(newBike.Linkage!))
-        {
-            ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-            return;
-        }
-
         var result = await bikeCoordinator.SaveAsync(newBike, BaselineUpdated);
 
         switch (result)
@@ -475,12 +626,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 bike = newBike;
                 bike.Updated = saved.NewBaselineUpdated;
                 BaselineUpdated = saved.NewBaselineUpdated;
-
-                SaveCommand.NotifyCanExecuteChanged();
-                ResetCommand.NotifyCanExecuteChanged();
-                ExportCommand.NotifyCanExecuteChanged();
-
                 IsInDatabase = true;
+
+                ApplyAnalysisResult(saved.AnalysisResult);
+                EvaluateDirtiness();
+
+                DeleteCommand.NotifyCanExecuteChanged();
+                FakeDeleteCommand.NotifyCanExecuteChanged();
 
                 Debug.Assert(App.Current is not null);
                 if (!App.Current.IsDesktop)
@@ -497,9 +649,17 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 {
                     bike = BikeFromSnapshot(conflict.CurrentSnapshot);
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
+                    IsInDatabase = true;
                     UpdateFromBike();
+                    QueuePlotRefresh();
                     EvaluateDirtiness();
+                    DeleteCommand.NotifyCanExecuteChanged();
+                    FakeDeleteCommand.NotifyCanExecuteChanged();
                 }
+                break;
+
+            case BikeSaveResult.InvalidLinkage:
+                ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
                 break;
 
             case BikeSaveResult.Failed failed:
@@ -546,18 +706,18 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     protected override Task ResetImplementation()
     {
         UpdateFromBike();
-        return Task.CompletedTask;
+        return RefreshAnalysisAsync(showPlotBusyOverlay: true);
     }
 
     protected override async Task ExportImplementation()
     {
-        var file = await filesService.SaveBikeFileAsync();
-        if (file is null) return;
+        if (bikeCoordinator is null) return;
 
-        var bikeJson = bike.ToJson();
-        await using var stream = await file.OpenWriteAsync();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        await writer.WriteAsync(bikeJson);
+        var result = await bikeCoordinator.ExportBikeAsync(bike);
+        if (result is BikeExportResult.Failed failed)
+        {
+            ErrorMessages.Add($"Bike could not be exported: {failed.ErrorMessage}");
+        }
     }
 
     #endregion TabPageViewModelBase overrides
@@ -628,12 +788,29 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     }
 
     [RelayCommand]
-    private async Task OpenImage(CancellationToken token)
+    private async Task OpenImage()
     {
-        var file = await filesService.OpenBikeImageFileAsync();
-        if (file is null) return;
+        if (bikeCoordinator is null) return;
 
-        Image = new Bitmap(file.Path.AbsolutePath);
+        var workflowCts = StartReplaceableWorkflow();
+        try
+        {
+            var result = await bikeCoordinator.LoadImageAsync(workflowCts.Token);
+            if (!IsCurrentWorkflow(workflowCts)) return;
+
+            switch (result)
+            {
+                case BikeImageLoadResult.Loaded loaded:
+                    Image = loaded.Bitmap;
+                    break;
+                case BikeImageLoadResult.Failed failed:
+                    ErrorMessages.Add($"Bike image could not be loaded: {failed.ErrorMessage}");
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (workflowCts.IsCancellationRequested)
+        {
+        }
     }
 
     [RelayCommand]
@@ -647,43 +824,53 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     [RelayCommand]
     private async Task Import()
     {
-        var file = await filesService.OpenBikeFileAsync();
-        if (file is null) return;
+        if (bikeCoordinator is null) return;
 
-        await using var stream = await file.OpenReadAsync();
-        using var reader = new StreamReader(stream);
-        var json = await reader.ReadToEndAsync();
-        var bikeFromJson = Bike.FromJson(json);
-        if (bikeFromJson is null)
+        var workflowCts = StartReplaceableWorkflow();
+        try
         {
-            ErrorMessages.Add("JSON file was not a valid bike file.");
-            return;
-        }
+            var result = await bikeCoordinator.ImportBikeAsync(workflowCts.Token);
+            if (!IsCurrentWorkflow(workflowCts)) return;
 
-        bike = bikeFromJson;
-        UpdateFromBike();
+            switch (result)
+            {
+                case BikeImportResult.Imported imported:
+                    ApplyImportedBike(imported.Data);
+                    break;
+                case BikeImportResult.InvalidFile invalid:
+                    ErrorMessages.Add(invalid.ErrorMessage);
+                    break;
+                case BikeImportResult.Failed failed:
+                    ErrorMessages.Add($"Bike could not be imported: {failed.ErrorMessage}");
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (workflowCts.IsCancellationRequested)
+        {
+        }
     }
 
     [RelayCommand]
-    private void Loaded()
+    private async Task Loaded()
     {
-        CheckLinkage(bike.Linkage!);
-
         // Refresh Delete CanExecute when "in use" status changes.
-        if (setupStore is not null)
+        if (dependencyQuery is not null)
         {
-            EnsureScopedSubscription(s => s.Add(setupStore.Connect().Subscribe(_ =>
+            EnsureScopedSubscription(s => s.Add(dependencyQuery.Changes.Subscribe(_ =>
             {
                 DeleteCommand.NotifyCanExecuteChanged();
                 FakeDeleteCommand.NotifyCanExecuteChanged();
             })));
         }
+
+        await RefreshAnalysisAsync();
     }
 
     [RelayCommand]
     private void Unloaded()
     {
         DisposeScopedSubscriptions();
+        CancelReplaceableWorkflow();
     }
 
     #endregion Commands

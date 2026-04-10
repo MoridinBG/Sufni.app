@@ -2,15 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
+using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ScottPlot;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
-using Sufni.App.Plots;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.SessionPages;
@@ -25,6 +26,13 @@ namespace Sufni.App.ViewModels.Editors;
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions
 {
+    private enum LoadState
+    {
+        Idle,
+        Loading,
+        LoadingWithPendingRequest
+    }
+
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
 
@@ -43,14 +51,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     private readonly ISessionCoordinator? sessionCoordinator;
     private readonly ISessionStore? sessionStore;
-    private readonly IDatabaseService databaseService;
     private Session session;
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
 
-    private bool initialLoadCompleted;
     private bool lastObservedHasProcessedData;
-    private Rect? lastLoadedBounds;
+    private SessionPresentationDimensions? lastPresentationDimensions;
+    private CancellationTokenSource? loadCancellationTokenSource;
+    private LoadState loadState;
+    private bool viewLoaded;
 
     #endregion Private fields
 
@@ -80,186 +89,235 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     #region Private methods
 
-    private async Task<bool> LoadTelemetryData()
+    private static SessionPresentationDimensions? CreatePresentationDimensions(Rect? bounds)
     {
-        TelemetryData = await databaseService.GetSessionPsstAsync(Id);
-        if (TelemetryData is null)
+        if (bounds is not Rect rect || rect.Width <= 0 || rect.Height <= 0)
         {
-            return false;
+            return null;
         }
 
-        if (TelemetryData.Front.Present)
-        {
-            var fvb = TelemetryData.CalculateVelocityBands(SuspensionType.Front, 200);
-            DamperPage.FrontHsrPercentage = fvb.HighSpeedRebound;
-            DamperPage.FrontLsrPercentage = fvb.LowSpeedRebound;
-            DamperPage.FrontLscPercentage = fvb.LowSpeedCompression;
-            DamperPage.FrontHscPercentage = fvb.HighSpeedCompression;
-        }
-
-        if (TelemetryData.Rear.Present)
-        {
-            var rvb = TelemetryData.CalculateVelocityBands(SuspensionType.Rear, 200);
-            DamperPage.RearHsrPercentage = rvb.HighSpeedRebound;
-            DamperPage.RearLsrPercentage = rvb.LowSpeedRebound;
-            DamperPage.RearLscPercentage = rvb.LowSpeedCompression;
-            DamperPage.RearHscPercentage = rvb.HighSpeedCompression;
-        }
-
-        return true;
+        return new SessionPresentationDimensions((int)rect.Width, (int)(rect.Height / 2.0));
     }
 
-    private async Task LoadTrack()
+    private void ApplyDamperPercentages(SessionDamperPercentages percentages)
     {
-        Debug.Assert(TelemetryData is not null);
+        DamperPage.FrontHscPercentage = percentages.FrontHscPercentage;
+        DamperPage.RearHscPercentage = percentages.RearHscPercentage;
+        DamperPage.FrontLscPercentage = percentages.FrontLscPercentage;
+        DamperPage.RearLscPercentage = percentages.RearLscPercentage;
+        DamperPage.FrontLsrPercentage = percentages.FrontLsrPercentage;
+        DamperPage.RearLsrPercentage = percentages.RearLsrPercentage;
+        DamperPage.FrontHsrPercentage = percentages.FrontHsrPercentage;
+        DamperPage.RearHsrPercentage = percentages.RearHsrPercentage;
+    }
 
-        session.FullTrack ??= await databaseService.AssociateSessionWithTrackAsync(Id);
-        if (session.FullTrack is not null)
+    private void ClearDamperPercentages()
+    {
+        ApplyDamperPercentages(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+    }
+
+    private void EnsureBalancePage(bool balanceAvailable)
+    {
+        var containsBalancePage = Pages.Contains(BalancePage);
+        if (balanceAvailable)
         {
-            var fullTrack = await databaseService.GetAsync<Track>(session.FullTrack.Value);
-            FullTrackPoints = fullTrack.Points;
-            MapVideoWidth = 400;
-
-            TrackPoints = await databaseService.GetSessionTrackAsync(Id);
-            if (TrackPoints is null)
+            if (containsBalancePage)
             {
-                var start = TelemetryData.Metadata.Timestamp;
-                var end = start + (int)Math.Ceiling(TelemetryData.Metadata.Duration);
-                TrackPoints = fullTrack.GenerateSessionTrack(TelemetryData.Metadata.Timestamp, end);
-                await databaseService.PatchSessionTrackAsync(Id, TrackPoints);
+                return;
             }
+
+            var notesIndex = Pages.IndexOf(NotesPage);
+            if (notesIndex < 0)
+            {
+                Pages.Add(BalancePage);
+            }
+            else
+            {
+                Pages.Insert(notesIndex, BalancePage);
+            }
+
+            return;
+        }
+
+        if (containsBalancePage)
+        {
+            Pages.Remove(BalancePage);
+        }
+    }
+
+    private void ApplyCachePresentation(SessionCachePresentationData data)
+    {
+        SpringPage.FrontTravelHistogram = data.FrontTravelHistogram;
+        SpringPage.RearTravelHistogram = data.RearTravelHistogram;
+        DamperPage.FrontVelocityHistogram = data.FrontVelocityHistogram;
+        DamperPage.RearVelocityHistogram = data.RearVelocityHistogram;
+        ApplyDamperPercentages(data.DamperPercentages);
+        BalancePage.CompressionBalance = data.CompressionBalance;
+        BalancePage.ReboundBalance = data.ReboundBalance;
+        EnsureBalancePage(data.BalanceAvailable);
+    }
+
+    private void ApplyDesktopLoadResult(SessionDesktopLoadResult result)
+    {
+        switch (result)
+        {
+            case SessionDesktopLoadResult.Loaded loaded:
+                TelemetryData = loaded.Data.TelemetryData;
+                session.FullTrack = loaded.Data.FullTrackId;
+                FullTrackPoints = loaded.Data.FullTrackPoints;
+                TrackPoints = loaded.Data.TrackPoints;
+                MapVideoWidth = loaded.Data.MapVideoWidth;
+                ApplyDamperPercentages(loaded.Data.DamperPercentages);
+                lastObservedHasProcessedData = true;
+                break;
+
+            case SessionDesktopLoadResult.TelemetryPending:
+                TelemetryData = null;
+                FullTrackPoints = null;
+                TrackPoints = null;
+                MapVideoWidth = null;
+                ClearDamperPercentages();
+                lastObservedHasProcessedData = false;
+                break;
+
+            case SessionDesktopLoadResult.Failed failed:
+                ErrorMessages.Add($"Could not load session data: {failed.ErrorMessage}");
+                break;
+        }
+    }
+
+    private void ApplyMobileLoadResult(SessionMobileLoadResult result)
+    {
+        switch (result)
+        {
+            case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
+                ApplyCachePresentation(loadedFromCache.Data);
+                IsComplete = true;
+                lastObservedHasProcessedData = true;
+                break;
+
+            case SessionMobileLoadResult.BuiltCache builtCache:
+                ApplyCachePresentation(builtCache.Data);
+                IsComplete = true;
+                lastObservedHasProcessedData = true;
+                break;
+
+            case SessionMobileLoadResult.TelemetryPending:
+                lastObservedHasProcessedData = false;
+                break;
+
+            case SessionMobileLoadResult.Failed failed:
+                ErrorMessages.Add($"Could not load session data: {failed.ErrorMessage}");
+                break;
+        }
+    }
+
+    private bool QueueLoadRequest()
+    {
+        var shouldStartLoadLoop = loadState == LoadState.Idle;
+        loadState = LoadState.LoadingWithPendingRequest;
+        return shouldStartLoadLoop;
+    }
+
+    private void CancelLoad()
+    {
+        if (loadCancellationTokenSource is null)
+        {
+            return;
+        }
+
+        var cancellationTokenSource = loadCancellationTokenSource;
+        loadCancellationTokenSource = null;
+        cancellationTokenSource.Cancel();
+    }
+
+    private async Task LoadCurrentPlatformAsync(CancellationToken cancellationToken)
+    {
+        if (sessionCoordinator is null || App.Current is null)
+        {
+            return;
+        }
+
+        if (App.Current.IsDesktop)
+        {
+            var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            ApplyDesktopLoadResult(result);
+            return;
+        }
+
+        if (lastPresentationDimensions is null)
+        {
+            return;
+        }
+
+        var mobileResult = await sessionCoordinator.LoadMobileDetailAsync(
+            Id,
+            lastPresentationDimensions.Value,
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        ApplyMobileLoadResult(mobileResult);
+    }
+
+    private async Task RequestLoadAsync()
+    {
+        if (sessionCoordinator is null || !viewLoaded)
+        {
+            return;
+        }
+
+        var shouldStartLoadLoop = QueueLoadRequest();
+        CancelLoad();
+
+        if (!shouldStartLoadLoop)
+        {
+            return;
+        }
+
+        try
+        {
+            while (viewLoaded && loadState == LoadState.LoadingWithPendingRequest)
+            {
+                loadState = LoadState.Loading;
+
+                var cancellationTokenSource = new CancellationTokenSource();
+                loadCancellationTokenSource = cancellationTokenSource;
+                var cancellationToken = cancellationTokenSource.Token;
+
+                try
+                {
+                    await LoadCurrentPlatformAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+                finally
+                {
+                    cancellationTokenSource.Dispose();
+                    if (ReferenceEquals(loadCancellationTokenSource, cancellationTokenSource))
+                    {
+                        loadCancellationTokenSource = null;
+                    }
+                }
+
+                if (!viewLoaded)
+                {
+                    break;
+                }
+
+                if (loadState == LoadState.Loading)
+                {
+                    loadState = LoadState.Idle;
+                }
+            }
+        }
+        finally
+        {
+            loadState = LoadState.Idle;
         }
     }
 
     #endregion
-
-    #region Private methods [cache, mobile-only]
-
-    private async Task<bool> LoadCache()
-    {
-        var cache = await databaseService.GetSessionCacheAsync(Id);
-        if (cache is null)
-        {
-            return false;
-        }
-
-        SpringPage.FrontTravelHistogram = cache.FrontTravelHistogram;
-        SpringPage.RearTravelHistogram = cache.RearTravelHistogram;
-
-        DamperPage.FrontVelocityHistogram = cache.FrontVelocityHistogram;
-        DamperPage.RearVelocityHistogram = cache.RearVelocityHistogram;
-        DamperPage.FrontHscPercentage = cache.FrontHscPercentage;
-        DamperPage.RearHscPercentage = cache.RearHscPercentage;
-        DamperPage.FrontLscPercentage = cache.FrontLscPercentage;
-        DamperPage.RearLscPercentage = cache.RearLscPercentage;
-        DamperPage.FrontLsrPercentage = cache.FrontLsrPercentage;
-        DamperPage.RearLsrPercentage = cache.RearLsrPercentage;
-        DamperPage.FrontHsrPercentage = cache.FrontHsrPercentage;
-        DamperPage.RearHsrPercentage = cache.RearHsrPercentage;
-
-        if (cache.CompressionBalance is not null)
-        {
-            BalancePage.CompressionBalance = cache.CompressionBalance;
-            BalancePage.ReboundBalance = cache.ReboundBalance;
-        }
-        else
-        {
-            Pages.Remove(BalancePage);
-        }
-
-        return true;
-    }
-
-    private async Task CreateCache(object? bounds)
-    {
-        if (sessionCoordinator is not null)
-        {
-            await sessionCoordinator.EnsureTelemetryDataAvailableAsync(Id);
-        }
-        await LoadTelemetryData();
-        Debug.Assert(TelemetryData is not null);
-
-        var b = (Rect)bounds!;
-        var (width, height) = ((int)b.Width, (int)(b.Height / 2.0));
-        var sessionCache = new SessionCache
-        {
-            SessionId = Id
-        };
-
-        if (TelemetryData.Front.Present)
-        {
-            var fth = new TravelHistogramPlot(new Plot(), SuspensionType.Front);
-            fth.LoadTelemetryData(TelemetryData);
-            sessionCache.FrontTravelHistogram = fth.Plot.GetSvgXml(width, height);
-            Dispatcher.UIThread.Post(() => { SpringPage.FrontTravelHistogram = sessionCache.FrontTravelHistogram; });
-
-            var fvh = new VelocityHistogramPlot(new Plot(), SuspensionType.Front);
-            fvh.LoadTelemetryData(TelemetryData);
-            sessionCache.FrontVelocityHistogram = fvh.Plot.GetSvgXml(width - 64, 478);
-            Dispatcher.UIThread.Post(() => { DamperPage.FrontVelocityHistogram = sessionCache.FrontVelocityHistogram; });
-
-            var fvb = TelemetryData.CalculateVelocityBands(SuspensionType.Front, 200);
-            sessionCache.FrontHsrPercentage = fvb.HighSpeedRebound;
-            sessionCache.FrontLsrPercentage = fvb.LowSpeedRebound;
-            sessionCache.FrontLscPercentage = fvb.LowSpeedCompression;
-            sessionCache.FrontHscPercentage = fvb.HighSpeedCompression;
-            Dispatcher.UIThread.Post(() =>
-            {
-                DamperPage.FrontHsrPercentage = fvb.HighSpeedRebound;
-                DamperPage.FrontLsrPercentage = fvb.LowSpeedRebound;
-                DamperPage.FrontLscPercentage = fvb.LowSpeedCompression;
-                DamperPage.FrontHscPercentage = fvb.HighSpeedCompression;
-            });
-        }
-
-        if (TelemetryData.Rear.Present)
-        {
-            var rth = new TravelHistogramPlot(new Plot(), SuspensionType.Rear);
-            rth.LoadTelemetryData(TelemetryData);
-            sessionCache.RearTravelHistogram = rth.Plot.GetSvgXml(width, height);
-            Dispatcher.UIThread.Post(() => { SpringPage.RearTravelHistogram = sessionCache.RearTravelHistogram; });
-
-            var rvh = new VelocityHistogramPlot(new Plot(), SuspensionType.Rear);
-            rvh.LoadTelemetryData(TelemetryData);
-            sessionCache.RearVelocityHistogram = rvh.Plot.GetSvgXml(width - 64, 478);
-            Dispatcher.UIThread.Post(() => { DamperPage.RearVelocityHistogram = sessionCache.RearVelocityHistogram; });
-
-            var rvb = TelemetryData.CalculateVelocityBands(SuspensionType.Rear, 200);
-            sessionCache.RearHsrPercentage = rvb.HighSpeedRebound;
-            sessionCache.RearLsrPercentage = rvb.LowSpeedRebound;
-            sessionCache.RearLscPercentage = rvb.LowSpeedCompression;
-            sessionCache.RearHscPercentage = rvb.HighSpeedCompression;
-            Dispatcher.UIThread.Post(() =>
-            {
-                DamperPage.RearHsrPercentage = rvb.HighSpeedRebound;
-                DamperPage.RearLsrPercentage = rvb.LowSpeedRebound;
-                DamperPage.RearLscPercentage = rvb.LowSpeedCompression;
-                DamperPage.RearHscPercentage = rvb.HighSpeedCompression;
-            });
-        }
-
-        if (TelemetryData.Front.Present && TelemetryData.Rear.Present)
-        {
-
-            var cb = new BalancePlot(new Plot(), BalanceType.Compression);
-            cb.LoadTelemetryData(TelemetryData);
-            sessionCache.CompressionBalance = cb.Plot.GetSvgXml(width, height);
-            Dispatcher.UIThread.Post(() => { BalancePage.CompressionBalance = sessionCache.CompressionBalance; });
-
-            var rb = new BalancePlot(new Plot(), BalanceType.Rebound);
-            rb.LoadTelemetryData(TelemetryData);
-            sessionCache.ReboundBalance = rb.Plot.GetSvgXml(width, height);
-            Dispatcher.UIThread.Post(() => { BalancePage.ReboundBalance = sessionCache.ReboundBalance; });
-        }
-        else
-        {
-            Dispatcher.UIThread.Post(() => { Pages.Remove(BalancePage); });
-        }
-
-        await databaseService.PutSessionCacheAsync(sessionCache);
-    }
-
-    #endregion [cache, mobile-only]
 
     #region Constructors
 
@@ -267,7 +325,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     {
         sessionCoordinator = null;
         sessionStore = null;
-        databaseService = null!;
         session = new Session();
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
     }
@@ -276,14 +333,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         SessionSnapshot snapshot,
         ISessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
-        IDatabaseService databaseService,
         IShellCoordinator shell,
         IDialogService dialogService)
         : base(shell, dialogService)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.sessionStore = sessionStore;
-        this.databaseService = databaseService;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
@@ -449,54 +504,34 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [RelayCommand]
     private async Task Loaded(Rect? bounds = null)
     {
-        // Remembered for the Watch handler so the mobile branch can
-        // re-run CreateCache (which needs the scroll viewer bounds for
-        // SVG sizing) when telemetry arrives later.
-        lastLoadedBounds = bounds;
-
-        try
+        viewLoaded = true;
+        var dimensions = CreatePresentationDimensions(bounds);
+        if (dimensions is not null)
         {
-            Debug.Assert(App.Current is not null);
-            if (App.Current.IsDesktop)
-            {
-                // Desktop is the sync receiver, no ServerUrl to fetch
-                // from. If the blob isn't here yet the Watch subscription
-                // installed below will retry when it lands.
-                if (await LoadTelemetryData())
-                {
-                    await LoadTrack();
-                }
-            }
-            else if (!await LoadCache())
-            {
-                await CreateCache(bounds);
-            }
+            lastPresentationDimensions = dimensions;
         }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load session data: {e.Message}");
-        }
-        finally
-        {
-            // Subscribe AFTER the initial load so EnsureTelemetryDataAvailableAsync
-            // doesn't race the Watch handler.
-            if (sessionStore is not null)
-            {
-                EnsureScopedSubscription(s => s.Add(sessionStore.Watch(Id).Subscribe(OnSnapshotChanged)));
-            }
-            initialLoadCompleted = true;
 
-            // SourceCache.Watch only emits future events, so an upsert
-            // that landed during the load above was never delivered.
-            // Sweep once to recover. Desktop only — mobile's CreateCache
-            // already drove its own upsert to completion above.
-            if (sessionStore is not null && App.Current is { IsDesktop: true })
+        await RequestLoadAsync();
+
+        if (!viewLoaded)
+        {
+            return;
+        }
+
+        if (sessionStore is not null)
+        {
+            var watch = sessionStore.Watch(Id);
+            if (SynchronizationContext.Current is { } synchronizationContext)
             {
-                var current = sessionStore.Get(Id);
-                if (current is not null && current.HasProcessedData != lastObservedHasProcessedData)
-                {
-                    OnSnapshotChanged(current);
-                }
+                watch = watch.ObserveOn(synchronizationContext);
+            }
+
+            EnsureScopedSubscription(s => s.Add(watch.Subscribe(OnSnapshotChanged)));
+
+            var current = sessionStore.Get(Id);
+            if (current is not null && current.HasProcessedData != lastObservedHasProcessedData)
+            {
+                _ = RequestLoadAsync();
             }
         }
     }
@@ -504,48 +539,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [RelayCommand]
     private void Unloaded()
     {
+        viewLoaded = false;
+        loadState = LoadState.Idle;
+        CancelLoad();
         DisposeScopedSubscriptions();
     }
 
     private void OnSnapshotChanged(SessionSnapshot snapshot)
     {
         if (snapshot is null) return;
-        if (!initialLoadCompleted) return;
         if (snapshot.HasProcessedData == lastObservedHasProcessedData) return;
 
         lastObservedHasProcessedData = snapshot.HasProcessedData;
-        if (!snapshot.HasProcessedData) return;
+        if (!snapshot.HasProcessedData || !viewLoaded) return;
 
-        Dispatcher.UIThread.Post(async () =>
-        {
-            try
-            {
-                Debug.Assert(App.Current is not null);
-                if (App.Current.IsDesktop)
-                {
-                    // Desktop binds plot views directly to TelemetryData,
-                    // so reloading the blob is enough.
-                    if (await LoadTelemetryData())
-                    {
-                        await LoadTrack();
-                    }
-                }
-                else
-                {
-                    // Mobile binds to the SVG histograms / balance plots
-                    // populated by CreateCache. Re-run that to refresh
-                    // them. Skip if Loaded never ran (no bounds known yet).
-                    if (lastLoadedBounds is not null)
-                    {
-                        await CreateCache(lastLoadedBounds);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                ErrorMessages.Add($"Could not refresh session data: {e.Message}");
-            }
-        });
+        _ = RequestLoadAsync();
     }
 
     #endregion

@@ -3,7 +3,7 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class MobileShellCoordinator(Func<MainViewModel> mainViewProvider) : IShellCoordinator
+public sealed class MobileShellCoordinator(Func<IMainViewShellHost> mainViewProvider) : IShellCoordinator
 {
     public void Open(ViewModelBase view) => mainViewProvider().OpenView(view);
 

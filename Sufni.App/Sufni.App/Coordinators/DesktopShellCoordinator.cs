@@ -4,7 +4,7 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class DesktopShellCoordinator(Func<MainWindowViewModel> mainWindowProvider) : IShellCoordinator
+public sealed class DesktopShellCoordinator(Func<IMainWindowShellHost> mainWindowProvider) : IShellCoordinator
 {
     public void Open(ViewModelBase view) => mainWindowProvider().OpenView(view);
 

@@ -1,7 +1,10 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.BikeEditing;
 using Sufni.App.Models;
 using Sufni.App.Stores;
+using Sufni.Kinematics;
 
 namespace Sufni.App.Coordinators;
 
@@ -23,6 +26,16 @@ public interface IBikeCoordinator
     /// No-op if the bike is not in the store.
     /// </summary>
     Task OpenEditAsync(Guid bikeId);
+
+    Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
+        Linkage? linkage,
+        CancellationToken cancellationToken = default);
+
+    Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default);
+
+    Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default);
+
+    Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Persist a bike built by the editor. The coordinator checks
@@ -50,8 +63,9 @@ public abstract record BikeSaveResult
 {
     private BikeSaveResult() { }
 
-    public sealed record Saved(long NewBaselineUpdated) : BikeSaveResult;
+    public sealed record Saved(long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
+    public sealed record InvalidLinkage : BikeSaveResult;
     public sealed record Failed(string ErrorMessage) : BikeSaveResult;
 }
 
