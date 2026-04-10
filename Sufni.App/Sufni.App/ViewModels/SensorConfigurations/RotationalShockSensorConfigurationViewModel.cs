@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.ViewModels.LinkageParts;
@@ -31,7 +30,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             if (!initialResolutionDone && value.Count > 0)
             {
                 // First non-empty joint list - initial load.
-                SensorJoint    = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.CentralJoint);
+                SensorJoint = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.CentralJoint);
                 AdjacentJoint1 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint1);
                 AdjacentJoint2 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint2);
                 initialResolutionDone = true;
@@ -39,7 +38,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             else if (initialResolutionDone)
             {
                 // User picked a different bike
-                SensorJoint    = null;
+                SensorJoint = null;
                 AdjacentJoint1 = null;
                 AdjacentJoint2 = null;
             }
@@ -90,7 +89,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             AdjacentJoint1 = AdjacentJoint1.Name,
             AdjacentJoint2 = AdjacentJoint2.Name
         };
-        
+
         EvaluateDirtiness();
     }
 
@@ -107,7 +106,7 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
             AdjacentJoint2 = AdjacentJoint2.Name
         };
 
-        return JsonSerializer.Serialize(sc, SensorConfiguration.SerializerOptions);
+        return SensorConfiguration.ToJson(sc);
     }
 
     #endregion SensorConfigurationViewModel overrides
