@@ -1,43 +1,36 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using DynamicData;
-using Sufni.App.Models;
-using Sufni.App.Services;
-using Sufni.App.ViewModels.Factories;
-using Sufni.App.ViewModels.Hosts;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.Coordinators;
+using Sufni.App.Queries;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSource, IBikeViewModelHost, IBikeCreator
+// Inherits from ItemListViewModelBase for the shared search-bar /
+// date-filter / menu-item state. The items collection is owned locally
+// — `bikeRows` is a typed projection from the store, exposed via the
+// `new` shadow on `Items`.
+public partial class BikeListViewModel : ItemListViewModelBase
 {
-    #region IBikeCreator
-
-    public void AddBike() => AddCommand.Execute(null);
-
-    #endregion IBikeCreator
-
     #region Private fields
 
-    private readonly IBikeViewModelFactory bikeViewModelFactory;
-    private readonly IBikeUsageQuery bikeUsageQuery;
-    private readonly ReadOnlyObservableCollection<ItemViewModelBase> unfilteredBikes;
+    private readonly IBikeStore bikeStore;
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly IBikeDependencyQuery dependencyQuery;
+    private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
+    private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
+    private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
 
-    #region Host callbacks
-
-    public bool CanDeleteBike(Guid bikeId) => !bikeUsageQuery.IsBikeInUse(bikeId);
-
-    public void OnBikeSaved(BikeViewModel vm) => OnAdded(vm);
-
-    #endregion Host callbacks
-
     #region Observable properties
 
-    [ObservableProperty] private bool hasBikes;
+    public ReadOnlyObservableCollection<BikeRowViewModel> Items => bikeRows;
 
     #endregion Observable properties
 
@@ -45,87 +38,115 @@ public partial class BikeListViewModel : ItemListViewModelBase, IBikeSelectionSo
 
     public BikeListViewModel()
     {
-        bikeViewModelFactory = null!;
-        bikeUsageQuery = null!;
-        Source.Connect()
-            .Bind(out unfilteredBikes)
-            .Subscribe();
-        Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
+        bikeStore = null!;
+        bikeCoordinator = null!;
+        dependencyQuery = null!;
+        bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>([]);
     }
 
     public BikeListViewModel(
-        IDatabaseService databaseService,
-        IBikeViewModelFactory bikeViewModelFactory,
-        INavigator navigator,
-        IBikeUsageQuery bikeUsageQuery) : base(databaseService, navigator)
+        IBikeStore bikeStore,
+        IBikeCoordinator bikeCoordinator,
+        IBikeDependencyQuery dependencyQuery)
     {
-        this.bikeViewModelFactory = bikeViewModelFactory;
-        this.bikeUsageQuery = bikeUsageQuery;
-        Source.Connect()
-            .Bind(out unfilteredBikes)
+        this.bikeStore = bikeStore;
+        this.bikeCoordinator = bikeCoordinator;
+        this.dependencyQuery = dependencyQuery;
+
+        // Pipeline order matters:
+        //   1. Transform creates a row per snapshot.
+        //   2. DisposeMany sits between Transform and Filter so it
+        //      only fires when a row leaves the source store, not
+        //      when the filter merely hides it.
+        //   3. Filter operates on rows (so the predicate sees the
+        //      same Id/Name we already exposed on the row VM).
+        bikeStore.Connect()
+            .TransformWithInlineUpdate(
+                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator, RequestRowDelete, dependencyQuery),
+                (row, snapshot) => row.Update(snapshot))
+            .DisposeMany()
+            .Filter(filterSubject)
+            .Bind(out bikeRows)
             .Subscribe();
-        Source.CountChanged.Subscribe(_ => { HasBikes = Source.Count != 0; });
+
+        // Push a fresh predicate to our filter subject whenever the
+        // search text changes.
+        PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SearchText)) RebuildFilter();
+        };
     }
 
     #endregion Constructors
 
-    #region Private methods
-
-    private async Task LoadBikesAsync()
-    {
-
-
-        try
-        {
-            var bikeList = await databaseService.GetAllAsync<Bike>();
-            foreach (var bike in bikeList)
-            {
-                Source.AddOrUpdate(bikeViewModelFactory.Create(bike, true, this));
-            }
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not load Bike: {e.Message}");
-        }
-    }
-
-    #endregion Private methods
-    
     #region ItemListViewModelBase overrides
 
-    protected override async Task DeleteImplementation(ItemViewModelBase vm)
+    protected override void RebuildFilter()
     {
+        var current = SearchText;
+        var pendingId = pendingDelete?.Id;
+        filterSubject.OnNext(row =>
+            (pendingId is null || row.Id != pendingId) &&
+            (string.IsNullOrEmpty(current) ||
+             (row.Name?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false)));
+    }
 
-        await databaseService.DeleteAsync<Bike>(vm.Id);
+    protected override void OnPendingDeleteUndone()
+    {
+        pendingDelete = null;
+        RebuildFilter();
     }
 
     protected override void AddImplementation()
     {
-        try
-        {
-            var bike = new Bike(Guid.NewGuid(), "new bike");
-            var bvm = bikeViewModelFactory.Create(bike, false, this);
-            bvm.IsDirty = true;
-
-            OpenPage(bvm);
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Could not add Linkage: {e.Message}");
-        }
-    }
-
-    public override async Task LoadFromDatabase()
-    {
-        Source.Clear();
-        await LoadBikesAsync();
+        _ = bikeCoordinator.OpenCreateAsync();
     }
 
     #endregion ItemListViewModelBase overrides
 
-    #region IBikeSelectionSource
+    #region Private methods
 
-    public ReadOnlyObservableCollection<ItemViewModelBase> Bikes => unfilteredBikes;
+    private async void RequestRowDelete(BikeRowViewModel row)
+    {
+        var snapshot = bikeStore.Get(row.Id);
+        if (snapshot is null) return;
 
-    #endregion IBikeSelectionSource
+        // Commit any in-flight pending delete first.
+        await FlushPendingDeleteAsync();
+
+        pendingDelete = (snapshot.Id, snapshot.Name);
+        RebuildFilter();
+
+        StartUndoWindow(snapshot.Name, () => FinalizeBikeDeleteAsync(snapshot.Id));
+    }
+
+    private async Task FinalizeBikeDeleteAsync(Guid bikeId)
+    {
+        pendingDelete = null;
+        RebuildFilter();
+
+        var result = await bikeCoordinator.DeleteAsync(bikeId);
+        switch (result.Outcome)
+        {
+            case BikeDeleteOutcome.InUse:
+                ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");
+                break;
+            case BikeDeleteOutcome.Failed:
+                ErrorMessages.Add($"Bike could not be deleted: {result.ErrorMessage}");
+                break;
+        }
+    }
+
+    #endregion Private methods
+
+    #region Commands
+
+    [RelayCommand]
+    private async Task RowSelected(BikeRowViewModel? row)
+    {
+        if (row is null) return;
+        await bikeCoordinator.OpenEditAsync(row.Id);
+    }
+
+    #endregion Commands
 }

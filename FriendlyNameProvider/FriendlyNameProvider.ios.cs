@@ -1,6 +1,6 @@
 using UIKit;
 
-namespace FriendlyName;
+namespace FriendlyNameProvider;
 
 public class FriendlyNameProvider : IFriendlyNameProvider
 {

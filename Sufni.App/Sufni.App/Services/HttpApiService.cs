@@ -111,26 +111,26 @@ internal class HttpApiService : IHttpApiService
 
     #region Public methods - pairing
 
-    public async Task RequestPairingAsync(string url, string deviceId)
+    public async Task RequestPairingAsync(string url, string deviceId, string? displayName)
     {
         await Initialization;
 
         using var response = await client.PostAsJsonAsync(
             $"{url}{SynchronizationServerService.EndpointPairRequest}",
-            new PairingRequest(deviceId));
+            new PairingRequest(deviceId, displayName));
         response.EnsureSuccessStatusCode();
 
         ServerUrl = url;
         await secureStorage.SetStringAsync(ServerUrlKey, ServerUrl);
     }
 
-    public async Task ConfirmPairingAsync(string deviceId, string pin)
+    public async Task ConfirmPairingAsync(string deviceId, string? displayName, string pin)
     {
         await Initialization;
 
         using var response = await client.PostAsJsonAsync(
             $"{ServerUrl}{SynchronizationServerService.EndpointPairConfirm}",
-            new PairingConfirm(deviceId, pin));
+            new PairingConfirm(deviceId, displayName, pin));
         response.EnsureSuccessStatusCode();
 
         var tokens = await response.Content.ReadFromJsonAsync<TokenResponse>();
