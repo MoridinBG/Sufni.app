@@ -1,9 +1,20 @@
+using System;
 using System.Net;
 
-namespace ServiceDiscovery;
+namespace Sufni.App.Services;
 
 public class ServiceAnnouncement
 {
+    public ServiceAnnouncement()
+    {
+    }
+
+    public ServiceAnnouncement(IPAddress address, ushort port)
+    {
+        Address = address;
+        Port = port;
+    }
+
     public ushort Port { get; internal set; }
     public IPAddress Address { get; internal set; } = null!;
 }

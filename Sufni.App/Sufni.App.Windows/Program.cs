@@ -1,8 +1,6 @@
 ﻿using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
-using SecureStorage;
 using System;
-using ServiceDiscovery;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
@@ -21,8 +19,8 @@ namespace Sufni.App.Windows
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
-            App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            App.ServiceCollection.AddSingleton<ISecureStorage, WindowsSecureStorage>();
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
             App.ServiceCollection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
             App.ServiceCollection.AddSingleton<IPairingServerCoordinator, PairingServerCoordinator>();
             App.ServiceCollection.AddSingleton<IInboundSyncCoordinator, InboundSyncCoordinator>();

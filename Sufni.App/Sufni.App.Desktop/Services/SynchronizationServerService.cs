@@ -20,30 +20,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using SecureStorage;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
-public class PairingEventArgs(PairedDevice device) : EventArgs
-{
-    public PairedDevice Device { get; set; } = device;
-}
-
 public class SynchronizationServerService : ISynchronizationServerService
 {
-    public const string ServiceType = "_sstsync._tcp";
-    public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
-    public const int PinTtlSeconds = 30;
-    public const string EndpointPairRequest = "/pair/request";
-    public const string EndpointPairConfirm = "/pair/confirm";
-    public const string EndpointPairRefresh = "/pair/refresh";
-    public const string EndpointPairUnpair = "/pair/unpair";
-    public const string EndpointSyncPush = "/sync/push";
-    public const string EndpointSyncPull = "/sync/pull";
-    public const string EndpointSessionIncomplete = "/session/incomplete";
-    public const string EndpointSessionData = "/session/data/";
-
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
     private const int Port = 5575;
@@ -85,7 +67,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private static void StartAdvertising()
     {
-        var service = new ServiceProfile("s1", ServiceType, Port);
+        var service = new ServiceProfile("s1", SynchronizationProtocol.ServiceType, Port);
         var sd = new Makaretu.Dns.ServiceDiscovery();
         if (!sd.Probe(service))
         {
@@ -115,7 +97,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
 
         var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        var req = new CertificateRequest(CertificateSubjectName, ecdsa, HashAlgorithmName.SHA256);
+        var req = new CertificateRequest(SynchronizationProtocol.CertificateSubjectName, ecdsa, HashAlgorithmName.SHA256);
         req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
             new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, // Server Auth
             critical: false));
@@ -211,16 +193,16 @@ public class SynchronizationServerService : ISynchronizationServerService
         app.UseAuthentication();
         app.UseAuthorization();
 
-        app.MapPost(EndpointPairRequest, ([FromBody] PairingRequest req) =>
+        app.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
         {
             var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
             var pin = GeneratePin();
-            pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(PinTtlSeconds));
+            pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(SynchronizationProtocol.PinTtlSeconds));
             PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
             return Results.Ok();
         });
 
-        app.MapPost(EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
+        app.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
         {
             if (!pendingPairings.TryRemove(req.Pin, out var record)) return Results.Unauthorized();
             var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
@@ -239,7 +221,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
         });
 
-        app.MapPost(EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
+        app.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
         {
             var pairedDevice = await databaseService.GetPairedDeviceByTokenAsync(req.RefreshToken);
             if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
@@ -251,7 +233,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
         });
 
-        app.MapPost(EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
+        app.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
         {
             var device = await databaseService.GetPairedDeviceAsync(req.DeviceId);
             if (device is null) return Results.Ok();
@@ -263,7 +245,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok();
         });
 
-        app.MapGet(EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
+        app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
         {
             var data = new SynchronizationData
             {
@@ -277,7 +259,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.Ok(data);
         });
 
-        app.MapPut(EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+        app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
         {
             await databaseService.MergeAllAsync(data);
 
@@ -285,13 +267,13 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.NoContent();
         });
 
-        app.MapGet(EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
+        app.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
         {
             var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
             return Results.Ok(incompleteSessions);
         });
 
-        app.MapGet($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+        app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
         {
             var data = await databaseService.GetSessionPsstAsync(id);
             if (data is null) return Results.NotFound(new { msg = "Session does not exist!" });
@@ -305,7 +287,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             );
         });
 
-        app.MapPatch($"{EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+        app.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
         {
             await using var memoryStream = new MemoryStream();
             await request.BodyReader.CopyToAsync(memoryStream);

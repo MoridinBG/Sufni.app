@@ -45,11 +45,11 @@ graph TB
         Kinematics["Sufni.Kinematics"]
     end
 
-    subgraph Support["Support Libraries"]
-        SD["ServiceDiscovery"]
-        SS["SecureStorage"]
-        HF["HapticFeedback"]
-        FNP["FriendlyNameProvider"]
+    subgraph PlatformServices["Platform Services"]
+      SD["IServiceDiscovery\nshared abstraction +\nshared/head implementations"]
+      SS["ISecureStorage\nshared abstraction +\nhead implementations"]
+      HF["IHapticFeedback\nshared abstraction +\nmobile-head implementations"]
+      FNP["IFriendlyNameProvider\nshared abstraction +\nmobile-head implementations"]
     end
 
     Platform --> UI
@@ -57,8 +57,8 @@ graph TB
     Application --> Services
     Services --> Domain
     Domain --> Libraries
-    Platform --> Support
-    Services --> Support
+    Platform --> PlatformServices
+    Services --> PlatformServices
 ```
 
 The presentation layer holds only UI state and binds against the application layer. Coordinators are the only writers to stores; queries are stateless cross-entity reads; services and factories own infrastructure creation and background execution; view models do not depend on other feature view models for business answers, do not construct concrete datastore implementations, and do not manage picker or thread lifetime — see [UI Architecture](#ui-architecture) for the rules.
@@ -77,32 +77,36 @@ The presentation layer holds only UI state and binds against the application lay
 
 ## Project Structure
 
-| Project                   | Path                           | Role                                                                                         |
-| ------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------- |
-| **Sufni.Telemetry**       | `Sufni.Telemetry/`             | Pure C# library: SST parsing, signal processing, stroke detection, histograms                |
-| **Sufni.Telemetry.Tests** | `Sufni.Telemetry.Tests/`       | Unit tests for telemetry processing                                                          |
-| **Sufni.Kinematics**      | `Sufni.Kinematics/`            | Suspension linkage simulation, leverage ratio calculation                                    |
-| **Sufni.App**             | `Sufni.App/Sufni.App/`         | Main application: views, view models, coordinators, stores, queries, services, models, plots |
-| **Sufni.App.Windows**     | `Sufni.App/Sufni.App.Windows/` | Windows entry point (`Program.cs`)                                                           |
-| **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                             |
-| **Sufni.App.Linux**       | `Sufni.App/Sufni.App.Linux/`   | Linux entry point (`Program.cs`)                                                             |
-| **Sufni.App.Android**     | `Sufni.App/Sufni.App.Android/` | Android entry point (`MainActivity.cs`)                                                      |
-| **Sufni.App.iOS**         | `Sufni.App/Sufni.App.iOS/`     | iOS entry point (`AppDelegate.cs`)                                                           |
-| **ServiceDiscovery**      | `ServiceDiscovery/`            | mDNS service discovery (socket-based and native Bonjour)                                     |
-| **SecureStorage**         | `SecureStorage/`               | Platform-specific encrypted credential storage                                               |
-| **HapticFeedback**        | `HapticFeedback/`              | Platform-specific haptic feedback for mobile                                                 |
-| **FriendlyNameProvider**  | `FriendlyNameProvider/`        | Device naming for sync identification                                                        |
+| Project                   | Path                           | Role                                                                                                         |
+| ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| **Sufni.Telemetry**       | `Sufni.Telemetry/`             | Pure C# library: SST parsing, signal processing, stroke detection, histograms                                |
+| **Sufni.Telemetry.Tests** | `Sufni.Telemetry.Tests/`       | Unit tests for telemetry processing                                                                          |
+| **Sufni.Kinematics**      | `Sufni.Kinematics/`            | Suspension linkage simulation, leverage ratio calculation                                                    |
+| **Sufni.App**             | `Sufni.App/Sufni.App/`         | Neutral shared application layer: views, view models, coordinators, stores, queries, services, models, plots |
+| **Sufni.App.Desktop**     | `Sufni.App/Sufni.App.Desktop/` | Desktop-only layer: sync server, ASP.NET Core hosting, inbound desktop sync infrastructure                   |
+| **Sufni.App.Windows**     | `Sufni.App/Sufni.App.Windows/` | Windows entry point (`Program.cs`)                                                                           |
+| **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                                             |
+| **Sufni.App.Linux**       | `Sufni.App/Sufni.App.Linux/`   | Linux entry point (`Program.cs`)                                                                             |
+| **Sufni.App.Android**     | `Sufni.App/Sufni.App.Android/` | Android entry point (`MainActivity.cs`)                                                                      |
+| **Sufni.App.iOS**         | `Sufni.App/Sufni.App.iOS/`     | iOS entry point (`AppDelegate.cs`)                                                                           |
+
+Scenario-specific solutions live at the repository root:
+
+- `Sufni.App.sln` — full matrix / repo-wide solution
+- `Sufni.Desktop.sln` — desktop workflow solution
+- `Sufni.Android.sln` — Android workflow solution
+- `Sufni.iOS.sln` — iOS workflow solution
 
 ---
 
 ## Platform Abstractions
 
-| Interface               | File                                                  | Purpose                                                                 | Implementations                                                       |
-| ----------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `IServiceDiscovery`     | `ServiceDiscovery/ServiceDiscovery.common.cs`         | mDNS browse for `_gosst._tcp` and `_sstsync._tcp`                       | Socket-based (Win/Linux/Android), native Bonjour (macOS/iOS)          |
-| `ISecureStorage`        | `SecureStorage/SecureStorage.common.cs`               | Encrypted key-value store for JWT secrets, certificates, refresh tokens | DPAPI (Win), Keychain (iOS), KeyStore (Android), keyring/file (Linux) |
-| `IHapticFeedback`       | `HapticFeedback/HapticFeedback.common.cs`             | Tactile feedback: `Click()`, `LongPress()`                              | Vibrator API (Android), UIFeedbackGenerator (iOS)                     |
-| `IFriendlyNameProvider` | `FriendlyNameProvider/FriendlyNameProvider.common.cs` | Human-readable device name for sync identification                      | Android device name, hostname fallback                                |
+| Interface               | File                                                    | Purpose                                                                 | Implementations                                                                                                |
+| ----------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `IServiceDiscovery`     | `Sufni.App/Sufni.App/Services/IServiceDiscovery.cs`     | mDNS browse for `_gosst._tcp` and `_sstsync._tcp`                       | `SocketServiceDiscovery` (shared / Win / Linux / Android), `BonjourServiceDiscovery` (macOS / iOS)             |
+| `ISecureStorage`        | `Sufni.App/Sufni.App/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
+| `IHapticFeedback`       | `Sufni.App/Sufni.App/Services/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
+| `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Services/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
 
 Each platform entry point registers its implementations before the shared `App.axaml.cs` initialization runs.
 

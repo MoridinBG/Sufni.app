@@ -1,11 +1,13 @@
+using System;
 using System.Diagnostics;
 using System.Net;
 using CoreFoundation;
 using Network;
+using Sufni.App.Services;
 
-namespace ServiceDiscovery;
+namespace Sufni.App.macOS;
 
-public class ServiceDiscovery : IServiceDiscovery
+public class BonjourServiceDiscovery : IServiceDiscovery
 {
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceAdded;
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceRemoved;
@@ -26,32 +28,24 @@ public class ServiceDiscovery : IServiceDiscovery
     {
         if (result is null) return;
 
-        // We need to initiate a connection to obtain the IP address and port,
-        // because there is no other way to resolve the address:
-        // https://developer.apple.com/forums/thread/122638?answerId=382318022#382318022
-        // Please note that we satisfy the resolve-only-when-need-to-connect
-        // recommendation, because we will immediately ask for the SST file list.
         var connection = new NWConnection(result.EndPoint, NWParameters.CreateTcp());
         connection.SetStateChangeHandler((state, _) =>
         {
             switch (state)
             {
                 case NWConnectionState.Ready:
-                {
-                    var endpoint = connection.CurrentPath?.EffectiveRemoteEndpoint;
-                    currentIpAddress = endpoint is not null ? IPAddress.Parse(endpoint.Address) : null;
-                    currentPort = endpoint?.PortNumber;
-                    connection.Cancel();
-
-                    if (currentIpAddress is null || currentPort is null) return;
-
-                    ServiceAdded?.Invoke(this, new ServiceAnnouncementEventArgs(new ServiceAnnouncement()
                     {
-                        Address = currentIpAddress,
-                        Port = currentPort.Value,
-                    }));
-                    break;
-                }
+                        var endpoint = connection.CurrentPath?.EffectiveRemoteEndpoint;
+                        currentIpAddress = endpoint is not null ? IPAddress.Parse(endpoint.Address) : null;
+                        currentPort = endpoint?.PortNumber;
+                        connection.Cancel();
+
+                        if (currentIpAddress is null || currentPort is null) return;
+
+                        ServiceAdded?.Invoke(this, new ServiceAnnouncementEventArgs(
+                            new ServiceAnnouncement(currentIpAddress, currentPort.Value)));
+                        break;
+                    }
             }
         });
         connection.SetQueue(dispatchQueue);
@@ -62,11 +56,8 @@ public class ServiceDiscovery : IServiceDiscovery
     {
         if (currentIpAddress is null || currentPort is null) return;
 
-        ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(new ServiceAnnouncement()
-        {
-            Address = currentIpAddress,
-            Port = currentPort.Value,
-        }));
+        ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(
+            new ServiceAnnouncement(currentIpAddress, currentPort.Value)));
     }
 
     private NWBrowser CreateBrowser(string type)

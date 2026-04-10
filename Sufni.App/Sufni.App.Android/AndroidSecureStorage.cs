@@ -1,23 +1,26 @@
+using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Android.Content;
 using Android.Runtime;
 using Android.Security.Keystore;
 using Java.Security;
 using Javax.Crypto;
 using Javax.Crypto.Spec;
+using Sufni.App.Services;
 
-namespace SecureStorage;
+namespace Sufni.App.Android;
 
 public class SecureStorageException : Exception;
 
-public class SecureStorage : ISecureStorage
+public class AndroidSecureStorage : ISecureStorage
 {
     private const string KeyAlias = "sufni.app.android.keystore.aes";
     private const string PrefName = "sufni.app.prefs";
 
     private readonly ISharedPreferences? prefs;
 
-    public SecureStorage()
+    public AndroidSecureStorage()
     {
         var context = Application.Context;
         prefs = context.GetSharedPreferences(PrefName, FileCreationMode.Private);
