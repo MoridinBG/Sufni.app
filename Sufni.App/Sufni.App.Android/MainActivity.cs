@@ -7,7 +7,9 @@ using HapticFeedback;
 using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using ServiceDiscovery;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.Android
 {
@@ -21,13 +23,15 @@ namespace Sufni.App.Android
     {
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
-            RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            RegisteredServices.Collection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
-            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
-            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
-            RegisteredServices.Collection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>(provider => 
+            App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
+            App.ServiceCollection.AddSingleton<IFriendlyNameProvider, FriendlyNameProvider.FriendlyNameProvider>();
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("sync");
+            App.ServiceCollection.AddSingleton<IHapticFeedback, HapticFeedback.HapticFeedback>(provider => 
                 new HapticFeedback.HapticFeedback(Window!)); 
-            RegisteredServices.Collection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+            App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+            App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
+            App.ServiceCollection.AddSingleton<PairingClientViewModel>();
 
             return base.CustomizeAppBuilder(builder)
                 .UseAndroid()

@@ -1,20 +1,21 @@
-﻿using System.Diagnostics;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
+﻿using System.Threading.Tasks;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
 public class SynchronizationClientService : ISynchronizationClientService
 {
-    private readonly IDatabaseService? databaseService = App.Current?.Services?.GetService<IDatabaseService>();
-    private readonly IHttpApiService? httpApiService = App.Current?.Services?.GetService<IHttpApiService>();
+    private readonly IDatabaseService databaseService;
+    private readonly IHttpApiService httpApiService;
+
+    public SynchronizationClientService(IDatabaseService databaseService, IHttpApiService httpApiService)
+    {
+        this.databaseService = databaseService;
+        this.httpApiService = httpApiService;
+    }
 
     private async Task PushLocalChanges(long lastSyncTime)
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-        Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
-
         var changes = new SynchronizationData
         {
             Boards = await databaseService.GetChangedAsync<Board>(lastSyncTime),
@@ -28,9 +29,6 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PushIncompleteSessions()
     {
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-        Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
-
         var incompleteSessions = await httpApiService.GetIncompleteSessionIdsAsync();
         foreach (var id in incompleteSessions)
         {
@@ -44,9 +42,6 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PullRemoteChanges(long lastSyncTime)
     {
-        Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
         foreach (var board in syncData.Boards)
         {
@@ -111,9 +106,6 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PullIncompleteSessions()
     {
-        Debug.Assert(httpApiService != null, nameof(httpApiService) + " != null");
-        Debug.Assert(databaseService != null, nameof(databaseService) + " != null");
-
         var incompleteSessionIds = await databaseService.GetIncompleteSessionIdsAsync();
         foreach (var id in incompleteSessionIds)
         {
@@ -127,9 +119,6 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     public async Task SyncAll()
     {
-        Debug.Assert(databaseService != null);
-        Debug.Assert(httpApiService != null);
-
         var lastSyncTime = await databaseService.GetLastSyncTimeAsync(httpApiService.ServerUrl);
 
         await PushLocalChanges(lastSyncTime);

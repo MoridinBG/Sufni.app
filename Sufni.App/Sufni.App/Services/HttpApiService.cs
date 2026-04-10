@@ -9,7 +9,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 
 namespace Sufni.App.Services;
@@ -30,7 +29,7 @@ internal class HttpApiService : IHttpApiService
     private readonly HttpClient client = new(Handler);
 
     private Task Initialization { get; }
-    private ISecureStorage? secureStorage;
+    private readonly ISecureStorage secureStorage;
     private string? refreshToken;
     private DateTimeOffset? tokenExpiry;
 
@@ -52,8 +51,9 @@ internal class HttpApiService : IHttpApiService
 
     #region Constructors
 
-    public HttpApiService()
+    public HttpApiService(ISecureStorage secureStorage)
     {
+        this.secureStorage = secureStorage;
         Initialization = Init();
     }
 
@@ -75,7 +75,6 @@ internal class HttpApiService : IHttpApiService
 
         Debug.Assert(ServerUrl is not null);
         Debug.Assert(refreshToken is not null);
-        Debug.Assert(secureStorage is not null);
 
         using var response = await client.PostAsJsonAsync($"{ServerUrl}/pair/refresh",
             new RefreshRequest(refreshToken));
@@ -104,9 +103,6 @@ internal class HttpApiService : IHttpApiService
 
     private async Task Init()
     {
-        secureStorage = App.Current?.Services?.GetService<ISecureStorage>();
-        Debug.Assert(secureStorage is not null);
-
         ServerUrl = await secureStorage.GetStringAsync(ServerUrlKey);
         refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
     }
@@ -115,30 +111,26 @@ internal class HttpApiService : IHttpApiService
 
     #region Public methods - pairing
 
-    public async Task RequestPairingAsync(string url, string deviceId)
+    public async Task RequestPairingAsync(string url, string deviceId, string? displayName)
     {
         await Initialization;
 
-        Debug.Assert(secureStorage is not null);
-
         using var response = await client.PostAsJsonAsync(
-            $"{url}{SynchronizationServerService.EndpointPairRequest}", 
-            new PairingRequest(deviceId));
+            $"{url}{SynchronizationServerService.EndpointPairRequest}",
+            new PairingRequest(deviceId, displayName));
         response.EnsureSuccessStatusCode();
 
         ServerUrl = url;
         await secureStorage.SetStringAsync(ServerUrlKey, ServerUrl);
     }
 
-    public async Task ConfirmPairingAsync(string deviceId, string pin)
+    public async Task ConfirmPairingAsync(string deviceId, string? displayName, string pin)
     {
         await Initialization;
 
-        Debug.Assert(secureStorage is not null);
-
         using var response = await client.PostAsJsonAsync(
             $"{ServerUrl}{SynchronizationServerService.EndpointPairConfirm}",
-            new PairingConfirm(deviceId, pin));
+            new PairingConfirm(deviceId, displayName, pin));
         response.EnsureSuccessStatusCode();
 
         var tokens = await response.Content.ReadFromJsonAsync<TokenResponse>();
@@ -157,7 +149,6 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        Debug.Assert(secureStorage is not null);
         Debug.Assert(refreshToken is not null);
 
         // Clean out locally first, so even if the server call fails for some reason (e.g. no network),
@@ -176,8 +167,6 @@ internal class HttpApiService : IHttpApiService
     public async Task<bool> IsPairedAsync()
     {
         await Initialization;
-
-        Debug.Assert(secureStorage is not null);
 
         var token =  await secureStorage.GetStringAsync(RefreshTokenKey);
         var url = await secureStorage.GetStringAsync(ServerUrlKey);
