@@ -4,8 +4,10 @@ using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -14,6 +16,7 @@ public class ImportSessionsCoordinatorTests
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
+    private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
     private readonly ITelemetryDataStore dataStore = Substitute.For<ITelemetryDataStore>();
 
     /// <summary>
@@ -27,7 +30,7 @@ public class ImportSessionsCoordinatorTests
             "The resolver should not be invoked directly from tests.");
 
     private ImportSessionsCoordinator CreateCoordinator() => new(
-        database, sessionStore, shell, importSessionsResolver);
+        database, sessionStore, shell, backgroundTaskRunner, importSessionsResolver);
 
     // ----- OpenAsync -----
 
@@ -286,6 +289,17 @@ public class ImportSessionsCoordinatorTests
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Name == "ok"));
     }
 
+    [Fact]
+    public async Task ImportAsync_RoutesWorkflowThroughBackgroundTaskRunner()
+    {
+        var (setup, _) = SeedSetupAndBike();
+
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportAsync(dataStore, Array.Empty<ITelemetryFile>(), setup.Id);
+
+        Assert.Equal(1, backgroundTaskRunner.InvocationCount);
+    }
+
     // ----- helpers -----
 
     private (Setup setup, Bike bike) SeedSetupAndBike(double headAngle = 65.0)
@@ -298,21 +312,6 @@ public class ImportSessionsCoordinatorTests
         database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(bike));
         return (setup, bike);
     }
-
-    private static ITelemetryFile CreateTelemetryFile(
-        string name = "file",
-        string description = "",
-        DateTime? startTime = null,
-        bool? shouldBeImported = true)
-    {
-        var file = Substitute.For<ITelemetryFile>();
-        file.Name.Returns(name);
-        file.Description.Returns(description);
-        file.StartTime.Returns(startTime ?? new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        file.ShouldBeImported.Returns(shouldBeImported);
-        return file;
-    }
-
     /// <summary>
     /// `IProgress<T>.Report` is void — using a capture list lets tests
     /// assert on the sequence of progress events synchronously without

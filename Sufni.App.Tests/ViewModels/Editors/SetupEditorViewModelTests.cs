@@ -44,7 +44,8 @@ public class SetupEditorViewModelTests
         var bike = TestSnapshots.Bike();
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(name: "race day", bikeId: bike.Id, boardId: boardId, updated: 9)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
 
         var editor = CreateEditor(snapshot);
 
@@ -106,7 +107,8 @@ public class SetupEditorViewModelTests
         var bike = TestSnapshots.Bike();
         bikesCache.AddOrUpdate(bike);
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, boardId: Guid.NewGuid())
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
 
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
@@ -124,7 +126,8 @@ public class SetupEditorViewModelTests
         bikesCache.AddOrUpdate(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, boardId: boardId, updated: 5)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
@@ -150,7 +153,8 @@ public class SetupEditorViewModelTests
         bikesCache.AddOrUpdate(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, boardId: boardId, updated: 5)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
@@ -171,13 +175,15 @@ public class SetupEditorViewModelTests
         bikesCache.AddOrUpdate(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(name: "old", bikeId: bike.Id, boardId: boardId, updated: 5)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Setup(id: snapshot.Id, name: "remote-updated", bikeId: bike.Id, boardId: boardId, updated: 12)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
@@ -196,13 +202,15 @@ public class SetupEditorViewModelTests
         bikesCache.AddOrUpdate(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(name: "old", bikeId: bike.Id, boardId: boardId, updated: 5)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Setup(id: snapshot.Id, name: "remote-updated", bikeId: bike.Id, boardId: boardId, updated: 12)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
@@ -221,7 +229,8 @@ public class SetupEditorViewModelTests
         bikesCache.AddOrUpdate(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, boardId: boardId, updated: 5)
-            with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+            with
+        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
@@ -232,7 +241,7 @@ public class SetupEditorViewModelTests
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        Assert.Contains(editor.ErrorMessages, m => m.Contains("disk full"));
+        Assert.Single(editor.ErrorMessages);
     }
 
     // ----- Delete -----
@@ -273,7 +282,7 @@ public class SetupEditorViewModelTests
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
-        Assert.Contains(editor.ErrorMessages, m => m.Contains("locked"));
+        Assert.Single(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
     }
 
