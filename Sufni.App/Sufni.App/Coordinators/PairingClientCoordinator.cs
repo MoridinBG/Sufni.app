@@ -2,7 +2,6 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using SecureStorage;
 using ServiceDiscovery;
 using Sufni.App.Models;
 using Sufni.App.Services;
