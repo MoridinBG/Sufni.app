@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using SecureStorage;
 using System;
 using ServiceDiscovery;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.macOS
 {
@@ -19,9 +21,12 @@ namespace Sufni.App.macOS
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
-            RegisteredServices.Collection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
-            RegisteredServices.Collection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
-            RegisteredServices.Collection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
+            App.ServiceCollection.AddSingleton<ISecureStorage, SecureStorage.SecureStorage>();
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, ServiceDiscovery.ServiceDiscovery>("gosst");
+            App.ServiceCollection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
+            App.ServiceCollection.AddSingleton<IPairingServerCoordinator, PairingServerCoordinator>();
+            App.ServiceCollection.AddSingleton<IInboundSyncCoordinator, InboundSyncCoordinator>();
+            App.ServiceCollection.AddSingleton<PairingServerViewModel>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()

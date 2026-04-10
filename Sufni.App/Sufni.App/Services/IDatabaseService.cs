@@ -15,6 +15,7 @@ public interface IDatabaseService
     public Task DeleteAsync<T>(Guid id) where T : Synchronizable, new();
     public Task DeleteAsync<T>(T item) where T : Synchronizable, new();
     public Task<List<Session>> GetSessionsAsync();
+    public Task<Session?> GetSessionAsync(Guid id);
     public Task<List<Guid>> GetIncompleteSessionIdsAsync();
     public Task<TelemetryData?> GetSessionPsstAsync(Guid id);
     public Task<byte[]?> GetSessionRawPsstAsync(Guid id);
