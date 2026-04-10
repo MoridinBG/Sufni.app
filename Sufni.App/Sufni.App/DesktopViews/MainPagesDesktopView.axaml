@@ -189,7 +189,7 @@
                 FontSize="16">
                 <Run Text="Pairing request from " />
                 <LineBreak />
-                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingId}" />
+                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingName}" />
             </TextBlock>
 
             <!--  PIN Display  -->

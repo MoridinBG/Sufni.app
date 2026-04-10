@@ -4,7 +4,7 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class DesktopShellCoordinator(Func<MainWindowViewModel> mainWindowProvider) : IShellCoordinator
+public sealed class DesktopShellCoordinator(Func<IMainWindowShellHost> mainWindowProvider) : IShellCoordinator
 {
     public void Open(ViewModelBase view) => mainWindowProvider().OpenView(view);
 
@@ -20,6 +20,16 @@ public sealed class DesktopShellCoordinator(Func<MainWindowViewModel> mainWindow
         if (view is TabPageViewModelBase tab)
         {
             mainWindowProvider().CloseTabPage(tab);
+        }
+    }
+
+    public void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase
+    {
+        var window = mainWindowProvider();
+        var existing = window.Tabs.OfType<T>().FirstOrDefault(match);
+        if (existing is TabPageViewModelBase tab)
+        {
+            window.CloseTabPage(tab);
         }
     }
 

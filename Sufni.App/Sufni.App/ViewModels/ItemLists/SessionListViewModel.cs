@@ -12,24 +12,25 @@ using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-// Inherits from ItemListViewModelBase so the shared SearchBar /
-// UndoDeleteButton / PullableMenuScrollViewer keep resolving against the
-// base type. The base SourceCache<ItemViewModelBase> is unused — the
-// new flow projects ISessionStore.Connect() into a separate
-// `sessionRows` collection that shadows the base Items property.
+// Inherits from ItemListViewModelBase for the shared search-bar /
+// date-filter / menu-item state. The items collection is owned locally
+// — `sessionRows` is a typed projection from the store, exposed via
+// the `new` shadow on `Items`.
 public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly ISessionStore sessionStore;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<SessionSnapshot, bool>> filterSubject = new(_ => true);
+    private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
 
     #region Observable properties
 
-    public new ReadOnlyObservableCollection<SessionRowViewModel> Items => sessionRows;
+    public ReadOnlyObservableCollection<SessionRowViewModel> Items => sessionRows;
 
     #endregion Observable properties
 
@@ -37,28 +38,28 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     public SessionListViewModel()
     {
+        sessionStore = null!;
         sessionCoordinator = null!;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>([]);
     }
 
     public SessionListViewModel(ISessionStore sessionStore, ISessionCoordinator sessionCoordinator)
     {
+        this.sessionStore = sessionStore;
         this.sessionCoordinator = sessionCoordinator;
 
         sessionStore.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new SessionRowViewModel(snapshot, sessionCoordinator),
+                snapshot => new SessionRowViewModel(snapshot, sessionCoordinator, RequestRowDelete),
                 (row, snapshot) => row.Update(snapshot))
             .SortAndBind(
                 out sessionRows,
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
             .Subscribe();
 
-        // The base's OnSearchTextChanged / OnDateFilterFromChanged /
-        // OnDateFilterToChanged partial methods only refresh the (empty)
-        // base SourceCache. We need to push a fresh predicate to our own
-        // filter subject when any of those change.
+        // Push a fresh predicate to our filter subject whenever the
+        // search text or date-filter bounds change.
         PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(SearchText) or nameof(DateFilterFrom) or nameof(DateFilterTo))
@@ -70,18 +71,20 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #endregion Constructors
 
-    #region Private methods
+    #region ItemListViewModelBase overrides
 
-    private void RebuildFilter()
+    protected override void RebuildFilter()
     {
         var search = SearchText;
         var fromDate = DateFilterFrom;
         var toDate = DateFilterTo;
+        var pendingId = pendingDelete?.Id;
 
         filterSubject.OnNext(snapshot =>
         {
-            // Search matches name OR description (legacy ConnectSource
-            // checked both).
+            if (pendingId is not null && snapshot.Id == pendingId) return false;
+
+            // Search matches name OR description.
             var textMatch =
                 string.IsNullOrEmpty(search) ||
                 snapshot.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
@@ -98,13 +101,42 @@ public partial class SessionListViewModel : ItemListViewModelBase
         });
     }
 
-    #endregion Private methods
-
-    #region ItemListViewModelBase overrides
-
-    public override Task LoadFromDatabase() => Task.CompletedTask;
+    protected override void OnPendingDeleteUndone()
+    {
+        pendingDelete = null;
+        RebuildFilter();
+    }
 
     #endregion ItemListViewModelBase overrides
+
+    #region Private methods
+
+    private async void RequestRowDelete(SessionRowViewModel row)
+    {
+        var snapshot = sessionStore.Get(row.Id);
+        if (snapshot is null) return;
+
+        await FlushPendingDeleteAsync();
+
+        pendingDelete = (snapshot.Id, snapshot.Name);
+        RebuildFilter();
+
+        StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
+    }
+
+    private async Task FinalizeSessionDeleteAsync(Guid sessionId)
+    {
+        pendingDelete = null;
+        RebuildFilter();
+
+        var result = await sessionCoordinator.DeleteAsync(sessionId);
+        if (result.Outcome == SessionDeleteOutcome.Failed)
+        {
+            ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
+        }
+    }
+
+    #endregion Private methods
 
     #region Commands
 

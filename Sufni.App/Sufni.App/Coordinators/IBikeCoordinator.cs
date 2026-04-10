@@ -1,7 +1,10 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.BikeEditing;
 using Sufni.App.Models;
 using Sufni.App.Stores;
+using Sufni.Kinematics;
 
 namespace Sufni.App.Coordinators;
 
@@ -24,6 +27,16 @@ public interface IBikeCoordinator
     /// </summary>
     Task OpenEditAsync(Guid bikeId);
 
+    Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
+        Linkage? linkage,
+        CancellationToken cancellationToken = default);
+
+    Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default);
+
+    Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default);
+
+    Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Persist a bike built by the editor. The coordinator checks
     /// <paramref name="baselineUpdated"/> against the store's current
@@ -39,13 +52,6 @@ public interface IBikeCoordinator
     /// referenced by a setup.
     /// </summary>
     Task<BikeDeleteResult> DeleteAsync(Guid bikeId);
-
-    /// <summary>
-    /// True if the bike can be deleted right now. Used to enable/disable
-    /// row-level delete commands; the authoritative check still happens
-    /// inside <see cref="DeleteAsync"/>.
-    /// </summary>
-    Task<bool> CanDeleteAsync(Guid bikeId);
 }
 
 /// <summary>
@@ -57,8 +63,9 @@ public abstract record BikeSaveResult
 {
     private BikeSaveResult() { }
 
-    public sealed record Saved(long NewBaselineUpdated) : BikeSaveResult;
+    public sealed record Saved(long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
+    public sealed record InvalidLinkage : BikeSaveResult;
     public sealed record Failed(string ErrorMessage) : BikeSaveResult;
 }
 

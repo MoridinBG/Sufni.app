@@ -1,15 +1,16 @@
 <UserControl
-    x:Class="Sufni.App.DesktopViews.Editors.BikeEditorDesktopView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:v="using:Sufni.App.DesktopViews.Items"
-    xmlns:vm="using:Sufni.App.ViewModels.Editors"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vm:BikeEditorViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.DesktopViews.Editors.BikeEditorDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:v="using:Sufni.App.DesktopViews.Items"
+xmlns:vm="using:Sufni.App.ViewModels.Editors"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:BikeEditorViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BikeEditorViewModel />
@@ -20,21 +21,58 @@
         <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />
         </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
     </Interaction.Behaviors>
 
-    <SplitView
+    <Grid>
+
+        <SplitView
         DisplayMode="Inline"
         IsPaneOpen="True"
         OpenPaneLength="400"
         PanePlacement="Right">
 
-        <SplitView.Pane>
-            <v:BikeImageControlsDesktopView />
-        </SplitView.Pane>
+            <SplitView.Pane>
+                <v:BikeImageControlsDesktopView />
+            </SplitView.Pane>
 
-        <!--  Bike image / linkage  -->
-        <v:BikeImageDesktopView />
+            <!--  Bike image / linkage  -->
+            <v:BikeImageDesktopView />
 
-    </SplitView>
+        </SplitView>
+
+        <Panel
+        Background="#0d0d0d"
+        IsHitTestVisible="True"
+        Opacity="0.4">
+            <Panel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="LoadedCommand.IsRunning" />
+                    <Binding Path="ImportCommand.IsRunning" />
+                    <Binding Path="OpenImageCommand.IsRunning" />
+                    <Binding Path="SaveCommand.IsRunning" />
+                </MultiBinding>
+            </Panel.IsVisible>
+        </Panel>
+
+        <progRing:ProgressRing
+        Width="40"
+        Height="40"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Foreground="{StaticResource SufniAccentColor}">
+            <progRing:ProgressRing.IsActive>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="LoadedCommand.IsRunning" />
+                    <Binding Path="ImportCommand.IsRunning" />
+                    <Binding Path="OpenImageCommand.IsRunning" />
+                    <Binding Path="SaveCommand.IsRunning" />
+                </MultiBinding>
+            </progRing:ProgressRing.IsActive>
+        </progRing:ProgressRing>
+
+    </Grid>
 
 </UserControl>

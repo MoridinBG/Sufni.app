@@ -19,10 +19,9 @@ public interface ISessionStore
     IObservable<IChangeSet<SessionSnapshot, Guid>> Connect();
 
     /// <summary>
-    /// Per-id observable used by <c>SessionDetailViewModel</c> to
-    /// react to telemetry-arrival and recalculation events for a
-    /// specific session. See "Telemetry-arrival semantics" in
-    /// REFACTOR-PLAN.md for the contract.
+    /// Per-id observable used by <see cref="SessionSnapshot"/>
+    /// consumers to react to telemetry-arrival and recalculation
+    /// events for a specific session.
     /// </summary>
     IObservable<SessionSnapshot> Watch(Guid id);
 

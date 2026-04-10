@@ -10,11 +10,10 @@ using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-// Inherits from ItemListViewModelBase so the shared SearchBar and
-// UndoDeleteButton (which still bind against ItemListViewModelBase) keep
-// working without changes. The base's SourceCache<ItemViewModelBase> is
-// unused — the new flow projects from ISetupStore into a separate
-// `setupRows` collection that shadows the base's Items property.
+// Inherits from ItemListViewModelBase for the shared search-bar /
+// date-filter / menu-item state. The items collection is owned locally
+// — `setupRows` is a typed projection from the store, exposed via the
+// `new` shadow on `Items`.
 public partial class SetupListViewModel : ItemListViewModelBase
 {
     #region Private fields
@@ -24,12 +23,13 @@ public partial class SetupListViewModel : ItemListViewModelBase
     private readonly ImportSessionsViewModel importSessionsPage;
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
+    private (Guid Id, string Name)? pendingDelete;
 
     #endregion Private fields
 
     #region Observable properties
 
-    public new ReadOnlyObservableCollection<SetupRowViewModel> Items => setupRows;
+    public ReadOnlyObservableCollection<SetupRowViewModel> Items => setupRows;
 
     #endregion Observable properties
 
@@ -55,14 +55,13 @@ public partial class SetupListViewModel : ItemListViewModelBase
         setupStore.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new SetupRowViewModel(snapshot, setupCoordinator),
+                snapshot => new SetupRowViewModel(snapshot, setupCoordinator, RequestRowDelete),
                 (row, snapshot) => row.Update(snapshot))
             .Bind(out setupRows)
             .Subscribe();
 
-        // The base's OnSearchTextChanged partial method only refreshes
-        // the (empty) base SourceCache. We need to refresh our own
-        // filter subject when the user types.
+        // Push a fresh predicate to our filter subject whenever the
+        // search text changes.
         PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(SearchText)) RebuildFilter();
@@ -71,21 +70,23 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     #endregion Constructors
 
-    #region Private methods
-
-    private void RebuildFilter()
-    {
-        var current = SearchText;
-        filterSubject.OnNext(snapshot =>
-            string.IsNullOrEmpty(current) ||
-            snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase));
-    }
-
-    #endregion Private methods
-
     #region ItemListViewModelBase overrides
 
-    public override Task LoadFromDatabase() => Task.CompletedTask;
+    protected override void RebuildFilter()
+    {
+        var current = SearchText;
+        var pendingId = pendingDelete?.Id;
+        filterSubject.OnNext(snapshot =>
+            (pendingId is null || snapshot.Id != pendingId) &&
+            (string.IsNullOrEmpty(current) ||
+             snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
+    }
+
+    protected override void OnPendingDeleteUndone()
+    {
+        pendingDelete = null;
+        RebuildFilter();
+    }
 
     protected override void AddImplementation()
     {
@@ -96,6 +97,35 @@ public partial class SetupListViewModel : ItemListViewModelBase
     }
 
     #endregion ItemListViewModelBase overrides
+
+    #region Private methods
+
+    private async void RequestRowDelete(SetupRowViewModel row)
+    {
+        var snapshot = setupStore.Get(row.Id);
+        if (snapshot is null) return;
+
+        await FlushPendingDeleteAsync();
+
+        pendingDelete = (snapshot.Id, snapshot.Name);
+        RebuildFilter();
+
+        StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
+    }
+
+    private async Task FinalizeSetupDeleteAsync(Guid setupId)
+    {
+        pendingDelete = null;
+        RebuildFilter();
+
+        var result = await setupCoordinator.DeleteAsync(setupId);
+        if (result.Outcome == SetupDeleteOutcome.Failed)
+        {
+            ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
+        }
+    }
+
+    #endregion Private methods
 
     #region Commands
 
