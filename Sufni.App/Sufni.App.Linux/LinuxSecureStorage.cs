@@ -65,7 +65,7 @@ public class LinuxSecureStorage : ISecureStorage
             $"{LabelPrefix} ({key})",
             GetAttributes(key),
             value as byte[] ?? Encoding.UTF8.GetBytes((value as string)!),
-            value is byte[] ? ContentTypeBytes : ContentTypeText,
+            value is byte[]? ContentTypeBytes : ContentTypeText,
             true);
 
         if (createdItem == null)
