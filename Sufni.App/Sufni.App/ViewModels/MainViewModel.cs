@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Sufni.App.ViewModels;
 
-public partial class MainViewModel : ViewModelBase
+public partial class MainViewModel : ViewModelBase, IMainViewShellHost
 {
     private readonly Stack<ViewModelBase> viewHistory = new();
 

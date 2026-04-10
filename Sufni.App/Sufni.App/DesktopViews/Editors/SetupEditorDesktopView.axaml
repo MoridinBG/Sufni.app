@@ -19,6 +19,15 @@
         <vm:SetupEditorViewModel />
     </Design.DataContext>
 
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
     <Grid
         MinWidth="300"
         Margin="20,0,20,10"

@@ -9,7 +9,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly ISetupCoordinator setupCoordinator;
-    private readonly IImportSessionsOpener importSessionsOpener;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
 
     #region Constructors
 
@@ -17,21 +17,21 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     {
         bikeCoordinator = null!;
         setupCoordinator = null!;
-        importSessionsOpener = null!;
+        importSessionsCoordinator = null!;
         Name = "Welcome";
     }
 
     public WelcomeScreenViewModel(
-        INavigator navigator,
+        IShellCoordinator shell,
         IDialogService dialogService,
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
-        IImportSessionsOpener importSessionsOpener)
-        : base(navigator, dialogService)
+        IImportSessionsCoordinator importSessionsCoordinator)
+        : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.setupCoordinator = setupCoordinator;
-        this.importSessionsOpener = importSessionsOpener;
+        this.importSessionsCoordinator = importSessionsCoordinator;
         Name = "Welcome";
     }
 
@@ -43,10 +43,10 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private async Task AddBike() => await bikeCoordinator.OpenCreateAsync();
 
     [RelayCommand]
-    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync();
+    private async Task AddSetup() => await setupCoordinator.OpenCreateForDetectedBoardAsync();
 
     [RelayCommand]
-    private void ImportSession() => importSessionsOpener.OpenImportSessions();
+    private async Task ImportSession() => await importSessionsCoordinator.OpenAsync();
 
     #endregion Commands
 }
