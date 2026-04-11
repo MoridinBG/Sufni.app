@@ -63,6 +63,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
+        ServiceCollection.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
         ServiceCollection.AddSingleton<IBikeCoordinator, BikeCoordinator>();
         ServiceCollection.AddSingleton<SetupStore>();
         ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
@@ -76,6 +77,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
+        ServiceCollection.AddSingleton<ILiveDaqBrowseOwner, LiveDaqBrowseOwner>();
+        ServiceCollection.AddSingleton<ILiveDaqBoardIdProbe, LiveDaqBoardIdProbe>();
+        ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
