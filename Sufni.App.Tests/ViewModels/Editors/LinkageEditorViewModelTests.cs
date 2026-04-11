@@ -30,6 +30,21 @@ public class LinkageEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public void BuildCurrentLinkage_ResolvesLinkAndShockLengths()
+    {
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var viewModel = new LinkageEditorViewModel();
+
+        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+
+        var rebuilt = viewModel.BuildCurrentLinkage(100, 1, baseline.ShockStroke);
+
+        Assert.NotNull(rebuilt);
+        Assert.All(rebuilt.Links, link => Assert.True(link.Length > 0));
+        Assert.True(rebuilt.Shock.Length > 0);
+    }
+
+    [AvaloniaFact]
     public void AddInitialJoints_AddsMandatoryJoints_AndDoesNotDuplicateShock()
     {
         var viewModel = new LinkageEditorViewModel();

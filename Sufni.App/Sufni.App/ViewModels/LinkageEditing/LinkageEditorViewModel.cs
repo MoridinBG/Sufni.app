@@ -199,13 +199,11 @@ public partial class LinkageEditorViewModel : ObservableObject
             return null;
         }
 
-        return new Linkage
-        {
-            Joints = [.. JointViewModels.Select(joint => joint.ToJoint(imageHeight.Value, pixelsToMillimeters.Value))],
-            Links = [.. LinkViewModels.Where(link => link != shockViewModel).Select(link => link.ToLink(imageHeight.Value, pixelsToMillimeters.Value))],
-            Shock = shockViewModel.ToLink(imageHeight.Value, pixelsToMillimeters.Value),
-            ShockStroke = shockStroke.Value,
-        };
+        return Linkage.CreateResolved(
+            JointViewModels.Select(joint => joint.ToJoint(imageHeight.Value, pixelsToMillimeters.Value)),
+            LinkViewModels.Where(link => link != shockViewModel).Select(link => link.ToLink(imageHeight.Value, pixelsToMillimeters.Value)),
+            shockViewModel.ToLink(imageHeight.Value, pixelsToMillimeters.Value),
+            shockStroke.Value);
     }
 
     public bool HasChangesComparedTo(Linkage? baseline, double? imageHeight, double? pixelsToMillimeters)
@@ -503,6 +501,12 @@ public partial class LinkageEditorViewModel : ObservableObject
             jointViewModels.Remove(SelectedPoint);
             ClearSelections();
         }
+    }
+
+    [RelayCommand]
+    private void CreateJoint()
+    {
+        jointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, 100, 100));
     }
 
     [RelayCommand]

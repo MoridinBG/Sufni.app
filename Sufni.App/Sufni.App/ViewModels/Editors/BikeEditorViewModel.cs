@@ -335,13 +335,14 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (PixelsToMillimeters is null || !WheelGeometry.FrontWheelDiameter.HasValue || !WheelGeometry.RearWheelDiameter.HasValue) return;
 
-        var mapping = new JointNameMapping();
-        var headTube1 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube1);
-        var headTube2 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube2);
+        var headTubeJoints = LinkageEditor.JointViewModels.Where(joint => joint.Type == JointType.HeadTube).ToList();
         var frontWheel = GetFrontWheelJoint();
         var rearWheel = GetRearWheelJoint();
 
-        if (headTube1 is null || headTube2 is null || frontWheel is null || rearWheel is null) return;
+        if (headTubeJoints.Count < 2 || frontWheel is null || rearWheel is null) return;
+
+        var headTube1 = headTubeJoints[0];
+        var headTube2 = headTubeJoints[1];
 
         var frontRadiusPixels = WheelGeometry.FrontWheelDiameter.Value / 2.0 / PixelsToMillimeters.Value;
         var rearRadiusPixels = WheelGeometry.RearWheelDiameter.Value / 2.0 / PixelsToMillimeters.Value;
