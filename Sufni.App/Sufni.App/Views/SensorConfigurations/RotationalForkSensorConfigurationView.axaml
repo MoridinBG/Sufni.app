@@ -1,14 +1,14 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.SensorConfigurations.RotationalForkSensorConfigurationView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SensorConfigurations"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vm:RotationalForkSensorConfigurationViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.SensorConfigurations.RotationalForkSensorConfigurationView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SensorConfigurations"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:RotationalForkSensorConfigurationViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:RotationalForkSensorConfigurationViewModel />
@@ -17,31 +17,33 @@
     <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto">
         <!--  Length  -->
         <Label
-            Grid.Row="0"
-            Grid.Column="0"
-            VerticalAlignment="Center"
-            Content="Maximum length: " />
+        Grid.Row="0"
+        Grid.Column="0"
+        VerticalAlignment="Center"
+        Content="Maximum length: " />
         <NumericUpDown
-            Grid.Row="0"
-            Grid.Column="1"
-            Margin="0,2,2,2"
-            Increment="1"
-            Maximum="500"
-            Minimum="100"
-            Value="{Binding MaxLength}" />
+        Name="MaxLengthNumericUpDown"
+        Grid.Row="0"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        Increment="1"
+        Maximum="500"
+        Minimum="100"
+        Value="{Binding MaxLength}" />
 
         <!--  Resolution  -->
         <Label
-            Grid.Row="1"
-            Grid.Column="0"
-            VerticalAlignment="Center"
-            Content="Arm length: " />
+        Grid.Row="1"
+        Grid.Column="0"
+        VerticalAlignment="Center"
+        Content="Arm length: " />
         <NumericUpDown
-            Grid.Row="1"
-            Grid.Column="1"
-            Margin="0,2,2,2"
-            Maximum="500"
-            Minimum="50"
-            Value="{Binding ArmLength}" />
+        Name="ArmLengthNumericUpDown"
+        Grid.Row="1"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        Maximum="500"
+        Minimum="50"
+        Value="{Binding ArmLength}" />
     </Grid>
 </UserControl>
