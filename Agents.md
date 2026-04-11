@@ -280,7 +280,8 @@ Service or factory: owns infrastructure-facing work such as picker integration, 
 # Testing
 
 When writing new code, write unit tests for it. When changing code verify and update the existing tests.
-When adding or changing tests, first read `TESTING-GUIDE.md`.
+When adding or changing unit tests, `TESTING.md` is required reading before writing the tests.
+When adding or changing view tests, `VIEW-TESTING.md` is required reading before writing the view tests.
 
 - Test one unit through its public interface.
 - Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.

@@ -1,41 +1,43 @@
 <UserControl
-    x:Class="Sufni.App.Views.Controls.ErrorMessagesBar"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    d:DesignHeight="50"
-    d:DesignWidth="500"
-    x:DataType="vm:ViewModelBase"
-    IsVisible="{Binding ErrorMessages.Count}"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.Controls.ErrorMessagesBar"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+d:DesignHeight="50"
+d:DesignWidth="500"
+x:DataType="vm:ViewModelBase"
+IsVisible="{Binding ErrorMessages.Count}"
+mc:Ignorable="d">
     <Border
-        MaxHeight="100"
-        Padding="5"
-        Background="#6f312d"
-        BorderBrush="Brown"
-        BorderThickness="2"
-        CornerRadius="5">
+    MaxHeight="100"
+    Padding="5"
+    Background="#6f312d"
+    BorderBrush="Brown"
+    BorderThickness="2"
+    CornerRadius="5">
         <Grid ColumnDefinitions="*" RowDefinitions="auto *">
             <Button
-                Grid.Row="0"
-                Width="50"
-                Height="20"
-                Padding="0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Background="#6f312d"
-                Command="{Binding ClearErrorsCommand}"
-                Content="close"
-                CornerRadius="2"
-                Foreground="#d0d0d0" />
+            Name="CloseButton"
+            Grid.Row="0"
+            Width="50"
+            Height="20"
+            Padding="0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            Background="#6f312d"
+            Command="{Binding ClearErrorsCommand}"
+            Content="close"
+            CornerRadius="2"
+            Foreground="#d0d0d0" />
             <ListBox
-                Grid.Row="1"
-                Background="Transparent"
-                ItemsSource="{Binding ErrorMessages}">
+            Name="ErrorListBox"
+            Grid.Row="1"
+            Background="Transparent"
+            ItemsSource="{Binding ErrorMessages}">
                 <ListBox.Styles>
                     <Style Selector="ListBoxItem">
                         <Setter Property="Padding" Value="0,2, 0, 0" />
@@ -50,9 +52,9 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <TextBlock
-                            Foreground="#d0d0d0"
-                            Text="{Binding}"
-                            TextWrapping="Wrap" />
+                        Foreground="#d0d0d0"
+                        Text="{Binding}"
+                        TextWrapping="Wrap" />
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
