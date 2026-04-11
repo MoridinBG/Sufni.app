@@ -11,6 +11,7 @@ namespace Sufni.App.Services;
 public interface ITelemetryDataStoreService
 {
     public ObservableCollection<ITelemetryDataStore> DataStores { get; }
+    public event EventHandler<string>? ErrorOccurred;
     public void StartBrowse();
     public void StopBrowse();
 

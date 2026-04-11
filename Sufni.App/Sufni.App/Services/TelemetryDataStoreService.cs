@@ -41,6 +41,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     private volatile bool isBrowsing;
 
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = new();
+    public event EventHandler<string>? ErrorOccurred;
 
     private async Task RefreshMassStorageDataStoresAsync(CancellationToken cancellationToken = default)
     {
@@ -129,8 +130,18 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         var ipAddress = e.Announcement.Address;
         var port = e.Announcement.Port;
 
-        var ds = new NetworkTelemetryDataStore(ipAddress, port);
-        await ds.Initialization;
+        NetworkTelemetryDataStore ds;
+        try
+        {
+            ds = new NetworkTelemetryDataStore(ipAddress, port);
+            await ds.Initialization;
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                ErrorOccurred?.Invoke(this, $"Could not connect to DAQ at {ipAddress}:{port}: {ex.Message}"));
+            return;
+        }
 
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
