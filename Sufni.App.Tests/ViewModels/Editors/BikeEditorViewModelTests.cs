@@ -854,6 +854,32 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Import_CancelsInFlightAnalysis()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        CancellationToken capturedToken = default;
+        var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        bikeCoordinator
+            .LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                capturedToken = call.Arg<CancellationToken>();
+                return pendingAnalysis.Task;
+            });
+
+        var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
+        Assert.False(capturedToken.IsCancellationRequested);
+
+        await editor.ImportCommand.ExecuteAsync(null);
+
+        Assert.True(capturedToken.IsCancellationRequested);
+        pendingAnalysis.SetCanceled();
+        await loadedTask;
+    }
+
+    [AvaloniaFact]
     public async Task Import_SupersedesEarlierPendingAnalysisResult()
     {
         var snapshot = TestSnapshots.Bike(updated: 5, name: "old bike");
