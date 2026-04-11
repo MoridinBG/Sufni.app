@@ -229,6 +229,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     [ObservableProperty] private JointViewModel? selectedPoint;
     [ObservableProperty] private LinkViewModel? selectedLink;
     [ObservableProperty] private bool overlayVisible;
+    [ObservableProperty] private double linkStrokeThickness = 10.0;
+    [ObservableProperty] private double jointFontSize = 24.0;
 
     #endregion Linkage editor properties
 
