@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using Avalonia.Media.Imaging;
 using SQLite;
 using Sufni.App.Models.SensorConfigurations;
+using Sufni.App.Stores;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models;
@@ -16,6 +17,7 @@ namespace Sufni.App.Models;
 public class Bike : Synchronizable
 {
     private double? chainstay;
+    private double? shockStroke;
     private Linkage? linkage;
 
     [JsonPropertyName("name")]
@@ -34,14 +36,14 @@ public class Bike : Synchronizable
     [Column("shock_stroke")]
     public double? ShockStroke
     {
-        get
-        {
-            return Linkage?.ShockStroke;
-        }
+        get => shockStroke;
         set
         {
-            if (value is null || Linkage is null) return;
-            Linkage.ShockStroke = value.Value;
+            shockStroke = value;
+            if (value is not null && linkage is not null)
+            {
+                linkage.ShockStroke = value.Value;
+            }
         }
     }
 
@@ -54,6 +56,17 @@ public class Bike : Synchronizable
         {
             linkage = value;
             linkage?.ResolveJoints();
+
+            if (linkage is null) return;
+
+            if (shockStroke.HasValue)
+            {
+                linkage.ShockStroke = shockStroke.Value;
+            }
+            else
+            {
+                shockStroke = linkage.ShockStroke;
+            }
         }
     }
 
@@ -158,6 +171,25 @@ public class Bike : Synchronizable
     {
         return AppJson.SerializeIndented(BikeExportModel.FromBike(this));
     }
+
+    public static Bike FromSnapshot(BikeSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
+    {
+        HeadAngle = snapshot.HeadAngle,
+        ForkStroke = snapshot.ForkStroke,
+        ShockStroke = snapshot.ShockStroke,
+        Chainstay = snapshot.Chainstay,
+        PixelsToMillimeters = snapshot.PixelsToMillimeters,
+        FrontWheelDiameterMm = snapshot.FrontWheelDiameterMm,
+        RearWheelDiameterMm = snapshot.RearWheelDiameterMm,
+        FrontWheelRimSize = snapshot.FrontWheelRimSize,
+        FrontWheelTireWidth = snapshot.FrontWheelTireWidth,
+        RearWheelRimSize = snapshot.RearWheelRimSize,
+        RearWheelTireWidth = snapshot.RearWheelTireWidth,
+        ImageRotationDegrees = snapshot.ImageRotationDegrees,
+        Linkage = snapshot.Linkage,
+        Image = snapshot.Image,
+        Updated = snapshot.Updated,
+    };
 
     public static Bike? FromJson(string json)
     {
