@@ -5,6 +5,7 @@ using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 
@@ -15,6 +16,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
+    private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
@@ -26,12 +28,14 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqStoreWriter liveDaqStore,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqCatalogService liveDaqCatalogService,
+        ILiveDaqClientFactory liveDaqClientFactory,
         IShellCoordinator shell,
         IDialogService dialogService)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
+        this.liveDaqClientFactory = liveDaqClientFactory;
         this.shell = shell;
         this.dialogService = dialogService;
     }
@@ -76,7 +80,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(snapshot, shell, dialogService));
+            () => new LiveDaqDetailViewModel(snapshot, liveDaqClientFactory, shell, dialogService));
 
         return Task.CompletedTask;
     }

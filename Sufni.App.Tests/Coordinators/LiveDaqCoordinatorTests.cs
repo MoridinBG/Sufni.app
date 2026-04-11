@@ -5,6 +5,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 
@@ -15,6 +16,7 @@ public class LiveDaqCoordinatorTests
     private readonly TestLiveDaqStore liveDaqStore = new();
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
+    private readonly ILiveDaqClientFactory clientFactory = Substitute.For<ILiveDaqClientFactory>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly Subject<Unit> knownBoardsChanges = new();
@@ -32,7 +34,7 @@ public class LiveDaqCoordinatorTests
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
-        new(liveDaqStore, knownBoardsQuery, catalogService, shell, dialogService);
+        new(liveDaqStore, knownBoardsQuery, catalogService, clientFactory, shell, dialogService);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
@@ -196,6 +198,7 @@ public class LiveDaqCoordinatorTests
 
         var other = new LiveDaqDetailViewModel(
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
+            clientFactory,
             shell,
             dialogService);
         Assert.False(capturedMatch(other));
