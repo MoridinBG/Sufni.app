@@ -159,6 +159,15 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     public double RearWheelCircleTop => GetRearWheelJoint()?.Y - (RearWheelRadiusPixels ?? 0) ?? 0;
     public double RearWheelCircleDiameter => (RearWheelRadiusPixels ?? 0) * 2;
 
+    public double FrontRimCircleDiameter => ComputeRimCircleDiameter(FrontWheelRimSize, FrontWheelDiameter);
+    public double RearRimCircleDiameter => ComputeRimCircleDiameter(RearWheelRimSize, RearWheelDiameter);
+
+    public double FrontTireThickness => (FrontWheelCircleDiameter - FrontRimCircleDiameter) / 2;
+    public double RearTireThickness => (RearWheelCircleDiameter - RearRimCircleDiameter) / 2;
+
+    public double FrontHubDiameter => FrontWheelCircleDiameter * 0.08;
+    public double RearHubDiameter => RearWheelCircleDiameter * 0.08;
+
     public string FrontWheelDisplayText => FormatWheelDisplay(FrontWheelRimSize, FrontWheelTireWidth, FrontWheelDiameter);
     public string RearWheelDisplayText => FormatWheelDisplay(RearWheelRimSize, RearWheelTireWidth, RearWheelDiameter);
 
@@ -591,6 +600,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private JointViewModel? GetRearWheelJoint() =>
         JointViewModels.FirstOrDefault(joint => joint.Type == JointType.RearWheel);
 
+    private double ComputeRimCircleDiameter(EtrtoRimSize? rimSize, double? totalDiameter)
+    {
+        if (!totalDiameter.HasValue || !PixelsToMillimeters.HasValue) return 0;
+        var rimDiameterMm = rimSize?.BeadDiameterMm ?? totalDiameter.Value * 0.83;
+        return rimDiameterMm / PixelsToMillimeters.Value;
+    }
+
     private static string FormatWheelDisplay(EtrtoRimSize? rimSize, double? tireWidth, double? diameter)
     {
         if (!diameter.HasValue) return "";
@@ -610,6 +626,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         OnPropertyChanged(nameof(FrontWheelCircleLeft));
         OnPropertyChanged(nameof(FrontWheelCircleTop));
         OnPropertyChanged(nameof(FrontWheelCircleDiameter));
+        OnPropertyChanged(nameof(FrontRimCircleDiameter));
+        OnPropertyChanged(nameof(FrontTireThickness));
+        OnPropertyChanged(nameof(FrontHubDiameter));
         OnPropertyChanged(nameof(FrontWheelDisplayText));
         NotifyCanvasBoundsChanged();
     }
@@ -621,6 +640,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         OnPropertyChanged(nameof(RearWheelCircleLeft));
         OnPropertyChanged(nameof(RearWheelCircleTop));
         OnPropertyChanged(nameof(RearWheelCircleDiameter));
+        OnPropertyChanged(nameof(RearRimCircleDiameter));
+        OnPropertyChanged(nameof(RearTireThickness));
+        OnPropertyChanged(nameof(RearHubDiameter));
         OnPropertyChanged(nameof(RearWheelDisplayText));
         NotifyCanvasBoundsChanged();
     }
