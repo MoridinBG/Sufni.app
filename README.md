@@ -28,7 +28,7 @@ The user interface provides plots that help with setting spring rate, damping, a
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- Platform workloads if building for mobile targets (`dotnet workload install android ios macos`) — not needed for desktop-only builds
+- Platform workloads if building for mobile targets (`dotnet workload install android ios macos`)
 
 ## Building
 
@@ -54,9 +54,9 @@ Or use your preferred IDE:
 
 - [JetBrains Rider](https://www.jetbrains.com/rider/) has been tested.
 
-See [BUILD.md](BUILD.md) for platform-specific build and run instructions.
+See [BUILD.md](docs/BUILD.md) for platform-specific build and run instructions.
 
-For an overview of the project structure, processing pipeline, and design decisions, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For an overview of the project structure, processing pipeline, and design decisions, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 \* _The word "sufni" (pronounced SHOOF-nee) means tool shed in Hungarian, but
 also used as an adjective denoting something as DIY, garage hack, etc._
