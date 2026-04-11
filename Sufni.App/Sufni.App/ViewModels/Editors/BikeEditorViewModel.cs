@@ -54,9 +54,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private readonly CancellableOperation analysisOperation = new();
     private readonly CancellableOperation imageOperation = new();
     private readonly CancellableOperation importOperation = new();
-    private CoordinateList? rearAxlePathData;
-    private Bitmap? rotatedImageCache;
-    private double rotatedImageCacheAngle = double.NaN;
     // Guard edit-time callbacks while a snapshot is being applied.
     private bool isReplacingState;
 
@@ -94,51 +91,47 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     #region Image properties
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private Bitmap? image;
+    public BikeImageCanvasViewModel ImageCanvas { get; } = new();
 
-    [ObservableProperty] private double imageRotationDegrees;
-
-    public Bitmap? RotatedImage
+    public Bitmap? Image
     {
-        get
+        get => ImageCanvas.Image;
+        set
         {
-            if (Image is null) return null;
-            if (Math.Abs(ImageRotationDegrees) < 0.01) return Image;
-
-            if (rotatedImageCache is not null && Math.Abs(rotatedImageCacheAngle - ImageRotationDegrees) < 0.001)
-            {
-                return rotatedImageCache;
-            }
-
-            rotatedImageCache = CreateRotatedBitmap(Image, ImageRotationDegrees);
-            rotatedImageCacheAngle = ImageRotationDegrees;
-            return rotatedImageCache;
+            if (ReferenceEquals(ImageCanvas.Image, value)) return;
+            ImageCanvas.Image = value;
         }
     }
 
-    public double RotatedImageLeft
+    public double ImageRotationDegrees
     {
-        get
+        get => ImageCanvas.ImageRotationDegrees;
+        set
         {
-            if (Image is null || Math.Abs(ImageRotationDegrees) < 0.01) return 0;
-            var bounds = CoordinateRotation.GetRotatedBounds(Image.Size.Width, Image.Size.Height, ImageRotationDegrees);
-            return bounds.minX;
+            if (MathUtils.AreEqual(ImageCanvas.ImageRotationDegrees, value)) return;
+            ImageCanvas.ImageRotationDegrees = value;
         }
     }
 
-    public double RotatedImageTop
+    public Bitmap? RotatedImage => ImageCanvas.RotatedImage;
+    public double RotatedImageLeft => ImageCanvas.RotatedImageLeft;
+    public double RotatedImageTop => ImageCanvas.RotatedImageTop;
+
+    public bool OverlayVisible
     {
-        get
+        get => ImageCanvas.OverlayVisible;
+        set
         {
-            if (Image is null || Math.Abs(ImageRotationDegrees) < 0.01) return 0;
-            var bounds = CoordinateRotation.GetRotatedBounds(Image.Size.Width, Image.Size.Height, ImageRotationDegrees);
-            return bounds.minY;
+            if (ImageCanvas.OverlayVisible == value) return;
+            ImageCanvas.OverlayVisible = value;
         }
     }
+
+    public List<Point> RearAxlePath => ImageCanvas.RearAxlePath;
+    public double CanvasWidth => ImageCanvas.CanvasWidth;
+    public double CanvasHeight => ImageCanvas.CanvasHeight;
+    public double ContentOffsetX => ImageCanvas.ContentOffsetX;
+    public double ContentOffsetY => ImageCanvas.ContentOffsetY;
 
     #endregion Image properties
 
@@ -248,28 +241,15 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     public double JointFontSize => LinkageEditor.JointFontSize;
     public IRelayCommand DeleteSelectedItemCommand => LinkageEditor.DeleteSelectedItemCommand;
     public IRelayCommand CreateLinkCommand => LinkageEditor.CreateLinkCommand;
-    [ObservableProperty] private bool overlayVisible;
 
     #endregion Linkage editor properties
 
     #region Analysis properties
 
     [ObservableProperty] private CoordinateList? leverageRatioData;
-    [ObservableProperty] private List<Point> rearAxlePath = [];
     [ObservableProperty] private bool isPlotBusy;
 
     #endregion Analysis properties
-
-    #region Canvas layout
-
-    private const double CanvasPadding = 20;
-
-    public double CanvasWidth => ContentMaxX - ContentMinX + 2 * CanvasPadding;
-    public double CanvasHeight => ContentMaxY - ContentMinY + 2 * CanvasPadding;
-    public double ContentOffsetX => -ContentMinX + CanvasPadding;
-    public double ContentOffsetY => -ContentMinY + CanvasPadding;
-
-    #endregion Canvas layout
 
     #region Property change handlers
 
@@ -294,34 +274,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
         WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
         RecalculateHeadAngle();
-        UpdateRearAxlePathDisplay();
-    }
-
-    partial void OnImageChanged(Bitmap? value)
-    {
-        if (IsReplacingState) return;
-
-        rotatedImageCache = null;
-        rotatedImageCacheAngle = double.NaN;
-
-        OnPropertyChanged(nameof(RotatedImage));
-        OnPropertyChanged(nameof(RotatedImageLeft));
-        OnPropertyChanged(nameof(RotatedImageTop));
-        NotifyCanvasBoundsChanged();
-        UpdateRearAxlePathDisplay();
-    }
-
-    partial void OnImageRotationDegreesChanged(double value)
-    {
-        if (IsReplacingState) return;
-
-        rotatedImageCache = null;
-        rotatedImageCacheAngle = double.NaN;
-
-        OnPropertyChanged(nameof(RotatedImage));
-        OnPropertyChanged(nameof(RotatedImageLeft));
-        OnPropertyChanged(nameof(RotatedImageTop));
-        NotifyCanvasBoundsChanged();
+        ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
     }
 
     #endregion Property change handlers
@@ -337,6 +290,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         LinkageEditor.Changed += OnLinkageEditorChanged;
         LinkageEditor.PropertyChanged += OnLinkageEditorPropertyChanged;
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
+        ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
     }
 
     public BikeEditorViewModel(
@@ -355,6 +309,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         LinkageEditor.Changed += OnLinkageEditorChanged;
         LinkageEditor.PropertyChanged += OnLinkageEditorPropertyChanged;
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
+        ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
 
         ReplaceState(snapshot, refreshAnalysis: !isNew);
 
@@ -429,10 +384,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         HeadAngle = snapshot.HeadAngle;
         ForksStroke = snapshot.ForkStroke;
         ShockStroke = snapshot.ShockStroke;
-        Image = snapshot.Image;
         Chainstay = snapshot.Chainstay;
         PixelsToMillimeters = snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters;
-        ImageRotationDegrees = snapshot.ImageRotationDegrees;
+        ImageCanvas.ApplySnapshot(snapshot.Image, snapshot.ImageRotationDegrees);
         LinkageEditor.Load(snapshot.Linkage, snapshot.Image?.Size.Height, snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters);
         WheelGeometry.ApplySnapshot(snapshot);
     }
@@ -440,16 +394,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     // Refresh caches and projections that are safe to recompute from the raw editor state.
     private void RebuildDerivedDisplayState()
     {
-        rotatedImageCache = null;
-        rotatedImageCacheAngle = double.NaN;
         LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
         WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
-
-        OnPropertyChanged(nameof(RotatedImage));
-        OnPropertyChanged(nameof(RotatedImageLeft));
-        OnPropertyChanged(nameof(RotatedImageTop));
-        NotifyCanvasBoundsChanged();
-        UpdateRearAxlePathDisplay();
+        ImageCanvas.RefreshLayout(GetJointBounds(), WheelGeometry.GetWheelBounds());
+        ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
     }
 
     // Materialize the current editor state as a snapshot; the coordinator rebuilds the domain model if needed.
@@ -570,44 +518,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         HeadAngle = Math.Round(180.0 - angle, 1);
     }
 
-    private static Bitmap CreateRotatedBitmap(Bitmap source, double angleDegrees)
-    {
-        var bounds = CoordinateRotation.GetRotatedBounds(source.Size.Width, source.Size.Height, angleDegrees);
-        var newWidth = (int)Math.Ceiling(bounds.maxX - bounds.minX);
-        var newHeight = (int)Math.Ceiling(bounds.maxY - bounds.minY);
-
-        var offsetX = -bounds.minX;
-        var offsetY = -bounds.minY;
-
-        var renderTarget = new RenderTargetBitmap(new PixelSize(newWidth, newHeight));
-        using var ctx = renderTarget.CreateDrawingContext();
-        var translateMatrix = Matrix.CreateTranslation(offsetX, offsetY);
-        var rotateMatrix = Matrix.CreateRotation(angleDegrees * Math.PI / 180.0);
-        var combinedMatrix = rotateMatrix * translateMatrix;
-
-        using (ctx.PushTransform(combinedMatrix))
-        {
-            ctx.DrawImage(source, new Rect(0, 0, source.Size.Width, source.Size.Height));
-        }
-
-        return renderTarget;
-    }
-
-    private (double minX, double minY, double maxX, double maxY) GetImageBounds()
-    {
-        if (Image is null) return (0, 0, 0, 0);
-
-        return CoordinateRotation.GetRotatedBounds(
-            Image.Size.Width,
-            Image.Size.Height,
-            ImageRotationDegrees);
-    }
-
-    private (double minX, double minY, double maxX, double maxY) GetJointBounds()
+    private Rect? GetJointBounds()
     {
         if (JointViewModels.Count == 0)
         {
-            return (double.MaxValue, double.MaxValue, double.MinValue, double.MinValue);
+            return null;
         }
 
         const double radius = 20.0;
@@ -616,89 +531,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         var maxX = JointViewModels.Max(joint => joint.X) + radius;
         var maxY = JointViewModels.Max(joint => joint.Y) + radius;
 
-        return (minX, minY, maxX, maxY);
-    }
-
-    private double ContentMinX
-    {
-        get
-        {
-            var imageBounds = GetImageBounds();
-            var jointBounds = GetJointBounds();
-            var minX = Math.Min(imageBounds.minX, jointBounds.minX);
-
-            return HasWheels
-                ? Math.Min(minX, Math.Min(FrontWheelCircleLeft, RearWheelCircleLeft))
-                : minX;
-        }
-    }
-
-    private double ContentMinY
-    {
-        get
-        {
-            var imageBounds = GetImageBounds();
-            var jointBounds = GetJointBounds();
-            var minY = Math.Min(imageBounds.minY, jointBounds.minY);
-
-            return HasWheels
-                ? Math.Min(minY, Math.Min(FrontWheelCircleTop, RearWheelCircleTop))
-                : minY;
-        }
-    }
-
-    private double ContentMaxX
-    {
-        get
-        {
-            var imageBounds = GetImageBounds();
-            var jointBounds = GetJointBounds();
-            var maxX = Math.Max(imageBounds.maxX, jointBounds.maxX);
-
-            return HasWheels
-                ? Math.Max(maxX, Math.Max(FrontWheelCircleLeft + FrontWheelCircleDiameter, RearWheelCircleLeft + RearWheelCircleDiameter))
-                : maxX;
-        }
-    }
-
-    private double ContentMaxY
-    {
-        get
-        {
-            var imageBounds = GetImageBounds();
-            var jointBounds = GetJointBounds();
-            var maxY = Math.Max(imageBounds.maxY, jointBounds.maxY);
-
-            return HasWheels
-                ? Math.Max(maxY, Math.Max(FrontWheelCircleTop + FrontWheelCircleDiameter, RearWheelCircleTop + RearWheelCircleDiameter))
-                : maxY;
-        }
-    }
-
-    private void NotifyCanvasBoundsChanged()
-    {
-        OnPropertyChanged(nameof(CanvasWidth));
-        OnPropertyChanged(nameof(CanvasHeight));
-        OnPropertyChanged(nameof(ContentOffsetX));
-        OnPropertyChanged(nameof(ContentOffsetY));
-    }
-
-    private void UpdateRearAxlePathDisplay()
-    {
-        if (rearAxlePathData is null || Image is null || !PixelsToMillimeters.HasValue)
-        {
-            RearAxlePath = [];
-            return;
-        }
-
-        var imageHeight = Image.Size.Height;
-        var pixelsToMillimetersValue = PixelsToMillimeters.Value;
-
-        RearAxlePath = rearAxlePathData.Value.X
-            .Zip(rearAxlePathData.Value.Y, (x, y) => new Point(
-                x / pixelsToMillimetersValue,
-                imageHeight - y / pixelsToMillimetersValue))
-            .ToList();
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
     private void QueuePlotRefresh(bool showPlotBusyOverlay = true) => _ = RefreshAnalysisAsync(showPlotBusyOverlay);
@@ -737,18 +570,18 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         {
             case BikeEditorAnalysisResult.Computed computed:
                 LeverageRatioData = computed.Data.LeverageRatioData;
-                rearAxlePathData = computed.Data.RearAxlePathData;
-                UpdateRearAxlePathDisplay();
+                ImageCanvas.SetRearAxlePathData(computed.Data.RearAxlePathData);
+                ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
                 break;
             case BikeEditorAnalysisResult.Unavailable:
                 LeverageRatioData = null;
-                rearAxlePathData = null;
-                RearAxlePath = [];
+                ImageCanvas.SetRearAxlePathData(null);
+                ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
                 break;
             case BikeEditorAnalysisResult.Failed failed:
                 LeverageRatioData = null;
-                rearAxlePathData = null;
-                RearAxlePath = [];
+                ImageCanvas.SetRearAxlePathData(null);
+                ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
                 ErrorMessages.Add($"Linkage analysis failed: {failed.ErrorMessage}");
                 break;
         }
@@ -820,7 +653,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 NotifyEditorCommandStatesChanged();
                 LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
                 WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
-                NotifyCanvasBoundsChanged();
+                ImageCanvas.RefreshLayout(GetJointBounds(), WheelGeometry.GetWheelBounds());
                 RecalculateHeadAngle();
                 break;
 
@@ -850,7 +683,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                     WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
                 }
 
-                NotifyCanvasBoundsChanged();
+                ImageCanvas.RefreshLayout(GetJointBounds(), WheelGeometry.GetWheelBounds());
                 RecalculateHeadAngle();
                 break;
 
@@ -886,7 +719,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
         if (AffectsWheelCanvasBounds(e.PropertyName))
         {
-            NotifyCanvasBoundsChanged();
+            ImageCanvas.RefreshLayout(GetJointBounds(), WheelGeometry.GetWheelBounds());
         }
 
         if (IsReplacingState || !IsWheelInputProperty(e.PropertyName))
@@ -905,6 +738,52 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         NotifyEditorCommandStatesChanged();
         EvaluateDirtiness();
     }
+
+    private void OnImageCanvasPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.PropertyName))
+        {
+            return;
+        }
+
+        if (IsForwardedImageCanvasProperty(e.PropertyName))
+        {
+            OnPropertyChanged(e.PropertyName);
+        }
+
+        if (IsReplacingState)
+        {
+            return;
+        }
+
+        switch (e.PropertyName)
+        {
+            case nameof(BikeImageCanvasViewModel.Image):
+                RebuildDerivedDisplayState();
+                NotifyEditorCommandStatesChanged();
+                EvaluateDirtiness();
+                break;
+
+            case nameof(BikeImageCanvasViewModel.ImageRotationDegrees):
+                ImageCanvas.RefreshLayout(GetJointBounds(), WheelGeometry.GetWheelBounds());
+                NotifyEditorCommandStatesChanged();
+                EvaluateDirtiness();
+                break;
+        }
+    }
+
+    private static bool IsForwardedImageCanvasProperty(string propertyName) =>
+        propertyName is nameof(BikeImageCanvasViewModel.Image) or
+            nameof(BikeImageCanvasViewModel.ImageRotationDegrees) or
+            nameof(BikeImageCanvasViewModel.OverlayVisible) or
+            nameof(BikeImageCanvasViewModel.RearAxlePath) or
+            nameof(BikeImageCanvasViewModel.RotatedImage) or
+            nameof(BikeImageCanvasViewModel.RotatedImageLeft) or
+            nameof(BikeImageCanvasViewModel.RotatedImageTop) or
+            nameof(BikeImageCanvasViewModel.CanvasWidth) or
+            nameof(BikeImageCanvasViewModel.CanvasHeight) or
+            nameof(BikeImageCanvasViewModel.ContentOffsetX) or
+            nameof(BikeImageCanvasViewModel.ContentOffsetY);
 
     private static bool IsForwardedWheelProperty(string propertyName) =>
         propertyName is nameof(BikeWheelGeometryViewModel.FrontWheelRimSize) or
@@ -963,9 +842,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             !MathUtils.AreEqual(Chainstay, acceptedSnapshot.Chainstay) ||
             DidJointsChanged() ||
             DidLinksChanged() ||
-                WheelGeometry.HasChangesComparedTo(acceptedSnapshot) ||
-            !MathUtils.AreEqual(ImageRotationDegrees, acceptedSnapshot.ImageRotationDegrees) ||
-            !ReferenceEquals(Image, acceptedSnapshot.Image);
+            WheelGeometry.HasChangesComparedTo(acceptedSnapshot) ||
+            ImageCanvas.HasChangesComparedTo(acceptedSnapshot);
     }
 
     protected override bool CanSave()
