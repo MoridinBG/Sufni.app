@@ -108,6 +108,19 @@
                 </TabItem.Header>
                 <ContentControl Content="{Binding BikesPage}" />
             </TabItem>
+            <TabItem Name="LiveDaqsTabItem">
+                <TabItem.Header>
+                    <StackPanel>
+                        <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+                        <TextBlock
+                            Padding="0,0,4,0"
+                            HorizontalAlignment="Center"
+                            FontSize="9"
+                            Text="Live" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl Content="{Binding LiveDaqsPage}" />
+            </TabItem>
         </TabControl>
 
         <StackPanel Margin="0,0,0,20" VerticalAlignment="Bottom">

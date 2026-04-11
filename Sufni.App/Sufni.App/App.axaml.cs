@@ -73,6 +73,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ITrackCoordinator, TrackCoordinator>();
         ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<LiveDaqStore>();
+        ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
+        ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
@@ -87,6 +90,7 @@ public partial class App : Application
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();
+        ServiceCollection.AddSingleton<LiveDaqListViewModel>();
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
@@ -102,6 +106,7 @@ public partial class App : Application
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
+            ApplicationLifetime is IClassicDesktopStyleApplicationLifetime ? sp.GetRequiredService<LiveDaqListViewModel>() : null,
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
             sp.GetService<PairingClientViewModel>(),

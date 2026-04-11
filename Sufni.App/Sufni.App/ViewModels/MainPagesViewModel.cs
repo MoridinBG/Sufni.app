@@ -20,7 +20,8 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
-    private readonly ItemListViewModelBase[] pages;
+    private readonly ItemListViewModelBase[] primaryPages;
+    private ItemListViewModelBase? activePrimaryPage;
 
     #region Observable properties
 
@@ -29,6 +30,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private BikeListViewModel bikesPage;
     [ObservableProperty] private SetupListViewModel setupsPage;
     [ObservableProperty] private SessionListViewModel sessionsPage;
+    [ObservableProperty] private LiveDaqListViewModel? liveDaqsPage;
     [ObservableProperty] private PairedDeviceListViewModel pairedDevicesPage;
     [ObservableProperty] private PairingClientViewModel? pairingClientPage;
     [ObservableProperty] private PairingServerViewModel? pairingServerViewModel;
@@ -56,8 +58,10 @@ public partial class MainPagesViewModel : ViewModelBase
         bikesPage = new();
         setupsPage = new();
         sessionsPage = new();
+        liveDaqsPage = new();
         pairedDevicesPage = new();
-        pages = [];
+        primaryPages = [SessionsPage, SetupsPage, BikesPage, liveDaqsPage];
+        activePrimaryPage = SessionsPage;
     }
 
     public MainPagesViewModel(
@@ -72,6 +76,7 @@ public partial class MainPagesViewModel : ViewModelBase
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
+        LiveDaqListViewModel? liveDaqsPage,
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
         PairingClientViewModel? pairingClientPage = null,
@@ -88,11 +93,15 @@ public partial class MainPagesViewModel : ViewModelBase
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
+        LiveDaqsPage = liveDaqsPage;
         ImportSessionsPage = importSessionsPage;
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
-        pages = [SessionsPage, SetupsPage, BikesPage];
+        primaryPages = LiveDaqsPage is null
+            ? [SessionsPage, SetupsPage, BikesPage]
+            : [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
+        activePrimaryPage = GetSelectedPrimaryPage();
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
         BikesPage.MenuItems.Add(new("add", BikesPage.AddCommand));
@@ -118,13 +127,14 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)
     {
-        pages[SelectedIndex].Notifications.Add(e.Message);
-        pages[SelectedIndex].ErrorMessages.Clear();
+        var currentPage = GetSelectedPrimaryPage();
+        currentPage.Notifications.Add(e.Message);
+        currentPage.ErrorMessages.Clear();
     }
 
     private void OnSyncFailed(object? sender, SyncFailedEventArgs e)
     {
-        pages[SelectedIndex].ErrorMessages.Add(e.ErrorMessage);
+        GetSelectedPrimaryPage().ErrorMessages.Add(e.ErrorMessage);
     }
 
     private void OnSyncIsRunningChanged(object? sender, EventArgs e)
@@ -156,6 +166,34 @@ public partial class MainPagesViewModel : ViewModelBase
         await pairedDeviceStoreWriter.RefreshAsync();
 
         DatabaseLoaded = true;
+    }
+
+    private ItemListViewModelBase GetSelectedPrimaryPage()
+    {
+        if (SelectedIndex >= 0 && SelectedIndex < primaryPages.Length)
+        {
+            return primaryPages[SelectedIndex];
+        }
+
+        return primaryPages[0];
+    }
+
+    partial void OnSelectedIndexChanged(int value)
+    {
+        var nextPage = GetSelectedPrimaryPage();
+        if (ReferenceEquals(activePrimaryPage, nextPage)) return;
+
+        if (activePrimaryPage is LiveDaqListViewModel previousLivePage)
+        {
+            previousLivePage.Deactivate();
+        }
+
+        if (nextPage is LiveDaqListViewModel nextLivePage)
+        {
+            nextLivePage.Activate();
+        }
+
+        activePrimaryPage = nextPage;
     }
 
     #endregion
