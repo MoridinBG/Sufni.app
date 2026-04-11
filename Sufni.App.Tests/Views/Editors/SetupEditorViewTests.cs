@@ -131,4 +131,86 @@ public class SetupEditorViewTests
             await ViewTestHelpers.FlushDispatcherAsync();
         }
     }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_ForkSensorConfigContentControl_Empty_WhenNull()
+    {
+        TestApp.SetIsDesktop(false);
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates();
+
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
+        {
+            FrontSensorConfigurationJson = null
+        });
+        var view = new SetupEditorView
+        {
+            DataContext = editor
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        try
+        {
+            var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
+            var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
+            Assert.NotNull(forkContent);
+            Assert.NotNull(forkSensorTypeComboBox);
+
+            Assert.Null(editor.ForkSensorConfiguration);
+            Assert.Null(forkContent!.Content);
+            Assert.Null(forkSensorTypeComboBox!.SelectedItem);
+            Assert.Null(forkContent.FindFirstVisual<LinearForkSensorConfigurationView>());
+            Assert.Null(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_ShockSensorConfigContentControl_Empty_WhenNull()
+    {
+        TestApp.SetIsDesktop(false);
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates();
+
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
+        {
+            RearSensorConfigurationJson = null
+        });
+        var view = new SetupEditorView
+        {
+            DataContext = editor
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        try
+        {
+            var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
+            var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
+            Assert.NotNull(shockContent);
+            Assert.NotNull(shockSensorTypeComboBox);
+
+            Assert.Null(editor.ShockSensorConfiguration);
+            Assert.Null(shockContent!.Content);
+            Assert.Null(shockSensorTypeComboBox!.SelectedItem);
+            Assert.Null(shockContent.FindFirstVisual<LinearShockSensorConfigurationView>());
+            Assert.Null(shockContent.FindFirstVisual<RotationalShockSensorConfigurationView>());
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
 }
