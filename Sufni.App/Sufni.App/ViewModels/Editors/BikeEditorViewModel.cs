@@ -2,14 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Controls.Shapes;
-using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Sufni.App.BikeEditing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +16,7 @@ using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Sufni.App.ViewModels.LinkageEditing;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
 
@@ -53,13 +51,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private readonly IBikeDependencyQuery? dependencyQuery;
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeSnapshot acceptedSnapshot;
-    private uint pointNumber = 1;
-    private LinkViewModel? shockViewModel;
     private readonly CancellableOperation analysisOperation = new();
     private readonly CancellableOperation imageOperation = new();
     private readonly CancellableOperation importOperation = new();
-    private readonly Dictionary<JointViewModel, PropertyChangedEventHandler> jointPropertyChangedHandlers = [];
-    private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
     private CoordinateList? rearAxlePathData;
     private Bitmap? rotatedImageCache;
     private double rotatedImageCacheAngle = double.NaN;
@@ -224,13 +218,26 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     #region Linkage editor properties
 
-    public ObservableCollection<JointViewModel> JointViewModels { get; } = [];
-    public ObservableCollection<LinkViewModel> LinkViewModels { get; } = [];
-    [ObservableProperty] private JointViewModel? selectedPoint;
-    [ObservableProperty] private LinkViewModel? selectedLink;
+    public LinkageEditorViewModel LinkageEditor { get; } = new();
+    public ObservableCollection<JointViewModel> JointViewModels => LinkageEditor.JointViewModels;
+    public ObservableCollection<LinkViewModel> LinkViewModels => LinkageEditor.LinkViewModels;
+    public JointViewModel? SelectedPoint
+    {
+        get => LinkageEditor.SelectedPoint;
+        set => LinkageEditor.SelectedPoint = value;
+    }
+
+    public LinkViewModel? SelectedLink
+    {
+        get => LinkageEditor.SelectedLink;
+        set => LinkageEditor.SelectedLink = value;
+    }
+
+    public double LinkStrokeThickness => LinkageEditor.LinkStrokeThickness;
+    public double JointFontSize => LinkageEditor.JointFontSize;
+    public IRelayCommand DeleteSelectedItemCommand => LinkageEditor.DeleteSelectedItemCommand;
+    public IRelayCommand CreateLinkCommand => LinkageEditor.CreateLinkCommand;
     [ObservableProperty] private bool overlayVisible;
-    [ObservableProperty] private double linkStrokeThickness = 10.0;
-    [ObservableProperty] private double jointFontSize = 24.0;
 
     #endregion Linkage editor properties
 
@@ -255,22 +262,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     #region Property change handlers
 
-    partial void OnSelectedLinkChanged(LinkViewModel? value)
-    {
-        if (SelectedLink is null) return;
-        ClearSelections();
-        SelectedLink.IsSelected = true;
-        SelectedPoint = null;
-    }
-
-    partial void OnSelectedPointChanged(JointViewModel? value)
-    {
-        if (SelectedPoint is null) return;
-        ClearSelections();
-        SelectedPoint.IsSelected = true;
-        SelectedLink = null;
-    }
-
     partial void OnChainstayChanged(double? value)
     {
         if (IsReplacingState) return;
@@ -289,10 +280,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (IsReplacingState) return;
 
-        foreach (var link in LinkViewModels)
-        {
-            link.UpdateLength(PixelsToMillimeters);
-        }
+        LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
 
         NotifyFrontWheelPropertiesChanged();
         NotifyRearWheelPropertiesChanged();
@@ -403,9 +391,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         dependencyQuery = null;
         acceptedSnapshot = BikeSnapshot.From(new Bike(Guid.Empty, string.Empty));
         IsInDatabase = false;
-
-        SetupJointsListeners();
-        SetupLinksListeners();
+        LinkageEditor.Changed += OnLinkageEditorChanged;
+        LinkageEditor.PropertyChanged += OnLinkageEditorPropertyChanged;
     }
 
     public BikeEditorViewModel(
@@ -421,14 +408,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         this.dependencyQuery = dependencyQuery;
         IsInDatabase = !isNew;
         acceptedSnapshot = snapshot;
-
-        SetupJointsListeners();
-        SetupLinksListeners();
+        LinkageEditor.Changed += OnLinkageEditorChanged;
+        LinkageEditor.PropertyChanged += OnLinkageEditorPropertyChanged;
 
         ReplaceState(snapshot, refreshAnalysis: !isNew);
 
         // Brand new bike: start with the mandatory joints.
-        if (isNew) AddInitialJoints();
+        if (isNew) LinkageEditor.AddInitialJoints();
     }
 
     #endregion Constructors
@@ -506,13 +492,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     // Copy persisted inputs verbatim; derived display values are rebuilt afterwards.
     private void ApplyRawBikeState(BikeSnapshot snapshot)
     {
-        SelectedLink = null;
-        SelectedPoint = null;
-
-        JointViewModels.Clear();
-        LinkViewModels.Clear();
-        shockViewModel = null;
-
         Id = snapshot.Id;
         Name = snapshot.Name;
         HeadAngle = snapshot.HeadAngle;
@@ -522,26 +501,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         Chainstay = snapshot.Chainstay;
         PixelsToMillimeters = snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters;
         ImageRotationDegrees = snapshot.ImageRotationDegrees;
-
-        if (snapshot.Linkage is not null)
-        {
-            Debug.Assert(snapshot.Image is not null);
-
-            var jointViewModels = snapshot.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
-            foreach (var jvm in jointViewModels)
-            {
-                JointViewModels.Add(jvm);
-            }
-
-            var linkViewModels = snapshot.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
-            foreach (var link in linkViewModels)
-            {
-                LinkViewModels.Add(link);
-            }
-
-            shockViewModel = LinkViewModel.FromLink(snapshot.Linkage.Shock, JointViewModels);
-            LinkViewModels.Add(shockViewModel);
-        }
+        LinkageEditor.Load(snapshot.Linkage, snapshot.Image?.Size.Height, snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters);
 
         FrontWheelRimSize = snapshot.FrontWheelRimSize;
         FrontWheelTireWidth = snapshot.FrontWheelTireWidth;
@@ -556,11 +516,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         rotatedImageCache = null;
         rotatedImageCacheAngle = double.NaN;
-
-        foreach (var link in LinkViewModels)
-        {
-            link.UpdateLength(PixelsToMillimeters);
-        }
+        LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
 
         OnPropertyChanged(nameof(RotatedImage));
         OnPropertyChanged(nameof(RotatedImageLeft));
@@ -605,48 +561,14 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private Linkage? CreateCurrentLinkage()
     {
-        if (ShockStroke is null || Image is null || PixelsToMillimeters is null || shockViewModel is null)
-        {
-            return null;
-        }
-
-        return CreateLinkage();
-    }
-
-    private void AddInitialJoints()
-    {
-        var mapping = new JointNameMapping();
-        JointViewModel EnsureJoint(string name, JointType type, double x, double y)
-        {
-            var existing = JointViewModels.FirstOrDefault(joint => joint.Name == name);
-            if (existing is not null) return existing;
-
-            var jointViewModel = new JointViewModel(name, type, x, y);
-            JointViewModels.Add(jointViewModel);
-            return jointViewModel;
-        }
-
-        EnsureJoint(mapping.FrontWheel, JointType.FrontWheel, 100, 150);
-        EnsureJoint(mapping.BottomBracket, JointType.BottomBracket, 100, 200);
-        EnsureJoint(mapping.RearWheel, JointType.RearWheel, 100, 100);
-        EnsureJoint(mapping.HeadTube1, JointType.HeadTube, 100, 50);
-        EnsureJoint(mapping.HeadTube2, JointType.HeadTube, 100, 120);
-
-        var shockEye1 = EnsureJoint(mapping.ShockEye1, JointType.Floating, 100, 250);
-        var shockEye2 = EnsureJoint(mapping.ShockEye2, JointType.Floating, 100, 300);
-        shockViewModel ??= LinkViewModels.FirstOrDefault(link => link.Name == "Shock");
-        if (shockViewModel is null)
-        {
-            shockViewModel = new LinkViewModel(shockEye1, shockEye2, "Shock");
-            LinkViewModels.Add(shockViewModel);
-        }
+        return LinkageEditor.BuildCurrentLinkage(Image?.Size.Height, PixelsToMillimeters, ShockStroke);
     }
 
     private JointViewModel? GetFrontWheelJoint() =>
-        JointViewModels.FirstOrDefault(joint => joint.Type == JointType.FrontWheel);
+        LinkageEditor.GetFrontWheelJoint();
 
     private JointViewModel? GetRearWheelJoint() =>
-        JointViewModels.FirstOrDefault(joint => joint.Type == JointType.RearWheel);
+        LinkageEditor.GetRearWheelJoint();
 
     private double ComputeRimCircleDiameter(EtrtoRimSize? rimSize, double? totalDiameter)
     {
@@ -725,14 +647,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
         if (Math.Abs(deltaRotation) <= 0.01) return;
 
-        CoordinateRotation.RotatePoints(JointViewModels, 0, 0, deltaRotation);
-
-        var items = JointViewModels.ToList();
-        JointViewModels.Clear();
-        foreach (var item in items)
-        {
-            JointViewModels.Add(item);
-        }
+        LinkageEditor.RotateAll(deltaRotation);
 
         ImageRotationDegrees = newRotation;
         NotifyWheelJointPropertiesChanged();
@@ -786,19 +701,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         HeadAngle = Math.Round(180.0 - angle, 1);
     }
 
-    private void ClearSelections()
-    {
-        foreach (var point in JointViewModels)
-        {
-            point.IsSelected = false;
-        }
-
-        foreach (var link in LinkViewModels)
-        {
-            link.IsSelected = false;
-        }
-    }
-
     private static Bitmap CreateRotatedBitmap(Bitmap source, double angleDegrees)
     {
         var bounds = CoordinateRotation.GetRotatedBounds(source.Size.Width, source.Size.Height, angleDegrees);
@@ -820,22 +722,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
 
         return renderTarget;
-    }
-
-    private Linkage CreateLinkage()
-    {
-        Debug.Assert(ShockStroke is not null);
-        Debug.Assert(Image is not null);
-        Debug.Assert(PixelsToMillimeters is not null);
-        Debug.Assert(shockViewModel is not null);
-
-        return new Linkage
-        {
-            Joints = [.. JointViewModels.Select(p => p.ToJoint(Image.Size.Height, PixelsToMillimeters.Value))],
-            Links = [.. LinkViewModels.Where(l => l != shockViewModel).Select(l => l.ToLink(Image.Size.Height, PixelsToMillimeters.Value))],
-            Shock = shockViewModel.ToLink(Image.Size.Height, PixelsToMillimeters.Value),
-            ShockStroke = ShockStroke.Value
-        };
     }
 
     private void RecalculateFrontWheelDiameter()
@@ -1043,196 +929,109 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         FakeDeleteCommand.NotifyCanExecuteChanged();
     }
 
-    private void AttachJointPropertyChangedHandler(JointViewModel jointViewModel)
-    {
-        if (jointPropertyChangedHandlers.ContainsKey(jointViewModel)) return;
-
-        PropertyChangedEventHandler handler = (_, pce) =>
-        {
-            if (IsReplacingState) return;
-
-            switch (pce.PropertyName)
-            {
-                case nameof(jointViewModel.WasPossiblyDragged) when jointViewModel.WasPossiblyDragged:
-                    jointViewModel.WasPossiblyDragged = false;
-                    EvaluateDirtiness();
-                    break;
-                case nameof(jointViewModel.Name) or nameof(jointViewModel.Type):
-                    EvaluateDirtiness();
-                    if (jointViewModel.Type == JointType.HeadTube)
-                    {
-                        RecalculateHeadAngle();
-                    }
-                    break;
-                case nameof(jointViewModel.X):
-                case nameof(jointViewModel.Y):
-                    if (jointViewModel.Type is JointType.BottomBracket or JointType.RearWheel)
-                    {
-                        UpdatePixelsToMillimeters();
-                    }
-                    if (jointViewModel.Type is JointType.FrontWheel or JointType.RearWheel)
-                    {
-                        NotifyWheelJointPropertiesChanged();
-                    }
-                    NotifyCanvasBoundsChanged();
-                    RecalculateHeadAngle();
-                    break;
-            }
-        };
-
-        jointPropertyChangedHandlers[jointViewModel] = handler;
-        jointViewModel.PropertyChanged += handler;
-    }
-
-    private void DetachJointPropertyChangedHandler(JointViewModel jointViewModel)
-    {
-        if (!jointPropertyChangedHandlers.Remove(jointViewModel, out var handler)) return;
-
-        jointViewModel.PropertyChanged -= handler;
-    }
-
-    private void DetachAllJointPropertyChangedHandlers()
-    {
-        foreach (var pair in jointPropertyChangedHandlers)
-        {
-            pair.Key.PropertyChanged -= pair.Value;
-        }
-
-        jointPropertyChangedHandlers.Clear();
-    }
-
-    private void AttachLinkPropertyChangedHandler(LinkViewModel linkViewModel)
-    {
-        if (linkPropertyChangedHandlers.ContainsKey(linkViewModel)) return;
-
-        PropertyChangedEventHandler handler = (_, pce) =>
-        {
-            if (IsReplacingState) return;
-
-            if (pce.PropertyName is nameof(linkViewModel.A) or nameof(linkViewModel.B))
-            {
-                EvaluateDirtiness();
-            }
-        };
-
-        linkPropertyChangedHandlers[linkViewModel] = handler;
-        linkViewModel.PropertyChanged += handler;
-    }
-
-    private void DetachLinkPropertyChangedHandler(LinkViewModel linkViewModel)
-    {
-        if (!linkPropertyChangedHandlers.Remove(linkViewModel, out var handler)) return;
-
-        linkViewModel.PropertyChanged -= handler;
-    }
-
-    private void DetachAllLinkPropertyChangedHandlers()
-    {
-        foreach (var pair in linkPropertyChangedHandlers)
-        {
-            pair.Key.PropertyChanged -= pair.Value;
-        }
-
-        linkPropertyChangedHandlers.Clear();
-    }
-
     private bool DidJointsChanged()
     {
         if (acceptedSnapshot.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
 
-        var joints2 = JointViewModels.Select(jvm => jvm.ToJoint(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
-        return acceptedSnapshot.Linkage.Joints.Count != joints2.Count || !acceptedSnapshot.Linkage.Joints.All(j => joints2.Contains(j));
+        return LinkageEditor.DidJointsChanged(acceptedSnapshot.Linkage, Image.Size.Height, PixelsToMillimeters.Value);
     }
 
     private bool DidLinksChanged()
     {
         if (acceptedSnapshot.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
 
-        var links2 = LinkViewModels
-            .Where(lvm => lvm != shockViewModel && lvm.A is not null && lvm.B is not null)
-            .Select(lvm => lvm.ToLink(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
-        return acceptedSnapshot.Linkage.Links.Count != links2.Count || !acceptedSnapshot.Linkage.Links.All(l => links2.Contains(l));
+        return LinkageEditor.DidLinksChanged(acceptedSnapshot.Linkage, Image.Size.Height, PixelsToMillimeters.Value);
     }
 
-    private void SetupJointsListeners()
+    private void NotifyEditorCommandStatesChanged()
     {
-        JointViewModels.CollectionChanged += (_, e) =>
-        {
-            if (e.Action == NotifyCollectionChangedAction.Reset)
-            {
-                DetachAllJointPropertyChangedHandlers();
-            }
-            else
-            {
-                if (e.OldItems is not null)
-                {
-                    foreach (var item in e.OldItems)
-                    {
-                        if (item is JointViewModel jointViewModel)
-                        {
-                            DetachJointPropertyChangedHandler(jointViewModel);
-                        }
-                    }
-                }
-
-                if (e.NewItems is not null)
-                {
-                    foreach (var item in e.NewItems)
-                    {
-                        if (item is JointViewModel jointViewModel)
-                        {
-                            AttachJointPropertyChangedHandler(jointViewModel);
-                        }
-                    }
-                }
-            }
-
-            if (IsReplacingState) return;
-
-            EvaluateDirtiness();
-            NotifyCanvasBoundsChanged();
-            NotifyWheelJointPropertiesChanged();
-            RecalculateHeadAngle();
-        };
+        SaveCommand.NotifyCanExecuteChanged();
+        ResetCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
     }
 
-    private void SetupLinksListeners()
+    private void OnLinkageEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        LinkViewModels.CollectionChanged += (_, e) =>
+        switch (e.PropertyName)
         {
-            if (e.Action == NotifyCollectionChangedAction.Reset)
-            {
-                DetachAllLinkPropertyChangedHandlers();
-            }
-            else
-            {
-                if (e.OldItems is not null)
+            case nameof(LinkageEditorViewModel.SelectedPoint):
+                OnPropertyChanged(nameof(SelectedPoint));
+                break;
+
+            case nameof(LinkageEditorViewModel.SelectedLink):
+                OnPropertyChanged(nameof(SelectedLink));
+                break;
+
+            case nameof(LinkageEditorViewModel.LinkStrokeThickness):
+                OnPropertyChanged(nameof(LinkStrokeThickness));
+                break;
+
+            case nameof(LinkageEditorViewModel.JointFontSize):
+                OnPropertyChanged(nameof(JointFontSize));
+                break;
+        }
+    }
+
+    private void OnLinkageEditorChanged(object? sender, LinkageEditorChange change)
+    {
+        if (IsReplacingState) return;
+
+        switch (change.Kind)
+        {
+            case LinkageEditorChangeKind.JointStructureChanged:
+                EvaluateDirtiness();
+                NotifyEditorCommandStatesChanged();
+                NotifyCanvasBoundsChanged();
+                NotifyWheelJointPropertiesChanged();
+                RecalculateHeadAngle();
+                break;
+
+            case LinkageEditorChangeKind.LinkStructureChanged:
+                EvaluateDirtiness();
+                NotifyEditorCommandStatesChanged();
+                LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
+                break;
+
+            case LinkageEditorChangeKind.JointMetadataChanged:
+                EvaluateDirtiness();
+                NotifyEditorCommandStatesChanged();
+                if (change.Joint?.Type == JointType.HeadTube)
                 {
-                    foreach (var item in e.OldItems)
-                    {
-                        if (item is LinkViewModel linkViewModel)
-                        {
-                            DetachLinkPropertyChangedHandler(linkViewModel);
-                        }
-                    }
+                    RecalculateHeadAngle();
+                }
+                break;
+
+            case LinkageEditorChangeKind.JointCoordinatesChanged:
+                if (change.Joint?.Type is JointType.BottomBracket or JointType.RearWheel)
+                {
+                    UpdatePixelsToMillimeters();
                 }
 
-                if (e.NewItems is not null)
+                if (change.Joint?.Type is JointType.FrontWheel or JointType.RearWheel)
                 {
-                    foreach (var item in e.NewItems)
-                    {
-                        if (item is LinkViewModel linkViewModel)
-                        {
-                            AttachLinkPropertyChangedHandler(linkViewModel);
-                        }
-                    }
+                    NotifyWheelJointPropertiesChanged();
                 }
-            }
 
-            if (IsReplacingState) return;
+                NotifyCanvasBoundsChanged();
+                RecalculateHeadAngle();
+                break;
 
-            EvaluateDirtiness();
-        };
+            case LinkageEditorChangeKind.LinkEndpointsChanged:
+                EvaluateDirtiness();
+                NotifyEditorCommandStatesChanged();
+                break;
+
+            case LinkageEditorChangeKind.DragCompleted:
+                EvaluateDirtiness();
+                NotifyEditorCommandStatesChanged();
+                break;
+
+            case LinkageEditorChangeKind.SelectionChanged:
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
     }
 
     #endregion Private methods
@@ -1384,69 +1183,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #region Commands
 
     [RelayCommand]
-    private void DoubleTapped(TappedEventArgs args)
-    {
-        var position = args.GetPosition(args.Source as Visual);
-        JointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
-    }
-
-    [RelayCommand]
-    private void Tapped()
-    {
-        SelectedLink = null;
-        SelectedPoint = null;
-        ClearSelections();
-    }
-
-    [RelayCommand]
-    private void PointTapped(TappedEventArgs args)
-    {
-        if (args.Source is not Visual npv) return;
-
-        ClearSelections();
-        SelectedLink = null;
-        SelectedPoint = npv.DataContext as JointViewModel;
-        SelectedPoint!.IsSelected = true;
-
-        // Prevent Tapped event on the Canvas, which would deselect the point.
-        args.Handled = true;
-    }
-
-    [RelayCommand]
-    private void LinkTapped(TappedEventArgs args)
-    {
-        if (args.Source is not Line lv) return;
-
-        ClearSelections();
-        SelectedPoint = null;
-
-        SelectedLink = lv.DataContext as LinkViewModel;
-        SelectedLink!.IsSelected = true;
-
-        // Prevent Tapped event on the Canvas, which would deselect the link.
-        args.Handled = true;
-    }
-
-    [RelayCommand]
-    private void DeleteSelectedItem()
-    {
-        if (SelectedLink is not null && !SelectedLink.IsImmutable)
-        {
-            LinkViewModels.Remove(SelectedLink);
-        }
-        else if (SelectedPoint is not null && SelectedPoint.Immutability == Immutability.Modifiable)
-        {
-            var linksToDelete = LinkViewModels.Where(l => l.A == SelectedPoint || l.B == SelectedPoint).ToList();
-            foreach (var link in linksToDelete)
-            {
-                LinkViewModels.Remove(link);
-            }
-            JointViewModels.Remove(SelectedPoint);
-            ClearSelections();
-        }
-    }
-
-    [RelayCommand]
     private async Task OpenImage()
     {
         if (bikeCoordinator is null) return;
@@ -1470,14 +1206,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
-    }
-
-    [RelayCommand]
-    private void CreateLink()
-    {
-        var link = new LinkViewModel(null, null);
-        link.UpdateLength(PixelsToMillimeters);
-        LinkViewModels.Add(link);
     }
 
     [RelayCommand]
