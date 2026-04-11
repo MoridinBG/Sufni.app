@@ -504,6 +504,12 @@ public partial class LinkageEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void CreateJoint()
+    {
+        jointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, 100, 100));
+    }
+
+    [RelayCommand]
     private void CreateLink()
     {
         var link = new LinkViewModel(null, null);
