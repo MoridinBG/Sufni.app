@@ -48,8 +48,8 @@ The projects that matter most:
   the owning platform heads, with socket-based service discovery in shared
   code and Bonjour implementations in the Apple heads.
 
-Full details: [ARCHITECTURE.md § Project Structure](ARCHITECTURE.md#project-structure)
-and [§ Platform Abstractions](ARCHITECTURE.md#platform-abstractions).
+Full details: [ARCHITECTURE.md § Project Structure](docs/ARCHITECTURE.md#project-structure)
+and [§ Platform Abstractions](docs/ARCHITECTURE.md#platform-abstractions).
 
 # Finding Things
 
@@ -280,8 +280,8 @@ Service or factory: owns infrastructure-facing work such as picker integration, 
 # Testing
 
 When writing new code, write unit tests for it. When changing code verify and update the existing tests.
-When adding or changing unit tests, `TESTING.md` is required reading before writing the tests.
-When adding or changing view tests, `VIEW-TESTING.md` is required reading before writing the view tests.
+When adding or changing unit tests, `docs/TESTING.md` is required reading before writing the tests.
+When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading before writing the view tests.
 
 - Test one unit through its public interface.
 - Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.
