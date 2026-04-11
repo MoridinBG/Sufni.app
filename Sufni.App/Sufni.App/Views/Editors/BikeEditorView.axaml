@@ -37,7 +37,7 @@ mc:Ignorable="d">
     <Grid
     Margin="20,10,20,10"
     ColumnDefinitions="* 2* 2* *"
-    RowDefinitions="auto auto auto auto auto auto * auto auto auto">
+    RowDefinitions="auto auto auto auto auto auto auto auto * auto auto auto">
 
         <!--  Name  -->
         <c:EditableTitle
@@ -53,7 +53,7 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Margin="0,0,0,10"
-        Source="{Binding Image}" />
+        Source="{Binding ImageCanvas.RotatedImage}" />
 
         <!--  Head angle  -->
         <TextBlock
@@ -107,9 +107,39 @@ mc:Ignorable="d">
         Text="{Binding Chainstay, StringFormat={}{0:0}}"
         TextAlignment="Right" />
 
+        <!--  Front wheel (only if configured)  -->
+        <TextBlock
+        Grid.Row="6"
+        Grid.Column="1"
+        Margin="0,0,0,5"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
+        Text="Front wheel" />
+        <TextBlock
+        Grid.Row="6"
+        Grid.Column="2"
+        Margin="0,0,0,5"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
+        Text="{Binding WheelGeometry.FrontWheelDisplayText}"
+        TextAlignment="Right" />
+
+        <!--  Rear wheel (only if configured)  -->
+        <TextBlock
+        Grid.Row="7"
+        Grid.Column="1"
+        Margin="0,0,0,5"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
+        Text="Rear wheel" />
+        <TextBlock
+        Grid.Row="7"
+        Grid.Column="2"
+        Margin="0,0,0,5"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
+        Text="{Binding WheelGeometry.RearWheelDisplayText}"
+        TextAlignment="Right" />
+
         <!--  Leverage ratio plot  -->
         <Grid
-        Grid.Row="6"
+        Grid.Row="8"
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Margin="0,10">
@@ -139,14 +169,14 @@ mc:Ignorable="d">
 
         <!--  Error messages for Bike instance  -->
         <c:ErrorMessagesBar
-        Grid.Row="7"
+        Grid.Row="9"
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Margin="0,5,0,0" />
 
         <!--  Import button  -->
         <Button
-        Grid.Row="8"
+        Grid.Row="10"
         Grid.Column="0"
         Grid.ColumnSpan="4"
         MinHeight="39"
@@ -158,13 +188,13 @@ mc:Ignorable="d">
 
         <!--  Back, Save, Reset and Delete buttons  -->
         <c:CommonButtonLine
-        Grid.Row="9"
+        Grid.Row="11"
         Grid.Column="0"
         Grid.ColumnSpan="4" />
 
         <Panel
         Grid.Row="0"
-        Grid.RowSpan="10"
+        Grid.RowSpan="12"
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Background="#0d0d0d"
@@ -182,7 +212,7 @@ mc:Ignorable="d">
 
         <progRing:ProgressRing
         Grid.Row="0"
-        Grid.RowSpan="10"
+        Grid.RowSpan="12"
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Width="40"

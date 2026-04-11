@@ -4,7 +4,9 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.BikeEditing;
 
-public sealed record BikeAnalysisPresentationData(CoordinateList LeverageRatioData);
+public sealed record BikeAnalysisPresentationData(
+    CoordinateList LeverageRatioData,
+    CoordinateList RearAxlePathData);
 
 public sealed record ImportedBikeEditorData(Bike Bike, BikeEditorAnalysisResult AnalysisResult);
 
