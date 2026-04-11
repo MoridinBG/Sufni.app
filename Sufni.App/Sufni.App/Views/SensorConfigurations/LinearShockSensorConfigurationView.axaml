@@ -1,14 +1,14 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.SensorConfigurations.LinearShockSensorConfigurationView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SensorConfigurations"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vm:LinearShockSensorConfigurationViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.SensorConfigurations.LinearShockSensorConfigurationView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SensorConfigurations"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:LinearShockSensorConfigurationViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:LinearShockSensorConfigurationViewModel />
@@ -17,31 +17,33 @@
     <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto">
         <!--  Length  -->
         <Label
-            Grid.Row="0"
-            Grid.Column="0"
-            VerticalAlignment="Center"
-            Content="Sensor length: " />
+        Grid.Row="0"
+        Grid.Column="0"
+        VerticalAlignment="Center"
+        Content="Sensor length: " />
         <NumericUpDown
-            Grid.Row="0"
-            Grid.Column="1"
-            Margin="0,2,2,2"
-            Increment="1"
-            Maximum="500"
-            Minimum="100"
-            Value="{Binding Length}" />
+        Name="LengthNumericUpDown"
+        Grid.Row="0"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        Increment="1"
+        Maximum="500"
+        Minimum="100"
+        Value="{Binding Length}" />
 
         <!--  Resolution  -->
         <Label
-            Grid.Row="1"
-            Grid.Column="0"
-            VerticalAlignment="Center"
-            Content="Resolution: " />
+        Grid.Row="1"
+        Grid.Column="0"
+        VerticalAlignment="Center"
+        Content="Resolution: " />
         <NumericUpDown
-            Grid.Row="1"
-            Grid.Column="1"
-            Margin="0,2,2,2"
-            Maximum="32"
-            Minimum="8"
-            Value="{Binding Resolution}" />
+        Name="ResolutionNumericUpDown"
+        Grid.Row="1"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        Maximum="32"
+        Minimum="8"
+        Value="{Binding Resolution}" />
     </Grid>
 </UserControl>

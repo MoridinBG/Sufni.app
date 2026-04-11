@@ -5,6 +5,8 @@
 This guide defines how tests in `Sufni.App.Tests` should be written.
 The goal is reliable regression protection around meaningful behavior, not blind coverage growth.
 
+For Avalonia headless view tests and view-specific testing guidance, see [VIEW-TESTING.md](VIEW-TESTING.md).
+
 ## Core Standard
 
 - A test targets one unit under test.
