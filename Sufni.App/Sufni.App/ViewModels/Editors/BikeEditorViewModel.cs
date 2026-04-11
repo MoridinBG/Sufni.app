@@ -60,6 +60,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private CoordinateList? rearAxlePathData;
     private Bitmap? rotatedImageCache;
     private double rotatedImageCacheAngle = double.NaN;
+    private bool suppressWheelStateCallbacks;
 
     #endregion Private fields
 
@@ -285,20 +286,27 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnFrontWheelRimSizeChanged(EtrtoRimSize? value)
     {
+        if (suppressWheelStateCallbacks) return;
         RecalculateFrontWheelDiameter();
         EvaluateDirtiness();
     }
 
     partial void OnFrontWheelTireWidthChanged(double? value)
     {
+        if (suppressWheelStateCallbacks) return;
         RecalculateFrontWheelDiameter();
         EvaluateDirtiness();
     }
 
     partial void OnFrontWheelDiameterChanged(double? value)
     {
-        SetProperty(ref frontWheelRimSize, null, nameof(FrontWheelRimSize));
-        SetProperty(ref frontWheelTireWidth, null, nameof(FrontWheelTireWidth));
+        if (suppressWheelStateCallbacks) return;
+
+        WithWheelStateCallbacksSuspended(() =>
+        {
+            FrontWheelRimSize = null;
+            FrontWheelTireWidth = null;
+        });
 
         NotifyFrontWheelPropertiesChanged();
         EvaluateDirtiness();
@@ -308,20 +316,27 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
     {
+        if (suppressWheelStateCallbacks) return;
         RecalculateRearWheelDiameter();
         EvaluateDirtiness();
     }
 
     partial void OnRearWheelTireWidthChanged(double? value)
     {
+        if (suppressWheelStateCallbacks) return;
         RecalculateRearWheelDiameter();
         EvaluateDirtiness();
     }
 
     partial void OnRearWheelDiameterChanged(double? value)
     {
-        SetProperty(ref rearWheelRimSize, null, nameof(RearWheelRimSize));
-        SetProperty(ref rearWheelTireWidth, null, nameof(RearWheelTireWidth));
+        if (suppressWheelStateCallbacks) return;
+
+        WithWheelStateCallbacksSuspended(() =>
+        {
+            RearWheelRimSize = null;
+            RearWheelTireWidth = null;
+        });
 
         NotifyRearWheelPropertiesChanged();
         EvaluateDirtiness();
@@ -381,6 +396,19 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #endregion Constructors
 
     #region Private methods
+
+    private void WithWheelStateCallbacksSuspended(Action action)
+    {
+        suppressWheelStateCallbacks = true;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            suppressWheelStateCallbacks = false;
+        }
+    }
 
     private static Bike BikeFromSnapshot(BikeSnapshot snapshot)
     {
@@ -696,25 +724,16 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         HeadAngle = bike.HeadAngle;
         ForksStroke = bike.ForkStroke;
 
-        var mapping = new JointNameMapping();
-        if (!JointViewModels.Any(joint => joint.Name == mapping.HeadTube1))
+        WithWheelStateCallbacksSuspended(() =>
         {
-            JointViewModels.Add(new JointViewModel(mapping.HeadTube1, JointType.HeadTube, 100, 50));
-        }
-        if (!JointViewModels.Any(joint => joint.Name == mapping.HeadTube2))
-        {
-            JointViewModels.Add(new JointViewModel(mapping.HeadTube2, JointType.HeadTube, 100, 120));
-        }
-
-        #pragma warning disable MVVMTK0034
-        SetProperty(ref frontWheelRimSize, bike.FrontWheelRimSize, nameof(FrontWheelRimSize));
-        SetProperty(ref frontWheelTireWidth, bike.FrontWheelTireWidth, nameof(FrontWheelTireWidth));
-        SetProperty(ref frontWheelDiameter, bike.FrontWheelDiameterMm, nameof(FrontWheelDiameter));
-        SetProperty(ref rearWheelRimSize, bike.RearWheelRimSize, nameof(RearWheelRimSize));
-        SetProperty(ref rearWheelTireWidth, bike.RearWheelTireWidth, nameof(RearWheelTireWidth));
-        SetProperty(ref rearWheelDiameter, bike.RearWheelDiameterMm, nameof(RearWheelDiameter));
-        SetProperty(ref imageRotationDegrees, bike.ImageRotationDegrees, nameof(ImageRotationDegrees));
-        #pragma warning restore MVVMTK0034
+            FrontWheelRimSize = bike.FrontWheelRimSize;
+            FrontWheelTireWidth = bike.FrontWheelTireWidth;
+            FrontWheelDiameter = bike.FrontWheelDiameterMm;
+            RearWheelRimSize = bike.RearWheelRimSize;
+            RearWheelTireWidth = bike.RearWheelTireWidth;
+            RearWheelDiameter = bike.RearWheelDiameterMm;
+            ImageRotationDegrees = bike.ImageRotationDegrees;
+        });
 
         OnPropertyChanged(nameof(RotatedImage));
         OnPropertyChanged(nameof(RotatedImageLeft));
@@ -730,12 +749,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (FrontWheelRimSize.HasValue && FrontWheelTireWidth.HasValue)
         {
-            #pragma warning disable MVVMTK0034
-            SetProperty(
-                ref frontWheelDiameter,
-                Math.Round(FrontWheelRimSize.Value.CalculateTotalDiameterMm(FrontWheelTireWidth.Value), 1),
-                nameof(FrontWheelDiameter));
-            #pragma warning restore MVVMTK0034
+            WithWheelStateCallbacksSuspended(() =>
+            {
+                FrontWheelDiameter = Math.Round(
+                    FrontWheelRimSize.Value.CalculateTotalDiameterMm(FrontWheelTireWidth.Value),
+                    1);
+            });
         }
 
         NotifyFrontWheelPropertiesChanged();
@@ -746,12 +765,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (RearWheelRimSize.HasValue && RearWheelTireWidth.HasValue)
         {
-            #pragma warning disable MVVMTK0034
-            SetProperty(
-                ref rearWheelDiameter,
-                Math.Round(RearWheelRimSize.Value.CalculateTotalDiameterMm(RearWheelTireWidth.Value), 1),
-                nameof(RearWheelDiameter));
-            #pragma warning restore MVVMTK0034
+            WithWheelStateCallbacksSuspended(() =>
+            {
+                RearWheelDiameter = Math.Round(
+                    RearWheelRimSize.Value.CalculateTotalDiameterMm(RearWheelTireWidth.Value),
+                    1);
+            });
         }
 
         NotifyRearWheelPropertiesChanged();
