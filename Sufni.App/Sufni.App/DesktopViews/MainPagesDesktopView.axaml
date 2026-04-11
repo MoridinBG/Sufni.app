@@ -140,8 +140,7 @@
             <Button
                 Width="50"
                 Classes="embedded"
-                Command="{Binding OpenPageCommand}"
-                CommandParameter="{Binding ImportSessionsPage}">
+                Command="{Binding OpenImportCommand}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </Button>
 
@@ -190,7 +189,7 @@
                 FontSize="16">
                 <Run Text="Pairing request from " />
                 <LineBreak />
-                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingId}" />
+                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingName}" />
             </TextBlock>
 
             <!--  PIN Display  -->

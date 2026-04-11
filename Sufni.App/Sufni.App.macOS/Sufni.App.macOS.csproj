@@ -2,13 +2,17 @@
   <PropertyGroup>
     <ApplicationId>com.sghctoma.Sufni.App</ApplicationId>
     <OutputType>Exe</OutputType>
-    <!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
-    One for Windows with net10.0-windows TFM, one for MacOS with net10.0-macos and one with net10.0 TFM for Linux.-->
+    <!--If
+    you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
+    One for Windows with net10.0-windows TFM, one for MacOS with net10.0-macos and one with net10.0 TFM
+    for Linux.-->
     <TargetFramework>net10.0-macos</TargetFramework>
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <Configurations>Debug;Release</Configurations>
     <Platforms>AnyCPU</Platforms>
+    <EnableCodeSigning>true</EnableCodeSigning>
+    <CodesignKey>Apple Development</CodesignKey>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Sufni.App\Sufni.App.csproj" />
+    <ProjectReference Include="..\Sufni.App.Desktop\Sufni.App.Desktop.csproj" />
   </ItemGroup>
 </Project>

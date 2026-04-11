@@ -1,9 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using MathNet.Numerics;
+using Sufni.App.Models;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models.SensorConfigurations;
@@ -21,7 +21,8 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     [JsonPropertyName("adjacent_joint_1")] public string AdjacentJoint1 { get; init; } = null!;
     [JsonPropertyName("adjacent_joint_2")] public string AdjacentJoint2 { get; init; } = null!;
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.RotationalShock;
-    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    [JsonIgnore]
+    public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -36,7 +37,8 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
             };
         }
     }
-    [JsonIgnore] public override double MaxTravel
+    [JsonIgnore]
+    public override double MaxTravel
     {
         get
         {
@@ -51,7 +53,7 @@ public class RotationalShockSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike.Linkage is not null);
 
-        var sc = JsonSerializer.Deserialize<RotationalShockSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<RotationalShockSensorConfiguration>(json);
         if (sc is null) return null;
 
         var central = bike.Linkage.Joints.First(j => j.Name == sc.CentralJoint);

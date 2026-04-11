@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
 
@@ -15,32 +14,19 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public bool? ShouldBeImported { get; set; }
     public bool Imported { get; set; }
     public string Description { get; set; }
-    public DateTime StartTime { get; init; }
-    public string Duration { get; init; }
+    public byte Version { get; private set; }
+    public DateTime StartTime { get; private set; }
+    public string Duration { get; private set; } = "unknown";
+    public string? MalformedMessage { get; private set; }
+    public bool HasUnknown { get; private set; }
 
     public MassStorageTelemetryFile(FileInfo fileInfo)
     {
         this.fileInfo = fileInfo;
 
         using var stream = File.Open(this.fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var reader = new BinaryReader(stream);
-
-        var magic = reader.ReadBytes(3);
-        var version = reader.ReadByte();
-        if (!magic.SequenceEqual("SST"u8.ToArray()) || version != 3)
-        {
-            throw new FormatException("Not an SST file");
-        }
-
-        var sampleRate = reader.ReadUInt16();
-        var count = (this.fileInfo.Length - 16 /* sizeof(header) */) / 4 /* sizeof(record) */;
-        reader.ReadUInt16(); // padding
-        var timestamp = reader.ReadInt64();
-
-        var duration = TimeSpan.FromSeconds((double)count / sampleRate);
-        ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
-        StartTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
-        Duration = duration.ToString(@"hh\:mm\:ss");
+        var inspection = RawTelemetryData.InspectStream(stream);
+        ApplyInspection(inspection, fileInfo.LastWriteTime);
         Name = fileInfo.Name;
         Description = $"Imported from {fileInfo.Name}";
     }
@@ -55,10 +41,11 @@ public class MassStorageTelemetryFile : ITelemetryFile
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
             Timestamp = rawTelemetryData.Timestamp,
-            Duration = (double)rawTelemetryData.Front.Length / rawTelemetryData.SampleRate
+            Duration = rawTelemetryData.SampleRate > 0
+                ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
+                : 0.0
         };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData.Front, rawTelemetryData.Rear,
-            rawTelemetryData.FrontAnomalyRate, rawTelemetryData.RearAnomalyRate, telemetryMetadata, bikeData);
+        var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
         return telemetryData.BinaryForm;
     }
 
@@ -75,5 +62,28 @@ public class MassStorageTelemetryFile : ITelemetryFile
         File.Move(fileInfo.FullName,
             $"{Path.GetDirectoryName(fileInfo.FullName)}/trash/{fileInfo.Name}");
         return Task.CompletedTask;
+    }
+
+    private void ApplyInspection(SstFileInspection inspection, DateTime fallbackStartTime)
+    {
+        switch (inspection)
+        {
+            case ValidSstFileInspection valid:
+                ShouldBeImported = valid.Duration.TotalSeconds >= 5 ? true : null;
+                Version = valid.Version;
+                StartTime = valid.StartTime;
+                Duration = valid.Duration.ToString(@"hh\:mm\:ss");
+                MalformedMessage = null;
+                HasUnknown = valid.HasUnknown;
+                break;
+            case MalformedSstFileInspection malformed:
+                ShouldBeImported = false;
+                Version = malformed.Version ?? 0;
+                StartTime = malformed.StartTime ?? fallbackStartTime;
+                Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
+                MalformedMessage = malformed.Message;
+                HasUnknown = false;
+                break;
+        }
     }
 }
