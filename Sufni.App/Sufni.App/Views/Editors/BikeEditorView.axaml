@@ -53,7 +53,7 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="4"
         Margin="0,0,0,10"
-        Source="{Binding RotatedImage}" />
+        Source="{Binding ImageCanvas.RotatedImage}" />
 
         <!--  Head angle  -->
         <TextBlock
@@ -112,14 +112,14 @@ mc:Ignorable="d">
         Grid.Row="6"
         Grid.Column="1"
         Margin="0,0,0,5"
-        IsVisible="{Binding HasWheels}"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
         Text="Front wheel" />
         <TextBlock
         Grid.Row="6"
         Grid.Column="2"
         Margin="0,0,0,5"
-        IsVisible="{Binding HasWheels}"
-        Text="{Binding FrontWheelDisplayText}"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
+        Text="{Binding WheelGeometry.FrontWheelDisplayText}"
         TextAlignment="Right" />
 
         <!--  Rear wheel (only if configured)  -->
@@ -127,14 +127,14 @@ mc:Ignorable="d">
         Grid.Row="7"
         Grid.Column="1"
         Margin="0,0,0,5"
-        IsVisible="{Binding HasWheels}"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
         Text="Rear wheel" />
         <TextBlock
         Grid.Row="7"
         Grid.Column="2"
         Margin="0,0,0,5"
-        IsVisible="{Binding HasWheels}"
-        Text="{Binding RearWheelDisplayText}"
+        IsVisible="{Binding WheelGeometry.HasWheels}"
+        Text="{Binding WheelGeometry.RearWheelDisplayText}"
         TextAlignment="Right" />
 
         <!--  Leverage ratio plot  -->

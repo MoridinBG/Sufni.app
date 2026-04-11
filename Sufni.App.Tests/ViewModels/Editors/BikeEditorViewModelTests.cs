@@ -149,11 +149,11 @@ public class BikeEditorViewModelTests
 
     private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeEditorJoints(BikeEditorViewModel editor)
     {
-        Assert.NotNull(editor.Image);
+        Assert.NotNull(editor.ImageCanvas.Image);
         Assert.True(editor.PixelsToMillimeters.HasValue);
 
-        return editor.JointViewModels
-            .Select(joint => joint.ToJoint(editor.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+        return editor.LinkageEditor.JointViewModels
+            .Select(joint => joint.ToJoint(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
             .OrderBy(joint => joint.Name)
             .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
             .ToList();
@@ -161,11 +161,11 @@ public class BikeEditorViewModelTests
 
     private static IReadOnlyList<string> DescribeEditorLinks(BikeEditorViewModel editor)
     {
-        Assert.NotNull(editor.Image);
+        Assert.NotNull(editor.ImageCanvas.Image);
         Assert.True(editor.PixelsToMillimeters.HasValue);
 
-        return editor.LinkViewModels
-            .Select(link => link.ToLink(editor.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+        return editor.LinkageEditor.LinkViewModels
+            .Select(link => link.ToLink(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
             .Select(DescribeLink)
             .OrderBy(link => link)
             .ToList();
@@ -184,26 +184,26 @@ public class BikeEditorViewModelTests
     {
         var editor = CreateEditor(snapshot);
 
-        Assert.Equal(snapshot.FrontWheelRimSize, editor.FrontWheelRimSize);
-        Assert.Equal(snapshot.FrontWheelTireWidth, editor.FrontWheelTireWidth);
-        Assert.Equal(snapshot.FrontWheelDiameterMm, editor.FrontWheelDiameter);
-        Assert.Equal(snapshot.RearWheelRimSize, editor.RearWheelRimSize);
-        Assert.Equal(snapshot.RearWheelTireWidth, editor.RearWheelTireWidth);
-        Assert.Equal(snapshot.RearWheelDiameterMm, editor.RearWheelDiameter);
-        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageRotationDegrees);
-        Assert.Equal(snapshot.Image is not null, editor.Image is not null);
+        Assert.Equal(snapshot.FrontWheelRimSize, editor.WheelGeometry.FrontWheelRimSize);
+        Assert.Equal(snapshot.FrontWheelTireWidth, editor.WheelGeometry.FrontWheelTireWidth);
+        Assert.Equal(snapshot.FrontWheelDiameterMm, editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Equal(snapshot.RearWheelRimSize, editor.WheelGeometry.RearWheelRimSize);
+        Assert.Equal(snapshot.RearWheelTireWidth, editor.WheelGeometry.RearWheelTireWidth);
+        Assert.Equal(snapshot.RearWheelDiameterMm, editor.WheelGeometry.RearWheelDiameter);
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.Equal(snapshot.Image is not null, editor.ImageCanvas.Image is not null);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
 
         if (snapshot.Linkage is null)
         {
-            Assert.Empty(editor.JointViewModels);
-            Assert.Empty(editor.LinkViewModels);
+            Assert.Empty(editor.LinkageEditor.JointViewModels);
+            Assert.Empty(editor.LinkageEditor.LinkViewModels);
             return;
         }
 
-        Assert.Equal(snapshot.Linkage.Joints.Count, editor.JointViewModels.Count);
-        Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkViewModels.Count);
+        Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
+        Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
         Assert.Equal(DescribeJoints(snapshot.Linkage.Joints), DescribeEditorJoints(editor));
         Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeEditorLinks(editor));
     }
@@ -221,13 +221,13 @@ public class BikeEditorViewModelTests
         Assert.Equal(snapshot.HeadAngle, editor.HeadAngle);
         Assert.Equal(snapshot.ForkStroke, editor.ForksStroke);
         Assert.Null(editor.ShockStroke);
-        Assert.Null(editor.Image);
+        Assert.Null(editor.ImageCanvas.Image);
         Assert.True(editor.IsInDatabase);
         Assert.Equal(7, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
-        Assert.Empty(editor.JointViewModels);
-        Assert.Empty(editor.LinkViewModels);
+        Assert.Empty(editor.LinkageEditor.JointViewModels);
+        Assert.Empty(editor.LinkageEditor.LinkViewModels);
     }
 
     [AvaloniaFact]
@@ -239,8 +239,8 @@ public class BikeEditorViewModelTests
         // AddInitialJoints contributes 7 joints (FrontWheel, BottomBracket,
         // RearWheel, two HeadTube points, two ShockEye floating points)
         // and the shock LinkViewModel.
-        Assert.Equal(7, editor.JointViewModels.Count);
-        Assert.Single(editor.LinkViewModels);
+        Assert.Equal(7, editor.LinkageEditor.JointViewModels.Count);
+        Assert.Single(editor.LinkageEditor.LinkViewModels);
     }
 
     [AvaloniaFact]
@@ -343,7 +343,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        editor.FrontWheelDiameter = 760;
+        editor.WheelGeometry.FrontWheelDiameter = 760;
 
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
@@ -353,8 +353,8 @@ public class BikeEditorViewModelTests
     {
         var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
         var removedJoint = new JointViewModel("Detached point", JointType.Floating, 10, 10);
-        editor.JointViewModels.Add(removedJoint);
-        editor.JointViewModels.Remove(removedJoint);
+        editor.LinkageEditor.JointViewModels.Add(removedJoint);
+        editor.LinkageEditor.JointViewModels.Remove(removedJoint);
         var isDirtyBeforeMutation = editor.IsDirty;
         var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
 
@@ -368,13 +368,13 @@ public class BikeEditorViewModelTests
     public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
     {
         var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-        var removedLink = new LinkViewModel(editor.JointViewModels[0], editor.JointViewModels[1]);
-        editor.LinkViewModels.Add(removedLink);
-        editor.LinkViewModels.Remove(removedLink);
+        var removedLink = new LinkViewModel(editor.LinkageEditor.JointViewModels[0], editor.LinkageEditor.JointViewModels[1]);
+        editor.LinkageEditor.LinkViewModels.Add(removedLink);
+        editor.LinkageEditor.LinkViewModels.Remove(removedLink);
         var isDirtyBeforeMutation = editor.IsDirty;
         var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
 
-        removedLink.A = editor.JointViewModels[2];
+        removedLink.A = editor.LinkageEditor.JointViewModels[2];
 
         Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
         Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
@@ -412,9 +412,9 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        editor.FrontWheelDiameter = 760;
-        editor.RearWheelDiameter = 750;
-        editor.ImageRotationDegrees = 13.5;
+        editor.WheelGeometry.FrontWheelDiameter = 760;
+        editor.WheelGeometry.RearWheelDiameter = 750;
+        editor.ImageCanvas.ImageRotationDegrees = 13.5;
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
@@ -667,11 +667,11 @@ public class BikeEditorViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Equal(data, editor.LeverageRatioData);
-        Assert.Equal(2, editor.RearAxlePath.Count);
-        Assert.Equal(2, editor.RearAxlePath[0].X, 3);
-        Assert.Equal(0.75, editor.RearAxlePath[0].Y, 3);
-        Assert.Equal(4, editor.RearAxlePath[1].X, 3);
-        Assert.Equal(0.25, editor.RearAxlePath[1].Y, 3);
+        Assert.Equal(2, editor.ImageCanvas.RearAxlePath.Count);
+        Assert.Equal(2, editor.ImageCanvas.RearAxlePath[0].X, 3);
+        Assert.Equal(0.75, editor.ImageCanvas.RearAxlePath[0].Y, 3);
+        Assert.Equal(4, editor.ImageCanvas.RearAxlePath[1].X, 3);
+        Assert.Equal(0.25, editor.ImageCanvas.RearAxlePath[1].Y, 3);
     }
 
     [AvaloniaFact]
@@ -750,13 +750,13 @@ public class BikeEditorViewModelTests
         Assert.Equal("imported bike", editor.Name);
         Assert.Equal(63, editor.HeadAngle);
         Assert.Equal(170, editor.ForksStroke);
-        Assert.Equal(EtrtoRimSize.Inch29, editor.FrontWheelRimSize);
-        Assert.Equal(2.4, editor.FrontWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.FrontWheelDiameter);
-        Assert.Equal(EtrtoRimSize.Inch275, editor.RearWheelRimSize);
-        Assert.Equal(2.5, editor.RearWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.RearWheelDiameter);
-        Assert.Equal(12.5, editor.ImageRotationDegrees);
+        Assert.Equal(EtrtoRimSize.Inch29, editor.WheelGeometry.FrontWheelRimSize);
+        Assert.Equal(2.4, editor.WheelGeometry.FrontWheelTireWidth);
+        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Equal(EtrtoRimSize.Inch275, editor.WheelGeometry.RearWheelRimSize);
+        Assert.Equal(2.5, editor.WheelGeometry.RearWheelTireWidth);
+        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
+        Assert.Equal(12.5, editor.ImageCanvas.ImageRotationDegrees);
         Assert.Equal(0, editor.BaselineUpdated);
         Assert.False(editor.IsInDatabase);
     }
@@ -796,12 +796,12 @@ public class BikeEditorViewModelTests
             updated: 7);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        editor.ImageRotationDegrees = 22.5;
+        editor.ImageCanvas.ImageRotationDegrees = 22.5;
 
         await editor.ResetCommand.ExecuteAsync(null);
 
         Assert.Equal(snapshot.Name, editor.Name);
-        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageRotationDegrees);
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
