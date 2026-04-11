@@ -16,54 +16,93 @@ namespace Sufni.App.Tests.Views.Editors;
 public class SetupEditorDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task SetupEditorDesktopView_LoadedBehavior_PopulatesFields_AndRendersSensorViews()
+    public async Task SetupEditorDesktopView_NameTextBox_DisplaysBoundValue()
     {
         using var context = new SetupEditorViewTestContext();
-        var bike = context.AddBike("Trail bike");
-        var boardId = Guid.NewGuid();
-        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike, boardId) with
+        var bike = context.AddBike();
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
         {
             Name = "Race setup"
         });
-        var view = mounted.View;
-        var editor = mounted.Editor;
 
-        var nameTextBox = view.FindControl<TextBox>("NameTextBox");
-        var boardIdTextBox = view.FindControl<TextBox>("BoardIdTextBox");
-        var bikeComboBox = view.FindControl<ComboBox>("BikeComboBox");
-        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
-        var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
+        var nameTextBox = mounted.View.FindControl<TextBox>("NameTextBox");
         Assert.NotNull(nameTextBox);
-        Assert.NotNull(boardIdTextBox);
-        Assert.NotNull(bikeComboBox);
-        Assert.NotNull(forkContent);
-        Assert.NotNull(shockContent);
-
         Assert.Equal("Race setup", nameTextBox!.Text);
-        Assert.Equal(boardId.ToString(), boardIdTextBox!.Text);
-        Assert.Single(editor.Bikes);
-        Assert.Equal(bike.Id, editor.SelectedBike?.Id);
-        Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(bikeComboBox!.SelectedItem).Id);
-        Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
-        Assert.NotNull(shockContent!.FindFirstVisual<LinearShockSensorConfigurationView>());
     }
 
     [AvaloniaFact]
-    public async Task SetupEditorDesktopView_BindsSaveAndResetButtons_ToViewModelCommands()
+    public async Task SetupEditorDesktopView_BoardIdTextBox_DisplaysBoundValue()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        var boardId = Guid.NewGuid();
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike, boardId));
+
+        var boardIdTextBox = mounted.View.FindControl<TextBox>("BoardIdTextBox");
+        Assert.NotNull(boardIdTextBox);
+        Assert.Equal(boardId.ToString(), boardIdTextBox!.Text);
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorDesktopView_BikeComboBox_PopulatedAndSelected()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike("Trail bike");
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        var bikeComboBox = mounted.View.FindControl<ComboBox>("BikeComboBox");
+        Assert.NotNull(bikeComboBox);
+        Assert.Single(mounted.Editor.Bikes);
+        Assert.Equal(bike.Id, mounted.Editor.SelectedBike?.Id);
+        Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(bikeComboBox!.SelectedItem).Id);
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorDesktopView_ForkSensorConfigContent_ShowsCorrectView()
     {
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike();
         await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
-        var view = mounted.View;
-        var editor = mounted.Editor;
 
-        var saveButton = view.FindControl<Button>("SaveButton");
-        var resetButton = view.FindControl<Button>("ResetButton");
+        var forkContent = mounted.View.FindControl<ContentControl>("ForkSensorConfigContent");
+        Assert.NotNull(forkContent);
+        Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorDesktopView_ShockSensorConfigContent_ShowsCorrectView()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        var shockContent = mounted.View.FindControl<ContentControl>("ShockSensorConfigContent");
+        Assert.NotNull(shockContent);
+        Assert.NotNull(shockContent!.FindFirstVisual<LinearShockSensorConfigurationView>());
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorDesktopView_SaveButton_BindsSaveCommand()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        var saveButton = mounted.View.FindControl<Button>("SaveButton");
         Assert.NotNull(saveButton);
-        Assert.NotNull(resetButton);
+        Assert.Same(mounted.Editor.SaveCommand, saveButton!.Command);
+    }
 
-        Assert.Same(editor.SaveCommand, saveButton!.Command);
-        Assert.Same(editor.ResetCommand, resetButton!.Command);
+    [AvaloniaFact]
+    public async Task SetupEditorDesktopView_ResetButton_BindsResetCommand()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        var resetButton = mounted.View.FindControl<Button>("ResetButton");
+        Assert.NotNull(resetButton);
+        Assert.Same(mounted.Editor.ResetCommand, resetButton!.Command);
     }
 
     [AvaloniaFact]
