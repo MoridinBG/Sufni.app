@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
@@ -80,6 +81,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ILiveDaqBrowseOwner, LiveDaqBrowseOwner>();
         ServiceCollection.AddSingleton<ILiveDaqBoardIdProbe, LiveDaqBoardIdProbe>();
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
+        ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
         ServiceCollection.AddSingleton<ILiveDaqCoordinator, LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
