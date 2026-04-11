@@ -55,7 +55,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private BikeSnapshot acceptedSnapshot;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
-    private CancellationTokenSource? replaceableWorkflowCts;
+    private readonly CancellableOperation analysisOperation = new();
+    private readonly CancellableOperation imageOperation = new();
+    private readonly CancellableOperation importOperation = new();
     private readonly Dictionary<JointViewModel, PropertyChangedEventHandler> jointPropertyChangedHandlers = [];
     private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
     private CoordinateList? rearAxlePathData;
@@ -974,60 +976,33 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             .ToList();
     }
 
-    private CancellationTokenSource StartReplaceableWorkflow()
-    {
-        CancelReplaceableWorkflow();
-        replaceableWorkflowCts = new CancellationTokenSource();
-        return replaceableWorkflowCts;
-    }
-
-    private void CancelReplaceableWorkflow()
-    {
-        replaceableWorkflowCts?.Cancel();
-        replaceableWorkflowCts = null;
-        IsPlotBusy = false;
-    }
-
-    private bool IsCurrentWorkflow(CancellationTokenSource workflowCts) =>
-        replaceableWorkflowCts == workflowCts && !workflowCts.IsCancellationRequested;
-
-    private void TryCompleteCurrentWorkflow(CancellationTokenSource workflowCts)
-    {
-        workflowCts.Dispose();
-
-        if (replaceableWorkflowCts != workflowCts) return;
-
-        replaceableWorkflowCts = null;
-        IsPlotBusy = false;
-    }
-
     private void QueuePlotRefresh(bool showPlotBusyOverlay = true) => _ = RefreshAnalysisAsync(showPlotBusyOverlay);
 
     private async Task RefreshAnalysisAsync(bool showPlotBusyOverlay = false)
     {
         if (bikeCoordinator is null) return;
 
-        var workflowCts = StartReplaceableWorkflow();
+        var token = analysisOperation.Start();
         IsPlotBusy = showPlotBusyOverlay;
         try
         {
-            var result = await bikeCoordinator.LoadAnalysisAsync(CreateCurrentLinkage(), workflowCts.Token);
-            if (!IsCurrentWorkflow(workflowCts)) return;
+            var result = await bikeCoordinator.LoadAnalysisAsync(CreateCurrentLinkage(), token);
+            if (token.IsCancellationRequested) return;
 
             ApplyAnalysisResult(result);
         }
-        catch (OperationCanceledException) when (workflowCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
         catch (Exception e)
         {
-            if (!IsCurrentWorkflow(workflowCts)) return;
-
+            if (token.IsCancellationRequested) return;
             ApplyAnalysisResult(new BikeEditorAnalysisResult.Failed(e.Message));
         }
         finally
         {
-            TryCompleteCurrentWorkflow(workflowCts);
+            if (!token.IsCancellationRequested)
+                IsPlotBusy = false;
         }
     }
 
@@ -1474,11 +1449,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (bikeCoordinator is null) return;
 
-        var workflowCts = StartReplaceableWorkflow();
+        var token = imageOperation.Start();
         try
         {
-            var result = await bikeCoordinator.LoadImageAsync(workflowCts.Token);
-            if (!IsCurrentWorkflow(workflowCts)) return;
+            var result = await bikeCoordinator.LoadImageAsync(token);
+            if (token.IsCancellationRequested) return;
 
             switch (result)
             {
@@ -1490,7 +1465,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                     break;
             }
         }
-        catch (OperationCanceledException) when (workflowCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
     }
@@ -1508,11 +1483,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (bikeCoordinator is null) return;
 
-        var workflowCts = StartReplaceableWorkflow();
+        analysisOperation.Cancel();
+        var token = importOperation.Start();
         try
         {
-            var result = await bikeCoordinator.ImportBikeAsync(workflowCts.Token);
-            if (!IsCurrentWorkflow(workflowCts)) return;
+            var result = await bikeCoordinator.ImportBikeAsync(token);
+            if (token.IsCancellationRequested) return;
 
             switch (result)
             {
@@ -1527,7 +1503,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                     break;
             }
         }
-        catch (OperationCanceledException) when (workflowCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
     }
@@ -1552,7 +1528,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private void Unloaded()
     {
         DisposeScopedSubscriptions();
-        CancelReplaceableWorkflow();
+        analysisOperation.Cancel();
+        imageOperation.Cancel();
+        importOperation.Cancel();
     }
 
     #endregion Commands
