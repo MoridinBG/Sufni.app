@@ -1,0 +1,189 @@
+<Application
+    x:Class="Sufni.Screenshots.Infrastructure.ScreenshotApp"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:labs="using:Avalonia.Labs.Controls"
+    RequestedThemeVariant="Dark">
+
+    <Application.Resources>
+        <!--  Mirrors Sufni.App/App.axaml resources  -->
+
+        <!--  Common colors  -->
+        <Color x:Key="SufniForeground">#a0a0a0</Color>
+        <Color x:Key="SufniForegroundPointerOver">#c0c0c0</Color>
+        <Color x:Key="SufniRegion">#15191c</Color>
+        <Color x:Key="SufniBackground">#20262b</Color>
+        <Color x:Key="SufniForegroundDisabled">#606060</Color>
+        <Color x:Key="SufniBackgroundDisabled">#25292c</Color>
+        <Color x:Key="SufniBackgroundPointerOver">#2c3032</Color>
+        <Color x:Key="SufniItemBackgroundPointerOver">#1f2327</Color>
+        <Color x:Key="SufniBorderBrush">#505050</Color>
+        <Color x:Key="SufniDangerColor">#bf312d</Color>
+        <Color x:Key="SufniDangerColorDark">#9f110d</Color>
+        <Color x:Key="SufniAccentColor">#0078d7</Color>
+        <Color x:Key="SufniGridSplitter">#404040</Color>
+
+        <!--  Expander colors  -->
+        <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="{StaticResource SufniBackground}" />
+
+        <!--  Button colors  -->
+        <SolidColorBrush x:Key="ButtonBackground" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush x:Key="ButtonForeground" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{StaticResource SufniBackgroundDisabled}" />
+        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{StaticResource SufniForegroundDisabled}" />
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{StaticResource SufniBackgroundPointerOver}" />
+        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{StaticResource SufniBackgroundPointerOver}" />
+        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{StaticResource SufniForeground}" />
+
+        <!--  TextBox colors  -->
+        <SolidColorBrush x:Key="TextControlForeground" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="{StaticResource SufniForegroundDisabled}" />
+        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{StaticResource SufniBackgroundDisabled}" />
+        <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#303030" />
+        <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#10161b" />
+        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#10161b" />
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource SufniAccentColor}" />
+
+        <!--  ComboBox colors  -->
+        <SolidColorBrush x:Key="ComboBoxForeground" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource SufniBackground}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{StaticResource SufniBackgroundPointerOver}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{StaticResource SufniBackgroundPointerOver}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource SufniBackground}" />
+
+        <!--  CalendarDatePicker colors  -->
+        <SolidColorBrush x:Key="CalendarDatePickerForeground" Color="{StaticResource SufniForeground}" />
+        <SolidColorBrush x:Key="CalendarDatePickerBorderBrush" Color="{StaticResource SufniBorderBrush}" />
+        <SolidColorBrush x:Key="CalendarDatePickerBorderBrushPointerOver" Color="{StaticResource SufniBorderBrush}" />
+
+        <!--  Flyout colors  -->
+        <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{StaticResource SufniBackground}" />
+        <Thickness x:Key="FlyoutContentThemePadding">0</Thickness>
+        <x:Double x:Key="FlyoutThemeMaxWidth">600</x:Double>
+        <CornerRadius x:Key="OverlayCornerRadius">3</CornerRadius>
+        <Thickness x:Key="FlyoutBorderThemeThickness">0</Thickness>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <labs:ControlThemes />
+        <StyleInclude Source="avares://Sufni.App/Views/Plots/SufniPlotView.axaml" />
+        <StyleInclude Source="avares://Sufni.App/Views/Plots/VelocityBandView.axaml" />
+        <StyleInclude Source="avares://AvaloniaProgressRing/Styles/ProgressRing.xaml" />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+        <!--  Global styles for TextBlock  -->
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+
+        <!--  Global styles for Label  -->
+        <Style Selector="Label">
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+
+        <!--  Global styles for Button  -->
+        <Style Selector="Button:disabled Image">
+            <Setter Property="Opacity" Value="0.3" />
+        </Style>
+
+        <!--  Global styles for Buttons embedded in TextBoxes  -->
+        <Style Selector="Button.embedded /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.embedded:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+
+        <!--  Global styles for "dangerous" Buttons  -->
+        <Style Selector="Button.dangerous">
+            <Setter Property="Foreground" Value="{StaticResource SufniDangerColor}" />
+        </Style>
+        <Style Selector="Button.dangerous:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource SufniDangerColor}" />
+        </Style>
+
+        <!--  Global styles for "hyperlink" Buttons  -->
+        <Style Selector="Button.hyperlink">
+            <Setter Property="Foreground" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+        <Style Selector="Button.hyperlink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+
+        <!--  Global styles for "item" Buttons  -->
+        <Style Selector="Button.item">
+            <Setter Property="Background" Value="{StaticResource SufniRegion}" />
+            <Setter Property="RenderTransform" Value="{x:Null}" />
+        </Style>
+        <Style Selector="Button.item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
+        </Style>
+        <Style Selector="Button.item:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
+        </Style>
+
+        <!--  Global styles for NumericUpDown  -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="Height" Value="39" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource SufniBackground}" />
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource SufniBorderBrush}" />
+        </Style>
+
+        <!--  Global styles for TextBox  -->
+        <Style Selector="TextBox">
+            <Setter Property="MinHeight" Value="39" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <!--  Global styles for ComboBox  -->
+        <Style Selector="ComboBox">
+            <Setter Property="Height" Value="39" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="PlaceholderForeground" Value="{StaticResource SufniForeground}" />
+        </Style>
+
+        <!--  Global styles for CalendarDatePicker  -->
+        <Style Selector="CalendarDatePicker Button">
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="CalendarDayButton">
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+
+        <!--  Global styles for CheckBox  -->
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource SufniForegroundPointerOver}" />
+        </Style>
+
+        <!--  Get rid of FlyoutPresenter's default MaxWidth  -->
+        <Style Selector="FlyoutPresenter.wide">
+            <Setter Property="MaxWidth" Value="10000" />
+        </Style>
+
+        <!--  Global styles for GridSplitter  -->
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="{StaticResource SufniGridSplitter}" />
+            <Setter Property="MinHeight" Value="3" />
+            <Setter Property="MinWidth" Value="3" />
+        </Style>
+    </Application.Styles>
+
+</Application>
