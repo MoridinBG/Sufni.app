@@ -15,31 +15,73 @@ namespace Sufni.App.Tests.Views.Editors;
 public class SetupEditorViewTests
 {
     [AvaloniaFact]
-    public async Task SetupEditorView_LoadedBehavior_PopulatesBikeSelection_AndRendersSensorViews()
+    public async Task SetupEditorView_BoardIdTextBox_DisplaysBoundValue()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        var boardId = Guid.NewGuid();
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike, boardId));
+
+        var boardIdTextBox = mounted.View.FindControl<TextBox>("BoardIdTextBox");
+        Assert.NotNull(boardIdTextBox);
+        Assert.Equal(boardId.ToString(), boardIdTextBox!.Text);
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_BikeComboBox_PopulatedAndSelected()
     {
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike("Enduro bike");
-        var boardId = Guid.NewGuid();
-        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike, boardId));
-        var view = mounted.View;
-        var editor = mounted.Editor;
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
 
-        var boardIdTextBox = view.FindControl<TextBox>("BoardIdTextBox");
-        var bikeComboBox = view.FindControl<ComboBox>("BikeComboBox");
-        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
-        var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
-        Assert.NotNull(boardIdTextBox);
+        var bikeComboBox = mounted.View.FindControl<ComboBox>("BikeComboBox");
         Assert.NotNull(bikeComboBox);
-        Assert.NotNull(forkContent);
-        Assert.NotNull(shockContent);
-
-        Assert.Equal(boardId.ToString(), boardIdTextBox!.Text);
-        Assert.Single(editor.Bikes);
-        Assert.Equal(bike.Id, editor.SelectedBike?.Id);
+        Assert.Single(mounted.Editor.Bikes);
+        Assert.Equal(bike.Id, mounted.Editor.SelectedBike?.Id);
         Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(bikeComboBox!.SelectedItem).Id);
-        Assert.NotNull(view.FindFirstVisual<EditableTitle>());
-        Assert.NotNull(view.FindFirstVisual<CommonButtonLine>());
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_UsesEditableTitle()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        Assert.NotNull(mounted.View.FindFirstVisual<EditableTitle>());
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_UsesCommonButtonLine()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        Assert.NotNull(mounted.View.FindFirstVisual<CommonButtonLine>());
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_ForkSensorConfigContent_ShowsCorrectView()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        var forkContent = mounted.View.FindControl<ContentControl>("ForkSensorConfigContent");
+        Assert.NotNull(forkContent);
         Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
+    }
+
+    [AvaloniaFact]
+    public async Task SetupEditorView_ShockSensorConfigContent_ShowsCorrectView()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+
+        var shockContent = mounted.View.FindControl<ContentControl>("ShockSensorConfigContent");
+        Assert.NotNull(shockContent);
         Assert.NotNull(shockContent!.FindFirstVisual<LinearShockSensorConfigurationView>());
     }
 
