@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
 
@@ -18,12 +19,29 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
         .Select(rimSize => new RimSizeOption(rimSize, rimSize.DisplayName))
         .ToArray();
 
-    [ObservableProperty] private EtrtoRimSize? frontWheelRimSize;
-    [ObservableProperty] private double? frontWheelTireWidth;
-    [ObservableProperty] private double? frontWheelDiameter;
-    [ObservableProperty] private EtrtoRimSize? rearWheelRimSize;
-    [ObservableProperty] private double? rearWheelTireWidth;
-    [ObservableProperty] private double? rearWheelDiameter;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveFrontWheelCommand))]
+    private EtrtoRimSize? frontWheelRimSize;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveFrontWheelCommand))]
+    private double? frontWheelTireWidth;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveFrontWheelCommand))]
+    private double? frontWheelDiameter;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveRearWheelCommand))]
+    private EtrtoRimSize? rearWheelRimSize;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveRearWheelCommand))]
+    private double? rearWheelTireWidth;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveRearWheelCommand))]
+    private double? rearWheelDiameter;
 
     public bool HasWheels =>
         FrontWheelDiameter.HasValue &&
@@ -176,6 +194,42 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
         RearWheelRimSize != snapshot.RearWheelRimSize ||
         !MathUtils.AreEqual(RearWheelTireWidth, snapshot.RearWheelTireWidth) ||
         !MathUtils.AreEqual(RearWheelDiameter, snapshot.RearWheelDiameterMm);
+
+    private bool CanRemoveFrontWheel() =>
+        FrontWheelRimSize.HasValue ||
+        FrontWheelTireWidth.HasValue ||
+        FrontWheelDiameter.HasValue;
+
+    private bool CanRemoveRearWheel() =>
+        RearWheelRimSize.HasValue ||
+        RearWheelTireWidth.HasValue ||
+        RearWheelDiameter.HasValue;
+
+    [RelayCommand(CanExecute = nameof(CanRemoveFrontWheel))]
+    private void RemoveFrontWheel()
+    {
+        WithWheelStateCallbacksSuspended(() =>
+        {
+            FrontWheelRimSize = null;
+            FrontWheelTireWidth = null;
+            FrontWheelDiameter = null;
+        });
+
+        NotifyFrontWheelPropertiesChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRemoveRearWheel))]
+    private void RemoveRearWheel()
+    {
+        WithWheelStateCallbacksSuspended(() =>
+        {
+            RearWheelRimSize = null;
+            RearWheelTireWidth = null;
+            RearWheelDiameter = null;
+        });
+
+        NotifyRearWheelPropertiesChanged();
+    }
 
     private void WithWheelStateCallbacksSuspended(Action action)
     {
