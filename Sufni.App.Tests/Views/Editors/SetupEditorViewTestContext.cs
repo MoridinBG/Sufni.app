@@ -23,6 +23,8 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         bikeStore.Connect().Returns(bikesCache.Connect());
     }
 
+    public IBikeCoordinator BikeCoordinator => bikeCoordinator;
+
     public BikeSnapshot AddBike(string name = "test bike")
     {
         var bike = TestSnapshots.Bike(name: name);

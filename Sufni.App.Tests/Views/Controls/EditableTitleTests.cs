@@ -142,4 +142,47 @@ public class EditableTitleTests
             await ViewTestHelpers.FlushDispatcherAsync();
         }
     }
+
+    [AvaloniaFact]
+    public async Task EditableTitle_EditButton_Click_WhenAlreadyEditing_DisablesTextBox()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var view = new EditableTitle
+        {
+            DataContext = new TestTabPageViewModel
+            {
+                Name = "Setup"
+            }
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        try
+        {
+            var titleTextBox = view.FindControl<TextBox>("TitleTextBox");
+            var editButton = view.FindControl<Button>("EditButton");
+            var okButton = view.FindControl<Button>("OkButton");
+            Assert.NotNull(titleTextBox);
+            Assert.NotNull(editButton);
+            Assert.NotNull(okButton);
+
+            editButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await ViewTestHelpers.FlushDispatcherAsync();
+            Assert.True(titleTextBox!.IsEnabled);
+
+            editButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.False(titleTextBox.IsEnabled);
+            Assert.True(editButton.IsVisible);
+            Assert.False(okButton!.IsVisible);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
 }
