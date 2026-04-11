@@ -4,6 +4,7 @@ using System.Reactive.Subjects;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
+using Sufni.App.Coordinators;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -12,22 +13,23 @@ namespace Sufni.App.ViewModels.ItemLists;
 public partial class LiveDaqListViewModel : ItemListViewModelBase
 {
     private readonly ILiveDaqStore liveDaqStore;
+    private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly ReadOnlyObservableCollection<LiveDaqRowViewModel> liveDaqRows;
     private readonly BehaviorSubject<Func<LiveDaqSnapshot, bool>> filterSubject = new(_ => true);
 
     public ReadOnlyObservableCollection<LiveDaqRowViewModel> Items => liveDaqRows;
 
-    [ObservableProperty] private string? requestedIdentityKey;
-
     public LiveDaqListViewModel()
     {
         liveDaqStore = null!;
+        liveDaqCoordinator = null!;
         liveDaqRows = new ReadOnlyObservableCollection<LiveDaqRowViewModel>([]);
     }
 
-    public LiveDaqListViewModel(ILiveDaqStore liveDaqStore)
+    public LiveDaqListViewModel(ILiveDaqStore liveDaqStore, ILiveDaqCoordinator liveDaqCoordinator)
     {
         this.liveDaqStore = liveDaqStore;
+        this.liveDaqCoordinator = liveDaqCoordinator;
 
         liveDaqStore.Connect()
             .Filter(filterSubject)
@@ -58,18 +60,19 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
 
     public void Activate()
     {
+        liveDaqCoordinator.Activate();
     }
 
     public void Deactivate()
     {
-        DisposeScopedSubscriptions();
+        liveDaqCoordinator.Deactivate();
     }
 
     [RelayCommand]
-    private void RowSelected(LiveDaqRowViewModel? row)
+    private async System.Threading.Tasks.Task RowSelected(LiveDaqRowViewModel? row)
     {
         if (row is null) return;
 
-        RequestedIdentityKey = row.IdentityKey;
+        await liveDaqCoordinator.SelectAsync(row.IdentityKey);
     }
 }
