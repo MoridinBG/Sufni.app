@@ -57,7 +57,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private CoordinateList? rearAxlePathData;
     private Bitmap? rotatedImageCache;
     private double rotatedImageCacheAngle = double.NaN;
-    private bool suppressWheelStateCallbacks;
     // Guard edit-time callbacks while a snapshot is being applied.
     private bool isReplacingState;
 
@@ -145,74 +144,86 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     #region Wheel properties
 
-    public static RimSizeOption[] RimSizeOptions { get; } = Enum.GetValues<EtrtoRimSize>()
-        .Select(rimSize => new RimSizeOption(rimSize, rimSize.DisplayName))
-        .ToArray();
+    public BikeWheelGeometryViewModel WheelGeometry { get; } = new();
+    public static RimSizeOption[] RimSizeOptions => BikeWheelGeometryViewModel.RimSizeOptions;
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private EtrtoRimSize? frontWheelRimSize;
+    public EtrtoRimSize? FrontWheelRimSize
+    {
+        get => WheelGeometry.FrontWheelRimSize;
+        set
+        {
+            if (WheelGeometry.FrontWheelRimSize == value) return;
+            WheelGeometry.FrontWheelRimSize = value;
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? frontWheelTireWidth;
+    public double? FrontWheelTireWidth
+    {
+        get => WheelGeometry.FrontWheelTireWidth;
+        set
+        {
+            if (MathUtils.AreEqual(WheelGeometry.FrontWheelTireWidth, value)) return;
+            WheelGeometry.FrontWheelTireWidth = value;
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? frontWheelDiameter;
+    public double? FrontWheelDiameter
+    {
+        get => WheelGeometry.FrontWheelDiameter;
+        set
+        {
+            if (MathUtils.AreEqual(WheelGeometry.FrontWheelDiameter, value)) return;
+            WheelGeometry.FrontWheelDiameter = value;
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private EtrtoRimSize? rearWheelRimSize;
+    public EtrtoRimSize? RearWheelRimSize
+    {
+        get => WheelGeometry.RearWheelRimSize;
+        set
+        {
+            if (WheelGeometry.RearWheelRimSize == value) return;
+            WheelGeometry.RearWheelRimSize = value;
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? rearWheelTireWidth;
+    public double? RearWheelTireWidth
+    {
+        get => WheelGeometry.RearWheelTireWidth;
+        set
+        {
+            if (MathUtils.AreEqual(WheelGeometry.RearWheelTireWidth, value)) return;
+            WheelGeometry.RearWheelTireWidth = value;
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? rearWheelDiameter;
+    public double? RearWheelDiameter
+    {
+        get => WheelGeometry.RearWheelDiameter;
+        set
+        {
+            if (MathUtils.AreEqual(WheelGeometry.RearWheelDiameter, value)) return;
+            WheelGeometry.RearWheelDiameter = value;
+        }
+    }
 
-    public bool HasWheels =>
-        FrontWheelDiameter.HasValue &&
-        RearWheelDiameter.HasValue &&
-        GetFrontWheelJoint() is not null &&
-        GetRearWheelJoint() is not null;
-
-    public double? FrontWheelRadiusPixels => FrontWheelDiameter / 2.0 / PixelsToMillimeters;
-    public double? RearWheelRadiusPixels => RearWheelDiameter / 2.0 / PixelsToMillimeters;
-
-    public double FrontWheelCircleLeft => GetFrontWheelJoint()?.X - (FrontWheelRadiusPixels ?? 0) ?? 0;
-    public double FrontWheelCircleTop => GetFrontWheelJoint()?.Y - (FrontWheelRadiusPixels ?? 0) ?? 0;
-    public double FrontWheelCircleDiameter => (FrontWheelRadiusPixels ?? 0) * 2;
-
-    public double RearWheelCircleLeft => GetRearWheelJoint()?.X - (RearWheelRadiusPixels ?? 0) ?? 0;
-    public double RearWheelCircleTop => GetRearWheelJoint()?.Y - (RearWheelRadiusPixels ?? 0) ?? 0;
-    public double RearWheelCircleDiameter => (RearWheelRadiusPixels ?? 0) * 2;
-
-    public double FrontRimCircleDiameter => ComputeRimCircleDiameter(FrontWheelRimSize, FrontWheelDiameter);
-    public double RearRimCircleDiameter => ComputeRimCircleDiameter(RearWheelRimSize, RearWheelDiameter);
-
-    public double FrontTireThickness => (FrontWheelCircleDiameter - FrontRimCircleDiameter) / 2;
-    public double RearTireThickness => (RearWheelCircleDiameter - RearRimCircleDiameter) / 2;
-
-    public double FrontHubDiameter => FrontWheelCircleDiameter * 0.08;
-    public double RearHubDiameter => RearWheelCircleDiameter * 0.08;
-
-    public string FrontWheelDisplayText => FormatWheelDisplay(FrontWheelRimSize, FrontWheelTireWidth, FrontWheelDiameter);
-    public string RearWheelDisplayText => FormatWheelDisplay(RearWheelRimSize, RearWheelTireWidth, RearWheelDiameter);
+    public bool HasWheels => WheelGeometry.HasWheels;
+    public double? FrontWheelRadiusPixels => WheelGeometry.FrontWheelRadiusPixels;
+    public double? RearWheelRadiusPixels => WheelGeometry.RearWheelRadiusPixels;
+    public double FrontWheelCircleLeft => WheelGeometry.FrontWheelCircleLeft;
+    public double FrontWheelCircleTop => WheelGeometry.FrontWheelCircleTop;
+    public double FrontWheelCircleDiameter => WheelGeometry.FrontWheelCircleDiameter;
+    public double RearWheelCircleLeft => WheelGeometry.RearWheelCircleLeft;
+    public double RearWheelCircleTop => WheelGeometry.RearWheelCircleTop;
+    public double RearWheelCircleDiameter => WheelGeometry.RearWheelCircleDiameter;
+    public double FrontRimCircleDiameter => WheelGeometry.FrontRimCircleDiameter;
+    public double RearRimCircleDiameter => WheelGeometry.RearRimCircleDiameter;
+    public double FrontTireThickness => WheelGeometry.FrontTireThickness;
+    public double RearTireThickness => WheelGeometry.RearTireThickness;
+    public double FrontHubDiameter => WheelGeometry.FrontHubDiameter;
+    public double RearHubDiameter => WheelGeometry.RearHubDiameter;
+    public string FrontWheelDisplayText => WheelGeometry.FrontWheelDisplayText;
+    public string RearWheelDisplayText => WheelGeometry.RearWheelDisplayText;
 
     #endregion Wheel properties
 
@@ -281,9 +292,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         if (IsReplacingState) return;
 
         LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
-
-        NotifyFrontWheelPropertiesChanged();
-        NotifyRearWheelPropertiesChanged();
+        WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
         RecalculateHeadAngle();
         UpdateRearAxlePathDisplay();
     }
@@ -315,72 +324,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         NotifyCanvasBoundsChanged();
     }
 
-    partial void OnFrontWheelRimSizeChanged(EtrtoRimSize? value)
-    {
-        if (IsReplacingState) return;
-        if (suppressWheelStateCallbacks) return;
-        RecalculateFrontWheelDiameter();
-        EvaluateDirtiness();
-    }
-
-    partial void OnFrontWheelTireWidthChanged(double? value)
-    {
-        if (IsReplacingState) return;
-        if (suppressWheelStateCallbacks) return;
-        RecalculateFrontWheelDiameter();
-        EvaluateDirtiness();
-    }
-
-    partial void OnFrontWheelDiameterChanged(double? value)
-    {
-        if (IsReplacingState) return;
-        if (suppressWheelStateCallbacks) return;
-
-        WithWheelStateCallbacksSuspended(() =>
-        {
-            FrontWheelRimSize = null;
-            FrontWheelTireWidth = null;
-        });
-
-        NotifyFrontWheelPropertiesChanged();
-        EvaluateDirtiness();
-        RecalculateHeadAngle();
-        RecalculateGroundRotation();
-    }
-
-    partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
-    {
-        if (IsReplacingState) return;
-        if (suppressWheelStateCallbacks) return;
-        RecalculateRearWheelDiameter();
-        EvaluateDirtiness();
-    }
-
-    partial void OnRearWheelTireWidthChanged(double? value)
-    {
-        if (IsReplacingState) return;
-        if (suppressWheelStateCallbacks) return;
-        RecalculateRearWheelDiameter();
-        EvaluateDirtiness();
-    }
-
-    partial void OnRearWheelDiameterChanged(double? value)
-    {
-        if (IsReplacingState) return;
-        if (suppressWheelStateCallbacks) return;
-
-        WithWheelStateCallbacksSuspended(() =>
-        {
-            RearWheelRimSize = null;
-            RearWheelTireWidth = null;
-        });
-
-        NotifyRearWheelPropertiesChanged();
-        EvaluateDirtiness();
-        RecalculateHeadAngle();
-        RecalculateGroundRotation();
-    }
-
     #endregion Property change handlers
 
     #region Constructors
@@ -393,6 +336,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         IsInDatabase = false;
         LinkageEditor.Changed += OnLinkageEditorChanged;
         LinkageEditor.PropertyChanged += OnLinkageEditorPropertyChanged;
+        WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
     }
 
     public BikeEditorViewModel(
@@ -410,6 +354,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         acceptedSnapshot = snapshot;
         LinkageEditor.Changed += OnLinkageEditorChanged;
         LinkageEditor.PropertyChanged += OnLinkageEditorPropertyChanged;
+        WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
 
         ReplaceState(snapshot, refreshAnalysis: !isNew);
 
@@ -420,19 +365,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #endregion Constructors
 
     #region Private methods
-
-    private void WithWheelStateCallbacksSuspended(Action action)
-    {
-        suppressWheelStateCallbacks = true;
-        try
-        {
-            action();
-        }
-        finally
-        {
-            suppressWheelStateCallbacks = false;
-        }
-    }
 
     private bool IsReplacingState => isReplacingState;
 
@@ -502,13 +434,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         PixelsToMillimeters = snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters;
         ImageRotationDegrees = snapshot.ImageRotationDegrees;
         LinkageEditor.Load(snapshot.Linkage, snapshot.Image?.Size.Height, snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters);
-
-        FrontWheelRimSize = snapshot.FrontWheelRimSize;
-        FrontWheelTireWidth = snapshot.FrontWheelTireWidth;
-        FrontWheelDiameter = snapshot.FrontWheelDiameterMm;
-        RearWheelRimSize = snapshot.RearWheelRimSize;
-        RearWheelTireWidth = snapshot.RearWheelTireWidth;
-        RearWheelDiameter = snapshot.RearWheelDiameterMm;
+        WheelGeometry.ApplySnapshot(snapshot);
     }
 
     // Refresh caches and projections that are safe to recompute from the raw editor state.
@@ -517,13 +443,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         rotatedImageCache = null;
         rotatedImageCacheAngle = double.NaN;
         LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
+        WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
 
         OnPropertyChanged(nameof(RotatedImage));
         OnPropertyChanged(nameof(RotatedImageLeft));
         OnPropertyChanged(nameof(RotatedImageTop));
-
-        NotifyFrontWheelPropertiesChanged();
-        NotifyRearWheelPropertiesChanged();
         NotifyCanvasBoundsChanged();
         UpdateRearAxlePathDisplay();
     }
@@ -570,87 +494,32 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private JointViewModel? GetRearWheelJoint() =>
         LinkageEditor.GetRearWheelJoint();
 
-    private double ComputeRimCircleDiameter(EtrtoRimSize? rimSize, double? totalDiameter)
+    private Point? GetFrontWheelCenter()
     {
-        if (!totalDiameter.HasValue || !PixelsToMillimeters.HasValue) return 0;
-        var rimDiameterMm = rimSize?.BeadDiameterMm ?? totalDiameter.Value * 0.83;
-        return rimDiameterMm / PixelsToMillimeters.Value;
+        var frontWheel = GetFrontWheelJoint();
+        return frontWheel is null ? null : new Point(frontWheel.X, frontWheel.Y);
     }
 
-    private static string FormatWheelDisplay(EtrtoRimSize? rimSize, double? tireWidth, double? diameter)
+    private Point? GetRearWheelCenter()
     {
-        if (!diameter.HasValue) return "";
-
-        if (rimSize.HasValue && tireWidth.HasValue)
-        {
-            return $"{rimSize.Value.DisplayName} / {tireWidth:0.00}\"";
-        }
-
-        return $"{diameter:0.0} mm";
-    }
-
-    private void NotifyFrontWheelPropertiesChanged()
-    {
-        OnPropertyChanged(nameof(HasWheels));
-        OnPropertyChanged(nameof(FrontWheelRadiusPixels));
-        OnPropertyChanged(nameof(FrontWheelCircleLeft));
-        OnPropertyChanged(nameof(FrontWheelCircleTop));
-        OnPropertyChanged(nameof(FrontWheelCircleDiameter));
-        OnPropertyChanged(nameof(FrontRimCircleDiameter));
-        OnPropertyChanged(nameof(FrontTireThickness));
-        OnPropertyChanged(nameof(FrontHubDiameter));
-        OnPropertyChanged(nameof(FrontWheelDisplayText));
-        NotifyCanvasBoundsChanged();
-    }
-
-    private void NotifyRearWheelPropertiesChanged()
-    {
-        OnPropertyChanged(nameof(HasWheels));
-        OnPropertyChanged(nameof(RearWheelRadiusPixels));
-        OnPropertyChanged(nameof(RearWheelCircleLeft));
-        OnPropertyChanged(nameof(RearWheelCircleTop));
-        OnPropertyChanged(nameof(RearWheelCircleDiameter));
-        OnPropertyChanged(nameof(RearRimCircleDiameter));
-        OnPropertyChanged(nameof(RearTireThickness));
-        OnPropertyChanged(nameof(RearHubDiameter));
-        OnPropertyChanged(nameof(RearWheelDisplayText));
-        NotifyCanvasBoundsChanged();
-    }
-
-    private void NotifyWheelJointPropertiesChanged()
-    {
-        OnPropertyChanged(nameof(HasWheels));
-        OnPropertyChanged(nameof(FrontWheelCircleLeft));
-        OnPropertyChanged(nameof(FrontWheelCircleTop));
-        OnPropertyChanged(nameof(RearWheelCircleLeft));
-        OnPropertyChanged(nameof(RearWheelCircleTop));
-        NotifyCanvasBoundsChanged();
+        var rearWheel = GetRearWheelJoint();
+        return rearWheel is null ? null : new Point(rearWheel.X, rearWheel.Y);
     }
 
     private void RecalculateGroundRotation()
     {
-        if (!HasWheels || Image is null || !PixelsToMillimeters.HasValue) return;
+        if (Image is null) return;
 
-        var frontWheel = GetFrontWheelJoint();
-        var rearWheel = GetRearWheelJoint();
-        Debug.Assert(frontWheel is not null && rearWheel is not null);
+        var deltaRotation = WheelGeometry.TryComputeGroundAlignmentDelta(
+            GetFrontWheelCenter(),
+            GetRearWheelCenter(),
+            PixelsToMillimeters);
 
-        var frontRadiusPx = FrontWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
-        var rearRadiusPx = RearWheelDiameter!.Value / 2.0 / PixelsToMillimeters.Value;
+        if (!deltaRotation.HasValue || Math.Abs(deltaRotation.Value) <= 0.01) return;
 
-        var (rotationAngle, _) = GroundCalculator.CalculateGroundRotation(
-            frontWheel.X, frontWheel.Y, frontRadiusPx,
-            rearWheel.X, rearWheel.Y, rearRadiusPx);
-
-        var newRotation = ImageRotationDegrees + rotationAngle;
-        var deltaRotation = newRotation - ImageRotationDegrees;
-
-        if (Math.Abs(deltaRotation) <= 0.01) return;
-
-        LinkageEditor.RotateAll(deltaRotation);
-
-        ImageRotationDegrees = newRotation;
-        NotifyWheelJointPropertiesChanged();
+        LinkageEditor.RotateAll(deltaRotation.Value);
+        WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
+        ImageRotationDegrees += deltaRotation.Value;
     }
 
     private void UpdatePixelsToMillimeters()
@@ -722,38 +591,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
 
         return renderTarget;
-    }
-
-    private void RecalculateFrontWheelDiameter()
-    {
-        if (FrontWheelRimSize.HasValue && FrontWheelTireWidth.HasValue)
-        {
-            WithWheelStateCallbacksSuspended(() =>
-            {
-                FrontWheelDiameter = Math.Round(
-                    FrontWheelRimSize.Value.CalculateTotalDiameterMm(FrontWheelTireWidth.Value),
-                    1);
-            });
-        }
-
-        NotifyFrontWheelPropertiesChanged();
-        RecalculateGroundRotation();
-    }
-
-    private void RecalculateRearWheelDiameter()
-    {
-        if (RearWheelRimSize.HasValue && RearWheelTireWidth.HasValue)
-        {
-            WithWheelStateCallbacksSuspended(() =>
-            {
-                RearWheelDiameter = Math.Round(
-                    RearWheelRimSize.Value.CalculateTotalDiameterMm(RearWheelTireWidth.Value),
-                    1);
-            });
-        }
-
-        NotifyRearWheelPropertiesChanged();
-        RecalculateGroundRotation();
     }
 
     private (double minX, double minY, double maxX, double maxY) GetImageBounds()
@@ -981,8 +818,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             case LinkageEditorChangeKind.JointStructureChanged:
                 EvaluateDirtiness();
                 NotifyEditorCommandStatesChanged();
+                LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
+                WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
                 NotifyCanvasBoundsChanged();
-                NotifyWheelJointPropertiesChanged();
                 RecalculateHeadAngle();
                 break;
 
@@ -1009,7 +847,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
                 if (change.Joint?.Type is JointType.FrontWheel or JointType.RearWheel)
                 {
-                    NotifyWheelJointPropertiesChanged();
+                    WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
                 }
 
                 NotifyCanvasBoundsChanged();
@@ -1034,6 +872,82 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
+    private void OnWheelGeometryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.PropertyName))
+        {
+            return;
+        }
+
+        if (IsForwardedWheelProperty(e.PropertyName))
+        {
+            OnPropertyChanged(e.PropertyName);
+        }
+
+        if (AffectsWheelCanvasBounds(e.PropertyName))
+        {
+            NotifyCanvasBoundsChanged();
+        }
+
+        if (IsReplacingState || !IsWheelInputProperty(e.PropertyName))
+        {
+            return;
+        }
+
+        WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
+
+        if (e.PropertyName is nameof(BikeWheelGeometryViewModel.FrontWheelDiameter) or nameof(BikeWheelGeometryViewModel.RearWheelDiameter))
+        {
+            RecalculateGroundRotation();
+        }
+
+        RecalculateHeadAngle();
+        NotifyEditorCommandStatesChanged();
+        EvaluateDirtiness();
+    }
+
+    private static bool IsForwardedWheelProperty(string propertyName) =>
+        propertyName is nameof(BikeWheelGeometryViewModel.FrontWheelRimSize) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelTireWidth) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelDiameter) or
+            nameof(BikeWheelGeometryViewModel.RearWheelRimSize) or
+            nameof(BikeWheelGeometryViewModel.RearWheelTireWidth) or
+            nameof(BikeWheelGeometryViewModel.RearWheelDiameter) or
+            nameof(BikeWheelGeometryViewModel.HasWheels) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelRadiusPixels) or
+            nameof(BikeWheelGeometryViewModel.RearWheelRadiusPixels) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelCircleLeft) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelCircleTop) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelCircleDiameter) or
+            nameof(BikeWheelGeometryViewModel.RearWheelCircleLeft) or
+            nameof(BikeWheelGeometryViewModel.RearWheelCircleTop) or
+            nameof(BikeWheelGeometryViewModel.RearWheelCircleDiameter) or
+            nameof(BikeWheelGeometryViewModel.FrontRimCircleDiameter) or
+            nameof(BikeWheelGeometryViewModel.RearRimCircleDiameter) or
+            nameof(BikeWheelGeometryViewModel.FrontTireThickness) or
+            nameof(BikeWheelGeometryViewModel.RearTireThickness) or
+            nameof(BikeWheelGeometryViewModel.FrontHubDiameter) or
+            nameof(BikeWheelGeometryViewModel.RearHubDiameter) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelDisplayText) or
+            nameof(BikeWheelGeometryViewModel.RearWheelDisplayText);
+
+    private static bool IsWheelInputProperty(string propertyName) =>
+        propertyName is nameof(BikeWheelGeometryViewModel.FrontWheelRimSize) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelTireWidth) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelDiameter) or
+            nameof(BikeWheelGeometryViewModel.RearWheelRimSize) or
+            nameof(BikeWheelGeometryViewModel.RearWheelTireWidth) or
+            nameof(BikeWheelGeometryViewModel.RearWheelDiameter);
+
+    private static bool AffectsWheelCanvasBounds(string propertyName) =>
+        propertyName is nameof(BikeWheelGeometryViewModel.HasWheels) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelCircleLeft) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelCircleTop) or
+            nameof(BikeWheelGeometryViewModel.FrontWheelCircleDiameter) or
+            nameof(BikeWheelGeometryViewModel.RearWheelCircleLeft) or
+            nameof(BikeWheelGeometryViewModel.RearWheelCircleTop) or
+            nameof(BikeWheelGeometryViewModel.RearWheelCircleDiameter);
+
     #endregion Private methods
 
     #region TabPageViewModelBase overrides
@@ -1049,12 +963,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             !MathUtils.AreEqual(Chainstay, acceptedSnapshot.Chainstay) ||
             DidJointsChanged() ||
             DidLinksChanged() ||
-            FrontWheelRimSize != acceptedSnapshot.FrontWheelRimSize ||
-            !MathUtils.AreEqual(FrontWheelTireWidth, acceptedSnapshot.FrontWheelTireWidth) ||
-            !MathUtils.AreEqual(FrontWheelDiameter, acceptedSnapshot.FrontWheelDiameterMm) ||
-            RearWheelRimSize != acceptedSnapshot.RearWheelRimSize ||
-            !MathUtils.AreEqual(RearWheelTireWidth, acceptedSnapshot.RearWheelTireWidth) ||
-            !MathUtils.AreEqual(RearWheelDiameter, acceptedSnapshot.RearWheelDiameterMm) ||
+                WheelGeometry.HasChangesComparedTo(acceptedSnapshot) ||
             !MathUtils.AreEqual(ImageRotationDegrees, acceptedSnapshot.ImageRotationDegrees) ||
             !ReferenceEquals(Image, acceptedSnapshot.Image);
     }
