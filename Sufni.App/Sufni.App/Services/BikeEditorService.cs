@@ -31,8 +31,14 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                     var solver = new KinematicSolver(linkage);
                     var solution = solver.SolveSuspensionMotion();
                     var characteristics = new BikeCharacteristics(solution);
+                    var mapping = new JointNameMapping();
+                    var rearAxlePathData = solution.TryGetValue(mapping.RearWheel, out var path)
+                        ? path
+                        : new CoordinateList([], []);
                     return (BikeEditorAnalysisResult)new BikeEditorAnalysisResult.Computed(
-                        new BikeAnalysisPresentationData(characteristics.LeverageRatioData));
+                        new BikeAnalysisPresentationData(
+                            characteristics.LeverageRatioData,
+                            rearAxlePathData));
                 }
                 catch (OperationCanceledException)
                 {

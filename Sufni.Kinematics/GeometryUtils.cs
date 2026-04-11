@@ -2,6 +2,11 @@ namespace Sufni.Kinematics;
 
 public static class GeometryUtils
 {
+    public static double CalculateDistance(IPoint p1, IPoint p2)
+    {
+        return Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+    }
+
     public static double CalculateAngleAtPoint(Joint central, Joint adjacent1, Joint adjacent2)
     {
         return CalculateAngleAtPoint(central.X, central.Y, adjacent1.X, adjacent1.Y, adjacent2.X, adjacent2.Y);

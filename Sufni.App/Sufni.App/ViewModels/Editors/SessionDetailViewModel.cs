@@ -27,13 +27,6 @@ namespace Sufni.App.ViewModels.Editors;
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions
 {
-    private enum LoadState
-    {
-        Idle,
-        Loading,
-        LoadingWithPendingRequest
-    }
-
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
 
@@ -56,10 +49,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
 
+    private readonly CancellableOperation loadOperation = new();
     private bool lastObservedHasProcessedData;
     private SessionPresentationDimensions? lastPresentationDimensions;
-    private CancellationTokenSource? loadCancellationTokenSource;
-    private LoadState loadState;
     private bool viewLoaded;
 
     #endregion Private fields
@@ -234,108 +226,33 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         }
     }
 
-    private bool QueueLoadRequest()
-    {
-        var shouldStartLoadLoop = loadState == LoadState.Idle;
-        loadState = LoadState.LoadingWithPendingRequest;
-        return shouldStartLoadLoop;
-    }
-
-    private void CancelLoad()
-    {
-        if (loadCancellationTokenSource is null)
-        {
-            return;
-        }
-
-        var cancellationTokenSource = loadCancellationTokenSource;
-        loadCancellationTokenSource = null;
-        cancellationTokenSource.Cancel();
-    }
-
-    private async Task LoadCurrentPlatformAsync(CancellationToken cancellationToken)
-    {
-        if (sessionCoordinator is null || App.Current is null)
-        {
-            return;
-        }
-
-        if (App.Current.IsDesktop)
-        {
-            var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            ApplyDesktopLoadResult(result);
-            return;
-        }
-
-        if (lastPresentationDimensions is null)
-        {
-            return;
-        }
-
-        var mobileResult = await sessionCoordinator.LoadMobileDetailAsync(
-            Id,
-            lastPresentationDimensions.Value,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        ApplyMobileLoadResult(mobileResult);
-    }
-
     private async Task RequestLoadAsync()
     {
-        if (sessionCoordinator is null || !viewLoaded)
+        if (sessionCoordinator is null || !viewLoaded || App.Current is null)
         {
             return;
         }
 
-        var shouldStartLoadLoop = QueueLoadRequest();
-        CancelLoad();
-
-        if (!shouldStartLoadLoop)
-        {
-            return;
-        }
-
+        var token = loadOperation.Start();
         try
         {
-            while (viewLoaded && loadState == LoadState.LoadingWithPendingRequest)
+            if (App.Current.IsDesktop)
             {
-                loadState = LoadState.Loading;
-
-                var cancellationTokenSource = new CancellationTokenSource();
-                loadCancellationTokenSource = cancellationTokenSource;
-                var cancellationToken = cancellationTokenSource.Token;
-
-                try
-                {
-                    await LoadCurrentPlatformAsync(cancellationToken);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                }
-                finally
-                {
-                    cancellationTokenSource.Dispose();
-                    if (ReferenceEquals(loadCancellationTokenSource, cancellationTokenSource))
-                    {
-                        loadCancellationTokenSource = null;
-                    }
-                }
-
-                if (!viewLoaded)
-                {
-                    break;
-                }
-
-                if (loadState == LoadState.Loading)
-                {
-                    loadState = LoadState.Idle;
-                }
+                var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, token);
+                if (token.IsCancellationRequested) return;
+                ApplyDesktopLoadResult(result);
+                return;
             }
+
+            if (lastPresentationDimensions is null) return;
+
+            var mobileResult = await sessionCoordinator.LoadMobileDetailAsync(
+                Id, lastPresentationDimensions.Value, token);
+            if (token.IsCancellationRequested) return;
+            ApplyMobileLoadResult(mobileResult);
         }
-        finally
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            loadState = LoadState.Idle;
         }
     }
 
@@ -566,8 +483,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     private void Unloaded()
     {
         viewLoaded = false;
-        loadState = LoadState.Idle;
-        CancelLoad();
+        loadOperation.Cancel();
         DisposeScopedSubscriptions();
     }
 

@@ -18,6 +18,7 @@ public class BikeEditorServiceTests
 
     private BikeEditorService CreateService() => new(filesService, backgroundTaskRunner);
 
+
     [AvaloniaFact]
     public async Task LoadImageAsync_DecodesBitmapFromStreamWithoutUsingPath()
     {
@@ -46,6 +47,13 @@ public class BikeEditorServiceTests
         {
             HeadAngle = 64,
             ForkStroke = 150,
+            FrontWheelRimSize = EtrtoRimSize.Inch29,
+            FrontWheelTireWidth = 2.4,
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            RearWheelRimSize = EtrtoRimSize.Inch275,
+            RearWheelTireWidth = 2.5,
+            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            ImageRotationDegrees = 12.5,
         }.ToJson();
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(bikeJson))));
         filesService.OpenBikeFileAsync().Returns(file);
@@ -56,6 +64,13 @@ public class BikeEditorServiceTests
         Assert.Equal("imported bike", imported.Bike.Name);
         Assert.Equal(64, imported.Bike.HeadAngle);
         Assert.Equal(150, imported.Bike.ForkStroke);
+        Assert.Equal(EtrtoRimSize.Inch29, imported.Bike.FrontWheelRimSize);
+        Assert.Equal(2.4, imported.Bike.FrontWheelTireWidth);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), imported.Bike.FrontWheelDiameterMm);
+        Assert.Equal(EtrtoRimSize.Inch275, imported.Bike.RearWheelRimSize);
+        Assert.Equal(2.5, imported.Bike.RearWheelTireWidth);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), imported.Bike.RearWheelDiameterMm);
+        Assert.Equal(12.5, imported.Bike.ImageRotationDegrees);
     }
 
     [Fact]
@@ -83,6 +98,9 @@ public class BikeEditorServiceTests
         {
             HeadAngle = 65,
             ForkStroke = 160,
+            FrontWheelDiameterMm = 760,
+            RearWheelDiameterMm = 750,
+            ImageRotationDegrees = 13.5,
         };
 
         var result = await CreateService().ExportBikeAsync(bike);
@@ -91,6 +109,9 @@ public class BikeEditorServiceTests
         var json = Encoding.UTF8.GetString(output.ToArray());
         Assert.Contains("exported bike", json);
         Assert.Contains("head_angle", json);
+        Assert.Contains("front_wheel_diameter", json);
+        Assert.Contains("rear_wheel_diameter", json);
+        Assert.Contains("image_rotation_degrees", json);
     }
 
     [Fact]
@@ -109,6 +130,8 @@ public class BikeEditorServiceTests
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.NotEmpty(computed.Data.LeverageRatioData.X);
         Assert.NotEmpty(computed.Data.LeverageRatioData.Y);
+        Assert.NotEmpty(computed.Data.RearAxlePathData.X);
+        Assert.NotEmpty(computed.Data.RearAxlePathData.Y);
     }
 
     private static Linkage CreateSimpleLinkage()

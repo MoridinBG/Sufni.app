@@ -46,10 +46,12 @@ public class ModelJsonTests
 
         Assert.NotNull(imported);
         Assert.NotNull(imported!.Linkage);
+        Assert.Equal(0.5, imported.ShockStroke);
         Assert.NotNull(imported.Linkage!.Links[0].A);
         Assert.NotNull(imported.Linkage.Shock.A);
         Assert.Same(imported.Linkage.Joints[0], imported.Linkage.Links[0].A);
         Assert.Same(imported.Linkage.Joints[2], imported.Linkage.Shock.A);
+        Assert.Equal(0.5, imported.Linkage.ShockStroke);
     }
 
     [Fact]

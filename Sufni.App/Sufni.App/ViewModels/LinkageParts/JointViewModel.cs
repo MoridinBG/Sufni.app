@@ -14,7 +14,7 @@ public enum Immutability
     Modifiable
 }
 
-public partial class JointViewModel : ViewModelBase
+public partial class JointViewModel : ViewModelBase, IPoint
 {
     public Immutability Immutability { get; private set; }
     public bool ShowFlyout { get; set; }
@@ -27,7 +27,8 @@ public partial class JointViewModel : ViewModelBase
         { JointType.FrontWheel, new SolidColorBrush(Colors.Cyan)},
         { JointType.Fixed, new SolidColorBrush(Colors.OrangeRed)},
         { JointType.Floating, new SolidColorBrush(Colors.HotPink)},
-        { JointType.BottomBracket, new SolidColorBrush(Colors.Purple)}
+        { JointType.BottomBracket, new SolidColorBrush(Colors.Purple)},
+        { JointType.HeadTube, new SolidColorBrush(Colors.Lime)}
     };
 
     #endregion Private fields
@@ -38,7 +39,7 @@ public partial class JointViewModel : ViewModelBase
     [ObservableProperty] private double y;
     [ObservableProperty] private string name;
     [ObservableProperty] private JointType type;
-    public static ObservableCollection<JointType> PointTypes { get; } = [JointType.Fixed, JointType.Floating];
+    public static ObservableCollection<JointType> PointTypes { get; } = [JointType.Fixed, JointType.Floating, JointType.HeadTube];
     [ObservableProperty] private Brush brush;
     [ObservableProperty] private bool isSelected;
     [ObservableProperty] private bool wasPossiblyDragged;
@@ -65,7 +66,7 @@ public partial class JointViewModel : ViewModelBase
         Brush = TypeToBrushMapping[type];
         ShowFlyout = showFlyout;
 
-        if (Type is JointType.FrontWheel or JointType.RearWheel or JointType.BottomBracket)
+        if (Type is JointType.FrontWheel or JointType.RearWheel or JointType.BottomBracket or JointType.HeadTube)
         {
             Immutability = Immutability.Immutable;
         }

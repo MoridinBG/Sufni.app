@@ -1,18 +1,18 @@
 ﻿<UserControl
-    x:Class="Sufni.App.DesktopViews.Items.BikeImageDesktopView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:paz="using:Avalonia.Controls.PanAndZoom"
-    xmlns:v="using:Sufni.App.Views.Items"
-    xmlns:vl="using:Sufni.App.Views.LinkageParts"
-    xmlns:vm="using:Sufni.App.ViewModels.Editors"
-    xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vm:BikeEditorViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.DesktopViews.Items.BikeImageDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:paz="using:Avalonia.Controls.PanAndZoom"
+xmlns:v="using:Sufni.App.Views.Items"
+xmlns:vl="using:Sufni.App.Views.LinkageParts"
+xmlns:vm="using:Sufni.App.ViewModels.Editors"
+xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:BikeEditorViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BikeEditorViewModel />
@@ -32,103 +32,177 @@
     </UserControl.Styles>
 
     <paz:ZoomBorder
-        Name="ZoomBorder"
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        Focusable="True"
-        Stretch="None"
-        ZoomSpeed="1.2">
+    Name="ZoomBorder"
+    HorizontalAlignment="Stretch"
+    VerticalAlignment="Stretch"
+    Focusable="True"
+    Stretch="None"
+    ZoomSpeed="1.2">
 
         <Interaction.Behaviors>
             <EventTriggerBehavior EventName="DoubleTapped">
-                <InvokeCommandAction Command="{Binding DoubleTappedCommand}" PassEventArgsToCommand="True" />
+                <InvokeCommandAction Command="{Binding LinkageEditor.DoubleTappedCommand}" PassEventArgsToCommand="True" />
             </EventTriggerBehavior>
             <EventTriggerBehavior EventName="Tapped">
-                <InvokeCommandAction Command="{Binding TappedCommand}" />
+                <InvokeCommandAction Command="{Binding LinkageEditor.TappedCommand}" />
             </EventTriggerBehavior>
         </Interaction.Behaviors>
 
         <paz:ZoomBorder.KeyBindings>
-            <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+            <KeyBinding Command="{Binding LinkageEditor.DeleteSelectedItemCommand}" Gesture="Delete" />
         </paz:ZoomBorder.KeyBindings>
 
         <Viewbox>
-            <Panel Background="#252933">
-                <!--  Bike image  -->
-                <Image Name="BikeImage" Source="{Binding Image}" />
+            <Canvas
+            Width="{Binding ImageCanvas.CanvasWidth}"
+            Height="{Binding ImageCanvas.CanvasHeight}"
+            Background="Transparent">
+                <Panel Canvas.Left="{Binding ImageCanvas.ContentOffsetX}" Canvas.Top="{Binding ImageCanvas.ContentOffsetY}">
+                    <!--  Bike image  -->
+                    <Canvas>
+                        <Image
+                        Name="BikeImage"
+                        Canvas.Left="{Binding ImageCanvas.RotatedImageLeft}"
+                        Canvas.Top="{Binding ImageCanvas.RotatedImageTop}"
+                        Source="{Binding ImageCanvas.RotatedImage}" />
+                    </Canvas>
 
-                <!--  Semi-opaque overlay to improve point visibility  -->
-                <Border
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
-                    Background="White"
-                    IsVisible="{Binding OverlayVisible}"
-                    Opacity="0.7" />
+                    <!--  Semi-opaque overlay to improve point visibility  -->
+                    <Canvas IsVisible="{Binding ImageCanvas.OverlayVisible}">
+                        <Border
+                        Width="{Binding ImageCanvas.Image.Size.Width}"
+                        Height="{Binding ImageCanvas.Image.Size.Height}"
+                        Background="White"
+                        Opacity="0.7"
+                        RenderTransformOrigin="0,0">
+                            <Border.RenderTransform>
+                                <RotateTransform Angle="{Binding ImageCanvas.ImageRotationDegrees}" />
+                            </Border.RenderTransform>
+                        </Border>
+                    </Canvas>
 
-                <!--  Links  -->
-                <SelectingItemsControl
+                    <!--  Wheels  -->
+                    <Canvas IsVisible="{Binding WheelGeometry.HasWheels}">
+                        <!--  Front wheel  -->
+                        <Grid
+                        Canvas.Left="{Binding WheelGeometry.FrontWheelCircleLeft}"
+                        Canvas.Top="{Binding WheelGeometry.FrontWheelCircleTop}"
+                        Width="{Binding WheelGeometry.FrontWheelCircleDiameter}"
+                        Height="{Binding WheelGeometry.FrontWheelCircleDiameter}">
+                            <Ellipse Stroke="#90404040" StrokeThickness="{Binding WheelGeometry.FrontTireThickness}" Fill="Transparent" />
+                            <Ellipse
+                            Width="{Binding WheelGeometry.FrontRimCircleDiameter}"
+                            Height="{Binding WheelGeometry.FrontRimCircleDiameter}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Stroke="#D0C0C0C0"
+                            StrokeThickness="15"
+                            Fill="Transparent" />
+                            <Ellipse
+                            Width="{Binding WheelGeometry.FrontHubDiameter}"
+                            Height="{Binding WheelGeometry.FrontHubDiameter}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Fill="#90505050" />
+                        </Grid>
+                        <!--  Rear wheel  -->
+                        <Grid
+                        Canvas.Left="{Binding WheelGeometry.RearWheelCircleLeft}"
+                        Canvas.Top="{Binding WheelGeometry.RearWheelCircleTop}"
+                        Width="{Binding WheelGeometry.RearWheelCircleDiameter}"
+                        Height="{Binding WheelGeometry.RearWheelCircleDiameter}">
+                            <Ellipse Stroke="#90404040" StrokeThickness="{Binding WheelGeometry.RearTireThickness}" Fill="Transparent" />
+                            <Ellipse
+                            Width="{Binding WheelGeometry.RearRimCircleDiameter}"
+                            Height="{Binding WheelGeometry.RearRimCircleDiameter}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Stroke="#D0C0C0C0"
+                            StrokeThickness="15"
+                            Fill="Transparent" />
+                            <Ellipse
+                            Width="{Binding WheelGeometry.RearHubDiameter}"
+                            Height="{Binding WheelGeometry.RearHubDiameter}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Fill="#90505050" />
+                        </Grid>
+                    </Canvas>
+
+                    <!--  Rear axle path  -->
+                    <Polyline
+                    Points="{Binding ImageCanvas.RearAxlePath}"
+                    Stroke="Cyan"
+                    StrokeThickness="10"
+                    IsVisible="{Binding !!ImageCanvas.RearAxlePath.Count}" />
+
+                    <!--  Links  -->
+                    <SelectingItemsControl
                     Background="Transparent"
-                    IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    ItemsSource="{Binding LinkViewModels}"
-                    SelectedItem="{Binding SelectedLink}">
-                    <SelectingItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Canvas />
-                        </ItemsPanelTemplate>
-                    </SelectingItemsControl.ItemsPanel>
-                    <SelectingItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vml:LinkViewModel">
-                            <Line
+                    ClipToBounds="False"
+                    IsVisible="{Binding ImageCanvas.Image, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ItemsSource="{Binding LinkageEditor.LinkViewModels}"
+                    SelectedItem="{Binding LinkageEditor.SelectedLink}">
+                        <SelectingItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas />
+                            </ItemsPanelTemplate>
+                        </SelectingItemsControl.ItemsPanel>
+                        <SelectingItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vml:LinkViewModel">
+                                <Line
                                 Opacity="0.6"
                                 Stroke="{Binding Brush}"
-                                StrokeThickness="10"
+                                StrokeThickness="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.LinkStrokeThickness}"
                                 StartPoint="{Binding StartPoint}"
                                 EndPoint="{Binding EndPoint}">
-                                <Interaction.Behaviors>
-                                    <EventTriggerBehavior EventName="Tapped">
-                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkTappedCommand}" PassEventArgsToCommand="True" />
-                                    </EventTriggerBehavior>
-                                </Interaction.Behaviors>
-                            </Line>
-                        </DataTemplate>
-                    </SelectingItemsControl.ItemTemplate>
-                </SelectingItemsControl>
+                                    <Interaction.Behaviors>
+                                        <EventTriggerBehavior EventName="Tapped">
+                                            <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.LinkTappedCommand}" PassEventArgsToCommand="True" />
+                                        </EventTriggerBehavior>
+                                    </Interaction.Behaviors>
+                                </Line>
+                            </DataTemplate>
+                        </SelectingItemsControl.ItemTemplate>
+                    </SelectingItemsControl>
 
-                <!--  Points  -->
-                <SelectingItemsControl
+                    <!--  Points  -->
+                    <SelectingItemsControl
                     Background="Transparent"
                     Classes="draggable"
-                    IsVisible="{Binding Chainstay, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    ItemsSource="{Binding JointViewModels}"
-                    SelectedItem="{Binding SelectedPoint}">
-                    <SelectingItemsControl.Styles>
-                        <Style x:DataType="vml:JointViewModel" Selector="SelectingItemsControl &gt; ContentPresenter">
-                            <Setter Property="(Canvas.Left)" Value="{Binding X, Mode=TwoWay}" />
-                            <Setter Property="(Canvas.Top)" Value="{Binding Y, Mode=TwoWay}" />
-                        </Style>
-                        <Style Selector="SelectingItemsControl &gt; ContentPresenter:dragging">
-                            <Setter Property="Opacity" Value="0.5" />
-                            <Setter Property="ZIndex" Value="1" />
-                        </Style>
-                    </SelectingItemsControl.Styles>
-                    <SelectingItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Canvas />
-                        </ItemsPanelTemplate>
-                    </SelectingItemsControl.ItemsPanel>
-                    <SelectingItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <vl:JointView>
-                                <Interaction.Behaviors>
-                                    <EventTriggerBehavior EventName="Tapped">
-                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).PointTappedCommand}" PassEventArgsToCommand="True" />
-                                    </EventTriggerBehavior>
-                                </Interaction.Behaviors>
-                            </vl:JointView>
-                        </DataTemplate>
-                    </SelectingItemsControl.ItemTemplate>
-                </SelectingItemsControl>
-            </Panel>
+                    ClipToBounds="False"
+                    IsVisible="{Binding ImageCanvas.Image, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ItemsSource="{Binding LinkageEditor.JointViewModels}"
+                    SelectedItem="{Binding LinkageEditor.SelectedPoint}">
+                        <SelectingItemsControl.Styles>
+                            <Style x:DataType="vml:JointViewModel" Selector="SelectingItemsControl &gt; ContentPresenter">
+                                <Setter Property="(Canvas.Left)" Value="{Binding X, Mode=TwoWay}" />
+                                <Setter Property="(Canvas.Top)" Value="{Binding Y, Mode=TwoWay}" />
+                            </Style>
+                            <Style Selector="SelectingItemsControl &gt; ContentPresenter:dragging">
+                                <Setter Property="Opacity" Value="0.5" />
+                                <Setter Property="ZIndex" Value="1" />
+                            </Style>
+                        </SelectingItemsControl.Styles>
+                        <SelectingItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas />
+                            </ItemsPanelTemplate>
+                        </SelectingItemsControl.ItemsPanel>
+                        <SelectingItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <vl:JointView>
+                                    <Interaction.Behaviors>
+                                        <EventTriggerBehavior EventName="Tapped">
+                                            <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.PointTappedCommand}" PassEventArgsToCommand="True" />
+                                        </EventTriggerBehavior>
+                                    </Interaction.Behaviors>
+                                </vl:JointView>
+                            </DataTemplate>
+                        </SelectingItemsControl.ItemTemplate>
+                    </SelectingItemsControl>
+                </Panel>
+            </Canvas>
         </Viewbox>
     </paz:ZoomBorder>
 </UserControl>

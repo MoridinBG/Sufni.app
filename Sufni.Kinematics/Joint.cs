@@ -8,10 +8,11 @@ public enum JointType
     Floating,
     RearWheel,
     FrontWheel,
-    BottomBracket
+    BottomBracket,
+    HeadTube
 }
 
-public class CartesianCoordinate(double x, double y)
+public class CartesianCoordinate(double x, double y) : IPoint
 {
     #region Public properties
 

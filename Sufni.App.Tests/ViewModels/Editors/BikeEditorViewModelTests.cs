@@ -39,6 +39,142 @@ public class BikeEditorViewModelTests
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false) =>
         new(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService);
 
+    private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
+        new(leverageRatioData, new CoordinateList([], []));
+
+
+    private static BikeSnapshot FullSuspensionSnapshot(
+        bool includeHeadTubeJoints = false,
+        EtrtoRimSize? frontWheelRimSize = null,
+        double? frontWheelTireWidth = null,
+        double? frontWheelDiameter = null,
+        EtrtoRimSize? rearWheelRimSize = null,
+        double? rearWheelTireWidth = null,
+        double? rearWheelDiameter = null,
+        double imageRotationDegrees = 0,
+        long updated = 1)
+    {
+        var bike = new Bike(Guid.NewGuid(), "full sus")
+        {
+            HeadAngle = 64,
+            ForkStroke = 170,
+            Image = TestImages.SmallPng(),
+            PixelsToMillimeters = 1,
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints),
+            FrontWheelRimSize = frontWheelRimSize,
+            FrontWheelTireWidth = frontWheelTireWidth,
+            FrontWheelDiameterMm = frontWheelDiameter,
+            RearWheelRimSize = rearWheelRimSize,
+            RearWheelTireWidth = rearWheelTireWidth,
+            RearWheelDiameterMm = rearWheelDiameter,
+            ImageRotationDegrees = imageRotationDegrees,
+            Updated = updated,
+        };
+        bike.ShockStroke = 0.5;
+        return BikeSnapshot.From(bike);
+    }
+
+    private static BikeSnapshot ForkOnlySnapshot(
+        EtrtoRimSize? frontWheelRimSize = null,
+        double? frontWheelTireWidth = null,
+        double? frontWheelDiameter = null,
+        EtrtoRimSize? rearWheelRimSize = null,
+        double? rearWheelTireWidth = null,
+        double? rearWheelDiameter = null,
+        double imageRotationDegrees = 0,
+        long updated = 1)
+    {
+        var bike = new Bike(Guid.NewGuid(), "fork only")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            FrontWheelRimSize = frontWheelRimSize,
+            FrontWheelTireWidth = frontWheelTireWidth,
+            FrontWheelDiameterMm = frontWheelDiameter,
+            RearWheelRimSize = rearWheelRimSize,
+            RearWheelTireWidth = rearWheelTireWidth,
+            RearWheelDiameterMm = rearWheelDiameter,
+            Image = TestImages.SmallPng(),
+            ImageRotationDegrees = imageRotationDegrees,
+            Updated = updated,
+        };
+
+        return BikeSnapshot.From(bike);
+    }
+
+    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<Joint> joints) =>
+        joints
+            .OrderBy(joint => joint.Name)
+            .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
+            .ToList();
+
+    private static IReadOnlyList<string> DescribeLinks(IEnumerable<Link> links) =>
+        links
+            .Select(DescribeLink)
+            .OrderBy(link => link)
+            .ToList();
+
+    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeEditorJoints(BikeEditorViewModel editor)
+    {
+        Assert.NotNull(editor.ImageCanvas.Image);
+        Assert.True(editor.PixelsToMillimeters.HasValue);
+
+        return editor.LinkageEditor.JointViewModels
+            .Select(joint => joint.ToJoint(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+            .OrderBy(joint => joint.Name)
+            .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> DescribeEditorLinks(BikeEditorViewModel editor)
+    {
+        Assert.NotNull(editor.ImageCanvas.Image);
+        Assert.True(editor.PixelsToMillimeters.HasValue);
+
+        return editor.LinkageEditor.LinkViewModels
+            .Select(link => link.ToLink(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+            .Select(DescribeLink)
+            .OrderBy(link => link)
+            .ToList();
+    }
+
+    private static string DescribeLink(Link link)
+    {
+        var a = Assert.IsType<Joint>(link.A);
+        var b = Assert.IsType<Joint>(link.B);
+        return string.CompareOrdinal(a.Name, b.Name) <= 0
+            ? $"{a.Name}->{b.Name}"
+            : $"{b.Name}->{a.Name}";
+    }
+
+    private void AssertOpeningPreservesState(BikeSnapshot snapshot)
+    {
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(snapshot.FrontWheelRimSize, editor.WheelGeometry.FrontWheelRimSize);
+        Assert.Equal(snapshot.FrontWheelTireWidth, editor.WheelGeometry.FrontWheelTireWidth);
+        Assert.Equal(snapshot.FrontWheelDiameterMm, editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Equal(snapshot.RearWheelRimSize, editor.WheelGeometry.RearWheelRimSize);
+        Assert.Equal(snapshot.RearWheelTireWidth, editor.WheelGeometry.RearWheelTireWidth);
+        Assert.Equal(snapshot.RearWheelDiameterMm, editor.WheelGeometry.RearWheelDiameter);
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.Equal(snapshot.Image is not null, editor.ImageCanvas.Image is not null);
+        Assert.False(editor.IsDirty);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+
+        if (snapshot.Linkage is null)
+        {
+            Assert.Empty(editor.LinkageEditor.JointViewModels);
+            Assert.Empty(editor.LinkageEditor.LinkViewModels);
+            return;
+        }
+
+        Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
+        Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
+        Assert.Equal(DescribeJoints(snapshot.Linkage.Joints), DescribeEditorJoints(editor));
+        Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeEditorLinks(editor));
+    }
+
     // ----- Construction -----
 
     [AvaloniaFact]
@@ -52,11 +188,13 @@ public class BikeEditorViewModelTests
         Assert.Equal(snapshot.HeadAngle, editor.HeadAngle);
         Assert.Equal(snapshot.ForkStroke, editor.ForksStroke);
         Assert.Null(editor.ShockStroke);
-        Assert.Null(editor.Image);
+        Assert.Null(editor.ImageCanvas.Image);
         Assert.True(editor.IsInDatabase);
         Assert.Equal(7, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.Empty(editor.LinkageEditor.JointViewModels);
+        Assert.Empty(editor.LinkageEditor.LinkViewModels);
     }
 
     [AvaloniaFact]
@@ -65,10 +203,79 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot, isNew: true);
 
-        // AddInitialJoints contributes 5 joints (FrontWheel, BottomBracket,
-        // RearWheel, two ShockEye floating joints) and the shock LinkViewModel.
-        Assert.Equal(5, editor.JointViewModels.Count);
-        Assert.Single(editor.LinkViewModels);
+        // AddInitialJoints contributes 7 joints (FrontWheel, BottomBracket,
+        // RearWheel, two HeadTube points, two ShockEye floating points)
+        // and the shock LinkViewModel.
+        Assert.Equal(7, editor.LinkageEditor.JointViewModels.Count);
+        Assert.Single(editor.LinkageEditor.LinkViewModels);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromForkOnlySnapshotWithManualWheelState_PreservesOpeningInvariant()
+    {
+        var snapshot = ForkOnlySnapshot(
+            frontWheelDiameter: 760,
+            rearWheelDiameter: 750,
+            imageRotationDegrees: 12.5,
+            updated: 7);
+
+        AssertOpeningPreservesState(snapshot);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromFullSuspensionSnapshotWithHeadTubeJoints_PreservesOpeningInvariant()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+
+        AssertOpeningPreservesState(snapshot);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromLegacyFullSuspensionSnapshotWithoutHeadTubeJoints_PreservesOpeningInvariant()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: false,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+
+        AssertOpeningPreservesState(snapshot);
+    }
+
+    [AvaloniaFact]
+    public void Construction_PreservesPersistedHeadAngle_WhenItDiffersFromDerivedGeometry()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7) with
+        {
+            HeadAngle = 79.9,
+        };
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(79.9, editor.HeadAngle);
     }
 
     // ----- Dirtiness -----
@@ -98,35 +305,14 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void RemovingJoint_DetachesPropertyHandler_FromRemovedInstance()
+    public void SaveCommand_Disabled_WhenOnlyOneWheelIsConfigured()
     {
-        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-        var removedJoint = new JointViewModel("Detached point", JointType.Floating, 10, 10);
-        editor.JointViewModels.Add(removedJoint);
-        editor.JointViewModels.Remove(removedJoint);
-        var isDirtyBeforeMutation = editor.IsDirty;
-        var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
+        var snapshot = TestSnapshots.Bike();
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+        editor.WheelGeometry.FrontWheelDiameter = 760;
 
-        removedJoint.Name = "Detached point renamed";
-
-        Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
-        Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
-    }
-
-    [AvaloniaFact]
-    public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
-    {
-        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-        var removedLink = new LinkViewModel(editor.JointViewModels[0], editor.JointViewModels[1]);
-        editor.LinkViewModels.Add(removedLink);
-        editor.LinkViewModels.Remove(removedLink);
-        var isDirtyBeforeMutation = editor.IsDirty;
-        var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
-
-        removedLink.A = editor.JointViewModels[2];
-
-        Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
-        Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
+        Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
     // ----- CanSave -----
@@ -161,6 +347,9 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
+        editor.WheelGeometry.FrontWheelDiameter = 760;
+        editor.WheelGeometry.RearWheelDiameter = 750;
+        editor.ImageCanvas.ImageRotationDegrees = 13.5;
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
@@ -169,7 +358,13 @@ public class BikeEditorViewModelTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(b => b.Id == snapshot.Id && b.Name == "renamed" && b.Linkage == null),
+            Arg.Is<Bike>(b =>
+                b.Id == snapshot.Id &&
+                b.Name == "renamed" &&
+                b.Linkage == null &&
+                b.FrontWheelDiameterMm == 760 &&
+                b.RearWheelDiameterMm == 750 &&
+                b.ImageRotationDegrees == 13.5),
             5);
         Assert.Equal(11, editor.BaselineUpdated);
         Assert.Empty(editor.ErrorMessages);
@@ -209,6 +404,8 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("remote-updated", editor.Name);
         Assert.Equal(12, editor.BaselineUpdated);
+        Assert.False(editor.IsDirty);
+        Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
@@ -217,6 +414,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike(name: "old", updated: 5);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
+        bikeCoordinator.ClearReceivedCalls();
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -296,11 +494,12 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var data = new CoordinateList([1, 2], [3, 4]);
         editor.Name = "renamed";
+        bikeCoordinator.ClearReceivedCalls();
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(
                 11,
-                new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data))));
+                new BikeEditorAnalysisResult.Computed(PresentationData(data))));
         TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -390,16 +589,24 @@ public class BikeEditorViewModelTests
     [AvaloniaFact]
     public async Task Loaded_AppliesComputedAnalysisResult()
     {
-        var snapshot = TestSnapshots.Bike();
+        var snapshot = FullSuspensionSnapshot(
+            frontWheelDiameter: 760,
+            rearWheelDiameter: 750);
         var editor = CreateEditor(snapshot);
         var data = new CoordinateList([1, 2], [3, 4]);
+        var rearAxlePathData = new CoordinateList([2, 4], [0.25, 0.75]);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(
-                new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data))));
+                new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data, rearAxlePathData))));
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Equal(data, editor.LeverageRatioData);
+        Assert.Equal(2, editor.ImageCanvas.RearAxlePath.Count);
+        Assert.Equal(2, editor.ImageCanvas.RearAxlePath[0].X, 3);
+        Assert.Equal(0.75, editor.ImageCanvas.RearAxlePath[0].Y, 3);
+        Assert.Equal(4, editor.ImageCanvas.RearAxlePath[1].X, 3);
+        Assert.Equal(0.25, editor.ImageCanvas.RearAxlePath[1].Y, 3);
     }
 
     [AvaloniaFact]
@@ -433,6 +640,24 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Construction_FromExistingFullSuspensionSnapshot_RefreshesAnalysisImmediately()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            frontWheelDiameter: 760,
+            rearWheelDiameter: 750);
+        var data = new CoordinateList([1, 2], [3, 4]);
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(
+                new BikeEditorAnalysisResult.Computed(PresentationData(data))));
+
+        var editor = CreateEditor(snapshot);
+        await Task.Yield();
+
+        Assert.Equal(data, editor.LeverageRatioData);
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task Import_AppliesImportedBike_AndResetsBaselineToDraft()
     {
         var snapshot = TestSnapshots.Bike(updated: 5, name: "old bike");
@@ -441,6 +666,13 @@ public class BikeEditorViewModelTests
         {
             HeadAngle = 63,
             ForkStroke = 170,
+            FrontWheelRimSize = EtrtoRimSize.Inch29,
+            FrontWheelTireWidth = 2.4,
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            RearWheelRimSize = EtrtoRimSize.Inch275,
+            RearWheelTireWidth = 2.5,
+            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            ImageRotationDegrees = 12.5,
         };
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImportResult>(
@@ -453,6 +685,13 @@ public class BikeEditorViewModelTests
         Assert.Equal("imported bike", editor.Name);
         Assert.Equal(63, editor.HeadAngle);
         Assert.Equal(170, editor.ForksStroke);
+        Assert.Equal(EtrtoRimSize.Inch29, editor.WheelGeometry.FrontWheelRimSize);
+        Assert.Equal(2.4, editor.WheelGeometry.FrontWheelTireWidth);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Equal(EtrtoRimSize.Inch275, editor.WheelGeometry.RearWheelRimSize);
+        Assert.Equal(2.5, editor.WheelGeometry.RearWheelTireWidth);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
+        Assert.Equal(12.5, editor.ImageCanvas.ImageRotationDegrees);
         Assert.Equal(0, editor.BaselineUpdated);
         Assert.False(editor.IsInDatabase);
     }
@@ -478,6 +717,31 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Reset_RestoresAcceptedSnapshot_AndClearsDirtyState()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+        editor.ImageCanvas.ImageRotationDegrees = 22.5;
+
+        await editor.ResetCommand.ExecuteAsync(null);
+
+        Assert.Equal(snapshot.Name, editor.Name);
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.False(editor.IsDirty);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
     public async Task Unloaded_DropsPendingAnalysisResult()
     {
         var snapshot = TestSnapshots.Bike();
@@ -490,10 +754,36 @@ public class BikeEditorViewModelTests
         editor.UnloadedCommand.Execute(null);
 
         pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Computed(
-            new BikeAnalysisPresentationData(new CoordinateList([1, 2], [3, 4]))));
+            PresentationData(new CoordinateList([1, 2], [3, 4]))));
         await loadedTask;
 
         Assert.Null(editor.LeverageRatioData);
+    }
+
+    [AvaloniaFact]
+    public async Task Import_CancelsInFlightAnalysis()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        CancellationToken capturedToken = default;
+        var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        bikeCoordinator
+            .LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                capturedToken = call.Arg<CancellationToken>();
+                return pendingAnalysis.Task;
+            });
+
+        var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
+        Assert.False(capturedToken.IsCancellationRequested);
+
+        await editor.ImportCommand.ExecuteAsync(null);
+
+        Assert.True(capturedToken.IsCancellationRequested);
+        pendingAnalysis.SetCanceled();
+        await loadedTask;
     }
 
     [AvaloniaFact]
@@ -514,7 +804,7 @@ public class BikeEditorViewModelTests
         var importTask = editor.ImportCommand.ExecuteAsync(null);
 
         pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Computed(
-            new BikeAnalysisPresentationData(new CoordinateList([1, 2], [3, 4]))));
+            PresentationData(new CoordinateList([1, 2], [3, 4]))));
         pendingImport.SetResult(new BikeImportResult.Imported(
             new ImportedBikeEditorData(
                 new Bike(Guid.NewGuid(), "imported bike")
@@ -522,7 +812,7 @@ public class BikeEditorViewModelTests
                     HeadAngle = 63,
                     ForkStroke = 170,
                 },
-                new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(importedData)))));
+                new BikeEditorAnalysisResult.Computed(PresentationData(importedData)))));
 
         await loadedTask;
         await importTask;

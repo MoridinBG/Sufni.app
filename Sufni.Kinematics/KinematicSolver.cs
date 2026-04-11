@@ -11,7 +11,7 @@ public readonly struct CoordinateList(List<double> x, List<double> y) : IEquatab
     public int Count => X.Count;
 
     #region Equality overrides / operators
-    
+
     public bool Equals(CoordinateList other)
     {
         return X.Equals(other.X) && Y.Equals(other.Y);
@@ -48,12 +48,11 @@ public class KinematicSolver
 
     public KinematicSolver(Linkage linkage, int steps = 200, int iterations = 1000)
     {
-        var linkageJson = linkage.ToJson();
-        this.linkage = Linkage.FromJson(linkageJson);
-        
+        this.linkage = linkage.CloneResolved();
+
         this.steps = steps;
         this.iterations = iterations;
-        shockMaxLength = linkage.Shock.Length;
+        shockMaxLength = this.linkage.Shock.Length;
     }
 
     #region Public methods
@@ -148,13 +147,13 @@ public class KinematicSolver
     {
         Debug.Assert(link.A is not null);
         Debug.Assert(link.B is not null);
-        
+
         // If both ends are fixed, nothing to do
         if (link.A.IsFixed && link.B.IsFixed) return;
 
         var dx = link.B.X - link.A.X;
         var dy = link.B.Y - link.A.Y;
-        var length = Math.Sqrt(dx*dx + dy*dy);
+        var length = Math.Sqrt(dx * dx + dy * dy);
 
         if (length < 1e-12) return;
 
@@ -174,6 +173,6 @@ public class KinematicSolver
             link.B.Y -= correctionY;
         }
     }
-    
+
     #endregion Private methods
 }

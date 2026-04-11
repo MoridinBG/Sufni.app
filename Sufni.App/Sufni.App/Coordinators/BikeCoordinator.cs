@@ -137,19 +137,15 @@ public sealed class BikeCoordinator(
 
     private static Bike NormalizeImportedBike(Bike imported)
     {
-        var normalized = new Bike(Guid.NewGuid(), imported.Name)
+        var snapshot = BikeSnapshot.From(imported) with
         {
-            HeadAngle = imported.HeadAngle,
-            ForkStroke = imported.ForkStroke,
-            Chainstay = imported.Chainstay,
-            PixelsToMillimeters = imported.PixelsToMillimeters,
-            Linkage = imported.Linkage,
-            ShockStroke = imported.ShockStroke,
-            Image = imported.Image,
+            Id = Guid.NewGuid(),
             Updated = 0,
-            ClientUpdated = 0,
-            Deleted = null,
         };
+        var normalized = Bike.FromSnapshot(snapshot);
+
+        normalized.ClientUpdated = 0;
+        normalized.Deleted = null;
 
         return normalized;
     }

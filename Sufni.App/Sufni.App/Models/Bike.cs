@@ -8,14 +8,18 @@ using System.Text.Json.Serialization;
 using Avalonia.Media.Imaging;
 using SQLite;
 using Sufni.App.Models.SensorConfigurations;
+using Sufni.App.Stores;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models;
 
+/// Mutable domain/persistence model. Convert to/from BikeSnapshot via
+/// BikeSnapshot.From(Bike) and Bike.FromSnapshot(BikeSnapshot).
 [Table("bike")]
 public class Bike : Synchronizable
 {
     private double? chainstay;
+    private double? shockStroke;
     private Linkage? linkage;
 
     [JsonPropertyName("name")]
@@ -34,14 +38,14 @@ public class Bike : Synchronizable
     [Column("shock_stroke")]
     public double? ShockStroke
     {
-        get
-        {
-            return Linkage?.ShockStroke;
-        }
+        get => shockStroke;
         set
         {
-            if (value is null || Linkage is null) return;
-            Linkage.ShockStroke = value.Value;
+            shockStroke = value;
+            if (value is not null && linkage is not null)
+            {
+                linkage.ShockStroke = value.Value;
+            }
         }
     }
 
@@ -54,6 +58,17 @@ public class Bike : Synchronizable
         {
             linkage = value;
             linkage?.ResolveJoints();
+
+            if (linkage is null) return;
+
+            if (shockStroke.HasValue)
+            {
+                linkage.ShockStroke = shockStroke.Value;
+            }
+            else
+            {
+                shockStroke = linkage.ShockStroke;
+            }
         }
     }
 
@@ -72,6 +87,38 @@ public class Bike : Synchronizable
     [JsonPropertyName("pixels_to_millimeters")]
     [Column("pixels_to_millimeters")]
     public double PixelsToMillimeters { get; set; }
+
+    [JsonPropertyName("front_wheel_diameter")]
+    [Column("front_wheel_diameter")]
+    public double? FrontWheelDiameterMm { get; set; }
+
+    [JsonPropertyName("rear_wheel_diameter")]
+    [Column("rear_wheel_diameter")]
+    public double? RearWheelDiameterMm { get; set; }
+
+    [JsonPropertyName("front_wheel_rim_size")]
+    [Column("front_wheel_rim_size")]
+    public EtrtoRimSize? FrontWheelRimSize { get; set; }
+
+    [JsonPropertyName("front_wheel_tire_width")]
+    [Column("front_wheel_tire_width")]
+    public double? FrontWheelTireWidth { get; set; }
+
+    [JsonPropertyName("rear_wheel_rim_size")]
+    [Column("rear_wheel_rim_size")]
+    public EtrtoRimSize? RearWheelRimSize { get; set; }
+
+    [JsonPropertyName("rear_wheel_tire_width")]
+    [Column("rear_wheel_tire_width")]
+    public double? RearWheelTireWidth { get; set; }
+
+    [JsonPropertyName("image_rotation_degrees")]
+    [Column("image_rotation_degrees")]
+    public double ImageRotationDegrees { get; set; }
+
+    [JsonIgnore]
+    [Ignore]
+    public bool HasWheels => FrontWheelDiameterMm.HasValue && RearWheelDiameterMm.HasValue;
 
     [JsonPropertyName("image")]
     [Column("image")]
@@ -127,6 +174,25 @@ public class Bike : Synchronizable
         return AppJson.SerializeIndented(BikeExportModel.FromBike(this));
     }
 
+    public static Bike FromSnapshot(BikeSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
+    {
+        HeadAngle = snapshot.HeadAngle,
+        ForkStroke = snapshot.ForkStroke,
+        ShockStroke = snapshot.ShockStroke,
+        Chainstay = snapshot.Chainstay,
+        PixelsToMillimeters = snapshot.PixelsToMillimeters,
+        FrontWheelDiameterMm = snapshot.FrontWheelDiameterMm,
+        RearWheelDiameterMm = snapshot.RearWheelDiameterMm,
+        FrontWheelRimSize = snapshot.FrontWheelRimSize,
+        FrontWheelTireWidth = snapshot.FrontWheelTireWidth,
+        RearWheelRimSize = snapshot.RearWheelRimSize,
+        RearWheelTireWidth = snapshot.RearWheelTireWidth,
+        ImageRotationDegrees = snapshot.ImageRotationDegrees,
+        Linkage = snapshot.Linkage,
+        Image = snapshot.Image,
+        Updated = snapshot.Updated,
+    };
+
     public static Bike? FromJson(string json)
     {
         var bike = AppJson.Deserialize<Bike>(json);
@@ -166,6 +232,27 @@ internal sealed class BikeExportModel
     [JsonPropertyName("pixels_to_millimeters")]
     public double PixelsToMillimeters { get; init; }
 
+    [JsonPropertyName("front_wheel_diameter")]
+    public double? FrontWheelDiameterMm { get; init; }
+
+    [JsonPropertyName("rear_wheel_diameter")]
+    public double? RearWheelDiameterMm { get; init; }
+
+    [JsonPropertyName("front_wheel_rim_size")]
+    public EtrtoRimSize? FrontWheelRimSize { get; init; }
+
+    [JsonPropertyName("front_wheel_tire_width")]
+    public double? FrontWheelTireWidth { get; init; }
+
+    [JsonPropertyName("rear_wheel_rim_size")]
+    public EtrtoRimSize? RearWheelRimSize { get; init; }
+
+    [JsonPropertyName("rear_wheel_tire_width")]
+    public double? RearWheelTireWidth { get; init; }
+
+    [JsonPropertyName("image_rotation_degrees")]
+    public double ImageRotationDegrees { get; init; }
+
     [JsonPropertyName("image")]
     public byte[] ImageBytes { get; init; } = [];
 
@@ -179,6 +266,13 @@ internal sealed class BikeExportModel
             ShockStroke = bike.ShockStroke,
             Linkage = bike.Linkage,
             PixelsToMillimeters = bike.PixelsToMillimeters,
+            FrontWheelDiameterMm = bike.FrontWheelDiameterMm,
+            RearWheelDiameterMm = bike.RearWheelDiameterMm,
+            FrontWheelRimSize = bike.FrontWheelRimSize,
+            FrontWheelTireWidth = bike.FrontWheelTireWidth,
+            RearWheelRimSize = bike.RearWheelRimSize,
+            RearWheelTireWidth = bike.RearWheelTireWidth,
+            ImageRotationDegrees = bike.ImageRotationDegrees,
             ImageBytes = bike.ImageBytes
         };
     }
