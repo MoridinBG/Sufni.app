@@ -1,6 +1,6 @@
 # UI Architecture
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the presentation layer in depth: invariants, layering, threading, stores, coordinators, queries, view models, dependency injection, navigation, controls, and ScottPlot-based plot rendering.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the presentation layer in depth: invariants, layering, threading, stores, coordinators, queries, view models, dependency injection, navigation, controls, and ScottPlot-based plot rendering.
 
 The presentation code is organized in five layers with a strict
 one-way dependency chain:

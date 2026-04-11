@@ -1,6 +1,6 @@
 # Signal Processing & Suspension Kinematics
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the signal-processing pipeline that turns raw SST samples into analysis-ready telemetry, the linkage kinematics solver, and the sensor calibration strategy.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the signal-processing pipeline that turns raw SST samples into analysis-ready telemetry, the linkage kinematics solver, and the sensor calibration strategy.
 
 ## Signal Processing Pipeline
 

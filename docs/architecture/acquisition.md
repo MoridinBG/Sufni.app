@@ -1,6 +1,6 @@
 # Data Acquisition & File Format
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers how telemetry files reach the app and how the SST binary format is parsed.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers how telemetry files reach the app and how the SST binary format is parsed.
 
 ## Data Acquisition
 
