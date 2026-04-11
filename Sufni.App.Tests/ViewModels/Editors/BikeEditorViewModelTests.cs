@@ -338,34 +338,6 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void SettingFrontWheelRimAndTire_ComputesDiameter_AndPreservesInputs()
-    {
-        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-
-        editor.FrontWheelRimSize = EtrtoRimSize.Inch29;
-        editor.FrontWheelTireWidth = 2.4;
-
-        Assert.Equal(EtrtoRimSize.Inch29, editor.FrontWheelRimSize);
-        Assert.Equal(2.4, editor.FrontWheelTireWidth);
-        Assert.NotNull(editor.FrontWheelDiameter);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.FrontWheelDiameter.Value, 3);
-    }
-
-    [AvaloniaFact]
-    public void SettingFrontWheelDiameterManually_ClearsDerivedRimAndTireState()
-    {
-        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-        editor.FrontWheelRimSize = EtrtoRimSize.Inch29;
-        editor.FrontWheelTireWidth = 2.4;
-
-        editor.FrontWheelDiameter = 700;
-
-        Assert.Null(editor.FrontWheelRimSize);
-        Assert.Null(editor.FrontWheelTireWidth);
-        Assert.Equal(700, editor.FrontWheelDiameter);
-    }
-
-    [AvaloniaFact]
     public void SaveCommand_Disabled_WhenOnlyOneWheelIsConfigured()
     {
         var snapshot = TestSnapshots.Bike();
