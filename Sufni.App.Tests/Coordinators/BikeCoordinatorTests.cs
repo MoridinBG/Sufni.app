@@ -10,6 +10,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -105,6 +106,13 @@ public class BikeCoordinatorTests
         {
             HeadAngle = 64,
             ForkStroke = 150,
+            FrontWheelRimSize = EtrtoRimSize.Inch29,
+            FrontWheelTireWidth = 2.4,
+            FrontWheelDiameterMm = 743.9,
+            RearWheelRimSize = EtrtoRimSize.Inch275,
+            RearWheelTireWidth = 2.5,
+            RearWheelDiameterMm = 711,
+            ImageRotationDegrees = 12.5,
             Updated = 10,
             ClientUpdated = 5,
             Deleted = 1,
@@ -123,6 +131,13 @@ public class BikeCoordinatorTests
         Assert.Equal(0, imported.Data.Bike.Updated);
         Assert.Equal(0, imported.Data.Bike.ClientUpdated);
         Assert.Null(imported.Data.Bike.Deleted);
+        Assert.Equal(EtrtoRimSize.Inch29, imported.Data.Bike.FrontWheelRimSize);
+        Assert.Equal(2.4, imported.Data.Bike.FrontWheelTireWidth);
+        Assert.Equal(743.9, imported.Data.Bike.FrontWheelDiameterMm);
+        Assert.Equal(EtrtoRimSize.Inch275, imported.Data.Bike.RearWheelRimSize);
+        Assert.Equal(2.5, imported.Data.Bike.RearWheelTireWidth);
+        Assert.Equal(711, imported.Data.Bike.RearWheelDiameterMm);
+        Assert.Equal(12.5, imported.Data.Bike.ImageRotationDegrees);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
     }
 
@@ -147,13 +162,26 @@ public class BikeCoordinatorTests
         bikeStore.Get(existing.Id).Returns(existing);
         var coordinator = CreateCoordinator();
 
-        var bike = new Bike(existing.Id, "renamed") { HeadAngle = 65, ForkStroke = 160, Updated = 7 };
+        var bike = new Bike(existing.Id, "renamed")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            FrontWheelDiameterMm = 760,
+            RearWheelDiameterMm = 750,
+            ImageRotationDegrees = 13.5,
+            Updated = 7,
+        };
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
         await database.Received(1).PutAsync(bike);
         bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s =>
-            s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7));
+            s.Id == existing.Id &&
+            s.Name == "renamed" &&
+            s.FrontWheelDiameterMm == 760 &&
+            s.RearWheelDiameterMm == 750 &&
+            s.ImageRotationDegrees == 13.5 &&
+            s.Updated == 7));
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
