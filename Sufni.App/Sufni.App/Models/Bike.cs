@@ -13,6 +13,8 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.Models;
 
+/// Mutable domain/persistence model. Convert to/from BikeSnapshot via
+/// BikeSnapshot.From(Bike) and Bike.FromSnapshot(BikeSnapshot).
 [Table("bike")]
 public class Bike : Synchronizable
 {

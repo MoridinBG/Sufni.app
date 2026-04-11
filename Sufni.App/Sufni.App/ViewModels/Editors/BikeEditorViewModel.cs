@@ -51,7 +51,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IBikeDependencyQuery? dependencyQuery;
-    private Bike bike;
+    // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeSnapshot acceptedSnapshot;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
@@ -62,11 +62,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private Bitmap? rotatedImageCache;
     private double rotatedImageCacheAngle = double.NaN;
     private bool suppressWheelStateCallbacks;
-    private int stateReplacementDepth;
+    // Guard edit-time callbacks while a snapshot is being applied.
+    private bool isReplacingState;
 
     #endregion Private fields
 
-    #region Observable properties
+    #region Bike geometry properties
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -90,86 +91,21 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private Bitmap? image;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private double? chainstay;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private EtrtoRimSize? frontWheelRimSize;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? frontWheelTireWidth;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? frontWheelDiameter;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private EtrtoRimSize? rearWheelRimSize;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? rearWheelTireWidth;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? rearWheelDiameter;
-
-    [ObservableProperty] private double imageRotationDegrees;
 
     [ObservableProperty] private double? pixelsToMillimeters;
 
-    public static RimSizeOption[] RimSizeOptions { get; } = Enum.GetValues<EtrtoRimSize>()
-        .Select(rimSize => new RimSizeOption(rimSize, rimSize.DisplayName))
-        .ToArray();
+    #endregion Bike geometry properties
 
-    public bool HasWheels =>
-        FrontWheelDiameter.HasValue &&
-        RearWheelDiameter.HasValue &&
-        GetFrontWheelJoint() is not null &&
-        GetRearWheelJoint() is not null;
+    #region Image properties
 
-    public double? FrontWheelRadiusPixels => FrontWheelDiameter / 2.0 / PixelsToMillimeters;
-    public double? RearWheelRadiusPixels => RearWheelDiameter / 2.0 / PixelsToMillimeters;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private Bitmap? image;
 
-    public double FrontWheelCircleLeft => GetFrontWheelJoint()?.X - (FrontWheelRadiusPixels ?? 0) ?? 0;
-    public double FrontWheelCircleTop => GetFrontWheelJoint()?.Y - (FrontWheelRadiusPixels ?? 0) ?? 0;
-    public double FrontWheelCircleDiameter => (FrontWheelRadiusPixels ?? 0) * 2;
-
-    public double RearWheelCircleLeft => GetRearWheelJoint()?.X - (RearWheelRadiusPixels ?? 0) ?? 0;
-    public double RearWheelCircleTop => GetRearWheelJoint()?.Y - (RearWheelRadiusPixels ?? 0) ?? 0;
-    public double RearWheelCircleDiameter => (RearWheelRadiusPixels ?? 0) * 2;
-
-    public double FrontRimCircleDiameter => ComputeRimCircleDiameter(FrontWheelRimSize, FrontWheelDiameter);
-    public double RearRimCircleDiameter => ComputeRimCircleDiameter(RearWheelRimSize, RearWheelDiameter);
-
-    public double FrontTireThickness => (FrontWheelCircleDiameter - FrontRimCircleDiameter) / 2;
-    public double RearTireThickness => (RearWheelCircleDiameter - RearRimCircleDiameter) / 2;
-
-    public double FrontHubDiameter => FrontWheelCircleDiameter * 0.08;
-    public double RearHubDiameter => RearWheelCircleDiameter * 0.08;
-
-    public string FrontWheelDisplayText => FormatWheelDisplay(FrontWheelRimSize, FrontWheelTireWidth, FrontWheelDiameter);
-    public string RearWheelDisplayText => FormatWheelDisplay(RearWheelRimSize, RearWheelTireWidth, RearWheelDiameter);
+    [ObservableProperty] private double imageRotationDegrees;
 
     public Bitmap? RotatedImage
     {
@@ -209,16 +145,100 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
+    #endregion Image properties
+
+    #region Wheel properties
+
+    public static RimSizeOption[] RimSizeOptions { get; } = Enum.GetValues<EtrtoRimSize>()
+        .Select(rimSize => new RimSizeOption(rimSize, rimSize.DisplayName))
+        .ToArray();
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private EtrtoRimSize? frontWheelRimSize;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? frontWheelTireWidth;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? frontWheelDiameter;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private EtrtoRimSize? rearWheelRimSize;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? rearWheelTireWidth;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    private double? rearWheelDiameter;
+
+    public bool HasWheels =>
+        FrontWheelDiameter.HasValue &&
+        RearWheelDiameter.HasValue &&
+        GetFrontWheelJoint() is not null &&
+        GetRearWheelJoint() is not null;
+
+    public double? FrontWheelRadiusPixels => FrontWheelDiameter / 2.0 / PixelsToMillimeters;
+    public double? RearWheelRadiusPixels => RearWheelDiameter / 2.0 / PixelsToMillimeters;
+
+    public double FrontWheelCircleLeft => GetFrontWheelJoint()?.X - (FrontWheelRadiusPixels ?? 0) ?? 0;
+    public double FrontWheelCircleTop => GetFrontWheelJoint()?.Y - (FrontWheelRadiusPixels ?? 0) ?? 0;
+    public double FrontWheelCircleDiameter => (FrontWheelRadiusPixels ?? 0) * 2;
+
+    public double RearWheelCircleLeft => GetRearWheelJoint()?.X - (RearWheelRadiusPixels ?? 0) ?? 0;
+    public double RearWheelCircleTop => GetRearWheelJoint()?.Y - (RearWheelRadiusPixels ?? 0) ?? 0;
+    public double RearWheelCircleDiameter => (RearWheelRadiusPixels ?? 0) * 2;
+
+    public double FrontRimCircleDiameter => ComputeRimCircleDiameter(FrontWheelRimSize, FrontWheelDiameter);
+    public double RearRimCircleDiameter => ComputeRimCircleDiameter(RearWheelRimSize, RearWheelDiameter);
+
+    public double FrontTireThickness => (FrontWheelCircleDiameter - FrontRimCircleDiameter) / 2;
+    public double RearTireThickness => (RearWheelCircleDiameter - RearRimCircleDiameter) / 2;
+
+    public double FrontHubDiameter => FrontWheelCircleDiameter * 0.08;
+    public double RearHubDiameter => RearWheelCircleDiameter * 0.08;
+
+    public string FrontWheelDisplayText => FormatWheelDisplay(FrontWheelRimSize, FrontWheelTireWidth, FrontWheelDiameter);
+    public string RearWheelDisplayText => FormatWheelDisplay(RearWheelRimSize, RearWheelTireWidth, RearWheelDiameter);
+
+    #endregion Wheel properties
+
+    #region Linkage editor properties
+
     public ObservableCollection<JointViewModel> JointViewModels { get; } = [];
     public ObservableCollection<LinkViewModel> LinkViewModels { get; } = [];
     [ObservableProperty] private JointViewModel? selectedPoint;
     [ObservableProperty] private LinkViewModel? selectedLink;
     [ObservableProperty] private bool overlayVisible;
 
+    #endregion Linkage editor properties
+
+    #region Analysis properties
+
     [ObservableProperty] private CoordinateList? leverageRatioData;
     [ObservableProperty] private List<Point> rearAxlePath = [];
-
     [ObservableProperty] private bool isPlotBusy;
+
+    #endregion Analysis properties
+
+    #region Canvas layout
 
     private const double CanvasPadding = 20;
 
@@ -227,7 +247,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     public double ContentOffsetX => -ContentMinX + CanvasPadding;
     public double ContentOffsetY => -ContentMinY + CanvasPadding;
 
-    #endregion Observable properties
+    #endregion Canvas layout
 
     #region Property change handlers
 
@@ -377,8 +397,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         bikeCoordinator = null;
         dependencyQuery = null;
-        bike = new Bike(Guid.Empty, string.Empty);
-        acceptedSnapshot = BikeSnapshot.From(bike);
+        acceptedSnapshot = BikeSnapshot.From(new Bike(Guid.Empty, string.Empty));
         IsInDatabase = false;
 
         SetupJointsListeners();
@@ -397,13 +416,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
         IsInDatabase = !isNew;
-        bike = Bike.FromSnapshot(snapshot);
         acceptedSnapshot = snapshot;
 
         SetupJointsListeners();
         SetupLinksListeners();
 
-        ReplaceState(bike, snapshot);
+        ReplaceState(snapshot, refreshAnalysis: !isNew);
 
         // Brand new bike: start with the mandatory joints.
         if (isNew) AddInitialJoints();
@@ -426,47 +444,63 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
-    private bool IsReplacingState => stateReplacementDepth > 0;
+    private bool IsReplacingState => isReplacingState;
 
-    private void ReplaceState(Bike sourceBike, BikeSnapshot snapshot, bool acceptBaseline = true)
+    // Route every state swap through the same raw-apply -> derive -> accept sequence.
+    private void ReplaceState(
+        BikeSnapshot snapshot,
+        bool acceptBaseline = true,
+        bool refreshAnalysis = false,
+        bool showPlotBusyOverlay = false)
     {
-        RunStateReplacement(() => ApplyRawBikeState(sourceBike));
+        RunStateReplacement(() => ApplyRawBikeState(snapshot));
 
         if (acceptBaseline)
         {
-            AcceptBaseline(sourceBike, snapshot);
+            AcceptBaseline(snapshot);
         }
 
         EvaluateDirtiness();
+
+        if (refreshAnalysis)
+        {
+            QueuePlotRefresh(showPlotBusyOverlay);
+        }
     }
 
-    private void AcceptBaseline(Bike sourceBike, BikeSnapshot snapshot)
+    // Accept a snapshot as both the reset target and the dirtiness baseline.
+    private void AcceptBaseline(BikeSnapshot snapshot)
     {
-        bike = sourceBike;
         acceptedSnapshot = snapshot;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
     }
 
+    // Suppress edit-time callbacks while raw state is loaded, then rebuild derived UI state once.
     private void RunStateReplacement(Action action)
     {
-        stateReplacementDepth++;
+        Debug.Assert(!isReplacingState, "Nested state replacement is unexpected.");
+        if (isReplacingState)
+        {
+            action();
+            return;
+        }
+
+        isReplacingState = true;
         try
         {
             action();
         }
         finally
         {
-            stateReplacementDepth--;
+            isReplacingState = false;
         }
 
-        if (!IsReplacingState)
-        {
-            RebuildDerivedDisplayState();
-        }
+        RebuildDerivedDisplayState();
     }
 
-    private void ApplyRawBikeState(Bike sourceBike)
+    // Copy persisted inputs verbatim; derived display values are rebuilt afterwards.
+    private void ApplyRawBikeState(BikeSnapshot snapshot)
     {
         SelectedLink = null;
         SelectedPoint = null;
@@ -475,44 +509,45 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         LinkViewModels.Clear();
         shockViewModel = null;
 
-        Id = sourceBike.Id;
-        Name = sourceBike.Name;
-        HeadAngle = sourceBike.HeadAngle;
-        ForksStroke = sourceBike.ForkStroke;
-        ShockStroke = sourceBike.ShockStroke;
-        Image = sourceBike.Image;
-        Chainstay = sourceBike.Chainstay;
-        PixelsToMillimeters = sourceBike.Linkage is null ? null : sourceBike.PixelsToMillimeters;
-        ImageRotationDegrees = sourceBike.ImageRotationDegrees;
+        Id = snapshot.Id;
+        Name = snapshot.Name;
+        HeadAngle = snapshot.HeadAngle;
+        ForksStroke = snapshot.ForkStroke;
+        ShockStroke = snapshot.ShockStroke;
+        Image = snapshot.Image;
+        Chainstay = snapshot.Chainstay;
+        PixelsToMillimeters = snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters;
+        ImageRotationDegrees = snapshot.ImageRotationDegrees;
 
-        if (sourceBike.Linkage is not null)
+        if (snapshot.Linkage is not null)
         {
-            Debug.Assert(sourceBike.Image is not null);
+            Debug.Assert(snapshot.Image is not null);
 
-            var jointViewModels = sourceBike.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, sourceBike.Image.Size.Height, sourceBike.PixelsToMillimeters));
+            var jointViewModels = snapshot.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
             foreach (var jvm in jointViewModels)
             {
                 JointViewModels.Add(jvm);
             }
 
-            var linkViewModels = sourceBike.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
+            var linkViewModels = snapshot.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
             foreach (var link in linkViewModels)
             {
                 LinkViewModels.Add(link);
             }
 
-            shockViewModel = LinkViewModel.FromLink(sourceBike.Linkage.Shock, JointViewModels);
+            shockViewModel = LinkViewModel.FromLink(snapshot.Linkage.Shock, JointViewModels);
             LinkViewModels.Add(shockViewModel);
         }
 
-        FrontWheelRimSize = sourceBike.FrontWheelRimSize;
-        FrontWheelTireWidth = sourceBike.FrontWheelTireWidth;
-        FrontWheelDiameter = sourceBike.FrontWheelDiameterMm;
-        RearWheelRimSize = sourceBike.RearWheelRimSize;
-        RearWheelTireWidth = sourceBike.RearWheelTireWidth;
-        RearWheelDiameter = sourceBike.RearWheelDiameterMm;
+        FrontWheelRimSize = snapshot.FrontWheelRimSize;
+        FrontWheelTireWidth = snapshot.FrontWheelTireWidth;
+        FrontWheelDiameter = snapshot.FrontWheelDiameterMm;
+        RearWheelRimSize = snapshot.RearWheelRimSize;
+        RearWheelTireWidth = snapshot.RearWheelTireWidth;
+        RearWheelDiameter = snapshot.RearWheelDiameterMm;
     }
 
+    // Refresh caches and projections that are safe to recompute from the raw editor state.
     private void RebuildDerivedDisplayState()
     {
         rotatedImageCache = null;
@@ -533,36 +568,45 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         UpdateRearAxlePathDisplay();
     }
 
-    private Bike ToBike()
+    // Materialize the current editor state as a snapshot; the coordinator rebuilds the domain model if needed.
+    private BikeSnapshot ToSnapshot(long updated)
     {
         Debug.Assert(HeadAngle is not null);
         Debug.Assert(ForksStroke is not null);
 
-        var newBike = new Bike(Id, Name ?? $"bike {Id}")
+        var linkage = CreateCurrentLinkage();
+        var pixelsToMillimeters = linkage is null
+            ? acceptedSnapshot.PixelsToMillimeters
+            : PixelsToMillimeters ?? acceptedSnapshot.PixelsToMillimeters;
+
+        return new BikeSnapshot(
+            Id,
+            Name ?? $"bike {Id}",
+            HeadAngle.Value,
+            ForksStroke,
+            ShockStroke,
+            Chainstay,
+            pixelsToMillimeters,
+            FrontWheelDiameter,
+            RearWheelDiameter,
+            FrontWheelRimSize,
+            FrontWheelTireWidth,
+            RearWheelRimSize,
+            RearWheelTireWidth,
+            ImageRotationDegrees,
+            linkage,
+            Image,
+            updated);
+    }
+
+    private Linkage? CreateCurrentLinkage()
+    {
+        if (ShockStroke is null || Image is null || PixelsToMillimeters is null || shockViewModel is null)
         {
-            HeadAngle = HeadAngle.Value,
-            ForkStroke = ForksStroke,
-            Chainstay = Chainstay
-        };
+            return null;
+        }
 
-        newBike.FrontWheelRimSize = FrontWheelRimSize;
-        newBike.FrontWheelTireWidth = FrontWheelTireWidth;
-        newBike.FrontWheelDiameterMm = FrontWheelDiameter;
-        newBike.RearWheelRimSize = RearWheelRimSize;
-        newBike.RearWheelTireWidth = RearWheelTireWidth;
-        newBike.RearWheelDiameterMm = RearWheelDiameter;
-        newBike.ImageRotationDegrees = ImageRotationDegrees;
-
-        // If we don't have a rear suspension, we can return here
-        if (ShockStroke is null) return newBike;
-
-        Debug.Assert(PixelsToMillimeters is not null);
-        newBike.ShockStroke = ShockStroke;
-        newBike.Image = Image;
-        newBike.PixelsToMillimeters = PixelsToMillimeters.Value;
-        newBike.Linkage = CreateLinkage();
-
-        return newBike;
+        return CreateLinkage();
     }
 
     private void AddInitialJoints()
@@ -957,7 +1001,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         IsPlotBusy = false;
     }
 
-    private void QueuePlotRefresh() => _ = RefreshAnalysisAsync(showPlotBusyOverlay: true);
+    private void QueuePlotRefresh(bool showPlotBusyOverlay = true) => _ = RefreshAnalysisAsync(showPlotBusyOverlay);
 
     private async Task RefreshAnalysisAsync(bool showPlotBusyOverlay = false)
     {
@@ -967,7 +1011,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         IsPlotBusy = showPlotBusyOverlay;
         try
         {
-            var result = await bikeCoordinator.LoadAnalysisAsync(bike.Linkage, workflowCts.Token);
+            var result = await bikeCoordinator.LoadAnalysisAsync(CreateCurrentLinkage(), workflowCts.Token);
             if (!IsCurrentWorkflow(workflowCts)) return;
 
             ApplyAnalysisResult(result);
@@ -1012,11 +1056,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private void ApplyImportedBike(ImportedBikeEditorData data)
     {
-        var importedBike = data.Bike;
-        var importedSnapshot = BikeSnapshot.From(importedBike);
+        var importedSnapshot = BikeSnapshot.From(data.Bike);
         IsInDatabase = false;
 
-        ReplaceState(importedBike, importedSnapshot);
+        ReplaceState(importedSnapshot);
         ApplyAnalysisResult(data.AnalysisResult);
 
         DeleteCommand.NotifyCanExecuteChanged();
@@ -1260,15 +1303,15 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         if (bikeCoordinator is null) return;
 
         RecalculateGroundRotation();
-        var newBike = ToBike();
-        var result = await bikeCoordinator.SaveAsync(newBike, BaselineUpdated);
+        var snapshot = ToSnapshot(BaselineUpdated);
+        var bike = Bike.FromSnapshot(snapshot);
+        var result = await bikeCoordinator.SaveAsync(bike, BaselineUpdated);
 
         switch (result)
         {
             case BikeSaveResult.Saved saved:
-                newBike.Updated = saved.NewBaselineUpdated;
-                var savedSnapshot = BikeSnapshot.From(newBike);
-                AcceptBaseline(newBike, savedSnapshot);
+                bike.Updated = saved.NewBaselineUpdated;
+                AcceptBaseline(BikeSnapshot.From(bike));
                 IsInDatabase = true;
 
                 ApplyAnalysisResult(saved.AnalysisResult);
@@ -1291,8 +1334,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 if (reload)
                 {
                     IsInDatabase = true;
-                    ReplaceState(Bike.FromSnapshot(conflict.CurrentSnapshot), conflict.CurrentSnapshot);
-                    QueuePlotRefresh();
+                    ReplaceState(conflict.CurrentSnapshot, refreshAnalysis: true, showPlotBusyOverlay: true);
                     DeleteCommand.NotifyCanExecuteChanged();
                     FakeDeleteCommand.NotifyCanExecuteChanged();
                 }
@@ -1345,7 +1387,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     protected override Task ResetImplementation()
     {
-        ReplaceState(Bike.FromSnapshot(acceptedSnapshot), acceptedSnapshot, acceptBaseline: false);
+        ReplaceState(acceptedSnapshot, acceptBaseline: false);
         return RefreshAnalysisAsync(showPlotBusyOverlay: true);
     }
 
@@ -1353,7 +1395,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (bikeCoordinator is null) return;
 
-        var result = await bikeCoordinator.ExportBikeAsync(bike);
+        var result = await bikeCoordinator.ExportBikeAsync(Bike.FromSnapshot(ToSnapshot(BaselineUpdated)));
         if (result is BikeExportResult.Failed failed)
         {
             ErrorMessages.Add($"Bike could not be exported: {failed.ErrorMessage}");

@@ -507,6 +507,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike(name: "old", updated: 5);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
+        bikeCoordinator.ClearReceivedCalls();
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -586,6 +587,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var data = new CoordinateList([1, 2], [3, 4]);
         editor.Name = "renamed";
+        bikeCoordinator.ClearReceivedCalls();
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(
@@ -728,6 +730,24 @@ public class BikeEditorViewModelTests
 
         Assert.Null(editor.LeverageRatioData);
         Assert.Single(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task Construction_FromExistingFullSuspensionSnapshot_RefreshesAnalysisImmediately()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            frontWheelDiameter: 760,
+            rearWheelDiameter: 750);
+        var data = new CoordinateList([1, 2], [3, 4]);
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(
+                new BikeEditorAnalysisResult.Computed(PresentationData(data))));
+
+        var editor = CreateEditor(snapshot);
+        await Task.Yield();
+
+        Assert.Equal(data, editor.LeverageRatioData);
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
