@@ -19,14 +19,16 @@ public partial class LinkageEditorViewModel : ObservableObject
 {
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
+    private readonly ObservableCollection<JointViewModel> jointViewModels = [];
+    private readonly ObservableCollection<LinkViewModel> linkViewModels = [];
     private readonly Dictionary<JointViewModel, PropertyChangedEventHandler> jointPropertyChangedHandlers = [];
     private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
     private bool suppressChangeNotifications;
 
     public event EventHandler<LinkageEditorChange>? Changed;
 
-    public ObservableCollection<JointViewModel> JointViewModels { get; } = [];
-    public ObservableCollection<LinkViewModel> LinkViewModels { get; } = [];
+    public ReadOnlyObservableCollection<JointViewModel> JointViewModels { get; }
+    public ReadOnlyObservableCollection<LinkViewModel> LinkViewModels { get; }
 
     [ObservableProperty] private JointViewModel? selectedPoint;
     [ObservableProperty] private LinkViewModel? selectedLink;
@@ -35,6 +37,8 @@ public partial class LinkageEditorViewModel : ObservableObject
 
     public LinkageEditorViewModel()
     {
+        JointViewModels = new ReadOnlyObservableCollection<JointViewModel>(jointViewModels);
+        LinkViewModels = new ReadOnlyObservableCollection<LinkViewModel>(linkViewModels);
         SetupJointsListeners();
         SetupLinksListeners();
     }
@@ -66,8 +70,8 @@ public partial class LinkageEditorViewModel : ObservableObject
             SelectedLink = null;
             SelectedPoint = null;
 
-            JointViewModels.Clear();
-            LinkViewModels.Clear();
+            jointViewModels.Clear();
+            linkViewModels.Clear();
             shockViewModel = null;
 
             if (linkage is null || imageHeight is null || pixelsToMillimeters is null)
@@ -75,21 +79,21 @@ public partial class LinkageEditorViewModel : ObservableObject
                 return;
             }
 
-            var jointViewModels = linkage.Joints.Select(joint =>
+            var loadedJointViewModels = linkage.Joints.Select(joint =>
                 JointViewModel.FromJoint(joint, imageHeight.Value, pixelsToMillimeters.Value));
-            foreach (var jointViewModel in jointViewModels)
+            foreach (var jointViewModel in loadedJointViewModels)
             {
-                JointViewModels.Add(jointViewModel);
+                this.jointViewModels.Add(jointViewModel);
             }
 
-            var linkViewModels = linkage.Links.Select(link => LinkViewModel.FromLink(link, JointViewModels));
-            foreach (var linkViewModel in linkViewModels)
+            var loadedLinkViewModels = linkage.Links.Select(link => LinkViewModel.FromLink(link, JointViewModels));
+            foreach (var linkViewModel in loadedLinkViewModels)
             {
-                LinkViewModels.Add(linkViewModel);
+                this.linkViewModels.Add(linkViewModel);
             }
 
             shockViewModel = LinkViewModel.FromLink(linkage.Shock, JointViewModels);
-            LinkViewModels.Add(shockViewModel);
+            this.linkViewModels.Add(shockViewModel);
         });
 
         SetPixelsToMillimeters(pixelsToMillimeters);
@@ -105,7 +109,7 @@ public partial class LinkageEditorViewModel : ObservableObject
             if (existing is not null) return existing;
 
             var jointViewModel = new JointViewModel(name, type, x, y);
-            JointViewModels.Add(jointViewModel);
+            jointViewModels.Add(jointViewModel);
             return jointViewModel;
         }
 
@@ -121,7 +125,7 @@ public partial class LinkageEditorViewModel : ObservableObject
         if (shockViewModel is null)
         {
             shockViewModel = new LinkViewModel(shockEye1, shockEye2, "Shock");
-            LinkViewModels.Add(shockViewModel);
+            linkViewModels.Add(shockViewModel);
         }
     }
 
@@ -177,13 +181,13 @@ public partial class LinkageEditorViewModel : ObservableObject
     {
         RunWithoutNotifications(() =>
         {
-            CoordinateRotation.RotatePoints(JointViewModels, 0, 0, deltaRotationDegrees);
+            CoordinateRotation.RotatePoints(jointViewModels, 0, 0, deltaRotationDegrees);
 
-            var items = JointViewModels.ToList();
-            JointViewModels.Clear();
+            var items = jointViewModels.ToList();
+            jointViewModels.Clear();
             foreach (var item in items)
             {
-                JointViewModels.Add(item);
+                jointViewModels.Add(item);
             }
         });
     }
@@ -204,20 +208,40 @@ public partial class LinkageEditorViewModel : ObservableObject
         };
     }
 
-    public bool DidJointsChanged(Linkage baseline, double imageHeight, double pixelsToMillimeters)
+    public bool HasChangesComparedTo(Linkage? baseline, double? imageHeight, double? pixelsToMillimeters)
     {
-        var joints = JointViewModels.Select(joint => joint.ToJoint(imageHeight, pixelsToMillimeters)).ToList();
-        return baseline.Joints.Count != joints.Count || !baseline.Joints.All(joint => joints.Contains(joint));
-    }
+        if (baseline is null)
+        {
+            return JointViewModels.Count > 0 || LinkViewModels.Count > 0;
+        }
 
-    public bool DidLinksChanged(Linkage baseline, double imageHeight, double pixelsToMillimeters)
-    {
+        if (imageHeight is null || pixelsToMillimeters is null)
+        {
+            return false;
+        }
+
+        if (shockViewModel is null)
+        {
+            return true;
+        }
+
+        var joints = JointViewModels.Select(joint => joint.ToJoint(imageHeight.Value, pixelsToMillimeters.Value)).ToList();
+        if (baseline.Joints.Count != joints.Count || !baseline.Joints.All(joint => joints.Contains(joint)))
+        {
+            return true;
+        }
+
         var links = LinkViewModels
             .Where(link => link != shockViewModel && link.A is not null && link.B is not null)
-            .Select(link => link.ToLink(imageHeight, pixelsToMillimeters))
+            .Select(link => link.ToLink(imageHeight.Value, pixelsToMillimeters.Value))
             .ToList();
 
-        return baseline.Links.Count != links.Count || !baseline.Links.All(link => links.Contains(link));
+        if (baseline.Links.Count != links.Count || !baseline.Links.All(link => links.Contains(link)))
+        {
+            return true;
+        }
+
+        return baseline.Shock != shockViewModel.ToLink(imageHeight.Value, pixelsToMillimeters.Value);
     }
 
     private void RunWithoutNotifications(Action action)
@@ -338,7 +362,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
     private void SetupJointsListeners()
     {
-        JointViewModels.CollectionChanged += (_, eventArgs) =>
+        jointViewModels.CollectionChanged += (_, eventArgs) =>
         {
             if (eventArgs.Action == NotifyCollectionChangedAction.Reset)
             {
@@ -377,7 +401,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
     private void SetupLinksListeners()
     {
-        LinkViewModels.CollectionChanged += (_, eventArgs) =>
+        linkViewModels.CollectionChanged += (_, eventArgs) =>
         {
             if (eventArgs.Action == NotifyCollectionChangedAction.Reset)
             {
@@ -418,7 +442,7 @@ public partial class LinkageEditorViewModel : ObservableObject
     private void DoubleTapped(TappedEventArgs args)
     {
         var position = args.GetPosition(args.Source as Visual);
-        JointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
+        jointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
     }
 
     [RelayCommand]
@@ -466,17 +490,17 @@ public partial class LinkageEditorViewModel : ObservableObject
     {
         if (SelectedLink is not null && !SelectedLink.IsImmutable)
         {
-            LinkViewModels.Remove(SelectedLink);
+            linkViewModels.Remove(SelectedLink);
         }
         else if (SelectedPoint is not null && SelectedPoint.Immutability == Immutability.Modifiable)
         {
             var linksToDelete = LinkViewModels.Where(link => link.A == SelectedPoint || link.B == SelectedPoint).ToList();
             foreach (var link in linksToDelete)
             {
-                LinkViewModels.Remove(link);
+                linkViewModels.Remove(link);
             }
 
-            JointViewModels.Remove(SelectedPoint);
+            jointViewModels.Remove(SelectedPoint);
             ClearSelections();
         }
     }
@@ -485,6 +509,6 @@ public partial class LinkageEditorViewModel : ObservableObject
     private void CreateLink()
     {
         var link = new LinkViewModel(null, null);
-        LinkViewModels.Add(link);
+        linkViewModels.Add(link);
     }
 }

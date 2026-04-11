@@ -348,38 +348,6 @@ public class BikeEditorViewModelTests
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
-    public void RemovingJoint_DetachesPropertyHandler_FromRemovedInstance()
-    {
-        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-        var removedJoint = new JointViewModel("Detached point", JointType.Floating, 10, 10);
-        editor.LinkageEditor.JointViewModels.Add(removedJoint);
-        editor.LinkageEditor.JointViewModels.Remove(removedJoint);
-        var isDirtyBeforeMutation = editor.IsDirty;
-        var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
-
-        removedJoint.Name = "Detached point renamed";
-
-        Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
-        Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
-    }
-
-    [AvaloniaFact]
-    public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
-    {
-        var editor = CreateEditor(TestSnapshots.Bike(), isNew: true);
-        var removedLink = new LinkViewModel(editor.LinkageEditor.JointViewModels[0], editor.LinkageEditor.JointViewModels[1]);
-        editor.LinkageEditor.LinkViewModels.Add(removedLink);
-        editor.LinkageEditor.LinkViewModels.Remove(removedLink);
-        var isDirtyBeforeMutation = editor.IsDirty;
-        var canSaveBeforeMutation = editor.SaveCommand.CanExecute(null);
-
-        removedLink.A = editor.LinkageEditor.JointViewModels[2];
-
-        Assert.Equal(isDirtyBeforeMutation, editor.IsDirty);
-        Assert.Equal(canSaveBeforeMutation, editor.SaveCommand.CanExecute(null));
-    }
-
     // ----- CanSave -----
 
     [AvaloniaFact]

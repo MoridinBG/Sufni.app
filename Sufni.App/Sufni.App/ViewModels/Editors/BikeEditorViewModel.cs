@@ -232,7 +232,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             isReplacingState = false;
         }
 
-        RebuildDerivedDisplayState();
+        RefreshDerivedEditorState();
     }
 
     // Copy persisted inputs verbatim; derived display values are rebuilt afterwards.
@@ -251,7 +251,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     }
 
     // Refresh caches and projections that are safe to recompute from the raw editor state.
-    private void RebuildDerivedDisplayState()
+    private void RefreshDerivedEditorState()
     {
         LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
         WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
@@ -434,20 +434,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         FakeDeleteCommand.NotifyCanExecuteChanged();
     }
 
-    private bool DidJointsChanged()
-    {
-        if (acceptedSnapshot.Linkage is null || PixelsToMillimeters is null || ImageCanvas.Image is null) return false;
-
-        return LinkageEditor.DidJointsChanged(acceptedSnapshot.Linkage, ImageCanvas.Image.Size.Height, PixelsToMillimeters.Value);
-    }
-
-    private bool DidLinksChanged()
-    {
-        if (acceptedSnapshot.Linkage is null || PixelsToMillimeters is null || ImageCanvas.Image is null) return false;
-
-        return LinkageEditor.DidLinksChanged(acceptedSnapshot.Linkage, ImageCanvas.Image.Size.Height, PixelsToMillimeters.Value);
-    }
-
     private void NotifyEditorCommandStatesChanged()
     {
         SaveCommand.NotifyCanExecuteChanged();
@@ -562,7 +548,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         switch (e.PropertyName)
         {
             case nameof(BikeImageCanvasViewModel.Image):
-                RebuildDerivedDisplayState();
+                RefreshDerivedEditorState();
                 NotifyEditorCommandStatesChanged();
                 EvaluateDirtiness();
                 break;
@@ -605,8 +591,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             !MathUtils.AreEqual(ForksStroke, acceptedSnapshot.ForkStroke) ||
             !MathUtils.AreEqual(ShockStroke, acceptedSnapshot.ShockStroke) ||
             !MathUtils.AreEqual(Chainstay, acceptedSnapshot.Chainstay) ||
-            DidJointsChanged() ||
-            DidLinksChanged() ||
+            LinkageEditor.HasChangesComparedTo(acceptedSnapshot.Linkage, ImageCanvas.Image?.Size.Height, PixelsToMillimeters) ||
             WheelGeometry.HasChangesComparedTo(acceptedSnapshot) ||
             ImageCanvas.HasChangesComparedTo(acceptedSnapshot);
     }
