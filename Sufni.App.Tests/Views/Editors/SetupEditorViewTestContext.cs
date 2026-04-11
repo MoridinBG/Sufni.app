@@ -1,11 +1,15 @@
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.DesktopViews.Editors;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Editors;
 
 namespace Sufni.App.Tests.Views.Editors;
 
@@ -37,6 +41,40 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService);
     }
 
+    public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)
+    {
+        TestApp.SetIsDesktop(false);
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates();
+
+        var editor = CreateEditor(snapshot, isNew);
+        var view = new SetupEditorView
+        {
+            DataContext = editor
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        return new MountedSetupEditorView<SetupEditorView>(host, view, editor);
+    }
+
+    public async Task<MountedSetupEditorView<SetupEditorDesktopView>> MountDesktopAsync(SetupSnapshot snapshot, bool isNew = false)
+    {
+        TestApp.SetIsDesktop(true);
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates();
+
+        var editor = CreateEditor(snapshot, isNew);
+        var view = new SetupEditorDesktopView
+        {
+            DataContext = editor
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        return new MountedSetupEditorView<SetupEditorDesktopView>(host, view, editor);
+    }
+
     public static SetupSnapshot CreateSetupSnapshot(BikeSnapshot bike, Guid? boardId = null)
     {
         return TestSnapshots.Setup(bikeId: bike.Id, boardId: boardId ?? Guid.NewGuid()) with
@@ -57,5 +95,19 @@ internal sealed class SetupEditorViewTestContext : IDisposable
     public void Dispose()
     {
         bikesCache.Dispose();
+    }
+}
+
+internal sealed class MountedSetupEditorView<TView>(Window host, TView view, SetupEditorViewModel editor) : IAsyncDisposable
+    where TView : Control
+{
+    public Window Host { get; } = host;
+    public TView View { get; } = view;
+    public SetupEditorViewModel Editor { get; } = editor;
+
+    public async ValueTask DisposeAsync()
+    {
+        Host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 }
