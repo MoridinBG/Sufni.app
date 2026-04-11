@@ -17,200 +17,114 @@ public class SetupEditorViewTests
     [AvaloniaFact]
     public async Task SetupEditorView_LoadedBehavior_PopulatesBikeSelection_AndRendersSensorViews()
     {
-        TestApp.SetIsDesktop(false);
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
-
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike("Enduro bike");
         var boardId = Guid.NewGuid();
-        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike, boardId));
-        var view = new SetupEditorView
-        {
-            DataContext = editor
-        };
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike, boardId));
+        var view = mounted.View;
+        var editor = mounted.Editor;
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var boardIdTextBox = view.FindControl<TextBox>("BoardIdTextBox");
+        var bikeComboBox = view.FindControl<ComboBox>("BikeComboBox");
+        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
+        var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
+        Assert.NotNull(boardIdTextBox);
+        Assert.NotNull(bikeComboBox);
+        Assert.NotNull(forkContent);
+        Assert.NotNull(shockContent);
 
-        try
-        {
-            var boardIdTextBox = view.FindControl<TextBox>("BoardIdTextBox");
-            var bikeComboBox = view.FindControl<ComboBox>("BikeComboBox");
-            var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
-            var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
-            Assert.NotNull(boardIdTextBox);
-            Assert.NotNull(bikeComboBox);
-            Assert.NotNull(forkContent);
-            Assert.NotNull(shockContent);
-
-            Assert.Equal(boardId.ToString(), boardIdTextBox!.Text);
-            Assert.Single(editor.Bikes);
-            Assert.Equal(bike.Id, editor.SelectedBike?.Id);
-            Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(bikeComboBox!.SelectedItem).Id);
-            Assert.NotNull(view.FindFirstVisual<EditableTitle>());
-            Assert.NotNull(view.FindFirstVisual<CommonButtonLine>());
-            Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
-            Assert.NotNull(shockContent!.FindFirstVisual<LinearShockSensorConfigurationView>());
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
+        Assert.Equal(boardId.ToString(), boardIdTextBox!.Text);
+        Assert.Single(editor.Bikes);
+        Assert.Equal(bike.Id, editor.SelectedBike?.Id);
+        Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(bikeComboBox!.SelectedItem).Id);
+        Assert.NotNull(view.FindFirstVisual<EditableTitle>());
+        Assert.NotNull(view.FindFirstVisual<CommonButtonLine>());
+        Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
+        Assert.NotNull(shockContent!.FindFirstVisual<LinearShockSensorConfigurationView>());
     }
 
     [AvaloniaFact]
     public async Task SetupEditorView_ChangingForkSensorType_ReplacesRenderedForkSensorView()
     {
-        TestApp.SetIsDesktop(false);
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
-
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike();
-        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
-        var view = new SetupEditorView
-        {
-            DataContext = editor
-        };
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+        var view = mounted.View;
+        var editor = mounted.Editor;
 
-        var host = ViewTestHelpers.ShowView(view);
+        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
+        Assert.NotNull(forkContent);
+        Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
+
+        editor.ForkSensorType = SensorType.RotationalFork;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        try
-        {
-            var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
-            Assert.NotNull(forkContent);
-            Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
-
-            editor.ForkSensorType = SensorType.RotationalFork;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.IsType<RotationalForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
-            Assert.NotNull(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
+        Assert.IsType<RotationalForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
+        Assert.NotNull(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
     }
 
     [AvaloniaFact]
     public async Task SetupEditorView_LoadedBehavior_SelectsSensorTypeComboBoxValues()
     {
-        TestApp.SetIsDesktop(false);
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
-
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike();
-        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
-        var view = new SetupEditorView
-        {
-            DataContext = editor
-        };
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+        var view = mounted.View;
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
+        var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
+        Assert.NotNull(forkSensorTypeComboBox);
+        Assert.NotNull(shockSensorTypeComboBox);
 
-        try
-        {
-            var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
-            var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
-            Assert.NotNull(forkSensorTypeComboBox);
-            Assert.NotNull(shockSensorTypeComboBox);
-
-            Assert.Equal(SensorType.LinearFork, Assert.IsType<SensorType>(forkSensorTypeComboBox!.SelectedItem));
-            Assert.Equal(SensorType.LinearShock, Assert.IsType<SensorType>(shockSensorTypeComboBox!.SelectedItem));
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
+        Assert.Equal(SensorType.LinearFork, Assert.IsType<SensorType>(forkSensorTypeComboBox!.SelectedItem));
+        Assert.Equal(SensorType.LinearShock, Assert.IsType<SensorType>(shockSensorTypeComboBox!.SelectedItem));
     }
 
     [AvaloniaFact]
     public async Task SetupEditorView_ForkSensorConfigContentControl_Empty_WhenNull()
     {
-        TestApp.SetIsDesktop(false);
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
-
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike();
-        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
         {
             FrontSensorConfigurationJson = null
         });
-        var view = new SetupEditorView
-        {
-            DataContext = editor
-        };
+        var view = mounted.View;
+        var editor = mounted.Editor;
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
+        var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
+        Assert.NotNull(forkContent);
+        Assert.NotNull(forkSensorTypeComboBox);
 
-        try
-        {
-            var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
-            var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
-            Assert.NotNull(forkContent);
-            Assert.NotNull(forkSensorTypeComboBox);
-
-            Assert.Null(editor.ForkSensorConfiguration);
-            Assert.Null(forkContent!.Content);
-            Assert.Null(forkSensorTypeComboBox!.SelectedItem);
-            Assert.Null(forkContent.FindFirstVisual<LinearForkSensorConfigurationView>());
-            Assert.Null(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
+        Assert.Null(editor.ForkSensorConfiguration);
+        Assert.Null(forkContent!.Content);
+        Assert.Null(forkSensorTypeComboBox!.SelectedItem);
+        Assert.Null(forkContent.FindFirstVisual<LinearForkSensorConfigurationView>());
+        Assert.Null(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
     }
 
     [AvaloniaFact]
     public async Task SetupEditorView_ShockSensorConfigContentControl_Empty_WhenNull()
     {
-        TestApp.SetIsDesktop(false);
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
-
         using var context = new SetupEditorViewTestContext();
         var bike = context.AddBike();
-        var editor = context.CreateEditor(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
         {
             RearSensorConfigurationJson = null
         });
-        var view = new SetupEditorView
-        {
-            DataContext = editor
-        };
+        var view = mounted.View;
+        var editor = mounted.Editor;
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
+        var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
+        Assert.NotNull(shockContent);
+        Assert.NotNull(shockSensorTypeComboBox);
 
-        try
-        {
-            var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
-            var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
-            Assert.NotNull(shockContent);
-            Assert.NotNull(shockSensorTypeComboBox);
-
-            Assert.Null(editor.ShockSensorConfiguration);
-            Assert.Null(shockContent!.Content);
-            Assert.Null(shockSensorTypeComboBox!.SelectedItem);
-            Assert.Null(shockContent.FindFirstVisual<LinearShockSensorConfigurationView>());
-            Assert.Null(shockContent.FindFirstVisual<RotationalShockSensorConfigurationView>());
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
+        Assert.Null(editor.ShockSensorConfiguration);
+        Assert.Null(shockContent!.Content);
+        Assert.Null(shockSensorTypeComboBox!.SelectedItem);
+        Assert.Null(shockContent.FindFirstVisual<LinearShockSensorConfigurationView>());
+        Assert.Null(shockContent.FindFirstVisual<RotationalShockSensorConfigurationView>());
     }
 }
