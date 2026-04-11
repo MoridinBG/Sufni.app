@@ -1,24 +1,24 @@
 <UserControl
-    x:Class="Sufni.App.Views.Controls.EditableTitle"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    d:DesignHeight="50"
-    d:DesignWidth="150"
-    x:DataType="vm:TabPageViewModelBase"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.Controls.EditableTitle"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+d:DesignHeight="50"
+d:DesignWidth="150"
+x:DataType="vm:TabPageViewModelBase"
+mc:Ignorable="d">
     <Grid Background="{StaticResource SufniRegion}" RowDefinitions="auto">
 
         <!--  Title  -->
         <TextBox
-            Name="TitleTextBox"
-            MinHeight="30"
-            Padding="0,0,25,0"
-            FontWeight="Black"
-            IsEnabled="False"
-            Text="{Binding Name}">
+        Name="TitleTextBox"
+        MinHeight="30"
+        Padding="0,0,25,0"
+        FontWeight="Black"
+        IsEnabled="False"
+        Text="{Binding Name}">
             <TextBox.Styles>
                 <Style Selector="TextBox:focus">
                     <Setter Property="Padding" Value="5,0,25,0" />
@@ -43,32 +43,34 @@
 
         <!--  Subtitle  -->
         <TextBlock
-            Margin="0,0,25,0"
-            Padding="10,0,0,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Center"
-            Background="{StaticResource SufniRegion}"
-            IsVisible="{Binding Timestamp, Converter={x:Static ObjectConverters.IsNotNull}}"
-            Text="{Binding Timestamp}" />
+        Name="TimestampTextBlock"
+        Margin="0,0,25,0"
+        Padding="10,0,0,0"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center"
+        Background="{StaticResource SufniRegion}"
+        IsVisible="{Binding Timestamp, Converter={x:Static ObjectConverters.IsNotNull}}"
+        Text="{Binding Timestamp}" />
 
         <!--  Edit / OK buttons  -->
         <Button
-            Name="EditButton"
-            Margin="0,-2,0,0"
-            Padding="0,0,0,0"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Center"
-            HorizontalContentAlignment="Right"
-            Classes="embedded"
-            IsVisible="{Binding !#TitleTextBox.IsEnabled}">
+        Name="EditButton"
+        Margin="0,-2,0,0"
+        Padding="0,0,0,0"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Center"
+        HorizontalContentAlignment="Right"
+        Classes="embedded"
+        IsVisible="{Binding !#TitleTextBox.IsEnabled}">
             <Image Width="13" Source="{SvgImage /Assets/fa-pen-square.svg}" />
         </Button>
         <Button
-            HorizontalAlignment="Right"
-            VerticalAlignment="Center"
-            HorizontalContentAlignment="Right"
-            Classes="embedded"
-            IsVisible="{Binding #TitleTextBox.IsEnabled}">
+        Name="OkButton"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center"
+        HorizontalContentAlignment="Right"
+        Classes="embedded"
+        IsVisible="{Binding #TitleTextBox.IsEnabled}">
             <Image Width="13" Source="{SvgImage /Assets/fa-check_green.svg}" />
         </Button>
     </Grid>
