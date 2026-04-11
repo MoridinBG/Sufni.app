@@ -1,97 +1,100 @@
 <UserControl
-    x:Class="Sufni.App.Views.Controls.CommonButtonLine"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
-    d:DesignHeight="50"
-    d:DesignWidth="500"
-    x:DataType="vm:IEditorActions"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.Controls.CommonButtonLine"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="50"
+d:DesignWidth="500"
+x:DataType="vm:IEditorActions"
+mc:Ignorable="d">
     <Grid
-        Margin="0,15,0,5"
-        ColumnDefinitions="auto * auto auto"
-        RowDefinitions="39">
+    Margin="0,15,0,5"
+    ColumnDefinitions="auto * auto auto"
+    RowDefinitions="39">
         <Button
-            Grid.Row="0"
-            Grid.Column="0"
-            Width="39"
-            Height="39"
-            Margin="0,0,10,0"
-            HorizontalContentAlignment="Center"
-            VerticalContentAlignment="Center"
-            Command="{Binding OpenPreviousPageCommand}">
+        Name="BackButton"
+        Grid.Row="0"
+        Grid.Column="0"
+        Width="39"
+        Height="39"
+        Margin="0,0,10,0"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center"
+        Command="{Binding OpenPreviousPageCommand}">
             <Image
-                Width="16"
-                Height="16"
-                Source="{SvgImage /Assets/fa-arrow-left.svg}" />
+            Width="16"
+            Height="16"
+            Source="{SvgImage /Assets/fa-arrow-left.svg}" />
         </Button>
         <Button
-            Grid.Row="0"
-            Grid.Column="1"
-            Margin="0,0,10,0"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            VerticalContentAlignment="Center"
-            Command="{Binding SaveCommand}"
-            Content="save" />
+        Name="SaveButton"
+        Grid.Row="0"
+        Grid.Column="1"
+        Margin="0,0,10,0"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center"
+        Command="{Binding SaveCommand}"
+        Content="save" />
         <Button
-            Grid.Row="0"
-            Grid.Column="2"
-            Width="39"
-            Height="39"
-            Margin="0,0,5,0"
-            HorizontalContentAlignment="Center"
-            VerticalContentAlignment="Center"
-            Command="{Binding ResetCommand}">
+        Name="ResetButton"
+        Grid.Row="0"
+        Grid.Column="2"
+        Width="39"
+        Height="39"
+        Margin="0,0,5,0"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center"
+        Command="{Binding ResetCommand}">
             <Image
-                Width="16"
-                Height="16"
-                Source="{SvgImage /Assets/fa-rotate-left.svg}" />
+            Width="16"
+            Height="16"
+            Source="{SvgImage /Assets/fa-rotate-left.svg}" />
         </Button>
         <Button
-            Name="DeleteButton"
-            Grid.Row="0"
-            Grid.Column="3"
-            Width="39"
-            Height="39"
-            Margin="0,0,2,0"
-            HorizontalContentAlignment="Center"
-            VerticalContentAlignment="Center"
-            Command="{Binding FakeDeleteCommand}">
+        Name="DeleteButton"
+        Grid.Row="0"
+        Grid.Column="3"
+        Width="39"
+        Height="39"
+        Margin="0,0,2,0"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center"
+        Command="{Binding FakeDeleteCommand}">
             <Button.Flyout>
                 <Flyout
-                    Flyout.FlyoutPresenterClasses="wide"
-                    HorizontalOffset="40"
-                    Placement="Left"
-                    PlacementAnchor="Right">
+                Flyout.FlyoutPresenterClasses="wide"
+                HorizontalOffset="40"
+                Placement="Left"
+                PlacementAnchor="Right">
                     <StackPanel
-                        Width="{Binding $parent[Grid].Bounds.Width}"
-                        FlowDirection="RightToLeft"
-                        Orientation="Horizontal">
+                    Width="{Binding $parent[Grid].Bounds.Width}"
+                    FlowDirection="RightToLeft"
+                    Orientation="Horizontal">
                         <Button
-                            Name="CancelButton"
-                            VerticalContentAlignment="Center"
-                            Classes="embedded"
-                            Click="CancelButton_Click"
-                            Content="cancel" />
+                        Name="CancelButton"
+                        VerticalContentAlignment="Center"
+                        Classes="embedded"
+                        Click="CancelButton_Click"
+                        Content="cancel" />
                         <Button
-                            Name="InnerDeleteButton"
-                            Margin="5,0,0,0"
-                            VerticalContentAlignment="Center"
-                            Classes="embedded dangerous"
-                            Command="{Binding DeleteCommand}"
-                            CommandParameter="{x:True}"
-                            Content="delete" />
+                        Name="InnerDeleteButton"
+                        Margin="5,0,0,0"
+                        VerticalContentAlignment="Center"
+                        Classes="embedded dangerous"
+                        Command="{Binding DeleteCommand}"
+                        CommandParameter="{x:True}"
+                        Content="delete" />
                     </StackPanel>
                 </Flyout>
             </Button.Flyout>
             <Image
-                Width="16"
-                Height="16"
-                Source="{SvgImage /Assets/fa-trash-can.svg}" />
+            Width="16"
+            Height="16"
+            Source="{SvgImage /Assets/fa-trash-can.svg}" />
         </Button>
     </Grid>
 </UserControl>
