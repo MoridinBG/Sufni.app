@@ -118,13 +118,13 @@ public class BikeEditorViewSmokeTests
             ShockStroke = 0.5,
             Chainstay = 440,
             PixelsToMillimeters = 1,
-            Linkage = CreateFullSuspensionLinkage(includeHeadTubeJoints: true),
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
             FrontWheelRimSize = EtrtoRimSize.Inch29,
             FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             RearWheelRimSize = EtrtoRimSize.Inch275,
             RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees = 12.5,
             Image = TestImages.SmallPng(),
             Updated = 1,
@@ -133,39 +133,6 @@ public class BikeEditorViewSmokeTests
         return BikeSnapshot.From(bike);
     }
 
-    private static Linkage CreateFullSuspensionLinkage(bool includeHeadTubeJoints = false)
-    {
-        var mapping = new JointNameMapping();
-        var bottomBracket = new Joint(mapping.BottomBracket, JointType.BottomBracket, 0, 0);
-        var rearWheel = new Joint(mapping.RearWheel, JointType.RearWheel, 4, 0);
-        var frontWheel = new Joint(mapping.FrontWheel, JointType.FrontWheel, 12, 1);
-        var shockEye1 = new Joint(mapping.ShockEye1, JointType.Floating, 4, 3);
-        var shockEye2 = new Joint(mapping.ShockEye2, JointType.Fixed, 0, 3);
-
-        List<Joint> joints = [bottomBracket, rearWheel, frontWheel, shockEye1, shockEye2];
-        if (includeHeadTubeJoints)
-        {
-            joints.Add(new Joint(mapping.HeadTube1, JointType.HeadTube, 10, 2));
-            joints.Add(new Joint(mapping.HeadTube2, JointType.HeadTube, 9, 5));
-        }
-
-        var linkage = new Linkage
-        {
-            Joints = [.. joints],
-            Links =
-            [
-                new Link(bottomBracket, rearWheel),
-                new Link(rearWheel, shockEye1),
-            ],
-            Shock = new Link(shockEye1, shockEye2),
-            ShockStroke = 0.5,
-        };
-        linkage.ResolveJoints();
-        return linkage;
-    }
-
-    private static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
-        Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);
 
     private static async Task FlushUiAsync() =>
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

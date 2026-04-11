@@ -26,7 +26,7 @@ public class BikeRestorationTests
             RearWheelDiameterMm = Math.Round(EtrtoRimSize.Inch275.CalculateTotalDiameterMm(2.5), 1),
             ImageRotationDegrees = 12.5,
             Image = TestImages.SmallPng(),
-            Linkage = CreateFullSuspensionLinkage(),
+            Linkage = TestSnapshots.FullSuspensionLinkage(),
             Updated = 7,
         };
         source.ShockStroke = 0.5;
@@ -48,30 +48,6 @@ public class BikeRestorationTests
         Assert.Equal(snapshot.ShockStroke, restored.Linkage!.ShockStroke);
         Assert.Equal(DescribeJoints(snapshot.Linkage!.Joints), DescribeJoints(restored.Linkage.Joints));
         Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeLinks(restored.Linkage.Links.Append(restored.Linkage.Shock)));
-    }
-
-    private static Linkage CreateFullSuspensionLinkage()
-    {
-        var mapping = new JointNameMapping();
-        var bottomBracket = new Joint(mapping.BottomBracket, JointType.BottomBracket, 0, 0);
-        var rearWheel = new Joint(mapping.RearWheel, JointType.RearWheel, 4, 0);
-        var frontWheel = new Joint(mapping.FrontWheel, JointType.FrontWheel, 12, 1);
-        var shockEye1 = new Joint(mapping.ShockEye1, JointType.Floating, 4, 3);
-        var shockEye2 = new Joint(mapping.ShockEye2, JointType.Fixed, 0, 3);
-
-        var linkage = new Linkage
-        {
-            Joints = [bottomBracket, rearWheel, frontWheel, shockEye1, shockEye2],
-            Links =
-            [
-                new Link(bottomBracket, rearWheel),
-                new Link(rearWheel, shockEye1),
-            ],
-            Shock = new Link(shockEye1, shockEye2),
-            ShockStroke = 0.5,
-        };
-        linkage.ResolveJoints();
-        return linkage;
     }
 
     private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<Joint> joints) =>

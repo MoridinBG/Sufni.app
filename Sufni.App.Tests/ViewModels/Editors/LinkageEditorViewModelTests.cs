@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Sufni.App.Models;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.LinkageEditing;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
@@ -8,41 +9,10 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class LinkageEditorViewModelTests
 {
-    private static Linkage CreateFullSuspensionLinkage(bool includeHeadTubeJoints = false)
-    {
-        var mapping = new JointNameMapping();
-        var bottomBracket = new Joint(mapping.BottomBracket, JointType.BottomBracket, 0, 0);
-        var rearWheel = new Joint(mapping.RearWheel, JointType.RearWheel, 4, 0);
-        var frontWheel = new Joint(mapping.FrontWheel, JointType.FrontWheel, 12, 1);
-        var shockEye1 = new Joint(mapping.ShockEye1, JointType.Floating, 4, 3);
-        var shockEye2 = new Joint(mapping.ShockEye2, JointType.Fixed, 0, 3);
-
-        List<Joint> joints = [bottomBracket, rearWheel, frontWheel, shockEye1, shockEye2];
-        if (includeHeadTubeJoints)
-        {
-            joints.Add(new Joint(mapping.HeadTube1, JointType.HeadTube, 10, 2));
-            joints.Add(new Joint(mapping.HeadTube2, JointType.HeadTube, 9, 5));
-        }
-
-        var linkage = new Linkage
-        {
-            Joints = [.. joints],
-            Links =
-            [
-                new Link(bottomBracket, rearWheel),
-                new Link(rearWheel, shockEye1),
-            ],
-            Shock = new Link(shockEye1, shockEye2),
-            ShockStroke = 0.5,
-        };
-        linkage.ResolveJoints();
-        return linkage;
-    }
-
     [AvaloniaFact]
     public void Load_RoundTripsBaselineLinkage_WithoutJointOrLinkDifferences()
     {
-        var baseline = CreateFullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
 
         viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
@@ -145,7 +115,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void RemovingJoint_DetachesPropertyHandler_FromRemovedInstance()
     {
-        var baseline = CreateFullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         baseline.Joints.Add(new Joint("Detached point", JointType.Floating, 6, 6));
         baseline.ResolveJoints();
 
@@ -167,7 +137,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
     {
-        var baseline = CreateFullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         var detachedPoint = new Joint("Detached point", JointType.Floating, 6, 6);
         baseline.Joints.Add(detachedPoint);
         baseline.Links.Add(new Link(baseline.Joints[0], detachedPoint));
@@ -193,7 +163,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void DeleteSelectedItemCommand_RemovesSelectedPoint_AndConnectedLinks()
     {
-        var baseline = CreateFullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         var detachedPoint = new Joint("Detached point", JointType.Floating, 6, 6);
         baseline.Joints.Add(detachedPoint);
         baseline.Links.Add(new Link(baseline.Joints[0], detachedPoint));
@@ -213,7 +183,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void HasChangesComparedTo_ReturnsTrue_WhenShockEndpointsChange()
     {
-        var baseline = CreateFullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
 
         viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);

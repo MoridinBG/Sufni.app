@@ -42,39 +42,6 @@ public class BikeEditorViewModelTests
     private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
         new(leverageRatioData, new CoordinateList([], []));
 
-    private static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
-        Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);
-
-    private static Linkage CreateFullSuspensionLinkage(bool includeHeadTubeJoints = false)
-    {
-        var mapping = new JointNameMapping();
-        var bottomBracket = new Joint(mapping.BottomBracket, JointType.BottomBracket, 0, 0);
-        var rearWheel = new Joint(mapping.RearWheel, JointType.RearWheel, 4, 0);
-        var frontWheel = new Joint(mapping.FrontWheel, JointType.FrontWheel, 12, 1);
-        var shockEye1 = new Joint(mapping.ShockEye1, JointType.Floating, 4, 3);
-        var shockEye2 = new Joint(mapping.ShockEye2, JointType.Fixed, 0, 3);
-
-        List<Joint> joints = [bottomBracket, rearWheel, frontWheel, shockEye1, shockEye2];
-        if (includeHeadTubeJoints)
-        {
-            joints.Add(new Joint(mapping.HeadTube1, JointType.HeadTube, 10, 2));
-            joints.Add(new Joint(mapping.HeadTube2, JointType.HeadTube, 9, 5));
-        }
-
-        var linkage = new Linkage
-        {
-            Joints = [.. joints],
-            Links =
-            [
-                new Link(bottomBracket, rearWheel),
-                new Link(rearWheel, shockEye1),
-            ],
-            Shock = new Link(shockEye1, shockEye2),
-            ShockStroke = 0.5,
-        };
-        linkage.ResolveJoints();
-        return linkage;
-    }
 
     private static BikeSnapshot FullSuspensionSnapshot(
         bool includeHeadTubeJoints = false,
@@ -93,7 +60,7 @@ public class BikeEditorViewModelTests
             ForkStroke = 170,
             Image = TestImages.SmallPng(),
             PixelsToMillimeters = 1,
-            Linkage = CreateFullSuspensionLinkage(includeHeadTubeJoints),
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints),
             FrontWheelRimSize = frontWheelRimSize,
             FrontWheelTireWidth = frontWheelTireWidth,
             FrontWheelDiameterMm = frontWheelDiameter,
@@ -262,10 +229,10 @@ public class BikeEditorViewModelTests
             includeHeadTubeJoints: true,
             frontWheelRimSize: EtrtoRimSize.Inch29,
             frontWheelTireWidth: 2.4,
-            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             rearWheelRimSize: EtrtoRimSize.Inch275,
             rearWheelTireWidth: 2.5,
-            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             imageRotationDegrees: 12.5,
             updated: 7);
 
@@ -279,10 +246,10 @@ public class BikeEditorViewModelTests
             includeHeadTubeJoints: false,
             frontWheelRimSize: EtrtoRimSize.Inch29,
             frontWheelTireWidth: 2.4,
-            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             rearWheelRimSize: EtrtoRimSize.Inch275,
             rearWheelTireWidth: 2.5,
-            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             imageRotationDegrees: 12.5,
             updated: 7);
 
@@ -296,10 +263,10 @@ public class BikeEditorViewModelTests
             includeHeadTubeJoints: true,
             frontWheelRimSize: EtrtoRimSize.Inch29,
             frontWheelTireWidth: 2.4,
-            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             rearWheelRimSize: EtrtoRimSize.Inch275,
             rearWheelTireWidth: 2.5,
-            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             imageRotationDegrees: 12.5,
             updated: 7) with
         {
@@ -701,10 +668,10 @@ public class BikeEditorViewModelTests
             ForkStroke = 170,
             FrontWheelRimSize = EtrtoRimSize.Inch29,
             FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             RearWheelRimSize = EtrtoRimSize.Inch275,
             RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees = 12.5,
         };
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
@@ -720,10 +687,10 @@ public class BikeEditorViewModelTests
         Assert.Equal(170, editor.ForksStroke);
         Assert.Equal(EtrtoRimSize.Inch29, editor.WheelGeometry.FrontWheelRimSize);
         Assert.Equal(2.4, editor.WheelGeometry.FrontWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.WheelGeometry.FrontWheelDiameter);
         Assert.Equal(EtrtoRimSize.Inch275, editor.WheelGeometry.RearWheelRimSize);
         Assert.Equal(2.5, editor.WheelGeometry.RearWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
         Assert.Equal(12.5, editor.ImageCanvas.ImageRotationDegrees);
         Assert.Equal(0, editor.BaselineUpdated);
         Assert.False(editor.IsInDatabase);
@@ -756,10 +723,10 @@ public class BikeEditorViewModelTests
             includeHeadTubeJoints: true,
             frontWheelRimSize: EtrtoRimSize.Inch29,
             frontWheelTireWidth: 2.4,
-            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             rearWheelRimSize: EtrtoRimSize.Inch275,
             rearWheelTireWidth: 2.5,
-            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             imageRotationDegrees: 12.5,
             updated: 7);
         var editor = CreateEditor(snapshot);

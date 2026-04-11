@@ -18,8 +18,6 @@ public class BikeEditorServiceTests
 
     private BikeEditorService CreateService() => new(filesService, backgroundTaskRunner);
 
-    private static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
-        Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);
 
     [AvaloniaFact]
     public async Task LoadImageAsync_DecodesBitmapFromStreamWithoutUsingPath()
@@ -51,10 +49,10 @@ public class BikeEditorServiceTests
             ForkStroke = 150,
             FrontWheelRimSize = EtrtoRimSize.Inch29,
             FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             RearWheelRimSize = EtrtoRimSize.Inch275,
             RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees = 12.5,
         }.ToJson();
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(bikeJson))));
@@ -68,10 +66,10 @@ public class BikeEditorServiceTests
         Assert.Equal(150, imported.Bike.ForkStroke);
         Assert.Equal(EtrtoRimSize.Inch29, imported.Bike.FrontWheelRimSize);
         Assert.Equal(2.4, imported.Bike.FrontWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch29, 2.4), imported.Bike.FrontWheelDiameterMm);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), imported.Bike.FrontWheelDiameterMm);
         Assert.Equal(EtrtoRimSize.Inch275, imported.Bike.RearWheelRimSize);
         Assert.Equal(2.5, imported.Bike.RearWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch275, 2.5), imported.Bike.RearWheelDiameterMm);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), imported.Bike.RearWheelDiameterMm);
         Assert.Equal(12.5, imported.Bike.ImageRotationDegrees);
     }
 
