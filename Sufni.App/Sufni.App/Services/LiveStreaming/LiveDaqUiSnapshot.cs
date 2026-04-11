@@ -131,6 +131,12 @@ public sealed record LiveDaqUiSnapshot(
         Imus: [],
         Gps: LiveGpsUiSnapshot.Empty);
 
+    public bool HasAcceptedSession => Session.SessionId is not null;
+    public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);
+    public bool HasImuData => Imus.Count > 0;
+    public bool HasTravelData => Travel.HasData;
+    public bool HasGpsData => Gps.HasData;
+
     public static string ToConnectionStateText(LiveConnectionState state) => state switch
     {
         LiveConnectionState.Disconnected => "Disconnected",

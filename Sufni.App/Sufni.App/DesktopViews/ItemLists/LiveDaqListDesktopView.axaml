@@ -20,11 +20,12 @@
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
 
         <controls:SearchBar
+            Name="LiveDaqSearchBar"
             Grid.Row="0"
             Margin="0,20,0,20" />
 
         <ScrollViewer Grid.Row="1" Name="Scroll">
-            <ItemsRepeater ItemsSource="{Binding Items}">
+            <ItemsRepeater Name="RowsRepeater" ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
                         <c:LiveDaqListItemButton />

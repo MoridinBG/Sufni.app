@@ -18,6 +18,7 @@ mc:Ignorable="d">
 
     <StackPanel>
         <Button
+        x:Name="OpenButton"
         Padding="14,10"
         HorizontalAlignment="Stretch"
         Classes="item"
@@ -27,20 +28,24 @@ mc:Ignorable="d">
             <Grid ColumnDefinitions="* auto" RowDefinitions="auto auto auto">
                 <StackPanel Grid.Column="0" Spacing="3">
                     <TextBlock
+                    x:Name="DisplayNameTextBlock"
                     FontSize="15"
                     FontWeight="SemiBold"
                     Text="{Binding DisplayName}" />
 
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <TextBlock
+                        x:Name="SetupNameTextBlock"
                         Opacity="0.7"
                         Text="{Binding SetupName}" />
                         <TextBlock
+                        x:Name="BikeNameTextBlock"
                         Opacity="0.7"
                         Text="{Binding BikeName}" />
                     </StackPanel>
 
                     <TextBlock
+                    x:Name="EndpointTextBlock"
                     Opacity="0.6"
                     Text="{Binding Endpoint}" />
                 </StackPanel>
@@ -50,6 +55,7 @@ mc:Ignorable="d">
                 HorizontalAlignment="Right"
                 Spacing="6">
                     <Border
+                    x:Name="OnlineBadge"
                     Padding="8,3"
                     Background="#1f6b3f"
                     CornerRadius="999"
@@ -61,6 +67,7 @@ mc:Ignorable="d">
                     </Border>
 
                     <Border
+                    x:Name="OfflineBadge"
                     Padding="8,3"
                     Background="#6d6d6d"
                     CornerRadius="999"
@@ -72,6 +79,7 @@ mc:Ignorable="d">
                     </Border>
 
                     <TextBlock
+                    x:Name="BoardIdTextBlock"
                     HorizontalAlignment="Right"
                     Opacity="0.7"
                     Text="{Binding BoardId}" />

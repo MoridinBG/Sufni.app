@@ -48,6 +48,7 @@ public class ViewLocator : IDataTemplate
         [typeof(SessionListViewModel)] = static () => new global::Sufni.App.DesktopViews.ItemLists.SessionListDesktopView(),
         [typeof(SetupListViewModel)] = static () => new global::Sufni.App.DesktopViews.ItemLists.SetupListDesktopView(),
         [typeof(BikeEditorViewModel)] = static () => new global::Sufni.App.DesktopViews.Editors.BikeEditorDesktopView(),
+        [typeof(LiveDaqDetailViewModel)] = static () => new global::Sufni.App.DesktopViews.Editors.LiveDaqDetailDesktopView(),
         [typeof(SessionDetailViewModel)] = static () => new global::Sufni.App.DesktopViews.Editors.SessionDetailDesktopView(),
         [typeof(SetupEditorViewModel)] = static () => new global::Sufni.App.DesktopViews.Editors.SetupEditorDesktopView(),
     };
