@@ -23,22 +23,26 @@ public class LeverageRatioPlotView : SufniPlotView
         // Populate the ScottPlot plot when the Telemetry property is set.
         PropertyChanged += (_, e) =>
         {
-            if (AvaPlot is null || Plot is null) return;
-
-            switch (e.Property.Name)
+            if (e.Property.Name != nameof(LeverageRatioData))
             {
-                case nameof(LeverageRatioData):
-                    Plot.Plot.Clear();
-                    if (e.NewValue is CoordinateList leverageRatioData)
-                    {
-                        Plot.LoadLeverageRatioData(leverageRatioData);
-                    }
-                    break;
+                return;
+            }
+
+            if (AvaPlot is null || Plot is null)
+            {
+                return;
+            }
+
+            Plot.Plot.Clear();
+            if (e.NewValue is CoordinateList leverageRatioData)
+            {
+                Plot.LoadLeverageRatioData(leverageRatioData);
             }
 
             AvaPlot.Refresh();
         };
     }
+
     protected override void CreatePlot()
     {
         Debug.Assert(AvaPlot != null);
