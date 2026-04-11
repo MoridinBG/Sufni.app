@@ -34,9 +34,7 @@ public partial class BikeImageDesktopView : UserControl
 
         if (DataContext is BikeEditorViewModel vm)
         {
-            vm.LinkStrokeThickness = 45.0 / e.ZoomX;
-            var taper = 0.65 + 0.35 * (1.0 - 1.0 / e.ZoomX);
-            vm.JointFontSize = 120.0 * taper / e.ZoomX;
+            vm.LinkageEditor.UpdateZoomPresentation(e.ZoomX);
         }
     }
 }
