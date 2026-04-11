@@ -1,8 +1,8 @@
-using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
-using Sufni.App.ViewModels.Items;
+using Sufni.App.ViewModels.LinkageParts;
 
 namespace Sufni.App.ViewModels.SensorConfigurations;
 
@@ -36,19 +36,19 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
         };
     }
 
-    public static SensorConfigurationViewModel? Create(SensorType? type, BikeViewModel? bike = null)
+    public static SensorConfigurationViewModel? Create(SensorType? type, IReadOnlyList<JointViewModel>? joints = null)
     {
         return type switch
         {
             SensorType.LinearFork => new LinearForkSensorConfigurationViewModel(),
             SensorType.RotationalFork => new RotationalForkSensorConfigurationViewModel(),
             SensorType.LinearShock => new LinearShockSensorConfigurationViewModel(),
-            SensorType.RotationalShock => new RotationalShockSensorConfigurationViewModel(bike),
+            SensorType.RotationalShock => new RotationalShockSensorConfigurationViewModel(joints),
             _ => null
         };
     }
-    
-    public static SensorConfigurationViewModel? FromJson(string? json, BikeViewModel? bike = null)
+
+    public static SensorConfigurationViewModel? FromJson(string? json, IReadOnlyList<JointViewModel>? joints = null)
     {
         if (json is null) return null;
 
@@ -60,7 +60,7 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
         {
             case LinearForkSensorConfiguration lfsc:
                 vm = new LinearForkSensorConfigurationViewModel(lfsc);
-                break;   
+                break;
             case LinearShockSensorConfiguration lssc:
                 vm = new LinearShockSensorConfigurationViewModel(lssc);
                 break;
@@ -68,11 +68,11 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
                 vm = new RotationalForkSensorConfigurationViewModel(rfsc);
                 break;
             case RotationalShockSensorConfiguration rssc:
-                Debug.Assert(bike is not null);
-                vm = new RotationalShockSensorConfigurationViewModel(rssc, bike);
+                Debug.Assert(joints is not null);
+                vm = new RotationalShockSensorConfigurationViewModel(rssc, joints);
                 break;
         }
-        
+
         return vm;
     }
 

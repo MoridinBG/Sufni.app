@@ -1,8 +1,8 @@
 using System;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using MathNet.Numerics;
+using Sufni.App.Models;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models.SensorConfigurations;
@@ -16,7 +16,8 @@ public class LinearShockSensorConfiguration : SensorConfiguration
     [JsonPropertyName("length")] public double Length { get; init; }
     [JsonPropertyName("resolution")] public int Resolution { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.LinearShock;
-    [JsonIgnore] public override Func<ushort, double> MeasurementToTravel
+    [JsonIgnore]
+    public override Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -24,7 +25,8 @@ public class LinearShockSensorConfiguration : SensorConfiguration
             return measurement => leverageRatioPolynomial.Evaluate(measurement * measurementToStroke);
         }
     }
-    [JsonIgnore] public override double MaxTravel
+    [JsonIgnore]
+    public override double MaxTravel
     {
         get
         {
@@ -38,7 +40,7 @@ public class LinearShockSensorConfiguration : SensorConfiguration
     {
         Debug.Assert(bike.Linkage is not null);
 
-        var sc = JsonSerializer.Deserialize<LinearShockSensorConfiguration>(json, SerializerOptions);
+        var sc = AppJson.Deserialize<LinearShockSensorConfiguration>(json);
         if (sc is null) return null;
 
         sc.bike = bike;

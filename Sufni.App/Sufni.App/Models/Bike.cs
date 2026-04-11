@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 using Avalonia.Media.Imaging;
 using SQLite;
+using Sufni.App.Models.SensorConfigurations;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Models;
@@ -16,38 +17,6 @@ public class Bike : Synchronizable
 {
     private double? chainstay;
     private Linkage? linkage;
-
-    private static HashSet<string> excludedFromExport =
-    [
-        "id",
-        "client_updated",
-        "updated",
-        "deleted"
-    ];
-
-    public static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) },
-        TypeInfoResolver = new DefaultJsonTypeInfoResolver
-        {
-            Modifiers =
-            {
-                typeInfo =>
-                {
-                    if (typeInfo.Type != typeof(Bike)) return;
-                    foreach (var prop in typeInfo.Properties)
-                    {
-                        if (excludedFromExport.Contains(prop.Name))
-                        {
-                            prop.ShouldSerialize = (_, _) => false;
-                        }
-                    }
-                }
-            }
-        }
-    };
 
     [JsonPropertyName("name")]
     [Column("name")]
@@ -149,6 +118,11 @@ public class Bike : Synchronizable
         }
         set
         {
+            if (value.Length == 0)
+            {
+                Image = null;
+                return;
+            }
             var stream = new MemoryStream(value);
             Image = new Bitmap(stream);
         }
@@ -182,12 +156,12 @@ public class Bike : Synchronizable
 
     public string ToJson()
     {
-        return JsonSerializer.Serialize(this, SerializerOptions);
+        return AppJson.SerializeIndented(BikeExportModel.FromBike(this));
     }
 
     public static Bike? FromJson(string json)
     {
-        var bike = JsonSerializer.Deserialize<Bike>(json, SerializerOptions);
+        var bike = AppJson.Deserialize<Bike>(json);
         bike?.Linkage?.ResolveJoints();
         return bike;
     }
@@ -203,3 +177,127 @@ public class Bike : Synchronizable
         return Math.Sqrt(dx * dx + dy * dy);
     }
 }
+
+internal sealed class BikeExportModel
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = null!;
+
+    [JsonPropertyName("head_angle")]
+    public double HeadAngle { get; init; }
+
+    [JsonPropertyName("fork_stroke")]
+    public double? ForkStroke { get; init; }
+
+    [JsonPropertyName("shock_stroke")]
+    public double? ShockStroke { get; init; }
+
+    [JsonPropertyName("linkage")]
+    public Linkage? Linkage { get; init; }
+
+    [JsonPropertyName("pixels_to_millimeters")]
+    public double PixelsToMillimeters { get; init; }
+
+    [JsonPropertyName("front_wheel_diameter")]
+    public double? FrontWheelDiameterMm { get; init; }
+
+    [JsonPropertyName("rear_wheel_diameter")]
+    public double? RearWheelDiameterMm { get; init; }
+
+    [JsonPropertyName("front_wheel_rim_size")]
+    public EtrtoRimSize? FrontWheelRimSize { get; init; }
+
+    [JsonPropertyName("front_wheel_tire_width")]
+    public double? FrontWheelTireWidth { get; init; }
+
+    [JsonPropertyName("rear_wheel_rim_size")]
+    public EtrtoRimSize? RearWheelRimSize { get; init; }
+
+    [JsonPropertyName("rear_wheel_tire_width")]
+    public double? RearWheelTireWidth { get; init; }
+
+    [JsonPropertyName("image_rotation_degrees")]
+    public double ImageRotationDegrees { get; init; }
+
+    [JsonPropertyName("image")]
+    public byte[] ImageBytes { get; init; } = [];
+
+    public static BikeExportModel FromBike(Bike bike)
+    {
+        return new BikeExportModel
+        {
+            Name = bike.Name,
+            HeadAngle = bike.HeadAngle,
+            ForkStroke = bike.ForkStroke,
+            ShockStroke = bike.ShockStroke,
+            Linkage = bike.Linkage,
+            PixelsToMillimeters = bike.PixelsToMillimeters,
+            FrontWheelDiameterMm = bike.FrontWheelDiameterMm,
+            RearWheelDiameterMm = bike.RearWheelDiameterMm,
+            FrontWheelRimSize = bike.FrontWheelRimSize,
+            FrontWheelTireWidth = bike.FrontWheelTireWidth,
+            RearWheelRimSize = bike.RearWheelRimSize,
+            RearWheelTireWidth = bike.RearWheelTireWidth,
+            ImageRotationDegrees = bike.ImageRotationDegrees,
+            ImageBytes = bike.ImageBytes
+        };
+    }
+}
+
+internal static class AppJson
+{
+    public static AppJsonContext Context { get; } = new(CreateOptions());
+
+    public static string Serialize<T>(T? value)
+    {
+        return JsonSerializer.Serialize(value, typeof(T), Context);
+    }
+
+    public static T? Deserialize<T>(string json) where T : class
+    {
+        return (T?)JsonSerializer.Deserialize(json, typeof(T), Context);
+    }
+
+    public static string SerializeIndented<T>(T? value)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        JsonSerializer.Serialize(writer, value, typeof(T), Context);
+        writer.Flush();
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static JsonSerializerOptions CreateOptions()
+    {
+        JsonSerializerOptions options = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+        return options;
+    }
+}
+
+[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSerializable(typeof(Bike))]
+[JsonSerializable(typeof(BikeExportModel))]
+[JsonSerializable(typeof(Board))]
+[JsonSerializable(typeof(Setup))]
+[JsonSerializable(typeof(SynchronizationData))]
+[JsonSerializable(typeof(TrackPoint))]
+[JsonSerializable(typeof(List<Guid>))]
+[JsonSerializable(typeof(List<TrackPoint>))]
+[JsonSerializable(typeof(PairingRequest))]
+[JsonSerializable(typeof(PairingConfirm))]
+[JsonSerializable(typeof(TokenResponse))]
+[JsonSerializable(typeof(RefreshRequest))]
+[JsonSerializable(typeof(UnpairRequest))]
+[JsonSerializable(typeof(SensorConfiguration))]
+[JsonSerializable(typeof(LinearForkSensorConfiguration))]
+[JsonSerializable(typeof(RotationalForkSensorConfiguration))]
+[JsonSerializable(typeof(LinearShockSensorConfiguration))]
+[JsonSerializable(typeof(RotationalShockSensorConfiguration))]
+[JsonSerializable(typeof(Linkage))]
+[JsonSerializable(typeof(Link))]
+[JsonSerializable(typeof(Joint))]
+internal partial class AppJsonContext : JsonSerializerContext;

@@ -100,6 +100,9 @@ public class TelemetryData
     public Suspension Front { get; set; }
     public Suspension Rear { get; set; }
     public Airtime[] Airtimes { get; set; }
+    public MarkerData[] Markers { get; set; } = [];
+    public RawImuData? ImuData { get; set; }
+    public GpsRecord[]? GpsData { get; set; }
     [IgnoreMember] public byte[] BinaryForm => MessagePackSerializer.Serialize(this);
 
     #endregion
@@ -308,14 +311,16 @@ public class TelemetryData
 
     #region PSST conversion
 
-    public static TelemetryData FromRecording(ushort[] front, ushort[] rear,
-        double frontAnomalyRate, double rearAnomalyRate, Metadata metadata, BikeData bikeData)
+    public static TelemetryData FromRecording(RawTelemetryData rawData, Metadata metadata, BikeData bikeData)
     {
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
+        td.Markers = rawData.Markers;
+        td.ImuData = rawData.ImuData;
+        td.GpsData = rawData.GpsData;
 
         // Evaluate front and rear input arrays
-        var fc = front.Length;
-        var rc = rear.Length;
+        var fc = rawData.Front.Length;
+        var rc = rawData.Rear.Length;
         td.Front.Present = fc != 0;
         td.Rear.Present = rc != 0;
         if (!td.Front.Present && !td.Rear.Present)
@@ -342,14 +347,14 @@ public class TelemetryData
         if (td.Front.Present)
         {
             Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
-            CalculateSuspension(td.Front, front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
-            td.Front.AnomalyRate = frontAnomalyRate;
+            CalculateSuspension(td.Front, rawData.Front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            td.Front.AnomalyRate = rawData.FrontAnomalyRate;
         }
         if (td.Rear.Present)
         {
             Debug.Assert(bikeData.RearMeasurementToTravel is not null);
-            CalculateSuspension(td.Rear, rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
-            td.Rear.AnomalyRate = rearAnomalyRate;
+            CalculateSuspension(td.Rear, rawData.Rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            td.Rear.AnomalyRate = rawData.RearAnomalyRate;
         }
 
         td.CalculateAirTimes();

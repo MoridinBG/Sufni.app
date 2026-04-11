@@ -1,18 +1,37 @@
-﻿<Styles
+<UserControl
+    x:Class="Sufni.App.Views.MapView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Sufni.App.Views"
-    xmlns:mapsui="clr-namespace:Mapsui.UI.Avalonia;assembly=Mapsui.UI.Avalonia">
-    <Design.PreviewWith>
-        <controls:MapView />
-    </Design.PreviewWith>
+    xmlns:mapsui="clr-namespace:Mapsui.UI.Avalonia;assembly=Mapsui.UI.Avalonia"
+    xmlns:models="using:Sufni.App.Models"
+    xmlns:vm="using:Sufni.App.ViewModels"
+    x:DataType="vm:MapViewModel">
 
-    <Style Selector="controls|MapView">
-        <!--  Set Defaults  -->
-        <Setter Property="Template">
-            <ControlTemplate>
-                <mapsui:MapControl Name="MapControl" />
-            </ControlTemplate>
-        </Setter>
-    </Style>
-</Styles>
+    <Grid>
+        <mapsui:MapControl Name="MapControl" />
+
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                Margin="10" Padding="5"
+                Background="{StaticResource SufniBackground}"
+                CornerRadius="5" Opacity="0.9">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+                <ComboBox Name="TileProviderComboBox"
+                          MinWidth="120"
+                          PlaceholderText="Select Map..."
+                          ItemsSource="{Binding AvailableLayers}"
+                          SelectedItem="{Binding SelectedLayer, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:TileLayerConfig">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Name="AddCustomTileButton" 
+                        Content="+" 
+                        Padding="10,0" 
+                        FontWeight="Bold"
+                        Command="{Binding AddCustomLayerCommand}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

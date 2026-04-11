@@ -7,15 +7,15 @@
     xmlns:paz="using:Avalonia.Controls.PanAndZoom"
     xmlns:v="using:Sufni.App.Views.Items"
     xmlns:vl="using:Sufni.App.Views.LinkageParts"
-    xmlns:vm="using:Sufni.App.ViewModels.Items"
+    xmlns:vm="using:Sufni.App.ViewModels.Editors"
     xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
     d:DesignHeight="450"
     d:DesignWidth="800"
-    x:DataType="vm:BikeViewModel"
+    x:DataType="vm:BikeEditorViewModel"
     mc:Ignorable="d">
 
     <Design.DataContext>
-        <vm:BikeViewModel />
+        <vm:BikeEditorViewModel />
     </Design.DataContext>
 
     <UserControl.Styles>
@@ -133,7 +133,7 @@
                                 EndPoint="{Binding EndPoint}">
                                 <Interaction.Behaviors>
                                     <EventTriggerBehavior EventName="Tapped">
-                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).LinkTappedCommand}" PassEventArgsToCommand="True" />
+                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkTappedCommand}" PassEventArgsToCommand="True" />
                                     </EventTriggerBehavior>
                                 </Interaction.Behaviors>
                             </Line>
@@ -169,7 +169,7 @@
                             <vl:JointView>
                                 <Interaction.Behaviors>
                                     <EventTriggerBehavior EventName="Tapped">
-                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeViewModel)DataContext).PointTappedCommand}" PassEventArgsToCommand="True" />
+                                        <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).PointTappedCommand}" PassEventArgsToCommand="True" />
                                     </EventTriggerBehavior>
                                 </Interaction.Behaviors>
                             </vl:JointView>

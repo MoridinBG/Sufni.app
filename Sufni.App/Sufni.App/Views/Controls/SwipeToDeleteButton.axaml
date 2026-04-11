@@ -5,10 +5,10 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:labs="clr-namespace:Avalonia.Labs.Controls;assembly=Avalonia.Labs.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Items"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
     d:DesignHeight="600"
     d:DesignWidth="500"
-    x:DataType="vm:ItemViewModelBase"
+    x:DataType="vm:IListItemRow"
     mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -80,7 +80,7 @@
                         HorizontalContentAlignment="Left"
                         VerticalContentAlignment="Center"
                         Classes="swipedelete"
-                        Command="{Binding $parent[labs:Swipe].((vm:ItemViewModelBase)DataContext).FakeDeleteCommand}"
+                        Command="{Binding $parent[labs:Swipe].((vm:IListItemRow)DataContext).FakeDeleteCommand}"
                         Svg.Css=".default { fill: #f0f0f0; }">
                         <Image
                             Width="16"
