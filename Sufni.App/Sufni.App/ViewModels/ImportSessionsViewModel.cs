@@ -287,6 +287,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private void Loaded()
     {
+        telemetryDataStoreService.ErrorOccurred += OnDataStoreServiceError;
         telemetryDataStoreService.StartBrowse();
         ResolveSelectedSetup();
 
@@ -309,8 +310,14 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         TelemetryFiles.Clear();
         if (telemetryDataStoreService is not null)
         {
+            telemetryDataStoreService.ErrorOccurred -= OnDataStoreServiceError;
             telemetryDataStoreService.StopBrowse();
         }
+    }
+
+    private void OnDataStoreServiceError(object? sender, string message)
+    {
+        ErrorMessages.Add(message);
     }
 
     #endregion Commands
