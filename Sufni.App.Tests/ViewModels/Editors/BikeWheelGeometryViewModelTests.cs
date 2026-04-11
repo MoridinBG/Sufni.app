@@ -66,6 +66,46 @@ public class BikeWheelGeometryViewModelTests
     }
 
     [AvaloniaFact]
+    public void RemoveFrontWheelCommand_ClearsFrontWheelInputs()
+    {
+        var viewModel = new BikeWheelGeometryViewModel
+        {
+            FrontWheelRimSize = EtrtoRimSize.Inch29,
+            FrontWheelTireWidth = 2.4,
+            FrontWheelDiameter = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+        };
+
+        Assert.True(viewModel.RemoveFrontWheelCommand.CanExecute(null));
+
+        viewModel.RemoveFrontWheelCommand.Execute(null);
+
+        Assert.Null(viewModel.FrontWheelRimSize);
+        Assert.Null(viewModel.FrontWheelTireWidth);
+        Assert.Null(viewModel.FrontWheelDiameter);
+        Assert.False(viewModel.RemoveFrontWheelCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void RemoveRearWheelCommand_ClearsRearWheelInputs()
+    {
+        var viewModel = new BikeWheelGeometryViewModel
+        {
+            RearWheelRimSize = EtrtoRimSize.Inch275,
+            RearWheelTireWidth = 2.5,
+            RearWheelDiameter = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+        };
+
+        Assert.True(viewModel.RemoveRearWheelCommand.CanExecute(null));
+
+        viewModel.RemoveRearWheelCommand.Execute(null);
+
+        Assert.Null(viewModel.RearWheelRimSize);
+        Assert.Null(viewModel.RearWheelTireWidth);
+        Assert.Null(viewModel.RearWheelDiameter);
+        Assert.False(viewModel.RemoveRearWheelCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
     public void RefreshDerived_ComputesWheelCircleMetrics_FromCentersAndScale()
     {
         var viewModel = new BikeWheelGeometryViewModel

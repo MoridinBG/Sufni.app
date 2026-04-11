@@ -84,6 +84,46 @@ public class BikeEditorViewSmokeTests
         await FlushUiAsync();
     }
 
+    [AvaloniaFact]
+    public async Task BikeImageControlsDesktopView_ShowsWheelRemoveButtons_AndBindsCommands()
+    {
+        EnsureBikeEditorViewResources();
+        EnsurePlotViewStyle();
+
+        var viewModel = CreateViewModel();
+        var view = new BikeImageControlsDesktopView
+        {
+            DataContext = viewModel
+        };
+        var host = new Window
+        {
+            Width = 500,
+            Height = 800,
+            Content = view
+        };
+
+        host.Show();
+        await FlushUiAsync();
+
+        var removeButtons = view.GetVisualDescendants()
+            .OfType<Button>()
+            .Where(button => button.Content as string == "X")
+            .ToArray();
+
+        Assert.Equal(2, removeButtons.Length);
+        Assert.All(removeButtons, button => Assert.NotNull(button.Command));
+
+        removeButtons[0].Command!.Execute(removeButtons[0].CommandParameter);
+        removeButtons[1].Command!.Execute(removeButtons[1].CommandParameter);
+        await FlushUiAsync();
+
+        Assert.Null(viewModel.WheelGeometry.FrontWheelDiameter);
+        Assert.Null(viewModel.WheelGeometry.RearWheelDiameter);
+
+        host.Close();
+        await FlushUiAsync();
+    }
+
     private static BikeEditorViewModel CreateViewModel()
     {
         var bikeCoordinator = Substitute.For<IBikeCoordinator>();

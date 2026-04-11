@@ -107,14 +107,31 @@ mc:Ignorable="d">
         Value="{Binding Chainstay}" />
 
         <!--  Front Wheel  -->
-        <TextBlock
+        <Grid
         Grid.Row="5"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,10,0,5"
-        FontWeight="SemiBold"
         IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
-        Text="Front Wheel" />
+        ColumnDefinitions="auto,*">
+            <Button
+            Grid.Column="0"
+            Width="28"
+            Height="28"
+            MinWidth="28"
+            MinHeight="28"
+            Margin="0,0,8,0"
+            Padding="0"
+            HorizontalAlignment="Left"
+            HorizontalContentAlignment="Center"
+            VerticalAlignment="Center"
+            Command="{Binding WheelGeometry.RemoveFrontWheelCommand}"
+            Content="X" />
+            <TextBlock
+            Grid.Column="1"
+            FontWeight="SemiBold"
+            Text="Front Wheel" />
+        </Grid>
         <Grid
         Grid.Row="6"
         Grid.Column="0"
@@ -126,6 +143,7 @@ mc:Ignorable="d">
         IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
             <ComboBox
             Grid.Column="0"
+            HorizontalAlignment="Stretch"
             Margin="0,0,5,0"
             ItemsSource="{Binding RimSizeOptions}"
             PlaceholderText="Rim"
@@ -157,14 +175,31 @@ mc:Ignorable="d">
         </Grid>
 
         <!--  Rear Wheel  -->
-        <TextBlock
+        <Grid
         Grid.Row="7"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,10,0,5"
-        FontWeight="SemiBold"
         IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
-        Text="Rear Wheel" />
+        ColumnDefinitions="auto,*">
+            <Button
+            Grid.Column="0"
+            Width="28"
+            Height="28"
+            MinWidth="28"
+            MinHeight="28"
+            Margin="0,0,8,0"
+            Padding="0"
+            HorizontalAlignment="Left"
+            HorizontalContentAlignment="Center"
+            VerticalAlignment="Center"
+            Command="{Binding WheelGeometry.RemoveRearWheelCommand}"
+            Content="X" />
+            <TextBlock
+            Grid.Column="1"
+            FontWeight="SemiBold"
+            Text="Rear Wheel" />
+        </Grid>
         <Grid
         Grid.Row="8"
         Grid.Column="0"
@@ -176,6 +211,7 @@ mc:Ignorable="d">
         IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
             <ComboBox
             Grid.Column="0"
+            HorizontalAlignment="Stretch"
             Margin="0,0,5,0"
             ItemsSource="{Binding RimSizeOptions}"
             PlaceholderText="Rim"
