@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.PanAndZoom;
+using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.DesktopViews.Items;
 
@@ -30,5 +31,12 @@ public partial class BikeImageDesktopView : UserControl
     {
         ZoomBorder.MinOffsetX = -ZoomBorder.Bounds.Width * (e.ZoomX - 1.0);
         ZoomBorder.MinOffsetY = -ZoomBorder.Bounds.Height * (e.ZoomY - 1.0);
+
+        if (DataContext is BikeEditorViewModel vm)
+        {
+            vm.LinkStrokeThickness = 45.0 / e.ZoomX;
+            var taper = 0.65 + 0.35 * (1.0 - 1.0 / e.ZoomX);
+            vm.JointFontSize = 120.0 * taper / e.ZoomX;
+        }
     }
 }

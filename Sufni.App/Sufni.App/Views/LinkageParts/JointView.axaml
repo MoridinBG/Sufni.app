@@ -4,6 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:editorVm="using:Sufni.App.ViewModels.Editors"
+    xmlns:v="using:Sufni.App.Views.Items"
     xmlns:vm="using:Sufni.App.ViewModels.LinkageParts"
     d:DesignHeight="450"
     d:DesignWidth="800"
@@ -52,10 +54,9 @@
             Canvas.Top="0"
             Margin="-16,-16,0,0">
             <TextBlock
-                Height="28"
                 Margin="2"
                 Padding="32,0,0,0"
-                FontSize="24"
+                FontSize="{Binding $parent[v:BikeViewBase].((editorVm:BikeEditorViewModel)DataContext).JointFontSize}"
                 FontWeight="Bold"
                 Foreground="{Binding Brush}"
                 Text="{Binding Name}" />
