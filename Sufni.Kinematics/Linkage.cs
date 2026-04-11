@@ -37,6 +37,24 @@ public class Linkage
         return linkage!;
     }
 
+    public static Linkage CreateResolved(
+        IEnumerable<Joint> joints,
+        IEnumerable<Link> links,
+        Link shock,
+        double shockStroke)
+    {
+        var linkage = new Linkage
+        {
+            Joints = [.. joints],
+            Links = [.. links],
+            Shock = shock,
+            ShockStroke = shockStroke,
+        };
+
+        linkage.ResolveJoints();
+        return linkage;
+    }
+
     #endregion Initializers
 
     #region Public methods
@@ -45,6 +63,8 @@ public class Linkage
     {
         return JsonSerializer.Serialize(this, SerializerOptions);
     }
+
+    public Linkage CloneResolved() => FromJson(ToJson());
 
     public void ResolveJoints()
     {

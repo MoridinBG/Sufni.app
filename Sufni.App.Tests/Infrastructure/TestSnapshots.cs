@@ -62,19 +62,14 @@ public static class TestSnapshots
             joints.Add(new Joint(mapping.HeadTube2, JointType.HeadTube, 9, 5));
         }
 
-        var linkage = new Linkage
-        {
-            Joints = [.. joints],
-            Links =
+        return Linkage.CreateResolved(
+            joints,
             [
                 new Link(bottomBracket, rearWheel),
                 new Link(rearWheel, shockEye1),
             ],
-            Shock = new Link(shockEye1, shockEye2),
-            ShockStroke = 0.5,
-        };
-        linkage.ResolveJoints();
-        return linkage;
+            new Link(shockEye1, shockEye2),
+            0.5);
     }
 
     public static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
