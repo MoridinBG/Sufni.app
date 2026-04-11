@@ -14,7 +14,7 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
     private Point? rearWheelCenter;
     private double? pixelsToMillimeters;
 
-    public static RimSizeOption[] RimSizeOptions { get; } = Enum.GetValues<EtrtoRimSize>()
+    public RimSizeOption[] RimSizeOptions { get; } = Enum.GetValues<EtrtoRimSize>()
         .Select(rimSize => new RimSizeOption(rimSize, rimSize.DisplayName))
         .ToArray();
 

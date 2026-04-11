@@ -56,7 +56,7 @@ mc:Ignorable="d">
             <TextBlock
             Margin="2"
             Padding="32,0,0,0"
-            FontSize="{Binding $parent[v:BikeViewBase].((editorVm:BikeEditorViewModel)DataContext).JointFontSize}"
+            FontSize="{Binding $parent[v:BikeViewBase].((editorVm:BikeEditorViewModel)DataContext).LinkageEditor.JointFontSize}"
             FontWeight="Bold"
             Foreground="{Binding Brush}"
             Text="{Binding Name}" />

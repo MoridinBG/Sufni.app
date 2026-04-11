@@ -146,6 +146,33 @@ public partial class LinkageEditorViewModel : ObservableObject
     public JointViewModel? GetRearWheelJoint() =>
         JointViewModels.FirstOrDefault(joint => joint.Type == JointType.RearWheel);
 
+    public Point? GetFrontWheelCenter()
+    {
+        var frontWheel = GetFrontWheelJoint();
+        return frontWheel is null ? null : new Point(frontWheel.X, frontWheel.Y);
+    }
+
+    public Point? GetRearWheelCenter()
+    {
+        var rearWheel = GetRearWheelJoint();
+        return rearWheel is null ? null : new Point(rearWheel.X, rearWheel.Y);
+    }
+
+    public Rect? GetJointBounds()
+    {
+        if (JointViewModels.Count == 0)
+        {
+            return null;
+        }
+
+        const double radius = 20.0;
+        var minX = JointViewModels.Min(joint => joint.X) - radius;
+        var minY = JointViewModels.Min(joint => joint.Y) - radius;
+        var maxX = JointViewModels.Max(joint => joint.X) + radius;
+        var maxY = JointViewModels.Max(joint => joint.Y) + radius;
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
+    }
+
     public void RotateAll(double deltaRotationDegrees)
     {
         RunWithoutNotifications(() =>

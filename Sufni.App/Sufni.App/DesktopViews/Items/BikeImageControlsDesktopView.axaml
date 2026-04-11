@@ -9,6 +9,7 @@ xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 xmlns:v="using:Sufni.App.DesktopViews.Items"
 xmlns:vm="using:Sufni.App.ViewModels.Editors"
+xmlns:vmle="using:Sufni.App.ViewModels.LinkageEditing"
 xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
 d:DesignHeight="600"
 d:DesignWidth="400"
@@ -120,7 +121,9 @@ mc:Ignorable="d">
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
         ColumnDefinitions="* * *"
-        IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
+        x:DataType="vm:BikeWheelGeometryViewModel"
+        DataContext="{Binding WheelGeometry}"
+        IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
             <ComboBox
             Grid.Column="0"
             Margin="0,0,5,0"
@@ -168,7 +171,9 @@ mc:Ignorable="d">
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
         ColumnDefinitions="* * *"
-        IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
+        x:DataType="vm:BikeWheelGeometryViewModel"
+        DataContext="{Binding WheelGeometry}"
+        IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
             <ComboBox
             Grid.Column="0"
             Margin="0,0,5,0"
@@ -228,7 +233,7 @@ mc:Ignorable="d">
             Grid.Row="0"
             Grid.Column="1"
             Content="Draw overlay"
-            IsChecked="{Binding OverlayVisible}" />
+            IsChecked="{Binding ImageCanvas.OverlayVisible}" />
         </Grid>
 
         <!--  List of Points  -->
@@ -240,7 +245,7 @@ mc:Ignorable="d">
         Text="Points">
             <TextBlock.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ImageCanvas.Image" />
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
                 </MultiBinding>
@@ -253,18 +258,20 @@ mc:Ignorable="d">
         Margin="2,0,2,6">
 
             <DataGrid
+            x:DataType="vmle:LinkageEditorViewModel"
             BeginningEdit="DataGrid_OnBeginningEdit"
             BorderBrush="Gray"
             BorderThickness="1"
+            DataContext="{Binding LinkageEditor}"
             GridLinesVisibility="All"
             ItemsSource="{Binding JointViewModels}"
             SelectedItem="{Binding SelectedPoint}">
 
                 <DataGrid.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
                     </MultiBinding>
                 </DataGrid.IsVisible>
 
@@ -331,7 +338,7 @@ mc:Ignorable="d">
         Text="Links">
             <TextBlock.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ImageCanvas.Image" />
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
                 </MultiBinding>
@@ -344,18 +351,20 @@ mc:Ignorable="d">
         Margin="2,0,2,5">
 
             <DataGrid
+            x:DataType="vmle:LinkageEditorViewModel"
             BeginningEdit="DataGrid_OnBeginningEdit"
             BorderBrush="Gray"
             BorderThickness="1"
+            DataContext="{Binding LinkageEditor}"
             GridLinesVisibility="All"
             ItemsSource="{Binding LinkViewModels}"
             SelectedItem="{Binding SelectedLink}">
 
                 <DataGrid.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
                     </MultiBinding>
                 </DataGrid.IsVisible>
 
@@ -383,7 +392,7 @@ mc:Ignorable="d">
                                 <ComboBox
                                 HorizontalAlignment="Stretch"
                                 IsDropDownOpen="True"
-                                ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).JointViewModels}"
+                                ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
                                 SelectedItem="{Binding A}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -413,7 +422,7 @@ mc:Ignorable="d">
                                 <ComboBox
                                 HorizontalAlignment="Stretch"
                                 IsDropDownOpen="True"
-                                ItemsSource="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).JointViewModels}"
+                                ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
                                 SelectedItem="{Binding B}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -440,13 +449,15 @@ mc:Ignorable="d">
         Grid.ColumnSpan="2"
         HorizontalAlignment="Stretch"
         HorizontalContentAlignment="Center"
+        x:DataType="vmle:LinkageEditorViewModel"
+        DataContext="{Binding LinkageEditor}"
         Command="{Binding CreateLinkCommand}"
         Content="Add new link">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
                 </MultiBinding>
             </Button.IsVisible>
         </Button>
