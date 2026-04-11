@@ -107,6 +107,107 @@ public class BikeEditorViewModelTests
         return BikeSnapshot.From(bike);
     }
 
+    private static BikeSnapshot ForkOnlySnapshot(
+        EtrtoRimSize? frontWheelRimSize = null,
+        double? frontWheelTireWidth = null,
+        double? frontWheelDiameter = null,
+        EtrtoRimSize? rearWheelRimSize = null,
+        double? rearWheelTireWidth = null,
+        double? rearWheelDiameter = null,
+        double imageRotationDegrees = 0,
+        long updated = 1)
+    {
+        var bike = new Bike(Guid.NewGuid(), "fork only")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            FrontWheelRimSize = frontWheelRimSize,
+            FrontWheelTireWidth = frontWheelTireWidth,
+            FrontWheelDiameterMm = frontWheelDiameter,
+            RearWheelRimSize = rearWheelRimSize,
+            RearWheelTireWidth = rearWheelTireWidth,
+            RearWheelDiameterMm = rearWheelDiameter,
+            Image = TestImages.SmallPng(),
+            ImageRotationDegrees = imageRotationDegrees,
+            Updated = updated,
+        };
+
+        return BikeSnapshot.From(bike);
+    }
+
+    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<Joint> joints) =>
+        joints
+            .OrderBy(joint => joint.Name)
+            .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
+            .ToList();
+
+    private static IReadOnlyList<string> DescribeLinks(IEnumerable<Link> links) =>
+        links
+            .Select(DescribeLink)
+            .OrderBy(link => link)
+            .ToList();
+
+    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeEditorJoints(BikeEditorViewModel editor)
+    {
+        Assert.NotNull(editor.Image);
+        Assert.True(editor.PixelsToMillimeters.HasValue);
+
+        return editor.JointViewModels
+            .Select(joint => joint.ToJoint(editor.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+            .OrderBy(joint => joint.Name)
+            .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> DescribeEditorLinks(BikeEditorViewModel editor)
+    {
+        Assert.NotNull(editor.Image);
+        Assert.True(editor.PixelsToMillimeters.HasValue);
+
+        return editor.LinkViewModels
+            .Select(link => link.ToLink(editor.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+            .Select(DescribeLink)
+            .OrderBy(link => link)
+            .ToList();
+    }
+
+    private static string DescribeLink(Link link)
+    {
+        var a = Assert.IsType<Joint>(link.A);
+        var b = Assert.IsType<Joint>(link.B);
+        return string.CompareOrdinal(a.Name, b.Name) <= 0
+            ? $"{a.Name}->{b.Name}"
+            : $"{b.Name}->{a.Name}";
+    }
+
+    private void AssertOpeningPreservesState(BikeSnapshot snapshot)
+    {
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(snapshot.FrontWheelRimSize, editor.FrontWheelRimSize);
+        Assert.Equal(snapshot.FrontWheelTireWidth, editor.FrontWheelTireWidth);
+        Assert.Equal(snapshot.FrontWheelDiameterMm, editor.FrontWheelDiameter);
+        Assert.Equal(snapshot.RearWheelRimSize, editor.RearWheelRimSize);
+        Assert.Equal(snapshot.RearWheelTireWidth, editor.RearWheelTireWidth);
+        Assert.Equal(snapshot.RearWheelDiameterMm, editor.RearWheelDiameter);
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageRotationDegrees);
+        Assert.Equal(snapshot.Image is not null, editor.Image is not null);
+        Assert.False(editor.IsDirty);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+
+        if (snapshot.Linkage is null)
+        {
+            Assert.Empty(editor.JointViewModels);
+            Assert.Empty(editor.LinkViewModels);
+            return;
+        }
+
+        Assert.Equal(snapshot.Linkage.Joints.Count, editor.JointViewModels.Count);
+        Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkViewModels.Count);
+        Assert.Equal(DescribeJoints(snapshot.Linkage.Joints), DescribeEditorJoints(editor));
+        Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeEditorLinks(editor));
+    }
+
     // ----- Construction -----
 
     [AvaloniaFact]
@@ -125,6 +226,8 @@ public class BikeEditorViewModelTests
         Assert.Equal(7, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.Empty(editor.JointViewModels);
+        Assert.Empty(editor.LinkViewModels);
     }
 
     [AvaloniaFact]
@@ -141,7 +244,36 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void Construction_FromLegacyFullSuspensionSnapshot_DoesNotInjectHeadTubeJoints_AndStaysClean()
+    public void Construction_FromForkOnlySnapshotWithManualWheelState_PreservesOpeningInvariant()
+    {
+        var snapshot = ForkOnlySnapshot(
+            frontWheelDiameter: 760,
+            rearWheelDiameter: 750,
+            imageRotationDegrees: 12.5,
+            updated: 7);
+
+        AssertOpeningPreservesState(snapshot);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromFullSuspensionSnapshotWithHeadTubeJoints_PreservesOpeningInvariant()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+
+        AssertOpeningPreservesState(snapshot);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromLegacyFullSuspensionSnapshotWithoutHeadTubeJoints_PreservesOpeningInvariant()
     {
         var snapshot = FullSuspensionSnapshot(
             includeHeadTubeJoints: false,
@@ -154,18 +286,29 @@ public class BikeEditorViewModelTests
             imageRotationDegrees: 12.5,
             updated: 7);
 
+        AssertOpeningPreservesState(snapshot);
+    }
+
+    [AvaloniaFact]
+    public void Construction_PreservesPersistedHeadAngle_WhenItDiffersFromDerivedGeometry()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7) with
+        {
+            HeadAngle = 79.9,
+        };
+
         var editor = CreateEditor(snapshot);
 
-        Assert.DoesNotContain(editor.JointViewModels, joint => joint.Type == JointType.HeadTube);
-        Assert.Equal(snapshot.FrontWheelRimSize, editor.FrontWheelRimSize);
-        Assert.Equal(snapshot.FrontWheelTireWidth, editor.FrontWheelTireWidth);
-        Assert.Equal(snapshot.FrontWheelDiameterMm, editor.FrontWheelDiameter);
-        Assert.Equal(snapshot.RearWheelRimSize, editor.RearWheelRimSize);
-        Assert.Equal(snapshot.RearWheelTireWidth, editor.RearWheelTireWidth);
-        Assert.Equal(snapshot.RearWheelDiameterMm, editor.RearWheelDiameter);
-        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageRotationDegrees);
-        Assert.False(editor.IsDirty);
-        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.Equal(79.9, editor.HeadAngle);
     }
 
     // ----- Dirtiness -----
@@ -354,6 +497,8 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("remote-updated", editor.Name);
         Assert.Equal(12, editor.BaselineUpdated);
+        Assert.False(editor.IsDirty);
+        Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
@@ -642,6 +787,31 @@ public class BikeEditorViewModelTests
         await resetTask;
 
         Assert.False(editor.IsPlotBusy);
+    }
+
+    [AvaloniaFact]
+    public async Task Reset_RestoresAcceptedSnapshot_AndClearsDirtyState()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+        editor.ImageRotationDegrees = 22.5;
+
+        await editor.ResetCommand.ExecuteAsync(null);
+
+        Assert.Equal(snapshot.Name, editor.Name);
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageRotationDegrees);
+        Assert.False(editor.IsDirty);
+        Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
     [AvaloniaFact]

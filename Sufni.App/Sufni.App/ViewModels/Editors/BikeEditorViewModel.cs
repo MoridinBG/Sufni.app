@@ -52,6 +52,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IBikeDependencyQuery? dependencyQuery;
     private Bike bike;
+    private BikeSnapshot acceptedSnapshot;
     private uint pointNumber = 1;
     private LinkViewModel? shockViewModel;
     private CancellationTokenSource? replaceableWorkflowCts;
@@ -61,6 +62,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private Bitmap? rotatedImageCache;
     private double rotatedImageCacheAngle = double.NaN;
     private bool suppressWheelStateCallbacks;
+    private int stateReplacementDepth;
 
     #endregion Private fields
 
@@ -238,6 +240,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnChainstayChanged(double? value)
     {
+        if (IsReplacingState) return;
+
         if (value is null)
         {
             PixelsToMillimeters = null;
@@ -250,6 +254,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnPixelsToMillimetersChanged(double? value)
     {
+        if (IsReplacingState) return;
+
         foreach (var link in LinkViewModels)
         {
             link.UpdateLength(PixelsToMillimeters);
@@ -263,6 +269,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnImageChanged(Bitmap? value)
     {
+        if (IsReplacingState) return;
+
         rotatedImageCache = null;
         rotatedImageCacheAngle = double.NaN;
 
@@ -275,6 +283,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnImageRotationDegreesChanged(double value)
     {
+        if (IsReplacingState) return;
+
         rotatedImageCache = null;
         rotatedImageCacheAngle = double.NaN;
 
@@ -286,6 +296,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnFrontWheelRimSizeChanged(EtrtoRimSize? value)
     {
+        if (IsReplacingState) return;
         if (suppressWheelStateCallbacks) return;
         RecalculateFrontWheelDiameter();
         EvaluateDirtiness();
@@ -293,6 +304,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnFrontWheelTireWidthChanged(double? value)
     {
+        if (IsReplacingState) return;
         if (suppressWheelStateCallbacks) return;
         RecalculateFrontWheelDiameter();
         EvaluateDirtiness();
@@ -300,6 +312,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnFrontWheelDiameterChanged(double? value)
     {
+        if (IsReplacingState) return;
         if (suppressWheelStateCallbacks) return;
 
         WithWheelStateCallbacksSuspended(() =>
@@ -316,6 +329,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
     {
+        if (IsReplacingState) return;
         if (suppressWheelStateCallbacks) return;
         RecalculateRearWheelDiameter();
         EvaluateDirtiness();
@@ -323,6 +337,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnRearWheelTireWidthChanged(double? value)
     {
+        if (IsReplacingState) return;
         if (suppressWheelStateCallbacks) return;
         RecalculateRearWheelDiameter();
         EvaluateDirtiness();
@@ -330,6 +345,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnRearWheelDiameterChanged(double? value)
     {
+        if (IsReplacingState) return;
         if (suppressWheelStateCallbacks) return;
 
         WithWheelStateCallbacksSuspended(() =>
@@ -352,7 +368,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         bikeCoordinator = null;
         dependencyQuery = null;
-        bike = new Bike();
+        bike = new Bike(Guid.Empty, string.Empty);
+        acceptedSnapshot = BikeSnapshot.From(bike);
         IsInDatabase = false;
 
         SetupJointsListeners();
@@ -371,26 +388,16 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
         IsInDatabase = !isNew;
-        Id = snapshot.Id;
-        BaselineUpdated = snapshot.Updated;
-
-        bike = BikeFromSnapshot(snapshot);
+        bike = Bike.FromSnapshot(snapshot);
+        acceptedSnapshot = snapshot;
 
         SetupJointsListeners();
         SetupLinksListeners();
 
-        UpdateFromBike();
+        ReplaceState(bike, snapshot);
 
         // Brand new bike: start with the mandatory joints.
         if (isNew) AddInitialJoints();
-
-        // UpdateFromBike's collection clears fire EvaluateDirtiness while
-        // Name/HeadAngle/etc. are still null, leaving IsDirty stale-true.
-        // Recompute now that all VM fields are populated. The override
-        // only reads fields populated above, so the virtual dispatch is
-        // safe here.
-        // ReSharper disable once VirtualMemberCallInConstructor
-        EvaluateDirtiness();
     }
 
     #endregion Constructors
@@ -410,34 +417,111 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
-    private static Bike BikeFromSnapshot(BikeSnapshot snapshot)
+    private bool IsReplacingState => stateReplacementDepth > 0;
+
+    private void ReplaceState(Bike sourceBike, BikeSnapshot snapshot, bool acceptBaseline = true)
     {
-        // Order matters: Linkage must be set before ShockStroke, because
-        // Bike.ShockStroke's setter writes through to Linkage.ShockStroke
-        // and silently no-ops when Linkage is null. Chainstay uses an
-        // init-only setter on Bike and is restored explicitly here so
-        // UpdateFromBike does not have to fall back to the lazy
-        // CalculateChainstay() path — the snapshot is already the
-        // canonical view of the bike's chainstay value.
-        var b = new Bike(snapshot.Id, snapshot.Name)
+        RunStateReplacement(() => ApplyRawBikeState(sourceBike));
+
+        if (acceptBaseline)
         {
-            HeadAngle = snapshot.HeadAngle,
-            ForkStroke = snapshot.ForkStroke,
-            Chainstay = snapshot.Chainstay,
-            PixelsToMillimeters = snapshot.PixelsToMillimeters,
-            FrontWheelDiameterMm = snapshot.FrontWheelDiameterMm,
-            RearWheelDiameterMm = snapshot.RearWheelDiameterMm,
-            FrontWheelRimSize = snapshot.FrontWheelRimSize,
-            FrontWheelTireWidth = snapshot.FrontWheelTireWidth,
-            RearWheelRimSize = snapshot.RearWheelRimSize,
-            RearWheelTireWidth = snapshot.RearWheelTireWidth,
-            ImageRotationDegrees = snapshot.ImageRotationDegrees,
-            Linkage = snapshot.Linkage,
-            ShockStroke = snapshot.ShockStroke,
-            Image = snapshot.Image,
-            Updated = snapshot.Updated
-        };
-        return b;
+            AcceptBaseline(sourceBike, snapshot);
+        }
+
+        EvaluateDirtiness();
+    }
+
+    private void AcceptBaseline(Bike sourceBike, BikeSnapshot snapshot)
+    {
+        bike = sourceBike;
+        acceptedSnapshot = snapshot;
+        Id = snapshot.Id;
+        BaselineUpdated = snapshot.Updated;
+    }
+
+    private void RunStateReplacement(Action action)
+    {
+        stateReplacementDepth++;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            stateReplacementDepth--;
+        }
+
+        if (!IsReplacingState)
+        {
+            RebuildDerivedDisplayState();
+        }
+    }
+
+    private void ApplyRawBikeState(Bike sourceBike)
+    {
+        SelectedLink = null;
+        SelectedPoint = null;
+
+        JointViewModels.Clear();
+        LinkViewModels.Clear();
+        shockViewModel = null;
+
+        Id = sourceBike.Id;
+        Name = sourceBike.Name;
+        HeadAngle = sourceBike.HeadAngle;
+        ForksStroke = sourceBike.ForkStroke;
+        ShockStroke = sourceBike.ShockStroke;
+        Image = sourceBike.Image;
+        Chainstay = sourceBike.Chainstay;
+        PixelsToMillimeters = sourceBike.Linkage is null ? null : sourceBike.PixelsToMillimeters;
+        ImageRotationDegrees = sourceBike.ImageRotationDegrees;
+
+        if (sourceBike.Linkage is not null)
+        {
+            Debug.Assert(sourceBike.Image is not null);
+
+            var jointViewModels = sourceBike.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, sourceBike.Image.Size.Height, sourceBike.PixelsToMillimeters));
+            foreach (var jvm in jointViewModels)
+            {
+                JointViewModels.Add(jvm);
+            }
+
+            var linkViewModels = sourceBike.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
+            foreach (var link in linkViewModels)
+            {
+                LinkViewModels.Add(link);
+            }
+
+            shockViewModel = LinkViewModel.FromLink(sourceBike.Linkage.Shock, JointViewModels);
+            LinkViewModels.Add(shockViewModel);
+        }
+
+        FrontWheelRimSize = sourceBike.FrontWheelRimSize;
+        FrontWheelTireWidth = sourceBike.FrontWheelTireWidth;
+        FrontWheelDiameter = sourceBike.FrontWheelDiameterMm;
+        RearWheelRimSize = sourceBike.RearWheelRimSize;
+        RearWheelTireWidth = sourceBike.RearWheelTireWidth;
+        RearWheelDiameter = sourceBike.RearWheelDiameterMm;
+    }
+
+    private void RebuildDerivedDisplayState()
+    {
+        rotatedImageCache = null;
+        rotatedImageCacheAngle = double.NaN;
+
+        foreach (var link in LinkViewModels)
+        {
+            link.UpdateLength(PixelsToMillimeters);
+        }
+
+        OnPropertyChanged(nameof(RotatedImage));
+        OnPropertyChanged(nameof(RotatedImageLeft));
+        OnPropertyChanged(nameof(RotatedImageTop));
+
+        NotifyFrontWheelPropertiesChanged();
+        NotifyRearWheelPropertiesChanged();
+        NotifyCanvasBoundsChanged();
+        UpdateRearAxlePathDisplay();
     }
 
     private Bike ToBike()
@@ -684,67 +768,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         };
     }
 
-    private void UpdateFromBike()
-    {
-        JointViewModels.Clear();
-        LinkViewModels.Clear();
-        shockViewModel = null;
-
-        ShockStroke = bike.ShockStroke;
-        Image = bike.Image;
-
-        if (bike.Linkage is not null)
-        {
-            Debug.Assert(bike.Image is not null);
-
-            var jointViewModels = bike.Linkage.Joints.Select(j => JointViewModel.FromJoint(j, bike.Image.Size.Height, bike.PixelsToMillimeters));
-            foreach (var jvm in jointViewModels)
-            {
-                JointViewModels.Add(jvm);
-            }
-
-            var linkViewModels = bike.Linkage.Links.Select(l => LinkViewModel.FromLink(l, JointViewModels));
-            foreach (var link in linkViewModels)
-            {
-                LinkViewModels.Add(link);
-            }
-            shockViewModel = LinkViewModel.FromLink(bike.Linkage.Shock, JointViewModels);
-            LinkViewModels.Add(shockViewModel);
-            ShockStroke = bike.Linkage.ShockStroke;
-            Chainstay = bike.Chainstay; // this also updates PixelsToMillimeters
-        }
-        else
-        {
-            Chainstay = bike.Chainstay;
-            PixelsToMillimeters = null;
-        }
-
-        Id = bike.Id;
-        Name = bike.Name;
-        HeadAngle = bike.HeadAngle;
-        ForksStroke = bike.ForkStroke;
-
-        WithWheelStateCallbacksSuspended(() =>
-        {
-            FrontWheelRimSize = bike.FrontWheelRimSize;
-            FrontWheelTireWidth = bike.FrontWheelTireWidth;
-            FrontWheelDiameter = bike.FrontWheelDiameterMm;
-            RearWheelRimSize = bike.RearWheelRimSize;
-            RearWheelTireWidth = bike.RearWheelTireWidth;
-            RearWheelDiameter = bike.RearWheelDiameterMm;
-            ImageRotationDegrees = bike.ImageRotationDegrees;
-        });
-
-        OnPropertyChanged(nameof(RotatedImage));
-        OnPropertyChanged(nameof(RotatedImageLeft));
-        OnPropertyChanged(nameof(RotatedImageTop));
-
-        NotifyFrontWheelPropertiesChanged();
-        NotifyRearWheelPropertiesChanged();
-        RecalculateHeadAngle();
-        UpdateRearAxlePathDisplay();
-    }
-
     private void RecalculateFrontWheelDiameter()
     {
         if (FrontWheelRimSize.HasValue && FrontWheelTireWidth.HasValue)
@@ -967,13 +990,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private void ApplyImportedBike(ImportedBikeEditorData data)
     {
-        bike = data.Bike;
-        BaselineUpdated = 0;
+        var importedBike = data.Bike;
+        var importedSnapshot = BikeSnapshot.From(importedBike);
         IsInDatabase = false;
 
-        UpdateFromBike();
+        ReplaceState(importedBike, importedSnapshot);
         ApplyAnalysisResult(data.AnalysisResult);
-        EvaluateDirtiness();
 
         DeleteCommand.NotifyCanExecuteChanged();
         FakeDeleteCommand.NotifyCanExecuteChanged();
@@ -985,6 +1007,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
         PropertyChangedEventHandler handler = (_, pce) =>
         {
+            if (IsReplacingState) return;
+
             switch (pce.PropertyName)
             {
                 case nameof(jointViewModel.WasPossiblyDragged) when jointViewModel.WasPossiblyDragged:
@@ -1041,6 +1065,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
         PropertyChangedEventHandler handler = (_, pce) =>
         {
+            if (IsReplacingState) return;
+
             if (pce.PropertyName is nameof(linkViewModel.A) or nameof(linkViewModel.B))
             {
                 EvaluateDirtiness();
@@ -1070,56 +1096,61 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private bool DidJointsChanged()
     {
-        if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
+        if (acceptedSnapshot.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
 
         var joints2 = JointViewModels.Select(jvm => jvm.ToJoint(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
-        return bike.Linkage.Joints.Count != joints2.Count || !bike.Linkage.Joints.All(j => joints2.Contains(j));
+        return acceptedSnapshot.Linkage.Joints.Count != joints2.Count || !acceptedSnapshot.Linkage.Joints.All(j => joints2.Contains(j));
     }
 
     private bool DidLinksChanged()
     {
-        if (bike.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
+        if (acceptedSnapshot.Linkage is null || PixelsToMillimeters is null || Image is null) return false;
 
         var links2 = LinkViewModels
             .Where(lvm => lvm != shockViewModel && lvm.A is not null && lvm.B is not null)
             .Select(lvm => lvm.ToLink(Image.Size.Height, PixelsToMillimeters.Value)).ToList();
-        return bike.Linkage.Links.Count != links2.Count || !bike.Linkage.Links.All(l => links2.Contains(l));
+        return acceptedSnapshot.Linkage.Links.Count != links2.Count || !acceptedSnapshot.Linkage.Links.All(l => links2.Contains(l));
     }
 
     private void SetupJointsListeners()
     {
         JointViewModels.CollectionChanged += (_, e) =>
         {
-            EvaluateDirtiness();
-            NotifyCanvasBoundsChanged();
-            NotifyWheelJointPropertiesChanged();
-            RecalculateHeadAngle();
-
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 DetachAllJointPropertyChangedHandlers();
-                return;
             }
-
-            if (e.OldItems is not null)
+            else
             {
-                foreach (var item in e.OldItems)
+                if (e.OldItems is not null)
                 {
-                    if (item is JointViewModel jointViewModel)
+                    foreach (var item in e.OldItems)
                     {
-                        DetachJointPropertyChangedHandler(jointViewModel);
+                        if (item is JointViewModel jointViewModel)
+                        {
+                            DetachJointPropertyChangedHandler(jointViewModel);
+                        }
+                    }
+                }
+
+                if (e.NewItems is not null)
+                {
+                    foreach (var item in e.NewItems)
+                    {
+                        if (item is JointViewModel jointViewModel)
+                        {
+                            AttachJointPropertyChangedHandler(jointViewModel);
+                        }
                     }
                 }
             }
 
-            if (e.NewItems is null) return;
-            foreach (var item in e.NewItems)
-            {
-                if (item is JointViewModel jointViewModel)
-                {
-                    AttachJointPropertyChangedHandler(jointViewModel);
-                }
-            }
+            if (IsReplacingState) return;
+
+            EvaluateDirtiness();
+            NotifyCanvasBoundsChanged();
+            NotifyWheelJointPropertiesChanged();
+            RecalculateHeadAngle();
         };
     }
 
@@ -1127,33 +1158,38 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         LinkViewModels.CollectionChanged += (_, e) =>
         {
-            EvaluateDirtiness();
-
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 DetachAllLinkPropertyChangedHandlers();
-                return;
             }
-
-            if (e.OldItems is not null)
+            else
             {
-                foreach (var item in e.OldItems)
+                if (e.OldItems is not null)
                 {
-                    if (item is LinkViewModel linkViewModel)
+                    foreach (var item in e.OldItems)
                     {
-                        DetachLinkPropertyChangedHandler(linkViewModel);
+                        if (item is LinkViewModel linkViewModel)
+                        {
+                            DetachLinkPropertyChangedHandler(linkViewModel);
+                        }
+                    }
+                }
+
+                if (e.NewItems is not null)
+                {
+                    foreach (var item in e.NewItems)
+                    {
+                        if (item is LinkViewModel linkViewModel)
+                        {
+                            AttachLinkPropertyChangedHandler(linkViewModel);
+                        }
                     }
                 }
             }
 
-            if (e.NewItems is null) return;
-            foreach (var item in e.NewItems)
-            {
-                if (item is LinkViewModel linkViewModel)
-                {
-                    AttachLinkPropertyChangedHandler(linkViewModel);
-                }
-            }
+            if (IsReplacingState) return;
+
+            EvaluateDirtiness();
         };
     }
 
@@ -1165,19 +1201,21 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         IsDirty =
             !IsInDatabase ||
-            Name != bike.Name ||
-            !MathUtils.AreEqual(HeadAngle, bike.HeadAngle) ||
-            !MathUtils.AreEqual(ForksStroke, bike.ForkStroke) ||
-            !MathUtils.AreEqual(ShockStroke, bike.ShockStroke) ||
-            !MathUtils.AreEqual(Chainstay, bike.Chainstay) ||
+            Name != acceptedSnapshot.Name ||
+            !MathUtils.AreEqual(HeadAngle, acceptedSnapshot.HeadAngle) ||
+            !MathUtils.AreEqual(ForksStroke, acceptedSnapshot.ForkStroke) ||
+            !MathUtils.AreEqual(ShockStroke, acceptedSnapshot.ShockStroke) ||
+            !MathUtils.AreEqual(Chainstay, acceptedSnapshot.Chainstay) ||
             DidJointsChanged() ||
             DidLinksChanged() ||
-            FrontWheelRimSize != bike.FrontWheelRimSize ||
-            !MathUtils.AreEqual(FrontWheelTireWidth, bike.FrontWheelTireWidth) ||
-            !MathUtils.AreEqual(FrontWheelDiameter, bike.FrontWheelDiameterMm) ||
-            RearWheelRimSize != bike.RearWheelRimSize ||
-            !MathUtils.AreEqual(RearWheelTireWidth, bike.RearWheelTireWidth) ||
-            !MathUtils.AreEqual(RearWheelDiameter, bike.RearWheelDiameterMm);
+            FrontWheelRimSize != acceptedSnapshot.FrontWheelRimSize ||
+            !MathUtils.AreEqual(FrontWheelTireWidth, acceptedSnapshot.FrontWheelTireWidth) ||
+            !MathUtils.AreEqual(FrontWheelDiameter, acceptedSnapshot.FrontWheelDiameterMm) ||
+            RearWheelRimSize != acceptedSnapshot.RearWheelRimSize ||
+            !MathUtils.AreEqual(RearWheelTireWidth, acceptedSnapshot.RearWheelTireWidth) ||
+            !MathUtils.AreEqual(RearWheelDiameter, acceptedSnapshot.RearWheelDiameterMm) ||
+            !MathUtils.AreEqual(ImageRotationDegrees, acceptedSnapshot.ImageRotationDegrees) ||
+            !ReferenceEquals(Image, acceptedSnapshot.Image);
     }
 
     protected override bool CanSave()
@@ -1206,9 +1244,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         switch (result)
         {
             case BikeSaveResult.Saved saved:
-                bike = newBike;
-                bike.Updated = saved.NewBaselineUpdated;
-                BaselineUpdated = saved.NewBaselineUpdated;
+                newBike.Updated = saved.NewBaselineUpdated;
+                var savedSnapshot = BikeSnapshot.From(newBike);
+                AcceptBaseline(newBike, savedSnapshot);
                 IsInDatabase = true;
 
                 ApplyAnalysisResult(saved.AnalysisResult);
@@ -1230,12 +1268,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                     "This bike has been updated from another source. Discard your changes and reload?");
                 if (reload)
                 {
-                    bike = BikeFromSnapshot(conflict.CurrentSnapshot);
-                    BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     IsInDatabase = true;
-                    UpdateFromBike();
+                    ReplaceState(Bike.FromSnapshot(conflict.CurrentSnapshot), conflict.CurrentSnapshot);
                     QueuePlotRefresh();
-                    EvaluateDirtiness();
                     DeleteCommand.NotifyCanExecuteChanged();
                     FakeDeleteCommand.NotifyCanExecuteChanged();
                 }
@@ -1288,7 +1323,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     protected override Task ResetImplementation()
     {
-        UpdateFromBike();
+        ReplaceState(Bike.FromSnapshot(acceptedSnapshot), acceptedSnapshot, acceptBaseline: false);
         return RefreshAnalysisAsync(showPlotBusyOverlay: true);
     }
 
