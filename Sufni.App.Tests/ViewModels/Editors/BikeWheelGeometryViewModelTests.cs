@@ -9,17 +9,14 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class BikeWheelGeometryViewModelTests
 {
-    private static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
-        Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);
-
     private static BikeSnapshot SnapshotWithWheels() => TestSnapshots.Bike() with
     {
         FrontWheelRimSize = EtrtoRimSize.Inch29,
         FrontWheelTireWidth = 2.4,
-        FrontWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+        FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
         RearWheelRimSize = EtrtoRimSize.Inch275,
         RearWheelTireWidth = 2.5,
-        RearWheelDiameterMm = WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+        RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
     };
 
     [AvaloniaFact]
@@ -49,7 +46,7 @@ public class BikeWheelGeometryViewModelTests
 
         Assert.Equal(EtrtoRimSize.Inch29, viewModel.FrontWheelRimSize);
         Assert.Equal(2.4, viewModel.FrontWheelTireWidth);
-        Assert.Equal(WheelDiameter(EtrtoRimSize.Inch29, 2.4), viewModel.FrontWheelDiameter);
+        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), viewModel.FrontWheelDiameter);
     }
 
     [AvaloniaFact]
