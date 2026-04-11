@@ -17,11 +17,11 @@ public class Link
     [JsonIgnore] public Joint? B { get; set; }
     [JsonIgnore] public double Length { get; private set; }
 
-#endregion Public properties [non-json]
+    #endregion Public properties [non-json]
 
     #region Constructors
 
-    public Link() {}
+    public Link() { }
 
     public Link(string a_name, string b_name)
     {
@@ -35,6 +35,7 @@ public class Link
         B = b;
         A_Name = a.Name!;
         B_Name = b.Name!;
+        Length = CalculateLength(a, b);
     }
 
     #endregion Constructors
@@ -53,9 +54,14 @@ public class Link
         }
 
         if (A is null || B is null) return;
-        var dx = A.X - B.X;
-        var dy = A.Y - B.Y;
-        Length = Math.Sqrt(dx * dx + dy * dy);
+        Length = CalculateLength(A, B);
+    }
+
+    private static double CalculateLength(Joint a, Joint b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
     }
 
     #endregion Public mehods

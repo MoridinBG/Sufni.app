@@ -31,10 +31,11 @@ mc:Ignorable="d">
         </Style>
     </UserControl.Styles>
 
+    <ScrollViewer>
     <Grid
     Margin="10"
     ColumnDefinitions="auto *"
-    RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto * auto * auto auto auto auto auto auto">
+    RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto">
 
         <!--  Name  -->
         <TextBlock
@@ -287,87 +288,102 @@ mc:Ignorable="d">
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
-        <ScrollViewer
+        <DataGrid
         Grid.Row="11"
         Grid.Column="0"
         Grid.ColumnSpan="2"
-        Margin="2,0,2,6">
+        Margin="2,0,2,6"
+        x:DataType="vmle:LinkageEditorViewModel"
+        BeginningEdit="DataGrid_OnBeginningEdit"
+        BorderBrush="Gray"
+        BorderThickness="1"
+        DataContext="{Binding LinkageEditor}"
+        GridLinesVisibility="All"
+        ItemsSource="{Binding JointViewModels}"
+        SelectedItem="{Binding SelectedPoint}">
 
-            <DataGrid
-            x:DataType="vmle:LinkageEditorViewModel"
-            BeginningEdit="DataGrid_OnBeginningEdit"
-            BorderBrush="Gray"
-            BorderThickness="1"
-            DataContext="{Binding LinkageEditor}"
-            GridLinesVisibility="All"
-            ItemsSource="{Binding JointViewModels}"
-            SelectedItem="{Binding SelectedPoint}">
+            <DataGrid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
+                </MultiBinding>
+            </DataGrid.IsVisible>
 
-                <DataGrid.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
-                    </MultiBinding>
-                </DataGrid.IsVisible>
+            <DataGrid.KeyBindings>
+                <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+            </DataGrid.KeyBindings>
 
-                <DataGrid.KeyBindings>
-                    <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
-                </DataGrid.KeyBindings>
+            <DataGrid.Columns>
 
-                <DataGrid.Columns>
+                <!--  Name  -->
+                <DataGridTextColumn
+                Width="1.5*"
+                Binding="{Binding Name}"
+                Header="Name"
+                IsReadOnly="False" />
 
-                    <!--  Name  -->
-                    <DataGridTextColumn
-                    Width="1.5*"
-                    Binding="{Binding Name}"
-                    Header="Name"
-                    IsReadOnly="False" />
+                <!--  Type  -->
+                <DataGridTemplateColumn
+                Width="1.5*"
+                Header="Type"
+                IsReadOnly="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:JointViewModel">
+                            <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="{Binding Type}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate DataType="vml:JointViewModel">
+                            <ComboBox
+                            HorizontalAlignment="Stretch"
+                            IsDropDownOpen="True"
+                            ItemsSource="{Binding PointTypes}"
+                            SelectedItem="{Binding Type}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
 
-                    <!--  Type  -->
-                    <DataGridTemplateColumn
-                    Width="1.5*"
-                    Header="Type"
-                    IsReadOnly="False">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="vml:JointViewModel">
-                                <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Text="{Binding Type}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                        <DataGridTemplateColumn.CellEditingTemplate>
-                            <DataTemplate DataType="vml:JointViewModel">
-                                <ComboBox
-                                HorizontalAlignment="Stretch"
-                                IsDropDownOpen="True"
-                                ItemsSource="{Binding PointTypes}"
-                                SelectedItem="{Binding Type}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellEditingTemplate>
-                    </DataGridTemplateColumn>
+                <!--  X  -->
+                <DataGridTextColumn
+                Width="*"
+                Binding="{Binding X, StringFormat={}{0:0.00}}"
+                Header="X (px)"
+                IsReadOnly="True" />
 
-                    <!--  X  -->
-                    <DataGridTextColumn
-                    Width="*"
-                    Binding="{Binding X, StringFormat={}{0:0.00}}"
-                    Header="X (px)"
-                    IsReadOnly="True" />
-
-                    <!--  Y  -->
-                    <DataGridTextColumn
-                    Width="*"
-                    Binding="{Binding Y, StringFormat={}{0:0.00}}"
-                    Header="Y (px)"
-                    IsReadOnly="True" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </ScrollViewer>
+                <!--  Y  -->
+                <DataGridTextColumn
+                Width="*"
+                Binding="{Binding Y, StringFormat={}{0:0.00}}"
+                Header="Y (px)"
+                IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+        <Button
+        Grid.Row="12"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        x:DataType="vmle:LinkageEditorViewModel"
+        DataContext="{Binding LinkageEditor}"
+        Command="{Binding CreateJointCommand}"
+        Content="Add new point">
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
+                </MultiBinding>
+            </Button.IsVisible>
+        </Button>
 
         <!--  List of Links  -->
         <TextBlock
-        Grid.Row="12"
+        Grid.Row="13"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
@@ -380,107 +396,104 @@ mc:Ignorable="d">
                 </MultiBinding>
             </TextBlock.IsVisible>
         </TextBlock>
-        <ScrollViewer
-        Grid.Row="13"
+        <DataGrid
+        Grid.Row="14"
         Grid.Column="0"
         Grid.ColumnSpan="2"
-        Margin="2,0,2,5">
+        Margin="2,0,2,5"
+        x:DataType="vmle:LinkageEditorViewModel"
+        BeginningEdit="DataGrid_OnBeginningEdit"
+        BorderBrush="Gray"
+        BorderThickness="1"
+        DataContext="{Binding LinkageEditor}"
+        GridLinesVisibility="All"
+        ItemsSource="{Binding LinkViewModels}"
+        SelectedItem="{Binding SelectedLink}">
 
-            <DataGrid
-            x:DataType="vmle:LinkageEditorViewModel"
-            BeginningEdit="DataGrid_OnBeginningEdit"
-            BorderBrush="Gray"
-            BorderThickness="1"
-            DataContext="{Binding LinkageEditor}"
-            GridLinesVisibility="All"
-            ItemsSource="{Binding LinkViewModels}"
-            SelectedItem="{Binding SelectedLink}">
+            <DataGrid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
+                </MultiBinding>
+            </DataGrid.IsVisible>
 
-                <DataGrid.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
-                    </MultiBinding>
-                </DataGrid.IsVisible>
+            <DataGrid.KeyBindings>
+                <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+            </DataGrid.KeyBindings>
 
-                <DataGrid.KeyBindings>
-                    <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
-                </DataGrid.KeyBindings>
+            <DataGrid.Columns>
 
-                <DataGrid.Columns>
+                <!--  Point A  -->
+                <DataGridTemplateColumn
+                Width="*"
+                Header="Point A"
+                IsReadOnly="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="{Binding A.Name}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <ComboBox
+                            HorizontalAlignment="Stretch"
+                            IsDropDownOpen="True"
+                            ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
+                            SelectedItem="{Binding A}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
 
-                    <!--  Point A  -->
-                    <DataGridTemplateColumn
-                    Width="*"
-                    Header="Point A"
-                    IsReadOnly="False">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="vml:LinkViewModel">
-                                <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Text="{Binding A.Name}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                        <DataGridTemplateColumn.CellEditingTemplate>
-                            <DataTemplate DataType="vml:LinkViewModel">
-                                <ComboBox
-                                HorizontalAlignment="Stretch"
-                                IsDropDownOpen="True"
-                                ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
-                                SelectedItem="{Binding A}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellEditingTemplate>
-                    </DataGridTemplateColumn>
+                <!--  Point B  -->
+                <DataGridTemplateColumn
+                Width="*"
+                Header="Point B"
+                IsReadOnly="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="{Binding B.Name}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate DataType="vml:LinkViewModel">
+                            <ComboBox
+                            HorizontalAlignment="Stretch"
+                            IsDropDownOpen="True"
+                            ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
+                            SelectedItem="{Binding B}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
 
-                    <!--  Point B  -->
-                    <DataGridTemplateColumn
-                    Width="*"
-                    Header="Point B"
-                    IsReadOnly="False">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="vml:LinkViewModel">
-                                <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Text="{Binding B.Name}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                        <DataGridTemplateColumn.CellEditingTemplate>
-                            <DataTemplate DataType="vml:LinkViewModel">
-                                <ComboBox
-                                HorizontalAlignment="Stretch"
-                                IsDropDownOpen="True"
-                                ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
-                                SelectedItem="{Binding B}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellEditingTemplate>
-                    </DataGridTemplateColumn>
-
-                    <!--  Length  -->
-                    <DataGridTextColumn
-                    Width="*"
-                    Binding="{Binding Length, StringFormat={}{0:0.00}}"
-                    Header="L (mm)"
-                    IsReadOnly="True" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </ScrollViewer>
+                <!--  Length  -->
+                <DataGridTextColumn
+                Width="*"
+                Binding="{Binding Length, StringFormat={}{0:0.00}}"
+                Header="L (mm)"
+                IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
         <Button
-        Grid.Row="14"
+        Grid.Row="15"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         HorizontalAlignment="Stretch"
@@ -500,7 +513,7 @@ mc:Ignorable="d">
 
         <!--  Leverage ratio plot  -->
         <Grid
-        Grid.Row="15"
+        Grid.Row="16"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Height="250">
@@ -529,13 +542,13 @@ mc:Ignorable="d">
         </Grid>
 
         <controls:ErrorMessagesBar
-        Grid.Row="16"
+        Grid.Row="17"
         Grid.Column="0"
         Grid.ColumnSpan="2" />
 
         <!--  Import  -->
         <Button
-        Grid.Row="17"
+        Grid.Row="18"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         HorizontalAlignment="Stretch"
@@ -545,7 +558,7 @@ mc:Ignorable="d">
 
         <!--  Export  -->
         <Button
-        Grid.Row="18"
+        Grid.Row="19"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         HorizontalAlignment="Stretch"
@@ -554,7 +567,7 @@ mc:Ignorable="d">
         Content="Export as JSON" />
 
         <Button
-        Grid.Row="19"
+        Grid.Row="20"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         HorizontalAlignment="Stretch"
@@ -562,4 +575,5 @@ mc:Ignorable="d">
         Command="{Binding SaveCommand}"
         Content="Save" />
     </Grid>
+    </ScrollViewer>
 </UserControl>
