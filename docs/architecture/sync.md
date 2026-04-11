@@ -1,6 +1,6 @@
 # Cross-Device Synchronization
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the desktop sync server, the mobile client, and the pairing flow that connects them. Conflict semantics for the entity payloads live in [Persistence](persistence.md#conflict-resolution).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the desktop sync server, the mobile client, and the pairing flow that connects them. Conflict semantics for the entity payloads live in [Persistence](persistence.md#conflict-resolution).
 
 Desktop acts as a hub server; mobile devices sync with it.
 

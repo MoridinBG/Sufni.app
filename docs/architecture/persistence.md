@@ -1,6 +1,6 @@
 # Persistence & Serialization
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the SQLite schema, the database service, soft deletes, and conflict resolution semantics shared with [cross-device synchronization](sync.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the SQLite schema, the database service, soft deletes, and conflict resolution semantics shared with [cross-device synchronization](sync.md).
 
 ## Schema
 
