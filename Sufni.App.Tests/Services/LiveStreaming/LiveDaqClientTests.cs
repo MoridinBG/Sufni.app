@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using Sufni.App.Services;
@@ -73,6 +74,60 @@ public class LiveDaqClientTests
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.Equal(LiveStartErrorCode.Busy, rejected.ErrorCode);
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task Events_EmitFrameReceived_WhenFramesArrive()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 713, sensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu);
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, sessionHeader.SelectedSensorMask));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqClientFactory(new BackgroundTaskRunner()).CreateClient();
+        var observedFrames = new List<LiveProtocolFrame>();
+        var framesObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = client.Events.Subscribe(clientEvent =>
+        {
+            if (clientEvent is not LiveDaqClientEvent.FrameReceived frameReceived)
+            {
+                return;
+            }
+
+            lock (observedFrames)
+            {
+                observedFrames.Add(frameReceived.Frame);
+                if (observedFrames.Count == 2)
+                {
+                    framesObserved.TrySetResult();
+                }
+            }
+        });
+
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Travel | LiveSensorMask.Imu, 200, 100, 0));
+        Assert.IsType<LivePreviewStartResult.Started>(result);
+
+        await framesObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Collection(
+            observedFrames,
+            frame => Assert.IsType<LiveStartAckFrame>(frame),
+            frame => Assert.IsType<LiveSessionHeaderFrame>(frame));
 
         await client.DisconnectAsync();
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));

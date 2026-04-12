@@ -33,6 +33,30 @@ public class LiveProtocolReaderTests
     }
 
     [Fact]
+    public void TryReadFrame_PreservesUnreadBytesAcrossFrameConsumptionAndLaterAppend()
+    {
+        var reader = new LiveProtocolReader();
+        var firstFrameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 1, result: LiveStartErrorCode.Ok, sessionId: 501, selectedSensorMask: LiveSensorMask.Travel);
+        var secondFrameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 2, result: LiveStartErrorCode.Busy, sessionId: 0, selectedSensorMask: LiveSensorMask.None);
+
+        reader.Append(firstFrameBytes);
+        reader.Append(secondFrameBytes.AsSpan(0, 8));
+
+        Assert.True(reader.TryReadFrame(out var firstFrame));
+        var firstAck = Assert.IsType<LiveStartAckFrame>(firstFrame);
+        Assert.Equal((uint)1, firstAck.Sequence);
+        Assert.Equal(8, reader.BufferedByteCount);
+
+        reader.Append(secondFrameBytes.AsSpan(8));
+
+        Assert.True(reader.TryReadFrame(out var secondFrame));
+        var secondAck = Assert.IsType<LiveStartAckFrame>(secondFrame);
+        Assert.Equal((uint)2, secondAck.Sequence);
+        Assert.Equal(LiveStartErrorCode.Busy, secondAck.Payload.Result);
+        Assert.Equal(0, reader.BufferedByteCount);
+    }
+
+    [Fact]
     public void TryReadFrame_ThrowsWhenHeaderMagicIsInvalid()
     {
         var reader = new LiveProtocolReader();

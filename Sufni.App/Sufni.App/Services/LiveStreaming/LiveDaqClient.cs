@@ -9,10 +9,22 @@ using Sufni.App.Services;
 
 namespace Sufni.App.Services.LiveStreaming;
 
+// Socket-backed live preview transport client. One instance per DAQ connection.
+//
+// Lifecycle: ConnectAsync (TCP) → StartPreviewAsync (sends START_LIVE, awaits ACK + SESSION_HEADER)
+//   → background receive loop parses framed data and emits Events → StopPreviewAsync (sends
+//   STOP_LIVE, awaits STOP_ACK) → DisconnectAsync (tears down socket and receive loop).
+//
+// The receive loop runs off the UI thread via IBackgroundTaskRunner. Start/stop handshakes use a
+// TaskCompletionSource that the caller awaits while the receive loop completes it on the matching
+// ACK or error frame. All state mutations are serialized through lifecycleGate.
 internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClient
 {
     private readonly LiveProtocolReader reader = new();
     private readonly Subject<LiveDaqClientEvent> events = new();
+    // Serializes all public lifecycle methods (Connect, Start, Stop, Disconnect, Dispose) and
+    // the background receive loop's frame/disconnect handlers so that state mutations (pending TCS
+    // completions, stream/CTS swaps, disposed flag) never interleave.
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
 
     private TcpClient? tcpClient;
@@ -206,15 +218,23 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
 
     public async ValueTask DisposeAsync()
     {
-        if (isDisposed)
+        await lifecycleGate.WaitAsync(CancellationToken.None);
+        try
         {
-            return;
+            if (isDisposed)
+            {
+                return;
+            }
+
+            isDisposed = true;
+        }
+        finally
+        {
+            lifecycleGate.Release();
         }
 
-        isDisposed = true;
         await DisconnectAsync();
         events.OnCompleted();
-        lifecycleGate.Dispose();
         receiveLoopCts?.Dispose();
         tcpClient?.Dispose();
     }
@@ -367,6 +387,8 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
 
     private uint GetNextSequence() => unchecked(++nextSequence);
 
+    // Must be called inside lifecycleGate — the disposed flag is set under the gate in
+    // DisposeAsync, so callers that already hold the gate get a consistent read.
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(isDisposed, this);
@@ -375,5 +397,6 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
 
 public sealed class LiveDaqClientFactory(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClientFactory
 {
+    // Returns a new transport client for one live preview tab.
     public ILiveDaqClient CreateClient() => new LiveDaqClient(backgroundTaskRunner);
 }

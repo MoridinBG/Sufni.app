@@ -15,9 +15,9 @@ public sealed record GpsPreviewState(bool HasFix, bool IsReady, string StatusTex
 
         return record.FixMode switch
         {
-            1 => new GpsPreviewState(true, true, "2D fix"),
+            1 => new GpsPreviewState(true, false, "2D fix"),
             2 => new GpsPreviewState(true, true, "3D fix"),
-            _ => new GpsPreviewState(true, true, $"Fix mode {record.FixMode}"),
+            _ => new GpsPreviewState(true, false, $"Fix mode {record.FixMode}"),
         };
     }
 }

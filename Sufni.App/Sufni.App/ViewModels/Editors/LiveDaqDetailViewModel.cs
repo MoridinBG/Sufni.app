@@ -11,6 +11,8 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.ViewModels.Editors;
 
+// One live-preview tab. It owns one client instance, the requested-rate inputs, and
+// the throttled snapshot projected into the desktop detail view.
 public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 {
     public string IdentityKey { get; }
@@ -213,7 +215,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     }
 
     private LiveStartRequest CreateStartRequest() => new(
-        SensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
+        SensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu,
         TravelHz: RequestedTravelHz ?? 0,
         ImuHz: RequestedImuHz ?? 0,
         GpsFixHz: RequestedGpsFixHz ?? 0);

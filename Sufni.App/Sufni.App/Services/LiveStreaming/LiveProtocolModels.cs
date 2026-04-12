@@ -136,22 +136,26 @@ public sealed record LiveImuCalibrationScales(
     };
 }
 
+// Sent by the DAQ after START_LIVE_ACK to describe the accepted session parameters.
+// Contains the actual sampling rates the firmware chose (which may differ from requested),
+// timing bases for monotonic-to-wall-clock conversion, active IMU sensor topology,
+// per-location calibration scales, and firmware-side queue capacities per stream.
 public sealed record LiveSessionHeader(
     uint SessionId,
     LiveSensorMask SelectedSensorMask,
-    uint PublishCadenceMs,
-    uint AcceptedTravelHz,
-    uint AcceptedImuHz,
-    uint AcceptedGpsFixHz,
-    uint TravelPeriodUs,
-    uint ImuPeriodUs,
-    uint GpsFixIntervalMs,
-    DateTimeOffset SessionStartUtc,
-    ulong SessionStartMonotonicUs,
-    uint ActiveImuCount,
+    uint PublishCadenceMs,           // how often the DAQ publishes batches (ms)
+    uint AcceptedTravelHz,           // actual travel sampling rate
+    uint AcceptedImuHz,              // actual IMU sampling rate
+    uint AcceptedGpsFixHz,           // actual GPS fix rate
+    uint TravelPeriodUs,             // microseconds between travel samples (1e6 / Hz)
+    uint ImuPeriodUs,                // microseconds between IMU samples
+    uint GpsFixIntervalMs,           // milliseconds between GPS fixes
+    DateTimeOffset SessionStartUtc,  // wall-clock session start
+    ulong SessionStartMonotonicUs,   // firmware monotonic clock at session start
+    uint ActiveImuCount,             // number of active IMU sensors
     LiveImuLocationMask ActiveImuMask,
     LiveImuCalibrationScales ImuCalibrationScales,
-    uint TravelQueueCapacity,
+    uint TravelQueueCapacity,        // max batches the firmware can buffer before dropping
     uint ImuQueueCapacity,
     uint GpsQueueCapacity,
     LiveSessionFlags Flags)
@@ -166,19 +170,25 @@ public readonly record struct LiveError(LiveStartErrorCode ErrorCode)
     public int RawCode => (int)ErrorCode;
 }
 
+// Common header for every DATA_BATCH / IMU_BATCH / GPS_BATCH frame. Identifies which sensor
+// stream the batch belongs to, where it sits in that stream's sequence, and the firmware-side
+// queue health (depth and cumulative drops) at the time the batch was sent.
 public readonly record struct LiveBatchHeader(
     uint SessionId,
     LiveStreamType StreamType,
-    uint StreamSequence,
-    ulong FirstIndex,
-    ulong FirstMonotonicUs,
-    uint SampleCount,
-    uint PayloadByteLength,
-    uint QueueDepth,
-    uint DroppedBatches);
+    uint StreamSequence,       // per-stream monotonic counter (detects gaps)
+    ulong FirstIndex,          // absolute sample index of the first record in this batch
+    ulong FirstMonotonicUs,    // firmware monotonic timestamp of the first sample
+    uint SampleCount,          // number of records in the batch payload
+    uint PayloadByteLength,    // byte length of the records that follow this header
+    uint QueueDepth,           // batches waiting in the firmware send queue (backpressure indicator)
+    uint DroppedBatches);      // cumulative batches dropped since session start
 
 public readonly record struct LiveTravelRecord(ushort ForkAngle, ushort ShockAngle);
 
+// Periodic health snapshot sent by the DAQ during a live session. Echoes the accepted rates
+// (which stay constant) alongside the current queue depths and cumulative drop counts for
+// each stream, giving the UI a single frame to assess overall streaming health.
 public sealed record LiveSessionStats(
     uint SessionId,
     uint AcceptedTravelHz,
@@ -187,10 +197,10 @@ public sealed record LiveSessionStats(
     uint TravelPeriodUs,
     uint ImuPeriodUs,
     uint GpsFixIntervalMs,
-    uint TravelQueueDepth,
-    uint ImuQueueDepth,
-    uint GpsQueueDepth,
-    uint TravelDroppedBatches,
+    uint TravelQueueDepth,       // current travel queue depth
+    uint ImuQueueDepth,          // current IMU queue depth
+    uint GpsQueueDepth,          // current GPS queue depth
+    uint TravelDroppedBatches,   // cumulative travel drops since session start
     uint ImuDroppedBatches,
     uint GpsDroppedBatches);
 

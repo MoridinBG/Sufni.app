@@ -4,6 +4,8 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Services.LiveStreaming;
 
+// Lock-protected accumulator for the latest live session contract, sensor readings,
+// and link-health counters. The view model reads it as snapshot state on a timer.
 public sealed class LiveDaqSessionState
 {
     private readonly object gate = new();
@@ -22,6 +24,7 @@ public sealed class LiveDaqSessionState
     private uint imuDroppedBatches;
     private uint gpsDroppedBatches;
 
+    // Clears the current session contract and all cached sensor readings.
     public void Reset()
     {
         lock (gate)
@@ -42,6 +45,7 @@ public sealed class LiveDaqSessionState
         }
     }
 
+    // Applies one parsed live protocol frame to the cached session state.
     public void ApplyFrame(LiveProtocolFrame frame)
     {
         lock (gate)
@@ -79,6 +83,8 @@ public sealed class LiveDaqSessionState
         }
     }
 
+    // Creates one coherent UI snapshot from the latest cached state and supplied
+    // connection or error information.
     public LiveDaqUiSnapshot CreateSnapshot(LiveConnectionState connectionState, string? lastError)
     {
         lock (gate)
