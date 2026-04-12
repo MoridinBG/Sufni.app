@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Reactive;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Models;
@@ -19,15 +18,15 @@ public class LiveDaqKnownBoardsQueryTests
     private LiveDaqKnownBoardsQuery CreateQuery() => new(database, setupStore, bikeStore);
 
     [Fact]
-    public async Task GetCurrent_ReturnsBoardOnlyRecord_WhenBoardHasNoSetup()
+    public async Task Changes_ReturnsBoardOnlyRecord_WhenBoardHasNoSetup()
     {
         var boardId = Guid.NewGuid();
         database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, null) }));
 
         using var query = CreateQuery();
-        await WaitForChangeAsync(query.Changes);
+        var records = await WaitForRecordsAsync(query.Changes);
 
-        var record = Assert.Single(query.GetCurrent());
+        var record = Assert.Single(records);
         Assert.Equal(boardId.ToString(), record.IdentityKey);
         Assert.Equal(boardId.ToString(), record.DisplayName);
         Assert.Equal(boardId.ToString(), record.BoardId);
@@ -38,7 +37,7 @@ public class LiveDaqKnownBoardsQueryTests
     }
 
     [Fact]
-    public async Task GetCurrent_ReturnsEnrichedRecord_WhenBoardMapsToSetupAndBike()
+    public async Task Changes_ReturnsEnrichedRecord_WhenBoardMapsToSetupAndBike()
     {
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "park setup", bikeId: Guid.NewGuid(), boardId: boardId);
@@ -49,9 +48,9 @@ public class LiveDaqKnownBoardsQueryTests
         database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
-        await WaitForChangeAsync(query.Changes);
+        var records = await WaitForRecordsAsync(query.Changes);
 
-        var record = Assert.Single(query.GetCurrent());
+        var record = Assert.Single(records);
         Assert.Equal(boardId.ToString(), record.BoardId);
         Assert.Equal(setup.Id, record.SetupId);
         Assert.Equal("park setup", record.SetupName);
@@ -71,22 +70,24 @@ public class LiveDaqKnownBoardsQueryTests
         database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
-        await WaitForChangeAsync(query.Changes);
+        await WaitForRecordsAsync(query.Changes);
 
-        var nextChange = WaitForChangeAsync(query.Changes, ignoreReplay: true);
+        var nextChange = WaitForRecordsAsync(query.Changes, ignoreReplay: true);
         bikeStore.Upsert(bike with { Name = "new bike name" });
-        await nextChange;
+        var records = await nextChange;
 
-        var record = Assert.Single(query.GetCurrent());
+        var record = Assert.Single(records);
         Assert.Equal("new bike name", record.BikeName);
     }
 
-    private static async Task WaitForChangeAsync(IObservable<Unit> changes, bool ignoreReplay = false)
+    private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
+        IObservable<IReadOnlyList<KnownLiveDaqRecord>> changes,
+        bool ignoreReplay = false)
     {
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tcs = new TaskCompletionSource<IReadOnlyList<KnownLiveDaqRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var seenReplay = !ignoreReplay;
         IDisposable? subscription = null;
-        subscription = changes.Subscribe(_ =>
+        subscription = changes.Subscribe(records =>
         {
             if (!seenReplay)
             {
@@ -95,10 +96,10 @@ public class LiveDaqKnownBoardsQueryTests
             }
 
             subscription?.Dispose();
-            tcs.TrySetResult(true);
+            tcs.TrySetResult(records);
         });
 
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     private sealed class TestSetupStore : ISetupStore

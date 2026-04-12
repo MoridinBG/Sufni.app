@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reactive;
 
 namespace Sufni.App.Queries;
 
@@ -13,9 +12,11 @@ public sealed record KnownLiveDaqRecord(
     Guid? BikeId,
     string? BikeName);
 
+// Read-only query that merges persisted boards with their current setup and bike
+// context for the live DAQ list.
 public interface ILiveDaqKnownBoardsQuery
 {
-    IReadOnlyList<KnownLiveDaqRecord> GetCurrent();
-
-    IObservable<Unit> Changes { get; }
+    // Replays the latest projection on subscribe and pushes updates when the
+    // underlying board, setup, or bike data changes.
+    IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes { get; }
 }

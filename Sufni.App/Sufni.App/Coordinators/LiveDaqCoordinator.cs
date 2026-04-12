@@ -11,6 +11,8 @@ using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
 
+// Reconciles discovery entries with known-board app data and routes row selection to
+// identity-keyed live preview tabs.
 public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 {
     private readonly ILiveDaqStoreWriter liveDaqStore;
@@ -51,14 +53,16 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         activeSubscriptions = subscriptions;
 
         subscriptions.Add(liveDaqCatalogService.AcquireBrowse());
-        subscriptions.Add(knownBoardsQuery.Changes.Subscribe(_ => RefreshKnownBoards()));
+        subscriptions.Add(knownBoardsQuery.Changes.Subscribe(records =>
+        {
+            knownBoards = records.ToDictionary(r => r.IdentityKey, StringComparer.OrdinalIgnoreCase);
+            Reconcile();
+        }));
         subscriptions.Add(liveDaqCatalogService.Observe().Subscribe(entries =>
         {
             catalogEntries = entries;
             Reconcile();
         }));
-
-        RefreshKnownBoards();
     }
 
     public void Deactivate()
@@ -67,7 +71,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         activeSubscriptions = null;
 
         catalogEntries = [];
-        RefreshKnownBoards();
+        Reconcile();
     }
 
     public Task SelectAsync(string identityKey)
@@ -83,13 +87,6 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             () => new LiveDaqDetailViewModel(snapshot, liveDaqClientFactory, shell, dialogService));
 
         return Task.CompletedTask;
-    }
-
-    private void RefreshKnownBoards()
-    {
-        knownBoards = knownBoardsQuery.GetCurrent()
-            .ToDictionary(record => record.IdentityKey, StringComparer.OrdinalIgnoreCase);
-        Reconcile();
     }
 
     private void Reconcile()

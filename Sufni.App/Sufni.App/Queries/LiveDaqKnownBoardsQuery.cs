@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,17 +10,17 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.Queries;
 
+// Keeps a cached, query-shaped view of known live DAQ boards so the coordinator can
+// seed offline rows and refresh setup or bike labels cheaply.
 public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposable
 {
     private readonly IDatabaseService databaseService;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
-    private readonly ReplaySubject<Unit> changesSubject = new(1);
+    private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> changesSubject = new([]);
     private readonly SemaphoreSlim refreshGate = new(1, 1);
     private readonly IDisposable setupSubscription;
     private readonly IDisposable bikeSubscription;
-
-    private IReadOnlyList<KnownLiveDaqRecord> current = [];
 
     public LiveDaqKnownBoardsQuery(
         IDatabaseService databaseService,
@@ -44,9 +43,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         _ = RefreshAsync();
     }
 
-    public IObservable<Unit> Changes => changesSubject;
-
-    public IReadOnlyList<KnownLiveDaqRecord> GetCurrent() => current;
+    public IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes => changesSubject;
 
     public void Dispose()
     {
@@ -63,12 +60,12 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         {
             var boards = await databaseService.GetAllAsync<Board>().ConfigureAwait(false);
 
-            current = boards
+            var records = boards
                 .OrderBy(board => board.Id)
                 .Select(BuildRecord)
                 .ToArray();
 
-            changesSubject.OnNext(Unit.Default);
+            changesSubject.OnNext(records);
         }
         catch
         {

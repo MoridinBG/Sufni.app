@@ -1,4 +1,3 @@
-using System.Reactive;
 using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
@@ -19,16 +18,13 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqClientFactory clientFactory = Substitute.For<ILiveDaqClientFactory>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly Subject<Unit> knownBoardsChanges = new();
+    private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
     private readonly IDisposable browseLease = Substitute.For<IDisposable>();
-
-    private IReadOnlyList<KnownLiveDaqRecord> currentKnownBoards = [];
 
     public LiveDaqCoordinatorTests()
     {
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
-        knownBoardsQuery.GetCurrent().Returns(_ => currentKnownBoards);
         catalogService.Observe().Returns(catalogEntries);
         catalogService.AcquireBrowse().Returns(browseLease);
     }
@@ -40,7 +36,7 @@ public class LiveDaqCoordinatorTests
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
     {
         var boardId = Guid.NewGuid();
-        currentKnownBoards =
+        knownBoardsChanges.OnNext(
         [
             new KnownLiveDaqRecord(
                 IdentityKey: boardId.ToString(),
@@ -50,7 +46,7 @@ public class LiveDaqCoordinatorTests
                 SetupName: "park setup",
                 BikeId: Guid.NewGuid(),
                 BikeName: "demo bike")
-        ];
+        ]);
 
         CreateCoordinator().Activate();
 
@@ -67,7 +63,7 @@ public class LiveDaqCoordinatorTests
     public void Activate_MergesDiscoveredEntries_AndRefreshesEnrichment_OnQueryChange()
     {
         var boardId = Guid.NewGuid();
-        currentKnownBoards =
+        knownBoardsChanges.OnNext(
         [
             new KnownLiveDaqRecord(
                 IdentityKey: boardId.ToString(),
@@ -77,7 +73,7 @@ public class LiveDaqCoordinatorTests
                 SetupName: "old setup",
                 BikeId: Guid.NewGuid(),
                 BikeName: "old bike")
-        ];
+        ]);
 
         var coordinator = CreateCoordinator();
         coordinator.Activate();
@@ -101,7 +97,7 @@ public class LiveDaqCoordinatorTests
         Assert.Null(discoveredOnly.SetupName);
         Assert.Null(discoveredOnly.BikeName);
 
-        currentKnownBoards =
+        knownBoardsChanges.OnNext(
         [
             new KnownLiveDaqRecord(
                 IdentityKey: boardId.ToString(),
@@ -111,9 +107,7 @@ public class LiveDaqCoordinatorTests
                 SetupName: "new setup",
                 BikeId: Guid.NewGuid(),
                 BikeName: "new bike")
-        ];
-
-        knownBoardsChanges.OnNext(Unit.Default);
+        ]);
 
         knownSnapshot = liveDaqStore.Get(boardId.ToString());
         Assert.NotNull(knownSnapshot);
@@ -127,7 +121,7 @@ public class LiveDaqCoordinatorTests
     public void Deactivate_DisposesBrowseLease_AndLeavesOnlyOfflineKnownBoards()
     {
         var boardId = Guid.NewGuid();
-        currentKnownBoards =
+        knownBoardsChanges.OnNext(
         [
             new KnownLiveDaqRecord(
                 IdentityKey: boardId.ToString(),
@@ -137,7 +131,7 @@ public class LiveDaqCoordinatorTests
                 SetupName: null,
                 BikeId: null,
                 BikeName: null)
-        ];
+        ]);
 
         var coordinator = CreateCoordinator();
         coordinator.Activate();
