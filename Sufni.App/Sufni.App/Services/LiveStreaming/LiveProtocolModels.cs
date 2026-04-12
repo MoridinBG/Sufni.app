@@ -21,6 +21,7 @@ public static class LiveProtocolConstants
     public const int ImuRecordSize = 12;
     public const int GpsRecordSize = 46;
     public const int SessionStatsPayloadSize = 28;
+    public const int IdentifyAckPayloadSize = 8;
 }
 
 public enum LiveFrameType : ushort
@@ -28,10 +29,12 @@ public enum LiveFrameType : ushort
     StartLive = 1,
     StopLive = 2,
     Ping = 3,
+    Identify = 4,
     StartLiveAck = 16,
     StopLiveAck = 17,
     Error = 18,
     Pong = 19,
+    IdentifyAck = 21,
     SessionHeader = 20,
     TravelBatch = 32,
     ImuBatch = 33,
@@ -154,6 +157,8 @@ public sealed record LiveSessionHeader(
 
 public readonly record struct LiveStopAck(uint SessionId);
 
+public readonly record struct LiveIdentifyAck(byte[] BoardSerial);
+
 public readonly record struct LiveError(LiveStartErrorCode ErrorCode)
 {
     public int RawCode => (int)ErrorCode;
@@ -190,11 +195,13 @@ public abstract record LiveProtocolFrame(LiveFrameHeader Header)
 public sealed record LiveStartRequestFrame(LiveFrameHeader Header, LiveStartRequest Payload) : LiveProtocolFrame(Header);
 public sealed record LiveStopRequestFrame(LiveFrameHeader Header) : LiveProtocolFrame(Header);
 public sealed record LivePingFrame(LiveFrameHeader Header) : LiveProtocolFrame(Header);
+public sealed record LiveIdentifyRequestFrame(LiveFrameHeader Header) : LiveProtocolFrame(Header);
 public sealed record LiveStartAckFrame(LiveFrameHeader Header, LiveStartAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveSessionHeaderFrame(LiveFrameHeader Header, LiveSessionHeader Payload) : LiveProtocolFrame(Header);
 public sealed record LiveStopAckFrame(LiveFrameHeader Header, LiveStopAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveErrorFrame(LiveFrameHeader Header, LiveError Payload) : LiveProtocolFrame(Header);
 public sealed record LivePongFrame(LiveFrameHeader Header) : LiveProtocolFrame(Header);
+public sealed record LiveIdentifyAckFrame(LiveFrameHeader Header, LiveIdentifyAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveTravelBatchFrame(LiveFrameHeader Header, LiveBatchHeader Batch, IReadOnlyList<LiveTravelRecord> Records) : LiveProtocolFrame(Header);
 public sealed record LiveImuBatchFrame(LiveFrameHeader Header, LiveBatchHeader Batch, IReadOnlyList<ImuRecord> Records) : LiveProtocolFrame(Header);
 public sealed record LiveGpsBatchFrame(LiveFrameHeader Header, LiveBatchHeader Batch, IReadOnlyList<GpsRecord> Records) : LiveProtocolFrame(Header);

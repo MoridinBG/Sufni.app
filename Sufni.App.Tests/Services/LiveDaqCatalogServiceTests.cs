@@ -1,11 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Text;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.Services.LiveStreaming;
 
 namespace Sufni.App.Tests.Services;
 
@@ -104,17 +104,16 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
-    public async Task InspectAsync_ReturnsBoardId_FromDirectoryListing()
+    public async Task InspectAsync_ReturnsBoardId_FromIdentifyAck()
     {
-        var boardBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        var expectedBoardId = UuidUtil.CreateDeviceUuid(boardBytes);
-        var directoryListing = CreateDirectoryListing(boardBytes);
+        var boardSerial = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var expectedBoardId = UuidUtil.CreateDeviceUuid(boardSerial);
 
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var serverTask = ServeDirectoryListingAsync(listener, directoryListing);
+        var serverTask = ServeIdentifyAckAsync(listener, boardSerial);
         var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner());
 
         var boardId = await inspector.InspectAsync(IPAddress.Loopback, port);
@@ -155,59 +154,34 @@ public class LiveDaqCatalogServiceTests
         return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
-    private static byte[] CreateDirectoryListing(byte[] boardBytes)
-    {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms, Encoding.ASCII, leaveOpen: true);
-        writer.Write(boardBytes);
-        writer.Write((ushort)1000);
-        writer.Flush();
-        return ms.ToArray();
-    }
-
-    private static async Task ServeDirectoryListingAsync(TcpListener listener, byte[] directoryListing)
+    private static async Task ServeIdentifyAckAsync(TcpListener listener, byte[] boardSerial)
     {
         try
         {
             using var client = await listener.AcceptTcpClientAsync();
             await using var stream = client.GetStream();
 
-            var request = await ReadExactAsync(stream, 8);
-            Assert.Equal(new byte[] { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, request);
+            // Read the Identify frame (16-byte header, no payload)
+            var requestBuffer = new byte[LiveProtocolConstants.FrameHeaderSize];
+            var totalRead = 0;
+            while (totalRead < requestBuffer.Length)
+            {
+                var read = await stream.ReadAsync(requestBuffer.AsMemory(totalRead));
+                if (read == 0) throw new EndOfStreamException();
+                totalRead += read;
+            }
 
-            var sizeBuffer = new byte[8];
-            BitConverter.GetBytes(directoryListing.Length).CopyTo(sizeBuffer, 0);
-            await stream.WriteAsync(sizeBuffer);
+            var header = LiveProtocolReader.ParseHeader(requestBuffer);
+            Assert.Equal(LiveFrameType.Identify, header.FrameType);
+            Assert.Equal((uint)0, header.PayloadLength);
 
-            var headerOk = await ReadExactAsync(stream, 4);
-            Assert.Equal(new byte[] { 0x04, 0x00, 0x00, 0x00 }, headerOk);
-
-            await stream.WriteAsync(directoryListing);
-
-            var received = await ReadExactAsync(stream, 4);
-            Assert.Equal(new byte[] { 0x05, 0x00, 0x00, 0x00 }, received);
+            // Respond with IdentifyAck
+            var response = LiveProtocolTestFrames.CreateIdentifyAckFrame(sequence: 1, boardSerial: boardSerial);
+            await stream.WriteAsync(response);
         }
         finally
         {
             listener.Stop();
         }
-    }
-
-    private static async Task<byte[]> ReadExactAsync(Stream stream, int length)
-    {
-        var buffer = new byte[length];
-        var totalRead = 0;
-        while (totalRead < length)
-        {
-            var read = await stream.ReadAsync(buffer.AsMemory(totalRead, length - totalRead));
-            if (read == 0)
-            {
-                throw new EndOfStreamException($"Expected {length} bytes but stream closed after {totalRead}.");
-            }
-
-            totalRead += read;
-        }
-
-        return buffer;
     }
 }

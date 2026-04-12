@@ -133,6 +133,8 @@ public sealed class LiveProtocolReader
 
     public static byte[] CreatePingFrame(uint sequence) => CreateFrame(LiveFrameType.Ping, sequence, ReadOnlySpan<byte>.Empty);
 
+    public static byte[] CreateIdentifyFrame(uint sequence) => CreateFrame(LiveFrameType.Identify, sequence, ReadOnlySpan<byte>.Empty);
+
     public static byte[] CreateFrame(LiveFrameType frameType, uint sequence, ReadOnlySpan<byte> payload)
     {
         var frame = new byte[LiveProtocolConstants.FrameHeaderSize + payload.Length];
@@ -160,10 +162,12 @@ public sealed class LiveProtocolReader
             LiveFrameType.StartLive => new LiveStartRequestFrame(header, ParseStartRequest(payload)),
             LiveFrameType.StopLive => ParseEmptyPayloadFrame<LiveStopRequestFrame>(header, payload),
             LiveFrameType.Ping => ParseEmptyPayloadFrame<LivePingFrame>(header, payload),
+            LiveFrameType.Identify => ParseEmptyPayloadFrame<LiveIdentifyRequestFrame>(header, payload),
             LiveFrameType.StartLiveAck => new LiveStartAckFrame(header, ParseStartAck(payload)),
             LiveFrameType.StopLiveAck => new LiveStopAckFrame(header, ParseStopAck(payload)),
             LiveFrameType.Error => new LiveErrorFrame(header, ParseError(payload)),
             LiveFrameType.Pong => ParseEmptyPayloadFrame<LivePongFrame>(header, payload),
+            LiveFrameType.IdentifyAck => new LiveIdentifyAckFrame(header, ParseIdentifyAck(payload)),
             LiveFrameType.SessionHeader => new LiveSessionHeaderFrame(header, ParseSessionHeader(payload)),
             LiveFrameType.TravelBatch => ParseTravelBatchFrame(header, payload),
             LiveFrameType.ImuBatch => ParseImuBatchFrame(header, payload),
@@ -209,6 +213,12 @@ public sealed class LiveProtocolReader
             TravelHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
             ImuHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
             GpsFixHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]));
+    }
+
+    private static LiveIdentifyAck ParseIdentifyAck(ReadOnlySpan<byte> payload)
+    {
+        EnsurePayloadLength(payload, LiveProtocolConstants.IdentifyAckPayloadSize, LiveFrameType.IdentifyAck);
+        return new LiveIdentifyAck(payload[..8].ToArray());
     }
 
     private static LiveStartAck ParseStartAck(ReadOnlySpan<byte> payload)

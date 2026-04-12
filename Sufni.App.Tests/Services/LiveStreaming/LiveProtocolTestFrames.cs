@@ -41,6 +41,13 @@ internal static class LiveProtocolTestFrames
         return LiveProtocolReader.CreateFrame(LiveFrameType.StartLiveAck, sequence, payload);
     }
 
+    public static byte[] CreateIdentifyAckFrame(uint sequence, byte[] boardSerial)
+    {
+        var payload = new byte[LiveProtocolConstants.IdentifyAckPayloadSize];
+        boardSerial.AsSpan(0, 8).CopyTo(payload);
+        return LiveProtocolReader.CreateFrame(LiveFrameType.IdentifyAck, sequence, payload);
+    }
+
     public static byte[] CreateErrorFrame(uint sequence, LiveStartErrorCode errorCode)
     {
         var payload = new byte[LiveProtocolConstants.ErrorPayloadSize];
