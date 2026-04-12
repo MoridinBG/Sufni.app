@@ -21,6 +21,7 @@ namespace Sufni.App.iOS
 
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
+            LoggingBootstrapper.PlatformSink = new OsLogSink(LoggingBootstrapper.OutputTemplate);
             LoggingBootstrapper.Initialize("iOS");
             InstallLifecycleObservers();
             Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);

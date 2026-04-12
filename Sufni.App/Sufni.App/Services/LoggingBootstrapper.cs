@@ -4,18 +4,21 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 namespace Sufni.App.Services;
 
 public static class LoggingBootstrapper
 {
-    private const string OutputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}";
+    public const string OutputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}";
 
     private static readonly object gate = new();
     private static bool isInitialized;
     private static bool hooksInstalled;
     private static string? currentPlatformName;
+
+    public static ILogEventSink? PlatformSink { get; set; }
 
     public static string? CurrentLogFilePath { get; private set; }
 
@@ -144,6 +147,11 @@ public static class LoggingBootstrapper
                 .Filter.ByExcluding(logEvent => logEvent.Level == LogEventLevel.Debug)
                 .WriteTo.File(logFilePath, outputTemplate: OutputTemplate));
 #endif
+
+        if (PlatformSink is not null)
+        {
+            configuration = configuration.WriteTo.Sink(PlatformSink);
+        }
 
         return configuration.CreateLogger();
     }

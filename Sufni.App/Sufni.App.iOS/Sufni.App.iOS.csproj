@@ -9,6 +9,7 @@
     <RuntimeIdentifier>iossimulator-arm64</RuntimeIdentifier>
     <!-- <RuntimeIdentifier>ios-arm64</RuntimeIdentifier> -->
 
+    <CodesignKey>Apple Development: idtechlight@gmail.com (LGYBG4729H)</CodesignKey>
     <CodesignProvision>Automatic</CodesignProvision>
   </PropertyGroup>
 
