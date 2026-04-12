@@ -5,6 +5,7 @@ using MathNet.Numerics.Distributions;
 using MathNet.Numerics.IntegralTransforms;
 using MathNet.Numerics.Statistics;
 using MessagePack;
+using Serilog;
 
 #pragma warning disable CS8618
 
@@ -92,6 +93,8 @@ public record BalanceData(
 [MessagePackObject(keyAsPropertyName: true)]
 public class TelemetryData
 {
+    private static readonly ILogger logger = Log.ForContext<TelemetryData>();
+
     public const int TravelBinsForVelocityHistogram = 10;
 
     #region Public properties
@@ -313,6 +316,14 @@ public class TelemetryData
 
     public static TelemetryData FromRecording(RawTelemetryData rawData, Metadata metadata, BikeData bikeData)
     {
+        logger.Verbose(
+            "Starting telemetry processing for source {SourceName} with sample rate {SampleRate}, version {Version}, {FrontSampleCount} front samples, and {RearSampleCount} rear samples",
+            metadata.SourceName,
+            metadata.SampleRate,
+            metadata.Version,
+            rawData.Front.Length,
+            rawData.Rear.Length);
+
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
         td.Markers = rawData.Markers;
         td.ImuData = rawData.ImuData;
@@ -325,10 +336,15 @@ public class TelemetryData
         td.Rear.Present = rc != 0;
         if (!td.Front.Present && !td.Rear.Present)
         {
+            logger.Verbose("Telemetry processing aborted because both suspension sample arrays were empty");
             throw new Exception("Front and rear record arrays are empty!");
         }
         if (td.Front.Present && td.Rear.Present && fc != rc)
         {
+            logger.Verbose(
+                "Telemetry processing aborted because front and rear sample counts differed: {FrontSampleCount} front and {RearSampleCount} rear",
+                fc,
+                rc);
             throw new Exception("Front and rear record counts are not equal!");
         }
 
@@ -358,6 +374,15 @@ public class TelemetryData
         }
 
         td.CalculateAirTimes();
+
+        logger.Verbose(
+            "Telemetry processing completed with front present {FrontPresent}, rear present {RearPresent}, {AirtimeCount} airtimes, {MarkerCount} markers, IMU present {HasImuData}, and GPS points {GpsPointCount}",
+            td.Front.Present,
+            td.Rear.Present,
+            td.Airtimes.Length,
+            td.Markers.Length,
+            td.ImuData is not null,
+            td.GpsData?.Length ?? 0);
 
         return td;
     }

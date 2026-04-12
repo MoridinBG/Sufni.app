@@ -9,6 +9,7 @@ using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
+using Serilog;
 
 namespace Sufni.App.ViewModels.Editors;
 
@@ -16,6 +17,8 @@ namespace Sufni.App.ViewModels.Editors;
 // the throttled snapshot projected into the desktop detail view.
 public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 {
+    private static readonly ILogger logger = Log.ForContext<LiveDaqDetailViewModel>();
+
     public string IdentityKey { get; }
     public string? BoardId { get; }
     public string? Endpoint { get; }
@@ -78,6 +81,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task Loaded()
     {
+        logger.Debug(
+            "Live DAQ detail loaded for {IdentityKey} {Endpoint}",
+            IdentityKey,
+            Endpoint);
+
         uiRefreshTimer.Start();
         EnsureScopedSubscription(disposables =>
         {
@@ -94,31 +102,37 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         });
 
         RefreshSnapshot();
-        await ConnectImplementationAsync();
+        await ConnectImplementationAsync(userInitiated: false);
     }
 
     [RelayCommand]
     private void Unloaded()
     {
+        logger.Debug(
+            "Live DAQ detail unloaded for {IdentityKey} {Endpoint}; disconnect already in progress: {DisconnectInProgress}",
+            IdentityKey,
+            Endpoint,
+            GetConnectionState() == LiveConnectionState.Disconnecting);
+
         connectOperation.Cancel();
         uiRefreshTimer.Stop();
         DisposeScopedSubscriptions();
-        _ = DisconnectImplementationAsync();
+        _ = DisconnectImplementationAsync(userInitiated: false);
     }
 
     [RelayCommand]
     private async Task Connect()
     {
-        await ConnectImplementationAsync();
+        await ConnectImplementationAsync(userInitiated: true);
     }
 
     [RelayCommand]
     private async Task Disconnect()
     {
-        await DisconnectImplementationAsync();
+        await DisconnectImplementationAsync(userInitiated: true);
     }
 
-    private async Task ConnectImplementationAsync()
+    private async Task ConnectImplementationAsync(bool userInitiated)
     {
         if (liveDaqClient is null || GetConnectionState() is LiveConnectionState.Connecting or LiveConnectionState.Connected)
         {
@@ -127,9 +141,31 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
         if (string.IsNullOrWhiteSpace(Endpoint) || !TryGetEndpoint(out var host, out var port))
         {
+            if (userInitiated)
+            {
+                logger.Warning(
+                    "Live DAQ connect requested while endpoint was unavailable for {IdentityKey} {BoardId} {Endpoint}",
+                    IdentityKey,
+                    BoardId,
+                    Endpoint);
+            }
+
             SetConnectionState(LiveConnectionState.Disconnected, "DAQ is offline.");
             return;
         }
+
+        logger.Information(
+            "Connecting live DAQ preview for {IdentityKey} {BoardId} {Endpoint}",
+            IdentityKey,
+            BoardId,
+            Endpoint);
+        logger.Verbose(
+            "Live DAQ preview requested rates for {IdentityKey} at {Endpoint}: travel {RequestedTravelHz}, imu {RequestedImuHz}, gps {RequestedGpsFixHz}",
+            IdentityKey,
+            Endpoint,
+            RequestedTravelHz,
+            RequestedImuHz,
+            RequestedGpsFixHz);
 
         sessionState.Reset();
         SetConnectionState(LiveConnectionState.Connecting, null);
@@ -150,10 +186,26 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
             switch (result)
             {
-                case LivePreviewStartResult.Started:
+                case LivePreviewStartResult.Started started:
+                    logger.Verbose(
+                        "Live DAQ preview session accepted for {IdentityKey} at {Endpoint}: session {SessionId}, sensors {SelectedSensorMask}, travel {AcceptedTravelHz}, imu {AcceptedImuHz}, gps {AcceptedGpsFixHz}, active imu {ActiveImuMask}",
+                        IdentityKey,
+                        Endpoint,
+                        started.Header.SessionId,
+                        started.SelectedSensorMask,
+                        started.Header.AcceptedTravelHz,
+                        started.Header.AcceptedImuHz,
+                        started.Header.AcceptedGpsFixHz,
+                        started.Header.ActiveImuMask);
+                    logger.Information(
+                        "Live DAQ preview connected for {IdentityKey} {BoardId} {Endpoint}",
+                        IdentityKey,
+                        BoardId,
+                        Endpoint);
                     break;
 
                 case LivePreviewStartResult.Rejected rejected:
+                    LogRejectedStart(rejected);
                     SetConnectionState(LiveConnectionState.Disconnected, rejected.UserMessage);
                     await liveDaqClient.DisconnectAsync(cancellationToken);
                     await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
@@ -161,6 +213,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                     break;
 
                 case LivePreviewStartResult.Failed failed:
+                    logger.Error(
+                        "Live DAQ preview failed to start for {IdentityKey} {BoardId} {Endpoint}: {ErrorMessage}",
+                        IdentityKey,
+                        BoardId,
+                        Endpoint,
+                        failed.ErrorMessage);
                     SetConnectionState(LiveConnectionState.Disconnected, failed.ErrorMessage);
                     break;
             }
@@ -170,25 +228,54 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
         catch (Exception ex)
         {
+            logger.Error(
+                ex,
+                "Live DAQ preview connection failed for {IdentityKey} {BoardId} {Endpoint}",
+                IdentityKey,
+                BoardId,
+                Endpoint);
             SetConnectionState(LiveConnectionState.Disconnected, ex.Message);
         }
     }
 
-    private async Task DisconnectImplementationAsync()
+    private async Task DisconnectImplementationAsync(bool userInitiated)
     {
         if (liveDaqClient is null)
         {
             return;
         }
 
+        var currentState = GetConnectionState();
+        if (!liveDaqClient.IsConnected && currentState is LiveConnectionState.Disconnected)
+        {
+            return;
+        }
+
+        logger.Information(
+            "Disconnecting live DAQ preview for {IdentityKey} {BoardId} {Endpoint}",
+            IdentityKey,
+            BoardId,
+            Endpoint);
+
         SetConnectionState(LiveConnectionState.Disconnecting, null);
         try
         {
             await liveDaqClient.DisconnectAsync();
+            logger.Information(
+                "Live DAQ preview disconnected for {IdentityKey} {BoardId} {Endpoint}",
+                IdentityKey,
+                BoardId,
+                Endpoint);
             SetConnectionState(LiveConnectionState.Disconnected, null);
         }
         catch (Exception ex)
         {
+            logger.Error(
+                ex,
+                "Live DAQ preview disconnect failed for {IdentityKey} {BoardId} {Endpoint}",
+                IdentityKey,
+                BoardId,
+                Endpoint);
             SetConnectionState(LiveConnectionState.Disconnected, ex.Message);
         }
     }
@@ -205,18 +292,61 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 }
                 else if (frameReceived.Frame is LiveErrorFrame errorFrame)
                 {
+                    logger.Debug(
+                        "Live DAQ client reported error {ErrorCode} for {IdentityKey} at {Endpoint}: {ErrorMessage}",
+                        errorFrame.Payload.ErrorCode,
+                        IdentityKey,
+                        Endpoint,
+                        errorFrame.Payload.ErrorCode.ToUserMessage());
                     SetConnectionState(LiveConnectionState.Disconnected, errorFrame.Payload.ErrorCode.ToUserMessage());
                 }
                 break;
 
             case LiveDaqClientEvent.Faulted faulted:
+                logger.Verbose(
+                    "Live DAQ client faulted for {IdentityKey} at {Endpoint}: {ErrorMessage}",
+                    IdentityKey,
+                    Endpoint,
+                    faulted.ErrorMessage);
                 SetConnectionState(LiveConnectionState.Disconnected, faulted.ErrorMessage);
                 break;
 
             case LiveDaqClientEvent.Disconnected disconnected:
+                if (!string.IsNullOrWhiteSpace(disconnected.ErrorMessage))
+                {
+                    logger.Verbose(
+                        "Live DAQ client disconnected for {IdentityKey} at {Endpoint}: {ErrorMessage}",
+                        IdentityKey,
+                        Endpoint,
+                        disconnected.ErrorMessage);
+                }
+
                 SetConnectionState(LiveConnectionState.Disconnected, disconnected.ErrorMessage);
                 break;
         }
+    }
+
+    private void LogRejectedStart(LivePreviewStartResult.Rejected rejected)
+    {
+        if (rejected.ErrorCode is LiveStartErrorCode.Busy or LiveStartErrorCode.Unavailable)
+        {
+            logger.Warning(
+                "Live DAQ preview rejected for {IdentityKey} {BoardId} {Endpoint} with {ErrorCode}: {ErrorMessage}",
+                IdentityKey,
+                BoardId,
+                Endpoint,
+                rejected.ErrorCode,
+                rejected.UserMessage);
+            return;
+        }
+
+        logger.Error(
+            "Live DAQ preview rejected for {IdentityKey} {BoardId} {Endpoint} with {ErrorCode}: {ErrorMessage}",
+            IdentityKey,
+            BoardId,
+            Endpoint,
+            rejected.ErrorCode,
+            rejected.UserMessage);
     }
 
     private LiveStartRequest CreateStartRequest() => new(

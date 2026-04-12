@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" />
     <PackageReference Include="MessagePack" />
+    <PackageReference Include="Serilog" />
   </ItemGroup>
 
 </Project>

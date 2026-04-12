@@ -41,6 +41,10 @@ public sealed record LiveTravelUiSnapshot(
     uint QueueDepth,
     uint DroppedBatches)
 {
+    public string SampleOffsetText => SampleOffset is { } offset
+        ? $"Sample offset: {offset:mm\\:ss\\.fff}"
+        : "";
+
     public static readonly LiveTravelUiSnapshot Empty = new(
         IsActive: false,
         HasData: false,
@@ -62,7 +66,12 @@ public sealed record LiveImuUiSnapshot(
     short? Gz,
     TimeSpan? SampleOffset,
     uint QueueDepth,
-    uint DroppedBatches);
+    uint DroppedBatches)
+{
+    public string SampleOffsetText => SampleOffset is { } offset
+        ? $"Sample offset: {offset:mm\\:ss\\.fff}"
+        : "";
+}
 
 public sealed record LiveGpsUiSnapshot(
     bool IsActive,

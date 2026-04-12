@@ -10,6 +10,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -20,6 +21,8 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public sealed class SessionCoordinator : ISessionCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
+
     private readonly ISessionStoreWriter sessionStore;
     private readonly IDatabaseService databaseService;
     private readonly IHttpApiService httpApiService;
@@ -82,22 +85,30 @@ public sealed class SessionCoordinator : ISessionCoordinator
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
+        logger.Information("Starting desktop session load for {SessionId}", sessionId);
+
         try
         {
+            logger.Verbose("Loading telemetry data for desktop session {SessionId}", sessionId);
             var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
             if (telemetryData is null)
             {
                 if (sessionStore.Get(sessionId) is { HasProcessedData: true })
                 {
+                    logger.Error(
+                        "Desktop session load failed because telemetry data was marked present but could not be read for {SessionId}",
+                        sessionId);
                     return new SessionDesktopLoadResult.Failed("Session data is marked as present but could not be read.");
                 }
 
+                logger.Warning("Desktop session load is waiting for telemetry data for {SessionId}", sessionId);
                 return new SessionDesktopLoadResult.TelemetryPending();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
 
             var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
+            logger.Verbose("Resolving track data for desktop session {SessionId}", sessionId);
             var trackData = await trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
                 fullTrackId,
@@ -106,10 +117,12 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            logger.Verbose("Calculating presentation data for desktop session {SessionId}", sessionId);
             var damperPercentages = await backgroundTaskRunner.RunAsync(
                 () => sessionPresentationService.CalculateDamperPercentages(telemetryData),
                 cancellationToken);
 
+            logger.Information("Desktop session load completed for {SessionId}", sessionId);
             return new SessionDesktopLoadResult.Loaded(
                 new SessionTelemetryPresentationData(
                     telemetryData,
@@ -125,6 +138,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
         catch (Exception e)
         {
+            logger.Error(e, "Desktop session load failed for {SessionId}", sessionId);
             return new SessionDesktopLoadResult.Failed(e.Message);
         }
     }
@@ -134,25 +148,33 @@ public sealed class SessionCoordinator : ISessionCoordinator
         SessionPresentationDimensions dimensions,
         CancellationToken cancellationToken = default)
     {
+        logger.Information("Starting mobile session load for {SessionId}", sessionId);
+
         try
         {
+            logger.Verbose("Checking cached mobile presentation for session {SessionId}", sessionId);
             var cached = await backgroundTaskRunner.RunAsync(
                 () => databaseService.GetSessionCacheAsync(sessionId),
                 cancellationToken);
             if (cached is not null)
             {
+                logger.Verbose("Mobile session cache hit for {SessionId}", sessionId);
+                logger.Information("Mobile session load completed from cache for {SessionId}", sessionId);
                 return new SessionMobileLoadResult.LoadedFromCache(SessionCachePresentationData.FromCache(cached));
             }
 
+            logger.Verbose("Mobile session cache miss for {SessionId}", sessionId);
             var telemetryData = await EnsureTelemetryDataAvailableForLoadAsync(sessionId, cancellationToken);
             if (telemetryData is null)
             {
+                logger.Warning("Mobile session load is waiting for telemetry data for {SessionId}", sessionId);
                 return new SessionMobileLoadResult.TelemetryPending();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
 
             var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
+            logger.Verbose("Resolving track data for mobile session {SessionId}", sessionId);
             _ = await trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
                 fullTrackId,
@@ -161,16 +183,19 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            logger.Verbose("Building mobile session cache for {SessionId}", sessionId);
             var presentation = await backgroundTaskRunner.RunAsync(
                 () => sessionPresentationService.BuildCachePresentation(telemetryData, dimensions, cancellationToken),
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            logger.Verbose("Persisting mobile session cache for {SessionId}", sessionId);
             await backgroundTaskRunner.RunAsync(
                 () => databaseService.PutSessionCacheAsync(presentation.ToCache(sessionId)),
                 cancellationToken);
 
+            logger.Information("Mobile session load completed for {SessionId}", sessionId);
             return new SessionMobileLoadResult.BuiltCache(presentation);
         }
         catch (OperationCanceledException)
@@ -179,15 +204,19 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
         catch (Exception e)
         {
+            logger.Error(e, "Mobile session load failed for {SessionId}", sessionId);
             return new SessionMobileLoadResult.Failed(e.Message);
         }
     }
 
     public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
     {
+        logger.Information("Starting session save for {SessionId}", session.Id);
+
         var current = sessionStore.Get(session.Id);
         if (current.IsNewerThan(baselineUpdated))
         {
+            logger.Warning("Session save conflict for {SessionId}", session.Id);
             return new SessionSaveResult.Conflict(current);
         }
 
@@ -200,48 +229,68 @@ public sealed class SessionCoordinator : ISessionCoordinator
             var fresh = await databaseService.GetSessionAsync(session.Id);
             if (fresh is null)
             {
+                logger.Error("Session save failed because the session disappeared after save for {SessionId}", session.Id);
                 return new SessionSaveResult.Failed("Session disappeared after save");
             }
             var saved = SessionSnapshot.From(fresh);
             sessionStore.Upsert(saved);
 
+            logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Updated);
         }
         catch (Exception e)
         {
+            logger.Error(e, "Session save failed for {SessionId}", session.Id);
             return new SessionSaveResult.Failed(e.Message);
         }
     }
 
     public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {
+        logger.Information("Starting session delete for {SessionId}", sessionId);
+
         try
         {
             await databaseService.DeleteAsync<Session>(sessionId);
         }
         catch (Exception e)
         {
+            logger.Error(e, "Session delete failed for {SessionId}", sessionId);
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
 
         shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId);
         sessionStore.Remove(sessionId);
+        logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
     }
 
     public async Task EnsureTelemetryDataAvailableAsync(Guid sessionId)
     {
         var current = sessionStore.Get(sessionId);
-        if (current is { HasProcessedData: true }) return;
-
-        var psst = await httpApiService.GetSessionPsstAsync(sessionId)
-            ?? throw new Exception("Session data could not be downloaded from server.");
-        await databaseService.PatchSessionPsstAsync(sessionId, psst);
-
-        var fresh = await databaseService.GetSessionAsync(sessionId);
-        if (fresh is not null)
+        if (current is { HasProcessedData: true })
         {
-            sessionStore.Upsert(SessionSnapshot.From(fresh));
+            logger.Verbose("Telemetry data already available for session {SessionId}", sessionId);
+            return;
+        }
+
+        try
+        {
+            logger.Verbose("Downloading telemetry data for session {SessionId}", sessionId);
+            var psst = await httpApiService.GetSessionPsstAsync(sessionId)
+                ?? throw new Exception("Session data could not be downloaded from server.");
+            await databaseService.PatchSessionPsstAsync(sessionId, psst);
+
+            var fresh = await databaseService.GetSessionAsync(sessionId);
+            if (fresh is not null)
+            {
+                sessionStore.Upsert(SessionSnapshot.From(fresh));
+            }
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Failed to ensure telemetry data for session {SessionId}", sessionId);
+            throw;
         }
     }
 
@@ -259,6 +308,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
         if (telemetryData is not null)
         {
+            logger.Verbose("Telemetry data cache hit for session {SessionId}", sessionId);
             return telemetryData;
         }
 
@@ -268,9 +318,11 @@ public sealed class SessionCoordinator : ISessionCoordinator
             throw new InvalidOperationException("Session data is marked as present but could not be read.");
         }
 
+        logger.Verbose("Downloading telemetry data during load for session {SessionId}", sessionId);
         var psst = await httpApiService.GetSessionPsstAsync(sessionId);
         if (psst is null)
         {
+            logger.Warning("Telemetry data is not yet available from the server for session {SessionId}", sessionId);
             return null;
         }
 
@@ -288,6 +340,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
             sessionStore.Upsert(SessionSnapshot.From(fresh));
         }
 
+        logger.Verbose("Reloading telemetry data after server download for session {SessionId}", sessionId);
         return await LoadTelemetryDataAsync(sessionId, cancellationToken);
     }
 
@@ -297,9 +350,9 @@ public sealed class SessionCoordinator : ISessionCoordinator
         {
             await HandleSynchronizationDataArrivedAsync(e);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // TODO: Handle somehow? At least log
+            logger.Error(exception, "Failed to apply inbound session synchronization data");
         }
     }
 
@@ -323,6 +376,11 @@ public sealed class SessionCoordinator : ISessionCoordinator
             }
         }
 
+        logger.Verbose(
+            "Applying inbound session synchronization with {RemovalCount} removals and {UpsertCount} upserts",
+            removals.Count,
+            upserts.Count);
+
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             foreach (var id in removals)
@@ -343,17 +401,20 @@ public sealed class SessionCoordinator : ISessionCoordinator
         {
             await HandleSessionDataArrivedAsync(e);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // TODO: Handle somehow? At least log
+            logger.Error(exception, "Failed to apply inbound session data for {SessionId}", e.SessionId);
         }
     }
 
     private async Task HandleSessionDataArrivedAsync(SessionDataArrivedEventArgs e)
     {
+        logger.Verbose("Applying inbound session data for {SessionId}", e.SessionId);
+
         var fresh = await databaseService.GetSessionAsync(e.SessionId);
         if (fresh is null)
         {
+            logger.Verbose("Ignoring inbound session data because session {SessionId} is missing", e.SessionId);
             return;
         }
 

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -16,6 +17,8 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public sealed class PairingClientCoordinator : IPairingClientCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<PairingClientCoordinator>();
+
     private const string DeviceIdKey = "DeviceId";
     private const string DisplayNameKey = "DisplayName";
 
@@ -65,11 +68,16 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private async Task Init()
     {
         deviceId = await secureStorage.GetStringAsync(DeviceIdKey);
+        var hadStoredDeviceId = deviceId is not null;
         if (deviceId is null)
         {
             deviceId = Guid.NewGuid().ToString();
             await secureStorage.SetStringAsync(DeviceIdKey, deviceId);
         }
+
+        logger.Verbose(
+            "Pairing client initialized device identity with stored value present {HadStoredDeviceId}",
+            hadStoredDeviceId);
         DeviceIdChanged?.Invoke(this, EventArgs.Empty);
 
         // DisplayName falls back to the platform friendly name (which
@@ -80,9 +88,14 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         displayName = PairedDevice.NormalizeDisplayName(
                           await secureStorage.GetStringAsync(DisplayNameKey))
                       ?? PairedDevice.NormalizeDisplayName(friendlyNameProvider.FriendlyName);
+        logger.Verbose(
+            "Pairing client resolved display name with committed value present {HasCommittedDisplayName} and fallback value present {HasFallbackDisplayName}",
+            await secureStorage.GetStringAsync(DisplayNameKey) is not null,
+            friendlyNameProvider.FriendlyName is not null);
         DisplayNameChanged?.Invoke(this, EventArgs.Empty);
 
         isPaired = await httpApiService.IsPairedAsync();
+        logger.Verbose("Pairing client startup probe reported paired state {IsPaired}", isPaired);
         IsPairedChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -95,22 +108,26 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             ? $"[{address}]"
             : address.ToString();
         serverUrl = $"https://{host}:{e.Announcement.Port}";
+        logger.Verbose("Pairing server discovered at {ServerUrl}", serverUrl);
         ServerUrlChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e)
     {
+        logger.Verbose("Pairing server removed from discovery for {Port}", e.Announcement.Port);
         serverUrl = null;
         ServerUrlChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void StartBrowsing()
     {
+        logger.Verbose("Starting pairing server browse");
         serviceDiscovery.StartBrowse(SynchronizationProtocol.ServiceType);
     }
 
     public void StopBrowsing()
     {
+        logger.Verbose("Stopping pairing server browse");
         serviceDiscovery.StopBrowse();
     }
 
@@ -118,19 +135,27 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     {
         await Initialization;
 
+        logger.Information("Starting pairing request");
+
         if (serverUrl is null)
         {
+            logger.Warning("Pairing request could not start because no server is currently discovered");
             return new RequestPairingResult.Failed("No server discovered.");
         }
 
         var normalized = PairedDevice.NormalizeDisplayName(displayName);
+        logger.Verbose(
+            "Pairing request normalized display name present {HasDisplayName}",
+            normalized is not null);
         try
         {
             await httpApiService.RequestPairingAsync(serverUrl, deviceId!, normalized);
+            logger.Information("Pairing request sent");
             return new RequestPairingResult.Sent();
         }
         catch (Exception e)
         {
+            logger.Error(e, "Pairing request failed");
             return new RequestPairingResult.Failed(e.Message);
         }
     }
@@ -139,7 +164,12 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     {
         await Initialization;
 
+        logger.Information("Starting pairing confirmation");
+
         var normalized = PairedDevice.NormalizeDisplayName(displayName);
+        logger.Verbose(
+            "Pairing confirmation normalized display name present {HasDisplayName}",
+            normalized is not null);
         try
         {
             await httpApiService.ConfirmPairingAsync(deviceId!, normalized, pin);
@@ -156,10 +186,13 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             IsPairedChanged?.Invoke(this, EventArgs.Empty);
             shell.GoBack();
             PairingConfirmed?.Invoke(this, EventArgs.Empty);
+
+            logger.Information("Pairing confirmation completed");
             return new ConfirmPairingResult.Paired();
         }
         catch (Exception e)
         {
+            logger.Error(e, "Pairing confirmation failed");
             return new ConfirmPairingResult.Failed(e.Message);
         }
     }
@@ -167,6 +200,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     public async Task<UnpairResult> UnpairAsync()
     {
         await Initialization;
+
+        logger.Information("Starting client unpair");
 
         UnpairResult result;
         try
@@ -176,10 +211,12 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         }
         catch (HttpRequestException e)
         {
+            logger.Warning(e, "Client unpair completed locally only");
             result = new UnpairResult.LocalOnly(e.Message);
         }
         catch (Exception e)
         {
+            logger.Error(e, "Client unpair failed");
             result = new UnpairResult.Failed(e.Message);
         }
 
@@ -187,6 +224,12 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         // call, so we are locally unpaired regardless of outcome.
         isPaired = false;
         IsPairedChanged?.Invoke(this, EventArgs.Empty);
+
+        if (result is UnpairResult.Unpaired)
+        {
+            logger.Information("Client unpair completed");
+        }
+
         return result;
     }
 }

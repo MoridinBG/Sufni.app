@@ -4,6 +4,7 @@ using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -16,6 +17,8 @@ public sealed class SetupCoordinator(
     IShellCoordinator shell,
     IDialogService dialogService) : ISetupCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
+
     public Task OpenCreateAsync(Guid? suggestedBoardId = null)
     {
         // Honour the suggested board ID only if no other setup claims it.
@@ -44,7 +47,9 @@ public sealed class SetupCoordinator(
 
     public async Task OpenCreateForDetectedBoardAsync()
     {
+        logger.Information("Starting setup create for detected board");
         var detected = await telemetryDataStoreService.DetectConnectedBoardIdAsync();
+        logger.Information("Opening setup create for detected board {BoardId}", detected);
         await OpenCreateAsync(detected);
     }
 
@@ -68,30 +73,47 @@ public sealed class SetupCoordinator(
 
     public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
     {
+        logger.Information("Starting setup save for {SetupId}", setup.Id);
+
         var current = setupStore.Get(setup.Id);
         if (current.IsNewerThan(baselineUpdated))
         {
+            logger.Warning("Setup save conflict for {SetupId}", setup.Id);
             return new SetupSaveResult.Conflict(current);
         }
 
         try
         {
             await databaseService.PutAsync(setup);
+
+            if (current?.BoardId != boardId)
+            {
+                logger.Verbose(
+                    "Reassigning setup board association for {SetupId} from {OriginalBoardId} to {NewBoardId}",
+                    setup.Id,
+                    current?.BoardId,
+                    boardId);
+            }
+
             await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
 
+            logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Updated);
         }
         catch (Exception e)
         {
+            logger.Error(e, "Setup save failed for {SetupId}", setup.Id);
             return new SetupSaveResult.Failed(e.Message);
         }
     }
 
     public async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
     {
+        logger.Information("Starting setup delete for {SetupId}", setupId);
+
         var snapshot = setupStore.Get(setupId);
 
         try
@@ -100,6 +122,7 @@ public sealed class SetupCoordinator(
         }
         catch (Exception e)
         {
+            logger.Error(e, "Setup delete failed for {SetupId}", setupId);
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
         }
 
@@ -110,6 +133,7 @@ public sealed class SetupCoordinator(
         shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId);
         setupStore.Remove(setupId);
 
+        logger.Information("Setup delete completed for {SetupId}", setupId);
         return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
     }
 

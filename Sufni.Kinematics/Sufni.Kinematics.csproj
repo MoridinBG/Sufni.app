@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" />
     <PackageReference Include="QuikGraph" />
+    <PackageReference Include="Serilog" />
   </ItemGroup>
 
 </Project>

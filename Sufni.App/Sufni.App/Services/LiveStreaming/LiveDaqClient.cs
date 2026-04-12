@@ -6,6 +6,7 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Services;
+using Serilog;
 
 namespace Sufni.App.Services.LiveStreaming;
 
@@ -20,6 +21,8 @@ namespace Sufni.App.Services.LiveStreaming;
 // ACK or error frame. All state mutations are serialized through lifecycleGate.
 internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClient
 {
+    private static readonly ILogger logger = Log.ForContext<LiveDaqClient>();
+
     private readonly LiveProtocolReader reader = new();
     private readonly Subject<LiveDaqClientEvent> events = new();
     // Serializes all public lifecycle methods (Connect, Start, Stop, Disconnect, Dispose) and
@@ -54,6 +57,8 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                 return;
             }
 
+            logger.Debug("Connecting live DAQ client to {Host} {Port}", host, port);
+
             reader.Reset();
             intentionalDisconnect = false;
             receiveLoopCts?.Dispose();
@@ -64,6 +69,7 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             receiveLoopTask = backgroundTaskRunner.RunAsync(
                 async () => await ReceiveLoopAsync(receiveLoopCts.Token),
                 receiveLoopCts.Token);
+            logger.Debug("Live DAQ client socket connected to {Host} {Port}", host, port);
         }
         finally
         {
@@ -91,6 +97,12 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             var tcs = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             pendingStartResult = tcs;
             startAckAwaitingHeader = null;
+            logger.Debug(
+                "Sending live DAQ preview start request with sensors {SensorMask}, travel {TravelHz}, imu {ImuHz}, gps {GpsFixHz}",
+                request.SensorMask,
+                request.TravelHz,
+                request.ImuHz,
+                request.GpsFixHz);
             var frame = LiveProtocolReader.CreateStartLiveFrame(GetNextSequence(), request);
             await stream.WriteAsync(frame, cancellationToken);
             await stream.FlushAsync(cancellationToken);
@@ -142,6 +154,7 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
 
             var tcs = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
             pendingStopAck = tcs;
+            logger.Debug("Sending live DAQ preview stop request");
             var frame = LiveProtocolReader.CreateStopLiveFrame(GetNextSequence());
             await stream.WriteAsync(frame, cancellationToken);
             await stream.FlushAsync(cancellationToken);
@@ -168,6 +181,8 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             {
                 return;
             }
+
+            logger.Debug("Disconnecting live DAQ client intentionally");
 
             intentionalDisconnect = true;
             if (stream is not null && activeSessionId is not null)
@@ -270,7 +285,7 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
         }
         catch (Exception ex)
         {
-            await HandleDisconnectAsync(ex.Message);
+            await HandleDisconnectAsync(ex.Message, ex);
         }
     }
 
@@ -284,10 +299,17 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                 case LiveStartAckFrame startAckFrame:
                     if (startAckFrame.Payload.Result == LiveStartErrorCode.Ok)
                     {
+                        logger.Debug(
+                            "Received live DAQ preview start ACK for session {SessionId} with sensors {SelectedSensorMask}",
+                            startAckFrame.Payload.SessionId,
+                            startAckFrame.Payload.SelectedSensorMask);
                         startAckAwaitingHeader = startAckFrame.Payload;
                     }
                     else
                     {
+                        logger.Debug(
+                            "Received live DAQ preview start rejection {ErrorCode}",
+                            startAckFrame.Payload.Result);
                         pendingStartResult?.TrySetResult(
                             new LivePreviewStartResult.Rejected(
                                 startAckFrame.Payload.Result,
@@ -298,6 +320,9 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                     break;
 
                 case LiveSessionHeaderFrame sessionHeaderFrame:
+                    logger.Debug(
+                        "Received live DAQ session header for session {SessionId}",
+                        sessionHeaderFrame.Payload.SessionId);
                     activeSessionId = sessionHeaderFrame.Payload.SessionId;
                     if (pendingStartResult is not null && startAckAwaitingHeader is not null)
                     {
@@ -310,6 +335,9 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                     break;
 
                 case LiveErrorFrame errorFrame:
+                    logger.Debug(
+                        "Received live DAQ error frame with {ErrorCode}",
+                        errorFrame.Payload.ErrorCode);
                     if (pendingStartResult is not null)
                     {
                         pendingStartResult.TrySetResult(
@@ -322,6 +350,9 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                     break;
 
                 case LiveStopAckFrame stopAckFrame:
+                    logger.Debug(
+                        "Received live DAQ preview stop ACK for session {SessionId}",
+                        stopAckFrame.Payload.SessionId);
                     activeSessionId = null;
                     pendingStopAck?.TrySetResult(stopAckFrame.Payload.SessionId);
                     pendingStopAck = null;
@@ -336,7 +367,7 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
         events.OnNext(new LiveDaqClientEvent.FrameReceived(frame));
     }
 
-    private async Task HandleDisconnectAsync(string? errorMessage)
+    private async Task HandleDisconnectAsync(string? errorMessage, Exception? exception = null)
     {
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
@@ -378,10 +409,20 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
 
         if (string.IsNullOrWhiteSpace(errorMessage))
         {
+            logger.Verbose("Live DAQ client disconnected gracefully");
             events.OnNext(new LiveDaqClientEvent.Disconnected(null));
         }
         else
         {
+            if (exception is not null)
+            {
+                logger.Error(exception, "Live DAQ client disconnected unexpectedly: {ErrorMessage}", errorMessage);
+            }
+            else
+            {
+                logger.Error("Live DAQ client disconnected unexpectedly: {ErrorMessage}", errorMessage);
+            }
+
             events.OnNext(new LiveDaqClientEvent.Faulted(errorMessage));
             events.OnNext(new LiveDaqClientEvent.Disconnected(errorMessage));
         }

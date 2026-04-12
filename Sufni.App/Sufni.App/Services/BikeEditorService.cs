@@ -8,22 +8,28 @@ using Avalonia.Media.Imaging;
 using Sufni.App.BikeEditing;
 using Sufni.App.Models;
 using Sufni.Kinematics;
+using Serilog;
 
 namespace Sufni.App.Services;
 
 public sealed class BikeEditorService(IFilesService filesService, IBackgroundTaskRunner backgroundTaskRunner) : IBikeEditorService
 {
+    private static readonly ILogger logger = Log.ForContext<BikeEditorService>();
+
     public async Task<BikeEditorAnalysisResult> AnalyzeLinkageAsync(
         Linkage? linkage,
         CancellationToken cancellationToken = default)
     {
         if (linkage is null)
         {
+            logger.Verbose("Skipping bike linkage analysis because no linkage was supplied");
             return new BikeEditorAnalysisResult.Unavailable();
         }
 
         try
         {
+            logger.Verbose("Starting bike linkage analysis");
+
             return await backgroundTaskRunner.RunAsync(() =>
             {
                 try
@@ -35,6 +41,12 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                     var rearAxlePathData = solution.TryGetValue(mapping.RearWheel, out var path)
                         ? path
                         : new CoordinateList([], []);
+
+                    logger.Verbose(
+                        "Bike linkage analysis computed {LeveragePointCount} leverage points and {RearAxlePointCount} rear axle points",
+                        characteristics.LeverageRatioData.X.Count,
+                        rearAxlePathData.X.Count);
+
                     return (BikeEditorAnalysisResult)new BikeEditorAnalysisResult.Computed(
                         new BikeAnalysisPresentationData(
                             characteristics.LeverageRatioData,
@@ -44,8 +56,9 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                 {
                     throw;
                 }
-                catch (Exception)
+                catch (Exception exception)
                 {
+                    logger.Warning(exception, "Bike linkage analysis returned unavailable");
                     return new BikeEditorAnalysisResult.Unavailable();
                 }
             }, cancellationToken);
@@ -56,15 +69,18 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         }
         catch (Exception e)
         {
+            logger.Error(e, "Bike linkage analysis failed");
             return new BikeEditorAnalysisResult.Failed(e.Message);
         }
     }
 
     public async Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default)
     {
+        logger.Verbose("Opening bike image picker");
         var file = await filesService.OpenBikeImageFileAsync();
         if (file is null)
         {
+            logger.Verbose("Bike image load canceled");
             return new BikeImageLoadResult.Canceled();
         }
 
@@ -76,6 +92,11 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                 return new Bitmap(stream);
             }, cancellationToken);
 
+            logger.Verbose(
+                "Bike image loaded with width {PixelWidth} and height {PixelHeight}",
+                bitmap.PixelSize.Width,
+                bitmap.PixelSize.Height);
+
             return new BikeImageLoadResult.Loaded(bitmap);
         }
         catch (OperationCanceledException)
@@ -84,15 +105,18 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         }
         catch (Exception e)
         {
+            logger.Error(e, "Bike image load failed");
             return new BikeImageLoadResult.Failed(e.Message);
         }
     }
 
     public async Task<BikeFileImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
     {
+        logger.Verbose("Opening bike import file picker");
         var file = await filesService.OpenBikeFileAsync();
         if (file is null)
         {
+            logger.Verbose("Bike import canceled");
             return new BikeFileImportResult.Canceled();
         }
 
@@ -106,16 +130,24 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                     using var reader = new StreamReader(stream);
                     var json = await reader.ReadToEndAsync(cancellationToken);
                     var bike = Bike.FromJson(json);
-                    return bike is null
-                        ? new BikeFileImportResult.InvalidFile("JSON file was not a valid bike file.")
-                        : (BikeFileImportResult)new BikeFileImportResult.Imported(bike);
+
+                    if (bike is null)
+                    {
+                        logger.Warning("Bike import rejected because the selected JSON file was not a valid bike file");
+                        return new BikeFileImportResult.InvalidFile("JSON file was not a valid bike file.");
+                    }
+
+                    logger.Verbose("Bike import parsed bike {BikeId}", bike.Id);
+                    return new BikeFileImportResult.Imported(bike);
                 }
-                catch (JsonException)
+                catch (JsonException exception)
                 {
+                    logger.Warning(exception, "Bike import rejected because the selected file was invalid JSON");
                     return new BikeFileImportResult.InvalidFile("JSON file was not a valid bike file.");
                 }
-                catch (NotSupportedException)
+                catch (NotSupportedException exception)
                 {
+                    logger.Warning(exception, "Bike import rejected because the selected file format was unsupported");
                     return new BikeFileImportResult.InvalidFile("JSON file was not a valid bike file.");
                 }
             }, cancellationToken);
@@ -126,15 +158,18 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         }
         catch (Exception e)
         {
+            logger.Error(e, "Bike import failed");
             return new BikeFileImportResult.Failed(e.Message);
         }
     }
 
     public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
     {
+        logger.Verbose("Opening bike export file picker for {BikeId}", bike.Id);
         var file = await filesService.SaveBikeFileAsync();
         if (file is null)
         {
+            logger.Verbose("Bike export canceled for {BikeId}", bike.Id);
             return new BikeExportResult.Canceled();
         }
 
@@ -146,6 +181,12 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                 await using var stream = await file.OpenWriteAsync();
                 await using var writer = new StreamWriter(stream, Encoding.UTF8);
                 await writer.WriteAsync(bikeJson.AsMemory(), cancellationToken);
+
+                logger.Verbose(
+                    "Bike export wrote {ByteCount} UTF-8 characters for {BikeId}",
+                    bikeJson.Length,
+                    bike.Id);
+
                 return (BikeExportResult)new BikeExportResult.Exported();
             }, cancellationToken);
         }
@@ -155,6 +196,7 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         }
         catch (Exception e)
         {
+            logger.Error(e, "Bike export failed for {BikeId}", bike.Id);
             return new BikeExportResult.Failed(e.Message);
         }
     }

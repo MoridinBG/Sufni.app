@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using DBus.Services.Secrets;
+using Serilog;
 using Sufni.App.Services;
 
 namespace Sufni.App.Linux;
 
 public class LinuxSecureStorage : ISecureStorage
 {
+    private static readonly ILogger logger = Log.ForContext<LinuxSecureStorage>();
+
     private const string ContentTypeText = "text/plain; charset=utf8";
     private const string ContentTypeBytes = "application/octet-stream";
     private const string LabelPrefix = "Sufni Suspension Telemetry";
@@ -30,6 +33,8 @@ public class LinuxSecureStorage : ISecureStorage
         {
             throw new Exception("Could not access secret storage.");
         }
+
+        logger.Verbose("Linux secure storage initialized using the default secret collection");
     }
 
     private static Dictionary<string, string> GetAttributes(string? key)
@@ -72,6 +77,10 @@ public class LinuxSecureStorage : ISecureStorage
         {
             throw new Exception($"Could not save {key}");
         }
+
+        logger.Verbose(
+            "Linux secure storage stored a {ValueKind} value",
+            value is byte[]? "binary" : "text");
     }
 
     private async Task DeleteItemsAsync(string? key)
@@ -84,6 +93,8 @@ public class LinuxSecureStorage : ISecureStorage
         {
             Task.Run(async () => await matchedItem.DeleteAsync()).Wait();
         }
+
+        logger.Verbose("Linux secure storage removed {ItemCount} items", matchedItems.Length);
     }
 
     private async Task<byte[]?> SearchItemAsync(string key)
@@ -100,6 +111,7 @@ public class LinuxSecureStorage : ISecureStorage
 
         if (matchedItems.Length > 1)
         {
+            logger.Warning("Linux secure storage found duplicate items for a requested value");
             throw new Exception("Duplicate items!");
         }
 
@@ -135,5 +147,6 @@ public class LinuxSecureStorage : ISecureStorage
     public async Task RemoveAllAsync()
     {
         await DeleteItemsAsync(null);
+        logger.Verbose("Linux secure storage removed all stored items");
     }
 }

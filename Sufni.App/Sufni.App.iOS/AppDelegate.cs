@@ -1,10 +1,12 @@
 using Avalonia;
 using Avalonia.iOS;
+using Avalonia.Logging;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
+using UIKit;
 
 namespace Sufni.App.iOS
 {
@@ -14,8 +16,15 @@ namespace Sufni.App.iOS
     [Register("AppDelegate")]
     public partial class AppDelegate : AvaloniaAppDelegate<App>
     {
+        private NSObject? didEnterBackgroundObserver;
+        private NSObject? willTerminateObserver;
+
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
+            LoggingBootstrapper.Initialize("iOS");
+            InstallLifecycleObservers();
+            Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);
+
             App.ServiceCollection.AddSingleton<ISecureStorage, IosSecureStorage>();
             App.ServiceCollection.AddSingleton<IFriendlyNameProvider, IosFriendlyNameProvider>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
@@ -27,6 +36,17 @@ namespace Sufni.App.iOS
             return base.CustomizeAppBuilder(builder)
                 .WithInterFont()
                 .With(new SkiaOptions { UseOpacitySaveLayer = true });
+        }
+
+        private void InstallLifecycleObservers()
+        {
+            didEnterBackgroundObserver ??= NSNotificationCenter.DefaultCenter.AddObserver(
+                UIApplication.DidEnterBackgroundNotification,
+                _ => LoggingBootstrapper.Flush());
+
+            willTerminateObserver ??= NSNotificationCenter.DefaultCenter.AddObserver(
+                UIApplication.WillTerminateNotification,
+                _ => LoggingBootstrapper.FlushAndClose());
         }
     }
 }

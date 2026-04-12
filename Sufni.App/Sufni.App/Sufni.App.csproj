@@ -36,6 +36,8 @@
     <PackageReference Include="ScottPlot" />
     <PackageReference Include="ScottPlot.Avalonia" />
     <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.Debug" />
+    <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="sqlite-net-e" />
     <PackageReference Include="SourceGear.sqlite3" />
     <PackageReference Include="Tmds.MDns" />

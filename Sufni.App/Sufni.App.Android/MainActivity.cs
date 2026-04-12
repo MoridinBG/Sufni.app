@@ -2,6 +2,7 @@
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
+using Avalonia.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
@@ -19,6 +20,9 @@ namespace Sufni.App.Android
     {
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
+            LoggingBootstrapper.Initialize("Android");
+            Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);
+
             App.ServiceCollection.AddSingleton<ISecureStorage, AndroidSecureStorage>();
             App.ServiceCollection.AddSingleton<IFriendlyNameProvider, AndroidFriendlyNameProvider>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");

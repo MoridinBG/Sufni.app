@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Sufni.App.Services;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -13,6 +14,8 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public sealed class PairingServerCoordinator : IPairingServerCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<PairingServerCoordinator>();
+
     private readonly ISynchronizationServerService synchronizationServer;
 
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
@@ -33,11 +36,13 @@ public sealed class PairingServerCoordinator : IPairingServerCoordinator
 
     private void OnPairingRequested(object? sender, PairingRequestedEventArgs e)
     {
+        logger.Verbose("Received pairing request from {DeviceId}", e.DeviceId);
         PairingRequested?.Invoke(this, e);
     }
 
     private void OnPairingConfirmed(object? sender, PairingEventArgs e)
     {
+        logger.Verbose("Received pairing confirmation for {DeviceId}", e.Device.DeviceId);
         PairingConfirmed?.Invoke(this, e);
     }
 }

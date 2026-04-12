@@ -3,12 +3,15 @@ using System.Text;
 using System.Threading.Tasks;
 using Foundation;
 using Security;
+using Serilog;
 using Sufni.App.Services;
 
 namespace Sufni.App.macOS;
 
 public class MacOsSecureStorage : ISecureStorage
 {
+    private static readonly ILogger logger = Log.ForContext<MacOsSecureStorage>();
+
     private const string Alias = "sufni.bridge.ios.preferences";
     private const SecAccessible Accessible = SecAccessible.WhenUnlocked;
 
@@ -53,6 +56,7 @@ public class MacOsSecureStorage : ISecureStorage
 
         if (value is null)
         {
+            logger.Verbose("macOS secure storage removed a value");
             return;
         }
 
@@ -60,8 +64,11 @@ public class MacOsSecureStorage : ISecureStorage
         var result = SecKeyChain.Add(record);
         if (result != SecStatusCode.Success)
         {
+            logger.Error("macOS secure storage add failed with status {Status}", result);
             throw new Exception($"Error adding record: {result}");
         }
+
+        logger.Verbose("macOS secure storage stored a binary value");
     }
 
     public async Task SetStringAsync(string key, string? value)
@@ -84,6 +91,7 @@ public class MacOsSecureStorage : ISecureStorage
         using var query = new SecRecord(SecKind.GenericPassword);
         query.Service = Alias;
         SecKeyChain.Remove(query);
+        logger.Verbose("macOS secure storage removed all values");
         return Task.CompletedTask;
     }
 }

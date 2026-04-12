@@ -109,7 +109,7 @@ mc:Ignorable="d">
                 CornerRadius="8">
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel" />
-                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
+                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffsetText}" />
                         <Grid ColumnDefinitions="* *" ColumnSpacing="12">
                             <TextBlock x:Name="FrontTravelTextBlock" Grid.Column="0" Text="{Binding FrontTravelText}" />
                             <TextBlock x:Name="RearTravelTextBlock" Grid.Column="1" Text="{Binding RearTravelText}" />
@@ -139,7 +139,7 @@ mc:Ignorable="d">
                                             <TextBlock FontWeight="SemiBold" Text="{Binding Location}" />
                                             <TextBlock Text="{Binding Ax, StringFormat='Acc: {0}'}" />
                                             <TextBlock Text="{Binding Gx, StringFormat='Gyro: {0}'}" />
-                                            <TextBlock Opacity="0.7" Text="{Binding SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
+                                            <TextBlock Opacity="0.7" Text="{Binding SampleOffsetText}" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

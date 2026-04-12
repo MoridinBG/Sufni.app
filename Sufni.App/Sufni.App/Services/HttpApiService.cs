@@ -9,11 +9,14 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Authentication;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace Sufni.App.Services;
 
 internal class HttpApiService : IHttpApiService
 {
+    private static readonly ILogger logger = Log.ForContext<HttpApiService>();
+
     private const string RefreshTokenKey = "RefreshToken";
     private const string ServerUrlKey = "ServerUrl";
 
@@ -68,6 +71,48 @@ internal class HttpApiService : IHttpApiService
         return DateTimeOffset.FromUnixTimeSeconds(exp);
     }
 
+    private static string GetRoute(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return uri.PathAndQuery;
+        }
+
+        return url;
+    }
+
+    private async Task<HttpResponseMessage> SendWithLoggingAsync(
+        HttpMethod method,
+        string url,
+        Func<Task<HttpResponseMessage>> sendAsync)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            var response = await sendAsync();
+
+            logger.Verbose(
+                "HTTP {Method} {Route} returned {StatusCode} in {DurationMs} ms",
+                method.Method,
+                GetRoute(url),
+                (int)response.StatusCode,
+                stopwatch.Elapsed.TotalMilliseconds);
+
+            return response;
+        }
+        catch (Exception exception)
+        {
+            logger.Error(
+                exception,
+                "HTTP {Method} {Route} failed after {DurationMs} ms",
+                method.Method,
+                GetRoute(url),
+                stopwatch.Elapsed.TotalMilliseconds);
+            throw;
+        }
+    }
+
     private async Task RefreshTokensAsync()
     {
         await Initialization;
@@ -75,15 +120,22 @@ internal class HttpApiService : IHttpApiService
         Debug.Assert(ServerUrl is not null);
         Debug.Assert(refreshToken is not null);
 
-        using var response = await client.PostAsJsonAsync(
-            $"{ServerUrl}/pair/refresh",
-            new RefreshRequest(refreshToken),
-            AppJson.Context.RefreshRequest);
+        logger.Verbose("Refreshing synchronization tokens");
+
+        var route = $"{ServerUrl}/pair/refresh";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Post,
+            route,
+            () => client.PostAsJsonAsync(
+                route,
+                new RefreshRequest(refreshToken),
+                AppJson.Context.RefreshRequest));
 
         // Clear out pairing information if we received a 401 - Unauthorized response before throwing an
         // exception for the not OK response.
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
+            logger.Warning("Clearing local pairing credentials after token refresh returned unauthorized");
             client.DefaultRequestHeaders.Authorization = null;
             await secureStorage.RemoveAsync(RefreshTokenKey);
             await secureStorage.RemoveAsync(ServerUrlKey);
@@ -99,6 +151,8 @@ internal class HttpApiService : IHttpApiService
         tokenExpiry = GetTokenExpiry(tokens.AccessToken);
         refreshToken = tokens.RefreshToken;
 
+        logger.Verbose("Synchronization tokens refreshed and expire at {TokenExpiry}", tokenExpiry);
+
         await secureStorage.SetStringAsync(RefreshTokenKey, refreshToken);
     }
 
@@ -106,6 +160,11 @@ internal class HttpApiService : IHttpApiService
     {
         ServerUrl = await secureStorage.GetStringAsync(ServerUrlKey);
         refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
+
+        logger.Verbose(
+            "HTTP API service initialized with stored server URL present {HasServerUrl} and refresh token present {HasRefreshToken}",
+            ServerUrl is not null,
+            refreshToken is not null);
     }
 
     #endregion Private methods
@@ -116,10 +175,14 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        using var response = await client.PostAsJsonAsync(
-            $"{url}{SynchronizationProtocol.EndpointPairRequest}",
-            new PairingRequest(deviceId, displayName),
-            AppJson.Context.PairingRequest);
+        var route = $"{url}{SynchronizationProtocol.EndpointPairRequest}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Post,
+            route,
+            () => client.PostAsJsonAsync(
+                route,
+                new PairingRequest(deviceId, displayName),
+                AppJson.Context.PairingRequest));
         response.EnsureSuccessStatusCode();
 
         ServerUrl = url;
@@ -130,10 +193,14 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        using var response = await client.PostAsJsonAsync(
-            $"{ServerUrl}{SynchronizationProtocol.EndpointPairConfirm}",
-            new PairingConfirm(deviceId, displayName, pin),
-            AppJson.Context.PairingConfirm);
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointPairConfirm}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Post,
+            route,
+            () => client.PostAsJsonAsync(
+                route,
+                new PairingConfirm(deviceId, displayName, pin),
+                AppJson.Context.PairingConfirm));
         response.EnsureSuccessStatusCode();
 
         var tokens = await response.Content.ReadFromJsonAsync(AppJson.Context.TokenResponse);
@@ -144,6 +211,8 @@ internal class HttpApiService : IHttpApiService
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         tokenExpiry = GetTokenExpiry(tokens.AccessToken);
         refreshToken = tokens.RefreshToken;
+
+        logger.Verbose("Pairing confirmation stored refreshed credentials expiring at {TokenExpiry}", tokenExpiry);
 
         await secureStorage.SetStringAsync(RefreshTokenKey, tokens.RefreshToken);
     }
@@ -161,10 +230,14 @@ internal class HttpApiService : IHttpApiService
         await secureStorage.RemoveAsync(ServerUrlKey);
         client.DefaultRequestHeaders.Authorization = null;
 
-        var response = await client.PostAsJsonAsync(
-            $"{ServerUrl}{SynchronizationProtocol.EndpointPairUnpair}",
-            new UnpairRequest(deviceId, refreshToken),
-            AppJson.Context.UnpairRequest);
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointPairUnpair}";
+        var response = await SendWithLoggingAsync(
+            HttpMethod.Post,
+            route,
+            () => client.PostAsJsonAsync(
+                route,
+                new UnpairRequest(deviceId, refreshToken),
+                AppJson.Context.UnpairRequest));
         response.EnsureSuccessStatusCode();
     }
 
@@ -182,12 +255,17 @@ internal class HttpApiService : IHttpApiService
         }
         catch (HttpRequestException e)
         {
-            if (e.StatusCode == HttpStatusCode.Unauthorized) return false;
+            if (e.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                logger.Warning("Pairing probe reported unauthorized refresh token");
+                return false;
+            }
         }
         catch (Exception)
         {
             // If we get any other error than 401 - Unauthorized, we assume we are paired, because we have a refresh
             // token. This way, we won't show up as unpaired in case ofe.g. a network error.
+            logger.Verbose("Pairing probe kept paired state after a non-auth refresh failure");
             return true;
         }
 
@@ -204,11 +282,23 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.GetAsync(
-            $"{ServerUrl}{SynchronizationProtocol.EndpointSyncPull}?since={since}");
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSyncPull}?since={since}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Get,
+            route,
+            () => client.GetAsync(route));
         response.EnsureSuccessStatusCode();
         var entities = await response.Content.ReadFromJsonAsync(AppJson.Context.SynchronizationData);
         Debug.Assert(entities != null);
+
+        logger.Verbose(
+            "Pulled synchronization data with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+            entities.Boards.Count,
+            entities.Bikes.Count,
+            entities.Setups.Count,
+            entities.Sessions.Count,
+            entities.Tracks.Count);
+
         return entities;
     }
 
@@ -218,10 +308,22 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.PutAsJsonAsync(
-            $"{ServerUrl}{SynchronizationProtocol.EndpointSyncPush}",
-            syncData,
-            AppJson.Context.SynchronizationData);
+        logger.Verbose(
+            "Uploading synchronization data with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+            syncData.Boards.Count,
+            syncData.Bikes.Count,
+            syncData.Setups.Count,
+            syncData.Sessions.Count,
+            syncData.Tracks.Count);
+
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSyncPush}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Put,
+            route,
+            () => client.PutAsJsonAsync(
+                route,
+                syncData,
+                AppJson.Context.SynchronizationData));
         response.EnsureSuccessStatusCode();
     }
 
@@ -231,10 +333,18 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.GetAsync(
-            $"{ServerUrl}{SynchronizationProtocol.EndpointSessionIncomplete}");
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionIncomplete}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Get,
+            route,
+            () => client.GetAsync(route));
         response.EnsureSuccessStatusCode();
         var incompleteSessions = await response.Content.ReadFromJsonAsync(AppJson.Context.ListGuid);
+
+        logger.Verbose(
+            "Received {IncompleteSessionCount} incomplete session ids from the server",
+            incompleteSessions?.Count ?? 0);
+
         return incompleteSessions ?? [];
     }
 
@@ -244,13 +354,22 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.GetAsync($"{ServerUrl}{SynchronizationProtocol.EndpointSessionData}{id}");
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionData}{id}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Get,
+            route,
+            () => client.GetAsync(route));
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
+            logger.Verbose("Session data was not found on the server for {SessionId}", id);
             return null;
         }
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsByteArrayAsync();
+        var psst = await response.Content.ReadAsByteArrayAsync();
+
+        logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", psst.Length, id);
+
+        return psst;
     }
 
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
@@ -259,9 +378,15 @@ internal class HttpApiService : IHttpApiService
 
         if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
 
-        using var response = await client.PatchAsync(
-            $"{ServerUrl}{SynchronizationProtocol.EndpointSessionData}{id}",
-            new ByteArrayContent(data));
+        logger.Verbose("Uploading {ByteCount} bytes of session data for {SessionId}", data.Length, id);
+
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionData}{id}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Patch,
+            route,
+            () => client.PatchAsync(
+                route,
+                new ByteArrayContent(data)));
         response.EnsureSuccessStatusCode();
     }
 
