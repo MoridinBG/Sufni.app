@@ -37,7 +37,7 @@ graph LR
 - `ShouldBeImported` — tri-state nullable bool: `null` if file duration < 5 seconds (too short to be useful), `true`/`false` for user decision
 - `GeneratePsstAsync(BikeData)` — the full pipeline in one call: reads raw bytes, parses SST, runs signal processing, returns MessagePack-serialized `TelemetryData`
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file, send TCP delete command, etc.)
-- `StartTime`, `Duration` — eagerly parsed in the constructor from the SST header for display before import
+- `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
 **`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `ISetupCoordinator`; neither screen constructs concrete datastore implementations itself.
 
@@ -99,7 +99,7 @@ graph TD
     Spike --> Clean["Clean ushort[] front/rear + anomaly rates"]
 ```
 
-`RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the magic bytes and version, then dispatches to the appropriate `ISstParser` implementation.
+`RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the magic bytes and version, then dispatches to the appropriate `ISstParser` implementation. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import.
 
 ### SST V3 Format
 
@@ -137,7 +137,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
-`SstV4TlvParser.ParseDuration()` is a lightweight method that scans only the Rates and Telemetry chunks to compute duration without fully parsing all data — used for UI display before import.
+The `Inspect()` path scans only the header and rate/telemetry chunk metadata to compute duration and version without fully parsing all data — used for UI display before import. It also detects unknown TLV chunk types and malformed headers, returning a `MalformedSstFileInspection` with a diagnostic message when the file cannot be imported.
 
 ### Spike Elimination
 
@@ -155,7 +155,7 @@ Output is clamped to valid 12-bit ADC range `[0, 4095]`. The anomaly count is co
 
 ### V4 Data Structures
 
-All are MessagePack-serializable records defined in `Sufni.Telemetry/`:
+All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 
 - **`GpsRecord`** — Timestamp (UTC DateTime), Latitude, Longitude, Altitude, Speed (m/s), Heading, FixMode, Satellites, Epe2d/Epe3d (error estimates in meters)
 - **`ImuRecord`** — Ax, Ay, Az (raw int16 acceleration), Gx, Gy, Gz (raw int16 gyroscope)
