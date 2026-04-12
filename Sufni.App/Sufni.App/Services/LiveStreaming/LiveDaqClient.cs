@@ -301,7 +301,9 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                     activeSessionId = sessionHeaderFrame.Payload.SessionId;
                     if (pendingStartResult is not null && startAckAwaitingHeader is not null)
                     {
-                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(sessionHeaderFrame.Payload));
+                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(
+                            sessionHeaderFrame.Payload,
+                            startAckAwaitingHeader.Value.SelectedSensorMask));
                         pendingStartResult = null;
                         startAckAwaitingHeader = null;
                     }

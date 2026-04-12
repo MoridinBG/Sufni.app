@@ -223,33 +223,23 @@ public sealed class LiveProtocolReader
     private static LiveSessionHeader ParseSessionHeader(ReadOnlySpan<byte> payload)
     {
         EnsurePayloadLength(payload, LiveProtocolConstants.SessionHeaderPayloadSize, LiveFrameType.SessionHeader);
-        var sessionStartUtcSeconds = BinaryPrimitives.ReadInt64LittleEndian(payload[36..44]);
 
         return new LiveSessionHeader(
             SessionId: BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
-            SelectedSensorMask: (LiveSensorMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
-            PublishCadenceMs: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
-            AcceptedTravelHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]),
-            AcceptedImuHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[16..20]),
-            AcceptedGpsFixHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[20..24]),
-            TravelPeriodUs: BinaryPrimitives.ReadUInt32LittleEndian(payload[24..28]),
-            ImuPeriodUs: BinaryPrimitives.ReadUInt32LittleEndian(payload[28..32]),
-            GpsFixIntervalMs: BinaryPrimitives.ReadUInt32LittleEndian(payload[32..36]),
-            SessionStartUtc: DateTimeOffset.FromUnixTimeSeconds(sessionStartUtcSeconds),
-            SessionStartMonotonicUs: BinaryPrimitives.ReadUInt64LittleEndian(payload[44..52]),
-            ActiveImuCount: BinaryPrimitives.ReadUInt32LittleEndian(payload[52..56]),
-            ActiveImuMask: (LiveImuLocationMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[56..60]),
+            AcceptedTravelHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
+            AcceptedImuHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
+            AcceptedGpsFixHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]),
+            SessionStartUtc: DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadInt64LittleEndian(payload[16..24])),
+            SessionStartMonotonicUs: BinaryPrimitives.ReadUInt64LittleEndian(payload[24..32]),
+            ActiveImuMask: (LiveImuLocationMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[32..36]),
             ImuCalibrationScales: new LiveImuCalibrationScales(
-                FrameAccelLsbPerG: ReadSingleLittleEndian(payload[60..64]),
-                ForkAccelLsbPerG: ReadSingleLittleEndian(payload[64..68]),
-                RearAccelLsbPerG: ReadSingleLittleEndian(payload[68..72]),
-                FrameGyroLsbPerDps: ReadSingleLittleEndian(payload[72..76]),
-                ForkGyroLsbPerDps: ReadSingleLittleEndian(payload[76..80]),
-                RearGyroLsbPerDps: ReadSingleLittleEndian(payload[80..84])),
-            TravelQueueCapacity: BinaryPrimitives.ReadUInt32LittleEndian(payload[84..88]),
-            ImuQueueCapacity: BinaryPrimitives.ReadUInt32LittleEndian(payload[88..92]),
-            GpsQueueCapacity: BinaryPrimitives.ReadUInt32LittleEndian(payload[92..96]),
-            Flags: (LiveSessionFlags)BinaryPrimitives.ReadUInt32LittleEndian(payload[96..100]));
+                FrameAccelLsbPerG: ReadSingleLittleEndian(payload[36..40]),
+                ForkAccelLsbPerG: ReadSingleLittleEndian(payload[40..44]),
+                RearAccelLsbPerG: ReadSingleLittleEndian(payload[44..48]),
+                FrameGyroLsbPerDps: ReadSingleLittleEndian(payload[48..52]),
+                ForkGyroLsbPerDps: ReadSingleLittleEndian(payload[52..56]),
+                RearGyroLsbPerDps: ReadSingleLittleEndian(payload[56..60])),
+            Flags: (LiveSessionFlags)BinaryPrimitives.ReadUInt32LittleEndian(payload[60..64]));
     }
 
     private static LiveStopAck ParseStopAck(ReadOnlySpan<byte> payload)
@@ -266,14 +256,9 @@ public sealed class LiveProtocolReader
 
     private static LiveTravelBatchFrame ParseTravelBatchFrame(LiveFrameHeader header, ReadOnlySpan<byte> payload)
     {
-        var batch = ParseBatchHeader(payload, LiveFrameType.TravelBatch);
-        if (batch.StreamType != LiveStreamType.Travel)
-        {
-            throw new FormatException("Travel batch payload does not declare the travel stream type.");
-        }
-
+        var batch = ParseBatchHeader(payload);
         var recordsData = payload[LiveProtocolConstants.BatchHeaderSize..];
-        if (batch.PayloadByteLength != batch.SampleCount * LiveProtocolConstants.TravelRecordSize)
+        if (recordsData.Length != batch.SampleCount * LiveProtocolConstants.TravelRecordSize)
         {
             throw new FormatException("Travel batch payload length does not match the record count.");
         }
@@ -291,12 +276,7 @@ public sealed class LiveProtocolReader
 
     private static LiveImuBatchFrame ParseImuBatchFrame(LiveFrameHeader header, ReadOnlySpan<byte> payload)
     {
-        var batch = ParseBatchHeader(payload, LiveFrameType.ImuBatch);
-        if (batch.StreamType != LiveStreamType.Imu)
-        {
-            throw new FormatException("IMU batch payload does not declare the IMU stream type.");
-        }
-
+        var batch = ParseBatchHeader(payload);
         var recordsData = payload[LiveProtocolConstants.BatchHeaderSize..];
         if (recordsData.Length % LiveProtocolConstants.ImuRecordSize != 0)
         {
@@ -320,14 +300,9 @@ public sealed class LiveProtocolReader
 
     private static LiveGpsBatchFrame ParseGpsBatchFrame(LiveFrameHeader header, ReadOnlySpan<byte> payload)
     {
-        var batch = ParseBatchHeader(payload, LiveFrameType.GpsBatch);
-        if (batch.StreamType != LiveStreamType.Gps)
-        {
-            throw new FormatException("GPS batch payload does not declare the GPS stream type.");
-        }
-
+        var batch = ParseBatchHeader(payload);
         var recordsData = payload[LiveProtocolConstants.BatchHeaderSize..];
-        if (batch.PayloadByteLength != batch.SampleCount * LiveProtocolConstants.GpsRecordSize)
+        if (recordsData.Length != batch.SampleCount * LiveProtocolConstants.GpsRecordSize)
         {
             throw new FormatException("GPS batch payload length does not match the record count.");
         }
@@ -363,44 +338,27 @@ public sealed class LiveProtocolReader
         EnsurePayloadLength(payload, LiveProtocolConstants.SessionStatsPayloadSize, LiveFrameType.SessionStats);
         return new LiveSessionStats(
             SessionId: BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
-            AcceptedTravelHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
-            AcceptedImuHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
-            AcceptedGpsFixHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]),
-            TravelPeriodUs: BinaryPrimitives.ReadUInt32LittleEndian(payload[16..20]),
-            ImuPeriodUs: BinaryPrimitives.ReadUInt32LittleEndian(payload[20..24]),
-            GpsFixIntervalMs: BinaryPrimitives.ReadUInt32LittleEndian(payload[24..28]),
-            TravelQueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[28..32]),
-            ImuQueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[32..36]),
-            GpsQueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[36..40]),
-            TravelDroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[40..44]),
-            ImuDroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[44..48]),
-            GpsDroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[48..52]));
+            TravelQueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
+            ImuQueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
+            GpsQueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]),
+            TravelDroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[16..20]),
+            ImuDroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[20..24]),
+            GpsDroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[24..28]));
     }
 
-    private static LiveBatchHeader ParseBatchHeader(ReadOnlySpan<byte> payload, LiveFrameType frameType)
+    private static LiveBatchHeader ParseBatchHeader(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < LiveProtocolConstants.BatchHeaderSize)
         {
-            throw new FormatException($"{frameType} payload is shorter than the batch header.");
+            throw new FormatException("Batch payload is shorter than the batch header.");
         }
 
-        var header = new LiveBatchHeader(
+        return new LiveBatchHeader(
             SessionId: BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
-            StreamType: (LiveStreamType)BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
-            StreamSequence: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
-            FirstIndex: BinaryPrimitives.ReadUInt64LittleEndian(payload[12..20]),
-            FirstMonotonicUs: BinaryPrimitives.ReadUInt64LittleEndian(payload[20..28]),
-            SampleCount: BinaryPrimitives.ReadUInt32LittleEndian(payload[28..32]),
-            PayloadByteLength: BinaryPrimitives.ReadUInt32LittleEndian(payload[32..36]),
-            QueueDepth: BinaryPrimitives.ReadUInt32LittleEndian(payload[36..40]),
-            DroppedBatches: BinaryPrimitives.ReadUInt32LittleEndian(payload[40..44]));
-
-        if (payload.Length != LiveProtocolConstants.BatchHeaderSize + header.PayloadByteLength)
-        {
-            throw new FormatException($"{frameType} payload length does not match its batch header payload_byte_length.");
-        }
-
-        return header;
+            StreamSequence: BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
+            FirstIndex: BinaryPrimitives.ReadUInt64LittleEndian(payload[8..16]),
+            FirstMonotonicUs: BinaryPrimitives.ReadUInt64LittleEndian(payload[16..24]),
+            SampleCount: BinaryPrimitives.ReadUInt32LittleEndian(payload[24..28]));
     }
 
     private static T ParseEmptyPayloadFrame<T>(LiveFrameHeader header, ReadOnlySpan<byte> payload)

@@ -11,8 +11,8 @@ public sealed class LiveDaqSessionState
     private readonly object gate = new();
     private readonly Dictionary<LiveImuLocation, LiveImuReading> latestImuReadings = [];
 
+    private LiveSensorMask selectedSensorMask;
     private LiveSessionHeader? sessionHeader;
-    private LiveSessionStats? sessionStats;
     private LiveTravelRecord? latestTravel;
     private ulong? latestTravelMonotonicUs;
     private GpsRecord? latestGps;
@@ -29,8 +29,8 @@ public sealed class LiveDaqSessionState
     {
         lock (gate)
         {
+            selectedSensorMask = LiveSensorMask.None;
             sessionHeader = null;
-            sessionStats = null;
             latestTravel = null;
             latestTravelMonotonicUs = null;
             latestGps = null;
@@ -54,6 +54,13 @@ public sealed class LiveDaqSessionState
 
             switch (frame)
             {
+                case LiveStartAckFrame startAckFrame:
+                    if (startAckFrame.Payload.Result == LiveStartErrorCode.Ok)
+                    {
+                        selectedSensorMask = startAckFrame.Payload.SelectedSensorMask;
+                    }
+                    break;
+
                 case LiveSessionHeaderFrame sessionHeaderFrame:
                     sessionHeader = sessionHeaderFrame.Payload;
                     break;
@@ -71,7 +78,6 @@ public sealed class LiveDaqSessionState
                     break;
 
                 case LiveSessionStatsFrame sessionStatsFrame:
-                    sessionStats = sessionStatsFrame.Payload;
                     travelQueueDepth = sessionStatsFrame.Payload.TravelQueueDepth;
                     imuQueueDepth = sessionStatsFrame.Payload.ImuQueueDepth;
                     gpsQueueDepth = sessionStatsFrame.Payload.GpsQueueDepth;
@@ -104,8 +110,6 @@ public sealed class LiveDaqSessionState
 
     private void ApplyTravelBatch(LiveTravelBatchFrame frame)
     {
-        travelQueueDepth = frame.Batch.QueueDepth;
-        travelDroppedBatches = frame.Batch.DroppedBatches;
         if (frame.Records.Count == 0)
         {
             return;
@@ -117,8 +121,6 @@ public sealed class LiveDaqSessionState
 
     private void ApplyImuBatch(LiveImuBatchFrame frame)
     {
-        imuQueueDepth = frame.Batch.QueueDepth;
-        imuDroppedBatches = frame.Batch.DroppedBatches;
         if (frame.Records.Count == 0 || sessionHeader is null)
         {
             return;
@@ -140,8 +142,6 @@ public sealed class LiveDaqSessionState
 
     private void ApplyGpsBatch(LiveGpsBatchFrame frame)
     {
-        gpsQueueDepth = frame.Batch.QueueDepth;
-        gpsDroppedBatches = frame.Batch.DroppedBatches;
         if (frame.Records.Count == 0)
         {
             return;
@@ -157,21 +157,13 @@ public sealed class LiveDaqSessionState
             return LiveSessionContractSnapshot.Empty;
         }
 
-        var stats = sessionStats;
         return new LiveSessionContractSnapshot(
             SessionId: sessionHeader.SessionId,
-            SelectedSensorMask: sessionHeader.SelectedSensorMask,
-            PublishCadenceMs: sessionHeader.PublishCadenceMs,
-            AcceptedTravelHz: stats?.AcceptedTravelHz ?? sessionHeader.AcceptedTravelHz,
-            AcceptedImuHz: stats?.AcceptedImuHz ?? sessionHeader.AcceptedImuHz,
-            AcceptedGpsFixHz: stats?.AcceptedGpsFixHz ?? sessionHeader.AcceptedGpsFixHz,
-            TravelPeriodUs: stats?.TravelPeriodUs ?? sessionHeader.TravelPeriodUs,
-            ImuPeriodUs: stats?.ImuPeriodUs ?? sessionHeader.ImuPeriodUs,
-            GpsFixIntervalMs: stats?.GpsFixIntervalMs ?? sessionHeader.GpsFixIntervalMs,
+            SelectedSensorMask: selectedSensorMask,
+            AcceptedTravelHz: sessionHeader.AcceptedTravelHz,
+            AcceptedImuHz: sessionHeader.AcceptedImuHz,
+            AcceptedGpsFixHz: sessionHeader.AcceptedGpsFixHz,
             SessionStartUtc: sessionHeader.SessionStartUtc,
-            TravelQueueCapacity: sessionHeader.TravelQueueCapacity,
-            ImuQueueCapacity: sessionHeader.ImuQueueCapacity,
-            GpsQueueCapacity: sessionHeader.GpsQueueCapacity,
             Flags: sessionHeader.Flags,
             ActiveImuLocations: sessionHeader.GetActiveImuLocations());
     }

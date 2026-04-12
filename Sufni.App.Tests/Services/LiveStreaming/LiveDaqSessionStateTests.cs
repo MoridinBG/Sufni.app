@@ -11,14 +11,17 @@ public class LiveDaqSessionStateTests
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 700);
 
+        state.ApplyFrame(new LiveStartAckFrame(
+            CreateHeader(LiveFrameType.StartLiveAck, 0),
+            new LiveStartAck(LiveStartErrorCode.Ok, 700, LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps)));
         state.ApplyFrame(new LiveSessionHeaderFrame(CreateHeader(LiveFrameType.SessionHeader, 1), sessionHeader));
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveFrameType.TravelBatch, 2),
-            new LiveBatchHeader(700, LiveStreamType.Travel, 0, 10, 123456789, 2, 8, 3, 1),
+            new LiveBatchHeader(700, 0, 10, 123456789, 2),
             [new LiveTravelRecord(100, 200), new LiveTravelRecord(111, 222)]));
         state.ApplyFrame(new LiveImuBatchFrame(
             CreateHeader(LiveFrameType.ImuBatch, 3),
-            new LiveBatchHeader(700, LiveStreamType.Imu, 0, 20, 123456789, 2, 48, 4, 2),
+            new LiveBatchHeader(700, 0, 20, 123456789, 2),
             [
                 new ImuRecord(1, 2, 3, 4, 5, 6),
                 new ImuRecord(7, 8, 9, 10, 11, 12),
@@ -27,11 +30,11 @@ public class LiveDaqSessionStateTests
             ]));
         state.ApplyFrame(new LiveGpsBatchFrame(
             CreateHeader(LiveFrameType.GpsBatch, 4),
-            new LiveBatchHeader(700, LiveStreamType.Gps, 0, 30, 123456789, 1, 46, 1, 0),
+            new LiveBatchHeader(700, 0, 30, 123456789, 1),
             [new GpsRecord(new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc), 48.2, 16.3, 200f, 8f, 90f, 2, 9, 1.5f, 2.5f)]));
         state.ApplyFrame(new LiveSessionStatsFrame(
             CreateHeader(LiveFrameType.SessionStats, 5),
-            new LiveSessionStats(700, 200, 100, 10, 5000, 10000, 100, 5, 4, 1, 3, 2, 0)));
+            new LiveSessionStats(700, 5, 4, 1, 3, 2, 0)));
 
         var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
 
@@ -71,7 +74,7 @@ public class LiveDaqSessionStateTests
         state.ApplyFrame(new LiveSessionHeaderFrame(CreateHeader(LiveFrameType.SessionHeader, 1), sessionHeader));
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveFrameType.TravelBatch, 2),
-            new LiveBatchHeader(701, LiveStreamType.Travel, 0, 10, 123456789, 1, 4, 1, 0),
+            new LiveBatchHeader(701, 0, 10, 123456789, 1),
             [new LiveTravelRecord(100, 200)]));
 
         state.Reset();

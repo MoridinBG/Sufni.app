@@ -29,8 +29,16 @@ public class LiveDaqDetailViewModelTests
 
     private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
     {
+        var result = startResult ?? new LivePreviewStartResult.Started(
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808),
+            LiveSensorMask.Travel | LiveSensorMask.Imu);
+
         client.StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(startResult ?? new LivePreviewStartResult.Started(LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808))));
+            .Returns(_ =>
+            {
+                EmitStartedEvents(clientEvents, result);
+                return Task.FromResult(result);
+            });
 
         return new LiveDaqDetailViewModel(
             new LiveDaqSnapshot(
@@ -50,19 +58,13 @@ public class LiveDaqDetailViewModelTests
     [AvaloniaFact]
     public async Task Loaded_AutoConnects_AndAppliesAcceptedSessionState()
     {
-        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808, sensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu);
-        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader));
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
+        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu));
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
         await client.Received(1).ConnectAsync("192.168.0.50", 1557, Arg.Any<CancellationToken>());
-        await client.Received(1).StartPreviewAsync(
-            Arg.Is<LiveStartRequest>(request =>
-                request.SensorMask == (LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps) &&
-                request.TravelHz == 0 &&
-                request.ImuHz == 0 &&
-                request.GpsFixHz == 0),
-            Arg.Any<CancellationToken>());
+        await client.Received(1).StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
         Assert.Equal((uint)808, editor.Snapshot.Session.SessionId);
         Assert.Equal("Board 1", editor.Name);
@@ -117,10 +119,24 @@ public class LiveDaqDetailViewModelTests
         client2.ConnectAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         client1.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         client2.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        var result1 = new LivePreviewStartResult.Started(
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101),
+            LiveSensorMask.Travel | LiveSensorMask.Imu);
+        var result2 = new LivePreviewStartResult.Started(
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202),
+            LiveSensorMask.Travel | LiveSensorMask.Imu);
         client1.StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Started(LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101))));
+            .Returns(_ =>
+            {
+                EmitStartedEvents(client1Events, result1);
+                return Task.FromResult<LivePreviewStartResult>(result1);
+            });
         client2.StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Started(LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202))));
+            .Returns(_ =>
+            {
+                EmitStartedEvents(client2Events, result2);
+                return Task.FromResult<LivePreviewStartResult>(result2);
+            });
 
         var snapshot1 = new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -155,5 +171,21 @@ public class LiveDaqDetailViewModelTests
         await client2.DidNotReceive().DisconnectAsync(Arg.Any<CancellationToken>());
         Assert.Equal((uint)101, editor1.Snapshot.Session.SessionId);
         Assert.Equal((uint)202, editor2.Snapshot.Session.SessionId);
+    }
+
+    private static void EmitStartedEvents(Subject<LiveDaqClientEvent> events, LivePreviewStartResult result)
+    {
+        if (result is not LivePreviewStartResult.Started started)
+        {
+            return;
+        }
+
+        var ackHeader = new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0);
+        events.OnNext(new LiveDaqClientEvent.FrameReceived(
+            new LiveStartAckFrame(ackHeader, new LiveStartAck(LiveStartErrorCode.Ok, started.Header.SessionId, started.SelectedSensorMask))));
+
+        var sessionHeader = new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.SessionHeader, 0, 0);
+        events.OnNext(new LiveDaqClientEvent.FrameReceived(
+            new LiveSessionHeaderFrame(sessionHeader, started.Header)));
     }
 }

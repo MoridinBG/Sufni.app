@@ -13,14 +13,14 @@ public static class LiveProtocolConstants
     public const int FrameHeaderSize = 16;
     public const int StartRequestPayloadSize = 16;
     public const int StartAckPayloadSize = 12;
-    public const int SessionHeaderPayloadSize = 100;
+    public const int SessionHeaderPayloadSize = 64;
     public const int StopAckPayloadSize = 4;
     public const int ErrorPayloadSize = 4;
-    public const int BatchHeaderSize = 44;
+    public const int BatchHeaderSize = 28;
     public const int TravelRecordSize = 4;
     public const int ImuRecordSize = 12;
     public const int GpsRecordSize = 46;
-    public const int SessionStatsPayloadSize = 52;
+    public const int SessionStatsPayloadSize = 28;
 }
 
 public enum LiveFrameType : ushort
@@ -37,13 +37,6 @@ public enum LiveFrameType : ushort
     ImuBatch = 33,
     GpsBatch = 34,
     SessionStats = 48,
-}
-
-public enum LiveStreamType : uint
-{
-    Travel = 1,
-    Imu = 2,
-    Gps = 3,
 }
 
 [Flags]
@@ -100,6 +93,8 @@ public readonly record struct LiveFrameHeader(
     public int TotalFrameLength => checked(LiveProtocolConstants.FrameHeaderSize + (int)PayloadLength);
 }
 
+// Client-to-DAQ request. The Hz fields cap each stream's rate — the DAQ may
+// accept a lower rate. Zero means no preference (use the device default).
 public readonly record struct LiveStartRequest(
     LiveSensorMask SensorMask,
     uint TravelHz,
@@ -139,27 +134,21 @@ public sealed record LiveImuCalibrationScales(
 // Sent by the DAQ after START_LIVE_ACK to describe the accepted session parameters.
 // Contains the actual sampling rates the firmware chose (which may differ from requested),
 // timing bases for monotonic-to-wall-clock conversion, active IMU sensor topology,
-// per-location calibration scales, and firmware-side queue capacities per stream.
+// and per-location calibration scales.
 public sealed record LiveSessionHeader(
     uint SessionId,
-    LiveSensorMask SelectedSensorMask,
-    uint PublishCadenceMs,           // how often the DAQ publishes batches (ms)
     uint AcceptedTravelHz,           // actual travel sampling rate
     uint AcceptedImuHz,              // actual IMU sampling rate
     uint AcceptedGpsFixHz,           // actual GPS fix rate
-    uint TravelPeriodUs,             // microseconds between travel samples (1e6 / Hz)
-    uint ImuPeriodUs,                // microseconds between IMU samples
-    uint GpsFixIntervalMs,           // milliseconds between GPS fixes
     DateTimeOffset SessionStartUtc,  // wall-clock session start
     ulong SessionStartMonotonicUs,   // firmware monotonic clock at session start
-    uint ActiveImuCount,             // number of active IMU sensors
     LiveImuLocationMask ActiveImuMask,
     LiveImuCalibrationScales ImuCalibrationScales,
-    uint TravelQueueCapacity,        // max batches the firmware can buffer before dropping
-    uint ImuQueueCapacity,
-    uint GpsQueueCapacity,
     LiveSessionFlags Flags)
 {
+    public uint TravelPeriodUs => AcceptedTravelHz == 0 ? 0 : 1_000_000 / AcceptedTravelHz;
+    public uint ImuPeriodUs => AcceptedImuHz == 0 ? 0 : 1_000_000 / AcceptedImuHz;
+    public uint GpsFixIntervalMs => AcceptedGpsFixHz == 0 ? 0 : 1_000 / AcceptedGpsFixHz;
     public IReadOnlyList<LiveImuLocation> GetActiveImuLocations() => LiveProtocolHelpers.GetActiveImuLocations(ActiveImuMask);
 }
 
@@ -170,37 +159,26 @@ public readonly record struct LiveError(LiveStartErrorCode ErrorCode)
     public int RawCode => (int)ErrorCode;
 }
 
-// Common header for every DATA_BATCH / IMU_BATCH / GPS_BATCH frame. Identifies which sensor
-// stream the batch belongs to, where it sits in that stream's sequence, and the firmware-side
-// queue health (depth and cumulative drops) at the time the batch was sent.
+// Common header for every DATA_BATCH / IMU_BATCH / GPS_BATCH frame. Identifies where this
+// batch sits in its stream's sequence and the firmware monotonic timestamp of the first sample.
+// Stream type is implicit in the frame type; payload size is derived from sample_count.
 public readonly record struct LiveBatchHeader(
     uint SessionId,
-    LiveStreamType StreamType,
     uint StreamSequence,       // per-stream monotonic counter (detects gaps)
     ulong FirstIndex,          // absolute sample index of the first record in this batch
     ulong FirstMonotonicUs,    // firmware monotonic timestamp of the first sample
-    uint SampleCount,          // number of records in the batch payload
-    uint PayloadByteLength,    // byte length of the records that follow this header
-    uint QueueDepth,           // batches waiting in the firmware send queue (backpressure indicator)
-    uint DroppedBatches);      // cumulative batches dropped since session start
+    uint SampleCount);         // number of records in the batch payload
 
 public readonly record struct LiveTravelRecord(ushort ForkAngle, ushort ShockAngle);
 
-// Periodic health snapshot sent by the DAQ during a live session. Echoes the accepted rates
-// (which stay constant) alongside the current queue depths and cumulative drop counts for
-// each stream, giving the UI a single frame to assess overall streaming health.
+// Periodic health snapshot sent by the DAQ during a live session. Contains the current queue
+// depths and cumulative drop counts for each stream.
 public sealed record LiveSessionStats(
     uint SessionId,
-    uint AcceptedTravelHz,
-    uint AcceptedImuHz,
-    uint AcceptedGpsFixHz,
-    uint TravelPeriodUs,
-    uint ImuPeriodUs,
-    uint GpsFixIntervalMs,
-    uint TravelQueueDepth,       // current travel queue depth
-    uint ImuQueueDepth,          // current IMU queue depth
-    uint GpsQueueDepth,          // current GPS queue depth
-    uint TravelDroppedBatches,   // cumulative travel drops since session start
+    uint TravelQueueDepth,
+    uint ImuQueueDepth,
+    uint GpsQueueDepth,
+    uint TravelDroppedBatches,
     uint ImuDroppedBatches,
     uint GpsDroppedBatches);
 
@@ -224,7 +202,7 @@ public sealed record LiveSessionStatsFrame(LiveFrameHeader Header, LiveSessionSt
 
 public abstract record LivePreviewStartResult
 {
-    public sealed record Started(LiveSessionHeader Header) : LivePreviewStartResult;
+    public sealed record Started(LiveSessionHeader Header, LiveSensorMask SelectedSensorMask) : LivePreviewStartResult;
     public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : LivePreviewStartResult;
     public sealed record Failed(string ErrorMessage) : LivePreviewStartResult;
 }

@@ -8,22 +8,15 @@ internal static class LiveProtocolTestFrames
 {
     public static LiveSessionHeader CreateSessionHeaderModel(
         uint sessionId = 77,
-        LiveSensorMask sensorMask = LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
         LiveImuLocationMask imuMask = LiveImuLocationMask.Frame | LiveImuLocationMask.Rear)
     {
         return new LiveSessionHeader(
             SessionId: sessionId,
-            SelectedSensorMask: sensorMask,
-            PublishCadenceMs: 20,
             AcceptedTravelHz: 200,
             AcceptedImuHz: 100,
             AcceptedGpsFixHz: 10,
-            TravelPeriodUs: 5000,
-            ImuPeriodUs: 10000,
-            GpsFixIntervalMs: 100,
             SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             SessionStartMonotonicUs: 123456789,
-            ActiveImuCount: 2,
             ActiveImuMask: imuMask,
             ImuCalibrationScales: new LiveImuCalibrationScales(
                 FrameAccelLsbPerG: 16384f,
@@ -32,9 +25,6 @@ internal static class LiveProtocolTestFrames
                 FrameGyroLsbPerDps: 131f,
                 ForkGyroLsbPerDps: 0f,
                 RearGyroLsbPerDps: 65.5f),
-            TravelQueueCapacity: 6,
-            ImuQueueCapacity: 6,
-            GpsQueueCapacity: 4,
             Flags: LiveSessionFlags.CalibratedOnly | LiveSessionFlags.MutuallyExclusiveWithRecording);
     }
 
@@ -71,48 +61,33 @@ internal static class LiveProtocolTestFrames
 
         var payload = new byte[LiveProtocolConstants.SessionHeaderPayloadSize];
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), header.SessionId);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), (uint)header.SelectedSensorMask);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), header.PublishCadenceMs);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12, 4), header.AcceptedTravelHz);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16, 4), header.AcceptedImuHz);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20, 4), header.AcceptedGpsFixHz);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), header.TravelPeriodUs);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(28, 4), header.ImuPeriodUs);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(32, 4), header.GpsFixIntervalMs);
-        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(36, 8), header.SessionStartUtc.ToUnixTimeSeconds());
-        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(44, 8), header.SessionStartMonotonicUs);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(52, 4), header.ActiveImuCount);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(56, 4), (uint)header.ActiveImuMask);
-        WriteSingleLittleEndian(payload.AsSpan(60, 4), header.ImuCalibrationScales.FrameAccelLsbPerG);
-        WriteSingleLittleEndian(payload.AsSpan(64, 4), header.ImuCalibrationScales.ForkAccelLsbPerG);
-        WriteSingleLittleEndian(payload.AsSpan(68, 4), header.ImuCalibrationScales.RearAccelLsbPerG);
-        WriteSingleLittleEndian(payload.AsSpan(72, 4), header.ImuCalibrationScales.FrameGyroLsbPerDps);
-        WriteSingleLittleEndian(payload.AsSpan(76, 4), header.ImuCalibrationScales.ForkGyroLsbPerDps);
-        WriteSingleLittleEndian(payload.AsSpan(80, 4), header.ImuCalibrationScales.RearGyroLsbPerDps);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(84, 4), header.TravelQueueCapacity);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(88, 4), header.ImuQueueCapacity);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(92, 4), header.GpsQueueCapacity);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(96, 4), (uint)header.Flags);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), header.AcceptedTravelHz);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), header.AcceptedImuHz);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12, 4), header.AcceptedGpsFixHz);
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(16, 8), header.SessionStartUtc.ToUnixTimeSeconds());
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(24, 8), header.SessionStartMonotonicUs);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(32, 4), (uint)header.ActiveImuMask);
+        WriteSingleLittleEndian(payload.AsSpan(36, 4), header.ImuCalibrationScales.FrameAccelLsbPerG);
+        WriteSingleLittleEndian(payload.AsSpan(40, 4), header.ImuCalibrationScales.ForkAccelLsbPerG);
+        WriteSingleLittleEndian(payload.AsSpan(44, 4), header.ImuCalibrationScales.RearAccelLsbPerG);
+        WriteSingleLittleEndian(payload.AsSpan(48, 4), header.ImuCalibrationScales.FrameGyroLsbPerDps);
+        WriteSingleLittleEndian(payload.AsSpan(52, 4), header.ImuCalibrationScales.ForkGyroLsbPerDps);
+        WriteSingleLittleEndian(payload.AsSpan(56, 4), header.ImuCalibrationScales.RearGyroLsbPerDps);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(60, 4), (uint)header.Flags);
         return LiveProtocolReader.CreateFrame(LiveFrameType.SessionHeader, sequence, payload);
     }
 
     public static byte[] CreateGpsBatchFrame(
         uint sequence,
         uint sessionId,
-        GpsRecord record,
-        uint queueDepth = 1,
-        uint droppedBatches = 0)
+        GpsRecord record)
     {
         var payload = new byte[LiveProtocolConstants.BatchHeaderSize + LiveProtocolConstants.GpsRecordSize];
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), (uint)LiveStreamType.Gps);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), 3);
-        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(12, 8), 42);
-        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(20, 8), 555000);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(28, 4), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(32, 4), LiveProtocolConstants.GpsRecordSize);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(36, 4), queueDepth);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(40, 4), droppedBatches);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 3);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), 42);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(16, 8), 555000);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), 1);
 
         var timestamp = record.Timestamp.ToUniversalTime();
         var date = (uint)(timestamp.Year * 10000 + timestamp.Month * 100 + timestamp.Day);

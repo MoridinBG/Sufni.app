@@ -94,7 +94,6 @@ mc:Ignorable="d">
                             <TextBlock x:Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
                             <TextBlock x:Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuHz, StringFormat='IMU: {0} Hz'}" />
                             <TextBlock x:Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
-                            <TextBlock x:Name="PublishCadenceTextBlock" Opacity="0.7" Text="{Binding Snapshot.Session.PublishCadenceMs, StringFormat='Publish cadence: {0} ms'}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

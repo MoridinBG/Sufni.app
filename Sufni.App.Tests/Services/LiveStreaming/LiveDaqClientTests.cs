@@ -14,7 +14,8 @@ public class LiveDaqClientTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var expectedHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 501, sensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu);
+        var expectedHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 501);
+        var expectedMask = LiveSensorMask.Travel | LiveSensorMask.Imu;
 
         var serverTask = Task.Run(async () =>
         {
@@ -27,7 +28,7 @@ public class LiveDaqClientTests
             Assert.Equal((uint)200, request.Payload.TravelHz);
             Assert.Equal((uint)100, request.Payload.ImuHz);
 
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, expectedHeader.SessionId, expectedHeader.SelectedSensorMask));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, expectedHeader.SessionId, expectedMask));
             await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, expectedHeader));
             await stream.FlushAsync();
         });
@@ -85,7 +86,7 @@ public class LiveDaqClientTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 713, sensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu);
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 713);
 
         var serverTask = Task.Run(async () =>
         {
@@ -93,7 +94,7 @@ public class LiveDaqClientTests
             await using var stream = serverClient.GetStream();
 
             _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, sessionHeader.SelectedSensorMask));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveSensorMask.Travel | LiveSensorMask.Imu));
             await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
             await stream.FlushAsync();
         });
@@ -139,7 +140,7 @@ public class LiveDaqClientTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 612, sensorMask: LiveSensorMask.Travel);
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 612);
 
         var serverTask = Task.Run(async () =>
         {
@@ -147,7 +148,7 @@ public class LiveDaqClientTests
             await using var stream = serverClient.GetStream();
 
             _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, sessionHeader.SelectedSensorMask));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveSensorMask.Travel));
             await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
             await stream.FlushAsync();
 

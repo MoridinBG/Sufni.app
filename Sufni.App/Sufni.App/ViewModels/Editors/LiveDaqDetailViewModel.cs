@@ -136,16 +136,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
             switch (result)
             {
-                case LivePreviewStartResult.Started started:
-                    sessionState.ApplyFrame(new LiveSessionHeaderFrame(
-                        new LiveFrameHeader(
-                            LiveProtocolConstants.Magic,
-                            LiveProtocolConstants.Version,
-                            LiveFrameType.SessionHeader,
-                            LiveProtocolConstants.SessionHeaderPayloadSize,
-                            0),
-                        started.Header));
-                    SetConnectionState(LiveConnectionState.Connected, null);
+                case LivePreviewStartResult.Started:
                     break;
 
                 case LivePreviewStartResult.Rejected rejected:
@@ -277,6 +268,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         return true;
     }
 
+    // Frames arrive far faster than the UI needs to repaint. The session state
+    // accumulates every frame, and this timer snapshots it at a fixed cadence
+    // so the UI thread is not overwhelmed by per-frame updates.
     private DispatcherTimer CreateUiRefreshTimer()
     {
         var timer = new DispatcherTimer(DispatcherPriority.Background)

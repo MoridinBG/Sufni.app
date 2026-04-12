@@ -14,34 +14,20 @@ public enum LiveConnectionState
 public sealed record LiveSessionContractSnapshot(
     uint? SessionId,
     LiveSensorMask SelectedSensorMask,
-    uint? PublishCadenceMs,
     uint? AcceptedTravelHz,
     uint? AcceptedImuHz,
     uint? AcceptedGpsFixHz,
-    uint? TravelPeriodUs,
-    uint? ImuPeriodUs,
-    uint? GpsFixIntervalMs,
     DateTimeOffset? SessionStartUtc,
-    uint? TravelQueueCapacity,
-    uint? ImuQueueCapacity,
-    uint? GpsQueueCapacity,
     LiveSessionFlags Flags,
     IReadOnlyList<LiveImuLocation> ActiveImuLocations)
 {
     public static readonly LiveSessionContractSnapshot Empty = new(
         SessionId: null,
         SelectedSensorMask: LiveSensorMask.None,
-        PublishCadenceMs: null,
         AcceptedTravelHz: null,
         AcceptedImuHz: null,
         AcceptedGpsFixHz: null,
-        TravelPeriodUs: null,
-        ImuPeriodUs: null,
-        GpsFixIntervalMs: null,
         SessionStartUtc: null,
-        TravelQueueCapacity: null,
-        ImuQueueCapacity: null,
-        GpsQueueCapacity: null,
         Flags: LiveSessionFlags.None,
         ActiveImuLocations: []);
 }

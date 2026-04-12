@@ -97,13 +97,11 @@ public class LiveProtocolReaderTests
             Satellites: 10,
             Epe2d: 1.1f,
             Epe3d: 2.2f);
-        var frameBytes = LiveProtocolTestFrames.CreateGpsBatchFrame(sequence: 9, sessionId: 88, record: record, queueDepth: 2, droppedBatches: 1);
+        var frameBytes = LiveProtocolTestFrames.CreateGpsBatchFrame(sequence: 9, sessionId: 88, record: record);
 
         var frame = Assert.IsType<LiveGpsBatchFrame>(LiveProtocolReader.ParseFrame(frameBytes));
 
         Assert.Equal((uint)88, frame.Batch.SessionId);
-        Assert.Equal((uint)2, frame.Batch.QueueDepth);
-        Assert.Equal((uint)1, frame.Batch.DroppedBatches);
         var decoded = Assert.Single(frame.Records);
         Assert.Equal(record.Timestamp, decoded.Timestamp);
         Assert.Equal(record.Latitude, decoded.Latitude);
