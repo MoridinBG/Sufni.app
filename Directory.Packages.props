@@ -41,6 +41,7 @@
     <PackageVersion Include="QuikGraph" Version="2.5.0" />
     <PackageVersion Include="ScottPlot" Version="5.1.57" />
     <PackageVersion Include="ScottPlot.Avalonia" Version="5.1.57" />
+    <PackageVersion Include="Serilog" Version="4.3.0" />
     <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="11.3.6.2" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0" />
