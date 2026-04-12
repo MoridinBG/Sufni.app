@@ -89,6 +89,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         return Task.CompletedTask;
     }
 
+    // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries.
     private void Reconcile()
     {
         var snapshots = new Dictionary<string, LiveDaqSnapshot>(StringComparer.OrdinalIgnoreCase);

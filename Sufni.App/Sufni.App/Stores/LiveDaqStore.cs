@@ -3,11 +3,9 @@ using DynamicData;
 
 namespace Sufni.App.Stores;
 
-/// <summary>
-/// Single source of truth for the runtime live DAQ catalog. The store is
-/// singleton-backed and mutated by the live coordinator as discovery and
-/// known-board state are reconciled.
-/// </summary>
+// Single source of truth for the runtime live DAQ catalog. The store is
+// singleton-backed and mutated by the live coordinator as discovery and
+// known-board state are reconciled.
 internal sealed class LiveDaqStore : ILiveDaqStoreWriter
 {
     private readonly SourceCache<LiveDaqSnapshot, string> source = new(snapshot => snapshot.IdentityKey);

@@ -10,6 +10,8 @@ using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
+// List-page view model for live preview. It projects the runtime live DAQ catalog,
+// applies search filtering, and delegates browse lifecycle to the coordinator.
 public partial class LiveDaqListViewModel : ItemListViewModelBase
 {
     private readonly ILiveDaqStore liveDaqStore;
@@ -17,6 +19,7 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
     private readonly ReadOnlyObservableCollection<LiveDaqRowViewModel> liveDaqRows;
     private readonly BehaviorSubject<Func<LiveDaqSnapshot, bool>> filterSubject = new(_ => true);
 
+    // Read-only row projection used by the desktop live DAQ list surface.
     public ReadOnlyObservableCollection<LiveDaqRowViewModel> Items => liveDaqRows;
 
     public LiveDaqListViewModel()

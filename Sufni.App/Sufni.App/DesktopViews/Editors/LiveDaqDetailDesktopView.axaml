@@ -1,16 +1,16 @@
 <UserControl
-    x:Class="Sufni.App.DesktopViews.Editors.LiveDaqDetailDesktopView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
-    d:DesignHeight="800"
-    d:DesignWidth="1100"
-    x:DataType="vm:LiveDaqDetailViewModel"
-    Background="{StaticResource SufniRegion}"
-    mc:Ignorable="d">
+x:Class="Sufni.App.DesktopViews.Editors.LiveDaqDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="1100"
+x:DataType="vm:LiveDaqDetailViewModel"
+Background="{StaticResource SufniRegion}"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:LiveDaqDetailViewModel />
@@ -26,10 +26,10 @@
     </Interaction.Behaviors>
 
     <SplitView
-        DisplayMode="Inline"
-        IsPaneOpen="True"
-        OpenPaneLength="340"
-        PanePlacement="Right">
+    DisplayMode="Inline"
+    IsPaneOpen="True"
+    OpenPaneLength="340"
+    PanePlacement="Right">
 
         <SplitView.Pane>
             <ScrollViewer>
@@ -43,28 +43,28 @@
                     </StackPanel>
 
                     <Border
-                        Padding="12"
-                        Background="{StaticResource SufniBackgroundDisabled}"
-                        CornerRadius="8">
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
                         <StackPanel Spacing="6">
                             <TextBlock FontSize="16" FontWeight="SemiBold" Text="Connection" />
                             <TextBlock x:Name="ConnectionStateTextBlock" Text="{Binding Snapshot.ConnectionStateText}" />
                             <TextBlock
-                                x:Name="LastErrorTextBlock"
-                                Foreground="{StaticResource SufniDangerColor}"
-                                IsVisible="{Binding Snapshot.HasLastError}"
-                                Text="{Binding Snapshot.LastError}" />
+                            x:Name="LastErrorTextBlock"
+                            Foreground="{StaticResource SufniDangerColor}"
+                            IsVisible="{Binding Snapshot.HasLastError}"
+                            Text="{Binding Snapshot.LastError}" />
                             <TextBlock
-                                x:Name="LastFrameTextBlock"
-                                Opacity="0.7"
-                                Text="{Binding Snapshot.LastFrameReceivedUtc, StringFormat='Last frame: {0:HH:mm:ss}'}" />
+                            x:Name="LastFrameTextBlock"
+                            Opacity="0.7"
+                            Text="{Binding Snapshot.LastFrameReceivedUtc, StringFormat='Last frame: {0:HH:mm:ss}'}" />
                         </StackPanel>
                     </Border>
 
                     <Border
-                        Padding="12"
-                        Background="{StaticResource SufniBackgroundDisabled}"
-                        CornerRadius="8">
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
                         <StackPanel Spacing="10">
                             <TextBlock FontSize="16" FontWeight="SemiBold" Text="Requested Rates" />
                             <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto auto" RowSpacing="8" ColumnSpacing="12">
@@ -86,9 +86,9 @@
                     </Border>
 
                     <Border
-                        Padding="12"
-                        Background="{StaticResource SufniBackgroundDisabled}"
-                        CornerRadius="8">
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
                         <StackPanel Spacing="6">
                             <TextBlock FontSize="16" FontWeight="SemiBold" Text="Accepted Session" />
                             <TextBlock x:Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
@@ -104,10 +104,10 @@
         <ScrollViewer>
             <StackPanel Margin="18" Spacing="16">
                 <Border
-                    x:Name="TravelCard"
-                    Padding="14"
-                    Background="{StaticResource SufniBackgroundDisabled}"
-                    CornerRadius="8">
+                x:Name="TravelCard"
+                Padding="14"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                CornerRadius="8">
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel" />
                         <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
@@ -120,10 +120,10 @@
                 </Border>
 
                 <Border
-                    x:Name="ImuCard"
-                    Padding="14"
-                    Background="{StaticResource SufniBackgroundDisabled}"
-                    CornerRadius="8">
+                x:Name="ImuCard"
+                Padding="14"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                CornerRadius="8">
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="IMU" />
                         <TextBlock x:Name="ImuSummaryTextBlock" Opacity="0.7" Text="{Binding Snapshot.Imus.Count, StringFormat='IMUs: {0}'}" />
@@ -132,10 +132,10 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="live:LiveImuUiSnapshot">
                                     <Border
-                                        Margin="0,0,0,8"
-                                        Padding="10"
-                                        Background="{StaticResource SufniRegion}"
-                                        CornerRadius="6">
+                                    Margin="0,0,0,8"
+                                    Padding="10"
+                                    Background="{StaticResource SufniRegion}"
+                                    CornerRadius="6">
                                         <StackPanel Spacing="4">
                                             <TextBlock FontWeight="SemiBold" Text="{Binding Location}" />
                                             <TextBlock Text="{Binding Ax, StringFormat='Acc: {0}'}" />
@@ -150,10 +150,10 @@
                 </Border>
 
                 <Border
-                    x:Name="GpsCard"
-                    Padding="14"
-                    Background="{StaticResource SufniBackgroundDisabled}"
-                    CornerRadius="8">
+                x:Name="GpsCard"
+                Padding="14"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                CornerRadius="8">
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="GPS" />
                         <TextBlock x:Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />

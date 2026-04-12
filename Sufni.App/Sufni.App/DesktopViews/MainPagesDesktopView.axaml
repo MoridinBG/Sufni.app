@@ -1,15 +1,15 @@
 ﻿<UserControl
-    x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:v="clr-namespace:Sufni.App.DesktopViews"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    d:DesignHeight="720"
-    d:DesignWidth="500"
-    x:DataType="vm:MainPagesViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:v="clr-namespace:Sufni.App.DesktopViews"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+d:DesignHeight="720"
+d:DesignWidth="500"
+x:DataType="vm:MainPagesViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:MainPagesViewModel />
@@ -63,21 +63,21 @@
 
         <!--  Menu tab  -->
         <TabControl
-            Name="PagesMenu"
-            Margin="0,0,0,5"
-            Background="{StaticResource SufniRegion}"
-            SelectedIndex="{Binding SelectedIndex}"
-            TabStripPlacement="Left">
+        Name="PagesMenu"
+        Margin="0,0,0,5"
+        Background="{StaticResource SufniRegion}"
+        SelectedIndex="{Binding SelectedIndex}"
+        TabStripPlacement="Left">
             <TabItem Name="SessionTabItem">
                 <TabItem.Header>
                     <StackPanel>
                         <Image Width="16" Source="{SvgImage /Assets/fa-chart-line.svg}" />
                         <TextBlock
-                            Margin="0,2,0,0"
-                            Padding="0,0,4,0"
-                            HorizontalAlignment="Center"
-                            FontSize="9"
-                            Text="Sessions" />
+                        Margin="0,2,0,0"
+                        Padding="0,0,4,0"
+                        HorizontalAlignment="Center"
+                        FontSize="9"
+                        Text="Sessions" />
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl Content="{Binding SessionsPage}" />
@@ -87,10 +87,10 @@
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
                         <TextBlock
-                            Padding="0,0,4,0"
-                            HorizontalAlignment="Center"
-                            FontSize="9"
-                            Text="Setups" />
+                        Padding="0,0,4,0"
+                        HorizontalAlignment="Center"
+                        FontSize="9"
+                        Text="Setups" />
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl Content="{Binding SetupsPage}" />
@@ -100,10 +100,10 @@
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
                         <TextBlock
-                            Padding="0,0,4,0"
-                            HorizontalAlignment="Center"
-                            FontSize="9"
-                            Text="Bikes" />
+                        Padding="0,0,4,0"
+                        HorizontalAlignment="Center"
+                        FontSize="9"
+                        Text="Bikes" />
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl Content="{Binding BikesPage}" />
@@ -113,10 +113,10 @@
                     <StackPanel>
                         <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
                         <TextBlock
-                            Padding="0,0,4,0"
-                            HorizontalAlignment="Center"
-                            FontSize="9"
-                            Text="Live" />
+                        Padding="0,0,4,0"
+                        HorizontalAlignment="Center"
+                        FontSize="9"
+                        Text="Live" />
                     </StackPanel>
                 </TabItem.Header>
                 <ContentControl Content="{Binding LiveDaqsPage}" />
@@ -144,62 +144,62 @@
                 </Button.Flyout>
 
                 <Image
-                    Width="18"
-                    Margin="3,0,0,0"
-                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+                Width="18"
+                Margin="3,0,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}" />
             </Button>
 
             <!--  Import sessions button  -->
             <Button
-                Width="50"
-                Classes="embedded"
-                Command="{Binding OpenImportCommand}">
+            Width="50"
+            Classes="embedded"
+            Command="{Binding OpenImportCommand}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </Button>
 
             <!--  Import GPX button  -->
             <Button
-                Width="50"
-                Classes="embedded"
-                Command="{Binding OpenGpsTracksCommand}">
+            Width="50"
+            Classes="embedded"
+            Command="{Binding OpenGpsTracksCommand}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-map.svg}" />
             </Button>
 
             <!--  Paired devices button  -->
             <Button
-                Name="PairedDevicesButton"
-                Width="50"
-                Classes="embedded"
-                Command="{Binding OpenClosePairedDevicesListCommand}">
+            Name="PairedDevicesButton"
+            Width="50"
+            Classes="embedded"
+            Command="{Binding OpenClosePairedDevicesListCommand}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </Button>
         </StackPanel>
 
         <!--  Paired devices list  -->
         <ContentControl
-            Height="300"
-            Margin="50,0,20,25"
-            VerticalAlignment="Bottom"
-            Content="{Binding PairedDevicesPage}"
-            IsVisible="{Binding IsPairedDevicesListOpen}"
-            Opacity="0.9" />
+        Height="300"
+        Margin="50,0,20,25"
+        VerticalAlignment="Bottom"
+        Content="{Binding PairedDevicesPage}"
+        IsVisible="{Binding IsPairedDevicesListOpen}"
+        Opacity="0.9" />
 
         <!--  New pairing request  -->
         <Grid
-            Margin="50,0,20,25"
-            VerticalAlignment="Bottom"
-            Background="{StaticResource SufniBackgroundDisabled}"
-            ColumnDefinitions="* 35"
-            IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
-            Opacity="0.9"
-            RowDefinitions="auto 24">
+        Margin="50,0,20,25"
+        VerticalAlignment="Bottom"
+        Background="{StaticResource SufniBackgroundDisabled}"
+        ColumnDefinitions="* 35"
+        IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
+        Opacity="0.9"
+        RowDefinitions="auto 24">
 
             <TextBlock
-                Grid.Row="0"
-                Grid.Column="0"
-                Grid.ColumnSpan="2"
-                Margin="10,10,10,10"
-                FontSize="16">
+            Grid.Row="0"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="10,10,10,10"
+            FontSize="16">
                 <Run Text="Pairing request from " />
                 <LineBreak />
                 <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingName}" />
@@ -207,23 +207,23 @@
 
             <!--  PIN Display  -->
             <TextBlock
-                Grid.Row="1"
-                Grid.Column="0"
-                Margin="10,0,10,10"
-                VerticalAlignment="Center"
-                FontSize="24"
-                FontWeight="Bold"
-                LetterSpacing="10"
-                Text="{Binding PairingServerViewModel.PairingPin}" />
+            Grid.Row="1"
+            Grid.Column="0"
+            Margin="10,0,10,10"
+            VerticalAlignment="Center"
+            FontSize="24"
+            FontWeight="Bold"
+            LetterSpacing="10"
+            Text="{Binding PairingServerViewModel.PairingPin}" />
 
             <!--  Progress Ring  -->
             <Path
-                Grid.Row="1"
-                Grid.Column="1"
-                Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
-                Fill="{StaticResource SufniAccentColor}"
-                Stroke="{StaticResource SufniAccentColor}"
-                StrokeLineCap="Round" />
+            Grid.Row="1"
+            Grid.Column="1"
+            Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
+            Fill="{StaticResource SufniAccentColor}"
+            Stroke="{StaticResource SufniAccentColor}"
+            StrokeLineCap="Round" />
         </Grid>
     </Panel>
 </UserControl>
