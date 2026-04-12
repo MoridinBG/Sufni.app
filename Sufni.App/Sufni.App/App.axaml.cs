@@ -79,7 +79,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqBrowseOwner, LiveDaqBrowseOwner>();
-        ServiceCollection.AddSingleton<ILiveDaqBoardIdProbe, LiveDaqBoardIdProbe>();
+        ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
         ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
         ServiceCollection.AddSingleton<ILiveDaqCoordinator, LiveDaqCoordinator>();

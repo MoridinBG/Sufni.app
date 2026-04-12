@@ -7,11 +7,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.Services;
 
+// Normalizes raw discovery announcements into live-preview catalog entries and
+// keeps endpoint-only rows available when board inspection fails.
 public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 {
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly ILiveDaqBrowseOwner browseOwner;
-    private readonly ILiveDaqBoardIdProbe boardIdProbe;
+    private readonly ILiveDaqBoardIdInspector boardIdInspector;
     private readonly object gate = new();
     private readonly HashSet<string> announcedEndpoints = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LiveDaqCatalogEntry> entries = new(StringComparer.OrdinalIgnoreCase);
@@ -20,11 +22,11 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
     public LiveDaqCatalogService(
         [FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery,
         ILiveDaqBrowseOwner browseOwner,
-        ILiveDaqBoardIdProbe boardIdProbe)
+        ILiveDaqBoardIdInspector boardIdInspector)
     {
         this.serviceDiscovery = serviceDiscovery;
         this.browseOwner = browseOwner;
-        this.boardIdProbe = boardIdProbe;
+        this.boardIdInspector = boardIdInspector;
 
         serviceDiscovery.ServiceAdded += OnServiceAdded;
         serviceDiscovery.ServiceRemoved += OnServiceRemoved;
@@ -52,7 +54,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
             announcedEndpoints.Add(endpoint);
         }
 
-        _ = ProbeAndUpsertAsync(address, e.Announcement.Port, host, endpoint);
+        _ = InspectAndUpsertAsync(address, e.Announcement.Port, host, endpoint);
     }
 
     private void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e)
@@ -71,17 +73,17 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
         }
     }
 
-    private async System.Threading.Tasks.Task ProbeAndUpsertAsync(IPAddress address, int port, string host, string endpoint)
+    private async System.Threading.Tasks.Task InspectAndUpsertAsync(IPAddress address, int port, string host, string endpoint)
     {
         string? boardId = null;
         try
         {
-            boardId = (await boardIdProbe.ProbeAsync(address, port).ConfigureAwait(false))?.ToString();
+            boardId = (await boardIdInspector.InspectAsync(address, port).ConfigureAwait(false))?.ToString();
         }
         catch
         {
             // Discovery should still surface endpoint-only entries when
-            // identity probing fails.
+            // identity inspection fails.
         }
 
         lock (gate)

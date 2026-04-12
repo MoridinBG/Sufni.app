@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.Services;
 
+// Shares one keyed browse session across multiple feature consumers by using
+// disposable leases rather than global start/stop ownership.
 internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery) : ILiveDaqBrowseOwner
 {
     private const string ServiceType = "_gosst._tcp";

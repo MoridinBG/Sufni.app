@@ -12,12 +12,12 @@ namespace Sufni.App.Tests.Services;
 public class LiveDaqCatalogServiceTests
 {
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
-    private readonly ILiveDaqBoardIdProbe boardIdProbe = Substitute.For<ILiveDaqBoardIdProbe>();
+    private readonly ILiveDaqBoardIdInspector boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
 
     private LiveDaqBrowseOwner CreateBrowseOwner() => new(serviceDiscovery);
 
     private LiveDaqCatalogService CreateCatalogService(ILiveDaqBrowseOwner? browseOwner = null) =>
-        new(serviceDiscovery, browseOwner ?? CreateBrowseOwner(), boardIdProbe);
+        new(serviceDiscovery, browseOwner ?? CreateBrowseOwner(), boardIdInspector);
 
     [Fact]
     public void AcquireBrowse_StartsUnderlyingBrowseOnFirstLease_AndStopsOnLastLease()
@@ -40,7 +40,7 @@ public class LiveDaqCatalogServiceTests
     public async Task Observe_AddsBoardIdEnrichedEntry_WhenServiceAdded()
     {
         var boardId = Guid.NewGuid();
-        boardIdProbe.ProbeAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Guid?>(boardId));
 
         using var service = CreateCatalogService();
@@ -61,10 +61,10 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
-    public async Task Observe_FallsBackToEndpointIdentity_WhenBoardProbeFails()
+    public async Task Observe_FallsBackToEndpointIdentity_WhenBoardInspectionFails()
     {
-        boardIdProbe.ProbeAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<Guid?>(new InvalidOperationException("probe failed")));
+        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Guid?>(new InvalidOperationException("inspection failed")));
 
         using var service = CreateCatalogService();
         var updateTask = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
@@ -83,7 +83,7 @@ public class LiveDaqCatalogServiceTests
     public async Task Observe_RemovesEntry_WhenServiceRemoved()
     {
         var boardId = Guid.NewGuid();
-        boardIdProbe.ProbeAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Guid?>(boardId));
 
         using var service = CreateCatalogService();
@@ -104,7 +104,7 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
-    public async Task ProbeAsync_ReturnsBoardId_FromDirectoryListing()
+    public async Task InspectAsync_ReturnsBoardId_FromDirectoryListing()
     {
         var boardBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
         var expectedBoardId = UuidUtil.CreateDeviceUuid(boardBytes);
@@ -115,9 +115,9 @@ public class LiveDaqCatalogServiceTests
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
         var serverTask = ServeDirectoryListingAsync(listener, directoryListing);
-        var probe = new LiveDaqBoardIdProbe(new InlineBackgroundTaskRunner());
+        var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner());
 
-        var boardId = await probe.ProbeAsync(IPAddress.Loopback, port);
+        var boardId = await inspector.InspectAsync(IPAddress.Loopback, port);
 
         Assert.Equal(expectedBoardId, boardId);
         await serverTask;
