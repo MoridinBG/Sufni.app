@@ -22,7 +22,7 @@ mc:Ignorable="d">
         <controls:SearchBar
         Name="LiveDaqSearchBar"
         Grid.Row="0"
-        Margin="0,20,0,20" />
+        Margin="0,20,20,20" />
 
         <ScrollViewer Grid.Row="1" Name="Scroll">
             <ItemsRepeater Name="RowsRepeater" ItemsSource="{Binding Items}">

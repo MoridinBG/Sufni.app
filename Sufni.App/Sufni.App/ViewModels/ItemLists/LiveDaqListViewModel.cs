@@ -4,6 +4,7 @@ using System.Reactive.Subjects;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
+using DynamicData.Binding;
 using Sufni.App.Coordinators;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
@@ -39,7 +40,11 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
             .TransformWithInlineUpdate(
                 snapshot => new LiveDaqRowViewModel(snapshot),
                 (row, snapshot) => row.Update(snapshot))
-            .Bind(out liveDaqRows)
+            .SortAndBind(
+                out liveDaqRows,
+                SortExpressionComparer<LiveDaqRowViewModel>
+                    .Descending(r => r.IsOnline)
+                    .ThenByAscending(r => r.DisplayName))
             .Subscribe();
 
         PropertyChanged += (_, args) =>

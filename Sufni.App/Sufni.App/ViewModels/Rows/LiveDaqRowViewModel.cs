@@ -19,6 +19,12 @@ public partial class LiveDaqRowViewModel : ObservableObject
     [ObservableProperty] private string? setupName;
     [ObservableProperty] private string? bikeName;
 
+    // Show BoardId only when it differs from the display name.
+    [ObservableProperty] private bool showBoardId;
+
+    // Show Endpoint only when it differs from the display name.
+    [ObservableProperty] private bool showEndpoint;
+
     public LiveDaqRowViewModel() { }
 
     public LiveDaqRowViewModel(LiveDaqSnapshot snapshot)
@@ -35,5 +41,9 @@ public partial class LiveDaqRowViewModel : ObservableObject
         IsOnline = snapshot.IsOnline;
         SetupName = snapshot.SetupName;
         BikeName = snapshot.BikeName;
+        ShowBoardId = snapshot.BoardId is not null &&
+                      !string.Equals(snapshot.BoardId, snapshot.DisplayName, System.StringComparison.OrdinalIgnoreCase);
+        ShowEndpoint = snapshot.Endpoint is not null &&
+                       !string.Equals(snapshot.Endpoint, snapshot.DisplayName, System.StringComparison.OrdinalIgnoreCase);
     }
 }
