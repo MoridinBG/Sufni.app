@@ -132,6 +132,53 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.True(calibration.Front.MeasurementToTravel(1) > 0);
     }
 
+    [Fact]
+    public async Task GetSessionContext_ReturnsBikeDataAndCalibration_WhenSetupAndBikeAreKnown()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "session bike") with
+        {
+            HeadAngle = 63.5,
+            ForkStroke = 170,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(),
+        };
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "session setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 120,
+                Resolution = 12,
+            }),
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 55,
+                Resolution = 12,
+            }),
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var context = query.GetSessionContext(boardId.ToString());
+
+        Assert.NotNull(context);
+        Assert.Equal(boardId, context!.BoardId);
+        Assert.Equal(setup.Id, context.SetupId);
+        Assert.Equal("session setup", context.SetupName);
+        Assert.Equal(bike.Id, context.BikeId);
+        Assert.Equal("session bike", context.BikeName);
+        Assert.Equal(bike.HeadAngle, context.BikeData.HeadAngle);
+        Assert.NotNull(context.BikeData.FrontMeasurementToTravel);
+        Assert.NotNull(context.BikeData.RearMeasurementToTravel);
+        Assert.NotNull(context.TravelCalibration.Front);
+        Assert.NotNull(context.TravelCalibration.Rear);
+    }
+
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
         IObservable<IReadOnlyList<KnownLiveDaqRecord>> changes,
         bool ignoreReplay = false)

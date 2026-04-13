@@ -5,7 +5,6 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Models;
-using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
@@ -55,25 +54,80 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 
     public LiveDaqTravelCalibration? GetTravelCalibration(string identityKey)
     {
-        if (!currentRecords.TryGetValue(identityKey, out var record) || record.SetupId is not Guid setupId || record.BikeId is not Guid bikeId)
+        if (!TryResolveSetupAndBike(identityKey, out var record, out var setup, out var bike))
         {
             return null;
+        }
+
+        var calibration = CreateTravelCalibration(setup, bike);
+
+        return calibration is { Front: null, Rear: null }
+            ? null
+            : calibration;
+    }
+
+    public LiveDaqSessionContext? GetSessionContext(string identityKey)
+    {
+        if (!TryResolveSetupAndBike(identityKey, out var record, out var setup, out var bike))
+        {
+            return null;
+        }
+
+        var calibration = CreateTravelCalibration(setup, bike);
+        return new LiveDaqSessionContext(
+            IdentityKey: record.IdentityKey,
+            BoardId: Guid.Parse(record.BoardId),
+            DisplayName: record.DisplayName,
+            SetupId: record.SetupId!.Value,
+            SetupName: record.SetupName!,
+            BikeId: record.BikeId!.Value,
+            BikeName: record.BikeName!,
+            BikeData: TelemetryBikeData.Create(setup, bike),
+            TravelCalibration: calibration);
+    }
+
+    private bool TryResolveSetupAndBike(
+        string identityKey,
+        out KnownLiveDaqRecord record,
+        out Setup setup,
+        out Bike bike)
+    {
+        setup = null!;
+        bike = null!;
+
+        if (!currentRecords.TryGetValue(identityKey, out record!) ||
+            record.SetupId is not Guid setupId ||
+            record.BikeId is not Guid bikeId)
+        {
+            return false;
         }
 
         var setupSnapshot = setupStore.Get(setupId);
         var bikeSnapshot = bikeStore.Get(bikeId);
         if (setupSnapshot is null || bikeSnapshot is null)
         {
-            return null;
+            return false;
         }
 
-        var bike = Bike.FromSnapshot(bikeSnapshot);
-        var front = CreateCalibration(setupSnapshot.FrontSensorConfigurationJson, bike);
-        var rear = CreateCalibration(setupSnapshot.RearSensorConfigurationJson, bike);
+        setup = SetupFromSnapshot(setupSnapshot);
+        bike = Bike.FromSnapshot(bikeSnapshot);
+        return true;
+    }
 
-        return front is null && rear is null
-            ? null
-            : new LiveDaqTravelCalibration(front, rear);
+    private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
+    {
+        BikeId = snapshot.BikeId,
+        FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
+        RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
+        Updated = snapshot.Updated,
+    };
+
+    private static LiveDaqTravelCalibration CreateTravelCalibration(Setup setup, Bike bike)
+    {
+        var front = CreateCalibration(setup.FrontSensorConfiguration(bike));
+        var rear = CreateCalibration(setup.RearSensorConfiguration(bike));
+
+        return new LiveDaqTravelCalibration(front, rear);
     }
 
     public void Dispose()
@@ -137,23 +191,15 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
             BikeName: bike?.Name);
     }
 
-    private static LiveDaqTravelChannelCalibration? CreateCalibration(string? configurationJson, Bike bike)
+    private static LiveDaqTravelChannelCalibration? CreateCalibration(Models.SensorConfigurations.ISensorConfiguration? configuration)
     {
-        if (string.IsNullOrWhiteSpace(configurationJson))
+        if (configuration is null)
         {
             return null;
         }
 
-        try
-        {
-            var configuration = SensorConfiguration.FromJson(configurationJson, bike);
-            return configuration is null || configuration.MaxTravel <= 0
-                ? null
-                : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
-        }
-        catch
-        {
-            return null;
-        }
+        return configuration.MaxTravel <= 0
+            ? null
+            : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
     }
 }
