@@ -21,7 +21,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
-    private readonly ILiveDaqClientFactory liveDaqClientFactory;
+    private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
@@ -33,14 +33,14 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqStoreWriter liveDaqStore,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqCatalogService liveDaqCatalogService,
-        ILiveDaqClientFactory liveDaqClientFactory,
+        ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
         IShellCoordinator shell,
         IDialogService dialogService)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
-        this.liveDaqClientFactory = liveDaqClientFactory;
+        this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
         this.shell = shell;
         this.dialogService = dialogService;
     }
@@ -106,7 +106,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(snapshot, liveDaqClientFactory, shell, dialogService, knownBoardsQuery));
+            () => new LiveDaqDetailViewModel(snapshot, liveDaqSharedStreamRegistry.GetOrCreate(snapshot), shell, dialogService, knownBoardsQuery));
 
         return Task.CompletedTask;
     }

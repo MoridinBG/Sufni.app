@@ -15,7 +15,8 @@ public class LiveDaqCoordinatorTests
     private readonly TestLiveDaqStore liveDaqStore = new();
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
-    private readonly ILiveDaqClientFactory clientFactory = Substitute.For<ILiveDaqClientFactory>();
+    private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
+    private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
@@ -27,10 +28,13 @@ public class LiveDaqCoordinatorTests
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
         catalogService.Observe().Returns(catalogEntries);
         catalogService.AcquireBrowse().Returns(browseLease);
+        sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
+        sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
+        sharedStreamRegistry.GetOrCreate(Arg.Any<LiveDaqSnapshot>()).Returns(sharedStream);
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
-        new(liveDaqStore, knownBoardsQuery, catalogService, clientFactory, shell, dialogService);
+        new(liveDaqStore, knownBoardsQuery, catalogService, sharedStreamRegistry, shell, dialogService);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
@@ -187,12 +191,13 @@ public class LiveDaqCoordinatorTests
         var created = capturedCreate();
         Assert.Equal(snapshot.IdentityKey, created.IdentityKey);
         Assert.Equal(snapshot.DisplayName, created.Name);
+        sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
         Assert.NotNull(capturedMatch);
         Assert.True(capturedMatch(created));
 
         var other = new LiveDaqDetailViewModel(
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
-            clientFactory,
+            sharedStream,
             shell,
             dialogService,
             knownBoardsQuery);

@@ -84,6 +84,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
         ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
+        ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
         ServiceCollection.AddSingleton<ILiveDaqCoordinator, LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());

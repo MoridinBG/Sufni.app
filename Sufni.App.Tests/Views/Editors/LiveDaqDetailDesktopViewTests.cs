@@ -76,6 +76,8 @@ public class LiveDaqDetailDesktopViewTests
 
         await using var mounted = await MountAsync(editor);
         editor.Snapshot = CreateSnapshot(LiveConnectionState.Connected, null);
+        editor.CanConnect = false;
+        editor.CanDisconnect = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.View.FindControl<Button>("ConnectButton")!.IsEnabled);
@@ -89,10 +91,26 @@ public class LiveDaqDetailDesktopViewTests
 
         await using var mounted = await MountAsync(editor);
         editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        editor.CanConnect = true;
+        editor.CanDisconnect = false;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(mounted.View.FindControl<Button>("ConnectButton")!.IsEnabled);
         Assert.False(mounted.View.FindControl<Button>("DisconnectButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_RequestRateInputs_DisableWhenConfigurationIsLocked()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        editor.AreRequestedRatesEnabled = false;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(mounted.View.FindControl<NumericUpDown>("RequestedTravelHzUpDown")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<NumericUpDown>("RequestedImuHzUpDown")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<NumericUpDown>("RequestedGpsFixHzUpDown")!.IsEnabled);
     }
 
     [AvaloniaFact]
@@ -115,6 +133,9 @@ public class LiveDaqDetailDesktopViewTests
         return new LiveDaqDetailViewModel
         {
             Name = "Board 1",
+            CanConnect = true,
+            CanDisconnect = false,
+            AreRequestedRatesEnabled = true,
             Snapshot = LiveDaqUiSnapshot.Empty
         };
     }

@@ -5,30 +5,41 @@ using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.Stores;
+using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class LiveDaqDetailViewModelTests
 {
-    private readonly ILiveDaqClientFactory clientFactory = Substitute.For<ILiveDaqClientFactory>();
-    private readonly ILiveDaqClient client = Substitute.For<ILiveDaqClient>();
+    private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
-    private readonly Subject<LiveDaqClientEvent> clientEvents = new();
+    private readonly Subject<LiveProtocolFrame> frames = new();
+    private readonly BehaviorSubject<LiveDaqSharedStreamState> streamStates = new(LiveDaqSharedStreamState.Empty);
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
+    private LiveDaqSharedStreamState currentStreamState = LiveDaqSharedStreamState.Empty;
+    private LiveDaqStreamConfiguration currentConfiguration = LiveDaqStreamConfiguration.Default;
 
     public LiveDaqDetailViewModelTests()
     {
-        clientFactory.CreateClient().Returns(client);
-        client.Events.Returns(clientEvents);
-        client.ConnectAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        client.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(true));
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
+        sharedStream.Frames.Returns(frames);
+        sharedStream.States.Returns(streamStates);
+        sharedStream.CurrentState.Returns(_ => currentStreamState);
+        sharedStream.RequestedConfiguration.Returns(_ => currentConfiguration);
+        sharedStream.AttachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        sharedStream.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        sharedStream.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                currentConfiguration = callInfo.ArgAt<LiveDaqStreamConfiguration>(0);
+                return Task.CompletedTask;
+            });
+        sharedStream.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
     }
 
     private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
@@ -37,11 +48,33 @@ public class LiveDaqDetailViewModelTests
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808),
             LiveSensorMask.Travel | LiveSensorMask.Imu);
 
-        client.StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>())
+        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
-                EmitStartedEvents(clientEvents, result);
-                return Task.FromResult(result);
+                if (result is LivePreviewStartResult.Started started)
+                {
+                    currentStreamState = currentStreamState with
+                    {
+                        ConnectionState = LiveConnectionState.Connected,
+                        LastError = null,
+                        SessionHeader = started.Header,
+                        SelectedSensorMask = started.SelectedSensorMask,
+                    };
+                    streamStates.OnNext(currentStreamState);
+                }
+                else if (result is LivePreviewStartResult.Rejected rejected)
+                {
+                    currentStreamState = currentStreamState with
+                    {
+                        ConnectionState = LiveConnectionState.Disconnected,
+                        LastError = rejected.UserMessage,
+                        SessionHeader = null,
+                        SelectedSensorMask = LiveSensorMask.None,
+                    };
+                    streamStates.OnNext(currentStreamState);
+                }
+
+                return Task.FromResult<LivePreviewStartResult?>(result);
             });
 
         return new LiveDaqDetailViewModel(
@@ -54,7 +87,7 @@ public class LiveDaqDetailViewModelTests
                 IsOnline: true,
                 SetupName: "race",
                 BikeName: "demo"),
-            clientFactory,
+            sharedStream,
             shell,
             dialogService,
             knownBoardsQuery);
@@ -68,8 +101,9 @@ public class LiveDaqDetailViewModelTests
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        await client.Received(1).ConnectAsync("192.168.0.50", 1557, Arg.Any<CancellationToken>());
-        await client.Received(1).StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).AttachDiagnosticsAsync(Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
         Assert.Equal((uint)808, editor.Snapshot.Session.SessionId);
         Assert.Equal("Board 1", editor.Name);
@@ -85,33 +119,25 @@ public class LiveDaqDetailViewModelTests
 
         await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.Received(1).Close(editor);
-        await client.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
     }
 
     [AvaloniaFact]
-    public async Task Unloaded_DisconnectsClient()
+    public async Task Unloaded_DetachesDiagnosticsStream()
     {
-        var disconnectCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        client.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(_ =>
-        {
-            disconnectCalled.TrySetResult();
-            return Task.CompletedTask;
-        });
-
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
         await editor.UnloadedCommand.ExecuteAsync(null);
 
-        await client.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task CloseCommand_WaitsForDisconnect_BeforeClosingTab()
+    public async Task CloseCommand_WaitsForDetach_BeforeClosingTab()
     {
-        var disconnectGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        client.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(_ => disconnectGate.Task);
+        var detachGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sharedStream.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(_ => detachGate.Task);
 
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -121,48 +147,70 @@ public class LiveDaqDetailViewModelTests
         Assert.False(closeTask.IsCompleted);
         shell.DidNotReceive().Close(editor);
 
-        disconnectGate.TrySetResult();
+        detachGate.TrySetResult();
         await closeTask;
 
-        await client.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
         shell.Received(1).Close(editor);
     }
 
     [AvaloniaFact]
-    public async Task SeparateEditors_UseIndependentClients_AndUnloadOnlyDisconnectsClosingTab()
+    public async Task SeparateEditors_UseIndependentStreams_AndUnloadOnlyDetachesClosingTab()
     {
-        var client1 = Substitute.For<ILiveDaqClient>();
-        var client2 = Substitute.For<ILiveDaqClient>();
-        var client1Events = new Subject<LiveDaqClientEvent>();
-        var client2Events = new Subject<LiveDaqClientEvent>();
-        var factory = Substitute.For<ILiveDaqClientFactory>();
+        var stream1 = Substitute.For<ILiveDaqSharedStream>();
+        var stream2 = Substitute.For<ILiveDaqSharedStream>();
         var query = Substitute.For<ILiveDaqKnownBoardsQuery>();
         query.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
-        factory.CreateClient().Returns(client1, client2);
-
-        client1.Events.Returns(client1Events);
-        client2.Events.Returns(client2Events);
-        client1.ConnectAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        client2.ConnectAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        client1.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        client2.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         var result1 = new LivePreviewStartResult.Started(
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101),
             LiveSensorMask.Travel | LiveSensorMask.Imu);
         var result2 = new LivePreviewStartResult.Started(
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202),
             LiveSensorMask.Travel | LiveSensorMask.Imu);
-        client1.StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>())
+        var state1 = LiveDaqSharedStreamState.Empty;
+        var state2 = LiveDaqSharedStreamState.Empty;
+        var frames1 = new Subject<LiveProtocolFrame>();
+        var frames2 = new Subject<LiveProtocolFrame>();
+        var states1 = new BehaviorSubject<LiveDaqSharedStreamState>(state1);
+        var states2 = new BehaviorSubject<LiveDaqSharedStreamState>(state2);
+
+        stream1.Frames.Returns(frames1);
+        stream2.Frames.Returns(frames2);
+        stream1.States.Returns(states1);
+        stream2.States.Returns(states2);
+        stream1.CurrentState.Returns(_ => state1);
+        stream2.CurrentState.Returns(_ => state2);
+        stream1.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
+        stream2.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
+        stream1.AttachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream2.AttachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream1.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream2.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream1.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream2.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream1.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
-                EmitStartedEvents(client1Events, result1);
-                return Task.FromResult<LivePreviewStartResult>(result1);
+                state1 = state1 with
+                {
+                    ConnectionState = LiveConnectionState.Connected,
+                    SessionHeader = ((LivePreviewStartResult.Started)result1).Header,
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).SelectedSensorMask,
+                };
+                states1.OnNext(state1);
+                return Task.FromResult<LivePreviewStartResult?>(result1);
             });
-        client2.StartPreviewAsync(Arg.Any<LiveStartRequest>(), Arg.Any<CancellationToken>())
+        stream2.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
-                EmitStartedEvents(client2Events, result2);
-                return Task.FromResult<LivePreviewStartResult>(result2);
+                state2 = state2 with
+                {
+                    ConnectionState = LiveConnectionState.Connected,
+                    SessionHeader = ((LivePreviewStartResult.Started)result2).Header,
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).SelectedSensorMask,
+                };
+                states2.OnNext(state2);
+                return Task.FromResult<LivePreviewStartResult?>(result2);
             });
 
         var snapshot1 = new LiveDaqSnapshot(
@@ -184,18 +232,18 @@ public class LiveDaqDetailViewModelTests
             SetupName: "park",
             BikeName: "demo");
 
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, factory, shell, dialogService, query);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, factory, shell, dialogService, query);
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, shell, dialogService, query);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, shell, dialogService, query);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
 
         await editor1.UnloadedCommand.ExecuteAsync(null);
 
-        await client1.Received(1).ConnectAsync("192.168.0.50", 1557, Arg.Any<CancellationToken>());
-        await client2.Received(1).ConnectAsync("192.168.0.51", 1666, Arg.Any<CancellationToken>());
-        await client1.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
-        await client2.DidNotReceive().DisconnectAsync(Arg.Any<CancellationToken>());
+        await stream1.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await stream2.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await stream1.Received(1).DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
+        await stream2.DidNotReceive().DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
         Assert.Equal((uint)101, editor1.Snapshot.Session.SessionId);
         Assert.Equal((uint)202, editor2.Snapshot.Session.SessionId);
     }
@@ -224,21 +272,5 @@ public class LiveDaqDetailViewModelTests
 
         Assert.Equal("Front: 60mm (30%)", editor.FrontTravelText);
         Assert.Equal("Rear: 222", editor.RearTravelText);
-    }
-
-    private static void EmitStartedEvents(Subject<LiveDaqClientEvent> events, LivePreviewStartResult result)
-    {
-        if (result is not LivePreviewStartResult.Started started)
-        {
-            return;
-        }
-
-        var ackHeader = new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0);
-        events.OnNext(new LiveDaqClientEvent.FrameReceived(
-            new LiveStartAckFrame(ackHeader, new LiveStartAck(LiveStartErrorCode.Ok, started.Header.SessionId, started.SelectedSensorMask))));
-
-        var sessionHeader = new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.SessionHeader, 0, 0);
-        events.OnNext(new LiveDaqClientEvent.FrameReceived(
-            new LiveSessionHeaderFrame(sessionHeader, started.Header)));
     }
 }
