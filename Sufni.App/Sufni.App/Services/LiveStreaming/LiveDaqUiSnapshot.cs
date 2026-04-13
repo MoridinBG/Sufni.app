@@ -38,11 +38,12 @@ public sealed record LiveTravelUiSnapshot(
     ushort? FrontMeasurement,
     ushort? RearMeasurement,
     TimeSpan? SampleOffset,
+    TimeSpan? SampleDelay,
     uint QueueDepth,
     uint DroppedBatches)
 {
-    public string SampleOffsetText => SampleOffset is { } offset
-        ? $"Sample offset: {offset:mm\\:ss\\.fff}"
+    public string SampleDelayText => SampleDelay is { } delay
+        ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
         : "";
 
     public static readonly LiveTravelUiSnapshot Empty = new(
@@ -51,6 +52,7 @@ public sealed record LiveTravelUiSnapshot(
         FrontMeasurement: null,
         RearMeasurement: null,
         SampleOffset: null,
+        SampleDelay: null,
         QueueDepth: 0,
         DroppedBatches: 0);
 }
@@ -65,11 +67,12 @@ public sealed record LiveImuUiSnapshot(
     short? Gy,
     short? Gz,
     TimeSpan? SampleOffset,
+    TimeSpan? SampleDelay,
     uint QueueDepth,
     uint DroppedBatches)
 {
-    public string SampleOffsetText => SampleOffset is { } offset
-        ? $"Sample offset: {offset:mm\\:ss\\.fff}"
+    public string SampleDelayText => SampleDelay is { } delay
+        ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
         : "";
 
     public string AccText => $"Acc  x: {Ax}  y: {Ay}  z: {Az}";
@@ -137,6 +140,11 @@ public sealed record LiveDaqUiSnapshot(
 
     public bool CanConnect => ConnectionState is LiveConnectionState.Disconnected;
     public bool CanDisconnect => ConnectionState is LiveConnectionState.Connected;
+
+    public string SessionLengthText =>
+        LastFrameReceivedUtc is { } lastFrame && Session.SessionStartUtc is { } start
+            ? $"Session length: {lastFrame - start:hh\\:mm\\:ss}"
+            : "";
 
     public static string ToConnectionStateText(LiveConnectionState state) => state switch
     {

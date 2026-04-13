@@ -197,6 +197,7 @@ public class LiveDaqDetailViewModelTests
                 FrontMeasurement: 120,
                 RearMeasurement: 222,
                 SampleOffset: TimeSpan.FromSeconds(1.25),
+                SampleDelay: TimeSpan.FromMilliseconds(42),
                 QueueDepth: 3,
                 DroppedBatches: 1)
         };

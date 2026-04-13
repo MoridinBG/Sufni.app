@@ -55,9 +55,9 @@ mc:Ignorable="d">
                             IsVisible="{Binding Snapshot.HasLastError}"
                             Text="{Binding Snapshot.LastError}" />
                             <TextBlock
-                            x:Name="LastFrameTextBlock"
+                            x:Name="SessionLengthTextBlock"
                             Opacity="0.7"
-                            Text="{Binding Snapshot.LastFrameReceivedUtc, StringFormat='Last frame: {0:HH:mm:ss}'}" />
+                            Text="{Binding Snapshot.SessionLengthText}" />
                         </StackPanel>
                     </Border>
 
@@ -110,7 +110,7 @@ mc:Ignorable="d">
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel"
                                    ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
-                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffsetText}" />
+                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleDelayText}" />
                         <Border Padding="10" Background="{StaticResource SufniRegion}" CornerRadius="6">
                             <TextBlock x:Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
                         </Border>
@@ -142,7 +142,7 @@ mc:Ignorable="d">
                                                        ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
                                             <TextBlock Text="{Binding AccText}" />
                                             <TextBlock Text="{Binding GyroText}" />
-                                            <TextBlock Opacity="0.7" Text="{Binding SampleOffsetText}" />
+                                            <TextBlock Opacity="0.7" Text="{Binding SampleDelayText}" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
