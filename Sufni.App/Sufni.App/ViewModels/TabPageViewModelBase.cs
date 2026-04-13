@@ -68,6 +68,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     protected virtual Task SaveImplementation() { return Task.CompletedTask; }
     protected virtual Task ResetImplementation() { return Task.CompletedTask; }
     protected virtual Task ExportImplementation() { return Task.CompletedTask; }
+    protected virtual Task CloseImplementation() { return Task.CompletedTask; }
 
     protected virtual bool CanSave()
     {
@@ -116,6 +117,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     {
         if (!IsDirty)
         {
+            await CloseImplementation();
             shell.Close(this);
             return;
         }
@@ -125,16 +127,19 @@ public partial class TabPageViewModelBase : ViewModelBase
         {
             case PromptResult.Yes:
                 await Save();
+                await CloseImplementation();
                 shell.Close(this);
                 break;
             case PromptResult.No:
                 await Reset();
+                await CloseImplementation();
                 shell.Close(this);
                 break;
             case PromptResult.Cancel:
                 break;
             case PromptResult.Ok:
                 await Reset();
+                await CloseImplementation();
                 shell.Close(this);
                 break;
             default:

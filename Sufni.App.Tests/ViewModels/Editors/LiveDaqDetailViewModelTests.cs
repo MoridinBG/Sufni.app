@@ -102,10 +102,30 @@ public class LiveDaqDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        editor.UnloadedCommand.Execute(null);
-        await disconnectCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await editor.UnloadedCommand.ExecuteAsync(null);
 
         await client.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task CloseCommand_WaitsForDisconnect_BeforeClosingTab()
+    {
+        var disconnectGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(_ => disconnectGate.Task);
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        var closeTask = editor.CloseCommand.ExecuteAsync(null);
+
+        Assert.False(closeTask.IsCompleted);
+        shell.DidNotReceive().Close(editor);
+
+        disconnectGate.TrySetResult();
+        await closeTask;
+
+        await client.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
+        shell.Received(1).Close(editor);
     }
 
     [AvaloniaFact]
@@ -170,7 +190,7 @@ public class LiveDaqDetailViewModelTests
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
 
-        editor1.UnloadedCommand.Execute(null);
+        await editor1.UnloadedCommand.ExecuteAsync(null);
 
         await client1.Received(1).ConnectAsync("192.168.0.50", 1557, Arg.Any<CancellationToken>());
         await client2.Received(1).ConnectAsync("192.168.0.51", 1666, Arg.Any<CancellationToken>());

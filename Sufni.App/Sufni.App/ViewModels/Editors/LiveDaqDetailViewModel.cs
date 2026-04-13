@@ -106,7 +106,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private void Unloaded()
+    private async Task Unloaded()
     {
         logger.Debug(
             "Live DAQ detail unloaded for {IdentityKey} {Endpoint}; disconnect already in progress: {DisconnectInProgress}",
@@ -114,10 +114,20 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             Endpoint,
             GetConnectionState() == LiveConnectionState.Disconnecting);
 
+        await DeactivateAsync();
+    }
+
+    protected override async Task CloseImplementation()
+    {
+        await DeactivateAsync();
+    }
+
+    private async Task DeactivateAsync()
+    {
         connectOperation.Cancel();
         uiRefreshTimer.Stop();
         DisposeScopedSubscriptions();
-        _ = DisconnectImplementationAsync(userInitiated: false);
+        await DisconnectImplementationAsync(userInitiated: false);
     }
 
     [RelayCommand]
