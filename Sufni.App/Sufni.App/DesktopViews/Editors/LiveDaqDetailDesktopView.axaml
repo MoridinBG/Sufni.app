@@ -140,8 +140,27 @@ mc:Ignorable="d">
                                         <StackPanel Spacing="4">
                                             <TextBlock FontWeight="SemiBold" Text="{Binding Location}"
                                                        ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
-                                            <TextBlock Text="{Binding AccText}" />
-                                            <TextBlock Text="{Binding GyroText}" />
+                                            <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowDefinitions="Auto, Auto" ColumnSpacing="4" RowSpacing="2">
+                                                <Grid.Styles>
+                                                    <Style Selector="TextBlock">
+                                                        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono" />
+                                                    </Style>
+                                                </Grid.Styles>
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Acc" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="x:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Ax}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="0" Grid.Column="3" Text="y:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="4" Text="{Binding Ay}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="0" Grid.Column="5" Text="z:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="6" Text="{Binding Az}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Gyro" />
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="x:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Gx}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="3" Text="y:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding Gy}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="5" Text="z:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="6" Text="{Binding Gz}" HorizontalAlignment="Right" />
+                                            </Grid>
                                             <TextBlock Opacity="0.7" Text="{Binding SampleDelayText}" />
                                         </StackPanel>
                                     </Border>

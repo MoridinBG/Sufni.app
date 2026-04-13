@@ -74,9 +74,6 @@ public sealed record LiveImuUiSnapshot(
     public string SampleDelayText => SampleDelay is { } delay
         ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
         : "";
-
-    public string AccText => $"Acc  x: {Ax}  y: {Ay}  z: {Az}";
-    public string GyroText => $"Gyro  x: {Gx}  y: {Gy}  z: {Gz}";
 }
 
 public sealed record LiveGpsUiSnapshot(
