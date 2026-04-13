@@ -128,7 +128,7 @@ public sealed class SetupCoordinator(
 
         // Best-effort: a dangling board row is harmless.
         try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
-        catch { /* ignored */ }
+        catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
 
         shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId);
         setupStore.Remove(setupId);

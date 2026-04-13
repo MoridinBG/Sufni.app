@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
 namespace Sufni.App.Services;
 
@@ -33,6 +34,7 @@ internal class DriveInfoComparer : IEqualityComparer<DriveInfo>
 
 internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 {
+    private static readonly ILogger logger = Log.ForContext<TelemetryDataStoreService>();
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly ILiveDaqBrowseOwner browseOwner;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -292,8 +294,9 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
                     Path.Combine(drive.RootDirectory.FullName, "BOARDID")).ToLower();
                 return UuidUtil.CreateDeviceUuid(serialHex);
             }
-            catch
+            catch (Exception ex)
             {
+                logger.Warning(ex, "Failed to detect mass-storage board on startup");
                 return null;
             }
         }, cancellationToken);

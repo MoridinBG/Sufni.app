@@ -4,11 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
+using Serilog;
 
 namespace Sufni.App.Models;
 
 public class StorageProviderTelemetryDataStore : ITelemetryDataStore
 {
+    private static readonly ILogger logger = Log.ForContext<StorageProviderTelemetryDataStore>();
+
     public Task Initialization { get; }
     public string Name { get; }
     public Guid? BoardId { get; private set; }
@@ -43,9 +46,9 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
                 {
                     files.Add(await StorageProviderTelemetryFile.CreateAsync(file));
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Invalid files are skipped instead of failing the whole listing.
+                    logger.Warning(ex, "Skipping invalid storage-provider file {Name}", item.Name);
                 }
             }
         }

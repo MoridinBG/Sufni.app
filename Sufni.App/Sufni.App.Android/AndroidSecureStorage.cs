@@ -86,9 +86,9 @@ public class AndroidSecureStorage : ISecureStorage
             cipher?.Init(CipherMode.DecryptMode, GetSecretKey(), spec);
             return cipher?.DoFinal(ciphertext);
         }
-        catch
+        catch (Exception ex)
         {
-            logger.Warning("Android secure storage failed to decrypt a stored value");
+            logger.Warning(ex, "Android secure storage failed to decrypt a stored value");
             return null;
         }
     }

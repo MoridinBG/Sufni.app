@@ -4,12 +4,14 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
 public class TileLayerService : ITileLayerService
 {
+    private static readonly ILogger logger = Log.ForContext<TileLayerService>();
     private readonly IDatabaseService databaseService;
     private const string SelectedLayerIdKey = "Map.SelectedLayerId";
     private const string CustomLayersKey = "Map.CustomLayers";
@@ -84,7 +86,7 @@ public class TileLayerService : ITileLayerService
                     }
                 }
             }
-            catch { /* Ignore corrupt settings */ }
+            catch (Exception ex) { logger.Warning(ex, "Failed to deserialize custom tile layers"); }
         }
 
         // Load selection

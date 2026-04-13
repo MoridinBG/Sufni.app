@@ -110,6 +110,7 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
         }
         catch (Exception ex)
         {
+            logger.Warning(ex, "Failed to send live preview start request");
             return new LivePreviewStartResult.Failed(ex.Message);
         }
         finally
@@ -193,8 +194,9 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
                     await stream.WriteAsync(frame, cancellationToken);
                     await stream.FlushAsync(cancellationToken);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    logger.Warning(ex, "Failed to send STOP_LIVE frame during disconnect");
                 }
             }
 
@@ -223,8 +225,9 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             {
                 await receiveLoopToAwait;
             }
-            catch
+            catch (Exception ex)
             {
+                logger.Debug(ex, "Receive loop threw during disconnect");
             }
         }
 

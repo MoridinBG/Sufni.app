@@ -72,8 +72,9 @@ public class SocketServiceDiscovery : IServiceDiscovery
             client.EndConnect(result);
             return ((IPEndPoint)client.Client.RemoteEndPoint!).Address;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.Debug(ex, "TCP probe failed for port {Port}", port);
             return null;
         }
     }
