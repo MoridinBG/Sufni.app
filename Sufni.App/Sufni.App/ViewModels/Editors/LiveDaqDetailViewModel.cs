@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
+using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
@@ -22,12 +23,14 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public string? BikeName { get; }
 
     private readonly ILiveDaqClient? liveDaqClient;
+    private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
     private readonly object stateGate = new();
     private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
     private string? lastError;
+    private LiveDaqTravelCalibration? travelCalibration;
 
     [ObservableProperty]
     private uint? requestedTravelHz;
@@ -41,6 +44,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [ObservableProperty]
     private LiveDaqUiSnapshot snapshot = LiveDaqUiSnapshot.Empty;
 
+    public string FrontTravelText => FormatTravelText("Front", Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
+
+    public string RearTravelText => FormatTravelText("Rear", Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
+
     public LiveDaqDetailViewModel()
     {
         IdentityKey = string.Empty;
@@ -51,7 +58,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         LiveDaqSnapshot snapshot,
         ILiveDaqClientFactory liveDaqClientFactory,
         IShellCoordinator shell,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        ILiveDaqKnownBoardsQuery knownBoardsQuery)
         : base(shell, dialogService)
     {
         IdentityKey = snapshot.IdentityKey;
@@ -61,6 +69,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         BikeName = snapshot.BikeName;
         Name = snapshot.DisplayName;
         liveDaqClient = liveDaqClientFactory.CreateClient();
+        this.knownBoardsQuery = knownBoardsQuery;
+        RefreshTravelCalibration();
         uiRefreshTimer = CreateUiRefreshTimer();
         RefreshSnapshot();
     }
@@ -77,6 +87,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             }
 
             disposables.Add(liveDaqClient.Events.Subscribe(HandleClientEvent));
+            if (knownBoardsQuery is not null)
+            {
+                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ => RequestTravelProjectionRefresh()));
+            }
         });
 
         RefreshSnapshot();
@@ -216,6 +230,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         Snapshot = sessionState.CreateSnapshot(GetConnectionState(), GetLastError());
     }
 
+    partial void OnSnapshotChanged(LiveDaqUiSnapshot value)
+    {
+        OnPropertyChanged(nameof(FrontTravelText));
+        OnPropertyChanged(nameof(RearTravelText));
+    }
+
     private void SetConnectionState(LiveConnectionState state, string? error)
     {
         lock (stateGate)
@@ -247,6 +267,47 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         {
             return lastError;
         }
+    }
+
+    private void RequestTravelProjectionRefresh()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RefreshTravelCalibration();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(RefreshTravelCalibration, DispatcherPriority.Background);
+    }
+
+    private void RefreshTravelCalibration()
+    {
+        travelCalibration = knownBoardsQuery?.GetTravelCalibration(IdentityKey);
+        OnPropertyChanged(nameof(FrontTravelText));
+        OnPropertyChanged(nameof(RearTravelText));
+    }
+
+    private static string FormatTravelText(string label, ushort? measurement, LiveDaqTravelChannelCalibration? calibration)
+    {
+        if (measurement is not ushort rawMeasurement)
+        {
+            return $"{label}: -";
+        }
+
+        if (calibration is null)
+        {
+            return $"{label}: {rawMeasurement}";
+        }
+
+        var travel = calibration.MeasurementToTravel(rawMeasurement);
+        if (double.IsNaN(travel) || double.IsInfinity(travel))
+        {
+            return $"{label}: {rawMeasurement}";
+        }
+
+        travel = Math.Clamp(travel, 0, calibration.MaxTravel);
+        var sagPercent = travel / calibration.MaxTravel * 100.0;
+        return FormattableString.Invariant($"{label}: {travel:0}mm ({sagPercent:0}%)");
     }
 
     private bool TryGetEndpoint(out string host, out int port)

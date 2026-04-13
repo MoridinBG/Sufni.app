@@ -43,8 +43,8 @@ public class LiveDaqSessionStateTests
         Assert.Equal((uint)200, snapshot.Session.AcceptedTravelHz);
         Assert.True(snapshot.Travel.IsActive);
         Assert.True(snapshot.Travel.HasData);
-        Assert.Equal(111d, snapshot.Travel.FrontTravel);
-        Assert.Equal(222d, snapshot.Travel.RearTravel);
+        Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
+        Assert.Equal((ushort)222, snapshot.Travel.RearMeasurement);
         Assert.Equal((uint)5, snapshot.Travel.QueueDepth);
         Assert.Equal((uint)3, snapshot.Travel.DroppedBatches);
 

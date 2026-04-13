@@ -80,30 +80,30 @@ The live protocol uses a framed TCP stream separate from the file-transfer proto
 
 ### Frame Header
 
-| Offset | Size | Field          | Description                                                  |
-| ------ | ---- | -------------- | ------------------------------------------------------------ |
-| 0      | 4    | Magic          | `0x4556494C` (`"LIVE"` little-endian)                        |
-| 4      | 2    | Version        | Protocol version (currently `1`)                             |
-| 6      | 2    | FrameType      | Identifies the payload layout                                |
-| 8      | 4    | PayloadLength  | Byte count of the payload following the header               |
-| 12     | 4    | Sequence       | Monotonically increasing frame counter                       |
+| Offset | Size | Field         | Description                                    |
+| ------ | ---- | ------------- | ---------------------------------------------- |
+| 0      | 4    | Magic         | `0x4556494C` (`"LIVE"` little-endian)          |
+| 4      | 2    | Version       | Protocol version (currently `1`)               |
+| 6      | 2    | FrameType     | Identifies the payload layout                  |
+| 8      | 4    | PayloadLength | Byte count of the payload following the header |
+| 12     | 4    | Sequence      | Monotonically increasing frame counter         |
 
 ### Frame Types
 
-| Type                | Value  | Direction     | Payload size | Description                                              |
-| ------------------- | ------ | ------------- | ------------ | -------------------------------------------------------- |
-| `StartLive`         | `1`    | client -> DAQ | 16           | Request to begin streaming with sensor mask and rate caps |
-| `StopLive`          | `2`    | client -> DAQ | 0            | Request to stop the active session                       |
-| `Ping`              | `3`    | client -> DAQ | 0            | Keep-alive ping                                          |
-| `StartLiveAck`      | `16`   | DAQ -> client | 12           | Result code, session ID, accepted sensor mask            |
-| `StopLiveAck`       | `17`   | DAQ -> client | 4            | Confirms session stopped                                 |
-| `Error`             | `18`   | DAQ -> client | 4            | Error code for rejected or failed operations             |
-| `Pong`              | `19`   | DAQ -> client | 0            | Keep-alive pong                                          |
-| `SessionHeader`     | `20`   | DAQ -> client | 64           | Accepted rates, calibration, IMU locations, capacities   |
-| `TravelBatch`       | `32`   | DAQ -> client | variable     | Suspension encoder data batch                            |
-| `ImuBatch`          | `33`   | DAQ -> client | variable     | IMU sensor data batch                                    |
-| `GpsBatch`          | `34`   | DAQ -> client | variable     | GPS fix records                                          |
-| `SessionStats`      | `48`   | DAQ -> client | 28           | Running session statistics (duration, sample counts)     |
+| Type            | Value | Direction     | Payload size | Description                                               |
+| --------------- | ----- | ------------- | ------------ | --------------------------------------------------------- |
+| `StartLive`     | `1`   | client -> DAQ | 16           | Request to begin streaming with sensor mask and rate caps |
+| `StopLive`      | `2`   | client -> DAQ | 0            | Request to stop the active session                        |
+| `Ping`          | `3`   | client -> DAQ | 0            | Keep-alive ping                                           |
+| `StartLiveAck`  | `16`  | DAQ -> client | 12           | Result code, session ID, accepted sensor mask             |
+| `StopLiveAck`   | `17`  | DAQ -> client | 4            | Confirms session stopped                                  |
+| `Error`         | `18`  | DAQ -> client | 4            | Error code for rejected or failed operations              |
+| `Pong`          | `19`  | DAQ -> client | 0            | Keep-alive pong                                           |
+| `SessionHeader` | `20`  | DAQ -> client | 64           | Accepted rates, calibration, IMU locations, capacities    |
+| `TravelBatch`   | `32`  | DAQ -> client | variable     | Suspension encoder data batch                             |
+| `ImuBatch`      | `33`  | DAQ -> client | variable     | IMU sensor data batch                                     |
+| `GpsBatch`      | `34`  | DAQ -> client | variable     | GPS fix records                                           |
+| `SessionStats`  | `48`  | DAQ -> client | 28           | Running session statistics (duration, sample counts)      |
 
 ### Start Request
 
@@ -115,13 +115,13 @@ A successful start produces two frames in sequence: `START_LIVE_ACK` (result `Ok
 
 ### Result Codes
 
-| Code | Name            | Meaning                                |
-| ---- | --------------- | -------------------------------------- |
-| 0    | Ok              | Request accepted                       |
-| -1   | InvalidRequest  | Malformed or unsupported request       |
-| -2   | Busy            | Another client is already streaming    |
-| -3   | Unavailable     | Device cannot stream right now         |
-| -4   | InternalError   | Unexpected device-side failure         |
+| Code | Name           | Meaning                             |
+| ---- | -------------- | ----------------------------------- |
+| 0    | Ok             | Request accepted                    |
+| -1   | InvalidRequest | Malformed or unsupported request    |
+| -2   | Busy           | Another client is already streaming |
+| -3   | Unavailable    | Device cannot stream right now      |
+| -4   | InternalError  | Unexpected device-side failure      |
 
 ### Result Shape
 
@@ -152,7 +152,7 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 
 ### Session State
 
-`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values. It holds latest travel, per-location IMU, GPS, and stats frames behind a single lock. `ApplyFrame()` updates internal state from any `LiveProtocolFrame`; `CreateSnapshot()` produces an immutable `LiveDaqUiSnapshot` for UI binding. The snapshot captures connection state, accepted session parameters, and latest sensor values at a single point in time.
+`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values. It holds latest travel, per-location IMU, GPS, and stats frames behind a single lock. `ApplyFrame()` updates internal state from any `LiveProtocolFrame`; `CreateSnapshot()` produces an immutable `LiveDaqUiSnapshot` for UI binding. The snapshot captures connection state, accepted session parameters, and latest raw protocol values at a single point in time. Travel remains raw measurement data here; calibration and `mm (percent)` formatting are applied later in the detail view model.
 
 ### GPS Preview State
 
@@ -174,7 +174,7 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 
 ## Known-Board Query
 
-`LiveDaqKnownBoardsQuery` merges three data sources to produce enriched board records: `Board` rows from the database, `ISetupStore` for setup names, and `IBikeStore` for bike names. For each board, it attempts two setup lookups: direct `board.SetupId` first, then fallback via `SetupStore.FindByBoardId()`. It exposes a `Changes` observable that fires when setup or bike stores change, so the coordinator can re-enrich display names.
+`LiveDaqKnownBoardsQuery` merges three data sources to produce enriched board records: `Board` rows from the database, `ISetupStore` for setup names, and `IBikeStore` for bike names. For each board, it attempts two setup lookups: direct `board.SetupId` first, then fallback via `SetupStore.FindByBoardId()`. It exposes a `Changes` observable that fires when setup or bike stores change, keyed lookup by identity key, and a travel-calibration answer for a specific DAQ identity so the detail view model can format calibrated travel without depending directly on setup or bike stores.
 
 ## Runtime Store
 
@@ -190,7 +190,7 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 
 **Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with `host:port` identity. The store is cleared and rebuilt on each reconciliation.
 
-**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot.
+**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot and the shared known-board query.
 
 ## View Models
 
@@ -198,7 +198,7 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open tab. Owns a `ILiveDaqClient` instance (from factory), a `LiveDaqSessionState` accumulator, a `CancellableOperation` for the connect workflow, and a `DispatcherTimer` that periodically projects session state into a `LiveDaqUiSnapshot` for throttled UI binding. On `Loaded`: starts the timer, subscribes to client events, auto-connects. On `Unloaded`: cancels the connect operation, stops the timer, disposes subscriptions, disconnects. On rejection: shows a dialog and closes the tab. On mid-session disconnect: leaves the tab open in a disconnected state.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open tab. Owns a `ILiveDaqClient` instance (from factory), a `LiveDaqSessionState` accumulator, a `CancellableOperation` for the connect workflow, and a `DispatcherTimer` that periodically projects session state into a raw `LiveDaqUiSnapshot` for throttled UI binding. It also subscribes to `ILiveDaqKnownBoardsQuery` so it can format travel as calibrated `mm (percent)` when a known setup and bike calibration are available, otherwise fall back to the raw measurement. On `Loaded`: starts the timer, subscribes to client events and query changes, auto-connects. On `Unloaded`: cancels the connect operation, stops the timer, disposes subscriptions, disconnects. On rejection: shows a dialog and closes the tab. On mid-session disconnect: leaves the tab open in a disconnected state.
 
 ## Desktop Views
 

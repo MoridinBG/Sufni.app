@@ -2,6 +2,7 @@ using System.Reactive.Subjects;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Services.LiveStreaming;
@@ -16,7 +17,9 @@ public class LiveDaqDetailViewModelTests
     private readonly ILiveDaqClient client = Substitute.For<ILiveDaqClient>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
     private readonly Subject<LiveDaqClientEvent> clientEvents = new();
+    private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
 
     public LiveDaqDetailViewModelTests()
     {
@@ -25,6 +28,7 @@ public class LiveDaqDetailViewModelTests
         client.ConnectAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         client.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(true));
+        knownBoardsQuery.Changes.Returns(knownBoardsChanges);
     }
 
     private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
@@ -52,7 +56,8 @@ public class LiveDaqDetailViewModelTests
                 BikeName: "demo"),
             clientFactory,
             shell,
-            dialogService);
+            dialogService,
+            knownBoardsQuery);
     }
 
     [AvaloniaFact]
@@ -111,6 +116,8 @@ public class LiveDaqDetailViewModelTests
         var client1Events = new Subject<LiveDaqClientEvent>();
         var client2Events = new Subject<LiveDaqClientEvent>();
         var factory = Substitute.For<ILiveDaqClientFactory>();
+        var query = Substitute.For<ILiveDaqKnownBoardsQuery>();
+        query.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
         factory.CreateClient().Returns(client1, client2);
 
         client1.Events.Returns(client1Events);
@@ -157,8 +164,8 @@ public class LiveDaqDetailViewModelTests
             SetupName: "park",
             BikeName: "demo");
 
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, factory, shell, dialogService);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, factory, shell, dialogService);
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, factory, shell, dialogService, query);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, factory, shell, dialogService, query);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
@@ -171,6 +178,31 @@ public class LiveDaqDetailViewModelTests
         await client2.DidNotReceive().DisconnectAsync(Arg.Any<CancellationToken>());
         Assert.Equal((uint)101, editor1.Snapshot.Session.SessionId);
         Assert.Equal((uint)202, editor2.Snapshot.Session.SessionId);
+    }
+
+    [AvaloniaFact]
+    public void SnapshotTexts_ShowCalibratedMillimeters_WhenQueryProvidesCalibration()
+    {
+        knownBoardsQuery.GetTravelCalibration("board-1").Returns(new LiveDaqTravelCalibration(
+            Front: new LiveDaqTravelChannelCalibration(200, measurement => measurement * 0.5),
+            Rear: null));
+
+        var editor = CreateEditor();
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            Travel = new LiveTravelUiSnapshot(
+                IsActive: true,
+                HasData: true,
+                FrontMeasurement: 120,
+                RearMeasurement: 222,
+                SampleOffset: TimeSpan.FromSeconds(1.25),
+                QueueDepth: 3,
+                DroppedBatches: 1)
+        };
+
+        Assert.Equal("Front: 60mm (30%)", editor.FrontTravelText);
+        Assert.Equal("Rear: 222", editor.RearTravelText);
     }
 
     private static void EmitStartedEvents(Subject<LiveDaqClientEvent> events, LivePreviewStartResult result)

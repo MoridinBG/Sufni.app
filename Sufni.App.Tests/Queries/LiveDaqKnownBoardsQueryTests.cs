@@ -2,6 +2,7 @@ using System.Linq;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Models;
+using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -78,6 +79,57 @@ public class LiveDaqKnownBoardsQueryTests
 
         var record = Assert.Single(records);
         Assert.Equal("new bike name", record.BikeName);
+    }
+
+    [Fact]
+    public async Task Get_ReturnsLatestRecord_ByIdentityKey()
+    {
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "known setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var bike = TestSnapshots.Bike(id: setup.BikeId, name: "known bike");
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var record = query.Get(boardId.ToString());
+
+        Assert.NotNull(record);
+        Assert.Equal("known setup", record!.SetupName);
+        Assert.Equal("known bike", record.BikeName);
+    }
+
+    [Fact]
+    public async Task GetTravelCalibration_ReturnsCurrentCalibration_WhenSetupAndBikeAreKnown()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "calibrated bike");
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "calibrated setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 8,
+                Resolution = 10,
+            })
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var calibration = query.GetTravelCalibration(boardId.ToString());
+
+        Assert.NotNull(calibration);
+        Assert.NotNull(calibration!.Front);
+        Assert.Null(calibration.Rear);
+        Assert.True(calibration.Front!.MaxTravel > 0);
+        Assert.True(calibration.Front.MeasurementToTravel(1) > 0);
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(

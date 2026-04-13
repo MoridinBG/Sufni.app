@@ -57,6 +57,19 @@ public class LiveDaqDetailDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_TravelTexts_DisplayFormattedValues()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Connected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal("Front: 112", mounted.View.FindControl<TextBlock>("FrontTravelTextBlock")!.Text);
+        Assert.Equal("Rear: 205", mounted.View.FindControl<TextBlock>("RearTravelTextBlock")!.Text);
+    }
+
+    [AvaloniaFact]
     public async Task LiveDaqDetailDesktopView_ImuAndGpsSections_DisplaySnapshotContent()
     {
         var editor = CreateEditor();

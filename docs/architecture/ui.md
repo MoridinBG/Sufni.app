@@ -157,19 +157,19 @@ writes to stores, the only layer that decides post-save navigation
 synchronization events. They live in `Sufni.App/Sufni.App/Coordinators/`
 and are registered as singletons.
 
-| Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `GoBack` — the only navigation surface                                                                                                                                                               |
-| `IBikeCoordinator`                                                        | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                   |
-| `ISetupCoordinator`                                                       | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                    |
-| `ISessionCoordinator`                                                     | shared       | Save/delete + `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                            |
-| `IPairedDeviceCoordinator`                                                | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                    |
-| `IImportSessionsCoordinator`                                              | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                  |
-| `ISyncCoordinator`                                                        | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                              |
-| `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                         |
-| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                         |
-| `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer |
-| `ITrackCoordinator` (`TrackCoordinator`)                                  | shared       | GPX import and session-track loading/association                                                                                                                                                                                                                                                                            |
+| Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                   |
+| `IBikeCoordinator`                                                        | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                       |
+| `ISetupCoordinator`                                                       | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                        |
+| `ISessionCoordinator`                                                     | shared       | Save/delete + `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                                                                |
+| `IPairedDeviceCoordinator`                                                | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                        |
+| `IImportSessionsCoordinator`                                              | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                                                                                                      |
+| `ISyncCoordinator`                                                        | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                                                                                                                  |
+| `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                             |
+| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                             |
+| `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                     |
+| `ITrackCoordinator` (`TrackCoordinator`)                                  | shared       | GPX import and session-track loading/association                                                                                                                                                                                                                                                                               |
 | `ILiveDaqCoordinator` (`LiveDaqCoordinator`)                              | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
 `InboundSyncCoordinator`, `SessionCoordinator`, `PairedDeviceCoordinator`,
@@ -218,10 +218,14 @@ it does not depend on which screens the user has visited.
 `ILiveDaqKnownBoardsQuery` (backed by `LiveDaqKnownBoardsQuery`)
 merges `Board` rows from the database with `ISetupStore` and
 `IBikeStore` to produce enriched records carrying board identity,
-setup name, and bike name. Unlike `BikeDependencyQuery`, it caches
-its projection and auto-refreshes via store change subscriptions so
-the live coordinator can re-enrich display names without repeated
-database round-trips. See [Live DAQ Streaming](live-streaming.md).
+setup name, and bike name. It also exposes keyed lookup and travel-
+calibration answers for a specific live DAQ identity, so the live
+detail view model can project calibrated travel text without pushing
+setup or bike logic into the transport/session-state layer. Unlike
+`BikeDependencyQuery`, it caches its projection and auto-refreshes via
+store change subscriptions so consumers can re-enrich display names
+and calibration context without repeated database round-trips. See
+[Live DAQ Streaming](live-streaming.md).
 
 ## View Models
 
@@ -338,7 +342,9 @@ There are five kinds of view model in the presentation layer:
   `IEditorActions` so the shared `CommonButtonLine` editor button
   strip resolves a single `x:DataType`. `LiveDaqDetailViewModel` does
   not implement `IEditorActions` — it is a live transport tab, not a
-  persisted-entity editor.
+  persisted-entity editor. Its raw transport snapshot comes from
+  `LiveDaqSessionState`; user-facing travel text is projected in the
+  view model itself using `ILiveDaqKnownBoardsQuery`.
 
 `TabPageViewModelBase` (`ViewModels/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked

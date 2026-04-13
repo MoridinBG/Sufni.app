@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Models;
+using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 
@@ -18,6 +19,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> changesSubject = new([]);
+    private IReadOnlyDictionary<string, KnownLiveDaqRecord> currentRecords = new Dictionary<string, KnownLiveDaqRecord>(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim refreshGate = new(1, 1);
     private readonly IDisposable setupSubscription;
     private readonly IDisposable bikeSubscription;
@@ -45,6 +47,32 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 
     public IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes => changesSubject;
 
+    public KnownLiveDaqRecord? Get(string identityKey) =>
+        currentRecords.TryGetValue(identityKey, out var record) ? record : null;
+
+    public LiveDaqTravelCalibration? GetTravelCalibration(string identityKey)
+    {
+        if (!currentRecords.TryGetValue(identityKey, out var record) || record.SetupId is not Guid setupId || record.BikeId is not Guid bikeId)
+        {
+            return null;
+        }
+
+        var setupSnapshot = setupStore.Get(setupId);
+        var bikeSnapshot = bikeStore.Get(bikeId);
+        if (setupSnapshot is null || bikeSnapshot is null)
+        {
+            return null;
+        }
+
+        var bike = Bike.FromSnapshot(bikeSnapshot);
+        var front = CreateCalibration(setupSnapshot.FrontSensorConfigurationJson, bike);
+        var rear = CreateCalibration(setupSnapshot.RearSensorConfigurationJson, bike);
+
+        return front is null && rear is null
+            ? null
+            : new LiveDaqTravelCalibration(front, rear);
+    }
+
     public void Dispose()
     {
         setupSubscription.Dispose();
@@ -65,6 +93,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
                 .Select(BuildRecord)
                 .ToArray();
 
+            currentRecords = records.ToDictionary(record => record.IdentityKey, StringComparer.OrdinalIgnoreCase);
             changesSubject.OnNext(records);
         }
         catch
@@ -99,5 +128,25 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
             SetupName: setup?.Name,
             BikeId: bike?.Id,
             BikeName: bike?.Name);
+    }
+
+    private static LiveDaqTravelChannelCalibration? CreateCalibration(string? configurationJson, Bike bike)
+    {
+        if (string.IsNullOrWhiteSpace(configurationJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var configuration = SensorConfiguration.FromJson(configurationJson, bike);
+            return configuration is null || configuration.MaxTravel <= 0
+                ? null
+                : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

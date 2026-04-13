@@ -84,7 +84,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(snapshot, liveDaqClientFactory, shell, dialogService));
+            () => new LiveDaqDetailViewModel(snapshot, liveDaqClientFactory, shell, dialogService, knownBoardsQuery));
 
         return Task.CompletedTask;
     }

@@ -184,8 +184,8 @@ public sealed class LiveDaqSessionState
         return new LiveTravelUiSnapshot(
             IsActive: isActive,
             HasData: true,
-            FrontTravel: travel.ForkAngle,
-            RearTravel: travel.ShockAngle,
+            FrontMeasurement: travel.ForkAngle,
+            RearMeasurement: travel.ShockAngle,
             SampleOffset: CreateSampleOffset(latestTravelMonotonicUs),
             QueueDepth: travelQueueDepth,
             DroppedBatches: travelDroppedBatches);

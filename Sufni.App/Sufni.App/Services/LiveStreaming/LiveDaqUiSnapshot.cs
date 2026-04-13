@@ -35,8 +35,8 @@ public sealed record LiveSessionContractSnapshot(
 public sealed record LiveTravelUiSnapshot(
     bool IsActive,
     bool HasData,
-    double? FrontTravel,
-    double? RearTravel,
+    ushort? FrontMeasurement,
+    ushort? RearMeasurement,
     TimeSpan? SampleOffset,
     uint QueueDepth,
     uint DroppedBatches)
@@ -44,8 +44,8 @@ public sealed record LiveTravelUiSnapshot(
     public static readonly LiveTravelUiSnapshot Empty = new(
         IsActive: false,
         HasData: false,
-        FrontTravel: null,
-        RearTravel: null,
+        FrontMeasurement: null,
+        RearMeasurement: null,
         SampleOffset: null,
         QueueDepth: 0,
         DroppedBatches: 0);

@@ -111,8 +111,8 @@ mc:Ignorable="d">
                         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel" />
                         <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
                         <Grid ColumnDefinitions="* *" ColumnSpacing="12">
-                            <TextBlock x:Name="FrontTravelTextBlock" Grid.Column="0" Text="{Binding Snapshot.Travel.FrontTravel, StringFormat='Front: {0:F0}'}" />
-                            <TextBlock x:Name="RearTravelTextBlock" Grid.Column="1" Text="{Binding Snapshot.Travel.RearTravel, StringFormat='Rear: {0:F0}'}" />
+                            <TextBlock x:Name="FrontTravelTextBlock" Grid.Column="0" Text="{Binding FrontTravelText}" />
+                            <TextBlock x:Name="RearTravelTextBlock" Grid.Column="1" Text="{Binding RearTravelText}" />
                         </Grid>
                         <TextBlock x:Name="TravelHealthTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
                     </StackPanel>
