@@ -15,12 +15,14 @@ using Mapsui.UI.Avalonia;
 using NetTopologySuite.Geometries;
 using Sufni.App.Models;
 using Sufni.App.ViewModels;
+using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Views;
 
 public partial class MapView : UserControl
 {
     private MapControl? mapControl;
+    private bool applyingTimelineUpdate;
 
     private readonly WritableLayer positionMarkerLayer = new()
     {
@@ -28,13 +30,39 @@ public partial class MapView : UserControl
         Style = new SymbolStyle { SymbolScale = 0.5 }
     };
 
-    public event Action<double, double>? ViewportNormalizedRangeChanged;
+    public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
+        AvaloniaProperty.Register<MapView, SessionTimelineLinkViewModel?>(nameof(Timeline));
+
+    public SessionTimelineLinkViewModel? Timeline
+    {
+        get => GetValue(TimelineProperty);
+        set => SetValue(TimelineProperty, value);
+    }
 
     public MapViewModel? ViewModel => DataContext as MapViewModel;
 
     public MapView()
     {
         InitializeComponent();
+
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name != nameof(Timeline))
+            {
+                return;
+            }
+
+            if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
+            {
+                oldTimeline.PropertyChanged -= OnTimelineChanged;
+            }
+
+            if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
+            {
+                newTimeline.PropertyChanged += OnTimelineChanged;
+                ApplyTimeline(newTimeline);
+            }
+        };
 
         mapControl = this.FindControl<MapControl>("MapControl");
 
@@ -62,11 +90,11 @@ public partial class MapView : UserControl
         if (ViewModel != null)
         {
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-            
+
             // Initial sync
             if (ViewModel.SelectedLayer != null)
                 UpdateTileLayer(ViewModel.SelectedLayer);
-            
+
             UpdateTracks();
         }
     }
@@ -119,10 +147,10 @@ public partial class MapView : UserControl
         {
             var start = ViewModel.SessionTrackPoints.First();
             var end = ViewModel.SessionTrackPoints.Last();
-            
+
             var startPointFeature = new PointFeature(start.X, start.Y);
             startPointFeature.Styles.Add(new SymbolStyle { SymbolType = SymbolType.Ellipse, Line = new Pen(Color.Black), Fill = new Brush(Color.FromString("#229954")), SymbolScale = 0.5 });
-            
+
             var endPointFeature = new PointFeature(end.X, end.Y);
             endPointFeature.Styles.Add(new SymbolStyle { SymbolType = SymbolType.Ellipse, Line = new Pen(Color.Black), Fill = new Brush(Color.FromString("#E74C3C")), SymbolScale = 0.5 });
 
@@ -190,26 +218,33 @@ public partial class MapView : UserControl
         mapControl?.Refresh();
     }
 
+    private void ClearNormalizedCursorPosition()
+    {
+        positionMarkerLayer.Clear();
+        positionMarkerLayer.DataHasChanged();
+        mapControl?.Refresh();
+    }
+
     public void ZoomToNormalizedRange(double startNormalized, double endNormalized, double padding = 0.1)
     {
         if (ViewModel?.SessionTrackPoints == null || mapControl == null || startNormalized >= endNormalized) return;
 
         startNormalized = Math.Clamp(startNormalized, 0, 1);
         endNormalized = Math.Clamp(endNormalized, 0, 1);
-        
+
         var startIndex = (int)Math.Floor((ViewModel.SessionTrackPoints.Count - 1) * startNormalized);
         var endIndex = (int)Math.Ceiling((ViewModel.SessionTrackPoints.Count - 1) * endNormalized);
-        
+
         startIndex = Math.Max(0, startIndex);
         endIndex = Math.Min(ViewModel.SessionTrackPoints.Count - 1, endIndex);
         if (startIndex >= endIndex) return;
-        
+
         var pointsInRange = ViewModel.SessionTrackPoints.Skip(startIndex).Take(endIndex - startIndex + 1).ToList();
         var minX = pointsInRange.Min(p => p.X);
         var maxX = pointsInRange.Max(p => p.X);
         var minY = pointsInRange.Min(p => p.Y);
         var maxY = pointsInRange.Max(p => p.Y);
-        
+
         var width = maxX - minX;
         var height = maxY - minY;
         var paddingX = width * padding;
@@ -226,7 +261,7 @@ public partial class MapView : UserControl
 
     private void NotifyViewportChanged()
     {
-        if (ViewModel?.SessionTrackPoints == null || mapControl == null) return;
+        if (applyingTimelineUpdate || ViewModel?.SessionTrackPoints == null || mapControl == null || Timeline is null) return;
 
         var viewport = mapControl.Map.Navigator.Viewport;
         var halfWidth = viewport.Width * viewport.Resolution / 2;
@@ -250,7 +285,61 @@ public partial class MapView : UserControl
         if (firstVisible < 0 || lastVisible <= firstVisible) return;
 
         var count = ViewModel.SessionTrackPoints.Count - 1;
-        ViewportNormalizedRangeChanged?.Invoke((double)firstVisible / count, (double)lastVisible / count);
+        Timeline.SetVisibleRange((double)firstVisible / count, (double)lastVisible / count);
+    }
+
+    private void OnTimelineChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (Timeline is null)
+        {
+            return;
+        }
+
+        switch (e.PropertyName)
+        {
+            case nameof(SessionTimelineLinkViewModel.NormalizedCursorPosition):
+                if (Timeline.NormalizedCursorPosition is double position)
+                {
+                    SetNormalizedCursorPosition(position);
+                }
+                else
+                {
+                    ClearNormalizedCursorPosition();
+                }
+                break;
+
+            case nameof(SessionTimelineLinkViewModel.VisibleRangeStart):
+            case nameof(SessionTimelineLinkViewModel.VisibleRangeEnd):
+                ApplyTimeline(Timeline);
+                break;
+        }
+    }
+
+    private void ApplyTimeline(SessionTimelineLinkViewModel timeline)
+    {
+        if (mapControl is null || applyingTimelineUpdate)
+        {
+            return;
+        }
+
+        applyingTimelineUpdate = true;
+        try
+        {
+            if (timeline.NormalizedCursorPosition is double cursor)
+            {
+                SetNormalizedCursorPosition(cursor);
+            }
+            else
+            {
+                ClearNormalizedCursorPosition();
+            }
+
+            ZoomToNormalizedRange(timeline.VisibleRangeStart, timeline.VisibleRangeEnd);
+        }
+        finally
+        {
+            applyingTimelineUpdate = false;
+        }
     }
 
     private MemoryLayer CreateSessionTrackLayer()

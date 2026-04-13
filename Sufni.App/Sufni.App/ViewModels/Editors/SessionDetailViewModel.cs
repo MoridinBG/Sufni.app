@@ -25,12 +25,21 @@ namespace Sufni.App.ViewModels.Editors;
 /// <see cref="SessionCoordinator"/> from a <see cref="SessionSnapshot"/>;
 /// save and delete route back through the coordinator.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions,
+    IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
 
     public string Description => NotesPage.Description ?? "";
+    public string? DescriptionText
+    {
+        get => NotesPage.Description;
+        set => NotesPage.Description = value;
+    }
+    public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
+    public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
+    public SessionTimelineLinkViewModel Timeline { get; } = new();
 
     // Explicit interface implementation: the generated commands are
     // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
@@ -72,6 +81,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [ObservableProperty] private string? videoUrl;
     [ObservableProperty] private double? mapVideoWidth;
     [ObservableProperty] private bool isComplete;
+    [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties
@@ -115,6 +125,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     private void ApplyDamperPercentages(SessionDamperPercentages percentages)
     {
+        DamperPercentages = percentages;
         DamperPage.FrontHscPercentage = percentages.FrontHscPercentage;
         DamperPage.RearHscPercentage = percentages.RearHscPercentage;
         DamperPage.FrontLscPercentage = percentages.FrontLscPercentage;

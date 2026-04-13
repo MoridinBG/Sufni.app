@@ -1,0 +1,51 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Editors.SessionShellDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+d:DesignHeight="800"
+d:DesignWidth="800"
+x:Name="Root"
+x:DataType="editors:SessionShellDesktopView"
+Background="{StaticResource SufniRegion}"
+mc:Ignorable="d">
+
+    <Grid RowDefinitions="* auto *">
+
+        <Grid Grid.Row="0" ColumnDefinitions="* auto auto">
+            <ContentControl Grid.Column="0" Content="{Binding #Root.GraphContent}" />
+
+            <GridSplitter
+            Grid.Column="1"
+            ResizeDirection="Columns"
+            IsVisible="{Binding #Root.MediaContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <ContentControl
+            Grid.Column="2"
+            Margin="0,39,0,0"
+            Content="{Binding #Root.MediaContent}" />
+        </Grid>
+
+        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+        <Grid Grid.Row="2" ColumnDefinitions="* auto 400">
+            <ContentControl Grid.Column="0" Content="{Binding #Root.StatisticsContent}" />
+
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+            <Grid Grid.Column="2" RowDefinitions="auto auto *">
+                <ContentControl Grid.Row="0" Content="{Binding #Root.ControlContent}" />
+
+                <GridSplitter
+                Grid.Row="1"
+                ResizeDirection="Rows"
+                ResizeBehavior="PreviousAndNext"
+                IsVisible="{Binding #Root.ControlContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                <ContentControl Grid.Row="2" Content="{Binding #Root.SidebarContent}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
