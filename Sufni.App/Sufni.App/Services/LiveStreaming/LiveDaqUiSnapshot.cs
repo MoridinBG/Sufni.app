@@ -71,6 +71,9 @@ public sealed record LiveImuUiSnapshot(
     public string SampleOffsetText => SampleOffset is { } offset
         ? $"Sample offset: {offset:mm\\:ss\\.fff}"
         : "";
+
+    public string AccText => $"Acc  x: {Ax}  y: {Ay}  z: {Az}";
+    public string GyroText => $"Gyro  x: {Gx}  y: {Gy}  z: {Gz}";
 }
 
 public sealed record LiveGpsUiSnapshot(
@@ -131,6 +134,9 @@ public sealed record LiveDaqUiSnapshot(
     public bool HasImuData => Imus.Count > 0;
     public bool HasTravelData => Travel.HasData;
     public bool HasGpsData => Gps.HasData;
+
+    public bool CanConnect => ConnectionState is LiveConnectionState.Disconnected;
+    public bool CanDisconnect => ConnectionState is LiveConnectionState.Connected;
 
     public static string ToConnectionStateText(LiveConnectionState state) => state switch
     {

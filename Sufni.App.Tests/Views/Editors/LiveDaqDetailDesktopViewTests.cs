@@ -70,6 +70,32 @@ public class LiveDaqDetailDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_ConnectButton_DisabledWhenConnected()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Connected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(mounted.View.FindControl<Button>("ConnectButton")!.IsEnabled);
+        Assert.True(mounted.View.FindControl<Button>("DisconnectButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_DisconnectButton_DisabledWhenDisconnected()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(mounted.View.FindControl<Button>("ConnectButton")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<Button>("DisconnectButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
     public async Task LiveDaqDetailDesktopView_ImuAndGpsSections_DisplaySnapshotContent()
     {
         var editor = CreateEditor();
