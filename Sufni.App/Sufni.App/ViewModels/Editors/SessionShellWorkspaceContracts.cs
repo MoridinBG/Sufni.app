@@ -39,6 +39,7 @@ public interface ISessionSidebarWorkspace
 
 public interface ILiveSessionGraphWorkspace
 {
+    IObservable<LiveGraphBatch> GraphBatches { get; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 

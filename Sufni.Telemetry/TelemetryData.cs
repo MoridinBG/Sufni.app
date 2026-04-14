@@ -310,6 +310,29 @@ public class TelemetryData
         }
     }
 
+    private static SavitzkyGolay? CreateVelocityFilter(int recordCount)
+    {
+        if (recordCount < 5)
+        {
+            return null;
+        }
+
+        var windowSize = Math.Min(51, recordCount);
+        if (windowSize % 2 == 0)
+        {
+            windowSize--;
+        }
+
+        return SavitzkyGolay.Create(windowSize, 1, 3);
+    }
+
+    private static double CalculateAnomalyRate(int anomalyCount, int sampleCount, int sampleRate)
+    {
+        return sampleCount == 0
+            ? 0
+            : (double)anomalyCount / sampleCount * sampleRate;
+    }
+
     #endregion
 
     #region PSST conversion
@@ -356,20 +379,35 @@ public class TelemetryData
             time[i] = 1.0 / td.Metadata.SampleRate * i;
         }
 
-        // Create Savitzky-Golay filter to get smoothed velocity data
-        var filter = SavitzkyGolay.Create(51, 1, 3);
+        // Create a velocity filter that matches the capture size. Live captures may be
+        // shorter than a full SST import during early-session save or stats recompute.
+        var filter = CreateVelocityFilter(recordCount);
 
         // Calculate telemetry data
         if (td.Front.Present)
         {
             Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
-            CalculateSuspension(td.Front, rawData.Front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            if (filter is not null)
+            {
+                CalculateSuspension(td.Front, rawData.Front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            }
+            else
+            {
+                td.Front.Present = false;
+            }
             td.Front.AnomalyRate = rawData.FrontAnomalyRate;
         }
         if (td.Rear.Present)
         {
             Debug.Assert(bikeData.RearMeasurementToTravel is not null);
-            CalculateSuspension(td.Rear, rawData.Rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            if (filter is not null)
+            {
+                CalculateSuspension(td.Rear, rawData.Rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            }
+            else
+            {
+                td.Rear.Present = false;
+            }
             td.Rear.AnomalyRate = rawData.RearAnomalyRate;
         }
 
@@ -385,6 +423,45 @@ public class TelemetryData
             td.GpsData?.Length ?? 0);
 
         return td;
+    }
+
+    public static TelemetryData FromLiveCapture(LiveTelemetryCapture capture)
+    {
+        var front = capture.FrontMeasurements.ToArray();
+        var rear = capture.RearMeasurements.ToArray();
+
+        var frontAnomalyCount = 0;
+        var rearAnomalyCount = 0;
+
+        if (front.Length > 0)
+        {
+            var fixedFront = SpikeElimination.EliminateSpikes(front.Select(value => (int)value).ToArray());
+            front = fixedFront.fixedSignal;
+            frontAnomalyCount = fixedFront.anomalyCount;
+        }
+
+        if (rear.Length > 0)
+        {
+            var fixedRear = SpikeElimination.EliminateSpikes(rear.Select(value => (int)value).ToArray());
+            rear = fixedRear.fixedSignal;
+            rearAnomalyCount = fixedRear.anomalyCount;
+        }
+
+        var rawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = (ushort)Math.Clamp(capture.Metadata.SampleRate, 0, ushort.MaxValue),
+            Timestamp = capture.Metadata.Timestamp,
+            Front = front,
+            Rear = rear,
+            FrontAnomalyRate = CalculateAnomalyRate(frontAnomalyCount, front.Length, capture.Metadata.SampleRate),
+            RearAnomalyRate = CalculateAnomalyRate(rearAnomalyCount, rear.Length, capture.Metadata.SampleRate),
+            Markers = capture.Markers,
+            ImuData = capture.ImuData,
+            GpsData = capture.GpsData,
+        };
+
+        return FromRecording(rawData, capture.Metadata, capture.BikeData);
     }
 
     #endregion

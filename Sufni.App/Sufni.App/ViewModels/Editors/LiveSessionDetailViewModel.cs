@@ -1,6 +1,4 @@
 using System;
-using System.ComponentModel;
-using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -23,12 +21,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 {
     private readonly LiveSessionGraphWorkspaceViewModel graphWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
-    private readonly ILiveDaqSharedStream? sharedStream;
-    private readonly CancellableOperation loadOperation = new();
-    private SidebarState acceptedSidebarState;
-    private ILiveDaqSharedStreamLease? streamLease;
-    private ILiveDaqSharedStreamLease? configurationLockLease;
-    private bool isApplyingAcceptedState;
+    private readonly ILiveSessionService? liveSessionService;
+    private readonly ISessionCoordinator? sessionCoordinator;
+    private readonly DispatcherTimer controlRefreshTimer;
+    private bool hasLoaded;
+    private bool isSaving = false;
+    private bool isResetting;
 
     public string IdentityKey { get; }
     public Guid SetupId { get; }
@@ -58,14 +56,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         IdentityKey = string.Empty;
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel();
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel();
-        HookSidebarChangeTracking();
-        acceptedSidebarState = CreateDefaultSidebarState();
-        ApplyAcceptedSidebarState();
+        controlRefreshTimer = CreateControlRefreshTimer();
+        Name = CreateDefaultName(DateTimeOffset.Now);
     }
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
-        ILiveDaqSharedStream sharedStream,
+        ILiveSessionService liveSessionService,
+        ISessionCoordinator sessionCoordinator,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
@@ -76,85 +74,65 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         SetupName = context.SetupName;
         BikeId = context.BikeId;
         BikeName = context.BikeName;
-        this.sharedStream = sharedStream;
+        this.liveSessionService = liveSessionService;
+        this.sessionCoordinator = sessionCoordinator;
 
         var timeline = new SessionTimelineLinkViewModel();
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline);
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline);
+        graphWorkspace.Attach(liveSessionService.GraphBatches);
+        controlRefreshTimer = CreateControlRefreshTimer();
+        Name = CreateDefaultName(DateTimeOffset.Now);
 
-        HookSidebarChangeTracking();
-        acceptedSidebarState = CreateDefaultSidebarState();
-        ApplyAcceptedSidebarState();
-        RefreshSharedStreamState();
+        liveSessionService.Snapshots.Subscribe(RequestPresentationRefresh);
+        ApplyPresentation(liveSessionService.Current);
     }
 
     partial void OnDescriptionTextChanged(string? value)
     {
-        if (isApplyingAcceptedState)
-        {
-            return;
-        }
-
-        EvaluateDirtiness();
     }
 
     [RelayCommand]
     private async Task Loaded()
     {
-        await mediaWorkspace.InitializeAsync();
-
-        if (sharedStream is null)
+        controlRefreshTimer.Start();
+        if (hasLoaded)
         {
             return;
         }
 
-        if (streamLease is null)
+        hasLoaded = true;
+        await mediaWorkspace.InitializeAsync();
+
+        if (liveSessionService is null)
         {
-            streamLease = sharedStream.AcquireLease();
+            return;
         }
 
-        if (configurationLockLease is null)
-        {
-            configurationLockLease = sharedStream.AcquireConfigurationLock();
-        }
-
-        EnsureScopedSubscription(disposables =>
-        {
-            disposables.Add(sharedStream.States.Subscribe(_ => RequestSharedStreamRefresh()));
-        });
-
-        RefreshSharedStreamState();
-
-        var cancellationToken = loadOperation.Start();
-        try
-        {
-            await sharedStream.EnsureStartedAsync(cancellationToken);
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-
-        RefreshSharedStreamState();
+        await liveSessionService.EnsureAttachedAsync();
+        ApplyPresentation(liveSessionService.Current);
     }
 
     [RelayCommand]
     private async Task Unloaded()
     {
-        await DeactivateAsync();
+        controlRefreshTimer.Stop();
+        await Task.CompletedTask;
     }
 
     protected override async Task CloseImplementation()
     {
-        await DeactivateAsync();
+        controlRefreshTimer.Stop();
+
+        if (liveSessionService is not null)
+        {
+            await liveSessionService.DisposeAsync();
+        }
     }
 
     protected override void EvaluateDirtiness()
     {
-        IsDirty = CaptureSidebarState() != acceptedSidebarState;
+        IsDirty = ControlState.CanSave;
     }
 
     protected override bool CanSave()
@@ -164,141 +142,30 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     protected override bool CanReset()
     {
-        EvaluateDirtiness();
-        return IsDirty;
+        return ControlState.CanSave && !isSaving && !isResetting;
     }
 
-    protected override Task ResetImplementation()
+    protected override async Task ResetImplementation()
     {
-        ApplyAcceptedSidebarState();
-        return Task.CompletedTask;
-    }
-
-    private async Task DeactivateAsync()
-    {
-        loadOperation.Cancel();
-        DisposeScopedSubscriptions();
-
-        if (configurationLockLease is not null)
-        {
-            await configurationLockLease.DisposeAsync();
-            configurationLockLease = null;
-        }
-
-        if (streamLease is not null)
-        {
-            await streamLease.DisposeAsync();
-            streamLease = null;
-        }
-    }
-
-    private void HookSidebarChangeTracking()
-    {
-        PropertyChanged += OnEditorPropertyChanged;
-        ForkSettings.PropertyChanged += OnSuspensionSettingsChanged;
-        ShockSettings.PropertyChanged += OnSuspensionSettingsChanged;
-    }
-
-    private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (isApplyingAcceptedState || e.PropertyName != nameof(Name))
+        if (liveSessionService is null)
         {
             return;
         }
 
-        EvaluateDirtiness();
-    }
+        isResetting = true;
+        RefreshCommandState();
 
-    private void OnSuspensionSettingsChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (isApplyingAcceptedState)
-        {
-            return;
-        }
-
-        EvaluateDirtiness();
-    }
-
-    private void RequestSharedStreamRefresh()
-    {
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            RefreshSharedStreamState();
-            return;
-        }
-
-        Dispatcher.UIThread.Post(RefreshSharedStreamState, DispatcherPriority.Background);
-    }
-
-    private void RefreshSharedStreamState()
-    {
-        var state = sharedStream?.CurrentState ?? LiveDaqSharedStreamState.Empty;
-        if (state.SessionHeader is { } header)
-        {
-            Timestamp = header.SessionStartUtc.LocalDateTime;
-        }
-
-        ControlState = new LiveSessionControlState(
-            ConnectionState: state.ConnectionState,
-            LastError: state.LastError,
-            SessionHeader: state.SessionHeader,
-            CaptureDuration: CalculateCaptureDuration(state.SessionHeader),
-            TravelQueueDepth: 0,
-            ImuQueueDepth: 0,
-            GpsQueueDepth: 0,
-            TravelDroppedBatches: 0,
-            ImuDroppedBatches: 0,
-            GpsDroppedBatches: 0,
-            CanSave: false,
-            IsSaving: false,
-            IsResetting: false);
-    }
-
-    private SidebarState CreateDefaultSidebarState()
-    {
-        return new SidebarState(
-            Name: CreateDefaultName(DateTimeOffset.Now),
-            DescriptionText: null,
-            Fork: SuspensionSettingsState.Empty,
-            Shock: SuspensionSettingsState.Empty);
-    }
-
-    private SidebarState CaptureSidebarState()
-    {
-        return new SidebarState(
-            Name: Name,
-            DescriptionText: DescriptionText,
-            Fork: SuspensionSettingsState.From(ForkSettings),
-            Shock: SuspensionSettingsState.From(ShockSettings));
-    }
-
-    private void ApplyAcceptedSidebarState()
-    {
-        isApplyingAcceptedState = true;
         try
         {
-            Name = acceptedSidebarState.Name;
-            DescriptionText = acceptedSidebarState.DescriptionText;
-            acceptedSidebarState.Fork.ApplyTo(ForkSettings);
-            acceptedSidebarState.Shock.ApplyTo(ShockSettings);
+            await liveSessionService.ResetCaptureAsync();
+            graphWorkspace.Timeline.Reset();
+            ApplyPresentation(liveSessionService.Current);
         }
         finally
         {
-            isApplyingAcceptedState = false;
+            isResetting = false;
+            RefreshCommandState();
         }
-
-        EvaluateDirtiness();
-    }
-
-    private static TimeSpan CalculateCaptureDuration(LiveSessionHeader? sessionHeader)
-    {
-        if (sessionHeader is null)
-        {
-            return TimeSpan.Zero;
-        }
-
-        var duration = DateTimeOffset.UtcNow - sessionHeader.SessionStartUtc;
-        return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)
@@ -306,38 +173,74 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return $"Live Session {localTime.LocalDateTime:dd-MM-yyyy HH:mm:ss}";
     }
 
-    private sealed record SidebarState(
-        string? Name,
-        string? DescriptionText,
-        SuspensionSettingsState Fork,
-        SuspensionSettingsState Shock);
-
-    private sealed record SuspensionSettingsState(
-        string? SpringRate,
-        uint? HighSpeedCompression,
-        uint? LowSpeedCompression,
-        uint? LowSpeedRebound,
-        uint? HighSpeedRebound)
+    private void RequestPresentationRefresh(LiveSessionPresentationSnapshot snapshot)
     {
-        public static readonly SuspensionSettingsState Empty = new(null, null, null, null, null);
-
-        public static SuspensionSettingsState From(SuspensionSettings settings)
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            return new SuspensionSettingsState(
-                settings.SpringRate,
-                settings.HighSpeedCompression,
-                settings.LowSpeedCompression,
-                settings.LowSpeedRebound,
-                settings.HighSpeedRebound);
+            ApplyPresentation(snapshot);
+            return;
         }
 
-        public void ApplyTo(SuspensionSettings settings)
+        Dispatcher.UIThread.Post(() => ApplyPresentation(snapshot), DispatcherPriority.Background);
+    }
+
+    private void ApplyPresentation(LiveSessionPresentationSnapshot snapshot)
+    {
+        TelemetryData = snapshot.StatisticsTelemetry;
+        DamperPercentages = snapshot.DamperPercentages;
+        mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints);
+
+        if (snapshot.Controls.SessionHeader is { } header)
         {
-            settings.SpringRate = SpringRate;
-            settings.HighSpeedCompression = HighSpeedCompression;
-            settings.LowSpeedCompression = LowSpeedCompression;
-            settings.LowSpeedRebound = LowSpeedRebound;
-            settings.HighSpeedRebound = HighSpeedRebound;
+            Timestamp = header.SessionStartUtc.LocalDateTime;
         }
+
+        ControlState = ApplyControlFlags(snapshot.Controls);
+        EvaluateDirtiness();
+        RefreshCommandState();
+    }
+
+    private LiveSessionControlState ApplyControlFlags(LiveSessionControlState controlState)
+    {
+        return controlState with
+        {
+            CaptureDuration = RefreshCaptureDuration(controlState.SessionHeader),
+            IsSaving = isSaving,
+            IsResetting = isResetting,
+        };
+    }
+
+    private LiveSessionControlState RefreshControlState()
+    {
+        ControlState = ApplyControlFlags(ControlState);
+        EvaluateDirtiness();
+        return ControlState;
+    }
+
+    private void RefreshCommandState()
+    {
+        SaveCommand.NotifyCanExecuteChanged();
+        ResetCommand.NotifyCanExecuteChanged();
+    }
+
+    private DispatcherTimer CreateControlRefreshTimer()
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        timer.Tick += (_, _) => RefreshControlState();
+        return timer;
+    }
+
+    private static TimeSpan RefreshCaptureDuration(LiveSessionHeader? header)
+    {
+        if (header is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var duration = DateTimeOffset.UtcNow - header.SessionStartUtc;
+        return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 }

@@ -1,11 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Reactive.Subjects;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.SessionDetails;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -14,95 +20,138 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class LiveSessionDetailViewModelTests
 {
-    private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
+    private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
+    private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly ILiveDaqSharedStreamLease observerLease = Substitute.For<ILiveDaqSharedStreamLease>();
-    private readonly ILiveDaqSharedStreamLease configurationLockLease = Substitute.For<ILiveDaqSharedStreamLease>();
-    private readonly BehaviorSubject<LiveDaqSharedStreamState> streamStates = new(LiveDaqSharedStreamState.Empty);
+    private readonly Subject<LiveGraphBatch> graphBatches = new();
 
-    private readonly LiveSessionHeader sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 77);
-    private LiveDaqSharedStreamState currentState = LiveDaqSharedStreamState.Empty;
+    private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshots;
+    private LiveSessionPresentationSnapshot currentSnapshot;
 
     public LiveSessionDetailViewModelTests()
     {
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
 
-        sharedStream.States.Returns(streamStates);
-        sharedStream.CurrentState.Returns(_ => currentState);
-        sharedStream.AcquireLease().Returns(observerLease);
-        sharedStream.AcquireConfigurationLock().Returns(configurationLockLease);
-        observerLease.DisposeAsync().Returns(ValueTask.CompletedTask);
-        configurationLockLease.DisposeAsync().Returns(ValueTask.CompletedTask);
-        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                currentState = currentState with
-                {
-                    ConnectionState = LiveConnectionState.Connected,
-                    LastError = null,
-                    SessionHeader = sessionHeader,
-                    SelectedSensorMask = LiveSensorMask.Travel | LiveSensorMask.Imu,
-                };
-                streamStates.OnNext(currentState);
-                return Task.FromResult<LivePreviewStartResult?>(
-                    new LivePreviewStartResult.Started(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu));
-            });
+        currentSnapshot = LiveSessionPresentationSnapshot.Empty;
+        snapshots = new BehaviorSubject<LiveSessionPresentationSnapshot>(currentSnapshot);
+
+        liveSessionService.Snapshots.Returns(snapshots);
+        liveSessionService.GraphBatches.Returns(graphBatches);
+        liveSessionService.Current.Returns(_ => currentSnapshot);
+        liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        liveSessionService.ResetCaptureAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            currentSnapshot = LiveSessionPresentationSnapshot.Empty;
+            snapshots.OnNext(currentSnapshot);
+            return Task.CompletedTask;
+        });
+        liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
     }
 
     [AvaloniaFact]
-    public async Task Loaded_AcquiresLeases_InitializesMap_AndStartsStream()
+    public async Task Loaded_InitializesMap_AndAttachesService()
     {
         var editor = CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        sharedStream.Received(1).AcquireLease();
-        sharedStream.Received(1).AcquireConfigurationLock();
         await tileLayerService.Received(1).InitializeAsync();
-        await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
-        Assert.Equal(LiveConnectionState.Connected, editor.ControlState.ConnectionState);
-        Assert.Equal(sessionHeader.SessionStartUtc.LocalDateTime, editor.Timestamp);
+        await liveSessionService.Received(1).EnsureAttachedAsync(Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task Unloaded_ReleasesConfigurationLock_AndObserverLease()
+    public async Task SnapshotUpdate_ProjectsTelemetryTrack_AndKeepsSaveDisabled()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        await editor.UnloadedCommand.ExecuteAsync(null);
+        var telemetryData = TestTelemetryData.Create();
+        var trackPoints = new List<TrackPoint>
+        {
+            new(1, 2, 3, 4),
+            new(2, 3, 4, 5),
+        };
 
-        await configurationLockLease.Received(1).DisposeAsync();
-        await observerLease.Received(1).DisposeAsync();
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData, trackPoints);
+        snapshots.OnNext(currentSnapshot);
+
+        Assert.Same(telemetryData, editor.TelemetryData);
+        Assert.Equal(currentSnapshot.Controls.SessionHeader!.SessionStartUtc.LocalDateTime, editor.Timestamp);
+        Assert.Equal(2, editor.MediaWorkspace.MapViewModel!.SessionTrackPoints!.Count);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.True(editor.ResetCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
-    public async Task ResetCommand_RevertsSidebarEdits_AndSaveRemainsDisabled()
+    public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
     {
         var editor = CreateEditor();
-        var originalName = editor.Name;
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(
+            canSave: true,
+            telemetryData: TestTelemetryData.Create(),
+            trackPoints:
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ]);
+        snapshots.OnNext(currentSnapshot);
 
         editor.Name = "Custom live session";
         editor.DescriptionText = "first lap";
         editor.ForkSettings.SpringRate = "550 lb/in";
 
-        Assert.False(editor.SaveCommand.CanExecute(null));
-        Assert.True(editor.ResetCommand.CanExecute(null));
-
         await editor.ResetCommand.ExecuteAsync(null);
 
-        Assert.Equal(originalName, editor.Name);
-        Assert.Null(editor.DescriptionText);
-        Assert.Null(editor.ForkSettings.SpringRate);
+        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
+        Assert.Equal("Custom live session", editor.Name);
+        Assert.Equal("first lap", editor.DescriptionText);
+        Assert.Equal("550 lb/in", editor.ForkSettings.SpringRate);
+        Assert.Null(editor.TelemetryData);
+        Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.False(editor.ResetCommand.CanExecute(null));
     }
 
     private LiveSessionDetailViewModel CreateEditor()
     {
-        return new LiveSessionDetailViewModel(CreateSessionContext(), sharedStream, tileLayerService, shell, dialogService);
+        return new LiveSessionDetailViewModel(
+            CreateSessionContext(),
+            liveSessionService,
+            sessionCoordinator,
+            tileLayerService,
+            shell,
+            dialogService);
+    }
+
+    private static LiveSessionPresentationSnapshot CreateSnapshot(
+        bool canSave,
+        TelemetryData? telemetryData = null,
+        IReadOnlyList<TrackPoint>? trackPoints = null)
+    {
+        var header = LiveProtocolTestFrames.CreateSessionHeaderModel();
+        return new LiveSessionPresentationSnapshot(
+            Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
+            StatisticsTelemetry: telemetryData,
+            DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            SessionTrackPoints: trackPoints ?? [],
+            Controls: new LiveSessionControlState(
+                ConnectionState: LiveConnectionState.Connected,
+                LastError: null,
+                SessionHeader: header,
+                CaptureDuration: TimeSpan.FromSeconds(3),
+                TravelQueueDepth: 0,
+                ImuQueueDepth: 0,
+                GpsQueueDepth: 0,
+                TravelDroppedBatches: 0,
+                ImuDroppedBatches: 0,
+                GpsDroppedBatches: 0,
+                CanSave: canSave,
+                IsSaving: false,
+                IsResetting: false),
+            CaptureRevision: canSave ? 1 : 0);
     }
 
     private static LiveDaqSessionContext CreateSessionContext()

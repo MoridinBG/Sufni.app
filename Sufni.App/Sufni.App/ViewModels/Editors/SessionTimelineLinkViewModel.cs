@@ -60,6 +60,12 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject
         VisibleRangeEnd = end;
     }
 
+    public void Reset()
+    {
+        ClearCursorPosition();
+        SetVisibleRange(0, 1);
+    }
+
     private static bool AreClose(double left, double right)
     {
         return Math.Abs(left - right) <= Epsilon;

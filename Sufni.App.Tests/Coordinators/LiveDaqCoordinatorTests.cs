@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
@@ -18,11 +19,15 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
     private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
+    private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
+    private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
+    private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
+    private readonly BehaviorSubject<LiveSessionPresentationSnapshot> liveSessionSnapshots = new(LiveSessionPresentationSnapshot.Empty);
     private readonly IDisposable browseLease = Substitute.For<IDisposable>();
 
     public LiveDaqCoordinatorTests()
@@ -33,10 +38,25 @@ public class LiveDaqCoordinatorTests
         sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
         sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
         sharedStreamRegistry.GetOrCreate(Arg.Any<LiveDaqSnapshot>()).Returns(sharedStream);
+        liveSessionService.Snapshots.Returns(liveSessionSnapshots);
+        liveSessionService.GraphBatches.Returns(Observable.Empty<LiveGraphBatch>());
+        liveSessionService.Current.Returns(LiveSessionPresentationSnapshot.Empty);
+        liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
+        liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStream>())
+            .Returns(liveSessionService);
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
-        new(liveDaqStore, knownBoardsQuery, catalogService, sharedStreamRegistry, tileLayerService, shell, dialogService);
+        new(
+            liveDaqStore,
+            knownBoardsQuery,
+            catalogService,
+            sharedStreamRegistry,
+            liveSessionServiceFactory,
+            sessionCoordinator,
+            tileLayerService,
+            shell,
+            dialogService);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
@@ -249,7 +269,8 @@ public class LiveDaqCoordinatorTests
 
         var other = new LiveSessionDetailViewModel(
             CreateSessionContext("board-2", "Board 2"),
-            sharedStream,
+            liveSessionService,
+            sessionCoordinator,
             tileLayerService,
             shell,
             dialogService);

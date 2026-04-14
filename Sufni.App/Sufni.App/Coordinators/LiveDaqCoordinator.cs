@@ -22,6 +22,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
+    private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly ITileLayerService tileLayerService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
@@ -35,6 +37,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqCatalogService liveDaqCatalogService,
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
+        ILiveSessionServiceFactory liveSessionServiceFactory,
+        ISessionCoordinator sessionCoordinator,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
@@ -43,6 +47,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
         this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
+        this.liveSessionServiceFactory = liveSessionServiceFactory;
+        this.sessionCoordinator = sessionCoordinator;
         this.tileLayerService = tileLayerService;
         this.shell = shell;
         this.dialogService = dialogService;
@@ -144,7 +150,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             detail => detail.IdentityKey == snapshot.IdentityKey,
             () => new LiveSessionDetailViewModel(
                 context,
-                liveDaqSharedStreamRegistry.GetOrCreate(snapshot),
+                liveSessionServiceFactory.Create(context, liveDaqSharedStreamRegistry.GetOrCreate(snapshot)),
+                sessionCoordinator,
                 tileLayerService,
                 shell,
                 dialogService));

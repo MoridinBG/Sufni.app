@@ -37,21 +37,7 @@ mc:Ignorable="d">
         </editors:SessionShellDesktopView.MediaContent>
 
         <editors:SessionShellDesktopView.StatisticsContent>
-            <Border
-            x:Name="StatisticsPlaceholderCard"
-            Padding="14"
-            Background="{StaticResource SufniBackgroundDisabled}"
-            CornerRadius="8">
-                <StackPanel Spacing="8">
-                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="Statistics" />
-                    <TextBlock
-                    x:Name="StatisticsPlaceholderTextBlock"
-                    Opacity="0.7"
-                    Text="Live statistics will appear once the per-tab live session service is wired in." />
-                    <TextBlock x:Name="LiveSessionSetupTextBlock" Text="{Binding SetupName, StringFormat='Setup: {0}'}" />
-                    <TextBlock x:Name="LiveSessionBikeTextBlock" Text="{Binding BikeName, StringFormat='Bike: {0}'}" />
-                </StackPanel>
-            </Border>
+            <items:SessionStatisticsDesktopView DataContext="{Binding}" />
         </editors:SessionShellDesktopView.StatisticsContent>
 
         <editors:SessionShellDesktopView.ControlContent>

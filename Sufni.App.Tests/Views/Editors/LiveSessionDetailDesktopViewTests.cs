@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Editors;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
@@ -13,7 +15,7 @@ namespace Sufni.App.Tests.Views.Editors;
 public class LiveSessionDetailDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task LiveSessionDetailDesktopView_RendersPlaceholderShellContent()
+    public async Task LiveSessionDetailDesktopView_RendersLiveShellContent()
     {
         var editor = new LiveSessionDetailViewModel
         {
@@ -27,12 +29,12 @@ public class LiveSessionDetailDesktopViewTests
 
         await using var mounted = await MountAsync(editor);
 
-        Assert.NotNull(mounted.View.FindControl<TextBlock>("TravelGraphPlaceholderTextBlock"));
-        Assert.Equal("State: Connected", mounted.View.FindControl<TextBlock>("LiveConnectionStateTextBlock")!.Text);
-        Assert.Equal("Session: 909", mounted.View.FindControl<TextBlock>("LiveSessionIdTextBlock")!.Text);
-        Assert.Equal(
-            "Live statistics will appear once the per-tab live session service is wired in.",
-            mounted.View.FindControl<TextBlock>("StatisticsPlaceholderTextBlock")!.Text);
+        var textBlocks = mounted.View.GetVisualDescendants().OfType<TextBlock>().ToArray();
+
+        Assert.NotNull(textBlocks.FirstOrDefault(textBlock => textBlock.Name == "TravelGraphPlaceholderTextBlock"));
+        Assert.Equal("State: Connected", textBlocks.First(textBlock => textBlock.Name == "LiveConnectionStateTextBlock").Text);
+        Assert.Equal("Session: 909", textBlocks.First(textBlock => textBlock.Name == "LiveSessionIdTextBlock").Text);
+        Assert.NotNull(mounted.View.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == "TabControl"));
     }
 
     private static async Task<MountedLiveSessionDetailDesktopView> MountAsync(LiveSessionDetailViewModel editor)
