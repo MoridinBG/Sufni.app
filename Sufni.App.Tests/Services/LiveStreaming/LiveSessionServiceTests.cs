@@ -94,6 +94,11 @@ public class LiveSessionServiceTests
         frames.OnNext(CreateTravelBatchFrame());
         frames.OnNext(CreateImuBatchFrame());
         frames.OnNext(CreateGpsBatchFrame());
+        frames.OnNext(CreateGpsBatchFrame(
+            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
+            latitude: 42.6978,
+            longitude: 23.3220,
+            altitude: 601));
 
         await statisticsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -102,11 +107,12 @@ public class LiveSessionServiceTests
             batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 1);
         Assert.True(service.Current.Controls.CanSave);
         Assert.NotNull(service.Current.StatisticsTelemetry);
-        Assert.Single(service.Current.SessionTrackPoints);
+        Assert.Equal(2, service.Current.SessionTrackPoints.Count);
+        Assert.True(service.Current.SessionTrackPoints[0].Time < service.Current.SessionTrackPoints[1].Time);
 
         var capture = await service.PrepareCaptureForSaveAsync();
         Assert.Equal(5, capture.TelemetryCapture.FrontMeasurements.Length);
-        Assert.Single(capture.TelemetryCapture.GpsData!);
+        Assert.Equal(2, capture.TelemetryCapture.GpsData!.Length);
 
         currentState = currentState with { IsClosed = true, LastError = "link lost" };
         states.OnNext(currentState);
@@ -167,7 +173,11 @@ public class LiveSessionServiceTests
             ]);
     }
 
-    private LiveGpsBatchFrame CreateGpsBatchFrame()
+    private LiveGpsBatchFrame CreateGpsBatchFrame(
+        DateTime? timestamp = null,
+        double latitude = 42.6977,
+        double longitude = 23.3219,
+        float altitude = 600)
     {
         return new LiveGpsBatchFrame(
             Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.GpsBatch, 0, 3),
@@ -175,10 +185,10 @@ public class LiveSessionServiceTests
             Records:
             [
                 new GpsRecord(
-                    Timestamp: new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
-                    Latitude: 42.6977,
-                    Longitude: 23.3219,
-                    Altitude: 600,
+                    Timestamp: timestamp ?? new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
+                    Latitude: latitude,
+                    Longitude: longitude,
+                    Altitude: altitude,
                     Speed: 10,
                     Heading: 90,
                     FixMode: 3,

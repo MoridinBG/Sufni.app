@@ -12,6 +12,15 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStream>();
 
+    private enum DeliberateDisconnectDisposition
+    {
+        None,
+        RejectedStartCleanup,
+        Stop,
+        Reconfigure,
+        Dispose,
+    }
+
     private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -25,7 +34,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private LiveDaqSharedStreamState currentState = LiveDaqSharedStreamState.Empty;
     private int observerCount;
     private int configurationLockCount;
-    private int suppressedDisconnectEvents;
+    private DeliberateDisconnectDisposition pendingDeliberateDisconnect;
     private bool isDisposed;
     private bool isEvicted;
 
@@ -135,7 +144,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         SessionHeader = null,
                         SelectedSensorMask = LiveSensorMask.None,
                     });
-                    suppressedDisconnectEvents++;
+                    BeginDeliberateDisconnect(DeliberateDisconnectDisposition.RejectedStartCleanup);
                     await client.DisconnectAsync(cancellationToken);
                     break;
 
@@ -228,7 +237,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            suppressedDisconnectEvents++;
+            BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Stop);
             await liveDaqClient.DisconnectAsync(cancellationToken);
             PublishState(currentState with
             {
@@ -243,11 +252,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
         catch (Exception ex)
         {
-            if (suppressedDisconnectEvents > 0)
-            {
-                suppressedDisconnectEvents--;
-            }
-
             logger.Error(
                 ex,
                 "Stopping shared live DAQ stream failed for {IdentityKey} at {Endpoint}",
@@ -300,7 +304,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            suppressedDisconnectEvents++;
+            BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Reconfigure);
             await liveDaqClient!.DisconnectAsync(cancellationToken);
             PublishState(currentState with
             {
@@ -352,7 +356,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         SessionHeader = null,
                         SelectedSensorMask = LiveSensorMask.None,
                     });
-                    suppressedDisconnectEvents++;
+                    BeginDeliberateDisconnect(DeliberateDisconnectDisposition.RejectedStartCleanup);
                     await client.DisconnectAsync(cancellationToken);
                     break;
 
@@ -372,11 +376,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
         catch (Exception ex)
         {
-            if (suppressedDisconnectEvents > 0)
-            {
-                suppressedDisconnectEvents--;
-            }
-
             logger.Error(
                 ex,
                 "Reconfiguring shared live DAQ stream failed for {IdentityKey} at {Endpoint}",
@@ -522,18 +521,13 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             if (client.IsConnected)
             {
-                suppressedDisconnectEvents++;
+                BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Dispose);
             }
 
             await client.DisposeAsync();
         }
         catch (Exception ex)
         {
-            if (suppressedDisconnectEvents > 0)
-            {
-                suppressedDisconnectEvents--;
-            }
-
             logger.Debug(
                 ex,
                 "Disposing shared live DAQ client failed for {IdentityKey} at {Endpoint}",
@@ -582,9 +576,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     break;
 
                 case LiveDaqClientEvent.Disconnected disconnected:
-                    if (suppressedDisconnectEvents > 0)
+                    if (TryConsumeDeliberateDisconnect())
                     {
-                        suppressedDisconnectEvents--;
                         break;
                     }
 
@@ -673,6 +666,22 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(isDisposed, this);
+    }
+
+    private void BeginDeliberateDisconnect(DeliberateDisconnectDisposition disposition)
+    {
+        pendingDeliberateDisconnect = disposition;
+    }
+
+    private bool TryConsumeDeliberateDisconnect()
+    {
+        if (pendingDeliberateDisconnect is DeliberateDisconnectDisposition.None)
+        {
+            return false;
+        }
+
+        pendingDeliberateDisconnect = DeliberateDisconnectDisposition.None;
+        return true;
     }
 
     private sealed class LiveDaqSharedStreamLease : ILiveDaqSharedStreamLease

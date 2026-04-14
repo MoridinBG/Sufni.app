@@ -28,8 +28,19 @@ internal sealed class LiveSessionServiceFactory(
 internal sealed class LiveSessionService : ILiveSessionService
 {
     private const int MaxVelocityWindowSamples = 127;
+    private const int MeasurementChunkSize = 4096;
+    private const int ImuChunkSize = 2048;
+    private const int GpsChunkSize = 256;
 
     private static readonly ILogger logger = Log.ForContext<LiveSessionService>();
+
+    private readonly record struct LiveCaptureSnapshot(
+        Metadata Metadata,
+        LiveSessionHeader? SessionHeader,
+        ChunkedBufferSnapshot<ushort> FrontMeasurements,
+        ChunkedBufferSnapshot<ushort> RearMeasurements,
+        ChunkedBufferSnapshot<ImuRecord> ImuRecords,
+        ChunkedBufferSnapshot<GpsRecord> GpsRecords);
 
     private readonly LiveDaqSessionContext context;
     private readonly ILiveDaqSharedStream sharedStream;
@@ -39,10 +50,10 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshotsSubject = new(LiveSessionPresentationSnapshot.Empty);
     private readonly Subject<LiveGraphBatch> graphBatchesSubject = new();
 
-    private readonly List<ushort> frontMeasurements = [];
-    private readonly List<ushort> rearMeasurements = [];
-    private readonly List<ImuRecord> imuRecords = [];
-    private readonly List<GpsRecord> gpsRecords = [];
+    private readonly AppendOnlyChunkBuffer<ushort> frontMeasurements = new(MeasurementChunkSize);
+    private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
+    private readonly AppendOnlyChunkBuffer<ImuRecord> imuRecords = new(ImuChunkSize);
+    private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
     private readonly List<double> recentTravelTimes = [];
     private readonly List<double> recentFrontTravel = [];
     private readonly List<double> recentRearTravel = [];
@@ -56,7 +67,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private LiveSessionStats? latestSessionStats;
     private TelemetryData? statisticsTelemetry;
     private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
-    private IReadOnlyList<TrackPoint> sessionTrackPoints = [];
+    private TrackPoint[] sessionTrackPoints = [];
     private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
     private string? lastError;
     private long captureRevision;
@@ -146,8 +157,10 @@ internal sealed class LiveSessionService : ILiveSessionService
         return Task.CompletedTask;
     }
 
-    public Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default)
+    public async Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default)
     {
+        LiveCaptureSnapshot captureSnapshot;
+
         lock (gate)
         {
             ThrowIfDisposed();
@@ -156,8 +169,13 @@ internal sealed class LiveSessionService : ILiveSessionService
                 throw new InvalidOperationException("No live capture is available to save.");
             }
 
-            return Task.FromResult(new LiveSessionCapturePackage(context, CloneCaptureLocked()));
+            captureSnapshot = CreateCaptureSnapshotLocked();
         }
+
+        var capture = await backgroundTaskRunner.RunAsync(
+            () => BuildCapture(captureSnapshot),
+            cancellationToken);
+        return new LiveSessionCapturePackage(context, capture);
     }
 
     public async ValueTask DisposeAsync()
@@ -316,8 +334,8 @@ internal sealed class LiveSessionService : ILiveSessionService
             var monotonicUs = frame.Batch.FirstMonotonicUs + (ulong)index * sessionHeader.TravelPeriodUs;
             var timeOffset = ToSampleOffsetSeconds(monotonicUs, sessionHeader);
             travelTimes[index] = timeOffset;
-            frontMeasurements.Add(record.ForkAngle);
-            rearMeasurements.Add(record.ShockAngle);
+            frontMeasurements.Append(record.ForkAngle);
+            rearMeasurements.Append(record.ShockAngle);
 
             var frontValue = ConvertTravel(record.ForkAngle, context.BikeData.FrontMeasurementToTravel, context.BikeData.FrontMaxTravel);
             var rearValue = ConvertTravel(record.ShockAngle, context.BikeData.RearMeasurementToTravel, context.BikeData.RearMaxTravel);
@@ -354,7 +372,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             return null;
         }
 
-        imuRecords.AddRange(frame.Records);
+        imuRecords.AppendRange(frame.Records);
         captureRevision++;
 
         var imuTimes = new Dictionary<LiveImuLocation, List<double>>();
@@ -407,8 +425,44 @@ internal sealed class LiveSessionService : ILiveSessionService
             return;
         }
 
-        gpsRecords.AddRange(frame.Records);
-        sessionTrackPoints = Track.FromGpsRecords(gpsRecords.ToArray()).Points;
+        var appendedTrackPoints = new List<TrackPoint>(frame.Records.Count);
+        var fallbackToFullProjection = false;
+        var lastTrackPointTime = sessionTrackPoints.Length == 0
+            ? double.NegativeInfinity
+            : sessionTrackPoints[^1].Time;
+
+        foreach (var record in frame.Records)
+        {
+            gpsRecords.Append(record);
+
+            var projected = GpsTrackPointProjection.TryProject(record);
+            if (projected is null)
+            {
+                continue;
+            }
+
+            if (projected.Time < lastTrackPointTime)
+            {
+                fallbackToFullProjection = true;
+                break;
+            }
+
+            appendedTrackPoints.Add(projected);
+            lastTrackPointTime = projected.Time;
+        }
+
+        if (fallbackToFullProjection)
+        {
+            sessionTrackPoints = [.. GpsTrackPointProjection.ProjectAll(gpsRecords.CreateSnapshot().ToArray())];
+        }
+        else if (appendedTrackPoints.Count > 0)
+        {
+            var updatedTrackPoints = new TrackPoint[sessionTrackPoints.Length + appendedTrackPoints.Count];
+            Array.Copy(sessionTrackPoints, updatedTrackPoints, sessionTrackPoints.Length);
+            appendedTrackPoints.CopyTo(updatedTrackPoints, sessionTrackPoints.Length);
+            sessionTrackPoints = updatedTrackPoints;
+        }
+
         captureRevision++;
     }
 
@@ -440,7 +494,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         while (true)
         {
-            LiveTelemetryCapture capture;
+            LiveCaptureSnapshot capture;
             long revision;
 
             lock (gate)
@@ -452,13 +506,14 @@ internal sealed class LiveSessionService : ILiveSessionService
                 }
 
                 revision = queuedStatisticsRevision;
-                capture = CloneCaptureLocked();
+                capture = CreateCaptureSnapshotLocked();
             }
 
             try
             {
                 var telemetryData = await backgroundTaskRunner.RunAsync(
-                    () => TelemetryData.FromLiveCapture(capture));
+                    () => TelemetryData.FromLiveCapture(BuildCapture(capture)),
+                    CancellationToken.None);
                 var percentages = sessionPresentationService.CalculateDamperPercentages(telemetryData);
 
                 LiveSessionPresentationSnapshot snapshot;
@@ -549,9 +604,9 @@ internal sealed class LiveSessionService : ILiveSessionService
             IsResetting: false);
     }
 
-    private LiveTelemetryCapture CloneCaptureLocked()
+    private LiveCaptureSnapshot CreateCaptureSnapshotLocked()
     {
-        return new LiveTelemetryCapture(
+        return new LiveCaptureSnapshot(
             Metadata: new Metadata
             {
                 SourceName = context.DisplayName,
@@ -560,34 +615,45 @@ internal sealed class LiveSessionService : ILiveSessionService
                 Timestamp = (int)(sessionHeader?.SessionStartUtc.ToUnixTimeSeconds() ?? 0),
                 Duration = CalculateCaptureDurationLocked().TotalSeconds,
             },
+            SessionHeader: sessionHeader,
+            FrontMeasurements: frontMeasurements.CreateSnapshot(),
+            RearMeasurements: rearMeasurements.CreateSnapshot(),
+            ImuRecords: imuRecords.CreateSnapshot(),
+            GpsRecords: gpsRecords.CreateSnapshot());
+    }
+
+    private LiveTelemetryCapture BuildCapture(LiveCaptureSnapshot snapshot)
+    {
+        return new LiveTelemetryCapture(
+            Metadata: snapshot.Metadata,
             BikeData: context.BikeData,
-            FrontMeasurements: frontMeasurements.ToArray(),
-            RearMeasurements: rearMeasurements.ToArray(),
-            ImuData: BuildImuCaptureLocked(),
-            GpsData: gpsRecords.Count == 0 ? null : gpsRecords.ToArray(),
+            FrontMeasurements: snapshot.FrontMeasurements.ToArray(),
+            RearMeasurements: snapshot.RearMeasurements.ToArray(),
+            ImuData: BuildImuCapture(snapshot),
+            GpsData: snapshot.GpsRecords.Count == 0 ? null : snapshot.GpsRecords.ToArray(),
             Markers: []);
     }
 
-    private RawImuData? BuildImuCaptureLocked()
+    private static RawImuData? BuildImuCapture(LiveCaptureSnapshot snapshot)
     {
-        if (sessionHeader is null || imuRecords.Count == 0)
+        if (snapshot.SessionHeader is null || snapshot.ImuRecords.Count == 0)
         {
             return null;
         }
 
-        var activeLocations = sessionHeader.GetActiveImuLocations();
+        var activeLocations = snapshot.SessionHeader.GetActiveImuLocations();
         return new RawImuData
         {
-            SampleRate = (int)sessionHeader.AcceptedImuHz,
+            SampleRate = (int)snapshot.SessionHeader.AcceptedImuHz,
             ActiveLocations = activeLocations.Select(location => (byte)location).ToList(),
             Meta =
             [
                 .. activeLocations.Select(location => new ImuMetaEntry(
                     LocationId: (byte)location,
-                    AccelLsbPerG: sessionHeader.ImuCalibrationScales.GetAccelScale(location),
-                    GyroLsbPerDps: sessionHeader.ImuCalibrationScales.GetGyroScale(location)))
+                    AccelLsbPerG: snapshot.SessionHeader.ImuCalibrationScales.GetAccelScale(location),
+                    GyroLsbPerDps: snapshot.SessionHeader.ImuCalibrationScales.GetGyroScale(location)))
             ],
-            Records = [.. imuRecords]
+            Records = [.. snapshot.ImuRecords.ToArray()]
         };
     }
 
@@ -618,6 +684,9 @@ internal sealed class LiveSessionService : ILiveSessionService
             return Enumerable.Repeat(double.NaN, batchCount).ToArray();
         }
 
+        // This bounded recompute still allocates and reprocesses the trailing window on each append.
+        // Keep it unchanged for now; the larger wins are the shared-stream lifecycle fix and the
+        // off-lock full-capture snapshot refactor.
         var filterWindow = Math.Min(51, times.Count);
         if (filterWindow % 2 == 0)
         {
@@ -681,9 +750,10 @@ internal sealed class LiveSessionService : ILiveSessionService
             return TimeSpan.FromSeconds(frontMeasurements.Count / (double)sessionHeader.AcceptedTravelHz);
         }
 
-        if (gpsRecords.Count > 0)
+        if (sessionTrackPoints.Length > 0)
         {
-            var duration = gpsRecords[^1].Timestamp.ToUniversalTime() - sessionHeader.SessionStartUtc.UtcDateTime;
+            var duration = TimeSpan.FromSeconds(
+                sessionTrackPoints[^1].Time - sessionHeader.SessionStartUtc.ToUnixTimeSeconds());
             return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
         }
 

@@ -99,6 +99,38 @@ public class LiveDaqSharedStreamTests
         Assert.NotSame(stream, replacement);
     }
 
+    [Fact]
+    public async Task ReconfigureFailure_LeavesStreamRecoverableInsteadOfClosed()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+
+        var client = clientFactory.CreatedClients.Single();
+        client.FailNextStartPreview = true;
+
+        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
+            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Gps,
+            TravelHz: 100,
+            ImuHz: 0,
+            GpsFixHz: 5));
+
+        await Task.Yield();
+
+        Assert.False(stream.CurrentState.IsClosed);
+        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+
+        await stream.EnsureStartedAsync();
+        await Task.Yield();
+
+        Assert.False(stream.CurrentState.IsClosed);
+        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+    }
+
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
         new(clientFactory, catalogService);
 
@@ -137,6 +169,8 @@ public class LiveDaqSharedStreamTests
     {
         private readonly Subject<LiveDaqClientEvent> events = new();
 
+        public bool FailNextStartPreview { get; set; }
+
         public bool IsConnected { get; private set; }
 
         public int ConnectCalls { get; private set; }
@@ -156,6 +190,12 @@ public class LiveDaqSharedStreamTests
 
         public Task<LivePreviewStartResult> StartPreviewAsync(LiveStartRequest request, CancellationToken cancellationToken = default)
         {
+            if (FailNextStartPreview)
+            {
+                FailNextStartPreview = false;
+                return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Failed("preview start failed"));
+            }
+
             var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: (uint)(900 + ConnectCalls));
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
