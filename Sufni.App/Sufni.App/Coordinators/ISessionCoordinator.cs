@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Models;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
 
@@ -52,6 +53,18 @@ public interface ISessionCoordinator
     Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated);
 
     /// <summary>
+    /// Persist a brand-new recorded session row from a live capture.
+    /// The caller supplies the new session metadata and the cloned live
+    /// capture package. The coordinator processes the capture into a
+    /// normal psst blob, persists the optional track, inserts the new
+    /// session row, and upserts the resulting snapshot into the store.
+    /// </summary>
+    Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
+        Session session,
+        LiveSessionCapturePackage capture,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Delete a session.
     /// </summary>
     Task<SessionDeleteResult> DeleteAsync(Guid sessionId);
@@ -83,6 +96,14 @@ public abstract record SessionSaveResult
     public sealed record Saved(long NewBaselineUpdated) : SessionSaveResult;
     public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionSaveResult;
     public sealed record Failed(string ErrorMessage) : SessionSaveResult;
+}
+
+public abstract record LiveSessionSaveResult
+{
+    private LiveSessionSaveResult() { }
+
+    public sealed record Saved(Guid SessionId, long Updated) : LiveSessionSaveResult;
+    public sealed record Failed(string ErrorMessage) : LiveSessionSaveResult;
 }
 
 public sealed record SessionDeleteResult(SessionDeleteOutcome Outcome, string? ErrorMessage = null);

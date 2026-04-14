@@ -1,12 +1,12 @@
 # Live DAQ Streaming
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the desktop live preview feature: real-time telemetry streaming from a DAQ device, the binary framed protocol, discovery and catalog services, the runtime-only store, and the detail tab lifecycle.
+> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the desktop live preview and live-session feature: real-time telemetry streaming from a DAQ device, the binary framed protocol, discovery and catalog services, the runtime-only store, the shared stream layer, the diagnostics tab, and the live session tab/save lifecycle.
 
 ## Overview
 
-The live preview feature lets a desktop user stream real-time sensor data from a connected DAQ device without recording or importing a session. It exists as a dedicated desktop feature slice: a primary page lists known and discovered DAQs, and each selected DAQ opens an independent detail tab that owns its own TCP connection and session state.
+The live feature lets a desktop user inspect a connected DAQ in a diagnostics tab and optionally open a separate live session tab that accumulates graphable data and can persist it as a normal recorded session. It exists as a dedicated desktop feature slice: a primary page lists known and discovered DAQs, selection opens a diagnostics tab, and `Start Session` opens a second tab that subscribes to the same underlying transport.
 
-The feature is intentionally separate from the import pipeline. It does not write to the database, does not reuse `ITelemetryDataStoreService.DataStores` for list state, and does not share browse stop/start behavior with the import page.
+The feature is intentionally separate from the import pipeline. It does not reuse `ITelemetryDataStoreService.DataStores` for list state and does not share browse stop/start behavior with the import page. The diagnostics and live-session tabs share a per-identity transport through the live-streaming service layer, and the live session save path persists through `ISessionCoordinator` rather than through the live DAQ coordinator.
 
 ```mermaid
 graph LR
@@ -23,15 +23,19 @@ graph LR
     end
 
     subgraph Transport
-        Client["LiveDaqClient<br/>(per tab)"]
+      Registry["LiveDaqSharedStreamRegistry"]
+      Shared["LiveDaqSharedStream<br/>(per identity)"]
+      Client["LiveDaqClient"]
         Reader["LiveProtocolReader"]
-        Session["LiveDaqSessionState"]
+      Session["LiveDaqSessionState"]
+      LiveService["LiveSessionService<br/>(per live tab)"]
     end
 
     subgraph Presentation
         ListVM["LiveDaqListViewModel"]
         RowVM["LiveDaqRowViewModel"]
         DetailVM["LiveDaqDetailViewModel"]
+      LiveDetailVM["LiveSessionDetailViewModel"]
     end
 
     mDNS --> Catalog
@@ -42,9 +46,14 @@ graph LR
     Store --> ListVM
     ListVM --> RowVM
     Coord -->|"OpenOrFocus"| DetailVM
+    Coord -->|"OpenSessionAsync"| LiveDetailVM
+    Registry --> Shared
     Client --> Reader
-    Client --> DetailVM
+    Shared --> Client
+    Shared --> DetailVM
+    Shared --> LiveService
     Session --> DetailVM
+    LiveService --> LiveDetailVM
 ```
 
 ## Data Flow
@@ -60,18 +69,37 @@ User selects row
   -> LiveDaqCoordinator.SelectAsync
     -> shell.OpenOrFocus<LiveDaqDetailViewModel>
 
-Tab loads
-  -> LiveDaqClient.ConnectAsync (TCP)
-    -> LiveDaqClient.StartPreviewAsync (START_LIVE frame)
-      -> receive loop parses ACK + SESSION_HEADER
-        -> LiveDaqClientEvent.FrameReceived
-          -> LiveDaqSessionState.ApplyFrame
-            -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+Diagnostics tab loads
+  -> LiveDaqSharedStream.AcquireLease()
+    -> LiveDaqSharedStream.EnsureStartedAsync
+      -> LiveDaqClient.ConnectAsync (TCP)
+        -> LiveDaqClient.StartPreviewAsync (START_LIVE frame)
+          -> receive loop parses ACK + SESSION_HEADER + data frames
+            -> LiveDaqSharedStream state/frames
+              -> LiveDaqSessionState.ApplyFrame
+                -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+
+User presses Start Session
+  -> LiveDaqCoordinator.OpenSessionAsync
+    -> shell.OpenOrFocus<LiveSessionDetailViewModel>
+
+Live session tab loads
+  -> LiveSessionService.EnsureAttachedAsync
+    -> LiveDaqSharedStream.AcquireLease + AcquireConfigurationLock
+      -> shared frames -> raw capture accumulation + LiveGraphBatch + statistics snapshot
+        -> LiveSessionDetailViewModel / graph/media workspaces -> UI binding
+
+User saves live capture
+  -> LiveSessionService.PrepareCaptureForSaveAsync
+    -> ISessionCoordinator.SaveLiveCaptureAsync
+      -> TelemetryData.FromLiveCapture
+        -> optional Track.FromGpsRecords + databaseService.PutAsync(track)
+        -> databaseService.PutSessionAsync(session)
+        -> SessionStore.Upsert(snapshot)
 
 Tab closes
-  -> Unloaded -> connectOperation.Cancel
-    -> LiveDaqClient.DisconnectAsync (STOP_LIVE frame)
-      -> TCP connection closed
+  -> lease released
+    -> shared stream disconnects only when the last diagnostics/live-session observer closes
 ```
 
 ## Live Wire Protocol
@@ -146,9 +174,15 @@ All transport types live in `Sufni.App/Sufni.App/Services/LiveStreaming/`.
 
 ### Client
 
-`LiveDaqClient` owns the full connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. The receive loop runs off the UI thread via `IBackgroundTaskRunner`, reading into a 4096-byte buffer and feeding it through the protocol reader. Parsed frames are dispatched through a `Subject<LiveDaqClientEvent>` observable. A `SemaphoreSlim` gate serializes all lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the receive loop completes it when the matching ACK or error arrives.
+`LiveDaqClient` owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. The receive loop runs off the UI thread via `IBackgroundTaskRunner`, reading into a 4096-byte buffer and feeding it through the protocol reader. Parsed frames are dispatched through a `Subject<LiveDaqClientEvent>` observable. A `SemaphoreSlim` gate serializes all lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the receive loop completes it when the matching ACK or error arrives.
 
-Each detail tab creates its own client instance via `ILiveDaqClientFactory`. There is no singleton connection gate.
+The client is no longer owned directly by a tab view model. It sits under `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
+
+### Shared Stream
+
+`LiveDaqSharedStreamRegistry` owns one `LiveDaqSharedStream` per DAQ identity key. A shared stream keeps the current requested configuration, accepted session header, connection state, and frame fan-out for that identity. Observers acquire a generic lease; live-session observers also hold a configuration-lock lease so the diagnostics tab cannot reconfigure rates while a live capture is attached.
+
+When the last observer releases its lease, the registry disconnects and evicts the stream. If the transport drops or discovery loses the DAQ while observers are still attached, the current stream closes immediately, publishes terminal state to those observers, and is evicted for future lookups so the next attachment creates a fresh stream instance.
 
 ### Session State
 
@@ -190,7 +224,9 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 
 **Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with `host:port` identity. The store is cleared and rebuilt on each reconciliation.
 
-**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot and the shared known-board query.
+**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a diagnostics tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot, the shared stream registry, and the shared known-board query.
+
+**OpenSessionAsync** — resolves `LiveDaqSessionContext` for a known DAQ, gets the shared stream for that identity, and routes one `LiveSessionDetailViewModel` per identity through `shell.OpenOrFocus`. The coordinator remains a routing layer only; live capture accumulation and save happen below it.
 
 ## View Models
 
@@ -198,7 +234,9 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open tab. Owns a `ILiveDaqClient` instance (from factory), a `LiveDaqSessionState` accumulator, a `CancellableOperation` for the connect workflow, and a `DispatcherTimer` that periodically projects session state into a raw `LiveDaqUiSnapshot` for throttled UI binding. It also subscribes to `ILiveDaqKnownBoardsQuery` so it can format travel as calibrated `mm (percent)` when a known setup and bike calibration are available, otherwise fall back to the raw measurement. On `Loaded`: starts the timer, subscribes to client events and query changes, auto-connects. On `Unloaded`: cancels the connect operation, stops the timer, disposes subscriptions, disconnects. On rejection: shows a dialog and closes the tab. On mid-session disconnect: leaves the tab open in a disconnected state.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It no longer owns a `LiveDaqClient` directly. Instead it acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration.
+
+**`LiveSessionDetailViewModel`** extends `TabPageViewModelBase`, one instance per open live-session tab. It owns live session child graph/media workspaces plus the sidebar/statistics/control surface, but it does not own transport or raw capture logic. Instead it consumes `ILiveSessionService`, which subscribes to the shared stream, accumulates raw capture state, publishes `LiveGraphBatch` deltas for the DataStreamer plots, publishes statistics/map snapshots, and exposes `PrepareCaptureForSaveAsync` for create-only live saves.
 
 ## Desktop Views
 
@@ -212,7 +250,8 @@ Each detail tab creates its own client instance via `ILiveDaqClientFactory`. The
 1. **Separate from import** — the live feature does not reuse `ITelemetryDataStoreService.DataStores` or the import browse start/stop. Discovery, catalog, and browse ownership are independent seams.
 2. **Runtime-only store** — `LiveDaqStore` has no persistence, no `RefreshAsync()`, and no optimistic-concurrency surface. It exists only to project discovered and known boards into the list.
 3. **Custom row type** — `LiveDaqRowViewModel` does not implement `IListItemRow` because live rows are not deletable and need online/offline presentation rather than the entity-list pattern.
-4. **Per-tab client** — each detail tab owns its own `LiveDaqClient` instance. Multiple DAQs can stream simultaneously in separate tabs.
+4. **Per-identity shared stream** — one `LiveDaqSharedStream` owns the transport for one DAQ identity, and both the diagnostics tab and the live-session tab subscribe to it through leases.
 5. **Throttled UI updates** — sensor data arrives at packet rate but UI binding updates are snapshot-based and throttled by `DispatcherTimer`, not by raw frame arrival.
 6. **Lease-based browse** — browse ownership uses reference counting so import and live can browse concurrently without interfering.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
+8. **Create-only live save** — live sessions persist through `ISessionCoordinator.SaveLiveCaptureAsync(...)`, which always inserts a brand-new recorded session row rather than mutating the live tab in place.

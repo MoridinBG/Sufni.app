@@ -118,6 +118,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
     {
+        LiveGraphBatch resetBatch;
         LiveSessionPresentationSnapshot snapshot;
         lock (gate)
         {
@@ -136,9 +137,11 @@ internal sealed class LiveSessionService : ILiveSessionService
             latestStatisticsRevision = -1;
             queuedStatisticsRevision = -1;
             hasPublishedSaveableCapture = false;
+            resetBatch = LiveGraphBatch.Empty with { Revision = captureRevision };
             snapshot = BuildSnapshotLocked();
         }
 
+        graphBatchesSubject.OnNext(resetBatch);
         PublishSnapshot(snapshot);
         return Task.CompletedTask;
     }

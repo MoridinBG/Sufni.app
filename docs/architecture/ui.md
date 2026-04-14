@@ -33,7 +33,7 @@ graph TB
         Shell["Shell VMs<br/>MainViewModel / MainWindowViewModel<br/>MainPagesViewModel"]
         Lists["List VMs<br/>BikeListViewModel<br/>SetupListViewModel<br/>SessionListViewModel<br/>PairedDeviceListViewModel<br/>LiveDaqListViewModel"]
         Rows["Row VMs<br/>BikeRowViewModel<br/>SetupRowViewModel<br/>SessionRowViewModel<br/>PairedDeviceRowViewModel<br/>LiveDaqRowViewModel"]
-        Editors["Editor VMs<br/>BikeEditorViewModel<br/>SetupEditorViewModel<br/>SessionDetailViewModel<br/>LiveDaqDetailViewModel"]
+        Editors["Editor VMs<br/>BikeEditorViewModel<br/>SetupEditorViewModel<br/>SessionDetailViewModel<br/>LiveDaqDetailViewModel<br/>LiveSessionDetailViewModel"]
     end
 
     subgraph Application["Application"]
@@ -162,7 +162,7 @@ and are registered as singletons.
 | `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                   |
 | `IBikeCoordinator`                                                        | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                       |
 | `ISetupCoordinator`                                                       | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                        |
-| `ISessionCoordinator`                                                     | shared       | Save/delete + `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                                                                |
+| `ISessionCoordinator`                                                     | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)`, plus `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                   |
 | `IPairedDeviceCoordinator`                                                | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                        |
 | `IImportSessionsCoordinator`                                              | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                                                                                                      |
 | `ISyncCoordinator`                                                        | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                                                                                                                  |
@@ -194,7 +194,11 @@ conflict, prompt the user via `IDialogService` before reloading the
 snapshot. The coordinator detects conflicts by comparing the baseline
 `Updated` value the editor opened on against the store's current
 snapshot — so a sync arrival or another tab's save during an edit
-cannot silently overwrite the user's changes.
+cannot silently overwrite the user's changes. The live session path is
+deliberately separate: `SaveLiveCaptureAsync(...)` is create-only and
+returns `Saved(SessionId, Updated)` or `Failed(ErrorMessage)` because
+there is no optimistic-concurrency baseline for an in-memory live
+capture.
 
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
@@ -330,7 +334,7 @@ There are five kinds of view model in the presentation layer:
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
   `SetupEditorViewModel`, `SessionDetailViewModel`,
-  `LiveDaqDetailViewModel`. Constructed by the entity coordinator from
+  `LiveDaqDetailViewModel`, `LiveSessionDetailViewModel`. Constructed by the entity coordinator from
   a snapshot, never by another view model and never stored in a list.
   Persisted-entity editors keep the snapshot's `Updated` value as
   `BaselineUpdated` for optimistic conflict detection at save time,
@@ -340,11 +344,14 @@ There are five kinds of view model in the presentation layer:
   `IDialogService.ShowConfirmationAsync` and rebuild from the
   conflict's current snapshot. Persisted-entity editors implement
   `IEditorActions` so the shared `CommonButtonLine` editor button
-  strip resolves a single `x:DataType`. `LiveDaqDetailViewModel` does
-  not implement `IEditorActions` — it is a live transport tab, not a
-  persisted-entity editor. Its raw transport snapshot comes from
-  `LiveDaqSessionState`; user-facing travel text is projected in the
-  view model itself using `ILiveDaqKnownBoardsQuery`.
+  strip resolves a single `x:DataType`. `LiveDaqDetailViewModel` and
+  `LiveSessionDetailViewModel` are the two live-only exceptions: the
+  diagnostics tab is a transport/configuration surface over the shared
+  stream, while the live session tab is a create-only capture editor
+  backed by `ILiveSessionService`. `LiveDaqDetailViewModel` projects a
+  throttled diagnostics snapshot from `LiveDaqSessionState`; the live
+  session editor projects graph/media/statistics state from the live
+  session service and persists through `ISessionCoordinator.SaveLiveCaptureAsync(...)`.
 
 `TabPageViewModelBase` (`ViewModels/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
@@ -407,6 +414,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `ILiveDaqStore` and `ILiveDaqStoreWriter`),
   `ILiveDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
   `ILiveDaqCatalogService`, `ILiveDaqClientFactory`,
+  `ILiveDaqSharedStreamRegistry`, `ILiveSessionServiceFactory`,
   `ILiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
   unconditionally; `MainPagesViewModel` receives
   `LiveDaqListViewModel` conditionally (null on mobile).

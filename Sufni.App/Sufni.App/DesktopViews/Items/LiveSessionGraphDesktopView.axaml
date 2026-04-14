@@ -4,58 +4,36 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
+x:DataType="vm:ILiveSessionGraphWorkspace"
 mc:Ignorable="d">
 
     <Grid RowDefinitions="3* auto 2* auto 2*">
-        <Border
+        <plots:LiveTravelPlotDesktopView
+        x:Name="TravelPlot"
         Grid.Row="0"
-        Margin="0,0,0,4"
-        Padding="14"
-        Background="{StaticResource SufniBackgroundDisabled}"
-        CornerRadius="8">
-            <StackPanel Spacing="6">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel" />
-                <TextBlock
-                x:Name="TravelGraphPlaceholderTextBlock"
-                Opacity="0.7"
-                Text="Rolling live travel plots will attach here once the live graph pipeline is wired in." />
-            </StackPanel>
-        </Border>
+        GraphBatches="{Binding GraphBatches}"
+        Timeline="{Binding Timeline}" />
 
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-        <Border
+        <plots:LiveVelocityPlotDesktopView
+        x:Name="VelocityPlot"
         Grid.Row="2"
         Margin="0,4,0,4"
-        Padding="14"
-        Background="{StaticResource SufniBackgroundDisabled}"
-        CornerRadius="8">
-            <StackPanel Spacing="6">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Velocity" />
-                <TextBlock
-                x:Name="VelocityGraphPlaceholderTextBlock"
-                Opacity="0.7"
-                Text="Velocity streaming is deferred until the live session service publishes graph batches." />
-            </StackPanel>
-        </Border>
+        GraphBatches="{Binding GraphBatches}"
+        Timeline="{Binding Timeline}" />
 
         <GridSplitter Grid.Row="3" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
 
-        <Border
+        <plots:LiveImuPlotDesktopView
+        x:Name="ImuPlot"
         Grid.Row="4"
         Margin="0,4,0,0"
-        Padding="14"
-        Background="{StaticResource SufniBackgroundDisabled}"
-        CornerRadius="8">
-            <StackPanel Spacing="6">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="IMU" />
-                <TextBlock
-                x:Name="ImuGraphPlaceholderTextBlock"
-                Opacity="0.7"
-                Text="IMU plots will appear here after the live session graph batches are introduced." />
-            </StackPanel>
-        </Border>
+        GraphBatches="{Binding GraphBatches}"
+        Timeline="{Binding Timeline}" />
     </Grid>
 </UserControl>

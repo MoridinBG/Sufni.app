@@ -4,8 +4,10 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.Queries;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
@@ -133,6 +135,51 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
         Assert.IsType<SessionSaveResult.Failed>(result);
+        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+    }
+
+    [Fact]
+    public async Task SaveLiveCaptureAsync_PersistsTrackSessionAndUpsertsFreshSnapshot()
+    {
+        var capture = CreateLiveCapturePackage(withGps: true);
+        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
+        var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
+        {
+            Updated = 9,
+            HasProcessedData = true,
+        };
+        database.GetSessionAsync(session.Id).Returns(fresh);
+
+        Track? savedTrack = null;
+        database.PutAsync(Arg.Do<Track>(track => savedTrack = track))
+            .Returns(callInfo => savedTrack!.Id);
+
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture);
+
+        await database.Received(1).PutAsync(Arg.Is<Track>(track => track.Points.Count == 1));
+        await database.Received(1).PutSessionAsync(Arg.Is<Session>(saved =>
+            saved.Id == session.Id
+            && saved.ProcessedData != null
+            && saved.ProcessedData.Length > 0
+            && saved.FullTrack == savedTrack!.Id));
+        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(snapshot =>
+            snapshot.Id == session.Id && snapshot.Updated == 9 && snapshot.HasProcessedData));
+
+        var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
+        Assert.Equal(session.Id, saved.SessionId);
+        Assert.Equal(9, saved.Updated);
+    }
+
+    [Fact]
+    public async Task SaveLiveCaptureAsync_ReturnsFailed_WhenRefetchReturnsNull()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
+        database.GetSessionAsync(session.Id).Returns((Session?)null);
+
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture);
+
+        Assert.IsType<LiveSessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
     }
 
@@ -505,5 +552,52 @@ public class SessionCoordinatorTests
         // coordinator and never NRE on construction.
         var coordinator = CreateCoordinator(sync: null);
         Assert.NotNull(coordinator);
+    }
+
+    private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
+    {
+        var context = new LiveDaqSessionContext(
+            IdentityKey: "board-1",
+            BoardId: Guid.NewGuid(),
+            DisplayName: "Board 1",
+            SetupId: Guid.NewGuid(),
+            SetupName: "race",
+            BikeId: Guid.NewGuid(),
+            BikeName: "demo",
+            BikeData: new BikeData(63, 180, 170, measurement => measurement / 10.0, measurement => measurement / 10.0),
+            TravelCalibration: new LiveDaqTravelCalibration(null, null));
+
+        return new LiveSessionCapturePackage(
+            context,
+            new LiveTelemetryCapture(
+                Metadata: new Metadata
+                {
+                    SourceName = "live",
+                    Version = 4,
+                    SampleRate = 200,
+                    Timestamp = 1_704_164_646,
+                    Duration = 0.03,
+                },
+                BikeData: context.BikeData,
+                FrontMeasurements: [1000, 1010, 1020, 1030, 1040, 1050],
+                RearMeasurements: [1100, 1110, 1120, 1130, 1140, 1150],
+                ImuData: null,
+                GpsData: withGps
+                    ?
+                    [
+                        new GpsRecord(
+                            Timestamp: new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
+                            Latitude: 42.6977,
+                            Longitude: 23.3219,
+                            Altitude: 600,
+                            Speed: 10,
+                            Heading: 90,
+                            FixMode: 3,
+                            Satellites: 12,
+                            Epe2d: 0.5f,
+                            Epe3d: 0.8f),
+                    ]
+                    : null,
+                Markers: []));
     }
 }

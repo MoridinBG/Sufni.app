@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
+using Sufni.App.DesktopViews.Plots;
 using Sufni.App.DesktopViews.Editors;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
@@ -30,11 +31,14 @@ public class LiveSessionDetailDesktopViewTests
         await using var mounted = await MountAsync(editor);
 
         var textBlocks = mounted.View.GetVisualDescendants().OfType<TextBlock>().ToArray();
+        var controls = mounted.View.GetVisualDescendants().OfType<Control>().ToArray();
 
-        Assert.NotNull(textBlocks.FirstOrDefault(textBlock => textBlock.Name == "TravelGraphPlaceholderTextBlock"));
         Assert.Equal("State: Connected", textBlocks.First(textBlock => textBlock.Name == "LiveConnectionStateTextBlock").Text);
         Assert.Equal("Session: 909", textBlocks.First(textBlock => textBlock.Name == "LiveSessionIdTextBlock").Text);
-        Assert.NotNull(mounted.View.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == "TabControl"));
+        Assert.NotNull(controls.FirstOrDefault(control => control.Name == "TabControl"));
+        Assert.NotNull(controls.OfType<LiveTravelPlotDesktopView>().FirstOrDefault());
+        Assert.NotNull(controls.OfType<LiveVelocityPlotDesktopView>().FirstOrDefault());
+        Assert.NotNull(controls.OfType<LiveImuPlotDesktopView>().FirstOrDefault());
     }
 
     private static async Task<MountedLiveSessionDetailDesktopView> MountAsync(LiveSessionDetailViewModel editor)
