@@ -546,7 +546,7 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public void Constructor_DoesNotThrow_WhenSyncServerNull()
+    public void Constructor_CreatesCoordinator_WhenSyncServerNull()
     {
         // Smoke test: with no sync server we should still get a working
         // coordinator and never NRE on construction.

@@ -16,7 +16,7 @@ public class TelemetryDataLiveCaptureTests
             Meta = [new ImuMetaEntry(0, 16384f, 131f)],
             Records = [new ImuRecord(0, 0, 16384, 0, 0, 0)],
         };
-        var gpsData =
+        GpsRecord[] gpsData =
         [
             new GpsRecord(
                 Timestamp: new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
@@ -30,7 +30,7 @@ public class TelemetryDataLiveCaptureTests
                 Epe2d: 0.5f,
                 Epe3d: 0.8f),
         ];
-        var markers = [new MarkerData(0.5)];
+        MarkerData[] markers = [new MarkerData(0.5)];
 
         var capture = new LiveTelemetryCapture(
             Metadata: new Metadata
@@ -60,7 +60,7 @@ public class TelemetryDataLiveCaptureTests
     }
 
     [Fact]
-    public void FromLiveCapture_WithShortCapture_DoesNotThrow_AndMarksSuspensionAbsent()
+    public void FromLiveCapture_WithShortCapture_MarksSuspensionAbsent()
     {
         var capture = new LiveTelemetryCapture(
             Metadata: new Metadata
