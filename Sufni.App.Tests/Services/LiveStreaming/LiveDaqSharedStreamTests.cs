@@ -35,19 +35,19 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
-    public async Task DetachLastDiagnosticsObserver_DisposesClient_AndEvictsStream()
+    public async Task DisposingLastObserverLease_DisposesClient_AndEvictsStream()
     {
         using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
         var stream = registry.GetOrCreate(snapshot);
-        await stream.AttachDiagnosticsAsync();
+        await using var lease = stream.AcquireLease();
         await stream.EnsureStartedAsync();
 
         var firstClient = clientFactory.CreatedClients.Single();
 
-        await stream.DetachDiagnosticsAsync();
+        await lease.DisposeAsync();
 
         Assert.Equal(1, firstClient.DisposeCalls);
         var replacement = registry.GetOrCreate(snapshot);
@@ -55,22 +55,20 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
-    public async Task SessionObserver_LocksConfiguration_UntilDetached()
+    public async Task ConfigurationLockLease_LocksConfiguration_UntilDisposed()
     {
         using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         var stream = registry.GetOrCreate(snapshot);
 
-        await stream.AttachDiagnosticsAsync();
+        await using var observerLease = stream.AcquireLease();
         Assert.False(stream.CurrentState.IsConfigurationLocked);
 
-        await stream.AttachSessionAsync();
+        await using var configurationLock = stream.AcquireConfigurationLock();
         Assert.True(stream.CurrentState.IsConfigurationLocked);
 
-        await stream.DetachSessionAsync();
+        await configurationLock.DisposeAsync();
         Assert.False(stream.CurrentState.IsConfigurationLocked);
-
-        await stream.DetachDiagnosticsAsync();
     }
 
     [Fact]
@@ -81,7 +79,7 @@ public class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
         var stream = registry.GetOrCreate(snapshot);
-        await stream.AttachDiagnosticsAsync();
+        await using var lease = stream.AcquireLease();
         await stream.EnsureStartedAsync();
 
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

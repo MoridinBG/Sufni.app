@@ -4,6 +4,10 @@ using System.Threading.Tasks;
 
 namespace Sufni.App.Services.LiveStreaming;
 
+public interface ILiveDaqSharedStreamLease : IAsyncDisposable
+{
+}
+
 public interface ILiveDaqSharedStream : IAsyncDisposable
 {
     string IdentityKey { get; }
@@ -13,10 +17,8 @@ public interface ILiveDaqSharedStream : IAsyncDisposable
     IObservable<LiveProtocolFrame> Frames { get; }
     IObservable<LiveDaqSharedStreamState> States { get; }
 
-    Task AttachDiagnosticsAsync(CancellationToken cancellationToken = default);
-    Task DetachDiagnosticsAsync(CancellationToken cancellationToken = default);
-    Task AttachSessionAsync(CancellationToken cancellationToken = default);
-    Task DetachSessionAsync(CancellationToken cancellationToken = default);
+    ILiveDaqSharedStreamLease AcquireLease();
+    ILiveDaqSharedStreamLease AcquireConfigurationLock();
 
     Task<LivePreviewStartResult?> EnsureStartedAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);

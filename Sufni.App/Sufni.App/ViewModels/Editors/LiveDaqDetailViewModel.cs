@@ -30,7 +30,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
-    private bool diagnosticsAttached;
+    private ILiveDaqSharedStreamLease? streamLease;
     private LiveDaqTravelCalibration? travelCalibration;
 
     [ObservableProperty]
@@ -95,10 +95,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             IdentityKey,
             Endpoint);
 
-        if (sharedStream is not null && !diagnosticsAttached)
+        if (sharedStream is not null && streamLease is null)
         {
-            await sharedStream.AttachDiagnosticsAsync();
-            diagnosticsAttached = true;
+            streamLease = sharedStream.AcquireLease();
         }
 
         uiRefreshTimer.Start();
@@ -145,10 +144,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         uiRefreshTimer.Stop();
         DisposeScopedSubscriptions();
 
-        if (sharedStream is not null && diagnosticsAttached)
+        if (streamLease is not null)
         {
-            await sharedStream.DetachDiagnosticsAsync();
-            diagnosticsAttached = false;
+            await streamLease.DisposeAsync();
+            streamLease = null;
         }
     }
 

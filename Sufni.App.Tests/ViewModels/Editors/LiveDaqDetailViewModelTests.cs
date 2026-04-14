@@ -22,6 +22,7 @@ public class LiveDaqDetailViewModelTests
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private LiveDaqSharedStreamState currentStreamState = LiveDaqSharedStreamState.Empty;
     private LiveDaqStreamConfiguration currentConfiguration = LiveDaqStreamConfiguration.Default;
+    private readonly ILiveDaqSharedStreamLease streamLease = Substitute.For<ILiveDaqSharedStreamLease>();
 
     public LiveDaqDetailViewModelTests()
     {
@@ -31,8 +32,7 @@ public class LiveDaqDetailViewModelTests
         sharedStream.States.Returns(streamStates);
         sharedStream.CurrentState.Returns(_ => currentStreamState);
         sharedStream.RequestedConfiguration.Returns(_ => currentConfiguration);
-        sharedStream.AttachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        sharedStream.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        sharedStream.AcquireLease().Returns(streamLease);
         sharedStream.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
@@ -40,6 +40,7 @@ public class LiveDaqDetailViewModelTests
                 return Task.CompletedTask;
             });
         sharedStream.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        streamLease.DisposeAsync().Returns(ValueTask.CompletedTask);
     }
 
     private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
@@ -101,7 +102,7 @@ public class LiveDaqDetailViewModelTests
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        await sharedStream.Received(1).AttachDiagnosticsAsync(Arg.Any<CancellationToken>());
+        sharedStream.Received(1).AcquireLease();
         await sharedStream.Received(1).ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
@@ -123,21 +124,21 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Unloaded_DetachesDiagnosticsStream()
+    public async Task Unloaded_DisposesObserverLease()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
         await editor.UnloadedCommand.ExecuteAsync(null);
 
-        await sharedStream.Received(1).DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
+        await streamLease.Received(1).DisposeAsync();
     }
 
     [AvaloniaFact]
-    public async Task CloseCommand_WaitsForDetach_BeforeClosingTab()
+    public async Task CloseCommand_WaitsForObserverLeaseDisposal_BeforeClosingTab()
     {
         var detachGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        sharedStream.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(_ => detachGate.Task);
+        streamLease.DisposeAsync().Returns(_ => new ValueTask(detachGate.Task));
 
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -150,15 +151,17 @@ public class LiveDaqDetailViewModelTests
         detachGate.TrySetResult();
         await closeTask;
 
-        await sharedStream.Received(1).DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
+        await streamLease.Received(1).DisposeAsync();
         shell.Received(1).Close(editor);
     }
 
     [AvaloniaFact]
-    public async Task SeparateEditors_UseIndependentStreams_AndUnloadOnlyDetachesClosingTab()
+    public async Task SeparateEditors_UseIndependentStreams_AndUnloadOnlyDisposesClosingLease()
     {
         var stream1 = Substitute.For<ILiveDaqSharedStream>();
         var stream2 = Substitute.For<ILiveDaqSharedStream>();
+        var lease1 = Substitute.For<ILiveDaqSharedStreamLease>();
+        var lease2 = Substitute.For<ILiveDaqSharedStreamLease>();
         var query = Substitute.For<ILiveDaqKnownBoardsQuery>();
         query.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
         var result1 = new LivePreviewStartResult.Started(
@@ -182,10 +185,10 @@ public class LiveDaqDetailViewModelTests
         stream2.CurrentState.Returns(_ => state2);
         stream1.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
         stream2.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
-        stream1.AttachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        stream2.AttachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        stream1.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        stream2.DetachDiagnosticsAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        stream1.AcquireLease().Returns(lease1);
+        stream2.AcquireLease().Returns(lease2);
+        lease1.DisposeAsync().Returns(ValueTask.CompletedTask);
+        lease2.DisposeAsync().Returns(ValueTask.CompletedTask);
         stream1.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         stream2.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         stream1.EnsureStartedAsync(Arg.Any<CancellationToken>())
@@ -242,8 +245,8 @@ public class LiveDaqDetailViewModelTests
 
         await stream1.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         await stream2.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
-        await stream1.Received(1).DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
-        await stream2.DidNotReceive().DetachDiagnosticsAsync(Arg.Any<CancellationToken>());
+        await lease1.Received(1).DisposeAsync();
+        await lease2.DidNotReceive().DisposeAsync();
         Assert.Equal((uint)101, editor1.Snapshot.Session.SessionId);
         Assert.Equal((uint)202, editor2.Snapshot.Session.SessionId);
     }

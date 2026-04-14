@@ -23,8 +23,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private IDisposable? liveDaqClientSubscription;
     private LiveDaqStreamConfiguration requestedConfiguration = LiveDaqStreamConfiguration.Default;
     private LiveDaqSharedStreamState currentState = LiveDaqSharedStreamState.Empty;
-    private int diagnosticsObserverCount;
-    private int sessionObserverCount;
+    private int observerCount;
+    private int configurationLockCount;
     private int suppressedDisconnectEvents;
     private bool isDisposed;
     private bool isEvicted;
@@ -49,44 +49,14 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public IObservable<LiveDaqSharedStreamState> States => statesSubject.AsObservable();
 
-    public async Task AttachDiagnosticsAsync(CancellationToken cancellationToken = default)
+    public ILiveDaqSharedStreamLease AcquireLease()
     {
-        await gate.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            diagnosticsObserverCount++;
-            PublishState(currentState);
-        }
-        finally
-        {
-            gate.Release();
-        }
+        return AcquireLease(releaseConfigurationLock: false);
     }
 
-    public async Task DetachDiagnosticsAsync(CancellationToken cancellationToken = default)
+    public ILiveDaqSharedStreamLease AcquireConfigurationLock()
     {
-        await DetachAsync(isSessionObserver: false, cancellationToken);
-    }
-
-    public async Task AttachSessionAsync(CancellationToken cancellationToken = default)
-    {
-        await gate.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            sessionObserverCount++;
-            PublishState(currentState);
-        }
-        finally
-        {
-            gate.Release();
-        }
-    }
-
-    public async Task DetachSessionAsync(CancellationToken cancellationToken = default)
-    {
-        await DetachAsync(isSessionObserver: true, cancellationToken);
+        return AcquireLease(releaseConfigurationLock: true);
     }
 
     public async Task<LivePreviewStartResult?> EnsureStartedAsync(CancellationToken cancellationToken = default)
@@ -507,46 +477,24 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
     }
 
-    private async Task DetachAsync(bool isSessionObserver, CancellationToken cancellationToken)
+    private ILiveDaqSharedStreamLease AcquireLease(bool releaseConfigurationLock)
     {
-        var shouldEvict = false;
-
-        await gate.WaitAsync(cancellationToken);
+        gate.Wait();
         try
         {
-            if (isDisposed)
+            ThrowIfDisposed();
+            observerCount++;
+            if (releaseConfigurationLock)
             {
-                return;
-            }
-
-            if (isSessionObserver)
-            {
-                sessionObserverCount = Math.Max(0, sessionObserverCount - 1);
-            }
-            else
-            {
-                diagnosticsObserverCount = Math.Max(0, diagnosticsObserverCount - 1);
+                configurationLockCount++;
             }
 
             PublishState(currentState);
-
-            if (diagnosticsObserverCount != 0 || sessionObserverCount != 0)
-            {
-                return;
-            }
-
-            await DisposeClientAsync(cancellationToken);
-            shouldEvict = true;
+            return new LiveDaqSharedStreamLease(this, releaseConfigurationLock);
         }
         finally
         {
             gate.Release();
-        }
-
-        if (shouldEvict)
-        {
-            await EvictAsync();
-            await DisposeAsync();
         }
     }
 
@@ -659,9 +607,49 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     {
         currentState = nextState with
         {
-            IsConfigurationLocked = sessionObserverCount > 0,
+            IsConfigurationLocked = configurationLockCount > 0,
         };
         statesSubject.OnNext(currentState);
+    }
+
+    private async ValueTask ReleaseLeaseAsync(bool releaseConfigurationLock)
+    {
+        var shouldEvict = false;
+
+        await gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            observerCount = Math.Max(0, observerCount - 1);
+            if (releaseConfigurationLock)
+            {
+                configurationLockCount = Math.Max(0, configurationLockCount - 1);
+            }
+
+            PublishState(currentState);
+
+            if (observerCount != 0)
+            {
+                return;
+            }
+
+            await DisposeClientAsync(CancellationToken.None);
+            shouldEvict = true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        if (shouldEvict)
+        {
+            await EvictAsync();
+            await DisposeAsync();
+        }
     }
 
     private bool TryGetEndpoint(out string host, out int port)
@@ -685,5 +673,29 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(isDisposed, this);
+    }
+
+    private sealed class LiveDaqSharedStreamLease : ILiveDaqSharedStreamLease
+    {
+        private readonly LiveDaqSharedStream owner;
+        private readonly bool releaseConfigurationLock;
+        private bool isDisposed;
+
+        public LiveDaqSharedStreamLease(LiveDaqSharedStream owner, bool releaseConfigurationLock)
+        {
+            this.owner = owner;
+            this.releaseConfigurationLock = releaseConfigurationLock;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            isDisposed = true;
+            await owner.ReleaseLeaseAsync(releaseConfigurationLock);
+        }
     }
 }
