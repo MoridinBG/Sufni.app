@@ -1,0 +1,74 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Items.LiveSessionControlsDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="180"
+d:DesignWidth="400"
+x:DataType="vm:LiveSessionDetailViewModel"
+mc:Ignorable="d">
+
+    <Border
+    Padding="14"
+    Background="{StaticResource SufniBackgroundDisabled}"
+    CornerRadius="8">
+        <StackPanel Spacing="10">
+            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Live Session" />
+            <TextBlock
+            x:Name="LiveConnectionStateTextBlock"
+            Text="{Binding ControlState.ConnectionStateText}" />
+            <TextBlock
+            x:Name="LiveCaptureDurationTextBlock"
+            Text="{Binding ControlState.CaptureDurationText}" />
+            <TextBlock
+            x:Name="LiveLastErrorTextBlock"
+            Foreground="{StaticResource SufniDangerColor}"
+            IsVisible="{Binding ControlState.HasLastError}"
+            Text="{Binding ControlState.LastError}" />
+
+            <StackPanel
+            IsVisible="{Binding ControlState.HasSessionHeader}"
+            Spacing="4">
+                <TextBlock
+                x:Name="LiveSessionIdTextBlock"
+                Text="{Binding ControlState.SessionIdText}" />
+                <TextBlock
+                x:Name="LiveAcceptedTravelRateTextBlock"
+                Text="{Binding ControlState.AcceptedTravelRateText}" />
+                <TextBlock
+                x:Name="LiveAcceptedImuRateTextBlock"
+                Text="{Binding ControlState.AcceptedImuRateText}" />
+                <TextBlock
+                x:Name="LiveAcceptedGpsRateTextBlock"
+                Text="{Binding ControlState.AcceptedGpsRateText}" />
+            </StackPanel>
+
+            <TextBlock
+            x:Name="LiveWaitingForHeaderTextBlock"
+            IsVisible="{Binding !ControlState.HasSessionHeader}"
+            Opacity="0.7"
+            Text="Waiting for the accepted live session header." />
+
+            <Grid ColumnDefinitions="* auto" ColumnSpacing="8">
+                <Button
+                x:Name="LiveSaveButton"
+                Grid.Column="0"
+                Command="{Binding SaveCommand}"
+                Content="Save" />
+                <Button
+                x:Name="LiveResetButton"
+                Grid.Column="1"
+                Width="39"
+                Height="39"
+                Command="{Binding ResetCommand}">
+                    <Image
+                    Width="16"
+                    Height="16"
+                    Source="{SvgImage /Assets/fa-rotate-left.svg}" />
+                </Button>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

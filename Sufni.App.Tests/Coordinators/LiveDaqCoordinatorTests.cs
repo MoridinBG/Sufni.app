@@ -7,6 +7,7 @@ using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -17,6 +18,7 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
     private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
@@ -34,7 +36,7 @@ public class LiveDaqCoordinatorTests
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
-        new(liveDaqStore, knownBoardsQuery, catalogService, sharedStreamRegistry, shell, dialogService);
+        new(liveDaqStore, knownBoardsQuery, catalogService, sharedStreamRegistry, tileLayerService, shell, dialogService);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
@@ -198,10 +200,74 @@ public class LiveDaqCoordinatorTests
         var other = new LiveDaqDetailViewModel(
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
             sharedStream,
+            Substitute.For<ILiveDaqCoordinator>(),
             shell,
             dialogService,
             knownBoardsQuery);
         Assert.False(capturedMatch(other));
+    }
+
+    [Fact]
+    public async Task OpenSessionAsync_RoutesThroughOpenOrFocus_WithIdentityMatcher()
+    {
+        var snapshot = new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: "192.168.0.30",
+            Port: 7777,
+            IsOnline: true,
+            SetupName: "setup",
+            BikeName: "bike");
+        liveDaqStore.Upsert(snapshot);
+        knownBoardsQuery.GetSessionContext(snapshot.IdentityKey).Returns(CreateSessionContext(snapshot.IdentityKey, snapshot.DisplayName));
+
+        Func<LiveSessionDetailViewModel, bool>? capturedMatch = null;
+        Func<LiveSessionDetailViewModel>? capturedCreate = null;
+        shell.When(s => s.OpenOrFocus(
+                Arg.Any<Func<LiveSessionDetailViewModel, bool>>(),
+                Arg.Any<Func<LiveSessionDetailViewModel>>()))
+            .Do(callInfo =>
+            {
+                capturedMatch = callInfo.ArgAt<Func<LiveSessionDetailViewModel, bool>>(0);
+                capturedCreate = callInfo.ArgAt<Func<LiveSessionDetailViewModel>>(1);
+            });
+
+        await CreateCoordinator().OpenSessionAsync(snapshot.IdentityKey);
+
+        shell.Received(1).OpenOrFocus(
+            Arg.Any<Func<LiveSessionDetailViewModel, bool>>(),
+            Arg.Any<Func<LiveSessionDetailViewModel>>());
+
+        Assert.NotNull(capturedCreate);
+        var created = capturedCreate();
+        Assert.Equal(snapshot.IdentityKey, created.IdentityKey);
+        Assert.Equal("setup", created.SetupName);
+        sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
+        Assert.NotNull(capturedMatch);
+        Assert.True(capturedMatch(created));
+
+        var other = new LiveSessionDetailViewModel(
+            CreateSessionContext("board-2", "Board 2"),
+            sharedStream,
+            tileLayerService,
+            shell,
+            dialogService);
+        Assert.False(capturedMatch(other));
+    }
+
+    private static LiveDaqSessionContext CreateSessionContext(string identityKey, string displayName)
+    {
+        return new LiveDaqSessionContext(
+            IdentityKey: identityKey,
+            BoardId: Guid.NewGuid(),
+            DisplayName: displayName,
+            SetupId: Guid.NewGuid(),
+            SetupName: "setup",
+            BikeId: Guid.NewGuid(),
+            BikeName: "bike",
+            BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
+            TravelCalibration: new LiveDaqTravelCalibration(null, null));
     }
 
     private sealed class TestLiveDaqStore : ILiveDaqStoreWriter

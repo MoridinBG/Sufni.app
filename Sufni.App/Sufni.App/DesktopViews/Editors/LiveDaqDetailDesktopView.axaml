@@ -82,6 +82,12 @@ mc:Ignorable="d">
                                 <Button x:Name="ConnectButton" Grid.Column="0" Command="{Binding ConnectCommand}" Content="Connect" IsEnabled="{Binding CanConnect}" />
                                 <Button x:Name="DisconnectButton" Grid.Column="1" Command="{Binding DisconnectCommand}" Content="Disconnect" IsEnabled="{Binding CanDisconnect}" />
                             </Grid>
+
+                            <Button
+                            x:Name="StartSessionButton"
+                            Command="{Binding StartSessionCommand}"
+                            Content="Start Session"
+                            IsEnabled="{Binding CanStartSession}" />
                         </StackPanel>
                     </Border>
 

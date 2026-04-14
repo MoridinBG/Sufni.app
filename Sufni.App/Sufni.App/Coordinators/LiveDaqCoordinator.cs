@@ -22,6 +22,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
+    private readonly ITileLayerService tileLayerService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
@@ -34,6 +35,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqCatalogService liveDaqCatalogService,
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
+        ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
     {
@@ -41,6 +43,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
         this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
+        this.tileLayerService = tileLayerService;
         this.shell = shell;
         this.dialogService = dialogService;
     }
@@ -106,7 +109,45 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(snapshot, liveDaqSharedStreamRegistry.GetOrCreate(snapshot), shell, dialogService, knownBoardsQuery));
+            () => new LiveDaqDetailViewModel(snapshot, liveDaqSharedStreamRegistry.GetOrCreate(snapshot), this, shell, dialogService, knownBoardsQuery));
+
+        return Task.CompletedTask;
+    }
+
+    public Task OpenSessionAsync(string identityKey)
+    {
+        var snapshot = liveDaqStore.Get(identityKey);
+        if (snapshot is null)
+        {
+            logger.Verbose(
+                "Live session opening ignored because no snapshot was found for {IdentityKey}",
+                identityKey);
+            return Task.CompletedTask;
+        }
+
+        var context = knownBoardsQuery.GetSessionContext(identityKey);
+        if (context is null)
+        {
+            logger.Verbose(
+                "Live session opening ignored because no session context was found for {IdentityKey}",
+                identityKey);
+            return Task.CompletedTask;
+        }
+
+        logger.Information(
+            "Opening live session detail for {IdentityKey} {BoardId} {Endpoint}",
+            snapshot.IdentityKey,
+            snapshot.BoardId,
+            snapshot.Endpoint);
+
+        shell.OpenOrFocus<LiveSessionDetailViewModel>(
+            detail => detail.IdentityKey == snapshot.IdentityKey,
+            () => new LiveSessionDetailViewModel(
+                context,
+                liveDaqSharedStreamRegistry.GetOrCreate(snapshot),
+                tileLayerService,
+                shell,
+                dialogService));
 
         return Task.CompletedTask;
     }

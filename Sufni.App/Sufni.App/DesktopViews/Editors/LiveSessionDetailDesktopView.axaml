@@ -1,0 +1,66 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Editors.LiveSessionDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
+xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="800"
+x:DataType="vm:LiveSessionDetailViewModel"
+Background="{StaticResource SufniRegion}"
+Focusable="True"
+mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:LiveSessionDetailViewModel />
+    </Design.DataContext>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <editors:SessionShellDesktopView>
+        <editors:SessionShellDesktopView.GraphContent>
+            <items:LiveSessionGraphDesktopView DataContext="{Binding GraphWorkspace}" />
+        </editors:SessionShellDesktopView.GraphContent>
+
+        <editors:SessionShellDesktopView.MediaContent>
+            <items:SessionMediaDesktopView DataContext="{Binding MediaWorkspace}" />
+        </editors:SessionShellDesktopView.MediaContent>
+
+        <editors:SessionShellDesktopView.StatisticsContent>
+            <Border
+            x:Name="StatisticsPlaceholderCard"
+            Padding="14"
+            Background="{StaticResource SufniBackgroundDisabled}"
+            CornerRadius="8">
+                <StackPanel Spacing="8">
+                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="Statistics" />
+                    <TextBlock
+                    x:Name="StatisticsPlaceholderTextBlock"
+                    Opacity="0.7"
+                    Text="Live statistics will appear once the per-tab live session service is wired in." />
+                    <TextBlock x:Name="LiveSessionSetupTextBlock" Text="{Binding SetupName, StringFormat='Setup: {0}'}" />
+                    <TextBlock x:Name="LiveSessionBikeTextBlock" Text="{Binding BikeName, StringFormat='Bike: {0}'}" />
+                </StackPanel>
+            </Border>
+        </editors:SessionShellDesktopView.StatisticsContent>
+
+        <editors:SessionShellDesktopView.ControlContent>
+            <items:LiveSessionControlsDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.ControlContent>
+
+        <editors:SessionShellDesktopView.SidebarContent>
+            <items:SessionSidebarDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.SidebarContent>
+    </editors:SessionShellDesktopView>
+
+</UserControl>

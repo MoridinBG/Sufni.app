@@ -26,6 +26,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public string? BikeName { get; }
 
     private readonly ILiveDaqSharedStream? sharedStream;
+    private readonly ILiveDaqCoordinator? liveDaqCoordinator;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
@@ -54,6 +55,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [ObservableProperty]
     private bool areRequestedRatesEnabled = true;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartSessionCommand))]
+    private bool canStartSession;
+
     public string FrontTravelText => FormatTravelText("Front", Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
 
     public string RearTravelText => FormatTravelText("Rear", Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
@@ -67,6 +72,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
         ILiveDaqSharedStream sharedStream,
+        ILiveDaqCoordinator liveDaqCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService,
         ILiveDaqKnownBoardsQuery knownBoardsQuery)
@@ -79,9 +85,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         BikeName = snapshot.BikeName;
         Name = snapshot.DisplayName;
         this.sharedStream = sharedStream;
+        this.liveDaqCoordinator = liveDaqCoordinator;
         this.knownBoardsQuery = knownBoardsQuery;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
+        RefreshSessionAvailability();
         uiRefreshTimer = CreateUiRefreshTimer();
         RefreshSharedStreamState();
         RefreshSnapshot();
@@ -112,7 +120,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             disposables.Add(sharedStream.States.Subscribe(_ => RequestSharedStreamRefresh()));
             if (knownBoardsQuery is not null)
             {
-                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ => RequestTravelProjectionRefresh()));
+                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ =>
+                {
+                    RequestTravelProjectionRefresh();
+                    RequestSessionAvailabilityRefresh();
+                }));
             }
         });
 
@@ -161,6 +173,17 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private async Task Disconnect()
     {
         await DisconnectImplementationAsync(userInitiated: true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStartSession))]
+    private async Task StartSession()
+    {
+        if (liveDaqCoordinator is null)
+        {
+            return;
+        }
+
+        await liveDaqCoordinator.OpenSessionAsync(IdentityKey);
     }
 
     private async Task ConnectImplementationAsync(bool userInitiated)
@@ -336,11 +359,27 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         Dispatcher.UIThread.Post(RefreshTravelCalibration, DispatcherPriority.Background);
     }
 
+    private void RequestSessionAvailabilityRefresh()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RefreshSessionAvailability();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(RefreshSessionAvailability, DispatcherPriority.Background);
+    }
+
     private void RefreshTravelCalibration()
     {
         travelCalibration = knownBoardsQuery?.GetTravelCalibration(IdentityKey);
         OnPropertyChanged(nameof(FrontTravelText));
         OnPropertyChanged(nameof(RearTravelText));
+    }
+
+    private void RefreshSessionAvailability()
+    {
+        CanStartSession = knownBoardsQuery?.GetSessionContext(IdentityKey) is not null;
     }
 
     private void ApplyRequestedRates(LiveDaqStreamConfiguration configuration)

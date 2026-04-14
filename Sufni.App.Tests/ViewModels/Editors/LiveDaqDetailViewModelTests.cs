@@ -8,12 +8,14 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class LiveDaqDetailViewModelTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
+    private readonly ILiveDaqCoordinator liveDaqCoordinator = Substitute.For<ILiveDaqCoordinator>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
@@ -28,6 +30,7 @@ public class LiveDaqDetailViewModelTests
     {
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(true));
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
+        knownBoardsQuery.GetSessionContext("board-1").Returns(CreateSessionContext("board-1"));
         sharedStream.Frames.Returns(frames);
         sharedStream.States.Returns(streamStates);
         sharedStream.CurrentState.Returns(_ => currentStreamState);
@@ -89,9 +92,32 @@ public class LiveDaqDetailViewModelTests
                 SetupName: "race",
                 BikeName: "demo"),
             sharedStream,
+            liveDaqCoordinator,
             shell,
             dialogService,
             knownBoardsQuery);
+    }
+
+    [AvaloniaFact]
+    public async Task StartSessionCommand_RoutesThroughCoordinator_WhenSessionContextExists()
+    {
+        var editor = CreateEditor();
+
+        Assert.True(editor.StartSessionCommand.CanExecute(null));
+
+        await editor.StartSessionCommand.ExecuteAsync(null);
+
+        await liveDaqCoordinator.Received(1).OpenSessionAsync("board-1");
+    }
+
+    [AvaloniaFact]
+    public void StartSessionCommand_IsDisabled_WhenSessionContextIsUnavailable()
+    {
+        knownBoardsQuery.GetSessionContext("board-1").Returns((LiveDaqSessionContext?)null);
+
+        var editor = CreateEditor();
+
+        Assert.False(editor.StartSessionCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
@@ -235,8 +261,10 @@ public class LiveDaqDetailViewModelTests
             SetupName: "park",
             BikeName: "demo");
 
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, shell, dialogService, query);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, shell, dialogService, query);
+        var coordinator1 = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator2 = Substitute.For<ILiveDaqCoordinator>();
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, shell, dialogService, query);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, shell, dialogService, query);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
@@ -275,5 +303,19 @@ public class LiveDaqDetailViewModelTests
 
         Assert.Equal("Front: 60mm (30%)", editor.FrontTravelText);
         Assert.Equal("Rear: 222", editor.RearTravelText);
+    }
+
+    private static LiveDaqSessionContext CreateSessionContext(string identityKey)
+    {
+        return new LiveDaqSessionContext(
+            IdentityKey: identityKey,
+            BoardId: Guid.NewGuid(),
+            DisplayName: "Board 1",
+            SetupId: Guid.NewGuid(),
+            SetupName: "race",
+            BikeId: Guid.NewGuid(),
+            BikeName: "demo",
+            BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
+            TravelCalibration: new LiveDaqTravelCalibration(null, null));
     }
 }

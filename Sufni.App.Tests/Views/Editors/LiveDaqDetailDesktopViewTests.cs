@@ -114,6 +114,20 @@ public class LiveDaqDetailDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_StartSessionButton_TracksSessionAvailability()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        Assert.False(mounted.View.FindControl<Button>("StartSessionButton")!.IsEnabled);
+
+        editor.CanStartSession = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(mounted.View.FindControl<Button>("StartSessionButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
     public async Task LiveDaqDetailDesktopView_ImuAndGpsSections_DisplaySnapshotContent()
     {
         var editor = CreateEditor();
@@ -135,6 +149,7 @@ public class LiveDaqDetailDesktopViewTests
             Name = "Board 1",
             CanConnect = true,
             CanDisconnect = false,
+            CanStartSession = false,
             AreRequestedRatesEnabled = true,
             Snapshot = LiveDaqUiSnapshot.Empty
         };
