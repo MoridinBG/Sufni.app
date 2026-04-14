@@ -339,13 +339,21 @@ public class TelemetryData
 
     public static TelemetryData FromRecording(RawTelemetryData rawData, Metadata metadata, BikeData bikeData)
     {
-        logger.Verbose(
-            "Starting telemetry processing for source {SourceName} with sample rate {SampleRate}, version {Version}, {FrontSampleCount} front samples, and {RearSampleCount} rear samples",
-            metadata.SourceName,
-            metadata.SampleRate,
-            metadata.Version,
-            rawData.Front.Length,
-            rawData.Rear.Length);
+        return FromRecording(rawData, metadata, bikeData, logLifecycle: true);
+    }
+
+    private static TelemetryData FromRecording(RawTelemetryData rawData, Metadata metadata, BikeData bikeData, bool logLifecycle)
+    {
+        if (logLifecycle)
+        {
+            logger.Verbose(
+                "Starting telemetry processing for source {SourceName} with sample rate {SampleRate}, version {Version}, {FrontSampleCount} front samples, and {RearSampleCount} rear samples",
+                metadata.SourceName,
+                metadata.SampleRate,
+                metadata.Version,
+                rawData.Front.Length,
+                rawData.Rear.Length);
+        }
 
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
         td.Markers = rawData.Markers;
@@ -359,15 +367,23 @@ public class TelemetryData
         td.Rear.Present = rc != 0;
         if (!td.Front.Present && !td.Rear.Present)
         {
-            logger.Verbose("Telemetry processing aborted because both suspension sample arrays were empty");
+            if (logLifecycle)
+            {
+                logger.Verbose("Telemetry processing aborted because both suspension sample arrays were empty");
+            }
+
             throw new Exception("Front and rear record arrays are empty!");
         }
         if (td.Front.Present && td.Rear.Present && fc != rc)
         {
-            logger.Verbose(
-                "Telemetry processing aborted because front and rear sample counts differed: {FrontSampleCount} front and {RearSampleCount} rear",
-                fc,
-                rc);
+            if (logLifecycle)
+            {
+                logger.Verbose(
+                    "Telemetry processing aborted because front and rear sample counts differed: {FrontSampleCount} front and {RearSampleCount} rear",
+                    fc,
+                    rc);
+            }
+
             throw new Exception("Front and rear record counts are not equal!");
         }
 
@@ -413,14 +429,17 @@ public class TelemetryData
 
         td.CalculateAirTimes();
 
-        logger.Verbose(
-            "Telemetry processing completed with front present {FrontPresent}, rear present {RearPresent}, {AirtimeCount} airtimes, {MarkerCount} markers, IMU present {HasImuData}, and GPS points {GpsPointCount}",
-            td.Front.Present,
-            td.Rear.Present,
-            td.Airtimes.Length,
-            td.Markers.Length,
-            td.ImuData is not null,
-            td.GpsData?.Length ?? 0);
+        if (logLifecycle)
+        {
+            logger.Verbose(
+                "Telemetry processing completed with front present {FrontPresent}, rear present {RearPresent}, {AirtimeCount} airtimes, {MarkerCount} markers, IMU present {HasImuData}, and GPS points {GpsPointCount}",
+                td.Front.Present,
+                td.Rear.Present,
+                td.Airtimes.Length,
+                td.Markers.Length,
+                td.ImuData is not null,
+                td.GpsData?.Length ?? 0);
+        }
 
         return td;
     }
@@ -461,7 +480,7 @@ public class TelemetryData
             GpsData = capture.GpsData,
         };
 
-        return FromRecording(rawData, capture.Metadata, capture.BikeData);
+        return FromRecording(rawData, capture.Metadata, capture.BikeData, logLifecycle: false);
     }
 
     #endregion
@@ -482,6 +501,13 @@ public class TelemetryData
             {
                 hist[d] += 1;
             }
+        }
+
+        if (totalCount <= 0)
+        {
+            return new HistogramData(
+                suspension.TravelBins.ToList().GetRange(0, suspension.TravelBins.Length),
+                [.. hist]);
         }
 
         hist = hist.Select(value => value / totalCount * 100.0).ToArray();
@@ -511,6 +537,13 @@ public class TelemetryData
                 var tbin = s.DigitizedTravel[i] / divider;
                 hist[vbin][tbin] += 1;
             }
+        }
+
+        if (totalCount <= 0)
+        {
+            return new StackedHistogramData(
+                suspension.VelocityBins.ToList().GetRange(0, suspension.VelocityBins.Length),
+                [.. hist]);
         }
 
         var largestBin = 0.0;
@@ -544,6 +577,11 @@ public class TelemetryData
         foreach (var s in suspension.Strokes.Rebounds)
         {
             strokeVelocity.AddRange(velocity.GetRange(s.Start, s.End - s.Start + 1));
+        }
+
+        if (strokeVelocity.Count < 2)
+        {
+            return new NormalDistributionData([], []);
         }
 
         var mu = strokeVelocity.Mean();
@@ -587,6 +625,11 @@ public class TelemetryData
             }
         }
 
+        if (count <= 0)
+        {
+            return new TravelStatistics(0, 0, 0);
+        }
+
         return new TravelStatistics(mx, sum / count, bo);
     }
 
@@ -620,9 +663,9 @@ public class TelemetryData
         }
 
         return new VelocityStatistics(
-            rsum / rcount,
+            rcount > 0 ? rsum / rcount : 0,
             maxr,
-            csum / ccount,
+            ccount > 0 ? csum / ccount : 0,
             maxc);
     }
 
@@ -672,6 +715,11 @@ public class TelemetryData
             }
         }
 
+        if (totalCount <= 0)
+        {
+            return new VelocityBands(0, 0, 0, 0);
+        }
+
         var totalPercentage = 100.0 / totalCount;
         return new VelocityBands(
             lsc * totalPercentage,
@@ -682,8 +730,29 @@ public class TelemetryData
 
     private static Func<double, double> FitPolynomial(double[] x, double[] y)
     {
+        if (x.Length == 0 || y.Length == 0)
+        {
+            return _ => 0;
+        }
+
+        if (x.Length == 1 || y.Length == 1)
+        {
+            return _ => y[0];
+        }
+
         var coefficients = Fit.Polynomial(x, y, 1);
         return t => coefficients[1] * t + coefficients[0];
+    }
+
+    public bool HasStrokeData(SuspensionType type)
+    {
+        var suspension = type == SuspensionType.Front ? Front : Rear;
+        if (!suspension.Present || suspension.Strokes is null)
+        {
+            return false;
+        }
+
+        return suspension.Strokes.Compressions.Length > 0 || suspension.Strokes.Rebounds.Length > 0;
     }
 
     private (double[], double[]) TravelVelocity(SuspensionType suspensionType, BalanceType balanceType)
@@ -716,10 +785,28 @@ public class TelemetryData
         return (tArray, vArray);
     }
 
+    public bool HasBalanceData(BalanceType type)
+    {
+        if (!HasStrokeData(SuspensionType.Front) || !HasStrokeData(SuspensionType.Rear))
+        {
+            return false;
+        }
+
+        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type);
+        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type);
+
+        return frontTravelVelocity.Item1.Length >= 2 && rearTravelVelocity.Item1.Length >= 2;
+    }
+
     public BalanceData CalculateBalance(BalanceType type)
     {
         var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type);
         var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type);
+
+        if (frontTravelVelocity.Item1.Length == 0 || rearTravelVelocity.Item1.Length == 0)
+        {
+            return new BalanceData([], [], [], [], [], [], 0);
+        }
 
         var frontPoly = FitPolynomial(frontTravelVelocity.Item1, frontTravelVelocity.Item2);
         var rearPoly = FitPolynomial(rearTravelVelocity.Item1, rearTravelVelocity.Item2);
@@ -727,8 +814,9 @@ public class TelemetryData
         var frontTrend = frontTravelVelocity.Item1.Select(t => frontPoly(t)).ToList();
         var rearTrend = rearTravelVelocity.Item1.Select(t => rearPoly(t)).ToList();
 
+        var pairedCount = Math.Min(frontTrend.Count, rearTrend.Count);
         var sum = frontTrend.Zip(rearTrend, (fx, gx) => fx - gx).Sum();
-        var msd = sum / frontTrend.Count;
+        var msd = pairedCount == 0 ? 0 : sum / pairedCount;
 
         return new BalanceData(
             [.. frontTravelVelocity.Item1],

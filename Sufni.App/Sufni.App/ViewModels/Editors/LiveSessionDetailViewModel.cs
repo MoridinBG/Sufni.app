@@ -53,6 +53,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     private LiveSessionControlState controlState = LiveSessionControlState.Empty;
 
+    public bool HasFrontStatistics => TelemetryData?.HasStrokeData(SuspensionType.Front) == true;
+    public bool HasRearStatistics => TelemetryData?.HasStrokeData(SuspensionType.Rear) == true;
+    public bool HasCompressionBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Compression) == true;
+    public bool HasReboundBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Rebound) == true;
+
     public LiveSessionDetailViewModel()
     {
         IdentityKey = string.Empty;
@@ -88,6 +93,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         liveSessionService.Snapshots.Subscribe(RequestPresentationRefresh);
         ApplyPresentation(liveSessionService.Current);
+    }
+
+    partial void OnTelemetryDataChanged(TelemetryData? value)
+    {
+        OnPropertyChanged(nameof(HasFrontStatistics));
+        OnPropertyChanged(nameof(HasRearStatistics));
+        OnPropertyChanged(nameof(HasCompressionBalanceTelemetry));
+        OnPropertyChanged(nameof(HasReboundBalanceTelemetry));
     }
 
     partial void OnDescriptionTextChanged(string? value)

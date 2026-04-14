@@ -24,6 +24,10 @@ public interface ISessionMediaWorkspace
 public interface ISessionStatisticsWorkspace
 {
     TelemetryData? TelemetryData { get; }
+    bool HasFrontStatistics { get; }
+    bool HasRearStatistics { get; }
+    bool HasCompressionBalanceTelemetry { get; }
+    bool HasReboundBalanceTelemetry { get; }
     SessionDamperPercentages DamperPercentages { get; }
 }
 

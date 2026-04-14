@@ -84,11 +84,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
+    public bool HasFrontStatistics => TelemetryData?.HasStrokeData(SuspensionType.Front) == true;
+    public bool HasRearStatistics => TelemetryData?.HasStrokeData(SuspensionType.Rear) == true;
+    public bool HasCompressionBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Compression) == true;
+    public bool HasReboundBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Rebound) == true;
+
     #endregion Observable properties
 
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         IsComplete = value != null;
+        OnPropertyChanged(nameof(HasFrontStatistics));
+        OnPropertyChanged(nameof(HasRearStatistics));
+        OnPropertyChanged(nameof(HasCompressionBalanceTelemetry));
+        OnPropertyChanged(nameof(HasReboundBalanceTelemetry));
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)

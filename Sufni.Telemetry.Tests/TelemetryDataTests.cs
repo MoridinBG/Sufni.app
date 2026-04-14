@@ -10,11 +10,11 @@ public class TelemetryDataTests
         // Arrange
         var front = new ushort[100];
         var rear = new ushort[100];
-        
+
         // Create some movement (strokes)
         for (int i = 0; i < 50; i++)
         {
-            front[i] = (ushort)(100 + i * 2); 
+            front[i] = (ushort)(100 + i * 2);
             rear[i] = (ushort)(200 + i * 2);
         }
         for (int i = 50; i < 100; i++)
@@ -57,14 +57,14 @@ public class TelemetryDataTests
         var count = 200;
         var front = new ushort[count];
         var rear = new ushort[count];
-        
+
         // Calibration: val / 10.0 = mm.
         // 0 to 100 samples: Compression 0 -> 20mm. Velocity = 20mm / 0.1s = 200 mm/s.
         // 100 to 200 samples: Rebound 20mm -> 0mm. Velocity = -200 mm/s.
-        
+
         for (int i = 0; i < 100; i++)
         {
-            front[i] = (ushort)(i * 2); 
+            front[i] = (ushort)(i * 2);
             rear[i] = (ushort)(i * 2);
         }
         for (int i = 100; i < 200; i++)
@@ -93,14 +93,14 @@ public class TelemetryDataTests
 
         // Assert
         Assert.True(result.Front.Present);
-        
+
         // Floats being floats
         Assert.Equal(200, result.Front.Velocity[50], 0.0001);
         Assert.Equal(-200, result.Front.Velocity[150], 0.0001);
-        
+
         var compression = Assert.Single(result.Front.Strokes.Compressions);
         var rebound = Assert.Single(result.Front.Strokes.Rebounds);
-        
+
         Assert.Equal(0, compression.Start);
         Assert.Equal(99, compression.End);
         Assert.Equal(100, rebound.Start);
@@ -114,7 +114,7 @@ public class TelemetryDataTests
         var count = 600;
         var front = new ushort[count];
         var rear = new ushort[count];
-        
+
         // 0-100: Rebound 20mm -> 0mm (Velocity -200 mm/s)
         for (int i = 0; i < 100; i++)
         {
@@ -194,5 +194,86 @@ public class TelemetryDataTests
         Assert.Single(result.ImuData.Meta);
         Assert.Single(result.ImuData.Records);
         Assert.Equal(3, result.ImuData.Records[0].Az);
+    }
+
+    [Fact]
+    public void FromRecording_WithStationarySignals_HasNoBalanceData_AndZeroVelocityBands()
+    {
+        var front = Enumerable.Repeat((ushort)1000, 200).ToArray();
+        var rear = Enumerable.Repeat((ushort)1000, 200).ToArray();
+
+        var rawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = front,
+            Rear = rear,
+        };
+
+        var metadata = new Metadata { SampleRate = 1000 };
+        var bikeData = new BikeData(
+            65.0,
+            100.0,
+            100.0,
+            value => value / 10.0,
+            value => value / 10.0);
+
+        var result = TelemetryData.FromRecording(rawData, metadata, bikeData);
+        var frontBands = result.CalculateVelocityBands(SuspensionType.Front, 200.0);
+
+        Assert.False(result.HasBalanceData(BalanceType.Compression));
+        Assert.False(result.HasBalanceData(BalanceType.Rebound));
+        Assert.Equal(0, frontBands.LowSpeedCompression);
+        Assert.Equal(0, frontBands.HighSpeedCompression);
+        Assert.Equal(0, frontBands.LowSpeedRebound);
+        Assert.Equal(0, frontBands.HighSpeedRebound);
+    }
+
+    [Fact]
+    public void HistogramAndStatistics_WithPresentSuspensionButNoStrokes_ReturnSafeDefaults()
+    {
+        var telemetry = new TelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 1000 },
+            Front = new Suspension
+            {
+                Present = true,
+                MaxTravel = 200,
+                Travel = [0, 0, 0],
+                Velocity = [0, 0, 0],
+                TravelBins = [0, 10, 20],
+                VelocityBins = [-100, 0, 100],
+                FineVelocityBins = [-100, 0, 100],
+                Strokes = new Strokes { Compressions = [], Rebounds = [] },
+            },
+            Rear = new Suspension
+            {
+                Present = true,
+                MaxTravel = 200,
+                Travel = [0, 0, 0],
+                Velocity = [0, 0, 0],
+                TravelBins = [0, 10, 20],
+                VelocityBins = [-100, 0, 100],
+                FineVelocityBins = [-100, 0, 100],
+                Strokes = new Strokes { Compressions = [], Rebounds = [] },
+            },
+            Airtimes = [],
+        };
+
+        var travelHistogram = telemetry.CalculateTravelHistogram(SuspensionType.Front);
+        var velocityHistogram = telemetry.CalculateVelocityHistogram(SuspensionType.Front);
+        var normal = telemetry.CalculateNormalDistribution(SuspensionType.Front);
+        var travelStatistics = telemetry.CalculateTravelStatistics(SuspensionType.Front);
+        var velocityStatistics = telemetry.CalculateVelocityStatistics(SuspensionType.Front);
+
+        Assert.False(telemetry.HasStrokeData(SuspensionType.Front));
+        Assert.All(travelHistogram.Values, value => Assert.Equal(0, value));
+        Assert.All(velocityHistogram.Values.SelectMany(values => values), value => Assert.Equal(0, value));
+        Assert.Empty(normal.Y);
+        Assert.Empty(normal.Pdf);
+        Assert.Equal(0, travelStatistics.Max);
+        Assert.Equal(0, travelStatistics.Average);
+        Assert.Equal(0, velocityStatistics.AverageCompression);
+        Assert.Equal(0, velocityStatistics.AverageRebound);
     }
 }
