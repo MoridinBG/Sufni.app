@@ -1,0 +1,69 @@
+using System;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Sufni.App.Models.SensorConfigurations;
+using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ViewModels.SensorConfigurations;
+using Sufni.App.Views.SensorConfigurations;
+
+namespace Sufni.App.Tests.Views.SensorConfigurations;
+
+public class LinearShockStrokeSensorConfigurationViewTests
+{
+    [AvaloniaFact]
+    public async Task LinearShockStrokeSensorConfigurationView_LengthNumericUpDown_DisplaysBoundValue()
+    {
+        var view = new LinearShockStrokeSensorConfigurationView
+        {
+            DataContext = new LinearShockStrokeSensorConfigurationViewModel(new LinearShockStrokeSensorConfiguration
+            {
+                Length = 190,
+                Resolution = 16
+            })
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        try
+        {
+            var length = view.FindControl<NumericUpDown>("LengthNumericUpDown");
+            Assert.NotNull(length);
+            Assert.Equal(190, Convert.ToDouble(length!.Value));
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task LinearShockStrokeSensorConfigurationView_ResolutionNumericUpDown_DisplaysBoundValue()
+    {
+        var view = new LinearShockStrokeSensorConfigurationView
+        {
+            DataContext = new LinearShockStrokeSensorConfigurationViewModel(new LinearShockStrokeSensorConfiguration
+            {
+                Length = 190,
+                Resolution = 16
+            })
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        try
+        {
+            var resolution = view.FindControl<NumericUpDown>("ResolutionNumericUpDown");
+            Assert.NotNull(resolution);
+            Assert.Equal(16, Convert.ToInt32(resolution!.Value));
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+}

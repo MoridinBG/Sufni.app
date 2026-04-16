@@ -128,9 +128,10 @@ public class BikeEditorServiceTests
         var result = await CreateService().LoadAnalysisAsync(new LinkageRearSuspension(CreateSimpleLinkage()));
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
-        var rearAxlePathData = Assert.IsType<CoordinateList>(computed.Data.RearAxlePathData);
         Assert.NotEmpty(computed.Data.LeverageRatioData.X);
         Assert.NotEmpty(computed.Data.LeverageRatioData.Y);
+        Assert.True(computed.Data.RearAxlePathData.HasValue);
+        var rearAxlePathData = computed.Data.RearAxlePathData.Value;
         Assert.NotEmpty(rearAxlePathData.X);
         Assert.NotEmpty(rearAxlePathData.Y);
     }

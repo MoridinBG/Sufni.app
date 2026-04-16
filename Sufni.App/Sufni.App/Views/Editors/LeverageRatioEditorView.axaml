@@ -16,25 +16,27 @@ mc:Ignorable="d">
 
     <StackPanel Spacing="8">
         <Grid
+        Name="SummaryGrid"
         ColumnDefinitions="* auto"
         IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}"
         RowDefinitions="auto auto auto">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="Points" />
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PointCount}" />
+            <TextBlock Name="PointCountTextBlock" Grid.Row="0" Grid.Column="1" Text="{Binding PointCount}" />
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="Max shock stroke (mm)" />
-            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MaxShockStroke, StringFormat={}{0:0.###}}" />
+            <TextBlock Name="MaxShockStrokeTextBlock" Grid.Row="1" Grid.Column="1" Text="{Binding MaxShockStroke, StringFormat={}{0:0.###}}" />
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="Max wheel travel (mm)" />
-            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MaxWheelTravel, StringFormat={}{0:0.###}}" />
+            <TextBlock Name="MaxWheelTravelTextBlock" Grid.Row="2" Grid.Column="1" Text="{Binding MaxWheelTravel, StringFormat={}{0:0.###}}" />
         </Grid>
 
         <TextBlock
+        Name="EmptyStateTextBlock"
         FontStyle="Italic"
         IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNull}}"
         Text="No leverage ratio CSV imported." />
 
-        <ItemsControl ItemsSource="{Binding PointsView}" IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <ItemsControl Name="PointsItemsControl" ItemsSource="{Binding PointsView}" IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <Grid ColumnDefinitions="auto * auto *">
@@ -47,7 +49,7 @@ mc:Ignorable="d">
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <ItemsControl ItemsSource="{Binding ValidationErrors}">
+        <ItemsControl Name="ValidationErrorsItemsControl" ItemsSource="{Binding ValidationErrors}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <TextBlock Foreground="OrangeRed" Text="{Binding .}" TextWrapping="Wrap" />
@@ -55,13 +57,15 @@ mc:Ignorable="d">
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <Grid ColumnDefinitions="* *" IsVisible="{Binding CanEdit}">
+        <Grid Name="EditorButtonsGrid" ColumnDefinitions="* *" IsVisible="{Binding CanEdit}">
             <Button
+            Name="ImportCsvButton"
             Grid.Column="0"
             Margin="0,0,5,0"
             Command="{Binding ImportCsvCommand}"
             Content="Import CSV ..." />
             <Button
+            Name="ClearButton"
             Grid.Column="1"
             Margin="5,0,0,0"
             Command="{Binding ClearCommand}"
