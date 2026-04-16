@@ -83,10 +83,10 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 
     private static LiveDaqTravelCalibration CreateTravelCalibration(
         ISensorConfiguration? frontSensorConfiguration,
-        ISensorConfiguration? rearSensorConfiguration)
+        RearTravelCalibration? rearTravelCalibration)
     {
         var front = CreateCalibration(frontSensorConfiguration);
-        var rear = CreateCalibration(rearSensorConfiguration);
+        var rear = CreateCalibration(rearTravelCalibration);
 
         return new LiveDaqTravelCalibration(front, rear);
     }
@@ -200,8 +200,8 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         var setup = SetupFromSnapshot(setupSnapshot);
         var bike = Bike.FromSnapshot(bikeSnapshot);
         var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-        var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
-        var calibration = CreateTravelCalibration(frontSensorConfiguration, rearSensorConfiguration);
+        RearTravelCalibrationBuilder.TryBuild(setup, bike, out var rearTravelCalibration, out _);
+        var calibration = CreateTravelCalibration(frontSensorConfiguration, rearTravelCalibration);
 
         return new KnownLiveDaqProjection(
             Record: record,
@@ -214,7 +214,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
                 SetupName: record.SetupName!,
                 BikeId: record.BikeId!.Value,
                 BikeName: record.BikeName!,
-                BikeData: TelemetryBikeData.Create(bike, frontSensorConfiguration, rearSensorConfiguration),
+                BikeData: TelemetryBikeData.Create(bike, frontSensorConfiguration, rearTravelCalibration),
                 TravelCalibration: calibration));
     }
 
@@ -228,5 +228,15 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         return configuration.MaxTravel <= 0
             ? null
             : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
+    }
+
+    private static LiveDaqTravelChannelCalibration? CreateCalibration(Models.SensorConfigurations.RearTravelCalibration? calibration)
+    {
+        if (calibration is null || calibration.MaxTravel <= 0)
+        {
+            return null;
+        }
+
+        return new LiveDaqTravelChannelCalibration(calibration.MaxTravel, calibration.MeasurementToTravel);
     }
 }

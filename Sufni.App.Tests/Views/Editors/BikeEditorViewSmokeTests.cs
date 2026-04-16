@@ -127,7 +127,7 @@ public class BikeEditorViewSmokeTests
     private static BikeEditorViewModel CreateViewModel()
     {
         var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
@@ -156,6 +156,7 @@ public class BikeEditorViewSmokeTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = 0.5,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
             Chainstay = 440,
             PixelsToMillimeters = 1,
             Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),

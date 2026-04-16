@@ -61,21 +61,23 @@ mc:Ignorable="d">
         Grid.Column="0"
         VerticalAlignment="Center"
         Content="Bike: " />
-        <ComboBox
-        Name="BikeComboBox"
-        Grid.Row="2"
-        Grid.Column="1"
-        Margin="2"
-        HorizontalAlignment="Stretch"
-        ItemsSource="{Binding Bikes}"
-        SelectedItem="{Binding SelectedBike}">
+        <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4">
+            <ComboBox
+            Name="BikeComboBox"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding Bikes}"
+            SelectedItem="{Binding SelectedBike}">
 
-            <ComboBox.DataTemplates>
-                <DataTemplate DataType="s:BikeSnapshot">
-                    <TextBlock Text="{Binding Name}" />
-                </DataTemplate>
-            </ComboBox.DataTemplates>
-        </ComboBox>
+                <ComboBox.DataTemplates>
+                    <DataTemplate DataType="s:BikeSnapshot">
+                        <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                </ComboBox.DataTemplates>
+            </ComboBox>
+
+            <TextBlock Text="{Binding RearSuspensionDescription, StringFormat=Rear suspension: {0}}" />
+        </StackPanel>
 
         <!--  Fork sensor type  -->
         <Label
@@ -119,13 +121,17 @@ mc:Ignorable="d">
         SelectedItem="{Binding ShockSensorType}" />
 
         <!--  Shock sensor configuration  -->
-        <ContentControl
-        Name="ShockSensorConfigContent"
-        Grid.Row="6"
-        Grid.Column="0"
-        Grid.ColumnSpan="2"
-        Margin="20,0,0,0"
-        Content="{Binding ShockSensorConfiguration}" />
+        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Margin="20,0,0,0" Spacing="4">
+            <ContentControl
+            Name="ShockSensorConfigContent"
+            Content="{Binding ShockSensorConfiguration}" />
+
+            <TextBlock
+            Foreground="OrangeRed"
+            IsVisible="{Binding RearSensorCompatibilityMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Text="{Binding RearSensorCompatibilityMessage}"
+            TextWrapping="Wrap" />
+        </StackPanel>
 
         <!--  Error messages for Setup instance  -->
         <v:ErrorMessagesBar
