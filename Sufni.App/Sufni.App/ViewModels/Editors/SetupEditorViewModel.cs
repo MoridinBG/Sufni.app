@@ -217,6 +217,21 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         RearSuspensionDescription = RearSuspensionDescriptionFor(bike);
         ShockSensorTypes = AllowedShockSensorTypes(bike);
 
+        if (ShockSensorConfiguration is not null &&
+            ShockSensorTypes.Contains(ShockSensorConfiguration.Type))
+        {
+            if (ShockSensorType != ShockSensorConfiguration.Type)
+            {
+                ShockSensorType = ShockSensorConfiguration.Type;
+            }
+            else
+            {
+                OnPropertyChanged(nameof(ShockSensorType));
+            }
+
+            return;
+        }
+
         if (ShockSensorType is null || ShockSensorTypes.Contains(ShockSensorType))
         {
             return;

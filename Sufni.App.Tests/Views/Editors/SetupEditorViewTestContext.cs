@@ -4,6 +4,7 @@ using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Editors;
+using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -31,7 +32,12 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public BikeSnapshot AddBike(string name = "test bike")
     {
-        var bike = TestSnapshots.Bike(name: name);
+        var bike = TestSnapshots.Bike(name: name) with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+        };
         bikesCache.AddOrUpdate(bike);
         return bike;
     }

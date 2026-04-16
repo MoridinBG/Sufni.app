@@ -21,6 +21,7 @@ mc:Ignorable="d">
         VerticalAlignment="Center"
         Content="Sensor length: " />
         <NumericUpDown
+        Name="LengthNumericUpDown"
         Grid.Row="0"
         Grid.Column="1"
         Margin="0,2,2,2"
@@ -35,6 +36,7 @@ mc:Ignorable="d">
         VerticalAlignment="Center"
         Content="Resolution: " />
         <NumericUpDown
+        Name="ResolutionNumericUpDown"
         Grid.Row="1"
         Grid.Column="1"
         Margin="0,2,2,2"

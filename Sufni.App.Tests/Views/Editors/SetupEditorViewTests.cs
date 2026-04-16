@@ -113,6 +113,8 @@ public class SetupEditorViewTests
         await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
         var view = mounted.View;
 
+        await ViewTestHelpers.FlushDispatcherAsync();
+
         var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
         var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
         Assert.NotNull(forkSensorTypeComboBox);

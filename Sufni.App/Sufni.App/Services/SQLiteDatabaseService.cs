@@ -18,10 +18,30 @@ public class SqLiteDatabaseService : IDatabaseService
     private Task Initialization { get; }
     private readonly SQLiteAsyncConnection connection;
 
-    public SqLiteDatabaseService()
+    public SqLiteDatabaseService() : this(AppPaths.DatabasePath, createAppDirectories: true)
     {
-        AppPaths.CreateRequiredDirectories();
-        connection = new SQLiteAsyncConnection(AppPaths.DatabasePath);
+    }
+
+    internal SqLiteDatabaseService(string databasePath) : this(databasePath, createAppDirectories: false)
+    {
+    }
+
+    private SqLiteDatabaseService(string databasePath, bool createAppDirectories)
+    {
+        if (createAppDirectories)
+        {
+            AppPaths.CreateRequiredDirectories();
+        }
+        else
+        {
+            var directory = Path.GetDirectoryName(databasePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+
+        connection = new SQLiteAsyncConnection(databasePath);
         Initialization = Init();
     }
 
@@ -75,7 +95,7 @@ public class SqLiteDatabaseService : IDatabaseService
     }
 
     private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
-        "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND rear_suspension_kind = ?",
+        "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND (rear_suspension_kind IS NULL OR rear_suspension_kind = ?)",
         [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
 
     private AsyncTableQuery<T> Table<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
