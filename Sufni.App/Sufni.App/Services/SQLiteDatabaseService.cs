@@ -36,6 +36,7 @@ public class SqLiteDatabaseService : IDatabaseService
 
             await connection.EnableWriteAheadLoggingAsync();
             await CreateTablesAsync();
+            await BackfillRearSuspensionKindAsync();
 
             var cleanupSummary = await Cleanup();
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
@@ -72,6 +73,10 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(AppSetting)
         ]);
     }
+
+    private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
+        "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND rear_suspension_kind = ?",
+        [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
 
     private AsyncTableQuery<T> Table<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
     {
