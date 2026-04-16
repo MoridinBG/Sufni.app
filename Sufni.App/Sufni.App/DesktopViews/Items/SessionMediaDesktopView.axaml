@@ -9,7 +9,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="320"
 x:Name="Root"
-x:DataType="vm:ISessionMediaWorkspace"
+x:CompileBindings="False"
 mc:Ignorable="d">
 
     <Grid
@@ -17,7 +17,7 @@ mc:Ignorable="d">
     RowDefinitions="auto auto *">
         <Grid.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="MapViewModel.SessionTrackPoints" />
+                <Binding Path="HasSessionTrackPoints" />
                 <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="VideoUrl" />
             </MultiBinding>
         </Grid.IsVisible>
@@ -30,18 +30,17 @@ mc:Ignorable="d">
         <GridSplitter Grid.Row="1" ResizeDirection="Rows">
             <GridSplitter.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="MapViewModel.SessionTrackPoints" />
+                    <Binding Path="HasSessionTrackPoints" />
                     <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="VideoUrl" />
                 </MultiBinding>
             </GridSplitter.IsVisible>
         </GridSplitter>
 
         <v:MapView
+        x:Name="MapViewControl"
         Grid.Row="2"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
-        DataContext="{Binding MapViewModel}"
-        Timeline="{Binding DataContext.Timeline, ElementName=Root}"
-        IsVisible="{Binding SessionTrackPoints, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        DataContext="{Binding MapViewModel}" />
     </Grid>
 </UserControl>

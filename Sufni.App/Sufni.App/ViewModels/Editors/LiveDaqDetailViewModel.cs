@@ -33,6 +33,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly CancellableOperation connectOperation = new();
     private ILiveDaqSharedStreamLease? streamLease;
     private LiveDaqTravelCalibration? travelCalibration;
+    private bool hasLoaded;
 
     [ObservableProperty]
     private uint? requestedTravelHz;
@@ -89,7 +90,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         this.knownBoardsQuery = knownBoardsQuery;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
-        RefreshSessionAvailability();
         uiRefreshTimer = CreateUiRefreshTimer();
         RefreshSharedStreamState();
         RefreshSnapshot();
@@ -108,28 +108,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             streamLease = sharedStream.AcquireLease();
         }
 
-        uiRefreshTimer.Start();
-        EnsureScopedSubscription(disposables =>
-        {
-            if (sharedStream is null)
-            {
-                return;
-            }
-
-            disposables.Add(sharedStream.Frames.Subscribe(frame => HandleFrame(frame)));
-            disposables.Add(sharedStream.States.Subscribe(_ => RequestSharedStreamRefresh()));
-            if (knownBoardsQuery is not null)
-            {
-                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ =>
-                {
-                    RequestTravelProjectionRefresh();
-                    RequestSessionAvailabilityRefresh();
-                }));
-            }
-        });
-
-        RefreshSharedStreamState();
-        RefreshSnapshot();
+        hasLoaded = true;
+        StartForegroundUpdates();
         await ConnectImplementationAsync(userInitiated: false);
     }
 
@@ -153,8 +133,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private async Task DeactivateAsync()
     {
         connectOperation.Cancel();
-        uiRefreshTimer.Stop();
-        DisposeScopedSubscriptions();
+        hasLoaded = false;
+        StopForegroundUpdates();
 
         if (streamLease is not null)
         {
@@ -345,6 +325,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         CanConnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Disconnected;
         CanDisconnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Connected;
         AreRequestedRatesEnabled = !state.IsClosed && !state.IsConfigurationLocked;
+        RefreshSessionAvailability(state.ConnectionState);
         RefreshSnapshot();
     }
 
@@ -363,11 +344,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            RefreshSessionAvailability();
+            RefreshSessionAvailability(sharedStream?.CurrentState.ConnectionState ?? LiveConnectionState.Disconnected);
             return;
         }
 
-        Dispatcher.UIThread.Post(RefreshSessionAvailability, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(
+            () => RefreshSessionAvailability(sharedStream?.CurrentState.ConnectionState ?? LiveConnectionState.Disconnected),
+            DispatcherPriority.Background);
     }
 
     private void RefreshTravelCalibration()
@@ -377,9 +360,30 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         OnPropertyChanged(nameof(RearTravelText));
     }
 
-    private void RefreshSessionAvailability()
+    private void RefreshSessionAvailability(LiveConnectionState connectionState)
     {
-        CanStartSession = knownBoardsQuery?.GetSessionContext(IdentityKey) is not null;
+        CanStartSession = connectionState == LiveConnectionState.Connected
+            && knownBoardsQuery?.GetSessionContext(IdentityKey) is not null;
+    }
+
+    protected override void OnActivated()
+    {
+        if (!hasLoaded)
+        {
+            return;
+        }
+
+        StartForegroundUpdates();
+    }
+
+    protected override void OnDeactivated()
+    {
+        if (!hasLoaded)
+        {
+            return;
+        }
+
+        StopForegroundUpdates();
     }
 
     private void ApplyRequestedRates(LiveDaqStreamConfiguration configuration)
@@ -423,5 +427,37 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         };
         timer.Tick += (_, _) => RefreshSnapshot();
         return timer;
+    }
+
+    private void StartForegroundUpdates()
+    {
+        uiRefreshTimer.Start();
+        EnsureScopedSubscription(disposables =>
+        {
+            if (sharedStream is null)
+            {
+                return;
+            }
+
+            disposables.Add(sharedStream.Frames.Subscribe(frame => HandleFrame(frame)));
+            disposables.Add(sharedStream.States.Subscribe(_ => RequestSharedStreamRefresh()));
+            if (knownBoardsQuery is not null)
+            {
+                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ =>
+                {
+                    RequestTravelProjectionRefresh();
+                    RequestSessionAvailabilityRefresh();
+                }));
+            }
+        });
+
+        RefreshSharedStreamState();
+        RefreshSnapshot();
+    }
+
+    private void StopForegroundUpdates()
+    {
+        uiRefreshTimer.Stop();
+        DisposeScopedSubscriptions();
     }
 }

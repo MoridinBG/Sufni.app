@@ -23,6 +23,8 @@ public partial class MapViewModel : ViewModelBase
     [ObservableProperty]
     private List<TrackPoint>? sessionTrackPoints;
 
+    public bool HasSessionTrackPoints => SessionTrackPoints?.Count > 0;
+
     public ObservableCollection<TileLayerConfig> AvailableLayers => tileLayerService.AvailableLayers;
 
     public MapViewModel(ITileLayerService tileLayerService, IDialogService dialogService)
@@ -40,6 +42,11 @@ public partial class MapViewModel : ViewModelBase
     partial void OnSelectedLayerChanged(TileLayerConfig? value)
     {
         if (value != null) tileLayerService.SelectedLayer = value;
+    }
+
+    partial void OnSessionTrackPointsChanged(List<TrackPoint>? value)
+    {
+        OnPropertyChanged(nameof(HasSessionTrackPoints));
     }
 
     [RelayCommand]

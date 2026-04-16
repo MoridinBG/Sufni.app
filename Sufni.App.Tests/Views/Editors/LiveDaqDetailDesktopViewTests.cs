@@ -114,7 +114,7 @@ public class LiveDaqDetailDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task LiveDaqDetailDesktopView_StartSessionButton_TracksSessionAvailability()
+    public async Task LiveDaqDetailDesktopView_StartSessionButton_TracksConnectedSessionAvailability()
     {
         var editor = CreateEditor();
 

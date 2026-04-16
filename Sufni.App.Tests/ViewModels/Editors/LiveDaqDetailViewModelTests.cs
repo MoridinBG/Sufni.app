@@ -99,9 +99,11 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task StartSessionCommand_RoutesThroughCoordinator_WhenSessionContextExists()
+    public async Task StartSessionCommand_RoutesThroughCoordinator_WhenConnectedAndSessionContextExists()
     {
         var editor = CreateEditor();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.True(editor.StartSessionCommand.CanExecute(null));
 
@@ -115,6 +117,14 @@ public class LiveDaqDetailViewModelTests
     {
         knownBoardsQuery.GetSessionContext("board-1").Returns((LiveDaqSessionContext?)null);
 
+        var editor = CreateEditor();
+
+        Assert.False(editor.StartSessionCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void StartSessionCommand_IsDisabled_WhenDisconnected()
+    {
         var editor = CreateEditor();
 
         Assert.False(editor.StartSessionCommand.CanExecute(null));
@@ -135,6 +145,27 @@ public class LiveDaqDetailViewModelTests
         Assert.Equal((uint)808, editor.Snapshot.Session.SessionId);
         Assert.Equal("Board 1", editor.Name);
         Assert.Equal("192.168.0.50:1557", editor.Endpoint);
+    }
+
+    [AvaloniaFact]
+    public async Task InactiveTab_DoesNotRefreshSnapshotUntilReactivated()
+    {
+        var editor = CreateEditor();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        editor.SetTabActive(true);
+        editor.SetTabActive(false);
+        frames.OnNext(CreateTravelBatchFrame());
+        await Task.Delay(150);
+
+        Assert.False(editor.Snapshot.HasTravelData);
+
+        editor.SetTabActive(true);
+        frames.OnNext(CreateTravelBatchFrame());
+        await Task.Delay(150);
+
+        Assert.True(editor.Snapshot.HasTravelData);
     }
 
     [AvaloniaFact]
@@ -317,5 +348,21 @@ public class LiveDaqDetailViewModelTests
             BikeName: "demo",
             BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
             TravelCalibration: new LiveDaqTravelCalibration(null, null));
+    }
+
+    private static LiveTravelBatchFrame CreateTravelBatchFrame()
+    {
+        var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
+        return new LiveTravelBatchFrame(
+            Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.TravelBatch, 0, 1),
+            Batch: new LiveBatchHeader(header.SessionId, 1, 0, header.SessionStartMonotonicUs, 5),
+            Records:
+            [
+                new LiveTravelRecord(1000, 1100),
+                new LiveTravelRecord(1010, 1110),
+                new LiveTravelRecord(1020, 1120),
+                new LiveTravelRecord(1030, 1130),
+                new LiveTravelRecord(1040, 1140),
+            ]);
     }
 }

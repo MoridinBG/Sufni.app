@@ -48,14 +48,14 @@ public class LiveGraphPlotDesktopViewTests
         Assert.NotNull(imuView);
 
         batches.OnNext(CreateBatch(revision: 1));
-        await FlushAsync();
+        await WaitForUiRefreshAsync();
 
         Assert.All(travelView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.All(velocityView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
-        await FlushAsync();
+        await WaitForUiRefreshAsync();
 
         Assert.All(travelView.Plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
 
@@ -86,6 +86,12 @@ public class LiveGraphPlotDesktopViewTests
     private static async Task FlushAsync()
     {
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    private static async Task WaitForUiRefreshAsync()
+    {
+        await Task.Delay(150);
+        await FlushAsync();
     }
 
     private static void EnsurePlotViewStyle()

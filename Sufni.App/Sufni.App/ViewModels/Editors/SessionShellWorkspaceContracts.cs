@@ -16,6 +16,7 @@ public interface IRecordedSessionGraphWorkspace
 public interface ISessionMediaWorkspace
 {
     MapViewModel? MapViewModel { get; }
+    bool HasSessionTrackPoints { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     double? MapVideoWidth { get; }
     string? VideoUrl { get; }
@@ -58,6 +59,7 @@ public sealed record LiveSessionControlState(
     LiveConnectionState ConnectionState,
     string? LastError,
     LiveSessionHeader? SessionHeader,
+    DateTimeOffset? CaptureStartUtc,
     TimeSpan CaptureDuration,
     uint TravelQueueDepth,
     uint ImuQueueDepth,
@@ -82,6 +84,7 @@ public sealed record LiveSessionControlState(
         ConnectionState: LiveConnectionState.Disconnected,
         LastError: null,
         SessionHeader: null,
+        CaptureStartUtc: null,
         CaptureDuration: TimeSpan.Zero,
         TravelQueueDepth: 0,
         ImuQueueDepth: 0,

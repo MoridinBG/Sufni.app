@@ -70,6 +70,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private TrackPoint[] sessionTrackPoints = [];
     private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
     private string? lastError;
+    private ulong? captureStartMonotonicUs;
+    private DateTimeOffset? captureStartUtc;
     private long captureRevision;
     private long latestStatisticsRevision = -1;
     private long queuedStatisticsRevision = -1;
@@ -78,6 +80,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private bool isTerminalClosed;
     private bool isAttached;
     private bool isDisposed;
+    private DateTimeOffset nextStatisticsRunAt = DateTimeOffset.MinValue;
 
     public LiveSessionService(
         LiveDaqSessionContext context,
@@ -144,9 +147,12 @@ internal sealed class LiveSessionService : ILiveSessionService
             statisticsTelemetry = null;
             damperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
             sessionTrackPoints = [];
+            captureStartMonotonicUs = null;
+            captureStartUtc = null;
             captureRevision++;
-            latestStatisticsRevision = -1;
+            latestStatisticsRevision = captureRevision;
             queuedStatisticsRevision = -1;
+            nextStatisticsRunAt = DateTimeOffset.MinValue;
             hasPublishedSaveableCapture = false;
             resetBatch = LiveGraphBatch.Empty with { Revision = captureRevision };
             snapshot = BuildSnapshotLocked();
@@ -328,11 +334,13 @@ internal sealed class LiveSessionService : ILiveSessionService
         var frontTravel = new double[batchCount];
         var rearTravel = new double[batchCount];
 
+        InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
+
         for (var index = 0; index < batchCount; index++)
         {
             var record = frame.Records[index];
             var monotonicUs = frame.Batch.FirstMonotonicUs + (ulong)index * sessionHeader.TravelPeriodUs;
-            var timeOffset = ToSampleOffsetSeconds(monotonicUs, sessionHeader);
+            var timeOffset = ToSampleOffsetSecondsLocked(monotonicUs);
             travelTimes[index] = timeOffset;
             frontMeasurements.Append(record.ForkAngle);
             rearMeasurements.Append(record.ShockAngle);
@@ -374,6 +382,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         imuRecords.AppendRange(frame.Records);
         captureRevision++;
+        InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
 
         var imuTimes = new Dictionary<LiveImuLocation, List<double>>();
         var imuMagnitudes = new Dictionary<LiveImuLocation, List<double>>();
@@ -387,9 +396,8 @@ internal sealed class LiveSessionService : ILiveSessionService
         var recordsPerTick = activeLocations.Count;
         for (var tickIndex = 0; tickIndex < tickCount; tickIndex++)
         {
-            var timeOffset = ToSampleOffsetSeconds(
-                frame.Batch.FirstMonotonicUs + (ulong)tickIndex * sessionHeader.ImuPeriodUs,
-                sessionHeader);
+            var timeOffset = ToSampleOffsetSecondsLocked(
+                frame.Batch.FirstMonotonicUs + (ulong)tickIndex * sessionHeader.ImuPeriodUs);
 
             for (var locationIndex = 0; locationIndex < recordsPerTick; locationIndex++)
             {
@@ -424,6 +432,8 @@ internal sealed class LiveSessionService : ILiveSessionService
         {
             return;
         }
+
+        InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
 
         var appendedTrackPoints = new List<TrackPoint>(frame.Records.Count);
         var fallbackToFullProjection = false;
@@ -494,6 +504,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         while (true)
         {
+            TimeSpan delay;
             LiveCaptureSnapshot capture;
             long revision;
 
@@ -505,8 +516,26 @@ internal sealed class LiveSessionService : ILiveSessionService
                     return;
                 }
 
+                var now = DateTimeOffset.UtcNow;
+                delay = nextStatisticsRunAt > now ? nextStatisticsRunAt - now : TimeSpan.Zero;
+            }
+
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay);
+            }
+
+            lock (gate)
+            {
+                if (isDisposed || !CanBuildStatisticsLocked() || queuedStatisticsRevision <= latestStatisticsRevision)
+                {
+                    statisticsRunning = false;
+                    return;
+                }
+
                 revision = queuedStatisticsRevision;
                 capture = CreateCaptureSnapshotLocked();
+                nextStatisticsRunAt = DateTimeOffset.UtcNow.AddMilliseconds(LiveSessionRefreshCadence.StatisticsRefreshIntervalMs);
             }
 
             try
@@ -592,6 +621,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             ConnectionState: connectionState,
             LastError: lastError,
             SessionHeader: sessionHeader,
+            CaptureStartUtc: captureStartUtc,
             CaptureDuration: CalculateCaptureDurationLocked(),
             TravelQueueDepth: latestSessionStats?.TravelQueueDepth ?? 0,
             ImuQueueDepth: latestSessionStats?.ImuQueueDepth ?? 0,
@@ -612,7 +642,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 SourceName = context.DisplayName,
                 Version = 4,
                 SampleRate = (int)(sessionHeader?.AcceptedTravelHz ?? 0),
-                Timestamp = (int)(sessionHeader?.SessionStartUtc.ToUnixTimeSeconds() ?? 0),
+                Timestamp = (int)((captureStartUtc ?? sessionHeader?.SessionStartUtc ?? DateTimeOffset.UnixEpoch).ToUnixTimeSeconds()),
                 Duration = CalculateCaptureDurationLocked().TotalSeconds,
             },
             SessionHeader: sessionHeader,
@@ -730,34 +760,55 @@ internal sealed class LiveSessionService : ILiveSessionService
         return Math.Sqrt(ax * ax + ay * ay + az * az);
     }
 
-    private static double ToSampleOffsetSeconds(ulong sampleMonotonicUs, LiveSessionHeader header)
+    private double ToSampleOffsetSecondsLocked(ulong sampleMonotonicUs)
     {
-        var deltaUs = sampleMonotonicUs >= header.SessionStartMonotonicUs
-            ? sampleMonotonicUs - header.SessionStartMonotonicUs
+        if (sessionHeader is null)
+        {
+            return 0;
+        }
+
+        var captureStartUs = captureStartMonotonicUs ?? sessionHeader.SessionStartMonotonicUs;
+        var deltaUs = sampleMonotonicUs >= captureStartUs
+            ? sampleMonotonicUs - captureStartUs
             : 0;
         return deltaUs / 1_000_000.0;
     }
 
     private TimeSpan CalculateCaptureDurationLocked()
     {
-        if (sessionHeader is null)
+        if (captureStartUtc is null)
         {
             return TimeSpan.Zero;
         }
 
-        if (frontMeasurements.Count > 0 && sessionHeader.AcceptedTravelHz > 0)
+        var measurementCount = Math.Max(frontMeasurements.Count, rearMeasurements.Count);
+        if (measurementCount > 0 && sessionHeader is not null && sessionHeader.AcceptedTravelHz > 0)
         {
-            return TimeSpan.FromSeconds(frontMeasurements.Count / (double)sessionHeader.AcceptedTravelHz);
+            return TimeSpan.FromSeconds(measurementCount / (double)sessionHeader.AcceptedTravelHz);
         }
 
         if (sessionTrackPoints.Length > 0)
         {
             var duration = TimeSpan.FromSeconds(
-                sessionTrackPoints[^1].Time - sessionHeader.SessionStartUtc.ToUnixTimeSeconds());
+                sessionTrackPoints[^1].Time - captureStartUtc.Value.ToUnixTimeSeconds());
             return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
         }
 
         return TimeSpan.Zero;
+    }
+
+    private void InitializeCaptureOriginLocked(ulong sampleMonotonicUs)
+    {
+        if (sessionHeader is null || captureStartMonotonicUs is not null)
+        {
+            return;
+        }
+
+        captureStartMonotonicUs = sampleMonotonicUs;
+        var deltaUs = sampleMonotonicUs >= sessionHeader.SessionStartMonotonicUs
+            ? sampleMonotonicUs - sessionHeader.SessionStartMonotonicUs
+            : 0;
+        captureStartUtc = sessionHeader.SessionStartUtc.AddMilliseconds(deltaUs / 1000.0);
     }
 
     private bool CanSaveLocked()

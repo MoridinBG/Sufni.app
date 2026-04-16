@@ -25,10 +25,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService? liveSessionService;
     private readonly ISessionCoordinator? sessionCoordinator;
-    private readonly DispatcherTimer controlRefreshTimer;
+    private readonly DispatcherTimer uiRefreshTimer;
+    private readonly object presentationGate = new();
     private bool hasLoaded;
     private bool isSaving = false;
     private bool isResetting;
+    private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
+    private bool hasPendingPresentation;
 
     public string IdentityKey { get; }
     public Guid SetupId { get; }
@@ -63,7 +66,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         IdentityKey = string.Empty;
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel();
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel();
-        controlRefreshTimer = CreateControlRefreshTimer();
+        uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
     }
 
@@ -88,10 +91,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline);
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline);
         graphWorkspace.Attach(liveSessionService.GraphBatches);
-        controlRefreshTimer = CreateControlRefreshTimer();
+        uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
 
-        liveSessionService.Snapshots.Subscribe(RequestPresentationRefresh);
+        liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh);
         ApplyPresentation(liveSessionService.Current);
     }
 
@@ -110,7 +113,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [RelayCommand]
     private async Task Loaded()
     {
-        controlRefreshTimer.Start();
+        uiRefreshTimer.Start();
+        RefreshUi();
         if (hasLoaded)
         {
             return;
@@ -131,13 +135,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [RelayCommand]
     private async Task Unloaded()
     {
-        controlRefreshTimer.Stop();
+        uiRefreshTimer.Stop();
         await Task.CompletedTask;
     }
 
     protected override async Task CloseImplementation()
     {
-        controlRefreshTimer.Stop();
+        uiRefreshTimer.Stop();
 
         if (liveSessionService is not null)
         {
@@ -173,8 +177,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         try
         {
             await liveSessionService.ResetCaptureAsync();
-            graphWorkspace.Timeline.Reset();
-            ApplyPresentation(liveSessionService.Current);
+            ResetCapturePresentation();
         }
         finally
         {
@@ -224,6 +227,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             switch (result)
             {
                 case LiveSessionSaveResult.Saved:
+                    await liveSessionService.ResetCaptureAsync();
+                    ResetCapturePresentation();
                     if (shouldRefreshAutoName)
                     {
                         Name = CreateDefaultName(DateTimeOffset.Now);
@@ -272,15 +277,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             out _);
     }
 
-    private void RequestPresentationRefresh(LiveSessionPresentationSnapshot snapshot)
+    private void QueuePresentationRefresh(LiveSessionPresentationSnapshot snapshot)
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        lock (presentationGate)
         {
-            ApplyPresentation(snapshot);
-            return;
+            pendingPresentation = snapshot;
+            hasPendingPresentation = true;
         }
-
-        Dispatcher.UIThread.Post(() => ApplyPresentation(snapshot), DispatcherPriority.Background);
     }
 
     private void ApplyPresentation(LiveSessionPresentationSnapshot snapshot)
@@ -301,9 +304,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private LiveSessionControlState ApplyControlFlags(LiveSessionControlState controlState)
     {
+        var captureDuration = RefreshCaptureDuration(controlState.CaptureStartUtc) ?? controlState.CaptureDuration;
         return controlState with
         {
-            CaptureDuration = RefreshCaptureDuration(controlState.SessionHeader),
+            CaptureDuration = captureDuration,
             IsSaving = isSaving,
             IsResetting = isResetting,
         };
@@ -316,30 +320,62 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return ControlState;
     }
 
+    private void RefreshUi()
+    {
+        ApplyPendingPresentation();
+        RefreshControlState();
+    }
+
+    private void ApplyPendingPresentation()
+    {
+        LiveSessionPresentationSnapshot snapshot;
+
+        lock (presentationGate)
+        {
+            if (!hasPendingPresentation)
+            {
+                return;
+            }
+
+            snapshot = pendingPresentation;
+            hasPendingPresentation = false;
+        }
+
+        ApplyPresentation(snapshot);
+    }
+
     private void RefreshCommandState()
     {
         SaveCommand.NotifyCanExecuteChanged();
         ResetCommand.NotifyCanExecuteChanged();
     }
 
-    private DispatcherTimer CreateControlRefreshTimer()
+    private void ResetCapturePresentation()
+    {
+        graphWorkspace.Timeline.Reset();
+        ApplyPresentation(liveSessionService!.Current);
+    }
+
+    // Live session updates arrive far faster than the controls need to repaint.
+    // Keep the latest snapshot and project it into the UI at a fixed cadence.
+    private DispatcherTimer CreateUiRefreshTimer()
     {
         var timer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(500)
+            Interval = TimeSpan.FromMilliseconds(LiveSessionRefreshCadence.UiRefreshIntervalMs)
         };
-        timer.Tick += (_, _) => RefreshControlState();
+        timer.Tick += (_, _) => RefreshUi();
         return timer;
     }
 
-    private static TimeSpan RefreshCaptureDuration(LiveSessionHeader? header)
+    private static TimeSpan? RefreshCaptureDuration(DateTimeOffset? captureStartUtc)
     {
-        if (header is null)
+        if (captureStartUtc is null)
         {
-            return TimeSpan.Zero;
+            return null;
         }
 
-        var duration = DateTimeOffset.UtcNow - header.SessionStartUtc;
+        var duration = DateTimeOffset.UtcNow - captureStartUtc.Value;
         return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 }

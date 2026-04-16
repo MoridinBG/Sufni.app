@@ -50,25 +50,6 @@ mc:Ignorable="d">
             IsVisible="{Binding !ControlState.HasSessionHeader}"
             Opacity="0.7"
             Text="Waiting for the accepted live session header." />
-
-            <Grid ColumnDefinitions="* auto" ColumnSpacing="8">
-                <Button
-                x:Name="LiveSaveButton"
-                Grid.Column="0"
-                Command="{Binding SaveCommand}"
-                Content="Save" />
-                <Button
-                x:Name="LiveResetButton"
-                Grid.Column="1"
-                Width="39"
-                Height="39"
-                Command="{Binding ResetCommand}">
-                    <Image
-                    Width="16"
-                    Height="16"
-                    Source="{SvgImage /Assets/fa-rotate-left.svg}" />
-                </Button>
-            </Grid>
         </StackPanel>
     </Border>
 </UserControl>

@@ -35,6 +35,7 @@ public class LiveSessionDetailDesktopViewTests
 
         Assert.Equal("State: Connected", textBlocks.First(textBlock => textBlock.Name == "LiveConnectionStateTextBlock").Text);
         Assert.Equal("Session: 909", textBlocks.First(textBlock => textBlock.Name == "LiveSessionIdTextBlock").Text);
+        Assert.Single(controls.OfType<Button>(), button => Equals(button.Content, "Save"));
         Assert.NotNull(controls.FirstOrDefault(control => control.Name == "TabControl"));
         Assert.NotNull(controls.OfType<LiveTravelPlotDesktopView>().FirstOrDefault());
         Assert.NotNull(controls.OfType<LiveVelocityPlotDesktopView>().FirstOrDefault());

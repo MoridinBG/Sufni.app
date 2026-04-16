@@ -83,6 +83,7 @@ public class LiveSessionDetailViewModelTests
 
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData, trackPoints);
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         Assert.Same(telemetryData, editor.TelemetryData);
         Assert.Equal(currentSnapshot.Controls.SessionHeader!.SessionStartUtc.LocalDateTime, editor.Timestamp);
@@ -92,13 +93,14 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task SaveCommand_UsesCustomNameAndKeepsSaveEnabledForOngoingCapture()
+    public async Task SaveCommand_UsesCustomName_AndResetsLiveCapture()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         editor.Name = "Morning lap";
         editor.DescriptionText = "first lap";
@@ -108,6 +110,7 @@ public class LiveSessionDetailViewModelTests
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         await liveSessionService.Received(1).PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>());
+        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
         await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
             Arg.Is<Session>(session =>
                 session.Name == "Morning lap"
@@ -118,7 +121,9 @@ public class LiveSessionDetailViewModelTests
             capturePackage,
             Arg.Any<CancellationToken>());
         Assert.Equal("Morning lap", editor.Name);
-        Assert.True(editor.SaveCommand.CanExecute(null));
+        Assert.Null(editor.TelemetryData);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.False(editor.ResetCommand.CanExecute(null));
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -130,6 +135,7 @@ public class LiveSessionDetailViewModelTests
 
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         editor.Name = "Live Session 01-01-2000 00:00:00";
 
@@ -160,6 +166,7 @@ public class LiveSessionDetailViewModelTests
                 new TrackPoint(1, 2, 3, 4),
             ]);
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         editor.Name = "Custom live session";
         editor.DescriptionText = "first lap";
@@ -172,6 +179,7 @@ public class LiveSessionDetailViewModelTests
         Assert.Equal("first lap", editor.DescriptionText);
         Assert.Equal("550 lb/in", editor.ForkSettings.SpringRate);
         Assert.Null(editor.TelemetryData);
+        Assert.Equal(TimeSpan.Zero, editor.ControlState.CaptureDuration);
         Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.False(editor.ResetCommand.CanExecute(null));
     }
@@ -202,6 +210,7 @@ public class LiveSessionDetailViewModelTests
                 ConnectionState: LiveConnectionState.Connected,
                 LastError: null,
                 SessionHeader: header,
+                CaptureStartUtc: header.SessionStartUtc,
                 CaptureDuration: TimeSpan.FromSeconds(3),
                 TravelQueueDepth: 0,
                 ImuQueueDepth: 0,
@@ -262,5 +271,11 @@ public class LiveSessionDetailViewModelTests
                         Epe3d: 0.8f),
                 ],
                 Markers: []));
+    }
+
+    private static async Task WaitForUiRefreshAsync()
+    {
+        await Task.Delay(150);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 }

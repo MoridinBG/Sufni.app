@@ -29,6 +29,9 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase? newValue)
     {
+        oldValue?.SetTabActive(false);
+        newValue?.SetTabActive(true);
+
         if (isClosing) return;
         previousActiveTab = oldValue;
     }
@@ -82,7 +85,7 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
     }
 
     #endregion Public methods
-    
+
     #region Commands
 
     [RelayCommand]
@@ -94,6 +97,6 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         Tabs.Add(toRestore);
         CurrentView = toRestore;
     }
-    
+
     #endregion Commands
 }

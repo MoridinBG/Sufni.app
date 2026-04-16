@@ -142,16 +142,77 @@ public class LiveSessionServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.PrepareCaptureForSaveAsync());
     }
 
+    [Fact]
+    public async Task TravelFrames_ThrottleStatisticsUpdatesToConfiguredInterval()
+    {
+        var service = CreateService();
+        var firstStatisticsUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondStatisticsUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var statisticsUpdateCount = 0;
+
+        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
+        {
+            if (snapshot.StatisticsTelemetry is null)
+            {
+                return;
+            }
+
+            var count = Interlocked.Increment(ref statisticsUpdateCount);
+            if (count == 1)
+            {
+                firstStatisticsUpdate.TrySetResult();
+            }
+            else if (count == 2)
+            {
+                secondStatisticsUpdate.TrySetResult();
+            }
+        });
+
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateTravelBatchFrame());
+        await firstStatisticsUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        frames.OnNext(CreateTravelBatchFrame());
+
+        var secondUpdateArrivedTooSoon = await Task.WhenAny(secondStatisticsUpdate.Task, Task.Delay(250)) == secondStatisticsUpdate.Task;
+        Assert.False(secondUpdateArrivedTooSoon);
+
+        await secondStatisticsUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task ResetCaptureAsync_RebasesSubsequentGraphTimes_AndClearsCaptureDuration()
+    {
+        var service = CreateService();
+        var graphBatches = new List<LiveGraphBatch>();
+
+        using var graphSubscription = service.GraphBatches.Subscribe(graphBatches.Add);
+
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs));
+
+        await service.ResetCaptureAsync();
+
+        Assert.Equal(TimeSpan.Zero, service.Current.Controls.CaptureDuration);
+
+        frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + 5_000_000));
+
+        var latestTravelBatch = graphBatches.Last(batch => batch.FrontTravel.Count == 5);
+        Assert.Equal(0d, latestTravelBatch.TravelTimes[0]);
+    }
+
     private ILiveSessionService CreateService()
     {
         return new LiveSessionService(CreateSessionContext(), sharedStream, sessionPresentationService, backgroundTaskRunner);
     }
 
-    private LiveTravelBatchFrame CreateTravelBatchFrame()
+    private LiveTravelBatchFrame CreateTravelBatchFrame(ulong? firstMonotonicUs = null)
     {
         return new LiveTravelBatchFrame(
             Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.TravelBatch, 0, 1),
-            Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, sessionHeader.SessionStartMonotonicUs, 5),
+            Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, firstMonotonicUs ?? sessionHeader.SessionStartMonotonicUs, 5),
             Records:
             [
                 new LiveTravelRecord(1000, 1100),

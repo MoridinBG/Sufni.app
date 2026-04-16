@@ -70,6 +70,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     public DamperPageViewModel DamperPage { get; } = new();
     public NotesPageViewModel NotesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
+    public bool HasSessionTrackPoints => MapViewModel?.SessionTrackPoints?.Count > 0;
 
     #endregion Public fields
 
@@ -118,6 +119,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         }
 
         MapViewModel.SessionTrackPoints = value;
+        OnPropertyChanged(nameof(HasSessionTrackPoints));
     }
 
     #region Private methods

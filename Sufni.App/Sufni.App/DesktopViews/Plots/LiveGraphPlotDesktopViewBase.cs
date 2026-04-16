@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Threading;
@@ -11,9 +12,12 @@ namespace Sufni.App.DesktopViews.Plots;
 
 public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 {
+    private readonly DispatcherTimer uiRefreshTimer;
+    private readonly object pendingGraphBatchesGate = new();
     private IDisposable? graphBatchesSubscription;
     private bool applyingTimelineRange;
     private long lastRevision;
+    private List<LiveGraphBatch> pendingGraphBatches = [];
 
     public LiveStreamingPlotBase? Plot { get; protected set; }
 
@@ -37,12 +41,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     protected LiveGraphPlotDesktopViewBase()
     {
+        uiRefreshTimer = CreateUiRefreshTimer();
+
         PropertyChanged += (_, e) =>
         {
             switch (e.Property.Name)
             {
                 case nameof(GraphBatches):
                     graphBatchesSubscription?.Dispose();
+                    ClearPendingGraphBatches();
                     if (e.NewValue is IObservable<LiveGraphBatch> graphBatches)
                     {
                         graphBatchesSubscription = graphBatches.Subscribe(HandleGraphBatch);
@@ -64,7 +71,13 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             }
         };
 
-        DetachedFromVisualTree += (_, _) => graphBatchesSubscription?.Dispose();
+        AttachedToVisualTree += (_, _) => uiRefreshTimer.Start();
+        DetachedFromVisualTree += (_, _) =>
+        {
+            graphBatchesSubscription?.Dispose();
+            uiRefreshTimer.Stop();
+            ClearPendingGraphBatches();
+        };
     }
 
     protected void InitializeInteractions()
@@ -102,32 +115,83 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     private void HandleGraphBatch(LiveGraphBatch batch)
     {
+        lock (pendingGraphBatchesGate)
+        {
+            pendingGraphBatches.Add(batch);
+        }
+    }
+
+    private void FlushPendingGraphBatches()
+    {
         if (Plot is null || AvaPlot is null)
         {
             return;
         }
 
-        Dispatcher.UIThread.Post(() =>
+        List<LiveGraphBatch> batches;
+        lock (pendingGraphBatchesGate)
         {
-            if (Plot is null || AvaPlot is null || batch.Revision < lastRevision)
+            if (pendingGraphBatches.Count == 0)
             {
                 return;
+            }
+
+            batches = pendingGraphBatches;
+            pendingGraphBatches = [];
+        }
+
+        var didApplyBatch = false;
+        var didReset = false;
+        foreach (var batch in batches)
+        {
+            if (batch.Revision < lastRevision)
+            {
+                continue;
             }
 
             if (IsResetBatch(batch))
             {
                 Plot.Reset();
-                lastRevision = batch.Revision;
-                AvaPlot.Refresh();
-                UpdateTimelineRange();
-                return;
+                didReset = true;
+            }
+            else
+            {
+                ApplyGraphBatch(batch);
             }
 
-            ApplyGraphBatch(batch);
             lastRevision = batch.Revision;
-            Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
-            AvaPlot.Refresh();
-        }, DispatcherPriority.Background);
+            didApplyBatch = true;
+        }
+
+        if (!didApplyBatch)
+        {
+            return;
+        }
+
+        Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
+        AvaPlot.Refresh();
+        if (didReset)
+        {
+            UpdateTimelineRange();
+        }
+    }
+
+    private DispatcherTimer CreateUiRefreshTimer()
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(LiveSessionRefreshCadence.UiRefreshIntervalMs)
+        };
+        timer.Tick += (_, _) => FlushPendingGraphBatches();
+        return timer;
+    }
+
+    private void ClearPendingGraphBatches()
+    {
+        lock (pendingGraphBatchesGate)
+        {
+            pendingGraphBatches.Clear();
+        }
     }
 
     private void OnTimelineChanged(object? sender, PropertyChangedEventArgs e)

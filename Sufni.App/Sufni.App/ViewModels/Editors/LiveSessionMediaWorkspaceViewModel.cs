@@ -12,6 +12,7 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
     private bool isInitialized;
 
     public MapViewModel? MapViewModel { get; }
+    public bool HasSessionTrackPoints => MapViewModel?.SessionTrackPoints?.Count > 0;
     public SessionTimelineLinkViewModel Timeline { get; }
     public double? MapVideoWidth { get; } = 400;
     public string? VideoUrl => null;
@@ -59,5 +60,6 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
         }
 
         MapViewModel.SessionTrackPoints = trackPoints?.ToList() ?? [];
+        OnPropertyChanged(nameof(HasSessionTrackPoints));
     }
 }
