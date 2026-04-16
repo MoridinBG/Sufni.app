@@ -17,8 +17,17 @@ using Sufni.App.Stores;
 using Sufni.App.ViewModels.LinkageEditing;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
+using BikeModel = Sufni.App.Models.Bike;
+using LeverageRatioBikeEditorViewModel = Sufni.App.ViewModels.Editors.Bike.LeverageRatioEditorViewModel;
 
 namespace Sufni.App.ViewModels.Editors;
+
+public enum BikeRearSuspensionMode
+{
+    None,
+    Linkage,
+    LeverageRatio,
+}
 
 public sealed record RimSizeOption(EtrtoRimSize Value, string DisplayName);
 
@@ -54,6 +63,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private readonly CancellableOperation importOperation = new();
     // Guard edit-time callbacks while a snapshot is being applied.
     private bool isReplacingState;
+    private bool suppressRearSuspensionModeChange;
+    private string? rearSuspensionLoadError;
 
     #endregion Private fields
 
@@ -102,6 +113,21 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #region Linkage editor properties
 
     public LinkageEditorViewModel LinkageEditor { get; } = new();
+    public LeverageRatioBikeEditorViewModel LeverageRatioEditor { get; }
+
+    [ObservableProperty] private BikeRearSuspensionMode rearSuspensionMode;
+
+    public bool CanChangeRearSuspensionMode => App.Current?.IsDesktop ?? true;
+    public bool IsHardtailMode => RearSuspensionMode == BikeRearSuspensionMode.None;
+    public bool IsLinkageMode => RearSuspensionMode == BikeRearSuspensionMode.Linkage;
+    public bool IsLeverageRatioMode => RearSuspensionMode == BikeRearSuspensionMode.LeverageRatio;
+    public string RearSuspensionModeDisplayName => RearSuspensionMode switch
+    {
+        BikeRearSuspensionMode.None => "Hardtail",
+        BikeRearSuspensionMode.Linkage => "Linkage",
+        BikeRearSuspensionMode.LeverageRatio => "Leverage ratio",
+        _ => throw new ArgumentOutOfRangeException()
+    };
 
     #endregion Linkage editor properties
 
@@ -126,6 +152,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         {
             UpdatePixelsToMillimeters();
         }
+
+        TryClearRearSuspensionLoadError();
     }
 
     partial void OnPixelsToMillimetersChanged(double? value)
@@ -136,6 +164,23 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
         RecalculateHeadAngle();
         ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
+        TryClearRearSuspensionLoadError();
+    }
+
+    partial void OnRearSuspensionModeChanged(BikeRearSuspensionMode oldValue, BikeRearSuspensionMode newValue)
+    {
+        OnPropertyChanged(nameof(IsHardtailMode));
+        OnPropertyChanged(nameof(IsLinkageMode));
+        OnPropertyChanged(nameof(IsLeverageRatioMode));
+        OnPropertyChanged(nameof(RearSuspensionModeDisplayName));
+        NotifyEditorCommandStatesChanged();
+
+        if (suppressRearSuspensionModeChange || IsReplacingState)
+        {
+            return;
+        }
+
+        _ = HandleRearSuspensionModeChangedAsync(oldValue, newValue);
     }
 
     #endregion Property change handlers
@@ -146,9 +191,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         bikeCoordinator = null;
         dependencyQuery = null;
-        acceptedSnapshot = BikeSnapshot.From(new Bike(Guid.Empty, string.Empty));
+        acceptedSnapshot = BikeSnapshot.From(new BikeModel(Guid.Empty, string.Empty));
         IsInDatabase = false;
+        LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
         LinkageEditor.Changed += OnLinkageEditorChanged;
+        LeverageRatioEditor.Changed += OnLeverageRatioEditorChanged;
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
         ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
     }
@@ -166,14 +213,18 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         this.dependencyQuery = dependencyQuery;
         IsInDatabase = !isNew;
         acceptedSnapshot = snapshot;
+        LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(bikeCoordinator.ImportLeverageRatioAsync, CanChangeRearSuspensionMode);
         LinkageEditor.Changed += OnLinkageEditorChanged;
+        LeverageRatioEditor.Changed += OnLeverageRatioEditorChanged;
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
         ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
 
         ReplaceState(snapshot, refreshAnalysis: !isNew);
 
-        // Brand new bike: start with the mandatory joints.
-        if (isNew) LinkageEditor.AddInitialJoints();
+        if (isNew && IsLinkageMode)
+        {
+            EnsureLinkageSeeded();
+        }
     }
 
     #endregion Constructors
@@ -181,6 +232,22 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #region Private methods
 
     private bool IsReplacingState => isReplacingState;
+
+    private static BikeRearSuspensionMode RearSuspensionModeFromKind(RearSuspensionKind kind) => kind switch
+    {
+        RearSuspensionKind.None => BikeRearSuspensionMode.None,
+        RearSuspensionKind.Linkage => BikeRearSuspensionMode.Linkage,
+        RearSuspensionKind.LeverageRatio => BikeRearSuspensionMode.LeverageRatio,
+        _ => BikeRearSuspensionMode.None,
+    };
+
+    private static RearSuspensionKind RearSuspensionKindFromMode(BikeRearSuspensionMode mode) => mode switch
+    {
+        BikeRearSuspensionMode.None => RearSuspensionKind.None,
+        BikeRearSuspensionMode.Linkage => RearSuspensionKind.Linkage,
+        BikeRearSuspensionMode.LeverageRatio => RearSuspensionKind.LeverageRatio,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode))
+    };
 
     // Route every state swap through the same raw-apply -> derive -> accept sequence.
     private void ReplaceState(
@@ -243,11 +310,34 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         HeadAngle = snapshot.HeadAngle;
         ForksStroke = snapshot.ForkStroke;
         ShockStroke = snapshot.ShockStroke;
-        Chainstay = snapshot.Chainstay;
-        PixelsToMillimeters = snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters;
-        ImageCanvas.ApplySnapshot(snapshot.Image, snapshot.ImageRotationDegrees);
-        LinkageEditor.Load(snapshot.Linkage, snapshot.Image?.Size.Height, snapshot.Linkage is null ? null : snapshot.PixelsToMillimeters);
+        SetRearSuspensionModeSilently(RearSuspensionModeFromKind(snapshot.RearSuspensionKind));
+
+        if (snapshot.RearSuspensionKind == RearSuspensionKind.Linkage && snapshot.Linkage is not null)
+        {
+            Chainstay = snapshot.Chainstay;
+            PixelsToMillimeters = snapshot.PixelsToMillimeters;
+            ImageCanvas.ApplySnapshot(snapshot.Image, snapshot.ImageRotationDegrees);
+            LinkageEditor.Load(snapshot.Linkage, snapshot.Image?.Size.Height, snapshot.PixelsToMillimeters);
+        }
+        else
+        {
+            Chainstay = null;
+            PixelsToMillimeters = null;
+            ImageCanvas.ApplySnapshot(null, 0);
+            LinkageEditor.Load(null, null, null);
+        }
+
+        LeverageRatioEditor.ReplaceState(snapshot.RearSuspensionKind == RearSuspensionKind.LeverageRatio ? snapshot.LeverageRatio : null);
         WheelGeometry.ApplySnapshot(snapshot);
+
+        if (snapshot.TryResolveRearSuspension(out _, out var errorMessage))
+        {
+            SetRearSuspensionLoadError(null);
+        }
+        else
+        {
+            SetRearSuspensionLoadError(errorMessage);
+        }
     }
 
     // Refresh caches and projections that are safe to recompute from the raw editor state.
@@ -265,10 +355,15 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         Debug.Assert(HeadAngle is not null);
         Debug.Assert(ForksStroke is not null);
 
-        var linkage = CreateCurrentLinkage();
-        var pixelsToMillimeters = linkage is null
-            ? acceptedSnapshot.PixelsToMillimeters
-            : PixelsToMillimeters ?? acceptedSnapshot.PixelsToMillimeters;
+        var linkage = RearSuspensionMode == BikeRearSuspensionMode.Linkage
+            ? CreateCurrentLinkage()
+            : null;
+        var leverageRatio = RearSuspensionMode == BikeRearSuspensionMode.LeverageRatio
+            ? LeverageRatioEditor.BuildCurrent()
+            : null;
+        var pixelsToMillimeters = RearSuspensionMode == BikeRearSuspensionMode.Linkage
+            ? PixelsToMillimeters ?? acceptedSnapshot.PixelsToMillimeters
+            : 0;
 
         return new BikeSnapshot(
             Id,
@@ -276,8 +371,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             HeadAngle.Value,
             ForksStroke,
             ShockStroke,
-            linkage is null ? acceptedSnapshot.RearSuspensionKind : RearSuspensionKind.Linkage,
-            Chainstay,
+            RearSuspensionKindFromMode(RearSuspensionMode),
+            RearSuspensionMode == BikeRearSuspensionMode.Linkage ? Chainstay : null,
             pixelsToMillimeters,
             WheelGeometry.FrontWheelDiameter,
             WheelGeometry.RearWheelDiameter,
@@ -285,16 +380,32 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             WheelGeometry.FrontWheelTireWidth,
             WheelGeometry.RearWheelRimSize,
             WheelGeometry.RearWheelTireWidth,
-            ImageCanvas.ImageRotationDegrees,
-            linkage is null ? acceptedSnapshot.LeverageRatio : null,
+            RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.ImageRotationDegrees : 0,
+            leverageRatio,
             linkage,
-            ImageCanvas.Image,
+            RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.Image : null,
             updated);
     }
 
     private Linkage? CreateCurrentLinkage()
     {
+        if (!IsLinkageMode)
+        {
+            return null;
+        }
+
         return LinkageEditor.BuildCurrentLinkage(ImageCanvas.Image?.Size.Height, PixelsToMillimeters, ShockStroke);
+    }
+
+    private RearSuspension? BuildCurrentRearSuspensionForAnalysis()
+    {
+        return RearSuspensionMode switch
+        {
+            BikeRearSuspensionMode.None => null,
+            BikeRearSuspensionMode.Linkage when CreateCurrentLinkage() is Linkage linkage => new LinkageRearSuspension(linkage),
+            BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatio leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
+            _ => null,
+        };
     }
 
     private JointViewModel? GetFrontWheelJoint() =>
@@ -382,7 +493,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         IsPlotBusy = showPlotBusyOverlay;
         try
         {
-            var result = await bikeCoordinator.LoadAnalysisAsync(CreateCurrentLinkage(), token);
+            var result = await bikeCoordinator.LoadAnalysisAsync(BuildCurrentRearSuspensionForAnalysis(), token);
             if (token.IsCancellationRequested) return;
 
             ApplyAnalysisResult(result);
@@ -420,7 +531,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 LeverageRatioData = null;
                 ImageCanvas.SetRearAxlePathData(null);
                 ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
-                ErrorMessages.Add($"Linkage analysis failed: {failed.ErrorMessage}");
+                ErrorMessages.Add($"Rear suspension analysis failed: {failed.ErrorMessage}");
                 break;
         }
     }
@@ -447,6 +558,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private void OnLinkageEditorChanged(object? sender, LinkageEditorChange change)
     {
         if (IsReplacingState) return;
+        if (!IsLinkageMode) return;
 
         switch (change.Kind)
         {
@@ -457,12 +569,14 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
                 ImageCanvas.RefreshLayout(LinkageEditor.GetJointBounds(), WheelGeometry.GetWheelBounds());
                 RecalculateHeadAngle();
+                TryClearRearSuspensionLoadError();
                 break;
 
             case LinkageEditorChangeKind.LinkStructureChanged:
                 EvaluateDirtiness();
                 NotifyEditorCommandStatesChanged();
                 LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
+                TryClearRearSuspensionLoadError();
                 break;
 
             case LinkageEditorChangeKind.JointMetadataChanged:
@@ -472,6 +586,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 {
                     RecalculateHeadAngle();
                 }
+                TryClearRearSuspensionLoadError();
                 break;
 
             case LinkageEditorChangeKind.JointCoordinatesChanged:
@@ -487,16 +602,19 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
                 ImageCanvas.RefreshLayout(LinkageEditor.GetJointBounds(), WheelGeometry.GetWheelBounds());
                 RecalculateHeadAngle();
+                TryClearRearSuspensionLoadError();
                 break;
 
             case LinkageEditorChangeKind.LinkEndpointsChanged:
                 EvaluateDirtiness();
                 NotifyEditorCommandStatesChanged();
+                TryClearRearSuspensionLoadError();
                 break;
 
             case LinkageEditorChangeKind.DragCompleted:
                 EvaluateDirtiness();
                 NotifyEditorCommandStatesChanged();
+                TryClearRearSuspensionLoadError();
                 break;
 
             case LinkageEditorChangeKind.SelectionChanged:
@@ -554,6 +672,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 RefreshDerivedEditorState();
                 NotifyEditorCommandStatesChanged();
                 EvaluateDirtiness();
+                TryClearRearSuspensionLoadError();
                 break;
 
             case nameof(BikeImageCanvasViewModel.ImageRotationDegrees):
@@ -562,6 +681,174 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 EvaluateDirtiness();
                 break;
         }
+    }
+
+    private void OnLeverageRatioEditorChanged(object? sender, EventArgs e)
+    {
+        if (IsReplacingState)
+        {
+            return;
+        }
+
+        TryClearRearSuspensionLoadError();
+        EvaluateDirtiness();
+        NotifyEditorCommandStatesChanged();
+        QueuePlotRefresh(showPlotBusyOverlay: false);
+    }
+
+    private async Task HandleRearSuspensionModeChangedAsync(
+        BikeRearSuspensionMode oldValue,
+        BikeRearSuspensionMode newValue)
+    {
+        if (oldValue == newValue)
+        {
+            return;
+        }
+
+        if (HasOutgoingPayload(oldValue))
+        {
+            var confirmed = await dialogService.ShowConfirmationAsync(
+                "Discard rear suspension data?",
+                $"Switching to {ModeLabel(newValue)} will discard the current {ModeLabel(oldValue)} data. Continue?");
+            if (!confirmed)
+            {
+                SetRearSuspensionModeSilently(oldValue);
+                return;
+            }
+        }
+
+        ResetOutgoingPayload(oldValue);
+        SetRearSuspensionLoadError(null);
+
+        if (newValue == BikeRearSuspensionMode.Linkage)
+        {
+            EnsureLinkageSeeded();
+        }
+
+        EvaluateDirtiness();
+        NotifyEditorCommandStatesChanged();
+        QueuePlotRefresh(showPlotBusyOverlay: false);
+    }
+
+    private void SetRearSuspensionModeSilently(BikeRearSuspensionMode mode)
+    {
+        suppressRearSuspensionModeChange = true;
+        try
+        {
+            RearSuspensionMode = mode;
+        }
+        finally
+        {
+            suppressRearSuspensionModeChange = false;
+        }
+    }
+
+    private bool HasOutgoingPayload(BikeRearSuspensionMode mode)
+    {
+        return mode switch
+        {
+            BikeRearSuspensionMode.None => false,
+            BikeRearSuspensionMode.Linkage =>
+                acceptedSnapshot.RearSuspensionKind == RearSuspensionKind.Linkage ||
+                acceptedSnapshot.Linkage is not null ||
+                CreateCurrentLinkage() is not null ||
+                ImageCanvas.Image is not null ||
+                Chainstay is not null,
+            BikeRearSuspensionMode.LeverageRatio =>
+                acceptedSnapshot.RearSuspensionKind == RearSuspensionKind.LeverageRatio ||
+                acceptedSnapshot.LeverageRatio is not null ||
+                LeverageRatioEditor.BuildCurrent() is not null,
+            _ => false,
+        };
+    }
+
+    private void ResetOutgoingPayload(BikeRearSuspensionMode mode)
+    {
+        switch (mode)
+        {
+            case BikeRearSuspensionMode.None:
+                return;
+
+            case BikeRearSuspensionMode.Linkage:
+                Chainstay = null;
+                PixelsToMillimeters = null;
+                ImageCanvas.ApplySnapshot(null, 0);
+                ImageCanvas.SetRearAxlePathData(null);
+                LinkageEditor.Load(null, null, null);
+                break;
+
+            case BikeRearSuspensionMode.LeverageRatio:
+                LeverageRatioEditor.ReplaceState(null);
+                break;
+        }
+    }
+
+    private void EnsureLinkageSeeded()
+    {
+        if (LinkageEditor.JointViewModels.Count > 0 || LinkageEditor.LinkViewModels.Count > 0)
+        {
+            return;
+        }
+
+        LinkageEditor.AddInitialJoints();
+    }
+
+    private void SetRearSuspensionLoadError(string? errorMessage)
+    {
+        if (rearSuspensionLoadError is not null)
+        {
+            ErrorMessages.Remove(rearSuspensionLoadError);
+        }
+
+        rearSuspensionLoadError = string.IsNullOrWhiteSpace(errorMessage) ? null : errorMessage;
+        if (rearSuspensionLoadError is not null)
+        {
+            ErrorMessages.Add(rearSuspensionLoadError);
+        }
+    }
+
+    private void TryClearRearSuspensionLoadError()
+    {
+        if (rearSuspensionLoadError is null)
+        {
+            return;
+        }
+
+        if (IsRearSuspensionStateResolved())
+        {
+            SetRearSuspensionLoadError(null);
+        }
+    }
+
+    private bool IsRearSuspensionStateResolved() => RearSuspensionMode switch
+    {
+        BikeRearSuspensionMode.None => true,
+        BikeRearSuspensionMode.Linkage => CreateCurrentLinkage() is not null,
+        BikeRearSuspensionMode.LeverageRatio => LeverageRatioEditor.BuildCurrent() is not null,
+        _ => false,
+    };
+
+    private static string ModeLabel(BikeRearSuspensionMode mode) => mode switch
+    {
+        BikeRearSuspensionMode.None => "hardtail",
+        BikeRearSuspensionMode.Linkage => "linkage",
+        BikeRearSuspensionMode.LeverageRatio => "leverage ratio",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode))
+    };
+
+    private static bool LeverageRatiosEqual(LeverageRatio? left, LeverageRatio? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        return left.Points.SequenceEqual(right.Points);
     }
 
     private static bool IsWheelInputProperty(string propertyName) =>
@@ -587,16 +874,31 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     protected override void EvaluateDirtiness()
     {
+        var acceptedMode = RearSuspensionModeFromKind(acceptedSnapshot.RearSuspensionKind);
+        var linkageDirty = IsLinkageMode &&
+            (!MathUtils.AreEqual(Chainstay, acceptedMode == BikeRearSuspensionMode.Linkage ? acceptedSnapshot.Chainstay : null) ||
+             LinkageEditor.HasChangesComparedTo(
+                 acceptedMode == BikeRearSuspensionMode.Linkage ? acceptedSnapshot.Linkage : null,
+                 ImageCanvas.Image?.Size.Height,
+                 PixelsToMillimeters) ||
+             (acceptedMode == BikeRearSuspensionMode.Linkage
+                 ? ImageCanvas.HasChangesComparedTo(acceptedSnapshot)
+                 : ImageCanvas.Image is not null || !MathUtils.AreEqual(ImageCanvas.ImageRotationDegrees, 0)));
+        var leverageRatioDirty = IsLeverageRatioMode &&
+            !LeverageRatiosEqual(
+                LeverageRatioEditor.BuildCurrent(),
+                acceptedMode == BikeRearSuspensionMode.LeverageRatio ? acceptedSnapshot.LeverageRatio : null);
+
         IsDirty =
             !IsInDatabase ||
             Name != acceptedSnapshot.Name ||
             !MathUtils.AreEqual(HeadAngle, acceptedSnapshot.HeadAngle) ||
             !MathUtils.AreEqual(ForksStroke, acceptedSnapshot.ForkStroke) ||
             !MathUtils.AreEqual(ShockStroke, acceptedSnapshot.ShockStroke) ||
-            !MathUtils.AreEqual(Chainstay, acceptedSnapshot.Chainstay) ||
-            LinkageEditor.HasChangesComparedTo(acceptedSnapshot.Linkage, ImageCanvas.Image?.Size.Height, PixelsToMillimeters) ||
-            WheelGeometry.HasChangesComparedTo(acceptedSnapshot) ||
-            ImageCanvas.HasChangesComparedTo(acceptedSnapshot);
+            RearSuspensionMode != acceptedMode ||
+            linkageDirty ||
+            leverageRatioDirty ||
+            WheelGeometry.HasChangesComparedTo(acceptedSnapshot);
     }
 
     protected override bool CanSave()
@@ -606,11 +908,25 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         var frontHasDiameter = WheelGeometry.FrontWheelDiameter.HasValue;
         var rearHasDiameter = WheelGeometry.RearWheelDiameter.HasValue;
         var wheelsValid = frontHasDiameter == rearHasDiameter;
+        var rearSuspensionValid = RearSuspensionMode switch
+        {
+            BikeRearSuspensionMode.None => true,
+            BikeRearSuspensionMode.Linkage =>
+                ShockStroke is not null &&
+                ImageCanvas.Image is not null &&
+                Chainstay is not null &&
+                CreateCurrentLinkage() is not null,
+            BikeRearSuspensionMode.LeverageRatio =>
+                ShockStroke is not null &&
+                LeverageRatioEditor.BuildCurrent() is not null,
+            _ => false,
+        };
 
         return IsDirty &&
+               rearSuspensionLoadError is null &&
                HeadAngle is not null &&
                ForksStroke is not null &&
-             (ShockStroke is null || (ImageCanvas.Image is not null && Chainstay is not null)) &&
+               rearSuspensionValid &&
                wheelsValid;
     }
 
@@ -618,9 +934,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (bikeCoordinator is null) return;
 
-        RecalculateGroundRotation();
+        if (IsLinkageMode)
+        {
+            RecalculateGroundRotation();
+        }
+
         var snapshot = ToSnapshot(BaselineUpdated);
-        var bike = Bike.FromSnapshot(snapshot);
+        var bike = BikeModel.FromSnapshot(snapshot);
         var result = await bikeCoordinator.SaveAsync(bike, BaselineUpdated);
 
         switch (result)
@@ -658,6 +978,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
             case BikeSaveResult.InvalidLinkage:
                 ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
+                break;
+
+            case BikeSaveResult.InvalidRearSuspension invalidRearSuspension:
+                ErrorMessages.Add(invalidRearSuspension.ErrorMessage);
                 break;
 
             case BikeSaveResult.Failed failed:
@@ -711,7 +1035,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         if (bikeCoordinator is null) return;
 
-        var result = await bikeCoordinator.ExportBikeAsync(Bike.FromSnapshot(ToSnapshot(BaselineUpdated)));
+        var result = await bikeCoordinator.ExportBikeAsync(BikeModel.FromSnapshot(ToSnapshot(BaselineUpdated)));
         if (result is BikeExportResult.Failed failed)
         {
             ErrorMessages.Add($"Bike could not be exported: {failed.ErrorMessage}");
@@ -721,6 +1045,17 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     #endregion TabPageViewModelBase overrides
 
     #region Commands
+
+    [RelayCommand]
+    private void SetRearSuspensionMode(BikeRearSuspensionMode mode)
+    {
+        if (!CanChangeRearSuspensionMode || RearSuspensionMode == mode)
+        {
+            return;
+        }
+
+        RearSuspensionMode = mode;
+    }
 
     [RelayCommand]
     private async Task OpenImage()

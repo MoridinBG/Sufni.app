@@ -1,0 +1,71 @@
+<UserControl
+x:Class="Sufni.App.Views.Editors.LeverageRatioEditorView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="using:Sufni.App.ViewModels.Editors.Bike"
+d:DesignHeight="400"
+d:DesignWidth="600"
+x:DataType="vm:LeverageRatioEditorViewModel"
+mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:LeverageRatioEditorViewModel />
+    </Design.DataContext>
+
+    <StackPanel Spacing="8">
+        <Grid
+        ColumnDefinitions="* auto"
+        IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}"
+        RowDefinitions="auto auto auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Points" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PointCount}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Max shock stroke (mm)" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MaxShockStroke, StringFormat={}{0:0.###}}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Max wheel travel (mm)" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MaxWheelTravel, StringFormat={}{0:0.###}}" />
+        </Grid>
+
+        <TextBlock
+        FontStyle="Italic"
+        IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNull}}"
+        Text="No leverage ratio CSV imported." />
+
+        <ItemsControl ItemsSource="{Binding PointsView}" IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnDefinitions="auto * auto *">
+                        <TextBlock Text="Shock" />
+                        <TextBlock Grid.Column="1" Text="{Binding ShockTravelMm, StringFormat={}{0:0.###} mm}" />
+                        <TextBlock Grid.Column="2" Margin="12,0,0,0" Text="Wheel" />
+                        <TextBlock Grid.Column="3" Text="{Binding WheelTravelMm, StringFormat={}{0:0.###} mm}" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <ItemsControl ItemsSource="{Binding ValidationErrors}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Foreground="OrangeRed" Text="{Binding .}" TextWrapping="Wrap" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Grid ColumnDefinitions="* *" IsVisible="{Binding CanEdit}">
+            <Button
+            Grid.Column="0"
+            Margin="0,0,5,0"
+            Command="{Binding ImportCsvCommand}"
+            Content="Import CSV ..." />
+            <Button
+            Grid.Column="1"
+            Margin="5,0,0,0"
+            Command="{Binding ClearCommand}"
+            Content="Clear" />
+        </Grid>
+    </StackPanel>
+</UserControl>

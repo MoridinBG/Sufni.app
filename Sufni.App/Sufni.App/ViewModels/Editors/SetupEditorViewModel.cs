@@ -65,6 +65,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
     [ObservableProperty] private SensorType? forkSensorType;
     [ObservableProperty] private SensorType? shockSensorType;
+    [ObservableProperty] private IReadOnlyList<SensorType?> shockSensorTypes = [null];
+    [ObservableProperty] private string rearSuspensionDescription = "Hardtail";
+    [ObservableProperty] private string? rearSensorCompatibilityMessage;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -78,7 +81,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
     public ReadOnlyObservableCollection<BikeSnapshot> Bikes { get; }
     public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];
-    public List<SensorType?> ShockSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Shock"))];
 
     #endregion
 
@@ -88,7 +90,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     // can be defined.
     partial void OnSelectedBikeChanged(BikeSnapshot? value)
     {
-        if (value is null) return;
+        UpdateShockSensorCapabilities(value);
+
         if (ShockSensorConfiguration is RotationalShockSensorConfigurationViewModel sensorConfiguration)
         {
             sensorConfiguration.JointViewModels = JointsFromSnapshot(value);
@@ -103,6 +106,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
     partial void OnShockSensorTypeChanged(SensorType? value)
     {
+        RearSensorCompatibilityMessage = null;
         if (ShockSensorConfiguration is not null && value == ShockSensorConfiguration.Type) return;
         ShockSensorConfiguration = SensorConfigurationViewModel.Create(value, JointsFromSnapshot(SelectedBike));
     }
@@ -189,6 +193,38 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         var jvms = snapshot.Linkage.Joints
             .Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
         return [.. jvms];
+    }
+
+    private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(BikeSnapshot? bike) =>
+        bike?.RearSuspensionKind switch
+        {
+            null or RearSuspensionKind.None => [null],
+            RearSuspensionKind.Linkage => [null, SensorType.LinearShock, SensorType.RotationalShock],
+            RearSuspensionKind.LeverageRatio => [null, SensorType.LinearShockStroke],
+            _ => [null],
+        };
+
+    private static string RearSuspensionDescriptionFor(BikeSnapshot? bike) =>
+        bike?.RearSuspensionKind switch
+        {
+            RearSuspensionKind.Linkage => "Linkage",
+            RearSuspensionKind.LeverageRatio => "Leverage ratio",
+            _ => "Hardtail",
+        };
+
+    private void UpdateShockSensorCapabilities(BikeSnapshot? bike)
+    {
+        RearSuspensionDescription = RearSuspensionDescriptionFor(bike);
+        ShockSensorTypes = AllowedShockSensorTypes(bike);
+
+        if (ShockSensorType is null || ShockSensorTypes.Contains(ShockSensorType))
+        {
+            return;
+        }
+
+        ShockSensorType = null;
+        ShockSensorConfiguration = null;
+        RearSensorCompatibilityMessage = "Rear sensor cleared because the selected bike does not support this sensor.";
     }
 
     #endregion Private methods

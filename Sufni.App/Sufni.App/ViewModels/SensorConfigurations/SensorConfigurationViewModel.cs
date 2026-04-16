@@ -44,6 +44,7 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
             SensorType.RotationalFork => new RotationalForkSensorConfigurationViewModel(),
             SensorType.LinearShock => new LinearShockSensorConfigurationViewModel(),
             SensorType.RotationalShock => new RotationalShockSensorConfigurationViewModel(joints),
+            SensorType.LinearShockStroke => new LinearShockStrokeSensorConfigurationViewModel(),
             _ => null
         };
     }
@@ -70,6 +71,9 @@ public abstract partial class SensorConfigurationViewModel : ViewModelBase
             case RotationalShockSensorConfiguration rssc:
                 Debug.Assert(joints is not null);
                 vm = new RotationalShockSensorConfigurationViewModel(rssc, joints);
+                break;
+            case LinearShockStrokeSensorConfiguration linearShockStroke:
+                vm = new LinearShockStrokeSensorConfigurationViewModel(linearShockStroke);
                 break;
         }
 

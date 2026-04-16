@@ -6,7 +6,7 @@ namespace Sufni.App.BikeEditing;
 
 public sealed record BikeAnalysisPresentationData(
     CoordinateList LeverageRatioData,
-    CoordinateList RearAxlePathData);
+    CoordinateList? RearAxlePathData);
 
 public sealed record ImportedBikeEditorData(Bike Bike, BikeEditorAnalysisResult AnalysisResult);
 
@@ -55,4 +55,14 @@ public abstract record BikeExportResult
     public sealed record Exported : BikeExportResult;
     public sealed record Canceled : BikeExportResult;
     public sealed record Failed(string ErrorMessage) : BikeExportResult;
+}
+
+public abstract record LeverageRatioImportResult
+{
+    private LeverageRatioImportResult() { }
+
+    public sealed record Imported(LeverageRatio Value) : LeverageRatioImportResult;
+    public sealed record Canceled : LeverageRatioImportResult;
+    public sealed record Invalid(string[] ErrorMessages) : LeverageRatioImportResult;
+    public sealed record Failed(string ErrorMessage) : LeverageRatioImportResult;
 }

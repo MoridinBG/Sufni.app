@@ -5,7 +5,7 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Models.SensorConfigurations;
 
-public class LinearForkSensorConfiguration : SensorConfiguration
+public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfiguration
 {
     private double measurementToStroke;
     private double strokeToTravel;
@@ -15,7 +15,7 @@ public class LinearForkSensorConfiguration : SensorConfiguration
     [JsonPropertyName("resolution")] public int Resolution { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.LinearFork;
     [JsonIgnore]
-    public override Func<ushort, double> MeasurementToTravel
+    public Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -23,7 +23,7 @@ public class LinearForkSensorConfiguration : SensorConfiguration
         }
     }
     [JsonIgnore]
-    public override double MaxTravel
+    public double MaxTravel
     {
         get
         {

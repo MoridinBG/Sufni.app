@@ -7,7 +7,6 @@ using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
-using Sufni.Kinematics;
 using Serilog;
 
 namespace Sufni.App.Coordinators;
@@ -58,9 +57,9 @@ public sealed class BikeCoordinator(
     }
 
     public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
-        Linkage? linkage,
+        RearSuspension? rearSuspension,
         CancellationToken cancellationToken = default) =>
-        bikeEditorService.AnalyzeLinkageAsync(linkage, cancellationToken);
+        bikeEditorService.LoadAnalysisAsync(rearSuspension, cancellationToken);
 
     public Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default) =>
         bikeEditorService.LoadImageAsync(cancellationToken);
@@ -95,6 +94,9 @@ public sealed class BikeCoordinator(
                 throw new ArgumentOutOfRangeException(nameof(result));
         }
     }
+
+    public Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
+        bikeEditorService.ImportLeverageRatioAsync(cancellationToken);
 
     public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
     {
@@ -134,23 +136,68 @@ public sealed class BikeCoordinator(
             return new BikeSaveResult.Conflict(current);
         }
 
-        BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.Unavailable();
-        if (bike.Linkage is not null)
+        if (!bike.TryResolveRearSuspension(out var rearSuspension, out var rearSuspensionError))
         {
-            logger.Verbose("Analyzing linkage before bike save for {BikeId}", bike.Id);
-            analysisResult = await bikeEditorService.AnalyzeLinkageAsync(bike.Linkage);
-            switch (analysisResult)
-            {
-                case BikeEditorAnalysisResult.Unavailable:
-                    logger.Warning("Bike save blocked because linkage was invalid for {BikeId}", bike.Id);
-                    return new BikeSaveResult.InvalidLinkage();
-                case BikeEditorAnalysisResult.Failed failed:
+            logger.Warning("Bike save blocked because the rear suspension was invalid for {BikeId}: {ErrorMessage}", bike.Id, rearSuspensionError);
+            return new BikeSaveResult.InvalidRearSuspension(rearSuspensionError!);
+        }
+
+        BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.Unavailable();
+        switch (rearSuspension)
+        {
+            case null:
+                break;
+
+            case LinkageRearSuspension:
+                if (bike.ShockStroke is null)
+                {
+                    return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for linkage bikes.");
+                }
+
+                if (bike.Image is null || bike.Chainstay is null || bike.PixelsToMillimeters <= 0)
+                {
+                    return new BikeSaveResult.InvalidRearSuspension("Linkage bikes require an image, chainstay, and calibrated linkage scale.");
+                }
+
+                logger.Verbose("Analyzing linkage before bike save for {BikeId}", bike.Id);
+                analysisResult = await bikeEditorService.LoadAnalysisAsync(rearSuspension);
+                switch (analysisResult)
+                {
+                    case BikeEditorAnalysisResult.Unavailable:
+                        logger.Warning("Bike save blocked because linkage was invalid for {BikeId}", bike.Id);
+                        return new BikeSaveResult.InvalidRearSuspension("Linkage movement could not be calculated. Please check the joints and links.");
+                    case BikeEditorAnalysisResult.Failed failed:
+                        logger.Error(
+                            "Bike save failed during linkage analysis for {BikeId}: {ErrorMessage}",
+                            bike.Id,
+                            failed.ErrorMessage);
+                        return new BikeSaveResult.Failed(failed.ErrorMessage);
+                }
+                break;
+
+            case LeverageRatioRearSuspension leverageRatioRearSuspension:
+                if (bike.ShockStroke is null)
+                {
+                    return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for leverage ratio bikes.");
+                }
+
+                if (bike.ShockStroke.Value > leverageRatioRearSuspension.LeverageRatio.MaxShockStroke)
+                {
+                    return new BikeSaveResult.InvalidRearSuspension(
+                        $"Shock stroke must be at most {leverageRatioRearSuspension.LeverageRatio.MaxShockStroke:0.###} mm.");
+                }
+
+                logger.Verbose("Analyzing leverage ratio before bike save for {BikeId}", bike.Id);
+                analysisResult = await bikeEditorService.LoadAnalysisAsync(rearSuspension);
+                if (analysisResult is BikeEditorAnalysisResult.Failed leverageRatioFailed)
+                {
                     logger.Error(
-                        "Bike save failed during linkage analysis for {BikeId}: {ErrorMessage}",
+                        "Bike save failed during leverage ratio analysis for {BikeId}: {ErrorMessage}",
                         bike.Id,
-                        failed.ErrorMessage);
-                    return new BikeSaveResult.Failed(failed.ErrorMessage);
-            }
+                        leverageRatioFailed.ErrorMessage);
+                    return new BikeSaveResult.Failed(leverageRatioFailed.ErrorMessage);
+                }
+                break;
         }
 
         try
@@ -215,7 +262,12 @@ public sealed class BikeCoordinator(
         CancellationToken cancellationToken)
     {
         var normalizedBike = NormalizeImportedBike(imported);
-        var analysis = await bikeEditorService.AnalyzeLinkageAsync(normalizedBike.Linkage, cancellationToken);
+        BikeEditorAnalysisResult analysis = new BikeEditorAnalysisResult.Unavailable();
+        if (normalizedBike.TryResolveRearSuspension(out var rearSuspension, out _))
+        {
+            analysis = await bikeEditorService.LoadAnalysisAsync(rearSuspension, cancellationToken);
+        }
+
         return new BikeImportResult.Imported(new ImportedBikeEditorData(normalizedBike, analysis));
     }
 }

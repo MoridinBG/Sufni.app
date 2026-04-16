@@ -115,23 +115,40 @@ public class BikeEditorServiceTests
     }
 
     [Fact]
-    public async Task AnalyzeLinkageAsync_ReturnsUnavailable_WhenLinkageMissing()
+    public async Task LoadAnalysisAsync_ReturnsUnavailable_WhenRearSuspensionMissing()
     {
-        var result = await CreateService().AnalyzeLinkageAsync(null);
+        var result = await CreateService().LoadAnalysisAsync(null);
 
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
     }
 
     [Fact]
-    public async Task AnalyzeLinkageAsync_ReturnsComputed_WhenLinkageIsValid()
+    public async Task LoadAnalysisAsync_ReturnsComputed_WhenLinkageIsValid()
     {
-        var result = await CreateService().AnalyzeLinkageAsync(CreateSimpleLinkage());
+        var result = await CreateService().LoadAnalysisAsync(new LinkageRearSuspension(CreateSimpleLinkage()));
+
+        var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
+        var rearAxlePathData = Assert.IsType<CoordinateList>(computed.Data.RearAxlePathData);
+        Assert.NotEmpty(computed.Data.LeverageRatioData.X);
+        Assert.NotEmpty(computed.Data.LeverageRatioData.Y);
+        Assert.NotEmpty(rearAxlePathData.X);
+        Assert.NotEmpty(rearAxlePathData.Y);
+    }
+
+    [Fact]
+    public async Task LoadAnalysisAsync_ReturnsComputed_WhenLeverageRatioIsValid()
+    {
+        var leverageRatio = TestSnapshots.LeverageRatioCurve(
+            (0, 0),
+            (10, 25),
+            (20, 45));
+
+        var result = await CreateService().LoadAnalysisAsync(new LeverageRatioRearSuspension(leverageRatio));
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.NotEmpty(computed.Data.LeverageRatioData.X);
         Assert.NotEmpty(computed.Data.LeverageRatioData.Y);
-        Assert.NotEmpty(computed.Data.RearAxlePathData.X);
-        Assert.NotEmpty(computed.Data.RearAxlePathData.Y);
+        Assert.Null(computed.Data.RearAxlePathData);
     }
 
     private static Linkage CreateSimpleLinkage()

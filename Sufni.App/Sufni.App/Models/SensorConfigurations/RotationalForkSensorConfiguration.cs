@@ -5,7 +5,7 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Models.SensorConfigurations;
 
-public class RotationalForkSensorConfiguration : SensorConfiguration
+public class RotationalForkSensorConfiguration : SensorConfiguration, ISensorConfiguration
 {
     private double startAngle;
     private double strokeToTravel;
@@ -16,7 +16,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
     [JsonPropertyName("arm_length")] public double ArmLength { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.RotationalFork;
     [JsonIgnore]
-    public override Func<ushort, double> MeasurementToTravel
+    public Func<ushort, double> MeasurementToTravel
     {
         get
         {
@@ -29,7 +29,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
         }
     }
     [JsonIgnore]
-    public override double MaxTravel
+    public double MaxTravel
     {
         get
         {
@@ -40,8 +40,6 @@ public class RotationalForkSensorConfiguration : SensorConfiguration
 
     public new static ISensorConfiguration? FromJson(string json, Bike bike)
     {
-        Debug.Assert(bike.Linkage is not null);
-
         var sc = AppJson.Deserialize<RotationalForkSensorConfiguration>(json);
         if (sc is null) return null;
 

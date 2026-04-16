@@ -41,8 +41,15 @@ public class Setup : Synchronizable
         return FrontSensorConfigurationJson is null ? null : SensorConfiguration.FromJson(FrontSensorConfigurationJson, bike);
     }
 
-    public ISensorConfiguration? RearSensorConfiguration(Bike bike)
+    internal bool TryBuildRearShockCalibration(Bike bike, out RearShockCalibration? calibration, out string? errorMessage)
     {
-        return RearSensorConfigurationJson is null ? null : SensorConfiguration.FromJson(RearSensorConfigurationJson, bike);
+        calibration = null;
+        if (RearSensorConfigurationJson is null)
+        {
+            errorMessage = "Rear sensor configuration is missing.";
+            return false;
+        }
+
+        return RearShockCalibrationFactory.TryBuild(RearSensorConfigurationJson, bike, out calibration, out errorMessage);
     }
 }

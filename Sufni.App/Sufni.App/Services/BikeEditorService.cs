@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -16,41 +17,30 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
 {
     private static readonly ILogger logger = Log.ForContext<BikeEditorService>();
 
-    public async Task<BikeEditorAnalysisResult> AnalyzeLinkageAsync(
-        Linkage? linkage,
+    public async Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
+        RearSuspension? rearSuspension,
         CancellationToken cancellationToken = default)
     {
-        if (linkage is null)
+        if (rearSuspension is null)
         {
-            logger.Verbose("Skipping bike linkage analysis because no linkage was supplied");
+            logger.Verbose("Skipping bike rear suspension analysis because no rear suspension was supplied");
             return new BikeEditorAnalysisResult.Unavailable();
         }
 
         try
         {
-            logger.Verbose("Starting bike linkage analysis");
+            logger.Verbose("Starting bike rear suspension analysis for {RearSuspensionType}", rearSuspension.GetType().Name);
 
             return await backgroundTaskRunner.RunAsync(() =>
             {
                 try
                 {
-                    var solver = new KinematicSolver(linkage);
-                    var solution = solver.SolveSuspensionMotion();
-                    var characteristics = new BikeCharacteristics(solution);
-                    var mapping = new JointNameMapping();
-                    var rearAxlePathData = solution.TryGetValue(mapping.RearWheel, out var path)
-                        ? path
-                        : new CoordinateList([], []);
-
-                    logger.Verbose(
-                        "Bike linkage analysis computed {LeveragePointCount} leverage points and {RearAxlePointCount} rear axle points",
-                        characteristics.LeverageRatioData.X.Count,
-                        rearAxlePathData.X.Count);
-
-                    return (BikeEditorAnalysisResult)new BikeEditorAnalysisResult.Computed(
-                        new BikeAnalysisPresentationData(
-                            characteristics.LeverageRatioData,
-                            rearAxlePathData));
+                    return rearSuspension switch
+                    {
+                        LinkageRearSuspension linkageRearSuspension => AnalyzeLinkage(linkageRearSuspension.Linkage),
+                        LeverageRatioRearSuspension leverageRatioRearSuspension => AnalyzeLeverageRatio(leverageRatioRearSuspension.LeverageRatio),
+                        _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension))
+                    };
                 }
                 catch (OperationCanceledException)
                 {
@@ -58,7 +48,7 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                 }
                 catch (Exception exception)
                 {
-                    logger.Warning(exception, "Bike linkage analysis returned unavailable");
+                    logger.Warning(exception, "Bike rear suspension analysis returned unavailable");
                     return new BikeEditorAnalysisResult.Unavailable();
                 }
             }, cancellationToken);
@@ -69,8 +59,56 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         }
         catch (Exception e)
         {
-            logger.Error(e, "Bike linkage analysis failed");
+            logger.Error(e, "Bike rear suspension analysis failed");
             return new BikeEditorAnalysisResult.Failed(e.Message);
+        }
+    }
+
+    public async Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default)
+    {
+        logger.Verbose("Opening leverage ratio CSV picker");
+        var file = await filesService.OpenLeverageRatioCsvFileAsync();
+        if (file is null)
+        {
+            logger.Verbose("Leverage ratio CSV import canceled");
+            return new LeverageRatioImportResult.Canceled();
+        }
+
+        try
+        {
+            return await backgroundTaskRunner.RunAsync<LeverageRatioImportResult>(async () =>
+            {
+                try
+                {
+                    await using var stream = await file.OpenReadAsync();
+                    var parseResult = LeverageRatioCsvParser.Parse(stream);
+                    return parseResult switch
+                    {
+                        LeverageRatioParseResult.Parsed parsed => new LeverageRatioImportResult.Imported(parsed.Value),
+                        LeverageRatioParseResult.Invalid invalid => new LeverageRatioImportResult.Invalid(
+                            invalid.Errors
+                                .Select(error => error.LineNumber.HasValue
+                                    ? $"Line {error.LineNumber.Value}: {error.Message}"
+                                    : error.Message)
+                                .ToArray()),
+                        _ => new LeverageRatioImportResult.Failed("CSV file could not be parsed.")
+                    };
+                }
+                catch (JsonException exception)
+                {
+                    logger.Warning(exception, "Leverage ratio CSV import failed during JSON parsing");
+                    return new LeverageRatioImportResult.Failed("CSV file could not be parsed.");
+                }
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Leverage ratio CSV import failed");
+            return new LeverageRatioImportResult.Failed(e.Message);
         }
     }
 
@@ -199,5 +237,41 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
             logger.Error(e, "Bike export failed for {BikeId}", bike.Id);
             return new BikeExportResult.Failed(e.Message);
         }
+    }
+
+    private BikeEditorAnalysisResult AnalyzeLinkage(Linkage linkage)
+    {
+        var solver = new KinematicSolver(linkage);
+        var solution = solver.SolveSuspensionMotion();
+        var characteristics = new BikeCharacteristics(solution);
+        var mapping = new JointNameMapping();
+        var rearAxlePathData = solution.TryGetValue(mapping.RearWheel, out var path)
+            ? path
+            : new CoordinateList([], []);
+
+        logger.Verbose(
+            "Bike linkage analysis computed {LeveragePointCount} leverage points and {RearAxlePointCount} rear axle points",
+            characteristics.LeverageRatioData.X.Count,
+            rearAxlePathData.X.Count);
+
+        return new BikeEditorAnalysisResult.Computed(
+            new BikeAnalysisPresentationData(
+                characteristics.LeverageRatioData,
+                rearAxlePathData));
+    }
+
+    private BikeEditorAnalysisResult AnalyzeLeverageRatio(LeverageRatio leverageRatio)
+    {
+        var samples = leverageRatio.DeriveLeverageRatioSamples();
+        var coordinateList = new CoordinateList(
+            [.. samples.Select(sample => sample.WheelTravelMm)],
+            [.. samples.Select(sample => sample.Ratio)]);
+
+        logger.Verbose(
+            "Bike leverage ratio analysis computed {LeveragePointCount} leverage points",
+            coordinateList.X.Count);
+
+        return new BikeEditorAnalysisResult.Computed(
+            new BikeAnalysisPresentationData(coordinateList, null));
     }
 }

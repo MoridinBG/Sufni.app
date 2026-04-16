@@ -79,11 +79,11 @@ public class BikeCoordinatorTests
     [Fact]
     public async Task LoadAnalysisAsync_DelegatesToBikeEditorService()
     {
-        var linkage = new Sufni.Kinematics.Linkage();
+        RearSuspension? rearSuspension = new LinkageRearSuspension(new Sufni.Kinematics.Linkage());
         var expected = new BikeEditorAnalysisResult.Unavailable();
-        bikeEditorService.AnalyzeLinkageAsync(linkage, Arg.Any<CancellationToken>()).Returns(expected);
+        bikeEditorService.LoadAnalysisAsync(rearSuspension, Arg.Any<CancellationToken>()).Returns(expected);
 
-        var result = await CreateCoordinator().LoadAnalysisAsync(linkage);
+        var result = await CreateCoordinator().LoadAnalysisAsync(rearSuspension);
 
         Assert.Same(expected, result);
     }
@@ -119,7 +119,7 @@ public class BikeCoordinatorTests
         };
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
-        bikeEditorService.AnalyzeLinkageAsync(importedBike.Linkage, Arg.Any<CancellationToken>())
+        bikeEditorService.LoadAnalysisAsync(null, Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
 
         var result = await CreateCoordinator().ImportBikeAsync();
@@ -221,11 +221,11 @@ public class BikeCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsInvalidLinkage_WhenAnalysisUnavailable()
+    public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLinkageAnalysisIsUnavailable()
     {
         var existing = TestSnapshots.Bike(updated: 5);
         bikeStore.Get(existing.Id).Returns(existing);
-        bikeEditorService.AnalyzeLinkageAsync(Arg.Any<Sufni.Kinematics.Linkage>(), Arg.Any<CancellationToken>())
+        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
         var coordinator = CreateCoordinator();
 
@@ -233,12 +233,18 @@ public class BikeCoordinatorTests
         {
             HeadAngle = 65,
             ForkStroke = 160,
-            Linkage = new Sufni.Kinematics.Linkage(),
+            ShockStroke = 50,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            Chainstay = 440,
+            PixelsToMillimeters = 1,
+            Image = TestImages.SmallPng(),
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
         };
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
-        Assert.IsType<BikeSaveResult.InvalidLinkage>(result);
+        var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
+        Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
         await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
     }
