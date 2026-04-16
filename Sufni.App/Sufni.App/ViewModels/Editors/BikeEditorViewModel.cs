@@ -276,6 +276,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             HeadAngle.Value,
             ForksStroke,
             ShockStroke,
+            linkage is null ? acceptedSnapshot.RearSuspensionKind : RearSuspensionKind.Linkage,
             Chainstay,
             pixelsToMillimeters,
             WheelGeometry.FrontWheelDiameter,
@@ -285,6 +286,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             WheelGeometry.RearWheelRimSize,
             WheelGeometry.RearWheelTireWidth,
             ImageCanvas.ImageRotationDegrees,
+            linkage is null ? acceptedSnapshot.LeverageRatio : null,
             linkage,
             ImageCanvas.Image,
             updated);
