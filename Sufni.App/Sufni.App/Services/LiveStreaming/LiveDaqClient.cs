@@ -19,7 +19,7 @@ namespace Sufni.App.Services.LiveStreaming;
 // The receive loop runs off the UI thread via IBackgroundTaskRunner. Start/stop handshakes use a
 // TaskCompletionSource that the caller awaits while the receive loop completes it on the matching
 // ACK or error frame. All state mutations are serialized through lifecycleGate.
-internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClient
+internal sealed class LiveDaqClient : ILiveDaqClient
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqClient>();
 
@@ -66,9 +66,13 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             await tcpClient.ConnectAsync(host, port, cancellationToken);
             stream = tcpClient.GetStream();
             receiveLoopCts = new CancellationTokenSource();
-            receiveLoopTask = backgroundTaskRunner.RunAsync(
-                async () => await ReceiveLoopAsync(receiveLoopCts.Token),
-                receiveLoopCts.Token);
+            receiveLoopTask = Task.Factory
+                .StartNew(
+                    () => ReceiveLoopAsync(receiveLoopCts.Token),
+                    receiveLoopCts.Token,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default)
+                .Unwrap();
             logger.Debug("Live DAQ client socket connected to {Host} {Port}", host, port);
         }
         finally
@@ -441,8 +445,16 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
     }
 }
 
-public sealed class LiveDaqClientFactory(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClientFactory
+public sealed class LiveDaqClientFactory : ILiveDaqClientFactory
 {
+    public LiveDaqClientFactory()
+    {
+    }
+
+    public LiveDaqClientFactory(IBackgroundTaskRunner _)
+    {
+    }
+
     // Returns a new transport client for one live preview tab.
-    public ILiveDaqClient CreateClient() => new LiveDaqClient(backgroundTaskRunner);
+    public ILiveDaqClient CreateClient() => new LiveDaqClient();
 }

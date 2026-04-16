@@ -133,6 +133,34 @@ public class LiveDaqKnownBoardsQueryTests
     }
 
     [Fact]
+    public async Task GetTravelCalibration_ReturnsCachedInstance_BetweenCalls()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached calibration bike");
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached calibration setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 8,
+                Resolution = 10,
+            })
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var first = query.GetTravelCalibration(boardId.ToString());
+        var second = query.GetTravelCalibration(boardId.ToString());
+
+        Assert.Same(first, second);
+        Assert.Same(first!.Front, second!.Front);
+    }
+
+    [Fact]
     public async Task GetSessionContext_ReturnsBikeDataAndCalibration_WhenSetupAndBikeAreKnown()
     {
         var boardId = Guid.NewGuid();
@@ -177,6 +205,45 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.NotNull(context.BikeData.RearMeasurementToTravel);
         Assert.NotNull(context.TravelCalibration.Front);
         Assert.NotNull(context.TravelCalibration.Rear);
+    }
+
+    [Fact]
+    public async Task GetSessionContext_ReturnsCachedInstance_BetweenCalls()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached session bike") with
+        {
+            HeadAngle = 63.5,
+            ForkStroke = 170,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(),
+        };
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached session setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 120,
+                Resolution = 12,
+            }),
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 55,
+                Resolution = 12,
+            }),
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var first = query.GetSessionContext(boardId.ToString());
+        var second = query.GetSessionContext(boardId.ToString());
+
+        Assert.Same(first, second);
+        Assert.Same(first!.TravelCalibration, second!.TravelCalibration);
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(

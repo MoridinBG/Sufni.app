@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
@@ -26,6 +27,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Subject<LiveProtocolFrame> framesSubject = new();
     private readonly BehaviorSubject<LiveDaqSharedStreamState> statesSubject = new(LiveDaqSharedStreamState.Empty);
+    private readonly EventLoopScheduler clientEventScheduler = new();
 
     private LiveDaqSnapshot snapshot;
     private ILiveDaqClient? liveDaqClient;
@@ -469,6 +471,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             framesSubject.OnCompleted();
             statesSubject.Dispose();
             framesSubject.Dispose();
+            clientEventScheduler.Dispose();
         }
         finally
         {
@@ -505,7 +508,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
 
         liveDaqClient = liveDaqClientFactory.CreateClient();
-        liveDaqClientSubscription = liveDaqClient.Events.Subscribe(clientEvent => _ = HandleClientEventAsync(clientEvent));
+        liveDaqClientSubscription = liveDaqClient.Events
+            .ObserveOn(clientEventScheduler)
+            .Subscribe(clientEvent => _ = HandleClientEventAsync(clientEvent));
         return liveDaqClient;
     }
 
@@ -545,8 +550,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private async Task HandleClientEventAsync(LiveDaqClientEvent clientEvent)
     {
         string? closeError = null;
-
         await gate.WaitAsync(CancellationToken.None);
+
         try
         {
             if (isDisposed)
@@ -569,6 +574,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     }
 
                     framesSubject.OnNext(frameReceived.Frame);
+
                     break;
 
                 case LiveDaqClientEvent.Faulted faulted:

@@ -12,6 +12,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
 {
     public TelemetryPlot? Plot;
     private bool applyingTimelineRange;
+    private bool hasPendingTelemetryLoad;
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
         AvaloniaProperty.Register<SufniTelemetryPlotView, TelemetryData?>(nameof(Telemetry));
@@ -41,12 +42,37 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
             switch (e.Property.Name)
             {
                 case nameof(Telemetry):
+                    if (!IsEffectivelyVisible)
+                    {
+                        hasPendingTelemetryLoad = true;
+                        return;
+                    }
+
                     Plot.Plot.Clear();
                     Plot.LoadTelemetryData((TelemetryData)e.NewValue);
                     break;
             }
 
             AvaPlot.Refresh();
+        };
+
+        // When the plot becomes visible again (tab switch), apply any deferred telemetry load.
+        // EffectiveViewportChanged fires when the control's effective visibility changes,
+        // including when a parent's IsVisible is toggled.
+        EffectiveViewportChanged += (_, _) =>
+        {
+            if (!IsEffectivelyVisible || !hasPendingTelemetryLoad)
+            {
+                return;
+            }
+
+            if (Telemetry is { } data && Plot is not null && AvaPlot is not null)
+            {
+                hasPendingTelemetryLoad = false;
+                Plot.Plot.Clear();
+                Plot.LoadTelemetryData(data);
+                AvaPlot.Refresh();
+            }
         };
 
         // Subscribe to shared timeline range changes for media → plot linking.

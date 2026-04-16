@@ -28,6 +28,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly ILiveDaqSharedStream? sharedStream;
     private readonly ILiveDaqCoordinator? liveDaqCoordinator;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
+
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();

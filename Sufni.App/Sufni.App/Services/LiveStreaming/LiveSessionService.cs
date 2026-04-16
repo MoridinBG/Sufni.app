@@ -54,9 +54,11 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
     private readonly AppendOnlyChunkBuffer<ImuRecord> imuRecords = new(ImuChunkSize);
     private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
-    private readonly List<double> recentTravelTimes = [];
-    private readonly List<double> recentFrontTravel = [];
-    private readonly List<double> recentRearTravel = [];
+    private readonly SlidingWindowBuffer<double> recentTravelTimes = new(MaxVelocityWindowSamples);
+    private readonly SlidingWindowBuffer<double> recentFrontTravel = new(MaxVelocityWindowSamples);
+    private readonly SlidingWindowBuffer<double> recentRearTravel = new(MaxVelocityWindowSamples);
+    private SavitzkyGolay? cachedVelocityFilter;
+    private int cachedVelocityFilterWindow;
 
     private IDisposable? framesSubscription;
     private IDisposable? statesSubscription;
@@ -144,6 +146,8 @@ internal sealed class LiveSessionService : ILiveSessionService
             recentTravelTimes.Clear();
             recentFrontTravel.Clear();
             recentRearTravel.Clear();
+            cachedVelocityFilter = null;
+            cachedVelocityFilterWindow = 0;
             statisticsTelemetry = null;
             damperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
             sessionTrackPoints = [];
@@ -695,36 +699,31 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private void AppendRecentTravelSample(double timeOffset, double frontTravel, double rearTravel)
     {
-        recentTravelTimes.Add(timeOffset);
-        recentFrontTravel.Add(frontTravel);
-        recentRearTravel.Add(rearTravel);
-
-        while (recentTravelTimes.Count > MaxVelocityWindowSamples)
-        {
-            recentTravelTimes.RemoveAt(0);
-            recentFrontTravel.RemoveAt(0);
-            recentRearTravel.RemoveAt(0);
-        }
+        recentTravelTimes.Append(timeOffset);
+        recentFrontTravel.Append(frontTravel);
+        recentRearTravel.Append(rearTravel);
     }
 
-    private static double[] ComputeVelocityAppend(IReadOnlyList<double> times, IReadOnlyList<double> travel, int batchCount)
+    private double[] ComputeVelocityAppend(IReadOnlyList<double> times, IReadOnlyList<double> travel, int batchCount)
     {
         if (times.Count < 5 || travel.Any(double.IsNaN))
         {
             return Enumerable.Repeat(double.NaN, batchCount).ToArray();
         }
 
-        // This bounded recompute still allocates and reprocesses the trailing window on each append.
-        // Keep it unchanged for now; the larger wins are the shared-stream lifecycle fix and the
-        // off-lock full-capture snapshot refactor.
         var filterWindow = Math.Min(51, times.Count);
         if (filterWindow % 2 == 0)
         {
             filterWindow--;
         }
 
-        var filter = SavitzkyGolay.Create(filterWindow, 1, 3);
-        var velocities = filter.Process(travel.ToArray(), times.ToArray());
+        if (cachedVelocityFilter is null || cachedVelocityFilterWindow != filterWindow)
+        {
+            cachedVelocityFilter = SavitzkyGolay.Create(filterWindow, 1, 3);
+            cachedVelocityFilterWindow = filterWindow;
+        }
+
+        var velocities = cachedVelocityFilter.Process(travel.ToArray(), times.ToArray());
         return velocities[^batchCount..];
     }
 

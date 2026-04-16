@@ -180,7 +180,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     {
         var timer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(LiveSessionRefreshCadence.UiRefreshIntervalMs)
+            Interval = TimeSpan.FromMilliseconds(LiveSessionRefreshCadence.GraphRefreshIntervalMs)
         };
         timer.Tick += (_, _) => FlushPendingGraphBatches();
         return timer;
