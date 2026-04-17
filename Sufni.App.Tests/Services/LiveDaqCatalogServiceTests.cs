@@ -37,6 +37,37 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
+    public void AcquireBrowse_WhenFirstStartThrows_RunsCompensatingStop_AndRetryStartsCleanly()
+    {
+        var failingDiscovery = Substitute.For<IServiceDiscovery>();
+        var shouldThrowOnStart = true;
+        failingDiscovery
+            .When(d => d.StartBrowse("_gosst._tcp"))
+            .Do(_ =>
+            {
+                if (shouldThrowOnStart)
+                {
+                    throw new InvalidOperationException("boom");
+                }
+            });
+
+        var owner = new LiveDaqBrowseOwner(failingDiscovery);
+
+        Assert.Throws<InvalidOperationException>(() => owner.AcquireBrowse());
+        failingDiscovery.Received(1).StartBrowse("_gosst._tcp");
+        failingDiscovery.Received(1).StopBrowse();
+
+        shouldThrowOnStart = false;
+        failingDiscovery.ClearReceivedCalls();
+
+        var lease = owner.AcquireBrowse();
+        failingDiscovery.Received(1).StartBrowse("_gosst._tcp");
+
+        lease.Dispose();
+        failingDiscovery.Received(1).StopBrowse();
+    }
+
+    [Fact]
     public async Task Observe_AddsBoardIdEnrichedEntry_WhenServiceAdded()
     {
         var boardId = Guid.NewGuid();
