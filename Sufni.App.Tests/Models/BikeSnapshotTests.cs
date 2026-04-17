@@ -1,3 +1,4 @@
+using System;
 using Sufni.App.Models;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
@@ -7,50 +8,56 @@ namespace Sufni.App.Tests.Models;
 public class BikeSnapshotTests
 {
     [Fact]
-    public void RearSuspension_ReturnsNull_ForHardtailSnapshot()
+    public void From_CopiesRawRearSuspensionFields_ForHardtailBike()
     {
-        var snapshot = TestSnapshots.Bike();
+        var bike = new Bike(Guid.NewGuid(), "hardtail")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            RearSuspensionKind = RearSuspensionKind.None,
+            Updated = 3,
+        };
 
-        Assert.Null(snapshot.RearSuspension);
-        Assert.Null(snapshot.RearSuspensionError);
+        var snapshot = BikeSnapshot.From(bike);
+
+        Assert.Equal(RearSuspensionKind.None, snapshot.RearSuspensionKind);
+        Assert.Null(snapshot.Linkage);
+        Assert.Null(snapshot.LeverageRatio);
+        Assert.Equal(3, snapshot.Updated);
     }
 
     [Fact]
-    public void TryResolveRearSuspension_ReturnsNull_ForHardtailSnapshot()
-    {
-        var snapshot = TestSnapshots.Bike();
-
-        var success = snapshot.TryResolveRearSuspension(out var rearSuspension, out var errorMessage);
-
-        Assert.True(success);
-        Assert.Null(rearSuspension);
-        Assert.Null(errorMessage);
-    }
-
-    [Fact]
-    public void TryResolveRearSuspension_ReturnsLeverageRatioRearSuspension_WhenSnapshotMatchesKind()
+    public void From_CopiesRawLeverageRatioPayload()
     {
         var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50));
-        var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio);
+        var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio, shockStroke: 20, updated: 7);
 
-        var success = snapshot.TryResolveRearSuspension(out var rearSuspension, out var errorMessage);
-
-        Assert.True(success);
-        Assert.Null(errorMessage);
-        var resolved = Assert.IsType<LeverageRatioRearSuspension>(rearSuspension);
-        Assert.Equal(leverageRatio.Points, resolved.LeverageRatio.Points);
+        Assert.Equal(RearSuspensionKind.LeverageRatio, snapshot.RearSuspensionKind);
+        Assert.Null(snapshot.Linkage);
+        Assert.NotNull(snapshot.LeverageRatio);
+        Assert.Equal(leverageRatio.Points, snapshot.LeverageRatio!.Points);
+        Assert.Equal(20, snapshot.ShockStroke);
+        Assert.Equal(7, snapshot.Updated);
     }
 
     [Fact]
-    public void RearSuspension_ReturnsLeverageRatioRearSuspension_WhenSnapshotMatchesKind()
+    public void From_PreservesKindPayloadMismatch_WithoutNormalization()
     {
-        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50));
-        var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio);
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
+        var bike = new Bike(Guid.NewGuid(), "mismatched")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            LeverageRatio = leverageRatio,
+            Updated = 1,
+        };
 
-        var resolved = Assert.IsType<LeverageRatioRearSuspension>(snapshot.RearSuspension);
+        var snapshot = BikeSnapshot.From(bike);
 
-        Assert.Equal(leverageRatio.Points, resolved.LeverageRatio.Points);
-        Assert.Null(snapshot.RearSuspensionError);
+        Assert.Equal(RearSuspensionKind.Linkage, snapshot.RearSuspensionKind);
+        Assert.Null(snapshot.Linkage);
+        Assert.Same(leverageRatio, snapshot.LeverageRatio);
     }
 
     [Fact]
