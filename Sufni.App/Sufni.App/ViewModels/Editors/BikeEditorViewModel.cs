@@ -782,6 +782,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         ResetOutgoingPayload(oldValue);
         SetRearSuspensionLoadError(null);
 
+        if (newValue == BikeRearSuspensionMode.None)
+        {
+            ShockStroke = null;
+        }
+
         if (newValue == BikeRearSuspensionMode.Linkage)
         {
             EnsureLinkageSeeded();
@@ -811,12 +816,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         {
             BikeRearSuspensionMode.None => false,
             BikeRearSuspensionMode.Linkage =>
-                acceptedRearSuspensionState is BikeRearSuspensionEditorState.Linkage ||
                 CreateCurrentLinkage() is not null ||
                 ImageCanvas.Image is not null ||
                 Chainstay is not null,
             BikeRearSuspensionMode.LeverageRatio =>
-                acceptedRearSuspensionState is BikeRearSuspensionEditorState.LeverageRatio ||
                 LeverageRatioEditor.BuildCurrent() is not null,
             _ => false,
         };

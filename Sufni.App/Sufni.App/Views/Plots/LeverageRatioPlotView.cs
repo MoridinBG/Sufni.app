@@ -38,6 +38,10 @@ public class LeverageRatioPlotView : SufniPlotView
             {
                 Plot.LoadLeverageRatioData(leverageRatioData);
             }
+            else
+            {
+                Plot.Plot.Axes.AutoScale();
+            }
 
             AvaPlot.Refresh();
         };
