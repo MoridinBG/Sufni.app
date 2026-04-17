@@ -250,35 +250,6 @@ public class Bike : Synchronizable
         }
     }
 
-    public bool TryResolveRearSuspension(out RearSuspension? rearSuspension, out string? errorMessage)
-    {
-        switch (RearSuspensionResolver.Resolve(RearSuspensionKind, Linkage, LeverageRatio))
-        {
-            case RearSuspensionResolution.Hardtail:
-                rearSuspension = null;
-                errorMessage = null;
-                return true;
-
-            case RearSuspensionResolution.Linkage(var linkage):
-                rearSuspension = linkage;
-                errorMessage = null;
-                return true;
-
-            case RearSuspensionResolution.LeverageRatio(var leverageRatio):
-                rearSuspension = leverageRatio;
-                errorMessage = null;
-                return true;
-
-            case RearSuspensionResolution.Invalid invalid:
-                rearSuspension = null;
-                errorMessage = RearSuspensionResolutionMessages.ForSave(invalid.Error);
-                return false;
-
-            default:
-                throw new InvalidOperationException($"Unexpected resolver result for RearSuspensionKind={RearSuspensionKind}.");
-        }
-    }
-
     private double? CalculateChainstay()
     {
         var bottomBracket = Linkage?.Joints.FirstOrDefault(j => j.Type == JointType.BottomBracket);
