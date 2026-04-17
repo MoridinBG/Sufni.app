@@ -75,16 +75,16 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             lock (reconcileGate)
             {
                 knownBoards = records.ToDictionary(r => r.IdentityKey, StringComparer.OrdinalIgnoreCase);
+                ReconcileLocked();
             }
-            Reconcile();
         }));
         subscriptions.Add(liveDaqCatalogService.Observe().Subscribe(entries =>
         {
             lock (reconcileGate)
             {
                 catalogEntries = entries;
+                ReconcileLocked();
             }
-            Reconcile();
         }));
     }
 
@@ -102,8 +102,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         lock (reconcileGate)
         {
             catalogEntries = [];
+            ReconcileLocked();
         }
-        Reconcile();
     }
 
     public Task SelectAsync(string identityKey)
@@ -171,63 +171,57 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
     // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries
     // and publishes the result as one atomic store update so subscribers never see a transient
-    // empty catalog.
-    private void Reconcile()
+    // empty catalog. The caller must already hold reconcileGate; the store write stays inside
+    // that critical section so two concurrent reconciles cannot publish their snapshots out of
+    // order.
+    private void ReconcileLocked()
     {
-        IReadOnlyList<LiveDaqSnapshot> ordered;
-        int knownBoardCount;
-        int catalogEntryCount;
-        int onlineCount;
+        var snapshots = new Dictionary<string, LiveDaqSnapshot>(StringComparer.OrdinalIgnoreCase);
 
-        lock (reconcileGate)
+        foreach (var knownBoard in knownBoards.Values)
         {
-            var snapshots = new Dictionary<string, LiveDaqSnapshot>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var knownBoard in knownBoards.Values)
-            {
-                snapshots[knownBoard.IdentityKey] = new LiveDaqSnapshot(
-                    IdentityKey: knownBoard.IdentityKey,
-                    DisplayName: knownBoard.DisplayName,
-                    BoardId: knownBoard.BoardId,
-                    Host: null,
-                    Port: null,
-                    IsOnline: false,
-                    SetupName: knownBoard.SetupName,
-                    BikeName: knownBoard.BikeName);
-            }
-
-            foreach (var entry in catalogEntries)
-            {
-                var merged = knownBoards.TryGetValue(entry.IdentityKey, out var knownBoard)
-                    ? new LiveDaqSnapshot(
-                        IdentityKey: entry.IdentityKey,
-                        DisplayName: knownBoard.DisplayName,
-                        BoardId: entry.BoardId,
-                        Host: entry.Host,
-                        Port: entry.Port,
-                        IsOnline: true,
-                        SetupName: knownBoard.SetupName,
-                        BikeName: knownBoard.BikeName)
-                    : new LiveDaqSnapshot(
-                        IdentityKey: entry.IdentityKey,
-                        DisplayName: entry.DisplayName,
-                        BoardId: entry.BoardId,
-                        Host: entry.Host,
-                        Port: entry.Port,
-                        IsOnline: true,
-                        SetupName: null,
-                        BikeName: null);
-
-                snapshots[entry.IdentityKey] = merged;
-            }
-
-            ordered = snapshots.Values
-                .OrderBy(snapshot => snapshot.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
-            knownBoardCount = knownBoards.Count;
-            catalogEntryCount = catalogEntries.Count;
-            onlineCount = ordered.Count(snapshot => snapshot.IsOnline);
+            snapshots[knownBoard.IdentityKey] = new LiveDaqSnapshot(
+                IdentityKey: knownBoard.IdentityKey,
+                DisplayName: knownBoard.DisplayName,
+                BoardId: knownBoard.BoardId,
+                Host: null,
+                Port: null,
+                IsOnline: false,
+                SetupName: knownBoard.SetupName,
+                BikeName: knownBoard.BikeName);
         }
+
+        foreach (var entry in catalogEntries)
+        {
+            var merged = knownBoards.TryGetValue(entry.IdentityKey, out var knownBoard)
+                ? new LiveDaqSnapshot(
+                    IdentityKey: entry.IdentityKey,
+                    DisplayName: knownBoard.DisplayName,
+                    BoardId: entry.BoardId,
+                    Host: entry.Host,
+                    Port: entry.Port,
+                    IsOnline: true,
+                    SetupName: knownBoard.SetupName,
+                    BikeName: knownBoard.BikeName)
+                : new LiveDaqSnapshot(
+                    IdentityKey: entry.IdentityKey,
+                    DisplayName: entry.DisplayName,
+                    BoardId: entry.BoardId,
+                    Host: entry.Host,
+                    Port: entry.Port,
+                    IsOnline: true,
+                    SetupName: null,
+                    BikeName: null);
+
+            snapshots[entry.IdentityKey] = merged;
+        }
+
+        var ordered = snapshots.Values
+            .OrderBy(snapshot => snapshot.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        var knownBoardCount = knownBoards.Count;
+        var catalogEntryCount = catalogEntries.Count;
+        var onlineCount = ordered.Count(snapshot => snapshot.IsOnline);
 
         liveDaqStore.ReplaceAll(ordered);
 
@@ -235,8 +229,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             "Live DAQ catalog reconciled with {KnownBoardCount} known boards, {CatalogEntryCount} catalog entries, {PublishedCount} published rows, {OnlineCount} online rows, and {OfflineCount} offline rows",
             knownBoardCount,
             catalogEntryCount,
-            ordered.Count,
+            ordered.Length,
             onlineCount,
-            ordered.Count - onlineCount);
+            ordered.Length - onlineCount);
     }
 }
