@@ -188,27 +188,27 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
     {
-        if (snapshot?.Linkage is null || snapshot.Image is null) return [];
+        if (snapshot?.RearSuspension is not LinkageRearSuspension linkageRearSuspension || snapshot.Image is null) return [];
 
-        var jvms = snapshot.Linkage.Joints
+        var jvms = linkageRearSuspension.Linkage.Joints
             .Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
         return [.. jvms];
     }
 
     private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(BikeSnapshot? bike) =>
-        bike?.RearSuspensionKind switch
+        bike?.RearSuspension switch
         {
-            null or RearSuspensionKind.None => [null],
-            RearSuspensionKind.Linkage => [null, SensorType.LinearShock, SensorType.RotationalShock],
-            RearSuspensionKind.LeverageRatio => [null, SensorType.LinearShockStroke],
+            null or HardtailRearSuspension => [null],
+            LinkageRearSuspension => [null, SensorType.LinearShock, SensorType.RotationalShock],
+            LeverageRatioRearSuspension => [null, SensorType.LinearShockStroke],
             _ => [null],
         };
 
     private static string RearSuspensionDescriptionFor(BikeSnapshot? bike) =>
-        bike?.RearSuspensionKind switch
+        bike?.RearSuspension switch
         {
-            RearSuspensionKind.Linkage => "Linkage",
-            RearSuspensionKind.LeverageRatio => "Leverage ratio",
+            LinkageRearSuspension => "Linkage",
+            LeverageRatioRearSuspension => "Leverage ratio",
             _ => "Hardtail",
         };
 

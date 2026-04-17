@@ -7,6 +7,17 @@ namespace Sufni.App.Tests.Models;
 public class BikeSnapshotTests
 {
     [Fact]
+    public void RearSuspension_ReturnsHardtailRearSuspension_ForHardtailSnapshot()
+    {
+        var snapshot = TestSnapshots.Bike();
+
+        var rearSuspension = Assert.IsType<HardtailRearSuspension>(snapshot.RearSuspension);
+
+        Assert.NotNull(rearSuspension);
+        Assert.Null(snapshot.RearSuspensionError);
+    }
+
+    [Fact]
     public void TryResolveRearSuspension_ReturnsNull_ForHardtailSnapshot()
     {
         var snapshot = TestSnapshots.Bike();
@@ -30,6 +41,18 @@ public class BikeSnapshotTests
         Assert.Null(errorMessage);
         var resolved = Assert.IsType<LeverageRatioRearSuspension>(rearSuspension);
         Assert.Equal(leverageRatio.Points, resolved.LeverageRatio.Points);
+    }
+
+    [Fact]
+    public void RearSuspension_ReturnsLeverageRatioRearSuspension_WhenSnapshotMatchesKind()
+    {
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50));
+        var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio);
+
+        var resolved = Assert.IsType<LeverageRatioRearSuspension>(snapshot.RearSuspension);
+
+        Assert.Equal(leverageRatio.Points, resolved.LeverageRatio.Points);
+        Assert.Null(snapshot.RearSuspensionError);
     }
 
     [Fact]

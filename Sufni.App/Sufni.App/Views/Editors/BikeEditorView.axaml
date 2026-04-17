@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:c="using:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:editorViews="using:Sufni.App.Views.Editors"
 xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 xmlns:vm="using:Sufni.App.ViewModels.Editors"
@@ -83,14 +84,18 @@ mc:Ignorable="d">
 
         <!--  Shock stroke  -->
         <TextBlock
+        Name="ShockStrokeLabel"
         Grid.Row="4"
         Grid.Column="1"
         Margin="0,0,10,5"
+        IsVisible="{Binding HasRearSuspension}"
         Text="Shock stroke (mm)" />
         <TextBlock
+        Name="ShockStrokeValueTextBlock"
         Grid.Row="4"
         Grid.Column="2"
         Margin="0,0,0,5"
+        IsVisible="{Binding HasRearSuspension}"
         Text="{Binding ShockStroke}"
         TextAlignment="Right" />
 
@@ -112,30 +117,54 @@ mc:Ignorable="d">
         Grid.Row="6"
         Grid.Column="1"
         Margin="0,0,0,5"
-        IsVisible="{Binding WheelGeometry.HasWheels}"
-        Text="Front wheel" />
+        Text="Front wheel">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="WheelGeometry.HasWheels" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
         <TextBlock
         Grid.Row="6"
         Grid.Column="2"
         Margin="0,0,0,5"
-        IsVisible="{Binding WheelGeometry.HasWheels}"
         Text="{Binding WheelGeometry.FrontWheelDisplayText}"
-        TextAlignment="Right" />
+        TextAlignment="Right">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="WheelGeometry.HasWheels" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
 
         <!--  Rear wheel (only if configured)  -->
         <TextBlock
         Grid.Row="7"
         Grid.Column="1"
         Margin="0,0,0,5"
-        IsVisible="{Binding WheelGeometry.HasWheels}"
-        Text="Rear wheel" />
+        Text="Rear wheel">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="WheelGeometry.HasWheels" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
         <TextBlock
         Grid.Row="7"
         Grid.Column="2"
         Margin="0,0,0,5"
-        IsVisible="{Binding WheelGeometry.HasWheels}"
         Text="{Binding WheelGeometry.RearWheelDisplayText}"
-        TextAlignment="Right" />
+        TextAlignment="Right">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="WheelGeometry.HasWheels" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
 
         <StackPanel
         Grid.Row="8"
@@ -148,14 +177,18 @@ mc:Ignorable="d">
                 <TextBlock Grid.Column="1" Text="{Binding RearSuspensionModeDisplayName}" TextAlignment="Right" />
             </Grid>
 
-            <ContentControl Content="{Binding LeverageRatioEditor}" IsVisible="{Binding IsLeverageRatioMode}" />
+            <Border IsVisible="{Binding $parent[UserControl].((vm:BikeEditorViewModel)DataContext).IsLeverageRatioMode}">
+                <editorViews:LeverageRatioEditorView DataContext="{Binding LeverageRatioEditor}" />
+            </Border>
         </StackPanel>
 
         <!--  Leverage ratio plot  -->
         <Grid
+        Name="LeverageRatioPlotGrid"
         Grid.Row="9"
         Grid.Column="0"
         Grid.ColumnSpan="4"
+        IsVisible="{Binding HasRearSuspension}"
         Margin="0,10">
 
             <plots:LeverageRatioPlotView

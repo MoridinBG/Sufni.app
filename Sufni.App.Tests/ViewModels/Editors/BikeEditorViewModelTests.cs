@@ -319,6 +319,20 @@ public class BikeEditorViewModelTests
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
+    [AvaloniaFact]
+    public void SaveCommand_Enabled_WhenOnlyOneWheelIsConfigured_OnLeverageRatioBike()
+    {
+        var snapshot = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150))) with
+        {
+            FrontWheelDiameterMm = 760,
+        };
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+    }
+
     // ----- CanSave -----
 
     [AvaloniaFact]
@@ -457,6 +471,33 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("renamed", editor.Name);
         Assert.Equal(5, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_ClearsWheelState_WhenSwitchingFromLinkageToLeverageRatio()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Null(editor.WheelGeometry.FrontWheelRimSize);
+        Assert.Null(editor.WheelGeometry.FrontWheelTireWidth);
+        Assert.Null(editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Null(editor.WheelGeometry.RearWheelRimSize);
+        Assert.Null(editor.WheelGeometry.RearWheelTireWidth);
+        Assert.Null(editor.WheelGeometry.RearWheelDiameter);
     }
 
     [AvaloniaFact]
