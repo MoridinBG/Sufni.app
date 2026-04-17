@@ -153,6 +153,30 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task SaveCommand_WhenCanceled_DoesNotAppendErrorMessage()
+    {
+        liveSessionService
+            .PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>())
+            .Returns<LiveSessionCapturePackage>(_ => throw new OperationCanceledException());
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        await editor.SaveCommand.ExecuteAsync(null);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.Empty(editor.ErrorMessages);
+        await sessionCoordinator.DidNotReceive().SaveLiveCaptureAsync(
+            Arg.Any<Session>(),
+            Arg.Any<LiveSessionCapturePackage>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
     {
         var editor = CreateEditor();

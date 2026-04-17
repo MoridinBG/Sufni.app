@@ -240,6 +240,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     break;
             }
         }
+        catch (OperationCanceledException)
+        {
+        }
         catch (Exception e)
         {
             ErrorMessages.Add($"Live session could not be saved: {e.Message}");

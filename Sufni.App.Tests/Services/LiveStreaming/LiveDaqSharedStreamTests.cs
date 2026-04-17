@@ -131,6 +131,69 @@ public class LiveDaqSharedStreamTests
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
     }
 
+    [Fact]
+    public async Task EnsureStartedAsync_WhenConnectThrowsCanceled_DoesNotPublishError()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        clientFactory.ConfigureBeforeReturn = c => c.ThrowCanceledOnConnect = true;
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+
+        var result = await stream.EnsureStartedAsync();
+
+        Assert.Null(result);
+        Assert.Null(stream.CurrentState.LastError);
+        Assert.False(stream.CurrentState.IsClosed);
+    }
+
+    [Fact]
+    public async Task StopAsync_WhenDisconnectThrowsCanceled_DoesNotPublishError()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+
+        var client = clientFactory.CreatedClients.Single();
+        client.ThrowCanceledOnDisconnect = true;
+
+        await stream.StopAsync();
+
+        Assert.Null(stream.CurrentState.LastError);
+        Assert.False(stream.CurrentState.IsClosed);
+    }
+
+    [Fact]
+    public async Task ApplyConfigurationAsync_WhenDisconnectThrowsCanceled_DoesNotPublishError()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+
+        var client = clientFactory.CreatedClients.Single();
+        client.ThrowCanceledOnDisconnect = true;
+
+        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
+            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Gps,
+            TravelHz: 100,
+            ImuHz: 0,
+            GpsFixHz: 5));
+
+        Assert.Null(stream.CurrentState.LastError);
+        Assert.False(stream.CurrentState.IsClosed);
+    }
+
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
         new(clientFactory, catalogService);
 
@@ -157,9 +220,12 @@ public class LiveDaqSharedStreamTests
     {
         public List<FakeLiveDaqClient> CreatedClients { get; } = [];
 
+        public Action<FakeLiveDaqClient>? ConfigureBeforeReturn { get; set; }
+
         public ILiveDaqClient CreateClient()
         {
             var client = new FakeLiveDaqClient();
+            ConfigureBeforeReturn?.Invoke(client);
             CreatedClients.Add(client);
             return client;
         }
@@ -170,6 +236,12 @@ public class LiveDaqSharedStreamTests
         private readonly Subject<LiveDaqClientEvent> events = new();
 
         public bool FailNextStartPreview { get; set; }
+
+        public bool ThrowCanceledOnConnect { get; set; }
+
+        public bool ThrowCanceledOnStartPreview { get; set; }
+
+        public bool ThrowCanceledOnDisconnect { get; set; }
 
         public bool IsConnected { get; private set; }
 
@@ -184,12 +256,24 @@ public class LiveDaqSharedStreamTests
         public Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
         {
             ConnectCalls++;
+            if (ThrowCanceledOnConnect)
+            {
+                ThrowCanceledOnConnect = false;
+                throw new OperationCanceledException();
+            }
+
             IsConnected = true;
             return Task.CompletedTask;
         }
 
         public Task<LivePreviewStartResult> StartPreviewAsync(LiveStartRequest request, CancellationToken cancellationToken = default)
         {
+            if (ThrowCanceledOnStartPreview)
+            {
+                ThrowCanceledOnStartPreview = false;
+                throw new OperationCanceledException();
+            }
+
             if (FailNextStartPreview)
             {
                 FailNextStartPreview = false;
@@ -217,6 +301,12 @@ public class LiveDaqSharedStreamTests
         public Task DisconnectAsync(CancellationToken cancellationToken = default)
         {
             DisconnectCalls++;
+            if (ThrowCanceledOnDisconnect)
+            {
+                ThrowCanceledOnDisconnect = false;
+                throw new OperationCanceledException();
+            }
+
             IsConnected = false;
             events.OnNext(new LiveDaqClientEvent.Disconnected(null));
             return Task.CompletedTask;

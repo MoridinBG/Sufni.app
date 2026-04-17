@@ -166,7 +166,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     break;
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             return null;
         }
@@ -249,7 +249,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 SelectedSensorMask = LiveSensorMask.None,
             });
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
@@ -373,7 +373,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     break;
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
