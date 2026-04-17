@@ -19,6 +19,7 @@ public class LiveDaqDetailViewModelTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
+    private readonly LiveDaqStore liveDaqStore = new();
     private readonly Subject<LiveProtocolFrame> frames = new();
     private readonly BehaviorSubject<LiveDaqSharedStreamState> streamStates = new(LiveDaqSharedStreamState.Empty);
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
@@ -95,7 +96,8 @@ public class LiveDaqDetailViewModelTests
             liveDaqCoordinator,
             shell,
             dialogService,
-            knownBoardsQuery);
+            knownBoardsQuery,
+            liveDaqStore);
     }
 
     [AvaloniaFact]
@@ -294,8 +296,8 @@ public class LiveDaqDetailViewModelTests
 
         var coordinator1 = Substitute.For<ILiveDaqCoordinator>();
         var coordinator2 = Substitute.For<ILiveDaqCoordinator>();
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, shell, dialogService, query);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, shell, dialogService, query);
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, shell, dialogService, query, liveDaqStore);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, shell, dialogService, query, liveDaqStore);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);

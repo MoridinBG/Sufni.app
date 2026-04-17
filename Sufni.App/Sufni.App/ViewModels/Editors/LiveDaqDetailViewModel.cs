@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -20,14 +21,23 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private static readonly ILogger logger = Log.ForContext<LiveDaqDetailViewModel>();
 
     public string IdentityKey { get; }
-    public string? BoardId { get; }
-    public string? Endpoint { get; }
-    public string? SetupName { get; }
-    public string? BikeName { get; }
+
+    [ObservableProperty]
+    private string? boardId;
+
+    [ObservableProperty]
+    private string? endpoint;
+
+    [ObservableProperty]
+    private string? setupName;
+
+    [ObservableProperty]
+    private string? bikeName;
 
     private readonly ILiveDaqSharedStream? sharedStream;
     private readonly ILiveDaqCoordinator? liveDaqCoordinator;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
+    private readonly ILiveDaqStore? liveDaqStore;
 
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
@@ -77,7 +87,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         ILiveDaqCoordinator liveDaqCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService,
-        ILiveDaqKnownBoardsQuery knownBoardsQuery)
+        ILiveDaqKnownBoardsQuery knownBoardsQuery,
+        ILiveDaqStore liveDaqStore)
         : base(shell, dialogService)
     {
         IdentityKey = snapshot.IdentityKey;
@@ -89,6 +100,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         this.sharedStream = sharedStream;
         this.liveDaqCoordinator = liveDaqCoordinator;
         this.knownBoardsQuery = knownBoardsQuery;
+        this.liveDaqStore = liveDaqStore;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -366,6 +378,32 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         OnPropertyChanged(nameof(RearTravelText));
     }
 
+    private void RequestHeaderRefresh()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RefreshHeaderFromStore();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(RefreshHeaderFromStore, DispatcherPriority.Background);
+    }
+
+    private void RefreshHeaderFromStore()
+    {
+        var latest = liveDaqStore?.Get(IdentityKey);
+        if (latest is null)
+        {
+            return;
+        }
+
+        Name = latest.DisplayName;
+        BoardId = latest.BoardId;
+        Endpoint = latest.Endpoint;
+        SetupName = latest.SetupName;
+        BikeName = latest.BikeName;
+    }
+
     private void RefreshSessionAvailability(LiveConnectionState connectionState)
     {
         CanStartSession = connectionState == LiveConnectionState.Connected
@@ -454,6 +492,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                     RequestTravelProjectionRefresh();
                     RequestSessionAvailabilityRefresh();
                 }));
+            }
+
+            if (liveDaqStore is not null)
+            {
+                disposables.Add(liveDaqStore.Connect().Subscribe(_ => RequestHeaderRefresh()));
             }
         });
 

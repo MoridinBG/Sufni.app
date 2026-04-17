@@ -265,7 +265,8 @@ public class LiveDaqCoordinatorTests
             Substitute.For<ILiveDaqCoordinator>(),
             shell,
             dialogService,
-            knownBoardsQuery);
+            knownBoardsQuery,
+            liveDaqStore);
         Assert.False(capturedMatch(other));
     }
 
