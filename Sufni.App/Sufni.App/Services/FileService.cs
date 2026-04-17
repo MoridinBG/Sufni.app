@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -19,6 +21,18 @@ public class FilesService : IFilesService
     public void SetTarget(TopLevel? newTarget)
     {
         target = newTarget;
+    }
+
+    public Task OpenLogsFolderAsync()
+    {
+        AppPaths.CreateRequiredDirectories();
+
+        if (Directory.Exists(AppPaths.LogsDirectory))
+        {
+            Process.Start(new ProcessStartInfo(AppPaths.LogsDirectory) { UseShellExecute = true });
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task<IStorageFolder?> OpenDataStoreFolderAsync()

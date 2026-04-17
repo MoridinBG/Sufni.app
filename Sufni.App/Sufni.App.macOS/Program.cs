@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using Avalonia.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using Sufni.App.Coordinators;
@@ -19,6 +20,9 @@ namespace Sufni.App.macOS
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
+            LoggingBootstrapper.Initialize("macOS");
+            Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);
+
             App.ServiceCollection.AddSingleton<ISecureStorage, MacOsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
             App.ServiceCollection.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
@@ -28,7 +32,6 @@ namespace Sufni.App.macOS
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()
-                .LogToTrace()
                 .With(new SkiaOptions { UseOpacitySaveLayer = true });
         }
     }

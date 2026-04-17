@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Reactive.Subjects;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
 namespace Sufni.App.Services;
 
@@ -11,6 +12,8 @@ namespace Sufni.App.Services;
 // keeps endpoint-only rows available when board inspection fails.
 public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 {
+    private static readonly ILogger logger = Log.ForContext<LiveDaqCatalogService>();
+
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly ILiveDaqBrowseOwner browseOwner;
     private readonly ILiveDaqBoardIdInspector boardIdInspector;
@@ -49,6 +52,12 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
         var host = FormatHost(address);
         var endpoint = $"{host}:{e.Announcement.Port}";
 
+        logger.Verbose(
+            "Live DAQ found at {Endpoint} with host {Host} and port {Port}",
+            endpoint,
+            host,
+            e.Announcement.Port);
+
         lock (gate)
         {
             announcedEndpoints.Add(endpoint);
@@ -63,6 +72,8 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
         var host = FormatHost(address);
         var endpoint = $"{host}:{e.Announcement.Port}";
 
+        logger.Verbose("Live DAQ lost at {Endpoint}", endpoint);
+
         lock (gate)
         {
             announcedEndpoints.Remove(endpoint);
@@ -75,15 +86,36 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     private async System.Threading.Tasks.Task InspectAndUpsertAsync(IPAddress address, int port, string host, string endpoint)
     {
+        logger.Debug(
+            "Inspecting live DAQ catalog entry for {Endpoint} with host {Host} and port {Port}",
+            endpoint,
+            host,
+            port);
+
         string? boardId = null;
         try
         {
             boardId = (await boardIdInspector.InspectAsync(address, port).ConfigureAwait(false))?.ToString();
         }
-        catch
+        catch (Exception ex)
         {
+            logger.Verbose(ex, "Live DAQ board inspection failed for {Endpoint}", endpoint);
             // Discovery should still surface endpoint-only entries when
             // identity inspection fails.
+        }
+
+        if (boardId is null)
+        {
+            logger.Verbose(
+                "Live DAQ board inspection fell back to endpoint identity for {Endpoint}",
+                endpoint);
+        }
+        else
+        {
+            logger.Verbose(
+                "Live DAQ board inspection succeeded for {Endpoint} with board {BoardId}",
+                endpoint,
+                boardId);
         }
 
         lock (gate)
@@ -102,6 +134,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     private void PublishSnapshotLocked()
     {
+        logger.Debug("Published live DAQ catalog snapshot with {EntryCount} entries", entries.Count);
         entriesSubject.OnNext(entries.Values
             .OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToArray());

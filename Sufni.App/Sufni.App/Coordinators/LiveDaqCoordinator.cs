@@ -8,6 +8,7 @@ using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -15,6 +16,8 @@ namespace Sufni.App.Coordinators;
 // identity-keyed live preview tabs.
 public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
+
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
@@ -52,6 +55,10 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         var subscriptions = new CompositeDisposable();
         activeSubscriptions = subscriptions;
 
+        logger.Verbose(
+            "Live DAQ browse activated with {KnownBoardCount} known boards",
+            knownBoards.Count);
+
         subscriptions.Add(liveDaqCatalogService.AcquireBrowse());
         subscriptions.Add(knownBoardsQuery.Changes.Subscribe(records =>
         {
@@ -67,8 +74,14 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
     public void Deactivate()
     {
+        var wasActive = activeSubscriptions is not null;
         activeSubscriptions?.Dispose();
         activeSubscriptions = null;
+
+        if (wasActive)
+        {
+            logger.Verbose("Live DAQ browse deactivated");
+        }
 
         catalogEntries = [];
         Reconcile();
@@ -79,8 +92,17 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         var snapshot = liveDaqStore.Get(identityKey);
         if (snapshot is null)
         {
+            logger.Verbose(
+                "Live DAQ selection ignored because no snapshot was found for {IdentityKey}",
+                identityKey);
             return Task.CompletedTask;
         }
+
+        logger.Information(
+            "Opening live DAQ detail for {IdentityKey} {BoardId} {Endpoint}",
+            snapshot.IdentityKey,
+            snapshot.BoardId,
+            snapshot.Endpoint);
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
@@ -137,5 +159,15 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         {
             liveDaqStore.Upsert(snapshot);
         }
+
+        var publishedCount = snapshots.Count;
+        var onlineCount = snapshots.Values.Count(snapshot => snapshot.IsOnline);
+        logger.Verbose(
+            "Live DAQ catalog reconciled with {KnownBoardCount} known boards, {CatalogEntryCount} catalog entries, {PublishedCount} published rows, {OnlineCount} online rows, and {OfflineCount} offline rows",
+            knownBoards.Count,
+            catalogEntries.Count,
+            publishedCount,
+            onlineCount,
+            publishedCount - onlineCount);
     }
 }

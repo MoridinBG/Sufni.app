@@ -6,6 +6,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -16,6 +17,8 @@ public sealed class ImportSessionsCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     Func<ImportSessionsViewModel> importSessionsResolver) : IImportSessionsCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
+
     public Task OpenAsync()
     {
         shell.OpenOrFocus<ImportSessionsViewModel>(
@@ -30,8 +33,31 @@ public sealed class ImportSessionsCoordinator(
         Guid setupId,
         IProgress<SessionImportEvent>? progress = null)
     {
-        return await backgroundTaskRunner.RunAsync(
-            () => ImportCoreAsync(files, setupId, progress));
+        logger.Information(
+            "Starting session import for {FileCount} files and setup {SetupId}",
+            files.Count,
+            setupId);
+        logger.Verbose(
+            "Session import source is {DataStoreType}",
+            dataStore.GetType().Name);
+
+        try
+        {
+            var result = await backgroundTaskRunner.RunAsync(
+                () => ImportCoreAsync(files, setupId, progress));
+
+            logger.Information(
+                "Session import completed with {ImportedCount} imported sessions and {FailureCount} failures",
+                result.Imported.Count,
+                result.Failures.Count);
+
+            return result;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Session import failed for setup {SetupId}", setupId);
+            throw;
+        }
     }
 
     private async Task<SessionImportResult> ImportCoreAsync(
@@ -42,8 +68,10 @@ public sealed class ImportSessionsCoordinator(
         var imported = new List<SessionSnapshot>();
         var failures = new List<(string FileName, string ErrorMessage)>();
 
+        logger.Verbose("Loading setup {SetupId} for session import", setupId);
         var setup = await databaseService.GetAsync<Setup>(setupId)
             ?? throw new Exception("Setup is missing");
+        logger.Verbose("Loading bike {BikeId} for imported setup {SetupId}", setup.BikeId, setupId);
         var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
             ?? throw new Exception("Bike is missing");
 
@@ -60,11 +88,16 @@ public sealed class ImportSessionsCoordinator(
                     if (!string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage))
                     {
                         var malformedMessage = telemetryFile.MalformedMessage;
+                        logger.Warning(
+                            "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
+                            telemetryFile.Name,
+                            malformedMessage);
                         failures.Add((telemetryFile.Name, malformedMessage));
                         progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, malformedMessage));
                         continue;
                     }
 
+                    logger.Verbose("Generating processed session data for {FileName}", telemetryFile.Name);
                     var psst = await telemetryFile.GeneratePsstAsync(bikeData);
 
                     Guid? fullTrackId = null;
@@ -90,6 +123,7 @@ public sealed class ImportSessionsCoordinator(
                         FullTrack = fullTrackId
                     };
 
+                    logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
                     await databaseService.PutSessionAsync(session);
                     await telemetryFile.OnImported();
 
@@ -100,6 +134,7 @@ public sealed class ImportSessionsCoordinator(
                 }
                 catch (Exception e)
                 {
+                    logger.Warning(e, "Failed to import telemetry file {FileName}", telemetryFile.Name);
                     failures.Add((telemetryFile.Name, e.Message));
                     progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
                 }
@@ -108,10 +143,12 @@ public sealed class ImportSessionsCoordinator(
             {
                 try
                 {
+                    logger.Verbose("Trashing telemetry file {FileName}", telemetryFile.Name);
                     await telemetryFile.OnTrashed();
                 }
                 catch (Exception e)
                 {
+                    logger.Warning(e, "Failed to trash telemetry file {FileName}", telemetryFile.Name);
                     failures.Add((telemetryFile.Name, e.Message));
                     progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
                 }

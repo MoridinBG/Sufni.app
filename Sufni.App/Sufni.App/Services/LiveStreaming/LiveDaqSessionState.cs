@@ -181,12 +181,14 @@ public sealed class LiveDaqSessionState
             };
         }
 
+        var sampleOffset = CreateSampleOffset(latestTravelMonotonicUs);
         return new LiveTravelUiSnapshot(
             IsActive: isActive,
             HasData: true,
             FrontMeasurement: travel.ForkAngle,
             RearMeasurement: travel.ShockAngle,
-            SampleOffset: CreateSampleOffset(latestTravelMonotonicUs),
+            SampleOffset: sampleOffset,
+            SampleDelay: ComputeSampleDelay(sampleOffset, session.SessionStartUtc),
             QueueDepth: travelQueueDepth,
             DroppedBatches: travelDroppedBatches);
     }
@@ -213,11 +215,13 @@ public sealed class LiveDaqSessionState
                     Gy: null,
                     Gz: null,
                     SampleOffset: null,
+                    SampleDelay: null,
                     QueueDepth: imuQueueDepth,
                     DroppedBatches: imuDroppedBatches));
                 continue;
             }
 
+            var sampleOffset = CreateSampleOffset(reading.MonotonicUs);
             snapshots.Add(new LiveImuUiSnapshot(
                 Location: location,
                 HasData: true,
@@ -227,7 +231,8 @@ public sealed class LiveDaqSessionState
                 Gx: reading.Record.Gx,
                 Gy: reading.Record.Gy,
                 Gz: reading.Record.Gz,
-                SampleOffset: CreateSampleOffset(reading.MonotonicUs),
+                SampleOffset: sampleOffset,
+                SampleDelay: ComputeSampleDelay(sampleOffset, sessionHeader?.SessionStartUtc),
                 QueueDepth: imuQueueDepth,
                 DroppedBatches: imuDroppedBatches));
         }
@@ -264,6 +269,16 @@ public sealed class LiveDaqSessionState
             Epe3d: latestGps.Epe3d,
             QueueDepth: gpsQueueDepth,
             DroppedBatches: gpsDroppedBatches);
+    }
+
+    private TimeSpan? ComputeSampleDelay(TimeSpan? sampleOffset, DateTimeOffset? sessionStartUtc)
+    {
+        if (sampleOffset is null || sessionStartUtc is not { } start || lastFrameReceivedUtc is not { } lastFrame)
+        {
+            return null;
+        }
+
+        return lastFrame - (start + sampleOffset.Value);
     }
 
     private TimeSpan? CreateSampleOffset(ulong? monotonicUs)

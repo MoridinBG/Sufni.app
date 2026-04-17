@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
 using Sufni.App.Services;
 using SecureStorageDictionary = System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>;
 
@@ -12,6 +13,8 @@ namespace Sufni.App.Windows;
 
 public class WindowsSecureStorage : ISecureStorage
 {
+    private static readonly ILogger logger = Log.ForContext<WindowsSecureStorage>();
+
     private static readonly byte[] AdditionalEntropy =
     {
         255, 142, 117, 232, 132, 170, 82, 12, 29, 74, 234, 221, 173, 25, 155, 158,
@@ -40,7 +43,10 @@ public class WindowsSecureStorage : ISecureStorage
     private async Task InitAsync()
     {
         if (!File.Exists(AppSecureStoragePath))
+        {
+            logger.Verbose("Windows secure storage started without an existing preferences file");
             return;
+        }
 
         try
         {
@@ -55,9 +61,12 @@ public class WindowsSecureStorage : ISecureStorage
                     secureStorage.TryAdd(pair.Key, pair.Value);
                 }
             }
+
+            logger.Verbose("Windows secure storage loaded {EntryCount} entries", secureStorage.Count);
         }
         catch (JsonException)
         {
+            logger.Warning("Windows secure storage preferences file could not be deserialized; continuing with empty storage");
             // if deserialization fails proceed with empty settings
         }
     }
@@ -72,6 +81,7 @@ public class WindowsSecureStorage : ISecureStorage
 
         await using var stream = File.Create(AppSecureStoragePath);
         await JsonSerializer.SerializeAsync(stream, secureStorage);
+        logger.Verbose("Windows secure storage persisted {EntryCount} entries", secureStorage.Count);
     }
 
     public async Task<byte[]?> GetAsync(string key)
@@ -152,5 +162,6 @@ public class WindowsSecureStorage : ISecureStorage
 
         secureStorage.Clear();
         await SaveAsync();
+        logger.Verbose("Windows secure storage cleared all entries");
     }
 }

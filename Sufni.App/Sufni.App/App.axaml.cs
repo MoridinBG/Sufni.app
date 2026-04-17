@@ -36,6 +36,8 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        LoggingBootstrapper.InstallGlobalExceptionHooks();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
             ServiceCollection.AddSingleton<IMainWindowShellHost>(sp =>
@@ -160,6 +162,7 @@ public partial class App : Application
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
+                desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
                 singleViewPlatform.MainView = new MainView

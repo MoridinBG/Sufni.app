@@ -7,6 +7,7 @@ using Android.Security.Keystore;
 using Java.Security;
 using Javax.Crypto;
 using Javax.Crypto.Spec;
+using Serilog;
 using Sufni.App.Services;
 
 namespace Sufni.App.Android;
@@ -15,6 +16,8 @@ public class SecureStorageException : Exception;
 
 public class AndroidSecureStorage : ISecureStorage
 {
+    private static readonly ILogger logger = Log.ForContext<AndroidSecureStorage>();
+
     private const string KeyAlias = "sufni.app.android.keystore.aes";
     private const string PrefName = "sufni.app.prefs";
 
@@ -33,7 +36,11 @@ public class AndroidSecureStorage : ISecureStorage
         Debug.Assert(keyStore is not null);
         keyStore.Load(null);
 
-        if (keyStore.ContainsAlias(KeyAlias)) return;
+        if (keyStore.ContainsAlias(KeyAlias))
+        {
+            logger.Verbose("Android secure storage found an existing keystore key");
+            return;
+        }
         var keyGenerator = KeyGenerator.GetInstance(KeyProperties.KeyAlgorithmAes, "AndroidKeyStore");
         Debug.Assert(keyGenerator is not null);
 
@@ -46,6 +53,7 @@ public class AndroidSecureStorage : ISecureStorage
 
         keyGenerator.Init(builder.Build());
         keyGenerator.GenerateKey();
+        logger.Verbose("Android secure storage generated a new keystore key");
     }
 
     private static ISecretKey? GetSecretKey()
@@ -78,8 +86,9 @@ public class AndroidSecureStorage : ISecureStorage
             cipher?.Init(CipherMode.DecryptMode, GetSecretKey(), spec);
             return cipher?.DoFinal(ciphertext);
         }
-        catch
+        catch (Exception ex)
         {
+            logger.Warning(ex, "Android secure storage failed to decrypt a stored value");
             return null;
         }
     }
@@ -110,13 +119,19 @@ public class AndroidSecureStorage : ISecureStorage
         {
             editor?.Remove(key + "_iv");
             editor?.Remove(key + "_ct");
+            logger.Verbose("Android secure storage removed a value");
         }
         else
         {
             var (iv, ct) = Encrypt(value);
-            if (iv is null || ct == null) return Task.FromException(new SecureStorageException());
+            if (iv is null || ct == null)
+            {
+                logger.Error("Android secure storage failed to encrypt a value");
+                return Task.FromException(new SecureStorageException());
+            }
             editor?.PutString(key + "_iv", Convert.ToBase64String(iv));
             editor?.PutString(key + "_ct", Convert.ToBase64String(ct));
+            logger.Verbose("Android secure storage stored a binary value");
         }
 
         editor?.Apply();
@@ -142,6 +157,7 @@ public class AndroidSecureStorage : ISecureStorage
         var editor = prefs?.Edit();
         editor?.Clear();
         editor?.Apply();
+        logger.Verbose("Android secure storage removed all values");
         return Task.CompletedTask;
     }
 }

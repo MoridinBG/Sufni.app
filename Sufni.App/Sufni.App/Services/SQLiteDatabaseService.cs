@@ -7,37 +7,53 @@ using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
 using Sufni.Telemetry;
+using Serilog;
 
 namespace Sufni.App.Services;
 
 public class SqLiteDatabaseService : IDatabaseService
 {
+    private static readonly ILogger logger = Log.ForContext<SqLiteDatabaseService>();
+
     private Task Initialization { get; }
     private readonly SQLiteAsyncConnection connection;
 
     public SqLiteDatabaseService()
     {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sufni.App");
-        if (!Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        connection = new SQLiteAsyncConnection(Path.Combine(dir, "sst.db"));
+        AppPaths.CreateRequiredDirectories();
+        connection = new SQLiteAsyncConnection(AppPaths.DatabasePath);
         Initialization = Init();
     }
 
     private async Task Init()
     {
-        if (connection == null)
+        try
         {
-            throw new Exception("Database connection failed!");
+            if (connection == null)
+            {
+                throw new Exception("Database connection failed!");
+            }
+
+            await connection.EnableWriteAheadLoggingAsync();
+            await CreateTablesAsync();
+
+            var cleanupSummary = await Cleanup();
+            logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
+            logger.Verbose(
+                "SQLite startup cleanup removed {SessionCacheCount} session caches, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+                cleanupSummary.SessionCaches,
+                cleanupSummary.Sessions,
+                cleanupSummary.Tracks,
+                cleanupSummary.Boards,
+                cleanupSummary.Setups,
+                cleanupSummary.Bikes,
+                cleanupSummary.PairedDevices);
         }
-
-        await connection.EnableWriteAheadLoggingAsync();
-        await CreateTablesAsync();
-
-        await Cleanup();
+        catch (Exception ex)
+        {
+            logger.Error(ex, "SQLite database initialization failed at {DatabasePath}", AppPaths.DatabasePath);
+            throw;
+        }
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "All persisted entity types are statically referenced in this table list.")]
@@ -85,7 +101,16 @@ public class SqLiteDatabaseService : IDatabaseService
         return connection.DeleteAsync(entity);
     }
 
-    private async Task Cleanup()
+    private sealed record CleanupSummary(
+        int SessionCaches,
+        int Sessions,
+        int Tracks,
+        int Boards,
+        int Setups,
+        int Bikes,
+        int PairedDevices);
+
+    private async Task<CleanupSummary> Cleanup()
     {
         var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
 
@@ -97,13 +122,22 @@ public class SqLiteDatabaseService : IDatabaseService
                                            WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
                                        )
                                        """;
-        await connection.ExecuteAsync(cleanSessionCachesQuery);
-        await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
-        await connection.Table<Track>().DeleteAsync(t => t.Deleted != null && t.Deleted < oneDayAgo);
-        await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
-        await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
-        await connection.Table<Bike>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
-        await connection.Table<PairedDevice>().DeleteAsync(pd => pd.Expires < DateTime.UtcNow);
+        var deletedSessionCaches = await connection.ExecuteAsync(cleanSessionCachesQuery);
+        var deletedSessions = await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
+        var deletedTracks = await connection.Table<Track>().DeleteAsync(t => t.Deleted != null && t.Deleted < oneDayAgo);
+        var deletedBoards = await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
+        var deletedSetups = await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
+        var deletedBikes = await connection.Table<Bike>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
+        var deletedPairedDevices = await connection.Table<PairedDevice>().DeleteAsync(pd => pd.Expires < DateTime.UtcNow);
+
+        return new CleanupSummary(
+            deletedSessionCaches,
+            deletedSessions,
+            deletedTracks,
+            deletedBoards,
+            deletedSetups,
+            deletedBikes,
+            deletedPairedDevices);
     }
 
     public async Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : Synchronizable, new()

@@ -55,9 +55,9 @@ mc:Ignorable="d">
                             IsVisible="{Binding Snapshot.HasLastError}"
                             Text="{Binding Snapshot.LastError}" />
                             <TextBlock
-                            x:Name="LastFrameTextBlock"
+                            x:Name="SessionLengthTextBlock"
                             Opacity="0.7"
-                            Text="{Binding Snapshot.LastFrameReceivedUtc, StringFormat='Last frame: {0:HH:mm:ss}'}" />
+                            Text="{Binding Snapshot.SessionLengthText}" />
                         </StackPanel>
                     </Border>
 
@@ -79,8 +79,8 @@ mc:Ignorable="d">
                             </Grid>
 
                             <Grid ColumnDefinitions="* *" ColumnSpacing="8">
-                                <Button x:Name="ConnectButton" Grid.Column="0" Command="{Binding ConnectCommand}" Content="Connect" />
-                                <Button x:Name="DisconnectButton" Grid.Column="1" Command="{Binding DisconnectCommand}" Content="Disconnect" />
+                                <Button x:Name="ConnectButton" Grid.Column="0" Command="{Binding ConnectCommand}" Content="Connect" IsEnabled="{Binding Snapshot.CanConnect}" />
+                                <Button x:Name="DisconnectButton" Grid.Column="1" Command="{Binding DisconnectCommand}" Content="Disconnect" IsEnabled="{Binding Snapshot.CanDisconnect}" />
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -108,13 +108,15 @@ mc:Ignorable="d">
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="8">
-                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel" />
-                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
-                        <Grid ColumnDefinitions="* *" ColumnSpacing="12">
-                            <TextBlock x:Name="FrontTravelTextBlock" Grid.Column="0" Text="{Binding FrontTravelText}" />
-                            <TextBlock x:Name="RearTravelTextBlock" Grid.Column="1" Text="{Binding RearTravelText}" />
-                        </Grid>
-                        <TextBlock x:Name="TravelHealthTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel"
+                                   ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleDelayText}" />
+                        <Border Padding="10" Background="{StaticResource SufniRegion}" CornerRadius="6">
+                            <TextBlock x:Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
+                        </Border>
+                        <Border Padding="10" Background="{StaticResource SufniRegion}" CornerRadius="6">
+                            <TextBlock x:Name="RearTravelTextBlock" Text="{Binding RearTravelText}" />
+                        </Border>
                     </StackPanel>
                 </Border>
 
@@ -136,10 +138,30 @@ mc:Ignorable="d">
                                     Background="{StaticResource SufniRegion}"
                                     CornerRadius="6">
                                         <StackPanel Spacing="4">
-                                            <TextBlock FontWeight="SemiBold" Text="{Binding Location}" />
-                                            <TextBlock Text="{Binding Ax, StringFormat='Acc: {0}'}" />
-                                            <TextBlock Text="{Binding Gx, StringFormat='Gyro: {0}'}" />
-                                            <TextBlock Opacity="0.7" Text="{Binding SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Location}"
+                                                       ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
+                                            <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowDefinitions="Auto, Auto" ColumnSpacing="4" RowSpacing="2">
+                                                <Grid.Styles>
+                                                    <Style Selector="TextBlock">
+                                                        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono" />
+                                                    </Style>
+                                                </Grid.Styles>
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Acc" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="x:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Ax}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="0" Grid.Column="3" Text="y:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="4" Text="{Binding Ay}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="0" Grid.Column="5" Text="z:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="6" Text="{Binding Az}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Gyro" />
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="x:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Gx}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="3" Text="y:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding Gy}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="5" Text="z:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="6" Text="{Binding Gz}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <TextBlock Opacity="0.7" Text="{Binding SampleDelayText}" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -154,7 +176,8 @@ mc:Ignorable="d">
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="8">
-                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="GPS" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="GPS"
+                                   ToolTip.Tip="{Binding Snapshot.Gps.QueueDepth, StringFormat='Queue depth: {0}'}" />
                         <TextBlock x:Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />
                         <TextBlock x:Name="GpsCoordinatesTextBlock" Text="{Binding Snapshot.Gps.Latitude, StringFormat='Lat: {0:F4}'}" />
                         <TextBlock x:Name="GpsLongitudeTextBlock" Text="{Binding Snapshot.Gps.Longitude, StringFormat='Lon: {0:F4}'}" />

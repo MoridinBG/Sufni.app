@@ -70,6 +70,32 @@ public class LiveDaqDetailDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_ConnectButton_DisabledWhenConnected()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Connected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(mounted.View.FindControl<Button>("ConnectButton")!.IsEnabled);
+        Assert.True(mounted.View.FindControl<Button>("DisconnectButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_DisconnectButton_DisabledWhenDisconnected()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(mounted.View.FindControl<Button>("ConnectButton")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<Button>("DisconnectButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
     public async Task LiveDaqDetailDesktopView_ImuAndGpsSections_DisplaySnapshotContent()
     {
         var editor = CreateEditor();
@@ -125,11 +151,11 @@ public class LiveDaqDetailDesktopViewTests
                 SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
                 Flags: LiveSessionFlags.CalibratedOnly,
                 ActiveImuLocations: [LiveImuLocation.Frame, LiveImuLocation.Rear]),
-            Travel: new LiveTravelUiSnapshot(true, true, 112, 205, TimeSpan.FromSeconds(1.25), 3, 1),
+            Travel: new LiveTravelUiSnapshot(true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
             Imus:
             [
-                new LiveImuUiSnapshot(LiveImuLocation.Frame, true, 10, 11, 12, 13, 14, 15, TimeSpan.FromSeconds(1.25), 4, 2),
-                new LiveImuUiSnapshot(LiveImuLocation.Rear, true, 20, 21, 22, 23, 24, 25, TimeSpan.FromSeconds(1.25), 4, 2)
+                new LiveImuUiSnapshot(LiveImuLocation.Frame, true, 10, 11, 12, 13, 14, 15, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(38), 4, 2),
+                new LiveImuUiSnapshot(LiveImuLocation.Rear, true, 20, 21, 22, 23, 24, 25, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(38), 4, 2)
             ],
             Gps: new LiveGpsUiSnapshot(
                 IsActive: true,

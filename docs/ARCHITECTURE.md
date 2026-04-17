@@ -220,6 +220,42 @@ Topics in [docs/architecture/live-streaming.md](docs/architecture/live-streaming
 
 ---
 
+## Live DAQ Streaming
+
+The live preview feature streams real-time telemetry from a connected DAQ device to the desktop app over a framed TCP protocol. It is intentionally separate from the import pipeline: it has its own discovery catalog, browse ownership, runtime-only store, and per-tab transport clients. The feature activates only when the user selects the Live primary page, and each detail tab owns an independent connection that disconnects on tab close.
+
+```
+mDNS announcement
+  -> LiveDaqCatalogService (probe board ID)
+    -> LiveDaqCoordinator.Reconcile (merge with known boards)
+      -> LiveDaqStore.Upsert
+        -> DynamicData -> LiveDaqListViewModel -> UI
+
+User selects row
+  -> LiveDaqCoordinator.SelectAsync
+    -> shell.OpenOrFocus<LiveDaqDetailViewModel>
+
+Tab loads -> LiveDaqClient.ConnectAsync -> StartPreviewAsync
+  -> receive loop parses frames -> LiveDaqSessionState.ApplyFrame
+    -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+
+Tab closes -> Unloaded -> DisconnectAsync -> TCP closed
+```
+
+Topics in [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md):
+
+- [Overview](docs/architecture/live-streaming.md#overview) — feature scope, architecture diagram, data flow
+- [Live Wire Protocol](docs/architecture/live-streaming.md#live-wire-protocol) — 16-byte frame header, frame types, start handshake, result codes
+- [Transport Layer](docs/architecture/live-streaming.md#transport-layer) — protocol reader, client lifecycle, session state accumulator
+- [Discovery & Catalog](docs/architecture/live-streaming.md#discovery--catalog) — browse ownership, board-ID inspector, catalog service
+- [Known-Board Query](docs/architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
+- [Runtime Store](docs/architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
+- [Coordinator](docs/architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
+- [View Models](docs/architecture/live-streaming.md#view-models) — list, row, detail tab lifecycle
+- [Design Decisions](docs/architecture/live-streaming.md#design-decisions) — separation from import, per-tab clients, throttled UI, lease-based browse
+
+---
+
 ## Persistence & Serialization
 
 SQLite via `sqlite-net-pcl` with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata and the MessagePack telemetry blob are split across separate operations so the blob isn't dragged through metadata-only writes.

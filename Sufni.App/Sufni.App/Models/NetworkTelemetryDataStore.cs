@@ -5,11 +5,14 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace Sufni.App.Models;
 
 public class NetworkTelemetryDataStore : ITelemetryDataStore
 {
+    private static readonly ILogger logger = Log.ForContext<NetworkTelemetryDataStore>();
+
     private const int BoardIdSize = 8;
     private const int SampleRateSize = 2;
     private const int DirectoryHeaderSize = BoardIdSize + SampleRateSize;
@@ -44,9 +47,9 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                     TimeSpan.FromMilliseconds(entry.DurationMilliseconds));
                 files.Add(f);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // we don't care, the invalid file just simply won't show up in the list
+                logger.Warning(ex, "Skipping invalid network file entry {Name}", entry.Name);
             }
         }
 

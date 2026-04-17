@@ -3,11 +3,14 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace Sufni.App.Models;
 
 public static class SstTcpClient
 {
+    private static readonly ILogger logger = Log.ForContext(typeof(SstTcpClient));
+
     public static async Task<byte[]> GetFile(IPEndPoint ipEndPoint, int fileId)
     {
         using Socket client = new(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -44,7 +47,13 @@ public static class SstTcpClient
             var read = client.Receive(buffer, totalRead, size - totalRead, SocketFlags.None);
             if (read == 0)
             {
-                throw new Exception("Server closed connection while receiveing data.");
+                logger.Warning(
+                    "Server at {Endpoint} closed connection while receiving file {FileId} ({TotalRead}/{Size} bytes)",
+                    ipEndPoint,
+                    fileId,
+                    totalRead,
+                    size);
+                throw new Exception("Server closed connection while receiving data.");
             }
             totalRead += read;
         } while (totalRead != size);
