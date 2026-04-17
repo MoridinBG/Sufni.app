@@ -33,14 +33,14 @@ public class LeverageRatioPlotView : SufniPlotView
                 return;
             }
 
-            Plot.Plot.Clear();
             if (e.NewValue is CoordinateList leverageRatioData)
             {
+                Plot.Plot.Clear();
                 Plot.LoadLeverageRatioData(leverageRatioData);
             }
             else
             {
-                Plot.Plot.Axes.AutoScale();
+                Plot.Reset();
             }
 
             AvaPlot.Refresh();
@@ -51,5 +51,14 @@ public class LeverageRatioPlotView : SufniPlotView
     {
         Debug.Assert(AvaPlot != null);
         Plot = new LeverageRatioPlot(AvaPlot.Plot);
+
+        if (LeverageRatioData is CoordinateList leverageRatioData)
+        {
+            Plot.LoadLeverageRatioData(leverageRatioData);
+        }
+        else
+        {
+            Plot.Reset();
+        }
     }
 }
