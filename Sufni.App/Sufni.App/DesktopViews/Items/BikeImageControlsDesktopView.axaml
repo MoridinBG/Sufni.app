@@ -32,10 +32,14 @@ mc:Ignorable="d">
         </Style>
     </UserControl.Styles>
 
+    <ScrollViewer
+    HorizontalScrollBarVisibility="Disabled"
+    VerticalScrollBarVisibility="Auto">
+
     <Grid
     Margin="10"
     ColumnDefinitions="auto *"
-    RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto * auto * auto auto auto auto auto auto">
+    RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto">
 
         <!--  Name  -->
         <TextBlock
@@ -610,4 +614,5 @@ mc:Ignorable="d">
         Command="{Binding SaveCommand}"
         Content="Save" />
     </Grid>
+    </ScrollViewer>
 </UserControl>
