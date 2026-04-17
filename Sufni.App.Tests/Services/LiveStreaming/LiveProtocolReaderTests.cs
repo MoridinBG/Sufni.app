@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.Telemetry;
 
@@ -96,6 +97,66 @@ public class LiveProtocolReaderTests
     }
 
     [Fact]
+    public void TryReadFrame_ThrowsWhenPayloadLengthExceedsMaximum()
+    {
+        var reader = new LiveProtocolReader();
+        var header = CreateRawFrameHeader(
+            frameType: (LiveFrameType)0xFFFF,
+            payloadLength: (uint)(LiveProtocolConstants.MaxPayloadLength + 1),
+            sequence: 1);
+
+        reader.Append(header);
+
+        Assert.Throws<FormatException>(() => reader.TryReadFrame(out _));
+    }
+
+    [Fact]
+    public void TryReadFrame_SkipsUnknownFrameType_AndReturnsNextKnownFrame()
+    {
+        var reader = new LiveProtocolReader();
+        var unknownFrame = CreateRawFrameHeader(
+            frameType: (LiveFrameType)0xFFFF,
+            payloadLength: 0,
+            sequence: 1);
+        var knownFrame = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 2, result: LiveStartErrorCode.Ok);
+
+        reader.Append(unknownFrame);
+        reader.Append(knownFrame);
+
+        Assert.True(reader.TryReadFrame(out var frame));
+        var ack = Assert.IsType<LiveStartAckFrame>(frame);
+        Assert.Equal((uint)2, ack.Sequence);
+        Assert.Equal(0, reader.BufferedByteCount);
+    }
+
+    [Fact]
+    public void ParseFrame_GpsBatch_SkipsRecordsWithInvalidDate()
+    {
+        var valid = new GpsRecord(
+            Timestamp: new DateTime(2026, 3, 14, 12, 34, 56, 789, DateTimeKind.Utc),
+            Latitude: 48.2082,
+            Longitude: 16.3738,
+            Altitude: 182.5f,
+            Speed: 7.25f,
+            Heading: 128.5f,
+            FixMode: 2,
+            Satellites: 10,
+            Epe2d: 1.1f,
+            Epe3d: 2.2f);
+
+        var frameBytes = CreateGpsBatchFrameWithInvalidLeadingRecord(
+            sequence: 9,
+            sessionId: 88,
+            validRecord: valid);
+
+        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+
+        var decoded = Assert.Single(frame.Records);
+        Assert.Equal(valid.Timestamp, decoded.Timestamp);
+        Assert.Equal(valid.Latitude, decoded.Latitude);
+    }
+
+    [Fact]
     public void ParseFrame_ReturnsGpsBatchFrame_WithDecodedGpsRecord()
     {
         var record = new GpsRecord(
@@ -120,5 +181,48 @@ public class LiveProtocolReaderTests
         Assert.Equal(record.Longitude, decoded.Longitude);
         Assert.Equal(record.FixMode, decoded.FixMode);
         Assert.Equal(record.Satellites, decoded.Satellites);
+    }
+
+    private static byte[] CreateRawFrameHeader(LiveFrameType frameType, uint payloadLength, uint sequence)
+    {
+        var header = new byte[LiveProtocolConstants.FrameHeaderSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), LiveProtocolConstants.Magic);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), LiveProtocolConstants.Version);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(6, 2), (ushort)frameType);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8, 4), payloadLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(12, 4), sequence);
+        return header;
+    }
+
+    private static byte[] CreateGpsBatchFrameWithInvalidLeadingRecord(uint sequence, uint sessionId, GpsRecord validRecord)
+    {
+        const int records = 2;
+        var payload = new byte[LiveProtocolConstants.BatchHeaderSize + records * LiveProtocolConstants.GpsRecordSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), 0);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(16, 8), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), records);
+
+        // First record: date=0, simulating no-fix firmware output.
+        // Record bytes are already zeroed by allocation.
+
+        var validOffset = LiveProtocolConstants.BatchHeaderSize + LiveProtocolConstants.GpsRecordSize;
+        var timestamp = validRecord.Timestamp.ToUniversalTime();
+        var date = (uint)(timestamp.Year * 10000 + timestamp.Month * 100 + timestamp.Day);
+        var timeMs = (uint)timestamp.TimeOfDay.TotalMilliseconds;
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(validOffset + 0, 4), date);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(validOffset + 4, 4), timeMs);
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(validOffset + 8, 8), BitConverter.DoubleToInt64Bits(validRecord.Latitude));
+        BinaryPrimitives.WriteInt64LittleEndian(payload.AsSpan(validOffset + 16, 8), BitConverter.DoubleToInt64Bits(validRecord.Longitude));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 24, 4), BitConverter.SingleToInt32Bits(validRecord.Altitude));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 28, 4), BitConverter.SingleToInt32Bits(validRecord.Speed));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 32, 4), BitConverter.SingleToInt32Bits(validRecord.Heading));
+        payload[validOffset + 36] = validRecord.FixMode;
+        payload[validOffset + 37] = validRecord.Satellites;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 38, 4), BitConverter.SingleToInt32Bits(validRecord.Epe2d));
+        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 42, 4), BitConverter.SingleToInt32Bits(validRecord.Epe3d));
+
+        return LiveProtocolReader.CreateFrame(LiveFrameType.GpsBatch, sequence, payload);
     }
 }
