@@ -81,9 +81,7 @@ public sealed record LiveSessionControlState(
     uint TravelDroppedBatches,
     uint ImuDroppedBatches,
     uint GpsDroppedBatches,
-    bool CanSave,
-    bool IsSaving,
-    bool IsResetting)
+    bool CanSave)
 {
     public string ConnectionStateText => $"State: {ConnectionState}";
     public string CaptureDurationText => $"Capture: {CaptureDuration:g}";
@@ -106,7 +104,5 @@ public sealed record LiveSessionControlState(
         TravelDroppedBatches: 0,
         ImuDroppedBatches: 0,
         GpsDroppedBatches: 0,
-        CanSave: false,
-        IsSaving: false,
-        IsResetting: false);
+        CanSave: false);
 }

@@ -242,9 +242,7 @@ public class LiveSessionDetailViewModelTests
                 TravelDroppedBatches: 0,
                 ImuDroppedBatches: 0,
                 GpsDroppedBatches: 0,
-                CanSave: canSave,
-                IsSaving: false,
-                IsResetting: false),
+                CanSave: canSave),
             CaptureRevision: canSave ? 1 : 0);
     }
 

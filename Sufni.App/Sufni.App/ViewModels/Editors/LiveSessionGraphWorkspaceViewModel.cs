@@ -7,25 +7,22 @@ namespace Sufni.App.ViewModels.Editors;
 
 public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSessionGraphWorkspace
 {
-    public IObservable<LiveGraphBatch> GraphBatches { get; private set; } = Observable.Empty<LiveGraphBatch>();
+    public IObservable<LiveGraphBatch> GraphBatches { get; }
     public LiveSessionPlotRanges PlotRanges { get; }
     public SessionTimelineLinkViewModel Timeline { get; }
 
     public LiveSessionGraphWorkspaceViewModel()
-        : this(new SessionTimelineLinkViewModel(), LiveSessionPlotRanges.Default)
+        : this(new SessionTimelineLinkViewModel(), LiveSessionPlotRanges.Default, Observable.Empty<LiveGraphBatch>())
     {
     }
 
     public LiveSessionGraphWorkspaceViewModel(
         SessionTimelineLinkViewModel timeline,
-        LiveSessionPlotRanges plotRanges)
+        LiveSessionPlotRanges plotRanges,
+        IObservable<LiveGraphBatch> graphBatches)
     {
         Timeline = timeline;
         PlotRanges = plotRanges;
-    }
-
-    public void Attach(IObservable<LiveGraphBatch> graphBatches)
-    {
         GraphBatches = graphBatches;
     }
 }

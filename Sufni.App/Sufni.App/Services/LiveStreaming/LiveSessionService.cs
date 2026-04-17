@@ -629,9 +629,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             TravelDroppedBatches: latestSessionStats?.TravelDroppedBatches ?? 0,
             ImuDroppedBatches: latestSessionStats?.ImuDroppedBatches ?? 0,
             GpsDroppedBatches: latestSessionStats?.GpsDroppedBatches ?? 0,
-            CanSave: CanSaveLocked(),
-            IsSaving: false,
-            IsResetting: false);
+            CanSave: CanSaveLocked());
     }
 
     private LiveCaptureSnapshot CreateCaptureSnapshotLocked()
