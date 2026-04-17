@@ -499,6 +499,73 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task CanManage_BecomesFalse_WhenStoreRemovesRow()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.DisconnectCommand.ExecuteAsync(null);
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            ConnectionState = LiveConnectionState.Disconnected,
+            ConnectionStateText = LiveDaqUiSnapshot.ToConnectionStateText(LiveConnectionState.Disconnected)
+        };
+
+        liveDaqStore.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: "192.168.0.50",
+            Port: 1557,
+            IsOnline: true,
+            SetupName: "race",
+            BikeName: "demo"));
+        await Task.Yield();
+
+        Assert.True(editor.CanManage);
+
+        liveDaqStore.Remove("board-1");
+        await Task.Yield();
+
+        Assert.False(editor.CanManage);
+    }
+
+    [AvaloniaFact]
+    public async Task SetTimeCommand_DoesNotRun_AfterStoreRemovesRow()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.DisconnectCommand.ExecuteAsync(null);
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            ConnectionState = LiveConnectionState.Disconnected,
+            ConnectionStateText = LiveDaqUiSnapshot.ToConnectionStateText(LiveConnectionState.Disconnected)
+        };
+
+        liveDaqStore.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: "192.168.0.50",
+            Port: 1557,
+            IsOnline: true,
+            SetupName: "race",
+            BikeName: "demo"));
+        await Task.Yield();
+
+        liveDaqStore.Remove("board-1");
+        await Task.Yield();
+
+        await editor.SetTimeCommand.ExecuteAsync(null);
+
+        await daqManagementService.DidNotReceive()
+            .SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        Assert.Empty(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
     public async Task SetTimeCompletion_DoesNotOverwriteLiveConnectionState()
     {
         var serviceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

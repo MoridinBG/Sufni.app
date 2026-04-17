@@ -582,6 +582,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         var latest = liveDaqStore?.Get(IdentityKey);
         if (latest is null)
         {
+            managementHost = null;
+            managementPort = null;
+            RefreshManagementAvailability();
             return;
         }
 
@@ -633,9 +636,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private bool TryGetManagementEndpoint(out string host, out int port)
     {
-        var latest = liveDaqStore?.Get(IdentityKey);
-        host = latest?.Host ?? managementHost ?? string.Empty;
-        port = latest?.Port ?? managementPort ?? 0;
+        host = managementHost ?? string.Empty;
+        port = managementPort ?? 0;
         return !string.IsNullOrWhiteSpace(host) && port > 0;
     }
 
