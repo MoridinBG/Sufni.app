@@ -65,9 +65,10 @@ locations inside `Sufni.App/Sufni.App/`:
     snapshot. Implement `IListItemRow` so list controls bind against a
     single shared `x:DataType`.
   - `Editors/` — `BikeEditorViewModel`, `SetupEditorViewModel`,
-    `SessionDetailViewModel`. Constructed by the entity coordinator
-    from a snapshot, never by another view model. Implement
-    `IEditorActions` for the shared `CommonButtonLine`.
+    `SessionDetailViewModel`, `LiveDaqDetailViewModel`. Constructed by
+    the entity coordinator from a snapshot, never by another view
+    model. Persisted-entity editors implement `IEditorActions` for the
+    shared `CommonButtonLine`.
   - The shell view models (`MainViewModel`, `MainWindowViewModel`,
     `MainPagesViewModel`, `WelcomeScreenViewModel`) live at the top
     level. Base classes are `ViewModelBase`, `ItemListViewModelBase`,
@@ -76,23 +77,27 @@ locations inside `Sufni.App/Sufni.App/`:
 - `Coordinators/` — feature workflow owners (`IBikeCoordinator`,
   `ISetupCoordinator`, `ISessionCoordinator`,
   `IPairedDeviceCoordinator`, `IImportSessionsCoordinator`,
-  `ISyncCoordinator`, the `IShellCoordinator` desktop/mobile pair, plus
-  the desktop-only `IInboundSyncCoordinator` /
-  `IPairingServerCoordinator` and the mobile-only
-  `IPairingClientCoordinator`). Coordinators are the only writers to
-  stores and the only owners of post-save navigation. They never depend
-  on view models.
+  `ISyncCoordinator`, `ILiveDaqCoordinator`, the `IShellCoordinator`
+  desktop/mobile pair, plus the desktop-only
+  `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the
+  mobile-only `IPairingClientCoordinator`). Coordinators are the only
+  writers to stores and the only owners of post-save navigation. They
+  never depend on view models.
 - `Stores/` — shared read state, one per entity family. Each store has
   an `IXxxStore` (read-only) interface for VMs/queries and an
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
   and the composition root. Snapshots are immutable records carrying
   an `Updated` field for optimistic conflict detection.
-- `Queries/` — stateless cross-entity reads (`IBikeDependencyQuery`).
-  Backed by services, never by view models.
+- `Queries/` — cross-entity reads (`IBikeDependencyQuery`,
+  `ILiveDaqKnownBoardsQuery`). Backed by services and read-only
+  stores, never by view models.
 - `Services/` — infrastructure: `IDatabaseService` /
   `SQLiteDatabaseService`, `ITelemetryDataStoreService`,
   `IHttpApiService`, `ISynchronizationServerService` /
   `ISynchronizationClientService`, `IDialogService`, `IFilesService`.
+  `Services/LiveStreaming/` contains the live preview transport layer:
+  `LiveDaqClient`, `LiveProtocolReader`, `LiveDaqSessionState`,
+  `LiveDaqUiSnapshot`, and protocol models.
 - `Models/` — domain entities (`Session`, `Bike`, `Setup`, `Board`,
   `Track`…) and the data-store abstractions (`ITelemetryDataStore` /
   `ITelemetryFile`).
@@ -230,8 +235,10 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Stores** own shared read state via DynamicData
   `SourceCache<TSnapshot, TKey>`. Each store is exposed behind a
   read-only and a writer interface; only coordinators get the writer.
-  Snapshots carry an `Updated` field used as the editor's
-  `BaselineUpdated` for optimistic conflict detection at save time.
+  Persisted-entity snapshots carry an `Updated` field used as the
+  editor's `BaselineUpdated` for optimistic conflict detection at save
+  time. Runtime-only stores (`LiveDaqStore`) omit `Updated` and
+  `RefreshAsync()`.
 - **Coordinators** own feature workflows: open/save/delete, post-save
   navigation, and synchronization-arrival handling. `SaveAsync` returns
   a sealed `Saved` / `Conflict` / `Failed` record so editors can prompt
@@ -248,6 +255,10 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   discriminator.
 - **Data store abstraction** (`ITelemetryDataStore` / `ITelemetryFile`)
   unifies mass-storage, network and storage-provider sources.
+- **Live DAQ streaming** uses a separate framed TCP protocol, its own
+  discovery catalog and browse lease, a runtime-only store, and per-tab
+  transport clients. See
+  [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Coordinators with
   constructor-time event subscriptions

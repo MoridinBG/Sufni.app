@@ -11,12 +11,12 @@ sequenceDiagram
     participant Mobile
     participant Server as Desktop Server
 
-    Mobile->>Server: POST /pair/request {deviceId}
+    Mobile->>Server: POST /pair/request {deviceId, displayName}
     Server-->>Server: Generate 6-digit PIN, store with 30s TTL
     Server-->>Mobile: 200 OK
     Note over Server: Display PIN to desktop user
 
-    Mobile->>Server: POST /pair/confirm {deviceId, pin}
+    Mobile->>Server: POST /pair/confirm {deviceId, displayName, pin}
     Server-->>Server: Validate PIN, create PairedDevice
     Server-->>Mobile: {accessToken (10min), refreshToken (30 days)}
 
@@ -28,7 +28,7 @@ sequenceDiagram
 
 ## Server
 
-`SynchronizationServerService` (`Sufni.App/Sufni.App/Services/SynchronizationServerService.cs`) embeds ASP.NET Core Kestrel on port 5575 with:
+`SynchronizationServerService` (`Sufni.App/Sufni.App.Desktop/Services/SynchronizationServerService.cs`) embeds ASP.NET Core Kestrel on port 5575 with:
 
 - **TLS**: Self-signed ECDSA P-256 certificate (password stored in `SecureStorage`)
 - **JWT**: HS256 with a 64-byte random secret (stored in `SecureStorage`)
@@ -50,14 +50,14 @@ sequenceDiagram
 
 `SynchronizationClientService` (`Sufni.App/Sufni.App/Services/SynchronizationClientService.cs`) runs `SyncAll()` in four phases:
 
-1. **Push local changes** — collect all entities changed since last sync, POST to `/sync/push`
+1. **Push local changes** — collect all entities changed since last sync, PUT to `/sync/push`
 2. **Pull remote changes** — GET `/sync/pull?since=`, apply deletes or upserts locally
 3. **Push incomplete sessions** — for each server-side session missing data, upload the local blob
 4. **Pull incomplete sessions** — for each local session missing data, download from server
 
 `SyncCoordinator` (`Sufni.App/Sufni.App/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, and refreshes every store after a successful round-trip. On mobile it subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Inbound sync arrival is split by entity family — see [Coordinators](ui.md#coordinators) — so that each store has exactly one writer.
 
-`HttpApiService` (`Sufni.App/Sufni.App/Services/HttpApiService.cs`) handles JWT auto-refresh: when the access token is within 10 minutes of expiry, it calls `/pair/refresh`. On 401, it clears stored credentials. TLS validation checks CN and expiry but not the certificate chain (suitable for LAN self-signed certs).
+`HttpApiService` (`Sufni.App/Sufni.App/Services/HttpApiService.cs`) handles JWT auto-refresh: when the access token is within 30 seconds of expiry, it calls `/pair/refresh`. On 401, it clears stored credentials. TLS validation checks CN and expiry but not the certificate chain (suitable for LAN self-signed certs).
 
 `SynchronizationData` (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) is the sync payload:
 

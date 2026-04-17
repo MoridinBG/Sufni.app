@@ -22,8 +22,8 @@ erDiagram
         int has_data
         text track
         text full_track_id FK
-        real front_spring_rate
-        real rear_spring_rate
+        text front_springrate
+        text rear_springrate
         int front_hsc
         int front_lsc
         int front_lsr
@@ -46,6 +46,13 @@ erDiagram
         text linkage
         blob image
         real pixels_to_millimeters
+        real front_wheel_diameter
+        real rear_wheel_diameter
+        int front_wheel_rim_size
+        real front_wheel_tire_width
+        int rear_wheel_rim_size
+        real rear_wheel_tire_width
+        real image_rotation_degrees
         int updated
         int client_updated
         int deleted
@@ -88,14 +95,14 @@ erDiagram
         text rear_velocity_histogram
         text compression_balance
         text rebound_balance
-        real front_hsc_pct
-        real front_lsc_pct
-        real front_lsr_pct
-        real front_hsr_pct
-        real rear_hsc_pct
-        real rear_lsc_pct
-        real rear_lsr_pct
-        real rear_hsr_pct
+        real front_hsc_percentage
+        real front_lsc_percentage
+        real front_lsr_percentage
+        real front_hsr_percentage
+        real rear_hsc_percentage
+        real rear_lsc_percentage
+        real rear_lsr_percentage
+        real rear_hsr_percentage
     }
 
     app_setting {
@@ -110,6 +117,7 @@ erDiagram
 
     paired_device {
         text device_id PK
+        text display_name
         text token
         datetime expires
     }
@@ -140,9 +148,9 @@ All `Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) c
 
 `MergeAsync<T>()` handles incoming sync data:
 
-1. **New entity** (not in local DB): insert, set `ClientUpdated = entity.Updated`
-2. **Remote delete** (`entity.Deleted` set): accept, update local `Deleted` timestamp
-3. **Local wins** (`existing.ClientUpdated > entity.Updated`): keep local content, update timestamps
-4. **Remote wins** (otherwise): replace local with remote, set `ClientUpdated = entity.Updated`
+1. **New entity** (not in local DB): set `ClientUpdated = entity.Updated`, set `Updated = now`, insert
+2. **Remote delete** (`entity.Deleted` set): set local `Deleted` and `Updated` to remote values, update
+3. **Local wins** (`existing.ClientUpdated > entity.Updated`): keep local content, set `Updated = now`
+4. **Remote wins** (otherwise): set `ClientUpdated = entity.Updated`, set `Updated = now`, replace local
 
 This gives local client changes precedence in conflicts while accepting remote deletes.

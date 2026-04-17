@@ -50,6 +50,7 @@ public static class ViewTestHelpers
         resources["SufniForegroundDisabled"] = Brushes.DarkGray;
         resources["SufniBackgroundDisabled"] = Brushes.Gray;
         resources["SufniBackgroundPointerOver"] = Brushes.SlateGray;
+        resources["SufniItemBackgroundPointerOver"] = Brushes.SlateGray;
         resources["SufniBorderBrush"] = Brushes.Black;
         resources["SufniAccentColor"] = Brushes.CornflowerBlue;
         resources["SufniDangerColor"] = Brushes.Red;

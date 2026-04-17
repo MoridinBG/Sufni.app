@@ -27,7 +27,7 @@ A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed fir
 
 ### Stroke Detection
 
-`Strokes.FilterStrokes()` (`Sufni.Telemetry/Strokes.cs`) identifies strokes by finding sign changes in velocity. Adjacent strokes where both have max position < 5mm (near full extension) are concatenated — this prevents small oscillations at top-out from fragmenting the data into many tiny strokes.
+`Strokes.FilterStrokes()` (`Sufni.Telemetry/Strokes.cs`) identifies strokes by finding sign changes in velocity. Adjacent strokes where both have max position < 5mm (near full extension) are concatenated — this prevents small oscillations at top-out from fragmenting the data into many tiny strokes. Strokes too short AND too brief to qualify as any category are silently discarded.
 
 Each stroke records its start/end sample indices, length (travel delta in mm), duration, and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count).
 
@@ -41,7 +41,7 @@ Only compressions and rebounds are MessagePack-serialized. Idlings are reconstru
 
 ### Airtime Detection
 
-An idling stroke is marked as an air candidate when: max travel <= 5mm, duration >= 0.2s, and the next stroke's max velocity >= 500 mm/s (landing impact). Airtimes are confirmed when front and rear air candidates overlap by >= 50%, or when a single suspension's mean travel is <= 4% of its max.
+An idling stroke is marked as an air candidate when: max travel <= 5mm, duration >= 0.2s, and the next stroke's max velocity >= 500 mm/s (landing impact). Airtimes are confirmed when front and rear air candidates overlap by >= 50%, or when the average of both suspensions' mean travel is <= 4% of the averaged max travel.
 
 ### Processing Parameters
 
@@ -115,7 +115,7 @@ For each of the 200 steps (0% to 100% shock compression):
 1. Set the shock's target length: `maxLength - (shockStroke * step / (steps-1))`
 2. Run 1000 iterations of `EnforceLength()` on every link
 
-`EnforceLength()` moves joint endpoints symmetrically to satisfy the distance constraint. If a joint is fixed, the other endpoint absorbs the full correction. The correction factor is `(currentLength - targetLength) / currentLength`, applied as a displacement along the link axis.
+`EnforceLength()` computes a half-correction per endpoint along the link axis. When both endpoints are free, each moves by half the error. When one is fixed, only the free endpoint moves by the half-correction (so each iteration applies half the full error for that link).
 
 Output: `Dictionary<string, CoordinateList>` mapping each joint name to its X,Y positions across all 200 steps.
 
@@ -154,7 +154,7 @@ For example, `LinearForkSensorConfiguration` stores `Length` (sensor physical ra
 
 ```csharp
 // Computed once during FromJson():
-measurementToStroke = Length / Math.Pow(2, Resolution);     // ADC count → mm of fork stroke
+measurementToStroke = Length / (2 ^ Resolution);            // ADC count → mm of fork stroke
 strokeToTravel = Math.Sin(headAngle * Math.PI / 180.0);    // fork stroke → vertical wheel travel
 
 // Applied per sample:
@@ -162,11 +162,13 @@ MeasurementToTravel = measurement => measurement * measurementToStroke * strokeT
 MaxTravel = bike.ForkStroke * strokeToTravel;
 ```
 
+> **Note**: `2 ^ Resolution` uses C#'s bitwise XOR operator, not exponentiation.
+
 The bike context (head angle, fork stroke, shock stroke) is injected at deserialization time, making the closure self-contained for the processing pipeline.
 
-| Implementation                       | Parameters                      | Calibration                                           |
-| ------------------------------------ | ------------------------------- | ----------------------------------------------------- |
-| `LinearForkSensorConfiguration`      | Length, Resolution              | Linear potentiometer on fork, projected by head angle |
-| `RotationalForkSensorConfiguration`  | ArmLength, MaxAngle, StartAngle | Rotary encoder on fork, arc-to-travel conversion      |
-| `LinearShockSensorConfiguration`     | Length, Resolution              | Linear potentiometer on shock                         |
-| `RotationalShockSensorConfiguration` | ArmLength, MaxAngle, StartAngle | Rotary encoder on shock                               |
+| Implementation                       | Parameters                                    | Calibration                                                               |
+| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------- |
+| `LinearForkSensorConfiguration`      | Length, Resolution                             | Linear potentiometer on fork, projected by head angle                     |
+| `RotationalForkSensorConfiguration`  | MaxLength, ArmLength                           | Rotary encoder on fork, cosine-based rigid-arm geometric projection       |
+| `LinearShockSensorConfiguration`     | Length, Resolution                             | Linear potentiometer on shock, kinematic solver + polynomial fit          |
+| `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2   | Rotary encoder on shock, kinematic solver + angle-to-travel polynomial    |
