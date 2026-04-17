@@ -104,6 +104,24 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
+    public async Task InspectAsync_TimesOut_WhenServerNeverRespondsWithAck()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        var acceptTask = listener.AcceptTcpClientAsync();
+        var inspector = new LiveDaqBoardIdInspector(
+            new InlineBackgroundTaskRunner(),
+            TimeSpan.FromMilliseconds(150));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => inspector.InspectAsync(IPAddress.Loopback, port).WaitAsync(TimeSpan.FromSeconds(2)));
+
+        using var accepted = await acceptTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
     public async Task InspectAsync_ReturnsBoardId_FromIdentifyAck()
     {
         var boardSerial = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
