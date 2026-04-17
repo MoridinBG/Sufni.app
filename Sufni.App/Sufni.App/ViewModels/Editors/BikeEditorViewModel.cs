@@ -380,7 +380,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 ImageCanvas.ApplySnapshot(null, 0);
                 LinkageEditor.Load(null, null, null);
                 LeverageRatioEditor.ReplaceState(null);
-                SetRearSuspensionLoadError(MessageForLoadError(invalid.Error));
+                SetRearSuspensionLoadError(RearSuspensionResolutionMessages.ForLoad(invalid.Error));
                 break;
 
             case BikeRearSuspensionEditorState.Hardtail:
@@ -398,9 +398,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 throw new ArgumentOutOfRangeException(nameof(state));
         }
     }
-
-    private static string MessageForLoadError(RearSuspensionResolutionError error) =>
-        "Rear suspension kind does not match the stored rear suspension payload.";
 
     // Refresh caches and projections that are safe to recompute from the raw editor state.
     private void RefreshDerivedEditorState()

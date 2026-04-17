@@ -269,13 +269,13 @@ public class Bike : Synchronizable
                 errorMessage = null;
                 return true;
 
-            case RearSuspensionResolution.Invalid:
+            case RearSuspensionResolution.Invalid invalid:
                 rearSuspension = null;
-                errorMessage = "Rear suspension kind does not match the stored rear suspension payload.";
+                errorMessage = RearSuspensionResolutionMessages.ForSave(invalid.Error);
                 return false;
 
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new InvalidOperationException($"Unexpected resolver result for RearSuspensionKind={RearSuspensionKind}.");
         }
     }
 
