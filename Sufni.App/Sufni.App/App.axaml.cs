@@ -85,6 +85,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
         ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
         ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
+        ServiceCollection.AddSingleton<ILiveGraphPipelineFactory, LiveGraphPipelineFactory>();
         ServiceCollection.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
         ServiceCollection.AddSingleton<ILiveDaqCoordinator, LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();

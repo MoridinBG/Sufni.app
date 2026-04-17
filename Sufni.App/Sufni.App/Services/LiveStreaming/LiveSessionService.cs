@@ -17,17 +17,22 @@ namespace Sufni.App.Services.LiveStreaming;
 
 internal sealed class LiveSessionServiceFactory(
     ISessionPresentationService sessionPresentationService,
-    IBackgroundTaskRunner backgroundTaskRunner) : ILiveSessionServiceFactory
+    IBackgroundTaskRunner backgroundTaskRunner,
+    ILiveGraphPipelineFactory liveGraphPipelineFactory) : ILiveSessionServiceFactory
 {
     public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStream sharedStream)
     {
-        return new LiveSessionService(context, sharedStream, sessionPresentationService, backgroundTaskRunner);
+        return new LiveSessionService(
+            context,
+            sharedStream,
+            sessionPresentationService,
+            backgroundTaskRunner,
+            liveGraphPipelineFactory.Create());
     }
 }
 
 internal sealed class LiveSessionService : ILiveSessionService
 {
-    private const int MaxVelocityWindowSamples = 127;
     private const int MeasurementChunkSize = 4096;
     private const int ImuChunkSize = 2048;
     private const int GpsChunkSize = 256;
@@ -46,19 +51,15 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly ILiveDaqSharedStream sharedStream;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly ILiveGraphPipeline graphPipeline;
     private readonly object gate = new();
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshotsSubject = new(LiveSessionPresentationSnapshot.Empty);
-    private readonly Subject<LiveGraphBatch> graphBatchesSubject = new();
+    private readonly CancellationTokenSource disposalCts = new();
 
     private readonly AppendOnlyChunkBuffer<ushort> frontMeasurements = new(MeasurementChunkSize);
     private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
     private readonly AppendOnlyChunkBuffer<ImuRecord> imuRecords = new(ImuChunkSize);
     private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
-    private readonly SlidingWindowBuffer<double> recentTravelTimes = new(MaxVelocityWindowSamples);
-    private readonly SlidingWindowBuffer<double> recentFrontTravel = new(MaxVelocityWindowSamples);
-    private readonly SlidingWindowBuffer<double> recentRearTravel = new(MaxVelocityWindowSamples);
-    private SavitzkyGolay? cachedVelocityFilter;
-    private int cachedVelocityFilterWindow;
 
     private IDisposable? framesSubscription;
     private IDisposable? statesSubscription;
@@ -77,7 +78,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private long captureRevision;
     private long latestStatisticsRevision = -1;
     private long queuedStatisticsRevision = -1;
-    private bool statisticsRunning;
+    private Task? statisticsLoopTask;
+
     private bool hasPublishedSaveableCapture;
     private bool isTerminalClosed;
     private bool isAttached;
@@ -88,17 +90,19 @@ internal sealed class LiveSessionService : ILiveSessionService
         LiveDaqSessionContext context,
         ILiveDaqSharedStream sharedStream,
         ISessionPresentationService sessionPresentationService,
-        IBackgroundTaskRunner backgroundTaskRunner)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        ILiveGraphPipeline graphPipeline)
     {
         this.context = context;
         this.sharedStream = sharedStream;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
+        this.graphPipeline = graphPipeline;
     }
 
     public IObservable<LiveSessionPresentationSnapshot> Snapshots => snapshotsSubject.AsObservable();
 
-    public IObservable<LiveGraphBatch> GraphBatches => graphBatchesSubject.AsObservable();
+    public IObservable<LiveGraphBatch> GraphBatches => graphPipeline.GraphBatches;
 
     public LiveSessionPresentationSnapshot Current => current;
 
@@ -113,6 +117,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 observerLease = sharedStream.AcquireLease();
                 configurationLockLease = sharedStream.AcquireConfigurationLock();
+                graphPipeline.Start();
                 framesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
                 statesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
                 isAttached = true;
@@ -134,7 +139,6 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
     {
-        LiveGraphBatch resetBatch;
         LiveSessionPresentationSnapshot snapshot;
         lock (gate)
         {
@@ -143,11 +147,6 @@ internal sealed class LiveSessionService : ILiveSessionService
             rearMeasurements.Clear();
             imuRecords.Clear();
             gpsRecords.Clear();
-            recentTravelTimes.Clear();
-            recentFrontTravel.Clear();
-            recentRearTravel.Clear();
-            cachedVelocityFilter = null;
-            cachedVelocityFilterWindow = 0;
             statisticsTelemetry = null;
             damperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
             sessionTrackPoints = [];
@@ -158,11 +157,10 @@ internal sealed class LiveSessionService : ILiveSessionService
             queuedStatisticsRevision = -1;
             nextStatisticsRunAt = DateTimeOffset.MinValue;
             hasPublishedSaveableCapture = false;
-            resetBatch = LiveGraphBatch.Empty with { Revision = captureRevision };
             snapshot = BuildSnapshotLocked();
         }
 
-        graphBatchesSubject.OnNext(resetBatch);
+        graphPipeline.Reset();
         PublishSnapshot(snapshot);
         return Task.CompletedTask;
     }
@@ -194,6 +192,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         IDisposable? states;
         ILiveDaqSharedStreamLease? configurationLock;
         ILiveDaqSharedStreamLease? observer;
+        Task? statisticsLoop;
 
         lock (gate)
         {
@@ -207,14 +206,29 @@ internal sealed class LiveSessionService : ILiveSessionService
             states = statesSubscription;
             configurationLock = configurationLockLease;
             observer = observerLease;
+            statisticsLoop = statisticsLoopTask;
             framesSubscription = null;
             statesSubscription = null;
             configurationLockLease = null;
             observerLease = null;
+            statisticsLoopTask = null;
         }
 
         frames?.Dispose();
         states?.Dispose();
+
+        disposalCts.Cancel();
+
+        if (statisticsLoop is not null)
+        {
+            try
+            {
+                await statisticsLoop;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
 
         if (configurationLock is not null)
         {
@@ -226,10 +240,11 @@ internal sealed class LiveSessionService : ILiveSessionService
             await observer.DisposeAsync();
         }
 
+        await graphPipeline.DisposeAsync();
+
         snapshotsSubject.OnCompleted();
-        graphBatchesSubject.OnCompleted();
         snapshotsSubject.Dispose();
-        graphBatchesSubject.Dispose();
+        disposalCts.Dispose();
     }
 
     private void HandleSharedStreamState(LiveDaqSharedStreamState state)
@@ -271,7 +286,6 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private void HandleFrame(LiveProtocolFrame frame)
     {
-        LiveGraphBatch? graphBatch = null;
         LiveSessionPresentationSnapshot? snapshotToPublish = null;
         var shouldQueueStatistics = false;
 
@@ -285,7 +299,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             switch (frame)
             {
                 case LiveTravelBatchFrame travelBatchFrame:
-                    graphBatch = ApplyTravelBatchLocked(travelBatchFrame);
+                    ApplyTravelBatchLocked(travelBatchFrame);
                     shouldQueueStatistics = CanBuildStatisticsLocked();
                     if (CanSaveLocked() && !hasPublishedSaveableCapture)
                     {
@@ -295,7 +309,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                     break;
 
                 case LiveImuBatchFrame imuBatchFrame:
-                    graphBatch = ApplyImuBatchLocked(imuBatchFrame);
+                    ApplyImuBatchLocked(imuBatchFrame);
                     break;
 
                 case LiveGpsBatchFrame gpsBatchFrame:
@@ -310,11 +324,6 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
         }
 
-        if (graphBatch is not null)
-        {
-            graphBatchesSubject.OnNext(graphBatch);
-        }
-
         if (snapshotToPublish is not null)
         {
             PublishSnapshot(snapshotToPublish);
@@ -326,11 +335,11 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
     }
 
-    private LiveGraphBatch? ApplyTravelBatchLocked(LiveTravelBatchFrame frame)
+    private void ApplyTravelBatchLocked(LiveTravelBatchFrame frame)
     {
         if (sessionHeader is null || frame.Records.Count == 0)
         {
-            return null;
+            return;
         }
 
         var batchCount = frame.Records.Count;
@@ -353,51 +362,39 @@ internal sealed class LiveSessionService : ILiveSessionService
             var rearValue = ConvertTravel(record.ShockAngle, context.BikeData.RearMeasurementToTravel, context.BikeData.RearMaxTravel);
             frontTravel[index] = frontValue;
             rearTravel[index] = rearValue;
-
-            AppendRecentTravelSample(timeOffset, frontValue, rearValue);
         }
 
         captureRevision++;
-
-        return new LiveGraphBatch(
-            Revision: captureRevision,
-            TravelTimes: travelTimes,
-            FrontTravel: frontTravel,
-            RearTravel: rearTravel,
-            VelocityTimes: travelTimes,
-            FrontVelocity: ComputeVelocityAppend(recentTravelTimes, recentFrontTravel, batchCount),
-            RearVelocity: ComputeVelocityAppend(recentTravelTimes, recentRearTravel, batchCount),
-            ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
-            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>());
+        graphPipeline.AppendTravelSamples(travelTimes, frontTravel, rearTravel);
     }
 
-    private LiveGraphBatch? ApplyImuBatchLocked(LiveImuBatchFrame frame)
+    private void ApplyImuBatchLocked(LiveImuBatchFrame frame)
     {
         if (sessionHeader is null || frame.Records.Count == 0)
         {
-            return null;
+            return;
         }
 
         var activeLocations = sessionHeader.GetActiveImuLocations();
         if (activeLocations.Count == 0)
         {
-            return null;
+            return;
         }
 
         imuRecords.AppendRange(frame.Records);
         captureRevision++;
         InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
 
-        var imuTimes = new Dictionary<LiveImuLocation, List<double>>();
-        var imuMagnitudes = new Dictionary<LiveImuLocation, List<double>>();
-        foreach (var location in activeLocations)
-        {
-            imuTimes[location] = [];
-            imuMagnitudes[location] = [];
-        }
-
         var tickCount = (int)frame.Batch.SampleCount;
         var recordsPerTick = activeLocations.Count;
+        var perLocationTimes = new Dictionary<LiveImuLocation, List<double>>();
+        var perLocationMagnitudes = new Dictionary<LiveImuLocation, List<double>>();
+        foreach (var location in activeLocations)
+        {
+            perLocationTimes[location] = new List<double>(tickCount);
+            perLocationMagnitudes[location] = new List<double>(tickCount);
+        }
+
         for (var tickIndex = 0; tickIndex < tickCount; tickIndex++)
         {
             var timeOffset = ToSampleOffsetSecondsLocked(
@@ -412,22 +409,19 @@ internal sealed class LiveSessionService : ILiveSessionService
                 }
 
                 var location = activeLocations[locationIndex];
-                imuTimes[location].Add(timeOffset);
-                imuMagnitudes[location].Add(
+                perLocationTimes[location].Add(timeOffset);
+                perLocationMagnitudes[location].Add(
                     ConvertImuMagnitude(frame.Records[recordIndex], location, sessionHeader.ImuCalibrationScales));
             }
         }
 
-        return new LiveGraphBatch(
-            Revision: captureRevision,
-            TravelTimes: [],
-            FrontTravel: [],
-            RearTravel: [],
-            VelocityTimes: [],
-            FrontVelocity: [],
-            RearVelocity: [],
-            ImuTimes: imuTimes.ToDictionary(entry => entry.Key, entry => (IReadOnlyList<double>)entry.Value),
-            ImuMagnitudes: imuMagnitudes.ToDictionary(entry => entry.Key, entry => (IReadOnlyList<double>)entry.Value));
+        foreach (var location in activeLocations)
+        {
+            graphPipeline.AppendImuSamples(
+                location,
+                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(perLocationTimes[location]),
+                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(perLocationMagnitudes[location]));
+        }
     }
 
     private void ApplyGpsBatchLocked(LiveGpsBatchFrame frame)
@@ -482,7 +476,6 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private void QueueStatisticsRecompute()
     {
-        bool shouldStart;
         lock (gate)
         {
             if (!CanBuildStatisticsLocked() || isDisposed)
@@ -491,20 +484,14 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
 
             queuedStatisticsRevision = captureRevision;
-            shouldStart = !statisticsRunning;
-            if (shouldStart)
+            if (statisticsLoopTask is null || statisticsLoopTask.IsCompleted)
             {
-                statisticsRunning = true;
+                statisticsLoopTask = Task.Run(() => RunStatisticsLoopAsync(disposalCts.Token));
             }
-        }
-
-        if (shouldStart)
-        {
-            _ = RunStatisticsLoopAsync();
         }
     }
 
-    private async Task RunStatisticsLoopAsync()
+    private async Task RunStatisticsLoopAsync(CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -516,7 +503,6 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 if (isDisposed || !CanBuildStatisticsLocked() || queuedStatisticsRevision <= latestStatisticsRevision)
                 {
-                    statisticsRunning = false;
                     return;
                 }
 
@@ -526,14 +512,20 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             if (delay > TimeSpan.Zero)
             {
-                await Task.Delay(delay);
+                try
+                {
+                    await Task.Delay(delay, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
 
             lock (gate)
             {
                 if (isDisposed || !CanBuildStatisticsLocked() || queuedStatisticsRevision <= latestStatisticsRevision)
                 {
-                    statisticsRunning = false;
                     return;
                 }
 
@@ -546,13 +538,18 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 var telemetryData = await backgroundTaskRunner.RunAsync(
                     () => TelemetryData.FromLiveCapture(BuildCapture(capture)),
-                    CancellationToken.None);
+                    cancellationToken);
                 var percentages = sessionPresentationService.CalculateDamperPercentages(telemetryData);
 
                 LiveSessionPresentationSnapshot snapshot;
                 bool shouldContinue;
                 lock (gate)
                 {
+                    if (isDisposed)
+                    {
+                        return;
+                    }
+
                     if (revision >= latestStatisticsRevision)
                     {
                         statisticsTelemetry = telemetryData;
@@ -562,10 +559,6 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                     snapshot = BuildSnapshotLocked();
                     shouldContinue = queuedStatisticsRevision > revision;
-                    if (!shouldContinue)
-                    {
-                        statisticsRunning = false;
-                    }
                 }
 
                 PublishSnapshot(snapshot);
@@ -575,6 +568,10 @@ internal sealed class LiveSessionService : ILiveSessionService
                     return;
                 }
             }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 logger.Warning(ex, "Live session statistics recompute failed for {IdentityKey}", context.IdentityKey);
@@ -583,7 +580,6 @@ internal sealed class LiveSessionService : ILiveSessionService
                 {
                     if (queuedStatisticsRevision <= revision)
                     {
-                        statisticsRunning = false;
                         return;
                     }
                 }
@@ -695,36 +691,6 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         current = snapshot;
         snapshotsSubject.OnNext(snapshot);
-    }
-
-    private void AppendRecentTravelSample(double timeOffset, double frontTravel, double rearTravel)
-    {
-        recentTravelTimes.Append(timeOffset);
-        recentFrontTravel.Append(frontTravel);
-        recentRearTravel.Append(rearTravel);
-    }
-
-    private double[] ComputeVelocityAppend(IReadOnlyList<double> times, IReadOnlyList<double> travel, int batchCount)
-    {
-        if (times.Count < 5 || travel.Any(double.IsNaN))
-        {
-            return Enumerable.Repeat(double.NaN, batchCount).ToArray();
-        }
-
-        var filterWindow = Math.Min(51, times.Count);
-        if (filterWindow % 2 == 0)
-        {
-            filterWindow--;
-        }
-
-        if (cachedVelocityFilter is null || cachedVelocityFilterWindow != filterWindow)
-        {
-            cachedVelocityFilter = SavitzkyGolay.Create(filterWindow, 1, 3);
-            cachedVelocityFilterWindow = filterWindow;
-        }
-
-        var velocities = cachedVelocityFilter.Process(travel.ToArray(), times.ToArray());
-        return velocities[^batchCount..];
     }
 
     private static double ConvertTravel(ushort measurement, Func<ushort, double>? measurementToTravel, double? maxTravel)

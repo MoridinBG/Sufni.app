@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
+using Serilog.Core;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
@@ -78,7 +81,6 @@ public class LiveSessionServiceTests
     {
         var service = CreateService();
         var statisticsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var graphBatches = new List<LiveGraphBatch>();
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
@@ -87,7 +89,14 @@ public class LiveSessionServiceTests
                 statisticsReady.TrySetResult();
             }
         });
-        using var graphSubscription = service.GraphBatches.Subscribe(graphBatches.Add);
+
+        var travelWithImuBatch = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.FrontTravel.Count == 5
+                && batch.RearTravel.Count == 5
+                && batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes)
+                && imuTimes.Count == 1,
+            TimeSpan.FromSeconds(2));
 
         await service.EnsureAttachedAsync();
 
@@ -100,11 +109,9 @@ public class LiveSessionServiceTests
             longitude: 23.3220,
             altitude: 601));
 
+        await travelWithImuBatch;
         await statisticsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Contains(graphBatches, batch => batch.FrontTravel.Count == 5 && batch.RearTravel.Count == 5);
-        Assert.Contains(graphBatches, batch =>
-            batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 1);
         Assert.True(service.Current.Controls.CanSave);
         Assert.NotNull(service.Current.StatisticsTelemetry);
         Assert.Equal(2, service.Current.SessionTrackPoints.Count);
@@ -185,27 +192,113 @@ public class LiveSessionServiceTests
     public async Task ResetCaptureAsync_RebasesSubsequentGraphTimes_AndClearsCaptureDuration()
     {
         var service = CreateService();
-        var graphBatches = new List<LiveGraphBatch>();
 
-        using var graphSubscription = service.GraphBatches.Subscribe(graphBatches.Add);
+        var firstBatchTask = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.FrontTravel.Count == 5,
+            TimeSpan.FromSeconds(2));
 
         await service.EnsureAttachedAsync();
 
         frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs));
 
+        var firstBatch = await firstBatchTask;
+
+        var resetBatchTask = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.TravelTimes.Count == 0 && batch.Revision > firstBatch.Revision,
+            TimeSpan.FromSeconds(2));
+
         await service.ResetCaptureAsync();
+
+        var resetBatch = await resetBatchTask;
 
         Assert.Equal(TimeSpan.Zero, service.Current.Controls.CaptureDuration);
 
+        var rebasedBatchTask = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.FrontTravel.Count == 5 && batch.Revision > resetBatch.Revision,
+            TimeSpan.FromSeconds(2));
+
         frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + 5_000_000));
 
-        var latestTravelBatch = graphBatches.Last(batch => batch.FrontTravel.Count == 5);
-        Assert.Equal(0d, latestTravelBatch.TravelTimes[0]);
+        var rebasedBatch = await rebasedBatchTask;
+        Assert.Equal(0d, rebasedBatch.TravelTimes[0]);
+    }
+
+    [Fact]
+    public async Task Frames_TwoTravelFramesBeforeFlush_ProduceSingleMergedBatchWithIndependentGraphRevision()
+    {
+        var pipeline = new LiveGraphPipeline(TimeSpan.FromMilliseconds(200), Logger.None);
+        var service = new LiveSessionService(
+            CreateSessionContext(),
+            sharedStream,
+            sessionPresentationService,
+            backgroundTaskRunner,
+            pipeline);
+
+        var mergedBatchTask = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.FrontTravel.Count == 10,
+            TimeSpan.FromSeconds(2));
+
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateTravelBatchFrame());
+        frames.OnNext(CreateTravelBatchFrame());
+
+        var mergedBatch = await mergedBatchTask;
+
+        Assert.Equal(1L, mergedBatch.Revision);
+        Assert.True(service.Current.CaptureRevision >= 2L);
+
+        await service.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Frames_ImuOnlyInterval_StillEmitsBatchWithImuSamples()
+    {
+        var service = CreateService();
+
+        var imuOnlyBatchTask = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.TravelTimes.Count == 0
+                && batch.FrontVelocity.Count == 0
+                && batch.RearVelocity.Count == 0
+                && batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var times)
+                && times.Count == 1,
+            TimeSpan.FromSeconds(2));
+
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateImuBatchFrame());
+
+        await imuOnlyBatchTask;
+
+        await service.DisposeAsync();
     }
 
     private ILiveSessionService CreateService()
     {
-        return new LiveSessionService(CreateSessionContext(), sharedStream, sessionPresentationService, backgroundTaskRunner);
+        var pipeline = new LiveGraphPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
+        return new LiveSessionService(
+            CreateSessionContext(),
+            sharedStream,
+            sessionPresentationService,
+            backgroundTaskRunner,
+            pipeline);
+    }
+
+    private static Task<LiveGraphBatch> WaitForGraphBatchAsync(
+        IObservable<LiveGraphBatch> source,
+        Func<LiveGraphBatch, bool> predicate,
+        TimeSpan timeout)
+    {
+        return source
+            .Where(predicate)
+            .FirstAsync()
+            .ToTask()
+            .WaitAsync(timeout);
     }
 
     private LiveTravelBatchFrame CreateTravelBatchFrame(ulong? firstMonotonicUs = null)
