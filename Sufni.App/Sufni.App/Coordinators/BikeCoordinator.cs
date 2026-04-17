@@ -277,6 +277,8 @@ public sealed class BikeCoordinator(
             case RearSuspensionResolution.LeverageRatio leverageRatioResolution:
                 analysis = await bikeEditorService.LoadAnalysisAsync(leverageRatioResolution.Value, cancellationToken);
                 break;
+            case RearSuspensionResolution.Invalid:
+                break;
         }
 
         return new BikeImportResult.Imported(new ImportedBikeEditorData(normalizedBike, analysis));

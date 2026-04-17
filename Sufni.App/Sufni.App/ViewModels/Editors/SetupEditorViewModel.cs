@@ -210,6 +210,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         RearSuspensionResolution.Linkage => [null, SensorType.LinearShock, SensorType.RotationalShock],
         RearSuspensionResolution.LeverageRatio => [null, SensorType.LinearShockStroke],
+        RearSuspensionResolution.Invalid => [null],
+        RearSuspensionResolution.Hardtail => [null],
         _ => [null],
     };
 
@@ -217,6 +219,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     {
         RearSuspensionResolution.Linkage => "Linkage",
         RearSuspensionResolution.LeverageRatio => "Leverage ratio",
+        RearSuspensionResolution.Invalid => "Invalid rear suspension",
+        RearSuspensionResolution.Hardtail => "Hardtail",
         _ => "Hardtail",
     };
 
