@@ -252,27 +252,30 @@ public class Bike : Synchronizable
 
     public bool TryResolveRearSuspension(out RearSuspension? rearSuspension, out string? errorMessage)
     {
-        switch (RearSuspensionKind)
+        switch (RearSuspensionResolver.Resolve(RearSuspensionKind, Linkage, LeverageRatio))
         {
-            case RearSuspensionKind.None when Linkage is null && LeverageRatio is null:
+            case RearSuspensionResolution.Hardtail:
                 rearSuspension = null;
                 errorMessage = null;
                 return true;
 
-            case RearSuspensionKind.Linkage when Linkage is not null && LeverageRatio is null:
-                rearSuspension = new LinkageRearSuspension(Linkage);
+            case RearSuspensionResolution.Linkage(var linkage):
+                rearSuspension = linkage;
                 errorMessage = null;
                 return true;
 
-            case RearSuspensionKind.LeverageRatio when Linkage is null && LeverageRatio is not null:
-                rearSuspension = new LeverageRatioRearSuspension(LeverageRatio);
+            case RearSuspensionResolution.LeverageRatio(var leverageRatio):
+                rearSuspension = leverageRatio;
                 errorMessage = null;
                 return true;
 
-            default:
+            case RearSuspensionResolution.Invalid:
                 rearSuspension = null;
                 errorMessage = "Rear suspension kind does not match the stored rear suspension payload.";
                 return false;
+
+            default:
+                throw new ArgumentOutOfRangeException();
         }
     }
 
