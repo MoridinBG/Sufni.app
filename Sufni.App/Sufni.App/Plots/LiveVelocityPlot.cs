@@ -17,8 +17,8 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         : base(plot, 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum))
     {
         ConfigurePlot("Velocity", "Velocity (m/s)");
-        frontStreamer = CreateStreamer(Color.FromHex("#3288bd"));
-        rearStreamer = CreateStreamer(Color.FromHex("#66c2a5"));
+        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
     }
 
     public void Append(LiveGraphBatch batch)

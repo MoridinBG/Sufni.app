@@ -14,8 +14,8 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
         : base(plot, 2048, 0, Math.Max(1, travelMaximum))
     {
         ConfigurePlot("Travel", "Travel (mm)");
-        frontStreamer = CreateStreamer(Color.FromHex("#3288bd"));
-        rearStreamer = CreateStreamer(Color.FromHex("#66c2a5"));
+        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
     }
 
     public void Append(LiveGraphBatch batch)

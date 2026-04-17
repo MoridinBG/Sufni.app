@@ -15,9 +15,9 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
         : base(plot, 1024, 0, Math.Max(0.1, imuMaximum))
     {
         ConfigurePlot("IMU", "Acceleration (g)");
-        frameStreamer = CreateStreamer(Color.FromHex("#fc8d59"));
-        forkStreamer = CreateStreamer(Color.FromHex("#3288bd"));
-        rearStreamer = CreateStreamer(Color.FromHex("#66c2a5"));
+        frameStreamer = CreateStreamer(ImuPlot.FrameColor);
+        forkStreamer = CreateStreamer(TelemetryPlot.FrontColor);
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
     }
 
     public void Append(LiveGraphBatch batch)
