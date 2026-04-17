@@ -5,6 +5,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
@@ -23,6 +24,8 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
     private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
+    private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
+    private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
@@ -55,6 +58,8 @@ public class LiveDaqCoordinatorTests
             liveSessionServiceFactory,
             sessionCoordinator,
             tileLayerService,
+            daqManagementService,
+            filesService,
             shell,
             dialogService);
 
@@ -263,6 +268,8 @@ public class LiveDaqCoordinatorTests
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
             sharedStream,
             Substitute.For<ILiveDaqCoordinator>(),
+            daqManagementService,
+            filesService,
             shell,
             dialogService,
             knownBoardsQuery,

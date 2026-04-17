@@ -5,6 +5,7 @@ using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
@@ -25,6 +26,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ITileLayerService tileLayerService;
+    private readonly IDaqManagementService daqManagementService;
+    private readonly IFilesService filesService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
@@ -41,6 +44,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveSessionServiceFactory liveSessionServiceFactory,
         ISessionCoordinator sessionCoordinator,
         ITileLayerService tileLayerService,
+        IDaqManagementService daqManagementService,
+        IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService)
     {
@@ -51,6 +56,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         this.liveSessionServiceFactory = liveSessionServiceFactory;
         this.sessionCoordinator = sessionCoordinator;
         this.tileLayerService = tileLayerService;
+        this.daqManagementService = daqManagementService;
+        this.filesService = filesService;
         this.shell = shell;
         this.dialogService = dialogService;
     }
@@ -125,7 +132,16 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(snapshot, liveDaqSharedStreamRegistry.GetOrCreate(snapshot), this, shell, dialogService, knownBoardsQuery, liveDaqStore));
+            () => new LiveDaqDetailViewModel(
+                snapshot,
+                liveDaqSharedStreamRegistry.GetOrCreate(snapshot),
+                this,
+                daqManagementService,
+                filesService,
+                shell,
+                dialogService,
+                knownBoardsQuery,
+                liveDaqStore));
 
         return Task.CompletedTask;
     }

@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="800"
 d:DesignWidth="1100"
@@ -102,6 +103,42 @@ mc:Ignorable="d">
                             <TextBlock x:Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
                         </StackPanel>
                     </Border>
+
+                    <Border
+                    x:Name="DeviceManagementCard"
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="10">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Device Management" />
+
+                            <Border x:Name="SetTimeButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                                <Button x:Name="SetTimeButton" Command="{Binding SetTimeCommand}" Content="Set Time" IsEnabled="{Binding CanManage}" />
+                            </Border>
+
+                            <Border x:Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                                <Button x:Name="SelectConfigButton" Command="{Binding SelectConfigFileCommand}" Content="Replace Config" IsEnabled="{Binding CanManage}" />
+                            </Border>
+
+                            <TextBlock
+                            x:Name="PendingConfigTextBlock"
+                            IsVisible="{Binding HasPendingConfig}"
+                            Opacity="0.7"
+                            Text="{Binding PendingConfigFileName, StringFormat='Staged: {0}'}" />
+
+                            <Border x:Name="UploadConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                                <Button x:Name="UploadConfigButton" Command="{Binding UploadConfigCommand}" Content="Upload CONFIG" IsEnabled="{Binding CanUploadConfig}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <controls:NotificationsBar
+                    x:Name="ManagementNotificationsBar"
+                    Margin="0,-4,0,0" />
+
+                    <controls:ErrorMessagesBar
+                    x:Name="ManagementErrorMessagesBar"
+                    Margin="0,-4,0,0" />
                 </StackPanel>
             </ScrollViewer>
         </SplitView.Pane>

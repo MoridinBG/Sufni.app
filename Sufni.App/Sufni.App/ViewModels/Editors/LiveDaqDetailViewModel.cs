@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Serilog;
@@ -36,14 +37,20 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private readonly ILiveDaqSharedStream? sharedStream;
     private readonly ILiveDaqCoordinator? liveDaqCoordinator;
+    private readonly IDaqManagementService? daqManagementService;
+    private readonly IFilesService? filesService;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
     private readonly ILiveDaqStore? liveDaqStore;
 
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
+    private readonly CancellableOperation managementOperation = new();
+    private readonly string? managementHost;
+    private readonly int? managementPort;
     private ILiveDaqSharedStreamLease? streamLease;
     private LiveDaqTravelCalibration? travelCalibration;
+    private byte[]? pendingConfigBytes;
     private bool hasLoaded;
 
     [ObservableProperty]
@@ -71,9 +78,33 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [NotifyCanExecuteChangedFor(nameof(StartSessionCommand))]
     private bool canStartSession;
 
+    [ObservableProperty]
+    private bool isManagementBusy;
+
+    [ObservableProperty]
+    private bool hasPendingConfig;
+
+    [ObservableProperty]
+    private string? pendingConfigFileName;
+
     public string FrontTravelText => FormatTravelText("Front", Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
 
     public string RearTravelText => FormatTravelText("Rear", Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
+
+    public bool CanManage => Snapshot.ConnectionState is LiveConnectionState.Disconnected
+        && daqManagementService is not null
+        && filesService is not null
+        && !string.IsNullOrWhiteSpace(managementHost)
+        && managementPort is > 0
+        && !IsManagementBusy;
+
+    public bool CanUploadConfig => CanManage && HasPendingConfig;
+
+    public string? ManagementDisabledTooltip => !string.IsNullOrWhiteSpace(managementHost)
+        && managementPort is > 0
+        && Snapshot.ConnectionState is not LiveConnectionState.Disconnected
+            ? "Disconnect live session first"
+            : null;
 
     public LiveDaqDetailViewModel()
     {
@@ -85,6 +116,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         LiveDaqSnapshot snapshot,
         ILiveDaqSharedStream sharedStream,
         ILiveDaqCoordinator liveDaqCoordinator,
+        IDaqManagementService daqManagementService,
+        IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
@@ -99,8 +132,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         Name = snapshot.DisplayName;
         this.sharedStream = sharedStream;
         this.liveDaqCoordinator = liveDaqCoordinator;
+        this.daqManagementService = daqManagementService;
+        this.filesService = filesService;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqStore = liveDaqStore;
+        managementHost = snapshot.Host;
+        managementPort = snapshot.Port;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -150,6 +187,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private async Task DeactivateAsync()
     {
         connectOperation.Cancel();
+        SetTimeCommand.Cancel();
+        SelectConfigFileCommand.Cancel();
+        UploadConfigCommand.Cancel();
+        managementOperation.Cancel();
+        IsManagementBusy = false;
         hasLoaded = false;
         StopForegroundUpdates();
 
@@ -181,6 +223,147 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
 
         await liveDaqCoordinator.OpenSessionAsync(IdentityKey);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task SetTime(CancellationToken cancellationToken)
+    {
+        if (daqManagementService is null || !TryGetManagementEndpoint(out var host, out var port))
+        {
+            return;
+        }
+
+        using var linkedCts = BeginManagementOperation(cancellationToken);
+        try
+        {
+            var result = await daqManagementService.SetTimeAsync(host, port, linkedCts.Token);
+            if (linkedCts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            switch (result)
+            {
+                case DaqSetTimeResult.Ok ok:
+                    Notifications.Add(FormattableString.Invariant($"Device time updated ({ok.RoundTripTime.TotalMilliseconds:0} ms RTT)."));
+                    break;
+                case DaqSetTimeResult.Error error:
+                    ErrorMessages.Add(error.Message);
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!linkedCts.IsCancellationRequested)
+            {
+                logger.Error(ex, "Setting device time failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                ErrorMessages.Add(ex.Message);
+            }
+        }
+        finally
+        {
+            EndManagementOperation();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task SelectConfigFile(CancellationToken cancellationToken)
+    {
+        if (filesService is null)
+        {
+            return;
+        }
+
+        using var linkedCts = BeginManagementOperation(cancellationToken);
+        try
+        {
+            var selectedFile = await filesService.OpenDeviceConfigFileAsync(linkedCts.Token);
+            if (linkedCts.IsCancellationRequested || selectedFile is null)
+            {
+                return;
+            }
+
+            if (!string.Equals(selectedFile.FileName, "CONFIG", StringComparison.Ordinal))
+            {
+                ErrorMessages.Add("Selected file must be named CONFIG.");
+                return;
+            }
+
+            pendingConfigBytes = selectedFile.Bytes;
+            PendingConfigFileName = selectedFile.FileName;
+            HasPendingConfig = true;
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!linkedCts.IsCancellationRequested)
+            {
+                logger.Error(ex, "Selecting CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                ErrorMessages.Add(ex.Message);
+            }
+        }
+        finally
+        {
+            EndManagementOperation();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUploadConfig))]
+    private async Task UploadConfig(CancellationToken cancellationToken)
+    {
+        if (daqManagementService is null
+            || pendingConfigBytes is not { Length: > 0 } configBytes
+            || !TryGetManagementEndpoint(out var host, out var port))
+        {
+            return;
+        }
+
+        using var linkedCts = BeginManagementOperation(cancellationToken);
+        var uploadStarted = false;
+        try
+        {
+            uploadStarted = true;
+            var result = await daqManagementService.ReplaceConfigAsync(host, port, configBytes, linkedCts.Token);
+            if (linkedCts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            switch (result)
+            {
+                case DaqManagementResult.Ok:
+                    Notifications.Add("CONFIG uploaded.");
+                    break;
+                case DaqManagementResult.Error error:
+                    ErrorMessages.Add(error.Message);
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!linkedCts.IsCancellationRequested)
+            {
+                logger.Error(ex, "Uploading CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                ErrorMessages.Add(ex.Message);
+            }
+        }
+        finally
+        {
+            if (uploadStarted)
+            {
+                ClearPendingConfig();
+            }
+
+            EndManagementOperation();
+        }
     }
 
     private async Task ConnectImplementationAsync(bool userInitiated)
@@ -323,7 +506,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         OnPropertyChanged(nameof(FrontTravelText));
         OnPropertyChanged(nameof(RearTravelText));
+        RefreshManagementAvailability();
     }
+
+    partial void OnIsManagementBusyChanged(bool value) => RefreshManagementAvailability();
+
+    partial void OnHasPendingConfigChanged(bool value) => RefreshManagementAvailability();
 
     private void RequestSharedStreamRefresh()
     {
@@ -408,6 +596,43 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         CanStartSession = connectionState == LiveConnectionState.Connected
             && knownBoardsQuery?.GetSessionContext(IdentityKey) is not null;
+    }
+
+    private CancellationTokenSource BeginManagementOperation(CancellationToken cancellationToken)
+    {
+        IsManagementBusy = true;
+        var operationToken = managementOperation.Start();
+        return CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, operationToken);
+    }
+
+    private void EndManagementOperation()
+    {
+        managementOperation.Cancel();
+        IsManagementBusy = false;
+    }
+
+    private void ClearPendingConfig()
+    {
+        pendingConfigBytes = null;
+        PendingConfigFileName = null;
+        HasPendingConfig = false;
+    }
+
+    private void RefreshManagementAvailability()
+    {
+        OnPropertyChanged(nameof(CanManage));
+        OnPropertyChanged(nameof(CanUploadConfig));
+        OnPropertyChanged(nameof(ManagementDisabledTooltip));
+        SetTimeCommand.NotifyCanExecuteChanged();
+        SelectConfigFileCommand.NotifyCanExecuteChanged();
+        UploadConfigCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool TryGetManagementEndpoint(out string host, out int port)
+    {
+        host = managementHost ?? string.Empty;
+        port = managementPort ?? 0;
+        return !string.IsNullOrWhiteSpace(host) && port > 0;
     }
 
     protected override void OnActivated()

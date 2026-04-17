@@ -4,6 +4,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Services.LiveStreaming;
@@ -16,6 +17,8 @@ public class LiveDaqDetailViewModelTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveDaqCoordinator liveDaqCoordinator = Substitute.For<ILiveDaqCoordinator>();
+    private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
+    private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
@@ -32,6 +35,12 @@ public class LiveDaqDetailViewModelTests
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(true));
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
         knownBoardsQuery.GetSessionContext("board-1").Returns(CreateSessionContext("board-1"));
+        daqManagementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqSetTimeResult>(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(30))));
+        daqManagementService.ReplaceConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<SelectedDeviceConfigFile?>(null));
         sharedStream.Frames.Returns(frames);
         sharedStream.States.Returns(streamStates);
         sharedStream.CurrentState.Returns(_ => currentStreamState);
@@ -94,6 +103,8 @@ public class LiveDaqDetailViewModelTests
                 BikeName: "demo"),
             sharedStream,
             liveDaqCoordinator,
+            daqManagementService,
+            filesService,
             shell,
             dialogService,
             knownBoardsQuery,
@@ -296,8 +307,8 @@ public class LiveDaqDetailViewModelTests
 
         var coordinator1 = Substitute.For<ILiveDaqCoordinator>();
         var coordinator2 = Substitute.For<ILiveDaqCoordinator>();
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, shell, dialogService, query, liveDaqStore);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, shell, dialogService, query, liveDaqStore);
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
@@ -336,6 +347,156 @@ public class LiveDaqDetailViewModelTests
 
         Assert.Equal("Front: 60mm (30%)", editor.FrontTravelText);
         Assert.Equal("Rear: 222", editor.RearTravelText);
+    }
+
+    [AvaloniaFact]
+    public void CanManage_TracksConnectionState_WhenEndpointExists()
+    {
+        var editor = CreateEditor();
+
+        Assert.True(editor.CanManage);
+        Assert.Null(editor.ManagementDisabledTooltip);
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            ConnectionState = LiveConnectionState.Connected,
+            ConnectionStateText = LiveDaqUiSnapshot.ToConnectionStateText(LiveConnectionState.Connected)
+        };
+
+        Assert.False(editor.CanManage);
+        Assert.Equal("Disconnect live session first", editor.ManagementDisabledTooltip);
+    }
+
+    [AvaloniaFact]
+    public async Task SetTimeCommand_AddsNotification_OnSuccess()
+    {
+        var editor = CreateEditor();
+
+        await editor.SetTimeCommand.ExecuteAsync(null);
+
+        Assert.Single(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task SetTimeCommand_AddsError_OnTypedFailure()
+    {
+        daqManagementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqSetTimeResult>(
+                new DaqSetTimeResult.Error(DaqManagementErrorCode.Busy, "busy")));
+        var editor = CreateEditor();
+
+        await editor.SetTimeCommand.ExecuteAsync(null);
+
+        Assert.Single(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task UploadConfigCommand_ClearsStagedConfig_OnSuccess()
+    {
+        var editor = CreateEditor();
+        await StageConfigAsync(editor, new SelectedDeviceConfigFile("CONFIG", [1, 2, 3]));
+
+        await editor.UploadConfigCommand.ExecuteAsync(null);
+
+        Assert.False(editor.HasPendingConfig);
+        Assert.Null(editor.PendingConfigFileName);
+        Assert.Single(editor.Notifications);
+        await daqManagementService.Received(1)
+            .ReplaceConfigAsync("192.168.0.50", 1557, Arg.Is<byte[]>(bytes => bytes.SequenceEqual(new byte[] { 1, 2, 3 })), Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task UploadConfigCommand_ClearsStagedConfig_OnTypedFailure()
+    {
+        daqManagementService.ReplaceConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(
+                new DaqManagementResult.Error(DaqManagementErrorCode.ValidationError, "invalid")));
+        var editor = CreateEditor();
+        await StageConfigAsync(editor, new SelectedDeviceConfigFile("CONFIG", [1, 2, 3]));
+
+        await editor.UploadConfigCommand.ExecuteAsync(null);
+
+        Assert.False(editor.HasPendingConfig);
+        Assert.Null(editor.PendingConfigFileName);
+        Assert.Single(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task UploadConfigCommand_ClearsStagedConfig_OnException()
+    {
+        daqManagementService.ReplaceConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<DaqManagementResult>(new InvalidOperationException("boom")));
+        var editor = CreateEditor();
+        await StageConfigAsync(editor, new SelectedDeviceConfigFile("CONFIG", [1, 2, 3]));
+
+        await editor.UploadConfigCommand.ExecuteAsync(null);
+
+        Assert.False(editor.HasPendingConfig);
+        Assert.Null(editor.PendingConfigFileName);
+        Assert.Single(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task Unloaded_CancelsInFlightManagementWork_AndIgnoresLateCompletion()
+    {
+        var serviceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var serviceResult = new TaskCompletionSource<DaqSetTimeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        daqManagementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => WaitForResultAsync(callInfo.ArgAt<CancellationToken>(2), serviceStarted, serviceResult.Task));
+        var editor = CreateEditor();
+
+        var setTimeTask = editor.SetTimeCommand.ExecuteAsync(null);
+        await serviceStarted.Task;
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+        serviceResult.TrySetResult(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(30)));
+        await setTimeTask;
+
+        Assert.Empty(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+        Assert.False(editor.IsManagementBusy);
+    }
+
+    [AvaloniaFact]
+    public async Task SetTimeCompletion_DoesNotOverwriteLiveConnectionState()
+    {
+        var serviceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var serviceResult = new TaskCompletionSource<DaqSetTimeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        daqManagementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => WaitForResultAsync(callInfo.ArgAt<CancellationToken>(2), serviceStarted, serviceResult.Task));
+        var editor = CreateEditor();
+
+        var setTimeTask = editor.SetTimeCommand.ExecuteAsync(null);
+        await serviceStarted.Task;
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            ConnectionState = LiveConnectionState.Connected,
+            ConnectionStateText = LiveDaqUiSnapshot.ToConnectionStateText(LiveConnectionState.Connected)
+        };
+
+        serviceResult.TrySetResult(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(30)));
+        await setTimeTask;
+
+        Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
+        Assert.Single(editor.Notifications);
+    }
+
+    private async Task StageConfigAsync(LiveDaqDetailViewModel editor, SelectedDeviceConfigFile file)
+    {
+        filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<SelectedDeviceConfigFile?>(file));
+        await editor.SelectConfigFileCommand.ExecuteAsync(null);
+    }
+
+    private static async Task<DaqSetTimeResult> WaitForResultAsync(
+        CancellationToken cancellationToken,
+        TaskCompletionSource started,
+        Task<DaqSetTimeResult> resultTask)
+    {
+        started.TrySetResult();
+        return await resultTask.WaitAsync(cancellationToken);
     }
 
     private static LiveDaqSessionContext CreateSessionContext(string identityKey)

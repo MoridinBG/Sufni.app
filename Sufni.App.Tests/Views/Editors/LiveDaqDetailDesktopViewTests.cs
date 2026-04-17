@@ -1,9 +1,16 @@
 using System;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using NSubstitute;
+using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Editors;
+using Sufni.App.Queries;
+using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 
@@ -142,6 +149,69 @@ public class LiveDaqDetailDesktopViewTests
         Assert.False(mounted.View.FindControl<TextBlock>("ImuEmptyStateTextBlock")!.IsVisible);
     }
 
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_DeviceManagementControls_AndBars_ArePresent()
+    {
+        var editor = CreateEditorWithManagement();
+
+        await using var mounted = await MountAsync(editor);
+
+        Assert.NotNull(mounted.View.FindControl<Button>("SetTimeButton"));
+        Assert.NotNull(mounted.View.FindControl<Button>("SelectConfigButton"));
+        Assert.NotNull(mounted.View.FindControl<Button>("UploadConfigButton"));
+        Assert.NotNull(mounted.View.FindControl<Control>("ManagementNotificationsBar"));
+        Assert.NotNull(mounted.View.FindControl<Control>("ManagementErrorMessagesBar"));
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_SetTimeButton_DisabledWhenConnected()
+    {
+        var editor = CreateEditorWithManagement();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Connected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_UploadButton_DisabledUntilConfigIsStaged()
+    {
+        var editor = CreateEditorWithManagement();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var uploadButton = mounted.View.FindControl<Button>("UploadConfigButton");
+        Assert.NotNull(uploadButton);
+        Assert.False(uploadButton!.IsEnabled);
+
+        editor.PendingConfigFileName = "CONFIG";
+        editor.HasPendingConfig = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(uploadButton.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_PendingConfigText_ReflectsStagedFile()
+    {
+        var editor = CreateEditorWithManagement();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        editor.PendingConfigFileName = "CONFIG";
+        editor.HasPendingConfig = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var text = mounted.View.FindControl<TextBlock>("PendingConfigTextBlock");
+        Assert.NotNull(text);
+        Assert.True(text!.IsVisible);
+        Assert.Equal("Staged: CONFIG", text.Text);
+    }
+
     private static LiveDaqDetailViewModel CreateEditor()
     {
         return new LiveDaqDetailViewModel
@@ -151,6 +221,40 @@ public class LiveDaqDetailDesktopViewTests
             CanDisconnect = false,
             CanStartSession = false,
             AreRequestedRatesEnabled = true,
+            Snapshot = LiveDaqUiSnapshot.Empty
+        };
+    }
+
+    private static LiveDaqDetailViewModel CreateEditorWithManagement()
+    {
+        var sharedStream = Substitute.For<ILiveDaqSharedStream>();
+        sharedStream.Frames.Returns(new Subject<LiveProtocolFrame>());
+        sharedStream.States.Returns(new BehaviorSubject<LiveDaqSharedStreamState>(LiveDaqSharedStreamState.Empty));
+        sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
+        sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
+
+        var knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
+        knownBoardsQuery.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
+
+        return new LiveDaqDetailViewModel(
+            new LiveDaqSnapshot(
+                IdentityKey: "board-1",
+                DisplayName: "Board 1",
+                BoardId: "board-1",
+                Host: "192.168.0.50",
+                Port: 1557,
+                IsOnline: true,
+                SetupName: "race",
+                BikeName: "demo"),
+            sharedStream,
+            Substitute.For<ILiveDaqCoordinator>(),
+            Substitute.For<IDaqManagementService>(),
+            Substitute.For<IFilesService>(),
+            Substitute.For<IShellCoordinator>(),
+            Substitute.For<IDialogService>(),
+            knownBoardsQuery,
+            new LiveDaqStore())
+        {
             Snapshot = LiveDaqUiSnapshot.Empty
         };
     }
