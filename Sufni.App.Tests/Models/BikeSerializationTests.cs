@@ -23,9 +23,8 @@ public class BikeSerializationTests
 
         Assert.NotNull(imported);
         Assert.Equal(RearSuspensionKind.Linkage, imported!.RearSuspensionKind);
-        Assert.True(imported.TryResolveRearSuspension(out var rearSuspension, out var errorMessage));
-        Assert.Null(errorMessage);
-        Assert.IsType<LinkageRearSuspension>(rearSuspension);
+        var resolution = RearSuspensionResolver.Resolve(imported.RearSuspensionKind, imported.Linkage, imported.LeverageRatio);
+        Assert.IsType<RearSuspensionResolution.Linkage>(resolution);
     }
 
     [Fact]
@@ -49,19 +48,4 @@ public class BikeSerializationTests
         Assert.Equal(leverageRatio.Points, imported.LeverageRatio!.Points);
     }
 
-    [Fact]
-    public void TryResolveRearSuspension_ReturnsFalse_WhenKindAndPayloadDoNotMatch()
-    {
-        var bike = new Bike(Guid.NewGuid(), "invalid bike")
-        {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            LeverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
-        };
-
-        var success = bike.TryResolveRearSuspension(out var rearSuspension, out var errorMessage);
-
-        Assert.False(success);
-        Assert.Null(rearSuspension);
-        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
-    }
 }

@@ -15,14 +15,23 @@ internal static class RearTravelCalibrationBuilder
         calibration = null;
         errorMessage = null;
 
-        if (!bike.TryResolveRearSuspension(out var rearSuspension, out errorMessage))
+        RearSuspension rearSuspension;
+        switch (RearSuspensionResolver.Resolve(bike.RearSuspensionKind, bike.Linkage, bike.LeverageRatio))
         {
-            return false;
-        }
-
-        if (rearSuspension is null)
-        {
-            return true;
+            case RearSuspensionResolution.Hardtail:
+                return true;
+            case RearSuspensionResolution.Linkage linkageResolution:
+                rearSuspension = linkageResolution.Value;
+                break;
+            case RearSuspensionResolution.LeverageRatio leverageRatioResolution:
+                rearSuspension = leverageRatioResolution.Value;
+                break;
+            case RearSuspensionResolution.Invalid invalid:
+                errorMessage = RearSuspensionResolutionMessages.ForSave(invalid.Error);
+                return false;
+            default:
+                errorMessage = "Unknown rear suspension resolution.";
+                return false;
         }
 
         if (!setup.TryBuildRearShockCalibration(bike, out var shockCalibration, out errorMessage))
