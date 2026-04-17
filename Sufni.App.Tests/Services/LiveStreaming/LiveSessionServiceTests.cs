@@ -90,12 +90,13 @@ public class LiveSessionServiceTests
             }
         });
 
-        var travelWithImuBatch = WaitForGraphBatchAsync(
+        var travelBatch = WaitForGraphBatchAsync(
             service.GraphBatches,
-            batch => batch.FrontTravel.Count == 5
-                && batch.RearTravel.Count == 5
-                && batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes)
-                && imuTimes.Count == 1,
+            batch => batch.FrontTravel.Count == 5 && batch.RearTravel.Count == 5,
+            TimeSpan.FromSeconds(2));
+        var imuBatch = WaitForGraphBatchAsync(
+            service.GraphBatches,
+            batch => batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 1,
             TimeSpan.FromSeconds(2));
 
         await service.EnsureAttachedAsync();
@@ -109,7 +110,7 @@ public class LiveSessionServiceTests
             longitude: 23.3220,
             altitude: 601));
 
-        await travelWithImuBatch;
+        await Task.WhenAll(travelBatch, imuBatch);
         await statisticsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(service.Current.Controls.CanSave);
