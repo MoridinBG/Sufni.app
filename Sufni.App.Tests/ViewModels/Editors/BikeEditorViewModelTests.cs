@@ -542,6 +542,60 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_ClearsShockStroke_WhenSwitchingFromLinkageToHardtail()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+        Assert.NotNull(editor.ShockStroke);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
+        await Task.Yield();
+
+        Assert.Equal(BikeRearSuspensionMode.None, editor.RearSuspensionMode);
+        Assert.Null(editor.ShockStroke);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_PreservesShockStroke_WhenSwitchingBetweenLinkageAndLeverageRatio()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+        var originalShockStroke = editor.ShockStroke;
+        Assert.NotNull(originalShockStroke);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.Equal(originalShockStroke, editor.ShockStroke);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_DoesNotReprompt_AfterOutgoingPayloadAlreadyDiscarded()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
+        await Task.Yield();
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.Linkage);
+        await Task.Yield();
+        dialogService.ClearReceivedCalls();
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        await dialogService.DidNotReceiveWithAnyArgs()
+            .ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [AvaloniaFact]
     public async Task Save_OnForkOnlyBike_OnFailed_AppendsErrorMessage()
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
