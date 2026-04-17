@@ -1,20 +1,18 @@
 <UserControl
-    x:Class="Sufni.App.DesktopViews.Editors.SessionDetailDesktopView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:pages="clr-namespace:Sufni.App.Views.SessionPages"
-    xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
-    xmlns:v="clr-namespace:Sufni.App.Views"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
-    d:DesignHeight="800"
-    d:DesignWidth="800"
-    x:DataType="vm:SessionDetailViewModel"
-    Background="{StaticResource SufniRegion}"
-    Focusable="True"
-    mc:Ignorable="d">
+x:Class="Sufni.App.DesktopViews.Editors.SessionDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
+xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="800"
+x:DataType="vm:SessionDetailViewModel"
+Background="{StaticResource SufniRegion}"
+Focusable="True"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:SessionDetailViewModel />
@@ -60,195 +58,22 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="* auto *">
+    <editors:SessionShellDesktopView>
+        <editors:SessionShellDesktopView.GraphContent>
+            <items:RecordedSessionGraphDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.GraphContent>
 
-        <Grid Grid.Row="0">
-            <Grid.Resources>
-                <items:GridWidthConverter x:Key="GridWidthConverter" />
-                <items:NullToGridLengthConverter x:Key="NullToGridLengthConverter" />
-            </Grid.Resources>
+        <editors:SessionShellDesktopView.MediaContent>
+            <items:SessionMediaDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.MediaContent>
 
-            <Grid.RowDefinitions>
-                <RowDefinition Height="3*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="2*" />
-                <RowDefinition Height="{Binding TelemetryData.ImuData, Converter={StaticResource NullToGridLengthConverter}, ConverterParameter=Auto}" />
-                <RowDefinition Height="{Binding TelemetryData.ImuData, Converter={StaticResource NullToGridLengthConverter}, ConverterParameter=2*}" />
-            </Grid.RowDefinitions>
+        <editors:SessionShellDesktopView.StatisticsContent>
+            <items:SessionStatisticsDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.StatisticsContent>
 
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="{Binding MapVideoWidth, Converter={StaticResource GridWidthConverter}}" />
-            </Grid.ColumnDefinitions>
-
-            <!--  Travel  -->
-            <plots:TravelPlotDesktopView
-                Name="Travel"
-                Grid.Row="0"
-                Grid.Column="0"
-                MapView="{Binding #Map}"
-                Telemetry="{Binding TelemetryData}"
-                VelocityPlotView="{Binding #Velocity}"
-                ImuPlotView="{Binding #Imu}"/>
-
-            <!--  Splitter between travel and velocity  -->
-            <GridSplitter
-                Grid.Row="1"
-                Grid.Column="0"
-                ResizeDirection="Rows" />
-
-            <plots:VelocityPlotDesktopView
-                Name="Velocity"
-                Grid.Row="2"
-                Grid.Column="0"
-                MapView="{Binding #Map}"
-                Telemetry="{Binding TelemetryData}"
-                TravelPlotView="{Binding #Travel}"
-                ImuPlotView="{Binding #Imu}"/>
-
-            <GridSplitter
-                Grid.Row="3"
-                Grid.Column="0"
-                ResizeDirection="Rows"
-                ResizeBehavior="PreviousAndNext">
-                <GridSplitter.IsVisible>
-                    <Binding Path="TelemetryData.ImuData" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                </GridSplitter.IsVisible>
-            </GridSplitter>
-
-            <plots:ImuPlotDesktopView
-                Name="Imu"
-                Grid.Row="4"
-                Grid.Column="0"
-                MapView="{Binding #Map}"
-                Telemetry="{Binding TelemetryData}"
-                TravelPlotView="{Binding #Travel}"
-                VelocityPlotView="{Binding #Velocity}">
-                <plots:ImuPlotDesktopView.IsVisible>
-                    <Binding Path="TelemetryData.ImuData" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                </plots:ImuPlotDesktopView.IsVisible>
-            </plots:ImuPlotDesktopView>
-
-            <!--  Splitter between travel+velocity and video+map  -->
-            <GridSplitter
-                Grid.Row="0"
-                Grid.RowSpan="5"
-                Grid.Column="1"
-                Margin="0,39,0,0"
-                ResizeDirection="Columns">
-                <GridSplitter.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="TrackPoints" />
-                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="VideoUrl" />
-                    </MultiBinding>
-                </GridSplitter.IsVisible>
-            </GridSplitter>
-
-            <!--  Video and Map  -->
-            <Grid
-                Grid.Row="0"
-                Grid.RowSpan="5"
-                Grid.Column="2"
-                Margin="0,39,0,0"
-                IsVisible="True"
-                RowDefinitions="auto auto *">
-
-                <!--  Video  -->
-                <Border
-                    Grid.Row="0"
-                    Background="DarkSlateBlue"
-                    IsVisible="{Binding VideoUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                <!--  Splitter between video and map  -->
-                <GridSplitter Grid.Row="1" ResizeDirection="Rows">
-                    <GridSplitter.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.And}">
-                            <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="TrackPoints" />
-                            <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="VideoUrl" />
-                        </MultiBinding>
-                    </GridSplitter.IsVisible>
-                </GridSplitter>
-
-                <!--  Map  -->
-                <v:MapView
-                    Name="Map"
-                    Grid.Row="2"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
-                    DataContext="{Binding MapViewModel}"
-                    IsVisible="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).TrackPoints, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </Grid>
-        </Grid>
-
-        <!--  Splitter between top and bottom half  -->
-        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
-
-        <Grid Grid.Row="2" ColumnDefinitions="* auto 400">
-
-            <!--  Statistic graphs  -->
-            <items:SessionStatisticsDesktopView Grid.Column="0" />
-
-            <!--  Splitter between statistics and notes  -->
-            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
-
-            <!--  Name and notes  -->
-            <Grid Grid.Column="2" RowDefinitions="auto * auto">
-                <!--  Name  -->
-                <Grid
-                    Grid.Row="0"
-                    Margin="14,10,10,10"
-                    ColumnDefinitions="auto *">
-                    <Label
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        VerticalAlignment="Center"
-                        Content="Name: " />
-                    <TextBox
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        Margin="2"
-                        HorizontalAlignment="Stretch"
-                        Text="{Binding Name}" />
-                </Grid>
-
-                <!--  Notes  -->
-                <pages:NotesPageView Grid.Row="1" DataContext="{Binding NotesPage}" />
-
-                <!--  Buttons  -->
-                <Grid
-                    Grid.Row="2"
-                    Margin="14,10,10,10"
-                    ColumnDefinitions="* auto">
-                    <!--  Save Button  -->
-                    <Button
-                        Grid.Column="0"
-                        Margin="0,0,10,0"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Command="{Binding SaveCommand}"
-                        Content="Save" />
-
-                    <!--  Reset button  -->
-                    <Button
-                        Grid.Column="1"
-                        Width="39"
-                        Height="39"
-                        Margin="0,0,5,0"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Command="{Binding ResetCommand}">
-                        <Image
-                            Width="16"
-                            Height="16"
-                            Source="{SvgImage /Assets/fa-rotate-left.svg}" />
-                    </Button>
-                </Grid>
-            </Grid>
-        </Grid>
-
-    </Grid>
+        <editors:SessionShellDesktopView.SidebarContent>
+            <items:SessionSidebarDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.SidebarContent>
+    </editors:SessionShellDesktopView>
 
 </UserControl>

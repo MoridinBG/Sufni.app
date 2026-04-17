@@ -64,6 +64,40 @@ public class SessionPresentationServiceTests
     }
 
     [Fact]
+    public void BuildCachePresentation_InsufficientBalanceSamples_OmitsBalance()
+    {
+        var telemetry = CreateTelemetryWithSingleBalanceSamplePerSide();
+
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+
+        Assert.NotNull(result.FrontTravelHistogram);
+        Assert.NotNull(result.RearTravelHistogram);
+        Assert.NotNull(result.FrontVelocityHistogram);
+        Assert.NotNull(result.RearVelocityHistogram);
+        Assert.False(result.BalanceAvailable);
+        Assert.Null(result.CompressionBalance);
+        Assert.Null(result.ReboundBalance);
+    }
+
+    [Fact]
+    public void BuildCachePresentation_WithoutStrokeData_OmitsHistogramsAndPercentages()
+    {
+        var telemetry = CreateTelemetryWithoutStrokes();
+
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+
+        Assert.Null(result.FrontTravelHistogram);
+        Assert.Null(result.RearTravelHistogram);
+        Assert.Null(result.FrontVelocityHistogram);
+        Assert.Null(result.RearVelocityHistogram);
+        Assert.False(result.BalanceAvailable);
+        Assert.Null(result.CompressionBalance);
+        Assert.Null(result.ReboundBalance);
+        Assert.Null(result.DamperPercentages.FrontHscPercentage);
+        Assert.Null(result.DamperPercentages.RearHscPercentage);
+    }
+
+    [Fact]
     public void SessionCachePresentationData_RoundTripsThroughSessionCache()
     {
         var cache = new SessionCache
@@ -97,5 +131,75 @@ public class SessionPresentationServiceTests
         Assert.Equal(cache.ReboundBalance, roundTripped.ReboundBalance);
         Assert.Equal(cache.FrontHscPercentage, roundTripped.FrontHscPercentage);
         Assert.Equal(cache.RearHsrPercentage, roundTripped.RearHsrPercentage);
+    }
+
+    private static Sufni.Telemetry.TelemetryData CreateTelemetryWithSingleBalanceSamplePerSide()
+    {
+        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+
+        telemetry.Front.Strokes = new Sufni.Telemetry.Strokes
+        {
+            Compressions =
+            [
+                new Sufni.Telemetry.Stroke
+                {
+                    Start = 0,
+                    End = 0,
+                    Stat = new Sufni.Telemetry.StrokeStat
+                    {
+                        Count = 1,
+                        MaxTravel = 10,
+                        MaxVelocity = 100,
+                    },
+                    DigitizedTravel = [0],
+                    DigitizedVelocity = [0],
+                    FineDigitizedVelocity = [0],
+                },
+            ],
+            Rebounds = [],
+        };
+
+        telemetry.Rear.Strokes = new Sufni.Telemetry.Strokes
+        {
+            Compressions =
+            [
+                new Sufni.Telemetry.Stroke
+                {
+                    Start = 0,
+                    End = 0,
+                    Stat = new Sufni.Telemetry.StrokeStat
+                    {
+                        Count = 1,
+                        MaxTravel = 12,
+                        MaxVelocity = 120,
+                    },
+                    DigitizedTravel = [0],
+                    DigitizedVelocity = [0],
+                    FineDigitizedVelocity = [0],
+                },
+            ],
+            Rebounds = [],
+        };
+
+        return telemetry;
+    }
+
+    private static Sufni.Telemetry.TelemetryData CreateTelemetryWithoutStrokes()
+    {
+        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+
+        telemetry.Front.Strokes = new Sufni.Telemetry.Strokes
+        {
+            Compressions = [],
+            Rebounds = [],
+        };
+
+        telemetry.Rear.Strokes = new Sufni.Telemetry.Strokes
+        {
+            Compressions = [],
+            Rebounds = [],
+        };
+
+        return telemetry;
     }
 }

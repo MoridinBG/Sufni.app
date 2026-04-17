@@ -1,16 +1,16 @@
 ﻿<UserControl
-    x:Class="Sufni.App.DesktopViews.Items.SessionStatisticsDesktopView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
-    x:DataType="vm:SessionDetailViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.DesktopViews.Items.SessionStatisticsDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:ISessionStatisticsWorkspace"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:SessionDetailViewModel />
@@ -27,17 +27,17 @@
 
             <TabStrip.Items>
                 <TabItem
-                    HorizontalAlignment="Center"
-                    FontSize="16"
-                    Header="Spring rate" />
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Spring rate" />
                 <TabItem
-                    HorizontalAlignment="Center"
-                    FontSize="16"
-                    Header="Damping" />
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Damping" />
                 <TabItem
-                    HorizontalAlignment="Center"
-                    FontSize="16"
-                    Header="Balance" />
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Balance" />
             </TabStrip.Items>
         </TabStrip>
 
@@ -52,130 +52,116 @@
 
                 <!--  Spring rate  -->
                 <Grid
-                    Name="SpringRate"
-                    ColumnDefinitions="* *"
-                    RowDefinitions="2* * *">
+                Name="SpringRate"
+                ColumnDefinitions="* *"
+                RowDefinitions="2* * *">
 
                     <!--  Front travel histogram  -->
                     <plots:TravelHistogramDesktopView
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        IsVisible="{Binding TelemetryData.Front.Present}"
-                        SuspensionType="Front"
-                        Telemetry="{Binding TelemetryData}" />
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    IsVisible="{Binding HasFrontStatistics}"
+                    SuspensionType="Front"
+                    Telemetry="{Binding TelemetryData}" />
 
                     <!--  Rear travel histogram  -->
                     <plots:TravelHistogramDesktopView
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        IsVisible="{Binding TelemetryData.Rear.Present}"
-                        SuspensionType="Rear"
-                        Telemetry="{Binding TelemetryData}" />
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    IsVisible="{Binding HasRearStatistics}"
+                    SuspensionType="Rear"
+                    Telemetry="{Binding TelemetryData}" />
 
                     <!--  Front travel FFT  -->
                     <plots:TravelFrequencyHistogramDesktopView
-                        Grid.Row="1"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="2"
-                        IsVisible="{Binding TelemetryData.Front.Present}"
-                        SuspensionType="Front"
-                        Telemetry="{Binding TelemetryData}" />
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    IsVisible="{Binding HasFrontStatistics}"
+                    SuspensionType="Front"
+                    Telemetry="{Binding TelemetryData}" />
 
                     <!--  Rear travel FFT  -->
                     <plots:TravelFrequencyHistogramDesktopView
-                        Grid.Row="2"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="2"
-                        IsVisible="{Binding TelemetryData.Rear.Present}"
-                        SuspensionType="Rear"
-                        Telemetry="{Binding TelemetryData}" />
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    IsVisible="{Binding HasRearStatistics}"
+                    SuspensionType="Rear"
+                    Telemetry="{Binding TelemetryData}" />
                 </Grid>
 
                 <!--  Damping  -->
                 <Grid
-                    Name="Damping"
-                    ColumnDefinitions="* 64 * 64"
-                    RowDefinitions="auto *">
+                Name="Damping"
+                ColumnDefinitions="* 64 * 64"
+                RowDefinitions="auto *">
 
                     <!--  Travel percentage legend  -->
                     <plots:TravelPercentageLegend
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        Margin="38,0,8,0"
-                        IsVisible="{Binding TelemetryData.Front.Present}" />
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="38,0,8,0"
+                    IsVisible="{Binding HasFrontStatistics}" />
 
                     <!--  Front velocity histogram  -->
                     <plots:VelocityHistogramDesktopView
-                        Grid.Row="1"
-                        Grid.Column="0"
-                        IsVisible="{Binding TelemetryData.Front.Present}"
-                        SuspensionType="Front"
-                        Telemetry="{Binding TelemetryData}" />
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    IsVisible="{Binding HasFrontStatistics}"
+                    SuspensionType="Front"
+                    Telemetry="{Binding TelemetryData}" />
 
                     <!--  Front speed zones  -->
                     <commonplots:VelocityBandView
-                        Grid.Row="1"
-                        Grid.Column="1"
-                        HscPercentage="{Binding DamperPage.FrontHscPercentage}"
-                        HsrPercentage="{Binding DamperPage.FrontHsrPercentage}"
-                        IsVisible="{Binding TelemetryData.Front.Present}"
-                        LscPercentage="{Binding DamperPage.FrontLscPercentage}"
-                        LsrPercentage="{Binding DamperPage.FrontLsrPercentage}" />
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    HscPercentage="{Binding DamperPercentages.FrontHscPercentage}"
+                    HsrPercentage="{Binding DamperPercentages.FrontHsrPercentage}"
+                    IsVisible="{Binding HasFrontStatistics}"
+                    LscPercentage="{Binding DamperPercentages.FrontLscPercentage}"
+                    LsrPercentage="{Binding DamperPercentages.FrontLsrPercentage}" />
 
                     <!--  Travel percentage legend  -->
                     <plots:TravelPercentageLegend
-                        Grid.Row="0"
-                        Grid.Column="2"
-                        Margin="38,0,8,0"
-                        IsVisible="{Binding TelemetryData.Rear.Present}" />
+                    Grid.Row="0"
+                    Grid.Column="2"
+                    Margin="38,0,8,0"
+                    IsVisible="{Binding HasRearStatistics}" />
 
                     <!--  Rear velocity histogram  -->
                     <plots:VelocityHistogramDesktopView
-                        Grid.Row="1"
-                        Grid.Column="2"
-                        IsVisible="{Binding TelemetryData.Rear.Present}"
-                        SuspensionType="Rear"
-                        Telemetry="{Binding TelemetryData}" />
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    IsVisible="{Binding HasRearStatistics}"
+                    SuspensionType="Rear"
+                    Telemetry="{Binding TelemetryData}" />
 
                     <!--  Rear speed zones  -->
                     <commonplots:VelocityBandView
-                        Grid.Row="1"
-                        Grid.Column="3"
-                        HscPercentage="{Binding DamperPage.RearHscPercentage}"
-                        HsrPercentage="{Binding DamperPage.RearHsrPercentage}"
-                        IsVisible="{Binding TelemetryData.Rear.Present}"
-                        LscPercentage="{Binding DamperPage.RearLscPercentage}"
-                        LsrPercentage="{Binding DamperPage.RearLsrPercentage}" />
+                    Grid.Row="1"
+                    Grid.Column="3"
+                    HscPercentage="{Binding DamperPercentages.RearHscPercentage}"
+                    HsrPercentage="{Binding DamperPercentages.RearHsrPercentage}"
+                    IsVisible="{Binding HasRearStatistics}"
+                    LscPercentage="{Binding DamperPercentages.RearLscPercentage}"
+                    LsrPercentage="{Binding DamperPercentages.RearLsrPercentage}" />
                 </Grid>
 
                 <!--  Balance graphs  -->
                 <Grid Name="Balance" ColumnDefinitions="* *">
                     <plots:BalancePlotDesktopView
-                        Grid.Column="0"
-                        BalanceType="Compression"
-                        IsHitTestVisible="False"
-                        Telemetry="{Binding TelemetryData}">
-                        <plots:BalancePlotDesktopView.IsVisible>
-                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="TelemetryData" />
-                                <Binding Path="TelemetryData.Front.Present" />
-                                <Binding Path="TelemetryData.Rear.Present" />
-                            </MultiBinding>
-                        </plots:BalancePlotDesktopView.IsVisible>
-                    </plots:BalancePlotDesktopView>
+                    Grid.Column="0"
+                    BalanceType="Compression"
+                    IsHitTestVisible="False"
+                    IsVisible="{Binding HasCompressionBalanceTelemetry}"
+                    Telemetry="{Binding TelemetryData}" />
                     <plots:BalancePlotDesktopView
-                        Grid.Column="1"
-                        BalanceType="Rebound"
-                        IsHitTestVisible="False"
-                        Telemetry="{Binding TelemetryData}">
-                        <plots:BalancePlotDesktopView.IsVisible>
-                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="TelemetryData" />
-                                <Binding Path="TelemetryData.Front.Present" />
-                                <Binding Path="TelemetryData.Rear.Present" />
-                            </MultiBinding>
-                        </plots:BalancePlotDesktopView.IsVisible>
-                    </plots:BalancePlotDesktopView>
+                    Grid.Column="1"
+                    BalanceType="Rebound"
+                    IsHitTestVisible="False"
+                    IsVisible="{Binding HasReboundBalanceTelemetry}"
+                    Telemetry="{Binding TelemetryData}" />
                 </Grid>
             </ItemsControl.Items>
         </ItemsControl>

@@ -1,6 +1,8 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
+using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
@@ -19,16 +21,29 @@ public class NetworkTelemetryFile : ITelemetryFile
     public bool HasUnknown => false;
 
     private readonly IPEndPoint ipEndPoint;
+    private readonly IDaqManagementService daqManagementService;
+    private readonly int recordId;
 
     public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
-        var idString = FileName[..5].TrimStart('0');
-        var idInt = int.Parse(idString);
-        var rawData = await SstTcpClient.GetFile(ipEndPoint, idInt);
+        var rawFileResult = await daqManagementService.GetFileAsync(
+            ipEndPoint.Address.ToString(),
+            ipEndPoint.Port,
+            DaqFileClass.RootSst,
+            recordId);
+
+        var loadedFile = rawFileResult switch
+        {
+            DaqGetFileResult.Loaded loaded => loaded,
+            DaqGetFileResult.Error error => throw new DaqManagementException(error.Message),
+            _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
+        };
+
+        var rawData = loadedFile.Bytes;
         var rawTelemetryData = RawTelemetryData.FromByteArray(rawData);
         var telemetryMetadata = new Metadata
         {
-            SourceName = FileName,
+            SourceName = loadedFile.Name,
             Version = rawTelemetryData.Version,
             SampleRate = rawTelemetryData.SampleRate,
             Timestamp = rawTelemetryData.Timestamp,
@@ -48,16 +63,31 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task OnTrashed()
     {
-        var idString = FileName[..5].TrimStart('0');
-        var idInt = int.Parse(idString);
-        await SstTcpClient.TrashFile(ipEndPoint, idInt);
+        var result = await daqManagementService.TrashFileAsync(
+            ipEndPoint.Address.ToString(),
+            ipEndPoint.Port,
+            recordId);
+
+        if (result is DaqManagementResult.Error error)
+        {
+            throw new DaqManagementException(error.Message);
+        }
     }
 
-    public NetworkTelemetryFile(IPEndPoint source, string name, byte version, ulong timestamp, TimeSpan duration)
+    public NetworkTelemetryFile(
+        IPEndPoint source,
+        IDaqManagementService daqManagementService,
+        int recordId,
+        string name,
+        byte version,
+        DateTimeOffset timestampUtc,
+        TimeSpan duration)
     {
+        this.daqManagementService = daqManagementService;
+        this.recordId = recordId;
         ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
         Version = version;
-        StartTime = DateTimeOffset.FromUnixTimeSeconds((int)timestamp).LocalDateTime;
+        StartTime = timestampUtc.LocalDateTime;
         Duration = duration.ToString(@"hh\:mm\:ss");
         Name = name;
         FileName = name;

@@ -1,0 +1,52 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Editors.LiveSessionDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
+xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="800"
+x:DataType="vm:LiveSessionDetailViewModel"
+Background="{StaticResource SufniRegion}"
+Focusable="True"
+mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:LiveSessionDetailViewModel />
+    </Design.DataContext>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <editors:SessionShellDesktopView>
+        <editors:SessionShellDesktopView.GraphContent>
+            <items:LiveSessionGraphDesktopView DataContext="{Binding GraphWorkspace}" />
+        </editors:SessionShellDesktopView.GraphContent>
+
+        <editors:SessionShellDesktopView.MediaContent>
+            <items:SessionMediaDesktopView DataContext="{Binding MediaWorkspace}" />
+        </editors:SessionShellDesktopView.MediaContent>
+
+        <editors:SessionShellDesktopView.StatisticsContent>
+            <items:SessionStatisticsDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.StatisticsContent>
+
+        <editors:SessionShellDesktopView.ControlContent>
+            <items:LiveSessionControlsDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.ControlContent>
+
+        <editors:SessionShellDesktopView.SidebarContent>
+            <items:SessionSidebarDesktopView DataContext="{Binding}" />
+        </editors:SessionShellDesktopView.SidebarContent>
+    </editors:SessionShellDesktopView>
+
+</UserControl>

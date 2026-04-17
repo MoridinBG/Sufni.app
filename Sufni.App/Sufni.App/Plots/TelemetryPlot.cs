@@ -48,8 +48,8 @@ internal class FixedAutoScaler(double? minX = null, double? maxX = null, double?
 
 public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 {
-    protected Color FrontColor = Color.FromHex("#3288bd");
-    protected Color RearColor = Color.FromHex("#66c2a5");
+    public static readonly Color FrontColor = Color.FromHex("#3288bd");
+    public static readonly Color RearColor = Color.FromHex("#66c2a5");
 
     public virtual void LoadTelemetryData(TelemetryData telemetryData) { }
 }

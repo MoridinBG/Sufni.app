@@ -19,10 +19,15 @@ namespace Sufni.App.Services.LiveStreaming;
 // The receive loop runs off the UI thread via IBackgroundTaskRunner. Start/stop handshakes use a
 // TaskCompletionSource that the caller awaits while the receive loop completes it on the matching
 // ACK or error frame. All state mutations are serialized through lifecycleGate.
-internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClient
+internal sealed class LiveDaqClient : ILiveDaqClient
 {
+    // Default upper bound on the STOP_ACK wait so an unresponsive firmware cannot
+    // hang StopPreviewAsync indefinitely when the caller passed CancellationToken.None.
+    private static readonly TimeSpan DefaultStopAckTimeout = TimeSpan.FromSeconds(5);
+
     private static readonly ILogger logger = Log.ForContext<LiveDaqClient>();
 
+    private readonly TimeSpan stopAckTimeout;
     private readonly LiveProtocolReader reader = new();
     private readonly Subject<LiveDaqClientEvent> events = new();
     // Serializes all public lifecycle methods (Connect, Start, Stop, Disconnect, Dispose) and
@@ -41,6 +46,16 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
     private uint nextSequence;
     private bool isDisposed;
     private bool intentionalDisconnect;
+
+    public LiveDaqClient()
+        : this(DefaultStopAckTimeout)
+    {
+    }
+
+    internal LiveDaqClient(TimeSpan stopAckTimeout)
+    {
+        this.stopAckTimeout = stopAckTimeout;
+    }
 
     public bool IsConnected => tcpClient?.Connected == true && stream is not null;
 
@@ -66,9 +81,13 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             await tcpClient.ConnectAsync(host, port, cancellationToken);
             stream = tcpClient.GetStream();
             receiveLoopCts = new CancellationTokenSource();
-            receiveLoopTask = backgroundTaskRunner.RunAsync(
-                async () => await ReceiveLoopAsync(receiveLoopCts.Token),
-                receiveLoopCts.Token);
+            receiveLoopTask = Task.Factory
+                .StartNew(
+                    () => ReceiveLoopAsync(receiveLoopCts.Token),
+                    receiveLoopCts.Token,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default)
+                .Unwrap();
             logger.Debug("Live DAQ client socket connected to {Host} {Port}", host, port);
         }
         finally
@@ -148,7 +167,7 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
         await lifecycleGate.WaitAsync(cancellationToken);
         try
         {
-            if (!IsConnected || stream is null)
+            if (!IsConnected || stream is null || activeSessionId is null)
             {
                 return;
             }
@@ -166,9 +185,40 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
             lifecycleGate.Release();
         }
 
-        if (waitTask is not null)
+        if (waitTask is null)
         {
-            await waitTask.WaitAsync(cancellationToken);
+            return;
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(stopAckTimeout);
+        try
+        {
+            await waitTask.WaitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            await ClearPendingStopAckAsync(waitTask);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+        }
+    }
+
+    private async Task ClearPendingStopAckAsync(Task<uint> waitTask)
+    {
+        await lifecycleGate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (pendingStopAck?.Task == waitTask)
+            {
+                pendingStopAck = null;
+            }
+        }
+        finally
+        {
+            lifecycleGate.Release();
         }
     }
 
@@ -297,6 +347,14 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
         {
+            // Ignore frames that arrive after disconnect/dispose has begun — a late
+            // SESSION_HEADER must not repopulate activeSessionId, and no lifecycle TCS
+            // should be completed against a stale transport.
+            if (isDisposed || intentionalDisconnect)
+            {
+                return;
+            }
+
             switch (frame)
             {
                 case LiveStartAckFrame startAckFrame:
@@ -441,8 +499,16 @@ internal sealed class LiveDaqClient(IBackgroundTaskRunner backgroundTaskRunner) 
     }
 }
 
-public sealed class LiveDaqClientFactory(IBackgroundTaskRunner backgroundTaskRunner) : ILiveDaqClientFactory
+public sealed class LiveDaqClientFactory : ILiveDaqClientFactory
 {
+    public LiveDaqClientFactory()
+    {
+    }
+
+    public LiveDaqClientFactory(IBackgroundTaskRunner _)
+    {
+    }
+
     // Returns a new transport client for one live preview tab.
-    public ILiveDaqClient CreateClient() => new LiveDaqClient(backgroundTaskRunner);
+    public ILiveDaqClient CreateClient() => new LiveDaqClient();
 }

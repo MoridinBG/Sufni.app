@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Sufni.App.Stores;
 
 /// <summary>
@@ -14,4 +16,8 @@ public interface ILiveDaqStoreWriter : ILiveDaqStore
 
     // Clears the runtime catalog before a fresh reconciliation pass.
     void Clear();
+
+    // Atomically replaces the entire catalog so observers see one coherent
+    // changeset instead of a transient empty state.
+    void ReplaceAll(IEnumerable<LiveDaqSnapshot> snapshots);
 }

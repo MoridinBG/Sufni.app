@@ -9,7 +9,6 @@ using Avalonia.Threading;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Plots;
-using Sufni.App.Views;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Views;
@@ -21,10 +20,7 @@ public class DesktopTelemetryPlotViewTests
     {
         EnsurePlotViewStyle();
 
-        var view = new ImuPlotDesktopView
-        {
-            MapView = new MapView()
-        };
+        var view = new ImuPlotDesktopView();
         var host = new Window
         {
             Width = 900,
@@ -52,10 +48,7 @@ public class DesktopTelemetryPlotViewTests
     {
         EnsurePlotViewStyle();
 
-        var view = new TravelPlotDesktopView
-        {
-            MapView = new MapView()
-        };
+        var view = new TravelPlotDesktopView();
         var host = new Window
         {
             Width = 900,
@@ -83,10 +76,7 @@ public class DesktopTelemetryPlotViewTests
     {
         EnsurePlotViewStyle();
 
-        var travelView = new TravelPlotDesktopView
-        {
-            MapView = new MapView()
-        };
+        var travelView = new TravelPlotDesktopView();
         var travelHost = new Window
         {
             Width = 900,
@@ -102,7 +92,6 @@ public class DesktopTelemetryPlotViewTests
 
         var velocityView = new VelocityPlotDesktopView
         {
-            MapView = new MapView(),
             TravelPlotView = travelView
         };
         var velocityHost = new Window

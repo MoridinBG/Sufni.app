@@ -14,15 +14,35 @@ internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDi
 
     private readonly object gate = new();
     private int leaseCount;
+    private bool isBrowseStarted;
 
     public IDisposable AcquireBrowse()
     {
         lock (gate)
         {
-            if (leaseCount == 0)
+            if (!isBrowseStarted)
             {
                 logger.Verbose("Starting live DAQ browse");
-                serviceDiscovery.StartBrowse(ServiceType);
+                try
+                {
+                    serviceDiscovery.StartBrowse(ServiceType);
+                }
+                catch (Exception ex)
+                {
+                    logger.Warning(ex, "Live DAQ browse start failed; attempting compensating stop");
+                    try
+                    {
+                        serviceDiscovery.StopBrowse();
+                    }
+                    catch (Exception stopEx)
+                    {
+                        logger.Verbose(stopEx, "Compensating stop after failed browse start also threw");
+                    }
+
+                    throw;
+                }
+
+                isBrowseStarted = true;
             }
 
             leaseCount++;
@@ -41,9 +61,10 @@ internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDi
             }
 
             leaseCount--;
-            if (leaseCount == 0)
+            if (leaseCount == 0 && isBrowseStarted)
             {
                 logger.Verbose("Stopping live DAQ browse");
+                isBrowseStarted = false;
                 serviceDiscovery.StopBrowse();
             }
         }

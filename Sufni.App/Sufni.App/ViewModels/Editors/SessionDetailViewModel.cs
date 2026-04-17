@@ -25,12 +25,21 @@ namespace Sufni.App.ViewModels.Editors;
 /// <see cref="SessionCoordinator"/> from a <see cref="SessionSnapshot"/>;
 /// save and delete route back through the coordinator.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions,
+    IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
 
     public string Description => NotesPage.Description ?? "";
+    public string? DescriptionText
+    {
+        get => NotesPage.Description;
+        set => NotesPage.Description = value;
+    }
+    public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
+    public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
+    public SessionTimelineLinkViewModel Timeline { get; } = new();
 
     // Explicit interface implementation: the generated commands are
     // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
@@ -61,6 +70,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     public DamperPageViewModel DamperPage { get; } = new();
     public NotesPageViewModel NotesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
+    public bool HasSessionTrackPoints => MapViewModel?.SessionTrackPoints?.Count > 0;
 
     #endregion Public fields
 
@@ -72,13 +82,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     [ObservableProperty] private string? videoUrl;
     [ObservableProperty] private double? mapVideoWidth;
     [ObservableProperty] private bool isComplete;
+    [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     public ObservableCollection<PageViewModelBase> Pages { get; }
+
+    public bool HasFrontStatistics => TelemetryData?.HasStrokeData(SuspensionType.Front) == true;
+    public bool HasRearStatistics => TelemetryData?.HasStrokeData(SuspensionType.Rear) == true;
+    public bool HasCompressionBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Compression) == true;
+    public bool HasReboundBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Rebound) == true;
 
     #endregion Observable properties
 
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         IsComplete = value != null;
+        OnPropertyChanged(nameof(HasFrontStatistics));
+        OnPropertyChanged(nameof(HasRearStatistics));
+        OnPropertyChanged(nameof(HasCompressionBalanceTelemetry));
+        OnPropertyChanged(nameof(HasReboundBalanceTelemetry));
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -99,6 +119,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         }
 
         MapViewModel.SessionTrackPoints = value;
+        OnPropertyChanged(nameof(HasSessionTrackPoints));
     }
 
     #region Private methods
@@ -115,6 +136,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     private void ApplyDamperPercentages(SessionDamperPercentages percentages)
     {
+        DamperPercentages = percentages;
         DamperPage.FrontHscPercentage = percentages.FrontHscPercentage;
         DamperPage.RearHscPercentage = percentages.RearHscPercentage;
         DamperPage.FrontLscPercentage = percentages.FrontLscPercentage;

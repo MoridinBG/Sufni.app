@@ -63,19 +63,7 @@ public class Track : Synchronizable
     {
         return new Track
         {
-            Points = records
-                .Where(r => r.FixMode > 0 
-                            && double.IsFinite(r.Latitude) && double.IsFinite(r.Longitude) 
-                            && float.IsFinite(r.Altitude))
-                .OrderBy(r => r.Timestamp)
-                .Select(r =>
-                {
-                    var (mx, my) = SphericalMercator.FromLonLat(r.Longitude, r.Latitude);
-                    return new TrackPoint(
-                        new DateTimeOffset(r.Timestamp).ToUnixTimeMilliseconds() / 1000.0,
-                        mx, my, r.Altitude);
-                })
-                .ToList()
+            Points = GpsTrackPointProjection.ProjectAll(records)
         };
     }
 

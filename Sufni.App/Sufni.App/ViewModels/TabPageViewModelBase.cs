@@ -54,6 +54,8 @@ public partial class TabPageViewModelBase : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     private string? name;
 
+    [ObservableProperty] private bool isTabActive;
+
     // Used by the EditableTitle control as the optional subtitle. Bike
     // and setup editors leave this null (and the subtitle hides);
     // SessionDetailViewModel sets it to the recording's local-time
@@ -69,6 +71,8 @@ public partial class TabPageViewModelBase : ViewModelBase
     protected virtual Task ResetImplementation() { return Task.CompletedTask; }
     protected virtual Task ExportImplementation() { return Task.CompletedTask; }
     protected virtual Task CloseImplementation() { return Task.CompletedTask; }
+    protected virtual void OnActivated() { }
+    protected virtual void OnDeactivated() { }
 
     protected virtual bool CanSave()
     {
@@ -89,6 +93,22 @@ public partial class TabPageViewModelBase : ViewModelBase
     }
 
     #endregion Virtual methods
+
+    partial void OnIsTabActiveChanged(bool value)
+    {
+        if (value)
+        {
+            OnActivated();
+            return;
+        }
+
+        OnDeactivated();
+    }
+
+    public void SetTabActive(bool value)
+    {
+        IsTabActive = value;
+    }
 
     #region Commands
 

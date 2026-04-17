@@ -85,13 +85,17 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         // fallback is not persisted — it stays a default until the user
         // successfully pairs with one, at which point ConfirmPairingAsync
         // commits it back.
-        displayName = PairedDevice.NormalizeDisplayName(
-                          await secureStorage.GetStringAsync(DisplayNameKey))
-                      ?? PairedDevice.NormalizeDisplayName(friendlyNameProvider.FriendlyName);
+        var storedDisplayName = PairedDevice.NormalizeDisplayName(
+            await secureStorage.GetStringAsync(DisplayNameKey));
+        var fallbackDisplayName = storedDisplayName is null
+            ? PairedDevice.NormalizeDisplayName(friendlyNameProvider.FriendlyName)
+            : null;
+
+        displayName = storedDisplayName ?? fallbackDisplayName;
         logger.Verbose(
-            "Pairing client resolved display name with committed value present {HasCommittedDisplayName} and fallback value present {HasFallbackDisplayName}",
-            await secureStorage.GetStringAsync(DisplayNameKey) is not null,
-            friendlyNameProvider.FriendlyName is not null);
+            "Pairing client resolved display name with committed value present {HasCommittedDisplayName} and used fallback value present {HasFallbackDisplayName}",
+            storedDisplayName is not null,
+            fallbackDisplayName is not null);
         DisplayNameChanged?.Invoke(this, EventArgs.Empty);
 
         isPaired = await httpApiService.IsPairedAsync();

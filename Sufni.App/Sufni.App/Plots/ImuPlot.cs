@@ -11,7 +11,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 {
     public VerticalLine? CursorLine { get; set; }
 
-    protected Color FrameColor = Color.FromHex("#fc8d59"); // Orange
+    public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {

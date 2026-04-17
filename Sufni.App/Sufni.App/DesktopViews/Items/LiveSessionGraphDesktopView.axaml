@@ -1,0 +1,43 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Items.LiveSessionGraphDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:ILiveSessionGraphWorkspace"
+mc:Ignorable="d">
+
+    <Grid RowDefinitions="3* auto 2* auto 2*">
+        <plots:LiveTravelPlotDesktopView
+        x:Name="TravelPlot"
+        Grid.Row="0"
+        GraphBatches="{Binding GraphBatches}"
+        MaximumY="{Binding PlotRanges.TravelMaximum}"
+        Timeline="{Binding Timeline}" />
+
+        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+        <plots:LiveVelocityPlotDesktopView
+        x:Name="VelocityPlot"
+        Grid.Row="2"
+        Margin="0,4,0,4"
+        GraphBatches="{Binding GraphBatches}"
+        MinimumY="{Binding PlotRanges.VelocityMinimum}"
+        MaximumY="{Binding PlotRanges.VelocityMaximum}"
+        Timeline="{Binding Timeline}" />
+
+        <GridSplitter Grid.Row="3" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+
+        <plots:LiveImuPlotDesktopView
+        x:Name="ImuPlot"
+        Grid.Row="4"
+        Margin="0,4,0,0"
+        GraphBatches="{Binding GraphBatches}"
+        MaximumY="{Binding PlotRanges.ImuMaximum}"
+        Timeline="{Binding Timeline}" />
+    </Grid>
+</UserControl>

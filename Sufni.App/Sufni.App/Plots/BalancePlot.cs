@@ -24,8 +24,8 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!(telemetryData.Front.Present && telemetryData.Rear.Present)) return;
-        
+        if (!telemetryData.HasBalanceData(type)) return;
+
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = type == BalanceType.Compression

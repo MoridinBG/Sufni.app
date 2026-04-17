@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
+using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Serilog;
 
 namespace Sufni.App.Models;
@@ -13,96 +13,75 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
 {
     private static readonly ILogger logger = Log.ForContext<NetworkTelemetryDataStore>();
 
-    private const int BoardIdSize = 8;
-    private const int SampleRateSize = 2;
-    private const int DirectoryHeaderSize = BoardIdSize + SampleRateSize;
-    private const int FileNameSize = 9;
-    private const int FileSizeFieldSize = 8;
-    private const int TimestampFieldSize = 8;
-    private const int DurationFieldSize = 4;
-    private const int VersionFieldSize = 1;
-    private const int DirectoryEntrySize = FileNameSize + FileSizeFieldSize + TimestampFieldSize + DurationFieldSize + VersionFieldSize;
-
     public string Name { get; }
     public Guid? BoardId { get; private set; }
     private readonly IPEndPoint ipEndPoint;
+    private readonly IDaqManagementService daqManagementService;
+    private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     public readonly Task Initialization;
 
     public async Task<List<ITelemetryFile>> GetFiles()
     {
-        var directoryInfo = await SstTcpClient.GetFile(ipEndPoint, 0);
-        var listing = ParseDirectoryListing(directoryInfo);
-        BoardId = listing.BoardId;
+        var directoryResult = await daqManagementService.ListDirectoryAsync(
+            ipEndPoint.Address.ToString(),
+            ipEndPoint.Port,
+            DaqDirectoryId.Root);
+
+        var directory = directoryResult switch
+        {
+            DaqListDirectoryResult.Listed listed => listed.Directory as DaqRootDirectoryRecord
+                ?? throw new DaqManagementException("ROOT listing did not return a root directory record."),
+            DaqListDirectoryResult.Error error => throw new DaqManagementException(error.Message),
+            _ => throw new DaqManagementException("LIST_DIR returned an unsupported result shape.")
+        };
 
         var files = new List<ITelemetryFile>();
-        foreach (var entry in listing.Entries)
+        foreach (var record in directory.Files)
         {
-            try
+            switch (record)
             {
-                var f = new NetworkTelemetryFile(
-                    ipEndPoint,
-                    entry.Name,
-                    entry.Version,
-                    entry.Timestamp,
-                    TimeSpan.FromMilliseconds(entry.DurationMilliseconds));
-                files.Add(f);
-            }
-            catch (Exception ex)
-            {
-                logger.Warning(ex, "Skipping invalid network file entry {Name}", entry.Name);
+                case DaqConfigFileRecord:
+                    continue;
+                case DaqSstFileRecord sstRecord:
+                    try
+                    {
+                        files.Add(new NetworkTelemetryFile(
+                            ipEndPoint,
+                            daqManagementService,
+                            sstRecord.RecordId,
+                            sstRecord.Name,
+                            sstRecord.SstVersion,
+                            sstRecord.TimestampUtc,
+                            sstRecord.Duration));
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Warning(ex, "Skipping invalid network file entry {Name}", sstRecord.Name);
+                    }
+
+                    break;
             }
         }
 
         return files.OrderByDescending(f => f.StartTime).ToList();
     }
 
-    internal static NetworkTelemetryDirectoryListing ParseDirectoryListing(byte[] directoryInfo)
+    private async Task InitializeAsync()
     {
-        if (directoryInfo.Length < DirectoryHeaderSize)
-            throw new FormatException("Network directory listing is truncated.");
-
-        var payloadLength = directoryInfo.Length - DirectoryHeaderSize;
-        if (payloadLength % DirectoryEntrySize != 0)
-            throw new FormatException("Network directory listing entry size is invalid.");
-
-        using var memoryStream = new MemoryStream(directoryInfo);
-        using var reader = new BinaryReader(memoryStream);
-        var boardId = reader.ReadBytes(BoardIdSize);
-        var parsedBoardId = UuidUtil.CreateDeviceUuid(boardId);
-        _ = reader.ReadUInt16();
-
-        var recordCount = payloadLength / DirectoryEntrySize;
-        var entries = new List<NetworkTelemetryDirectoryEntry>(recordCount);
-        for (var i = 0; i < recordCount; i++)
-        {
-            var name = Encoding.ASCII.GetString(reader.ReadBytes(FileNameSize));
-            var size = reader.ReadUInt64();
-            var timestamp = reader.ReadUInt64();
-            var durationMilliseconds = reader.ReadUInt32();
-            var version = reader.ReadByte();
-            entries.Add(new NetworkTelemetryDirectoryEntry(name, size, timestamp, durationMilliseconds, version));
-        }
-
-        return new NetworkTelemetryDirectoryListing(parsedBoardId, entries);
+        BoardId = await liveDaqBoardIdInspector.InspectAsync(ipEndPoint.Address, ipEndPoint.Port);
     }
 
-    public NetworkTelemetryDataStore(IPAddress address, int port)
+    public NetworkTelemetryDataStore(
+        IPAddress address,
+        int port,
+        IDaqManagementService daqManagementService,
+        ILiveDaqBoardIdInspector liveDaqBoardIdInspector)
     {
         ipEndPoint = new IPEndPoint(address, port);
+        this.daqManagementService = daqManagementService;
+        this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
         Name = $"gosst://{ipEndPoint.Address}:{ipEndPoint.Port}";
 
-        // We need this to set BoardId
-        Initialization = GetFiles();
+        Initialization = InitializeAsync();
     }
 }
-
-internal sealed record NetworkTelemetryDirectoryListing(
-    Guid BoardId,
-    IReadOnlyList<NetworkTelemetryDirectoryEntry> Entries);
-
-internal readonly record struct NetworkTelemetryDirectoryEntry(
-    string Name,
-    ulong Size,
-    ulong Timestamp,
-    uint DurationMilliseconds,
-    byte Version);

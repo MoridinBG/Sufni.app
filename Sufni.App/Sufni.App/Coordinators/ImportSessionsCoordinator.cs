@@ -75,7 +75,7 @@ public sealed class ImportSessionsCoordinator(
         var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
             ?? throw new Exception("Bike is missing");
 
-        var bikeData = CreateBikeData(setup, bike);
+        var bikeData = TelemetryBikeData.Create(setup, bike);
 
         foreach (var telemetryFile in files)
         {
@@ -156,18 +156,5 @@ public sealed class ImportSessionsCoordinator(
         }
 
         return new SessionImportResult(imported, failures);
-    }
-
-    private static BikeData CreateBikeData(Setup setup, Bike bike)
-    {
-        var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-        var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
-
-        return new BikeData(
-            bike.HeadAngle,
-            frontSensorConfiguration?.MaxTravel,
-            rearSensorConfiguration?.MaxTravel,
-            frontSensorConfiguration?.MeasurementToTravel,
-            rearSensorConfiguration?.MeasurementToTravel);
     }
 }
