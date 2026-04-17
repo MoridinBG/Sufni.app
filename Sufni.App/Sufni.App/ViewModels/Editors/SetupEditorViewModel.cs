@@ -198,7 +198,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
     private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(BikeSnapshot? bike) =>
         bike?.RearSuspension switch
         {
-            null or HardtailRearSuspension => [null],
+            null => [null],
             LinkageRearSuspension => [null, SensorType.LinearShock, SensorType.RotationalShock],
             LeverageRatioRearSuspension => [null, SensorType.LinearShockStroke],
             _ => [null],

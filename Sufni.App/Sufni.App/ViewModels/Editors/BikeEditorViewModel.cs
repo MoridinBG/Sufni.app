@@ -237,7 +237,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private static BikeRearSuspensionMode RearSuspensionModeFrom(RearSuspension? rearSuspension) => rearSuspension switch
     {
-        null or HardtailRearSuspension => BikeRearSuspensionMode.None,
+        null => BikeRearSuspensionMode.None,
         LinkageRearSuspension => BikeRearSuspensionMode.Linkage,
         LeverageRatioRearSuspension => BikeRearSuspensionMode.LeverageRatio,
         _ => BikeRearSuspensionMode.None,
@@ -385,19 +385,19 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
             WheelGeometry.RearWheelRimSize,
             WheelGeometry.RearWheelTireWidth,
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.ImageRotationDegrees : 0,
-                (rearSuspension as LeverageRatioRearSuspension)?.LeverageRatio,
-                (rearSuspension as LinkageRearSuspension)?.Linkage,
+            (rearSuspension as LeverageRatioRearSuspension)?.LeverageRatio,
+            (rearSuspension as LinkageRearSuspension)?.Linkage,
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.Image : null,
             updated);
     }
 
-            private RearSuspension BuildCurrentRearSuspension() => RearSuspensionMode switch
-            {
-            BikeRearSuspensionMode.None => new HardtailRearSuspension(),
-            BikeRearSuspensionMode.Linkage when CreateCurrentLinkage() is Linkage linkage => new LinkageRearSuspension(linkage),
-            BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatio leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
-            _ => new HardtailRearSuspension(),
-            };
+    private RearSuspension? BuildCurrentRearSuspension() => RearSuspensionMode switch
+    {
+        BikeRearSuspensionMode.None => null,
+        BikeRearSuspensionMode.Linkage when CreateCurrentLinkage() is Linkage linkage => new LinkageRearSuspension(linkage),
+        BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatio leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
+        _ => null,
+    };
 
     private Linkage? CreateCurrentLinkage()
     {
