@@ -2,11 +2,14 @@ using System;
 using System.Threading.Tasks;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
 public sealed class SyncCoordinator : ISyncCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
+
     private readonly IBikeStoreWriter bikeStore;
     private readonly ISetupStoreWriter setupStore;
     private readonly ISessionStoreWriter sessionStore;
@@ -65,21 +68,38 @@ public sealed class SyncCoordinator : ISyncCoordinator
 
     public async Task SyncAllAsync()
     {
-        if (!CanSync) return;
-        if (synchronizationClientService is null) return;
+        if (!CanSync)
+        {
+            logger.Verbose("Sync request ignored because synchronization is unavailable");
+            return;
+        }
 
+        if (synchronizationClientService is null)
+        {
+            logger.Error("Sync request could not start because no synchronization client service is available");
+            SyncFailed?.Invoke(this, new SyncFailedEventArgs("Sync failed: sync unavailable"));
+            return;
+        }
+
+        logger.Information("Starting synchronization");
         IsRunning = true;
         try
         {
+            logger.Verbose("Running remote synchronization phases");
             await synchronizationClientService.SyncAll();
+
+            logger.Verbose("Refreshing local stores after synchronization");
             await bikeStore.RefreshAsync();
             await setupStore.RefreshAsync();
             await sessionStore.RefreshAsync();
             await pairedDeviceStore.RefreshAsync();
+
+            logger.Information("Synchronization completed");
             SyncCompleted?.Invoke(this, new SyncCompletedEventArgs("Sync successful"));
         }
         catch (Exception e)
         {
+            logger.Error(e, "Synchronization failed");
             SyncFailed?.Invoke(this, new SyncFailedEventArgs($"Sync failed: {e.Message}"));
         }
         finally

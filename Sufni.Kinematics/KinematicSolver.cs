@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Serilog;
 
 namespace Sufni.Kinematics;
 
@@ -41,6 +42,8 @@ public readonly struct CoordinateList(List<double> x, List<double> y) : IEquatab
 
 public class KinematicSolver
 {
+    private static readonly ILogger logger = Log.ForContext<KinematicSolver>();
+
     private readonly double shockMaxLength;
     private readonly Linkage linkage;
     private readonly int steps;
@@ -59,6 +62,12 @@ public class KinematicSolver
 
     public Dictionary<string, CoordinateList> SolveSuspensionMotion()
     {
+        logger.Verbose(
+            "Starting kinematic solve with {StepCount} steps, {IterationCount} iterations, and {JointCount} joints",
+            steps,
+            iterations,
+            linkage.Joints.Count);
+
         var solutions = new Dictionary<string, CoordinateList>();
 
         for (var i = 0; i < steps; i++)
@@ -83,6 +92,11 @@ public class KinematicSolver
                 value.Y.Add(joint.Y);
             }
         }
+
+        logger.Verbose(
+            "Kinematic solve completed with {JointSolutionCount} joint paths",
+            solutions.Count);
+
         return solutions;
     }
 

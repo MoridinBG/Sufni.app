@@ -3,12 +3,15 @@ using System.Diagnostics;
 using System.Net;
 using CoreFoundation;
 using Network;
+using Serilog;
 using Sufni.App.Services;
 
 namespace Sufni.App.iOS;
 
 public class BonjourServiceDiscovery : IServiceDiscovery
 {
+    private static readonly ILogger logger = Log.ForContext<BonjourServiceDiscovery>();
+
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceAdded;
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceRemoved;
 
@@ -26,7 +29,11 @@ public class BonjourServiceDiscovery : IServiceDiscovery
 
     private void OnServiceAdded(NWBrowseResult? result)
     {
-        if (result is null) return;
+        if (result is null)
+        {
+            logger.Verbose("Ignoring empty Bonjour browse result on iOS");
+            return;
+        }
 
         var connection = new NWConnection(result.EndPoint, NWParameters.CreateTcp());
         connection.SetStateChangeHandler((state, _) =>
@@ -40,8 +47,16 @@ public class BonjourServiceDiscovery : IServiceDiscovery
                         currentPort = endpoint?.PortNumber;
                         connection.Cancel();
 
-                        if (currentIpAddress is null || currentPort is null) return;
+                        if (currentIpAddress is null || currentPort is null)
+                        {
+                            logger.Verbose("Bonjour browse result on iOS did not resolve to a connectable endpoint");
+                            return;
+                        }
 
+                        logger.Verbose(
+                            "Resolved Bonjour service on iOS to {Address}:{Port}",
+                            currentIpAddress,
+                            currentPort);
                         ServiceAdded?.Invoke(this, new ServiceAnnouncementEventArgs(
                             new ServiceAnnouncement(currentIpAddress, currentPort.Value)));
                         break;
@@ -56,6 +71,10 @@ public class BonjourServiceDiscovery : IServiceDiscovery
     {
         if (currentIpAddress is null || currentPort is null) return;
 
+        logger.Verbose(
+            "Removed Bonjour service on iOS for {Address}:{Port}",
+            currentIpAddress,
+            currentPort);
         ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(
             new ServiceAnnouncement(currentIpAddress, currentPort.Value)));
     }
@@ -89,6 +108,7 @@ public class BonjourServiceDiscovery : IServiceDiscovery
 
     public void StartBrowse(string type)
     {
+        logger.Verbose("Starting Bonjour browse on iOS for {ServiceType}", type);
         browser ??= CreateBrowser(type);
         browser.Start();
     }
@@ -96,6 +116,7 @@ public class BonjourServiceDiscovery : IServiceDiscovery
     public void StopBrowse()
     {
         Debug.Assert(browser is not null);
+        logger.Verbose("Stopping Bonjour browse on iOS");
         browser.Cancel();
     }
 }

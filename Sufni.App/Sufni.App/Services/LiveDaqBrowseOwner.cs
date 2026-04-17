@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
 namespace Sufni.App.Services;
 
@@ -9,6 +10,7 @@ namespace Sufni.App.Services;
 internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery) : ILiveDaqBrowseOwner
 {
     private const string ServiceType = "_gosst._tcp";
+    private static readonly ILogger logger = Log.ForContext<LiveDaqBrowseOwner>();
 
     private readonly object gate = new();
     private int leaseCount;
@@ -19,6 +21,7 @@ internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDi
         {
             if (leaseCount == 0)
             {
+                logger.Verbose("Starting live DAQ browse");
                 serviceDiscovery.StartBrowse(ServiceType);
             }
 
@@ -40,6 +43,7 @@ internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDi
             leaseCount--;
             if (leaseCount == 0)
             {
+                logger.Verbose("Stopping live DAQ browse");
                 serviceDiscovery.StopBrowse();
             }
         }

@@ -8,6 +8,7 @@ using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Serilog;
 
 namespace Sufni.App.Queries;
 
@@ -15,6 +16,8 @@ namespace Sufni.App.Queries;
 // seed offline rows and refresh setup or bike labels cheaply.
 public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposable
 {
+    private static readonly ILogger logger = Log.ForContext<LiveDaqKnownBoardsQuery>();
+
     private readonly IDatabaseService databaseService;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
@@ -35,14 +38,14 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 
         setupSubscription = setupStore.Connect().Subscribe(changes =>
         {
-            _ = RefreshAsync();
+            _ = RefreshAsync("setup store change");
         });
         bikeSubscription = bikeStore.Connect().Subscribe(changes =>
         {
-            _ = RefreshAsync();
+            _ = RefreshAsync("bike store change");
         });
 
-        _ = RefreshAsync();
+        _ = RefreshAsync("initial load");
     }
 
     public IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes => changesSubject;
@@ -81,11 +84,13 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         changesSubject.Dispose();
     }
 
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(string reason)
     {
         await refreshGate.WaitAsync().ConfigureAwait(false);
         try
         {
+            logger.Debug("Refreshing known live DAQ boards because of {RefreshReason}", reason);
+
             var boards = await databaseService.GetAllAsync<Board>().ConfigureAwait(false);
 
             var records = boards
@@ -95,9 +100,11 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 
             currentRecords = records.ToDictionary(record => record.IdentityKey, StringComparer.OrdinalIgnoreCase);
             changesSubject.OnNext(records);
+            logger.Debug("Refreshed known live DAQ boards with {RecordCount} records", records.Length);
         }
-        catch
+        catch (Exception ex)
         {
+            logger.Warning(ex, "Refreshing known live DAQ boards failed; keeping the last snapshot");
             // No query-level error surface exists yet. Leave the last
             // successful snapshot intact and retry on the next change.
         }

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
 namespace Sufni.App.Services;
 
@@ -33,6 +34,7 @@ internal class DriveInfoComparer : IEqualityComparer<DriveInfo>
 
 internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 {
+    private static readonly ILogger logger = Log.ForContext<TelemetryDataStoreService>();
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly ILiveDaqBrowseOwner browseOwner;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -192,9 +194,6 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         this.browseOwner = browseOwner;
         this.backgroundTaskRunner = backgroundTaskRunner;
 
-        serviceDiscovery.ServiceAdded += async (_, e) => await AddNetworkDataStoreAsync(e);
-        serviceDiscovery.ServiceRemoved += async (_, e) => await RemoveNetworkDataStoreAsync(e);
-
         massStorageScanTimer = new DispatcherTimer(DispatcherPriority.Background);
         massStorageScanTimer.Interval = TimeSpan.FromSeconds(1);
         massStorageScanTimer.Tick += async (_, _) => await RefreshMassStorageDataStoresAsync();
@@ -206,6 +205,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
             return;
 
         isBrowsing = true;
+        serviceDiscovery.ServiceAdded += OnServiceAdded;
+        serviceDiscovery.ServiceRemoved += OnServiceRemoved;
         massStorageScanTimer.Start();
         browseLease = browseOwner.AcquireBrowse();
     }
@@ -216,11 +217,19 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
             return;
 
         isBrowsing = false;
+        serviceDiscovery.ServiceAdded -= OnServiceAdded;
+        serviceDiscovery.ServiceRemoved -= OnServiceRemoved;
         massStorageScanTimer.Stop();
         browseLease?.Dispose();
         browseLease = null;
         DataStores.Clear();
     }
+
+    private async void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e) =>
+        await AddNetworkDataStoreAsync(e);
+
+    private async void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e) =>
+        await RemoveNetworkDataStoreAsync(e);
 
     public Task<IReadOnlyList<ITelemetryFile>> LoadFilesAsync(
         ITelemetryDataStore dataStore,
@@ -292,8 +301,9 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
                     Path.Combine(drive.RootDirectory.FullName, "BOARDID")).ToLower();
                 return UuidUtil.CreateDeviceUuid(serialHex);
             }
-            catch
+            catch (Exception ex)
             {
+                logger.Warning(ex, "Failed to detect mass-storage board on startup");
                 return null;
             }
         }, cancellationToken);

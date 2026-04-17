@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -16,6 +17,8 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
+
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
     private readonly IDatabaseService databaseService;
 
@@ -36,20 +39,26 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 
     public async Task<PairedDeviceUnpairResult> UnpairAsync(string deviceId)
     {
+        logger.Information("Starting paired-device unpair for {DeviceId}", deviceId);
+
         try
         {
             await databaseService.DeletePairedDeviceAsync(deviceId);
             pairedDeviceStore.Remove(deviceId);
+
+            logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
             return new PairedDeviceUnpairResult.Unpaired();
         }
         catch (Exception e)
         {
+            logger.Error(e, "Paired-device unpair failed for {DeviceId}", deviceId);
             return new PairedDeviceUnpairResult.Failed(e.Message);
         }
     }
 
     private void OnPairingConfirmed(object? sender, PairingEventArgs e)
     {
+        logger.Verbose("Received inbound pairing confirmation for {DeviceId}", e.Device.DeviceId);
         Dispatcher.UIThread.InvokeAsync(() =>
         {
             pairedDeviceStore.Upsert(PairedDeviceSnapshot.From(e.Device));
@@ -58,6 +67,7 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 
     private void OnUnpaired(object? sender, PairingEventArgs e)
     {
+        logger.Verbose("Received inbound unpair for {DeviceId}", e.Device.DeviceId);
         Dispatcher.UIThread.InvokeAsync(() =>
         {
             pairedDeviceStore.Remove(e.Device.DeviceId);

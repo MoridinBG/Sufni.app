@@ -38,15 +38,21 @@ public sealed record LiveTravelUiSnapshot(
     ushort? FrontMeasurement,
     ushort? RearMeasurement,
     TimeSpan? SampleOffset,
+    TimeSpan? SampleDelay,
     uint QueueDepth,
     uint DroppedBatches)
 {
+    public string SampleDelayText => SampleDelay is { } delay
+        ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
+        : "";
+
     public static readonly LiveTravelUiSnapshot Empty = new(
         IsActive: false,
         HasData: false,
         FrontMeasurement: null,
         RearMeasurement: null,
         SampleOffset: null,
+        SampleDelay: null,
         QueueDepth: 0,
         DroppedBatches: 0);
 }
@@ -61,8 +67,14 @@ public sealed record LiveImuUiSnapshot(
     short? Gy,
     short? Gz,
     TimeSpan? SampleOffset,
+    TimeSpan? SampleDelay,
     uint QueueDepth,
-    uint DroppedBatches);
+    uint DroppedBatches)
+{
+    public string SampleDelayText => SampleDelay is { } delay
+        ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
+        : "";
+}
 
 public sealed record LiveGpsUiSnapshot(
     bool IsActive,
@@ -122,6 +134,14 @@ public sealed record LiveDaqUiSnapshot(
     public bool HasImuData => Imus.Count > 0;
     public bool HasTravelData => Travel.HasData;
     public bool HasGpsData => Gps.HasData;
+
+    public bool CanConnect => ConnectionState is LiveConnectionState.Disconnected;
+    public bool CanDisconnect => ConnectionState is LiveConnectionState.Connected;
+
+    public string SessionLengthText =>
+        LastFrameReceivedUtc is { } lastFrame && Session.SessionStartUtc is { } start
+            ? $"Session length: {lastFrame - start:hh\\:mm\\:ss}"
+            : "";
 
     public static string ToConnectionStateText(LiveConnectionState state) => state switch
     {

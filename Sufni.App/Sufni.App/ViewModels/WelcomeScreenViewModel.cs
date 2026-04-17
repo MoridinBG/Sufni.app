@@ -10,6 +10,9 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
+    private readonly IFilesService filesService;
+
+    public bool IsDesktop => App.Current?.IsDesktop == true;
 
     #region Constructors
 
@@ -18,6 +21,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         bikeCoordinator = null!;
         setupCoordinator = null!;
         importSessionsCoordinator = null!;
+        filesService = null!;
         Name = "Welcome";
     }
 
@@ -26,12 +30,14 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         IDialogService dialogService,
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
-        IImportSessionsCoordinator importSessionsCoordinator)
+        IImportSessionsCoordinator importSessionsCoordinator,
+        IFilesService filesService)
         : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.setupCoordinator = setupCoordinator;
         this.importSessionsCoordinator = importSessionsCoordinator;
+        this.filesService = filesService;
         Name = "Welcome";
     }
 
@@ -47,6 +53,9 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
 
     [RelayCommand]
     private async Task ImportSession() => await importSessionsCoordinator.OpenAsync();
+
+    [RelayCommand]
+    private async Task OpenLogsFolder() => await filesService.OpenLogsFolderAsync();
 
     #endregion Commands
 }

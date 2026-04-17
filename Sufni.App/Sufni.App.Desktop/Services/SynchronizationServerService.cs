@@ -20,12 +20,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService
 {
+    private static readonly ILogger logger = Log.ForContext<SynchronizationServerService>();
+
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
     private const int Port = 5575;
@@ -40,9 +43,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private string? jwtSecret;
     private string? certPassword;
 
-    private readonly string certPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Sufni.App", "certificate.pfx");
+    private readonly string certPath = AppPaths.CertificatePath;
 
     private Task Initialization { get; }
 
@@ -83,6 +84,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         {
             jwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
             await secureStorage.SetStringAsync("jwt_secret", jwtSecret);
+            logger.Verbose("Generated new synchronization JWT secret");
         }
 
         await GenerateCertificateIfNeeded();
@@ -90,11 +92,8 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private async Task GenerateCertificate()
     {
-        var dir = Path.GetDirectoryName(certPath)!;
-        if (!Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        AppPaths.CreateRequiredDirectories();
+        logger.Verbose("Generating synchronization server certificate at {CertificatePath}", certPath);
 
         var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var req = new CertificateRequest(SynchronizationProtocol.CertificateSubjectName, ecdsa, HashAlgorithmName.SHA256);
@@ -116,6 +115,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         {
             certPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
             await secureStorage.SetStringAsync("cert_password", certPassword);
+            logger.Verbose("Synchronization certificate missing or password unavailable; generating a new certificate");
             await GenerateCertificate();
             return;
         }
@@ -124,6 +124,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         var cert = X509CertificateLoader.LoadPkcs12FromFile(certPath, certPassword);
         if (cert.NotAfter < DateTimeOffset.Now)
         {
+            logger.Verbose("Synchronization certificate expired at {CertificateExpiry}; generating a new certificate", cert.NotAfter);
             await GenerateCertificate();
         }
     }
@@ -149,6 +150,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         await Initialization;
 
         Debug.Assert(jwtSecret is not null);
+
+        logger.Verbose("Building synchronization server pipeline for port {Port}", port);
 
         var builder = WebApplication.CreateBuilder();
 
@@ -189,125 +192,203 @@ public class SynchronizationServerService : ISynchronizationServerService
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The synchronization server is a desktop-only feature and these minimal API delegates are explicitly rooted in this method.")]
     public async Task StartAsync()
     {
-        var app = await BuildApplication(Port);
-        app.UseAuthentication();
-        app.UseAuthorization();
-
-        app.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
+        try
         {
-            var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
-            var pin = GeneratePin();
-            pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(SynchronizationProtocol.PinTtlSeconds));
-            PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
-            return Results.Ok();
-        });
+            logger.Information("Starting synchronization server on port {Port}", Port);
 
-        app.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
-        {
-            if (!pendingPairings.TryRemove(req.Pin, out var record)) return Results.Unauthorized();
-            var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
-            if (record.deviceId != req.DeviceId ||
-                record.displayName != displayName ||
-                record.expiresAt < DateTime.UtcNow)
+            var app = await BuildApplication(Port);
+            app.UseAuthentication();
+            app.UseAuthorization();
+            app.Use(async (context, next) =>
             {
-                return Results.Unauthorized();
-            }
+                var stopwatch = Stopwatch.StartNew();
+                try
+                {
+                    await next();
+                }
+                finally
+                {
+                    logger.Verbose(
+                        "Synchronization server handled {Method} {Path} with status {StatusCode} in {DurationMs} ms",
+                        context.Request.Method,
+                        context.Request.Path.Value ?? string.Empty,
+                        context.Response.StatusCode,
+                        stopwatch.Elapsed.TotalMilliseconds);
+                }
+            });
 
-            var accessToken = GenerateAccessToken(req.DeviceId);
-            var pairedDevice = new PairedDevice(req.DeviceId, displayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
-            await databaseService.PutPairedDeviceAsync(pairedDevice);
-
-            PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
-            return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
-        });
-
-        app.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
-        {
-            var pairedDevice = await databaseService.GetPairedDeviceByTokenAsync(req.RefreshToken);
-            if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow) return Results.Unauthorized();
-
-            var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
-            var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
-            await databaseService.PutPairedDeviceAsync(newPairedDevice);
-
-            return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
-        });
-
-        app.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
-        {
-            var device = await databaseService.GetPairedDeviceAsync(req.DeviceId);
-            if (device is null) return Results.Ok();
-            if (device.Token != req.RefreshToken) return Results.Unauthorized();
-
-            await databaseService.DeletePairedDeviceAsync(device.DeviceId);
-            Unpaired?.Invoke(this, new PairingEventArgs(device));
-
-            return Results.Ok();
-        });
-
-        app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
-        {
-            var data = new SynchronizationData
+            app.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
             {
-                Boards = await databaseService.GetChangedAsync<Board>(since),
-                Bikes = await databaseService.GetChangedAsync<Bike>(since),
-                Setups = await databaseService.GetChangedAsync<Setup>(since),
-                Sessions = await databaseService.GetChangedAsync<Session>(since),
-                Tracks = await databaseService.GetChangedAsync<Track>(since)
-            };
+                logger.Verbose("Pairing request received for {DeviceId}", req.DeviceId);
 
-            return Results.Ok(data);
-        });
+                var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
+                var pin = GeneratePin();
+                pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(SynchronizationProtocol.PinTtlSeconds));
+                PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
+                return Results.Ok();
+            });
 
-        app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
-        {
-            await databaseService.MergeAllAsync(data);
-
-            SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
-            return Results.NoContent();
-        });
-
-        app.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
-        {
-            var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
-            return Results.Ok(incompleteSessions);
-        });
-
-        app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
-        {
-            var data = await databaseService.GetSessionPsstAsync(id);
-            if (data is null) return Results.NotFound(new { msg = "Session does not exist!" });
-
-            var name = $"{id}.psst";
-
-            return Results.File(
-                fileContents: data.BinaryForm,
-                contentType: "application/octet-stream",
-                fileDownloadName: name
-            );
-        });
-
-        app.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
-        {
-            await using var memoryStream = new MemoryStream();
-            await request.BodyReader.CopyToAsync(memoryStream);
-            var data = memoryStream.ToArray();
-
-            try
+            app.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
             {
-                await databaseService.PatchSessionPsstAsync(id, data);
-            }
-            catch (Exception)
+                if (!pendingPairings.TryRemove(req.Pin, out var record))
+                {
+                    logger.Warning("Pairing confirmation rejected for {DeviceId}: PIN not found", req.DeviceId);
+                    return Results.Unauthorized();
+                }
+
+                var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
+                if (record.deviceId != req.DeviceId ||
+                    record.displayName != displayName ||
+                    record.expiresAt < DateTime.UtcNow)
+                {
+                    logger.Warning("Pairing confirmation rejected for {DeviceId}: record mismatch or expired PIN", req.DeviceId);
+                    return Results.Unauthorized();
+                }
+
+                var accessToken = GenerateAccessToken(req.DeviceId);
+                var pairedDevice = new PairedDevice(req.DeviceId, displayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
+                await databaseService.PutPairedDeviceAsync(pairedDevice);
+
+                logger.Verbose("Pairing confirmed for {DeviceId}", req.DeviceId);
+                PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
+                return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
+            });
+
+            app.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
             {
-                return Results.NotFound();
-            }
+                var pairedDevice = await databaseService.GetPairedDeviceByTokenAsync(req.RefreshToken);
+                if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow)
+                {
+                    logger.Warning("Token refresh rejected because the paired device was missing or expired");
+                    return Results.Unauthorized();
+                }
 
-            SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
-            return Results.NoContent();
-        });
+                var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
+                var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
+                await databaseService.PutPairedDeviceAsync(newPairedDevice);
 
-        StartAdvertising();
-        await app.RunAsync();
+                logger.Verbose("Issued refreshed synchronization token for {DeviceId}", pairedDevice.DeviceId);
+                return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
+            });
+
+            app.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
+            {
+                var device = await databaseService.GetPairedDeviceAsync(req.DeviceId);
+                if (device is null)
+                {
+                    logger.Verbose("Ignoring unpair request for {DeviceId} because no device was found", req.DeviceId);
+                    return Results.Ok();
+                }
+
+                if (device.Token != req.RefreshToken)
+                {
+                    logger.Warning("Unpair request rejected for {DeviceId}: refresh token mismatch", req.DeviceId);
+                    return Results.Unauthorized();
+                }
+
+                await databaseService.DeletePairedDeviceAsync(device.DeviceId);
+                logger.Verbose("Unpaired device {DeviceId}", device.DeviceId);
+                Unpaired?.Invoke(this, new PairingEventArgs(device));
+
+                return Results.Ok();
+            });
+
+            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
+            {
+                var data = new SynchronizationData
+                {
+                    Boards = await databaseService.GetChangedAsync<Board>(since),
+                    Bikes = await databaseService.GetChangedAsync<Bike>(since),
+                    Setups = await databaseService.GetChangedAsync<Setup>(since),
+                    Sessions = await databaseService.GetChangedAsync<Session>(since),
+                    Tracks = await databaseService.GetChangedAsync<Track>(since)
+                };
+
+                logger.Verbose(
+                    "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+                    since,
+                    data.Boards.Count,
+                    data.Bikes.Count,
+                    data.Setups.Count,
+                    data.Sessions.Count,
+                    data.Tracks.Count);
+
+                return Results.Ok(data);
+            });
+
+            app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+            {
+                logger.Verbose(
+                    "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+                    data.Boards.Count,
+                    data.Bikes.Count,
+                    data.Setups.Count,
+                    data.Sessions.Count,
+                    data.Tracks.Count);
+
+                await databaseService.MergeAllAsync(data);
+
+                SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
+                return Results.NoContent();
+            });
+
+            app.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
+            {
+                var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
+                logger.Verbose("Synchronization incomplete-session query returned {SessionCount} sessions", incompleteSessions.Count);
+                return Results.Ok(incompleteSessions);
+            });
+
+            app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            {
+                var data = await databaseService.GetSessionPsstAsync(id);
+                if (data is null)
+                {
+                    logger.Warning("Session data download failed because session {SessionId} was not found", id);
+                    return Results.NotFound(new { msg = "Session does not exist!" });
+                }
+
+                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.BinaryForm.Length);
+                var name = $"{id}.psst";
+
+                return Results.File(
+                    fileContents: data.BinaryForm,
+                    contentType: "application/octet-stream",
+                    fileDownloadName: name
+                );
+            });
+
+            app.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            {
+                await using var memoryStream = new MemoryStream();
+                await request.BodyReader.CopyToAsync(memoryStream);
+                var data = memoryStream.ToArray();
+
+                try
+                {
+                    await databaseService.PatchSessionPsstAsync(id, data);
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);
+                    return Results.NotFound();
+                }
+
+                logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, data.Length);
+                SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
+                return Results.NoContent();
+            });
+
+            logger.Verbose("Advertising synchronization service on port {Port}", Port);
+            StartAdvertising();
+            logger.Information("Synchronization server listening on port {Port}", Port);
+            await app.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Synchronization server failed to start or run on port {Port}", Port);
+            throw;
+        }
     }
 
     #endregion

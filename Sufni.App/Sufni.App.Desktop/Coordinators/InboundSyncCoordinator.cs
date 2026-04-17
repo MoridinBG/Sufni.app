@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -15,6 +16,8 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
+
     private readonly IDatabaseService databaseService;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
@@ -36,30 +39,52 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
     {
         Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            foreach (var bike in e.Data.Bikes)
+            try
             {
-                if (bike.Deleted is not null)
+                var removedBikeCount = 0;
+                var upsertedBikeCount = 0;
+                foreach (var bike in e.Data.Bikes)
                 {
-                    bikeStoreWriter.Remove(bike.Id);
+                    if (bike.Deleted is not null)
+                    {
+                        bikeStoreWriter.Remove(bike.Id);
+                        removedBikeCount++;
+                    }
+                    else
+                    {
+                        bikeStoreWriter.Upsert(BikeSnapshot.From(bike));
+                        upsertedBikeCount++;
+                    }
                 }
-                else
-                {
-                    bikeStoreWriter.Upsert(BikeSnapshot.From(bike));
-                }
-            }
 
-            var boards = await databaseService.GetAllAsync<Board>();
-            foreach (var setup in e.Data.Setups)
+                var removedSetupCount = 0;
+                var upsertedSetupCount = 0;
+                var boards = await databaseService.GetAllAsync<Board>();
+                foreach (var setup in e.Data.Setups)
+                {
+                    if (setup.Deleted is not null)
+                    {
+                        setupStoreWriter.Remove(setup.Id);
+                        removedSetupCount++;
+                    }
+                    else
+                    {
+                        var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
+                        setupStoreWriter.Upsert(SetupSnapshot.From(setup, board?.Id));
+                        upsertedSetupCount++;
+                    }
+                }
+
+                logger.Verbose(
+                    "Applied inbound bike/setup synchronization with {RemovedBikeCount} bike removals, {UpsertedBikeCount} bike upserts, {RemovedSetupCount} setup removals, and {UpsertedSetupCount} setup upserts",
+                    removedBikeCount,
+                    upsertedBikeCount,
+                    removedSetupCount,
+                    upsertedSetupCount);
+            }
+            catch (System.Exception exception)
             {
-                if (setup.Deleted is not null)
-                {
-                    setupStoreWriter.Remove(setup.Id);
-                }
-                else
-                {
-                    var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                    setupStoreWriter.Upsert(SetupSnapshot.From(setup, board?.Id));
-                }
+                logger.Error(exception, "Failed to apply inbound bike/setup synchronization data");
             }
         });
     }
