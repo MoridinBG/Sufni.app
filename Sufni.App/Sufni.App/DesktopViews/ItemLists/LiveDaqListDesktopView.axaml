@@ -1,0 +1,47 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.ItemLists.LiveDaqListDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:c="clr-namespace:Sufni.App.DesktopViews.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vml:LiveDaqListViewModel"
+Background="{StaticResource SufniRegion}"
+mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vml:LiveDaqListViewModel />
+    </Design.DataContext>
+
+    <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+
+        <controls:SearchBar
+        Name="LiveDaqSearchBar"
+        Grid.Row="0"
+        Margin="0,20,20,20" />
+
+        <ScrollViewer Grid.Row="1" Name="Scroll">
+            <ItemsRepeater Name="RowsRepeater" ItemsSource="{Binding Items}">
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate>
+                        <c:LiveDaqListItemButton />
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <controls:NotificationsBar
+        Grid.Row="2"
+        Margin="5,0"
+        ZIndex="10" />
+
+        <controls:ErrorMessagesBar
+        Grid.Row="3"
+        Margin="5,0"
+        ZIndex="10" />
+    </Grid>
+</UserControl>

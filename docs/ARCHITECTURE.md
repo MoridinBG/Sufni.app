@@ -25,6 +25,7 @@ graph TB
         Coords["Coordinators (per entity + shell)"]
         Stores["Stores (read snapshots + writer)"]
         Queries["Queries (cross-entity reads)"]
+        LiveApp["LiveDaqCoordinator\nLiveDaqStore\nLiveDaqKnownBoardsQuery"]
     end
 
     subgraph Services["Service Layer"]
@@ -32,6 +33,7 @@ graph TB
         DSS["TelemetryDataStoreService"]
         Sync["Synchronization Server/Client"]
         Tiles["TileLayerService"]
+        LiveSvc["LiveDaqCatalogService\nLiveDaqBrowseOwner\nLiveDaqClient"]
     end
 
     subgraph Domain["Domain Layer"]
@@ -67,11 +69,12 @@ The presentation layer holds only UI state and binds against the application lay
 
 ## Document Index
 
-- [Data Acquisition & File Format](architecture/acquisition.md) — how SST files reach the app, the wire/file formats, spike elimination.
-- [Signal Processing & Suspension Kinematics](architecture/processing.md) — the pipeline from raw samples to histograms, the linkage solver, sensor calibration.
-- [UI Architecture](architecture/ui.md) — invariants, layering, threading, stores, coordinators, queries, view models, DI, navigation, controls, plots.
-- [Persistence & Serialization](architecture/persistence.md) — SQLite schema, the database service, soft delete, conflict resolution.
-- [Cross-Device Synchronization](architecture/sync.md) — pairing flow, server, client, and sync payloads.
+- [Data Acquisition & File Format](docs/architecture/acquisition.md) — how SST files reach the app, the wire/file formats, spike elimination.
+- [Signal Processing & Suspension Kinematics](docs/architecture/processing.md) — the pipeline from raw samples to histograms, the linkage solver, sensor calibration.
+- [UI Architecture](docs/architecture/ui.md) — invariants, layering, threading, stores, coordinators, queries, view models, DI, navigation, controls, plots.
+- [Live DAQ Streaming](docs/architecture/live-streaming.md) — real-time telemetry preview: wire protocol, transport, discovery catalog, runtime store, detail tab lifecycle.
+- [Persistence & Serialization](docs/architecture/persistence.md) — SQLite schema, the database service, soft delete, conflict resolution.
+- [Cross-Device Synchronization](docs/architecture/sync.md) — pairing flow, server, client, and sync payloads.
 
 ---
 
@@ -178,6 +181,42 @@ Topics in [architecture/ui.md](architecture/ui.md):
   - [Plot Hierarchy](architecture/ui.md#plot-hierarchy) — table of every concrete plot
   - [IMU Plot](architecture/ui.md#imu-plot) — per-location magnitude calculation
   - [Desktop vs Mobile](architecture/ui.md#desktop-vs-mobile) — extended desktop layouts vs stacked mobile views
+
+---
+
+## Live DAQ Streaming
+
+The live preview feature streams real-time telemetry from a connected DAQ device to the desktop app over a framed TCP protocol. It is intentionally separate from the import pipeline: it has its own discovery catalog, browse ownership, runtime-only store, and per-tab transport clients. The feature activates only when the user selects the Live primary page, and each detail tab owns an independent connection that disconnects on tab close.
+
+```
+mDNS announcement
+  -> LiveDaqCatalogService (probe board ID)
+    -> LiveDaqCoordinator.Reconcile (merge with known boards)
+      -> LiveDaqStore.Upsert
+        -> DynamicData -> LiveDaqListViewModel -> UI
+
+User selects row
+  -> LiveDaqCoordinator.SelectAsync
+    -> shell.OpenOrFocus<LiveDaqDetailViewModel>
+
+Tab loads -> LiveDaqClient.ConnectAsync -> StartPreviewAsync
+  -> receive loop parses frames -> LiveDaqSessionState.ApplyFrame
+    -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+
+Tab closes -> Unloaded -> DisconnectAsync -> TCP closed
+```
+
+Topics in [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md):
+
+- [Overview](docs/architecture/live-streaming.md#overview) — feature scope, architecture diagram, data flow
+- [Live Wire Protocol](docs/architecture/live-streaming.md#live-wire-protocol) — 16-byte frame header, frame types, start handshake, result codes
+- [Transport Layer](docs/architecture/live-streaming.md#transport-layer) — protocol reader, client lifecycle, session state accumulator
+- [Discovery & Catalog](docs/architecture/live-streaming.md#discovery--catalog) — browse ownership, board-ID inspector, catalog service
+- [Known-Board Query](docs/architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
+- [Runtime Store](docs/architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
+- [Coordinator](docs/architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
+- [View Models](docs/architecture/live-streaming.md#view-models) — list, row, detail tab lifecycle
+- [Design Decisions](docs/architecture/live-streaming.md#design-decisions) — separation from import, per-tab clients, throttled UI, lease-based browse
 
 ---
 

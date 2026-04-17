@@ -1,0 +1,168 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Editors.LiveDaqDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="1100"
+x:DataType="vm:LiveDaqDetailViewModel"
+Background="{StaticResource SufniRegion}"
+mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:LiveDaqDetailViewModel />
+    </Design.DataContext>
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <SplitView
+    DisplayMode="Inline"
+    IsPaneOpen="True"
+    OpenPaneLength="340"
+    PanePlacement="Right">
+
+        <SplitView.Pane>
+            <ScrollViewer>
+                <StackPanel Margin="18" Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding Name}" />
+                        <TextBlock Opacity="0.7" Text="{Binding BoardId}" />
+                        <TextBlock Opacity="0.7" Text="{Binding Endpoint}" />
+                        <TextBlock Opacity="0.7" Text="{Binding SetupName, StringFormat='Setup: {0}'}" />
+                        <TextBlock Opacity="0.7" Text="{Binding BikeName, StringFormat='Bike: {0}'}" />
+                    </StackPanel>
+
+                    <Border
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Connection" />
+                            <TextBlock x:Name="ConnectionStateTextBlock" Text="{Binding Snapshot.ConnectionStateText}" />
+                            <TextBlock
+                            x:Name="LastErrorTextBlock"
+                            Foreground="{StaticResource SufniDangerColor}"
+                            IsVisible="{Binding Snapshot.HasLastError}"
+                            Text="{Binding Snapshot.LastError}" />
+                            <TextBlock
+                            x:Name="LastFrameTextBlock"
+                            Opacity="0.7"
+                            Text="{Binding Snapshot.LastFrameReceivedUtc, StringFormat='Last frame: {0:HH:mm:ss}'}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="10">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Requested Rates" />
+                            <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto auto" RowSpacing="8" ColumnSpacing="12">
+                                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Travel Hz" />
+                                <NumericUpDown x:Name="RequestedTravelHzUpDown" Grid.Row="0" Grid.Column="1" Minimum="0" Value="{Binding RequestedTravelHz}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="IMU Hz" />
+                                <NumericUpDown x:Name="RequestedImuHzUpDown" Grid.Row="1" Grid.Column="1" Minimum="0" Value="{Binding RequestedImuHz}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="GPS Hz" />
+                                <NumericUpDown x:Name="RequestedGpsFixHzUpDown" Grid.Row="2" Grid.Column="1" Minimum="0" Value="{Binding RequestedGpsFixHz}" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="* *" ColumnSpacing="8">
+                                <Button x:Name="ConnectButton" Grid.Column="0" Command="{Binding ConnectCommand}" Content="Connect" />
+                                <Button x:Name="DisconnectButton" Grid.Column="1" Command="{Binding DisconnectCommand}" Content="Disconnect" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                    Padding="12"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Accepted Session" />
+                            <TextBlock x:Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
+                            <TextBlock x:Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuHz, StringFormat='IMU: {0} Hz'}" />
+                            <TextBlock x:Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </SplitView.Pane>
+
+        <ScrollViewer>
+            <StackPanel Margin="18" Spacing="16">
+                <Border
+                x:Name="TravelCard"
+                Padding="14"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel" />
+                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
+                        <Grid ColumnDefinitions="* *" ColumnSpacing="12">
+                            <TextBlock x:Name="FrontTravelTextBlock" Grid.Column="0" Text="{Binding FrontTravelText}" />
+                            <TextBlock x:Name="RearTravelTextBlock" Grid.Column="1" Text="{Binding RearTravelText}" />
+                        </Grid>
+                        <TextBlock x:Name="TravelHealthTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                x:Name="ImuCard"
+                Padding="14"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="IMU" />
+                        <TextBlock x:Name="ImuSummaryTextBlock" Opacity="0.7" Text="{Binding Snapshot.Imus.Count, StringFormat='IMUs: {0}'}" />
+                        <TextBlock x:Name="ImuEmptyStateTextBlock" IsVisible="{Binding !Snapshot.HasImuData}" Opacity="0.7" Text="No active IMU samples yet." />
+                        <ItemsControl x:Name="ImuItemsControl" ItemsSource="{Binding Snapshot.Imus}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="live:LiveImuUiSnapshot">
+                                    <Border
+                                    Margin="0,0,0,8"
+                                    Padding="10"
+                                    Background="{StaticResource SufniRegion}"
+                                    CornerRadius="6">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Location}" />
+                                            <TextBlock Text="{Binding Ax, StringFormat='Acc: {0}'}" />
+                                            <TextBlock Text="{Binding Gx, StringFormat='Gyro: {0}'}" />
+                                            <TextBlock Opacity="0.7" Text="{Binding SampleOffset, StringFormat='Sample offset: {0:mm\:ss\.fff}'}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                x:Name="GpsCard"
+                Padding="14"
+                Background="{StaticResource SufniBackgroundDisabled}"
+                CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="GPS" />
+                        <TextBlock x:Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />
+                        <TextBlock x:Name="GpsCoordinatesTextBlock" Text="{Binding Snapshot.Gps.Latitude, StringFormat='Lat: {0:F4}'}" />
+                        <TextBlock x:Name="GpsLongitudeTextBlock" Text="{Binding Snapshot.Gps.Longitude, StringFormat='Lon: {0:F4}'}" />
+                        <TextBlock x:Name="GpsFixTimestampTextBlock" Opacity="0.7" Text="{Binding Snapshot.Gps.FixTimestampUtc, StringFormat='Fix time: {0:HH:mm:ss}'}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </SplitView>
+
+</UserControl>

@@ -33,12 +33,13 @@ internal class DriveInfoComparer : IEqualityComparer<DriveInfo>
 
 internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 {
-    private const string ServiceType = "_gosst._tcp";
     private readonly IServiceDiscovery serviceDiscovery;
+    private readonly ILiveDaqBrowseOwner browseOwner;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly DispatcherTimer massStorageScanTimer;
     private int massStorageRefreshInProgress;
     private volatile bool isBrowsing;
+    private IDisposable? browseLease;
 
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = new();
     public event EventHandler<string>? ErrorOccurred;
@@ -184,9 +185,11 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 
     public TelemetryDataStoreService(
         [FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery,
+        ILiveDaqBrowseOwner browseOwner,
         IBackgroundTaskRunner backgroundTaskRunner)
     {
         this.serviceDiscovery = serviceDiscovery;
+        this.browseOwner = browseOwner;
         this.backgroundTaskRunner = backgroundTaskRunner;
 
         serviceDiscovery.ServiceAdded += async (_, e) => await AddNetworkDataStoreAsync(e);
@@ -199,16 +202,23 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 
     public void StartBrowse()
     {
+        if (isBrowsing)
+            return;
+
         isBrowsing = true;
         massStorageScanTimer.Start();
-        serviceDiscovery.StartBrowse(ServiceType);
+        browseLease = browseOwner.AcquireBrowse();
     }
 
     public void StopBrowse()
     {
+        if (!isBrowsing)
+            return;
+
         isBrowsing = false;
         massStorageScanTimer.Stop();
-        serviceDiscovery.StopBrowse();
+        browseLease?.Dispose();
+        browseLease = null;
         DataStores.Clear();
     }
 

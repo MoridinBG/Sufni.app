@@ -31,15 +31,15 @@ or feature wording evolve:
 graph TB
     subgraph Presentation["Presentation"]
         Shell["Shell VMs<br/>MainViewModel / MainWindowViewModel<br/>MainPagesViewModel"]
-        Lists["List VMs<br/>BikeListViewModel<br/>SetupListViewModel<br/>SessionListViewModel<br/>PairedDeviceListViewModel"]
-        Rows["Row VMs<br/>BikeRowViewModel<br/>SetupRowViewModel<br/>SessionRowViewModel<br/>PairedDeviceRowViewModel"]
-        Editors["Editor VMs<br/>BikeEditorViewModel<br/>SetupEditorViewModel<br/>SessionDetailViewModel"]
+        Lists["List VMs<br/>BikeListViewModel<br/>SetupListViewModel<br/>SessionListViewModel<br/>PairedDeviceListViewModel<br/>LiveDaqListViewModel"]
+        Rows["Row VMs<br/>BikeRowViewModel<br/>SetupRowViewModel<br/>SessionRowViewModel<br/>PairedDeviceRowViewModel<br/>LiveDaqRowViewModel"]
+        Editors["Editor VMs<br/>BikeEditorViewModel<br/>SetupEditorViewModel<br/>SessionDetailViewModel<br/>LiveDaqDetailViewModel"]
     end
 
     subgraph Application["Application"]
         Coords["Coordinators<br/>(per entity + shell)"]
         Stores["Stores<br/>(IXxxStore / IXxxStoreWriter)"]
-        Queries["Queries<br/>(IBikeDependencyQuery)"]
+        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)"]
     end
 
     subgraph Services["Services"]
@@ -112,6 +112,7 @@ coordinators and the composition root. The implementation lives in
 | `SetupStore`        | `ISetupStore`        | `ISetupStoreWriter`        | `SetupSnapshot`        | `Guid`   |
 | `SessionStore`      | `ISessionStore`      | `ISessionStoreWriter`      | `SessionSnapshot`      | `Guid`   |
 | `PairedDeviceStore` | `IPairedDeviceStore` | `IPairedDeviceStoreWriter` | `PairedDeviceSnapshot` | `string` |
+| `LiveDaqStore`      | `ILiveDaqStore`      | `ILiveDaqStoreWriter`      | `LiveDaqSnapshot`      | `string` |
 
 Each store wraps a `SourceCache<TSnapshot, TKey>` and exposes:
 
@@ -141,6 +142,13 @@ without scanning anything from the UI side. This remains a store
 responsibility because the answer is a direct lookup over the store's
 own read model, not a cross-domain business query.
 
+`LiveDaqStore` is a runtime-only store that does not persist to the
+database. It has no `RefreshAsync()`, its snapshots carry no `Updated`
+timestamp, and it is populated entirely by `LiveDaqCoordinator` from
+discovery and known-board query results. See
+[Live DAQ Streaming](live-streaming.md) for the full feature
+architecture.
+
 ## Coordinators
 
 Coordinators own feature workflows. They are the only layer that
@@ -149,18 +157,20 @@ writes to stores, the only layer that decides post-save navigation
 synchronization events. They live in `Sufni.App/Sufni.App/Coordinators/`
 and are registered as singletons.
 
-| Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `GoBack` — the only navigation surface                                                                                                                                                               |
-| `IBikeCoordinator`                                                        | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                   |
-| `ISetupCoordinator`                                                       | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                    |
-| `ISessionCoordinator`                                                     | shared       | Save/delete + `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                            |
-| `IPairedDeviceCoordinator`                                                | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                    |
-| `IImportSessionsCoordinator`                                              | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                  |
-| `ISyncCoordinator`                                                        | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                              |
-| `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                         |
-| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                         |
-| `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer |
+| Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                   |
+| `IBikeCoordinator`                                                        | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                       |
+| `ISetupCoordinator`                                                       | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                        |
+| `ISessionCoordinator`                                                     | shared       | Save/delete + `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                                                                |
+| `IPairedDeviceCoordinator`                                                | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                        |
+| `IImportSessionsCoordinator`                                              | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                                                                                                      |
+| `ISyncCoordinator`                                                        | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                                                                                                                  |
+| `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                             |
+| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                             |
+| `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                     |
+| `ITrackCoordinator` (`TrackCoordinator`)                                  | shared       | GPX import and session-track loading/association                                                                                                                                                                                                                                                                               |
+| `ILiveDaqCoordinator` (`LiveDaqCoordinator`)                              | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
 `InboundSyncCoordinator`, `SessionCoordinator`, `PairedDeviceCoordinator`,
 `PairingClientCoordinator` (mobile), `PairingServerCoordinator`
@@ -204,6 +214,18 @@ setup currently references a bike. `BikeCoordinator.DeleteAsync` uses
 it to short-circuit deletes with `BikeDeleteOutcome.InUse`. The
 answer is sourced from the database, not from any list view model, so
 it does not depend on which screens the user has visited.
+
+`ILiveDaqKnownBoardsQuery` (backed by `LiveDaqKnownBoardsQuery`)
+merges `Board` rows from the database with `ISetupStore` and
+`IBikeStore` to produce enriched records carrying board identity,
+setup name, and bike name. It also exposes keyed lookup and travel-
+calibration answers for a specific live DAQ identity, so the live
+detail view model can project calibrated travel text without pushing
+setup or bike logic into the transport/session-state layer. Unlike
+`BikeDependencyQuery`, it caches its projection and auto-refreshes via
+store change subscriptions so consumers can re-enrich display names
+and calibration context without repeated database round-trips. See
+[Live DAQ Streaming](live-streaming.md).
 
 ## View Models
 
@@ -268,8 +290,9 @@ There are five kinds of view model in the presentation layer:
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
-  `PairedDeviceListViewModel`. Each takes a read-only store plus the
-  matching coordinator, and projects the store's `Connect()` change
+  `PairedDeviceListViewModel`, `LiveDaqListViewModel`. Each takes a
+  read-only store plus the matching coordinator, and projects the
+  store's `Connect()` change
   stream through DynamicData into a typed `ReadOnlyObservableCollection`
   of row view models:
 
@@ -293,28 +316,35 @@ There are five kinds of view model in the presentation layer:
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,
-  `PairedDeviceRowViewModel`. Cheap, non-editable wrappers around a
-  single snapshot. They expose a `Update(snapshot)` method that
-  DynamicData calls when the underlying snapshot changes, plus an
-  `IRelayCommand`-based open/delete surface defined in
-  `IListItemRow` (a single shared `x:DataType` for the
+  `PairedDeviceRowViewModel`, `LiveDaqRowViewModel`. Cheap,
+  non-editable wrappers around a single snapshot. They expose a
+  `Update(snapshot)` method that DynamicData calls when the underlying
+  snapshot changes, plus an `IRelayCommand`-based open/delete surface
+  defined in `IListItemRow` (a single shared `x:DataType` for the
   `DeletableListItemButton` / `SwipeToDeleteButton` /
   `PairedDeviceListItemButton` controls). Open and delete commands
-  route through the entity coordinator.
+  route through the entity coordinator. `LiveDaqRowViewModel` is an
+  exception: it does not implement `IListItemRow` because live DAQ
+  rows are not deletable and use a custom row control with
+  online/offline presentation.
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
-  `SetupEditorViewModel`, `SessionDetailViewModel`. Constructed by
-  the entity coordinator from a snapshot and the `isNew` flag, never
-  by another view model and never stored in a list. They keep the
-  snapshot's `Updated` value as `BaselineUpdated` for optimistic
-  conflict detection at save time, derive editable state from the
-  snapshot in `ResetImplementation`, and call back into the
-  coordinator's `SaveAsync` / `DeleteAsync`. On
+  `SetupEditorViewModel`, `SessionDetailViewModel`,
+  `LiveDaqDetailViewModel`. Constructed by the entity coordinator from
+  a snapshot, never by another view model and never stored in a list.
+  Persisted-entity editors keep the snapshot's `Updated` value as
+  `BaselineUpdated` for optimistic conflict detection at save time,
+  derive editable state from the snapshot in `ResetImplementation`,
+  and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
   `SaveResult.Conflict` they prompt the user via
   `IDialogService.ShowConfirmationAsync` and rebuild from the
-  conflict's current snapshot. They implement `IEditorActions` so
-  the shared `CommonButtonLine` editor button strip resolves a
-  single `x:DataType`.
+  conflict's current snapshot. Persisted-entity editors implement
+  `IEditorActions` so the shared `CommonButtonLine` editor button
+  strip resolves a single `x:DataType`. `LiveDaqDetailViewModel` does
+  not implement `IEditorActions` — it is a live transport tab, not a
+  persisted-entity editor. Its raw transport snapshot comes from
+  `LiveDaqSessionState`; user-facing travel text is projected in the
+  view model itself using `ILiveDaqKnownBoardsQuery`.
 
 `TabPageViewModelBase` (`ViewModels/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
@@ -358,8 +388,9 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 - **Shell**: `IShellCoordinator` chosen by application lifetime —
   `DesktopShellCoordinator` for `IClassicDesktopStyleApplicationLifetime`,
   `MobileShellCoordinator` for `ISingleViewApplicationLifetime`. Both
-  receive a `Func<MainViewModel/MainWindowViewModel>` rather than the
-  shell view model directly so the shell can be resolved lazily.
+  receive a factory for a narrow shell-host interface rather than the
+  concrete shell view model, so the shell can be resolved lazily and
+  tested against substitutes.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `ITelemetryDataStoreService`, `IDatabaseService`, `IFilesService`,
   `IDialogService`.
@@ -371,7 +402,14 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `IBackgroundTaskRunner` and a `Func<ImportSessionsViewModel>` so it
   can open / focus the singleton import page while keeping the import
   workflow itself view-model-free).
-- **Queries**: `IBikeDependencyQuery`.
+- **Queries**: `IBikeDependencyQuery`, `ILiveDaqKnownBoardsQuery`.
+- **Live DAQ**: `LiveDaqStore` (singleton behind both
+  `ILiveDaqStore` and `ILiveDaqStoreWriter`),
+  `ILiveDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
+  `ILiveDaqCatalogService`, `ILiveDaqClientFactory`,
+  `ILiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
+  unconditionally; `MainPagesViewModel` receives
+  `LiveDaqListViewModel` conditionally (null on mobile).
 - **View models**: list view models, the import view model and the
   welcome screen as singletons; `MainViewModel` and
   `MainWindowViewModel` as singletons; `MainPagesViewModel` via an
@@ -408,7 +446,7 @@ startup.
 Navigation is owned exclusively by `IShellCoordinator`. View models
 never poke at the shell view model directly — they call
 `shell.Open(view)`, `shell.OpenOrFocus<T>(match, factory)`,
-`shell.Close(view)`, or `shell.GoBack()`.
+`shell.Close(view)`, `shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`.
 
 - **Mobile** — `MobileShellCoordinator` wraps `MainViewModel`, which
   maintains a `Stack<ViewModelBase>`. `Open` pushes; `Close` pops if
@@ -431,7 +469,7 @@ view.
 
 ## Controls Library
 
-`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. The desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against the shared `IListItemRow` surface so list views can use a single `x:DataType` regardless of the entity family.
+`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. The desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against the shared `IListItemRow` surface so list views can use a single `x:DataType` regardless of the entity family. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly (not `IListItemRow`) because live DAQ rows are not deletable and need online/offline presentation.
 
 ## Data Visualization
 

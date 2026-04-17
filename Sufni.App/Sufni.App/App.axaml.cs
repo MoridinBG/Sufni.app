@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
@@ -63,6 +64,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
+        ServiceCollection.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
         ServiceCollection.AddSingleton<IBikeCoordinator, BikeCoordinator>();
         ServiceCollection.AddSingleton<SetupStore>();
         ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
@@ -73,6 +75,14 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ITrackCoordinator, TrackCoordinator>();
         ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<LiveDaqStore>();
+        ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
+        ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
+        ServiceCollection.AddSingleton<ILiveDaqBrowseOwner, LiveDaqBrowseOwner>();
+        ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
+        ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
+        ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
+        ServiceCollection.AddSingleton<ILiveDaqCoordinator, LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
@@ -87,6 +97,7 @@ public partial class App : Application
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();
+        ServiceCollection.AddSingleton<LiveDaqListViewModel>();
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
@@ -102,6 +113,7 @@ public partial class App : Application
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
+            ApplicationLifetime is IClassicDesktopStyleApplicationLifetime ? sp.GetRequiredService<LiveDaqListViewModel>() : null,
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
             sp.GetService<PairingClientViewModel>(),
