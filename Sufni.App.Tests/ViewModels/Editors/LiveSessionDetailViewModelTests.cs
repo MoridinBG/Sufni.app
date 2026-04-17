@@ -69,6 +69,22 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Reload_AfterUnload_ResubscribesToSnapshots()
+    {
+        var editor = CreateEditor();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.UnloadedCommand.ExecuteAsync(null);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Same(currentSnapshot.StatisticsTelemetry, editor.TelemetryData);
+    }
+
+    [AvaloniaFact]
     public async Task SnapshotUpdate_ProjectsTelemetryTrack_AndEnablesSave()
     {
         var editor = CreateEditor();

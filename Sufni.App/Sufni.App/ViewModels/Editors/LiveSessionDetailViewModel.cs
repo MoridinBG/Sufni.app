@@ -126,6 +126,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     {
         uiRefreshTimer.Start();
         RefreshUi();
+
+        if (liveSessionService is not null)
+        {
+            EnsureScopedSubscription(disposables =>
+                disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh)));
+        }
+
         if (hasLoaded)
         {
             return;
@@ -138,9 +145,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         {
             return;
         }
-
-        EnsureScopedSubscription(disposables =>
-            disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh)));
 
         await liveSessionService.EnsureAttachedAsync();
         ApplyPresentation(liveSessionService.Current);
