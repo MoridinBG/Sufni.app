@@ -1,19 +1,28 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 
 namespace Sufni.App.Plots;
 
-public abstract class LiveStreamingPlotBase(Plot plot, int capacity) : SufniPlot(plot)
+public abstract class LiveStreamingPlotBase : SufniPlot
 {
     private double latestTimeSeconds;
     private double samplePeriodSeconds = 1;
     private bool hasTiming;
+    private double configuredMinimumY;
+    private double configuredMaximumY;
 
-    protected int Capacity { get; } = capacity;
-    public VerticalLine CursorLine { get; } = plot.Add.VerticalLine(double.NaN);
+    protected LiveStreamingPlotBase(Plot plot, int capacity, double minimumY, double maximumY)
+        : base(plot)
+    {
+        Capacity = capacity;
+        SetVerticalLimits(minimumY, maximumY);
+        CursorLine = plot.Add.VerticalLine(double.NaN);
+    }
+
+    protected int Capacity { get; }
+    public VerticalLine CursorLine { get; }
 
     public bool HasTiming => hasTiming;
     public double LatestTimeSeconds => latestTimeSeconds;
@@ -27,7 +36,7 @@ public abstract class LiveStreamingPlotBase(Plot plot, int capacity) : SufniPlot
         Plot.Axes.Right.IsVisible = false;
         Plot.Axes.Top.IsVisible = false;
         Plot.Axes.SetLimitsX(0, Capacity);
-        Plot.Axes.SetLimitsY(0, 1);
+        Plot.Axes.SetLimitsY(configuredMinimumY, configuredMaximumY);
 
         Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic
         {
@@ -44,10 +53,32 @@ public abstract class LiveStreamingPlotBase(Plot plot, int capacity) : SufniPlot
     {
         var streamer = Plot.Add.DataStreamer(Capacity);
         streamer.ViewScrollLeft();
-        streamer.ManageAxisLimits = true;
+        streamer.ManageAxisLimits = false;
         streamer.Color = color;
         streamer.LineWidth = 2;
         return streamer;
+    }
+
+    public void SetVerticalLimits(double minimumY, double maximumY)
+    {
+        if (!double.IsFinite(minimumY) || !double.IsFinite(maximumY))
+        {
+            configuredMinimumY = 0;
+            configuredMaximumY = 1;
+        }
+        else if (maximumY <= minimumY)
+        {
+            var padding = Math.Max(0.1, Math.Abs(maximumY) * 0.1);
+            configuredMinimumY = minimumY - padding;
+            configuredMaximumY = maximumY + padding;
+        }
+        else
+        {
+            configuredMinimumY = minimumY;
+            configuredMaximumY = maximumY;
+        }
+
+        Plot.Axes.SetLimitsY(configuredMinimumY, configuredMaximumY);
     }
 
     protected void UpdateTiming(IReadOnlyList<double> times)
@@ -68,29 +99,6 @@ public abstract class LiveStreamingPlotBase(Plot plot, int capacity) : SufniPlot
                 samplePeriodSeconds = inferredPeriod;
             }
         }
-    }
-
-    protected void UpdateVerticalLimits(params IEnumerable<double>[] valueSets)
-    {
-        var finite = valueSets.SelectMany(values => values).Where(double.IsFinite).ToArray();
-        if (finite.Length == 0)
-        {
-            Plot.Axes.SetLimitsY(0, 1);
-            return;
-        }
-
-        var minimum = finite.Min();
-        var maximum = finite.Max();
-        if (Math.Abs(maximum - minimum) < 1e-9)
-        {
-            var padding = Math.Max(0.1, Math.Abs(maximum) * 0.1);
-            Plot.Axes.SetLimitsY(minimum - padding, maximum + padding);
-            return;
-        }
-
-        var range = maximum - minimum;
-        var margin = range * 0.1;
-        Plot.Axes.SetLimitsY(minimum - margin, maximum + margin);
     }
 
     public double? CoordinateToNormalizedTime(double coordinate)
@@ -157,15 +165,10 @@ public abstract class LiveStreamingPlotBase(Plot plot, int capacity) : SufniPlot
         CursorLine.Position = double.NaN;
         CursorLine.IsVisible = false;
         Plot.Axes.SetLimitsX(0, Capacity);
-        Plot.Axes.SetLimitsY(0, 1);
+        Plot.Axes.SetLimitsY(configuredMinimumY, configuredMaximumY);
     }
 
     protected abstract void ClearStreamers();
-
-    protected IEnumerable<double> GetFiniteValues(DataStreamer streamer)
-    {
-        return streamer.Data.Data.Where(double.IsFinite);
-    }
 
     private double CoordinateToTime(double coordinate)
     {

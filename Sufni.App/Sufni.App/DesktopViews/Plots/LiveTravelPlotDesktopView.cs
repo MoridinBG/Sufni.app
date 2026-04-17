@@ -9,7 +9,8 @@ public sealed class LiveTravelPlotDesktopView : LiveGraphPlotDesktopViewBase
     protected override void CreatePlot()
     {
         Debug.Assert(AvaPlot is not null);
-        Plot = new LiveTravelPlot(AvaPlot.Plot);
+        Plot = new LiveTravelPlot(AvaPlot.Plot, MaximumY ?? 1);
+        ApplyConfiguredVerticalLimits();
         InitializeInteractions();
     }
 

@@ -1,3 +1,4 @@
+using System;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
@@ -10,8 +11,8 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private readonly DataStreamer forkStreamer;
     private readonly DataStreamer rearStreamer;
 
-    public LiveImuPlot(Plot plot)
-        : base(plot, 1024)
+    public LiveImuPlot(Plot plot, double imuMaximum)
+        : base(plot, 1024, 0, Math.Max(0.1, imuMaximum))
     {
         ConfigurePlot("IMU", "Acceleration (g)");
         frameStreamer = CreateStreamer(Color.FromHex("#fc8d59"));
@@ -53,8 +54,6 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
         {
             rearStreamer.AddRange(rearValues);
         }
-
-        UpdateVerticalLimits(GetFiniteValues(frameStreamer), GetFiniteValues(forkStreamer), GetFiniteValues(rearStreamer));
     }
 
     protected override void ClearStreamers()

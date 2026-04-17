@@ -53,6 +53,12 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(travelView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.All(velocityView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
+        Assert.Equal(180, travelView.Plot.Plot.Axes.Left.Max);
+        Assert.Equal(0, travelView.Plot.Plot.Axes.Left.Min);
+        Assert.Equal(5, velocityView.Plot.Plot.Axes.Left.Max);
+        Assert.Equal(-5, velocityView.Plot.Plot.Axes.Left.Min);
+        Assert.Equal(5, imuView.Plot.Plot.Axes.Left.Max);
+        Assert.Equal(0, imuView.Plot.Plot.Axes.Left.Min);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
         await WaitForUiRefreshAsync();
@@ -114,6 +120,7 @@ public class LiveGraphPlotDesktopViewTests
     private sealed class StubLiveSessionGraphWorkspace(Subject<LiveGraphBatch> graphBatches) : ILiveSessionGraphWorkspace
     {
         public IObservable<LiveGraphBatch> GraphBatches { get; } = graphBatches;
+        public LiveSessionPlotRanges PlotRanges { get; } = new(180, 5, 5);
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }
 }

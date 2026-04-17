@@ -16,6 +16,7 @@ mc:Ignorable="d">
         x:Name="TravelPlot"
         Grid.Row="0"
         GraphBatches="{Binding GraphBatches}"
+        MaximumY="{Binding PlotRanges.TravelMaximum}"
         Timeline="{Binding Timeline}" />
 
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
@@ -25,6 +26,8 @@ mc:Ignorable="d">
         Grid.Row="2"
         Margin="0,4,0,4"
         GraphBatches="{Binding GraphBatches}"
+        MinimumY="{Binding PlotRanges.VelocityMinimum}"
+        MaximumY="{Binding PlotRanges.VelocityMaximum}"
         Timeline="{Binding Timeline}" />
 
         <GridSplitter Grid.Row="3" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
@@ -34,6 +37,7 @@ mc:Ignorable="d">
         Grid.Row="4"
         Margin="0,4,0,0"
         GraphBatches="{Binding GraphBatches}"
+        MaximumY="{Binding PlotRanges.ImuMaximum}"
         Timeline="{Binding Timeline}" />
     </Grid>
 </UserControl>

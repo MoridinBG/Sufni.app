@@ -1,4 +1,5 @@
-using System.Linq;
+using System;
+using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
@@ -9,9 +10,11 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
 {
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
+    private double[] frontVelocityScratch = [];
+    private double[] rearVelocityScratch = [];
 
-    public LiveVelocityPlot(Plot plot)
-        : base(plot, 2048)
+    public LiveVelocityPlot(Plot plot, double velocityMaximum)
+        : base(plot, 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum))
     {
         ConfigurePlot("Velocity", "Velocity (m/s)");
         frontStreamer = CreateStreamer(Color.FromHex("#3288bd"));
@@ -26,14 +29,36 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         }
 
         UpdateTiming(batch.VelocityTimes);
-        frontStreamer.AddRange(batch.FrontVelocity.Select(value => value / 1000.0));
-        rearStreamer.AddRange(batch.RearVelocity.Select(value => value / 1000.0));
-        UpdateVerticalLimits(GetFiniteValues(frontStreamer), GetFiniteValues(rearStreamer));
+
+        if (batch.FrontVelocity.Count > 0)
+        {
+            frontStreamer.AddRange(ConvertToMetersPerSecond(batch.FrontVelocity, ref frontVelocityScratch));
+        }
+
+        if (batch.RearVelocity.Count > 0)
+        {
+            rearStreamer.AddRange(ConvertToMetersPerSecond(batch.RearVelocity, ref rearVelocityScratch));
+        }
     }
 
     protected override void ClearStreamers()
     {
         frontStreamer.Clear(double.NaN);
         rearStreamer.Clear(double.NaN);
+    }
+
+    private static ArraySegment<double> ConvertToMetersPerSecond(IReadOnlyList<double> values, ref double[] buffer)
+    {
+        if (buffer.Length < values.Count)
+        {
+            buffer = new double[values.Count];
+        }
+
+        for (var index = 0; index < values.Count; index++)
+        {
+            buffer[index] = values[index] / 1000.0;
+        }
+
+        return new ArraySegment<double>(buffer, 0, values.Count);
     }
 }

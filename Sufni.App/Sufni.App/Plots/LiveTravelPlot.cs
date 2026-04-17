@@ -1,3 +1,4 @@
+using System;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
@@ -9,8 +10,8 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
 
-    public LiveTravelPlot(Plot plot)
-        : base(plot, 2048)
+    public LiveTravelPlot(Plot plot, double travelMaximum)
+        : base(plot, 2048, 0, Math.Max(1, travelMaximum))
     {
         ConfigurePlot("Travel", "Travel (mm)");
         frontStreamer = CreateStreamer(Color.FromHex("#3288bd"));
@@ -27,7 +28,6 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
         UpdateTiming(batch.TravelTimes);
         frontStreamer.AddRange(batch.FrontTravel);
         rearStreamer.AddRange(batch.RearTravel);
-        UpdateVerticalLimits(GetFiniteValues(frontStreamer), GetFiniteValues(rearStreamer));
     }
 
     protected override void ClearStreamers()

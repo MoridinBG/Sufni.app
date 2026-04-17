@@ -39,6 +39,24 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         set => SetValue(TimelineProperty, value);
     }
 
+    public static readonly StyledProperty<double?> MinimumYProperty =
+        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, double?>(nameof(MinimumY));
+
+    public double? MinimumY
+    {
+        get => GetValue(MinimumYProperty);
+        set => SetValue(MinimumYProperty, value);
+    }
+
+    public static readonly StyledProperty<double?> MaximumYProperty =
+        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, double?>(nameof(MaximumY));
+
+    public double? MaximumY
+    {
+        get => GetValue(MaximumYProperty);
+        set => SetValue(MaximumYProperty, value);
+    }
+
     protected LiveGraphPlotDesktopViewBase()
     {
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -67,6 +85,11 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                         newTimeline.PropertyChanged += OnTimelineChanged;
                         ApplyTimelineRange();
                     }
+                    break;
+
+                case nameof(MinimumY):
+                case nameof(MaximumY):
+                    ApplyConfiguredVerticalLimits();
                     break;
             }
         };
@@ -112,6 +135,21 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     protected abstract void ApplyGraphBatch(LiveGraphBatch batch);
+
+    protected void ApplyConfiguredVerticalLimits()
+    {
+        if (Plot is null)
+        {
+            return;
+        }
+
+        if (MinimumY is null && MaximumY is null)
+        {
+            return;
+        }
+
+        Plot.SetVerticalLimits(MinimumY ?? 0, MaximumY ?? 1);
+    }
 
     private void HandleGraphBatch(LiveGraphBatch batch)
     {

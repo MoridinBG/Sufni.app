@@ -9,7 +9,8 @@ public sealed class LiveImuPlotDesktopView : LiveGraphPlotDesktopViewBase
     protected override void CreatePlot()
     {
         Debug.Assert(AvaPlot is not null);
-        Plot = new LiveImuPlot(AvaPlot.Plot);
+        Plot = new LiveImuPlot(AvaPlot.Plot, MaximumY ?? 5);
+        ApplyConfiguredVerticalLimits();
         InitializeInteractions();
     }
 

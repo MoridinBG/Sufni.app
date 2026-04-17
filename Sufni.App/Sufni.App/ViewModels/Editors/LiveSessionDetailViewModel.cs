@@ -88,7 +88,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         this.sessionCoordinator = sessionCoordinator;
 
         var timeline = new SessionTimelineLinkViewModel();
-        graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline);
+        graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline, CreatePlotRanges(context));
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline);
         graphWorkspace.Attach(liveSessionService.GraphBatches);
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -275,6 +275,25 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out _);
+    }
+
+    private static LiveSessionPlotRanges CreatePlotRanges(LiveDaqSessionContext context)
+    {
+        var travelMaximum = Math.Max(
+            context.TravelCalibration.Front?.MaxTravel ?? 0,
+            context.TravelCalibration.Rear?.MaxTravel ?? 0);
+
+        if (travelMaximum <= 0)
+        {
+            travelMaximum = Math.Max(
+                context.BikeData.FrontMaxTravel ?? 0,
+                context.BikeData.RearMaxTravel ?? 0);
+        }
+
+        return new LiveSessionPlotRanges(
+            TravelMaximum: Math.Max(1, travelMaximum),
+            VelocityMaximum: 5,
+            ImuMaximum: 5);
     }
 
     private void QueuePresentationRefresh(LiveSessionPresentationSnapshot snapshot)

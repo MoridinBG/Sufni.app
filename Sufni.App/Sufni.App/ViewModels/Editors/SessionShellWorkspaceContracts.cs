@@ -45,7 +45,21 @@ public interface ISessionSidebarWorkspace
 public interface ILiveSessionGraphWorkspace
 {
     IObservable<LiveGraphBatch> GraphBatches { get; }
+    LiveSessionPlotRanges PlotRanges { get; }
     SessionTimelineLinkViewModel Timeline { get; }
+}
+
+public sealed record LiveSessionPlotRanges(
+    double TravelMaximum,
+    double VelocityMaximum,
+    double ImuMaximum)
+{
+    public double VelocityMinimum => -VelocityMaximum;
+
+    public static readonly LiveSessionPlotRanges Default = new(
+        TravelMaximum: 1,
+        VelocityMaximum: 5,
+        ImuMaximum: 5);
 }
 
 public interface ILiveSessionControlsWorkspace
