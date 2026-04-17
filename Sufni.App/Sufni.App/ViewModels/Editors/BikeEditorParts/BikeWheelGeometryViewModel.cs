@@ -231,6 +231,22 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
         NotifyRearWheelPropertiesChanged();
     }
 
+    public void ClearAll()
+    {
+        WithWheelStateCallbacksSuspended(() =>
+        {
+            FrontWheelRimSize = null;
+            FrontWheelTireWidth = null;
+            FrontWheelDiameter = null;
+            RearWheelRimSize = null;
+            RearWheelTireWidth = null;
+            RearWheelDiameter = null;
+        });
+
+        NotifyFrontWheelPropertiesChanged();
+        NotifyRearWheelPropertiesChanged();
+    }
+
     private void WithWheelStateCallbacksSuspended(Action action)
     {
         suppressWheelStateCallbacks = true;
