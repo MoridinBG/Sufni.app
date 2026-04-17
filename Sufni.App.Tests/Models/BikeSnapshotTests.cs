@@ -7,13 +7,11 @@ namespace Sufni.App.Tests.Models;
 public class BikeSnapshotTests
 {
     [Fact]
-    public void RearSuspension_ReturnsHardtailRearSuspension_ForHardtailSnapshot()
+    public void RearSuspension_ReturnsNull_ForHardtailSnapshot()
     {
         var snapshot = TestSnapshots.Bike();
 
-        var rearSuspension = Assert.IsType<HardtailRearSuspension>(snapshot.RearSuspension);
-
-        Assert.NotNull(rearSuspension);
+        Assert.Null(snapshot.RearSuspension);
         Assert.Null(snapshot.RearSuspensionError);
     }
 

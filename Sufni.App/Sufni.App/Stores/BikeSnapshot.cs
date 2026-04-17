@@ -85,7 +85,7 @@ public sealed record BikeSnapshot(
     {
         if (TryResolveRearSuspension(out var rearSuspension, out var errorMessage))
         {
-            return (rearSuspension ?? new HardtailRearSuspension(), null);
+            return (rearSuspension, null);
         }
 
         if (Linkage is null && LeverageRatio is null && RearSuspensionKind is RearSuspensionKind.Linkage or RearSuspensionKind.LeverageRatio)
