@@ -212,6 +212,47 @@ public class BikeEditorViewModelTests
         // and the shock LinkViewModel.
         Assert.Equal(7, editor.LinkageEditor.JointViewModels.Count);
         Assert.Single(editor.LinkageEditor.LinkViewModels);
+        Assert.Equal(BikeRearSuspensionMode.Linkage, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromLeverageRatioSnapshot_LoadsInLeverageRatioMode_AndHasNoLoadError()
+    {
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150));
+        var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio);
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromDraftLeverageRatioSnapshot_SetsLeverageRatioMode_WithoutLoadError()
+    {
+        var snapshot = TestSnapshots.Bike() with { RearSuspensionKind = RearSuspensionKind.LeverageRatio };
+
+        var editor = CreateEditor(snapshot, isNew: true);
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromInvalidMismatchSnapshot_FallsBackToHardtailMode_AndShowsLoadError()
+    {
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150));
+        var snapshot = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            LeverageRatio = leverageRatio,
+        };
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(BikeRearSuspensionMode.None, editor.RearSuspensionMode);
+        Assert.Single(editor.ErrorMessages);
     }
 
     [AvaloniaFact]
