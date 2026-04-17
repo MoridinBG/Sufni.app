@@ -24,7 +24,8 @@ mc:Ignorable="d">
         Classes="item"
         Command="{Binding $parent[itemLists:LiveDaqListDesktopView].((vml:LiveDaqListViewModel)DataContext).RowSelectedCommand}"
         CommandParameter="{Binding}"
-        CornerRadius="0">
+        CornerRadius="0"
+        IsEnabled="{Binding IsOnline}">
             <Grid ColumnDefinitions="* auto">
                 <StackPanel Grid.Column="0" Spacing="3">
                     <TextBlock

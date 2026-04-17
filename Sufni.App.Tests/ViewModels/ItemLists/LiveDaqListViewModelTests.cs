@@ -101,4 +101,24 @@ public class LiveDaqListViewModelTests
 
         await coordinator.DidNotReceiveWithAnyArgs().SelectAsync(default!);
     }
+
+    [Fact]
+    public async Task RowSelectedCommand_IgnoresOfflineRow()
+    {
+        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
+        var offlineRow = new LiveDaqRowViewModel(new LiveDaqSnapshot(
+            IdentityKey: "board-offline",
+            DisplayName: "Offline Board",
+            BoardId: "board-offline",
+            Host: null,
+            Port: null,
+            IsOnline: false,
+            SetupName: "Setup",
+            BikeName: "Bike"));
+
+        await viewModel.RowSelectedCommand.ExecuteAsync(offlineRow);
+
+        await coordinator.DidNotReceiveWithAnyArgs().SelectAsync(default!);
+    }
 }
