@@ -131,6 +131,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         await DeactivateAsync();
     }
 
+    protected override bool CanSave() => false;
+    protected override bool CanReset() => false;
+    protected override bool CanExport() => false;
+
     private async Task DeactivateAsync()
     {
         connectOperation.Cancel();
@@ -208,6 +212,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             {
                 await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
                 shell.Close(this);
+                return;
             }
             else if (updatedState.ConnectionState == LiveConnectionState.Connected)
             {
