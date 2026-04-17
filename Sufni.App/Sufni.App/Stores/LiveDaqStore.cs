@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DynamicData;
 
 namespace Sufni.App.Stores;
@@ -23,4 +24,7 @@ internal sealed class LiveDaqStore : ILiveDaqStoreWriter
     public void Remove(string identityKey) => source.RemoveKey(identityKey);
 
     public void Clear() => source.Clear();
+
+    public void ReplaceAll(IEnumerable<LiveDaqSnapshot> snapshots) =>
+        source.Edit(updater => updater.Load(snapshots));
 }

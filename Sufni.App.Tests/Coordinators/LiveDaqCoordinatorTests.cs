@@ -179,6 +179,48 @@ public class LiveDaqCoordinatorTests
     }
 
     [Fact]
+    public void Reconcile_PublishesAtomicUpdate_WithoutTransientEmptyState()
+    {
+        var firstBoard = Guid.NewGuid();
+        var secondBoard = Guid.NewGuid();
+        knownBoardsChanges.OnNext(
+        [
+            new KnownLiveDaqRecord(
+                IdentityKey: firstBoard.ToString(),
+                DisplayName: firstBoard.ToString(),
+                BoardId: firstBoard.ToString(),
+                SetupId: Guid.NewGuid(),
+                SetupName: "first",
+                BikeId: Guid.NewGuid(),
+                BikeName: "bike"),
+            new KnownLiveDaqRecord(
+                IdentityKey: secondBoard.ToString(),
+                DisplayName: secondBoard.ToString(),
+                BoardId: secondBoard.ToString(),
+                SetupId: Guid.NewGuid(),
+                SetupName: "second",
+                BikeId: Guid.NewGuid(),
+                BikeName: "bike"),
+        ]);
+
+        var coordinator = CreateCoordinator();
+        _ = liveDaqStore.ObservedStates;
+        coordinator.Activate();
+
+        catalogEntries.OnNext(
+        [
+            new LiveDaqCatalogEntry(firstBoard.ToString(), firstBoard.ToString(), firstBoard.ToString(), "192.168.0.20", 5555),
+        ]);
+
+        // Every published state must include both known boards — no observer
+        // should ever witness an empty or partial catalog during reconcile.
+        foreach (var state in liveDaqStore.ObservedStates)
+        {
+            Assert.Equal(2, state.Count);
+        }
+    }
+
+    [Fact]
     public async Task SelectAsync_RoutesThroughOpenOrFocus_WithIdentityMatcher()
     {
         var snapshot = new LiveDaqSnapshot(
@@ -294,8 +336,19 @@ public class LiveDaqCoordinatorTests
     private sealed class TestLiveDaqStore : ILiveDaqStoreWriter
     {
         private readonly SourceCache<LiveDaqSnapshot, string> source = new(snapshot => snapshot.IdentityKey);
+        private readonly List<IReadOnlyList<LiveDaqSnapshot>> observedStates = [];
+        private bool observerAttached;
 
         public IReadOnlyCollection<LiveDaqSnapshot> Items => source.Items;
+
+        public IReadOnlyList<IReadOnlyList<LiveDaqSnapshot>> ObservedStates
+        {
+            get
+            {
+                EnsureObserver();
+                return observedStates;
+            }
+        }
 
         public IObservable<IChangeSet<LiveDaqSnapshot, string>> Connect() => source.Connect();
 
@@ -310,5 +363,22 @@ public class LiveDaqCoordinatorTests
         public void Remove(string identityKey) => source.RemoveKey(identityKey);
 
         public void Clear() => source.Clear();
+
+        public void ReplaceAll(IEnumerable<LiveDaqSnapshot> snapshots) =>
+            source.Edit(updater => updater.Load(snapshots));
+
+        private void EnsureObserver()
+        {
+            if (observerAttached)
+            {
+                return;
+            }
+
+            observerAttached = true;
+            source.Connect().Subscribe(_ =>
+            {
+                observedStates.Add(source.Items.ToList());
+            });
+        }
     }
 }

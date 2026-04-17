@@ -28,6 +28,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
+    private readonly object reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
     private IReadOnlyList<LiveDaqCatalogEntry> catalogEntries = [];
     private CompositeDisposable? activeSubscriptions;
@@ -71,12 +72,18 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         subscriptions.Add(liveDaqCatalogService.AcquireBrowse());
         subscriptions.Add(knownBoardsQuery.Changes.Subscribe(records =>
         {
-            knownBoards = records.ToDictionary(r => r.IdentityKey, StringComparer.OrdinalIgnoreCase);
+            lock (reconcileGate)
+            {
+                knownBoards = records.ToDictionary(r => r.IdentityKey, StringComparer.OrdinalIgnoreCase);
+            }
             Reconcile();
         }));
         subscriptions.Add(liveDaqCatalogService.Observe().Subscribe(entries =>
         {
-            catalogEntries = entries;
+            lock (reconcileGate)
+            {
+                catalogEntries = entries;
+            }
             Reconcile();
         }));
     }
@@ -92,7 +99,10 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             logger.Verbose("Live DAQ browse deactivated");
         }
 
-        catalogEntries = [];
+        lock (reconcileGate)
+        {
+            catalogEntries = [];
+        }
         Reconcile();
     }
 
@@ -159,63 +169,74 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         return Task.CompletedTask;
     }
 
-    // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries.
+    // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries
+    // and publishes the result as one atomic store update so subscribers never see a transient
+    // empty catalog.
     private void Reconcile()
     {
-        var snapshots = new Dictionary<string, LiveDaqSnapshot>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<LiveDaqSnapshot> ordered;
+        int knownBoardCount;
+        int catalogEntryCount;
+        int onlineCount;
 
-        foreach (var knownBoard in knownBoards.Values)
+        lock (reconcileGate)
         {
-            snapshots[knownBoard.IdentityKey] = new LiveDaqSnapshot(
-                IdentityKey: knownBoard.IdentityKey,
-                DisplayName: knownBoard.DisplayName,
-                BoardId: knownBoard.BoardId,
-                Host: null,
-                Port: null,
-                IsOnline: false,
-                SetupName: knownBoard.SetupName,
-                BikeName: knownBoard.BikeName);
-        }
+            var snapshots = new Dictionary<string, LiveDaqSnapshot>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var entry in catalogEntries)
-        {
-            var merged = knownBoards.TryGetValue(entry.IdentityKey, out var knownBoard)
-                ? new LiveDaqSnapshot(
-                    IdentityKey: entry.IdentityKey,
+            foreach (var knownBoard in knownBoards.Values)
+            {
+                snapshots[knownBoard.IdentityKey] = new LiveDaqSnapshot(
+                    IdentityKey: knownBoard.IdentityKey,
                     DisplayName: knownBoard.DisplayName,
-                    BoardId: entry.BoardId,
-                    Host: entry.Host,
-                    Port: entry.Port,
-                    IsOnline: true,
+                    BoardId: knownBoard.BoardId,
+                    Host: null,
+                    Port: null,
+                    IsOnline: false,
                     SetupName: knownBoard.SetupName,
-                    BikeName: knownBoard.BikeName)
-                : new LiveDaqSnapshot(
-                    IdentityKey: entry.IdentityKey,
-                    DisplayName: entry.DisplayName,
-                    BoardId: entry.BoardId,
-                    Host: entry.Host,
-                    Port: entry.Port,
-                    IsOnline: true,
-                    SetupName: null,
-                    BikeName: null);
+                    BikeName: knownBoard.BikeName);
+            }
 
-            snapshots[entry.IdentityKey] = merged;
+            foreach (var entry in catalogEntries)
+            {
+                var merged = knownBoards.TryGetValue(entry.IdentityKey, out var knownBoard)
+                    ? new LiveDaqSnapshot(
+                        IdentityKey: entry.IdentityKey,
+                        DisplayName: knownBoard.DisplayName,
+                        BoardId: entry.BoardId,
+                        Host: entry.Host,
+                        Port: entry.Port,
+                        IsOnline: true,
+                        SetupName: knownBoard.SetupName,
+                        BikeName: knownBoard.BikeName)
+                    : new LiveDaqSnapshot(
+                        IdentityKey: entry.IdentityKey,
+                        DisplayName: entry.DisplayName,
+                        BoardId: entry.BoardId,
+                        Host: entry.Host,
+                        Port: entry.Port,
+                        IsOnline: true,
+                        SetupName: null,
+                        BikeName: null);
+
+                snapshots[entry.IdentityKey] = merged;
+            }
+
+            ordered = snapshots.Values
+                .OrderBy(snapshot => snapshot.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .ToArray();
+            knownBoardCount = knownBoards.Count;
+            catalogEntryCount = catalogEntries.Count;
+            onlineCount = ordered.Count(snapshot => snapshot.IsOnline);
         }
 
-        liveDaqStore.Clear();
-        foreach (var snapshot in snapshots.Values.OrderBy(snapshot => snapshot.DisplayName, StringComparer.CurrentCultureIgnoreCase))
-        {
-            liveDaqStore.Upsert(snapshot);
-        }
+        liveDaqStore.ReplaceAll(ordered);
 
-        var publishedCount = snapshots.Count;
-        var onlineCount = snapshots.Values.Count(snapshot => snapshot.IsOnline);
         logger.Verbose(
             "Live DAQ catalog reconciled with {KnownBoardCount} known boards, {CatalogEntryCount} catalog entries, {PublishedCount} published rows, {OnlineCount} online rows, and {OfflineCount} offline rows",
-            knownBoards.Count,
-            catalogEntries.Count,
-            publishedCount,
+            knownBoardCount,
+            catalogEntryCount,
+            ordered.Count,
             onlineCount,
-            publishedCount - onlineCount);
+            ordered.Count - onlineCount);
     }
 }
