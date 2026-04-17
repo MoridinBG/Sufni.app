@@ -37,6 +37,37 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
+    public void AcquireBrowse_WhenFirstStartThrows_RunsCompensatingStop_AndRetryStartsCleanly()
+    {
+        var failingDiscovery = Substitute.For<IServiceDiscovery>();
+        var shouldThrowOnStart = true;
+        failingDiscovery
+            .When(d => d.StartBrowse("_gosst._tcp"))
+            .Do(_ =>
+            {
+                if (shouldThrowOnStart)
+                {
+                    throw new InvalidOperationException("boom");
+                }
+            });
+
+        var owner = new LiveDaqBrowseOwner(failingDiscovery);
+
+        Assert.Throws<InvalidOperationException>(() => owner.AcquireBrowse());
+        failingDiscovery.Received(1).StartBrowse("_gosst._tcp");
+        failingDiscovery.Received(1).StopBrowse();
+
+        shouldThrowOnStart = false;
+        failingDiscovery.ClearReceivedCalls();
+
+        var lease = owner.AcquireBrowse();
+        failingDiscovery.Received(1).StartBrowse("_gosst._tcp");
+
+        lease.Dispose();
+        failingDiscovery.Received(1).StopBrowse();
+    }
+
+    [Fact]
     public async Task Observe_AddsBoardIdEnrichedEntry_WhenServiceAdded()
     {
         var boardId = Guid.NewGuid();
@@ -101,6 +132,24 @@ public class LiveDaqCatalogServiceTests
             new ServiceAnnouncementEventArgs(announcement));
 
         Assert.Empty(await removed);
+    }
+
+    [Fact]
+    public async Task InspectAsync_TimesOut_WhenServerNeverRespondsWithAck()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        var acceptTask = listener.AcceptTcpClientAsync();
+        var inspector = new LiveDaqBoardIdInspector(
+            new InlineBackgroundTaskRunner(),
+            TimeSpan.FromMilliseconds(150));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => inspector.InspectAsync(IPAddress.Loopback, port).WaitAsync(TimeSpan.FromSeconds(2)));
+
+        using var accepted = await acceptTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]

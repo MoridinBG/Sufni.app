@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -242,6 +243,65 @@ public sealed class SessionCoordinator : ISessionCoordinator
         {
             logger.Error(e, "Session save failed for {SessionId}", session.Id);
             return new SessionSaveResult.Failed(e.Message);
+        }
+    }
+
+    public async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
+        Session session,
+        LiveSessionCapturePackage capture,
+        CancellationToken cancellationToken = default)
+    {
+        logger.Information("Starting live session save for {SessionId}", session.Id);
+
+        try
+        {
+            var telemetryData = await backgroundTaskRunner.RunAsync(
+                () => TelemetryData.FromLiveCapture(capture.TelemetryCapture),
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Guid? fullTrackId = null;
+            if (telemetryData.GpsData is { Length: > 0 })
+            {
+                var track = await backgroundTaskRunner.RunAsync(
+                    () => Track.FromGpsRecords(telemetryData.GpsData),
+                    cancellationToken);
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (track.Points.Count > 0)
+                {
+                    await databaseService.PutAsync(track);
+                    fullTrackId = track.Id;
+                }
+            }
+
+            session.ProcessedData = telemetryData.BinaryForm;
+            session.FullTrack = fullTrackId;
+
+            await databaseService.PutSessionAsync(session);
+            var fresh = await databaseService.GetSessionAsync(session.Id);
+            if (fresh is null)
+            {
+                logger.Error("Live session save failed because the session disappeared after save for {SessionId}", session.Id);
+                return new LiveSessionSaveResult.Failed("Session disappeared after save");
+            }
+
+            var snapshot = SessionSnapshot.From(fresh);
+            sessionStore.Upsert(snapshot);
+
+            logger.Information("Live session save completed for {SessionId}", session.Id);
+            return new LiveSessionSaveResult.Saved(snapshot.Id, snapshot.Updated);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Live session save failed for {SessionId}", session.Id);
+            return new LiveSessionSaveResult.Failed(e.Message);
         }
     }
 

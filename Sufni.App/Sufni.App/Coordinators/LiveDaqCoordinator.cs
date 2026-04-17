@@ -5,6 +5,7 @@ using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
@@ -21,10 +22,16 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
-    private readonly ILiveDaqClientFactory liveDaqClientFactory;
+    private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
+    private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
+    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly ITileLayerService tileLayerService;
+    private readonly IDaqManagementService daqManagementService;
+    private readonly IFilesService filesService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
+    private readonly object reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
     private IReadOnlyList<LiveDaqCatalogEntry> catalogEntries = [];
     private CompositeDisposable? activeSubscriptions;
@@ -33,14 +40,24 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqStoreWriter liveDaqStore,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqCatalogService liveDaqCatalogService,
-        ILiveDaqClientFactory liveDaqClientFactory,
+        ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
+        ILiveSessionServiceFactory liveSessionServiceFactory,
+        ISessionCoordinator sessionCoordinator,
+        ITileLayerService tileLayerService,
+        IDaqManagementService daqManagementService,
+        IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
-        this.liveDaqClientFactory = liveDaqClientFactory;
+        this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
+        this.liveSessionServiceFactory = liveSessionServiceFactory;
+        this.sessionCoordinator = sessionCoordinator;
+        this.tileLayerService = tileLayerService;
+        this.daqManagementService = daqManagementService;
+        this.filesService = filesService;
         this.shell = shell;
         this.dialogService = dialogService;
     }
@@ -62,13 +79,19 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         subscriptions.Add(liveDaqCatalogService.AcquireBrowse());
         subscriptions.Add(knownBoardsQuery.Changes.Subscribe(records =>
         {
-            knownBoards = records.ToDictionary(r => r.IdentityKey, StringComparer.OrdinalIgnoreCase);
-            Reconcile();
+            lock (reconcileGate)
+            {
+                knownBoards = records.ToDictionary(r => r.IdentityKey, StringComparer.OrdinalIgnoreCase);
+                ReconcileLocked();
+            }
         }));
         subscriptions.Add(liveDaqCatalogService.Observe().Subscribe(entries =>
         {
-            catalogEntries = entries;
-            Reconcile();
+            lock (reconcileGate)
+            {
+                catalogEntries = entries;
+                ReconcileLocked();
+            }
         }));
     }
 
@@ -83,8 +106,11 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             logger.Verbose("Live DAQ browse deactivated");
         }
 
-        catalogEntries = [];
-        Reconcile();
+        lock (reconcileGate)
+        {
+            catalogEntries = [];
+            ReconcileLocked();
+        }
     }
 
     public Task SelectAsync(string identityKey)
@@ -106,13 +132,65 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(snapshot, liveDaqClientFactory, shell, dialogService, knownBoardsQuery));
+            () => new LiveDaqDetailViewModel(
+                snapshot,
+                liveDaqSharedStreamRegistry.GetOrCreate(snapshot),
+                this,
+                daqManagementService,
+                filesService,
+                shell,
+                dialogService,
+                knownBoardsQuery,
+                liveDaqStore));
 
         return Task.CompletedTask;
     }
 
-    // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries.
-    private void Reconcile()
+    public Task OpenSessionAsync(string identityKey)
+    {
+        var snapshot = liveDaqStore.Get(identityKey);
+        if (snapshot is null)
+        {
+            logger.Verbose(
+                "Live session opening ignored because no snapshot was found for {IdentityKey}",
+                identityKey);
+            return Task.CompletedTask;
+        }
+
+        var context = knownBoardsQuery.GetSessionContext(identityKey);
+        if (context is null)
+        {
+            logger.Verbose(
+                "Live session opening ignored because no session context was found for {IdentityKey}",
+                identityKey);
+            return Task.CompletedTask;
+        }
+
+        logger.Information(
+            "Opening live session detail for {IdentityKey} {BoardId} {Endpoint}",
+            snapshot.IdentityKey,
+            snapshot.BoardId,
+            snapshot.Endpoint);
+
+        shell.OpenOrFocus<LiveSessionDetailViewModel>(
+            detail => detail.IdentityKey == snapshot.IdentityKey,
+            () => new LiveSessionDetailViewModel(
+                context,
+                liveSessionServiceFactory.Create(context, liveDaqSharedStreamRegistry.GetOrCreate(snapshot)),
+                sessionCoordinator,
+                tileLayerService,
+                shell,
+                dialogService));
+
+        return Task.CompletedTask;
+    }
+
+    // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries
+    // and publishes the result as one atomic store update so subscribers never see a transient
+    // empty catalog. The caller must already hold reconcileGate; the store write stays inside
+    // that critical section so two concurrent reconciles cannot publish their snapshots out of
+    // order.
+    private void ReconcileLocked()
     {
         var snapshots = new Dictionary<string, LiveDaqSnapshot>(StringComparer.OrdinalIgnoreCase);
 
@@ -154,20 +232,21 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             snapshots[entry.IdentityKey] = merged;
         }
 
-        liveDaqStore.Clear();
-        foreach (var snapshot in snapshots.Values.OrderBy(snapshot => snapshot.DisplayName, StringComparer.CurrentCultureIgnoreCase))
-        {
-            liveDaqStore.Upsert(snapshot);
-        }
+        var ordered = snapshots.Values
+            .OrderBy(snapshot => snapshot.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        var knownBoardCount = knownBoards.Count;
+        var catalogEntryCount = catalogEntries.Count;
+        var onlineCount = ordered.Count(snapshot => snapshot.IsOnline);
 
-        var publishedCount = snapshots.Count;
-        var onlineCount = snapshots.Values.Count(snapshot => snapshot.IsOnline);
+        liveDaqStore.ReplaceAll(ordered);
+
         logger.Verbose(
             "Live DAQ catalog reconciled with {KnownBoardCount} known boards, {CatalogEntryCount} catalog entries, {PublishedCount} published rows, {OnlineCount} online rows, and {OfflineCount} offline rows",
-            knownBoards.Count,
-            catalogEntries.Count,
-            publishedCount,
+            knownBoardCount,
+            catalogEntryCount,
+            ordered.Length,
             onlineCount,
-            publishedCount - onlineCount);
+            ordered.Length - onlineCount);
     }
 }

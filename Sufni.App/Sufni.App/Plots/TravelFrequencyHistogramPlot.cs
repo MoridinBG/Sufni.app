@@ -11,14 +11,13 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if ((type == SuspensionType.Front && !telemetryData.Front.Present) ||
-            (type == SuspensionType.Rear && !telemetryData.Rear.Present))
+        if (!telemetryData.HasStrokeData(type))
         {
             return;
         }
 
         base.LoadTelemetryData(telemetryData);
-        
+
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
             ? "Front frequencies (Power / Hz)"
             : "Rear frequencies (Power / Hz)";
@@ -44,19 +43,19 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         // Set axis initial range and limits
         var min = data.Values.Min();
         var max = data.Values.Max();
-        Plot.Axes.SetLimits(left: 0.0, right:  800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
+        Plot.Axes.SetLimits(left: 0.0, right: 800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
             0.0, 10.0, min, max));
-        
+
         // Add autoscaler that restores the original ranges
         Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / data.Bins.Count * 3.0);
 
         // Generate 4 tick for the power axis, and display its 20*log10 value
         var tickSpacing = (max - min) / 3;
-        var values = new [] {min, min + tickSpacing, min + 2 * tickSpacing, max};
+        var values = new[] { min, min + tickSpacing, min + 2 * tickSpacing, max };
         var labels = values.Select(v => Math.Floor(20 * Math.Log10(v)).ToString(CultureInfo.InvariantCulture));
         Plot.Axes.Left.SetTicks([.. values], [.. labels]);
-        
+
         Plot.Axes.Bottom.TickGenerator = new NumericAutomatic
         {
             TickDensity = 0.2

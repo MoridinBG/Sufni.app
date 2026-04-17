@@ -38,26 +38,42 @@ public sealed class LiveProtocolReader
     }
 
     // Tries to parse and consume exactly one complete frame. Returns false when more
-    // bytes are needed and leaves the buffered data intact.
+    // bytes are needed and leaves the buffered data intact. Unknown frame types are
+    // consumed and skipped so a newer-firmware frame never tears down the connection.
     public bool TryReadFrame(out LiveProtocolFrame? frame)
     {
-        frame = null;
-        if (bufferedByteCount < LiveProtocolConstants.FrameHeaderSize)
+        while (true)
         {
-            return false;
-        }
+            frame = null;
+            if (bufferedByteCount < LiveProtocolConstants.FrameHeaderSize)
+            {
+                return false;
+            }
 
-        var pendingSpan = pendingBytes.AsSpan(pendingOffset, bufferedByteCount);
-        var header = ParseHeader(pendingSpan[..LiveProtocolConstants.FrameHeaderSize]);
-        var totalLength = header.TotalFrameLength;
-        if (bufferedByteCount < totalLength)
-        {
-            return false;
-        }
+            var pendingSpan = pendingBytes.AsSpan(pendingOffset, bufferedByteCount);
+            var header = ParseHeader(pendingSpan[..LiveProtocolConstants.FrameHeaderSize]);
+            var totalLength = header.TotalFrameLength;
+            if (bufferedByteCount < totalLength)
+            {
+                return false;
+            }
 
-        frame = ParseFrame(pendingSpan[..totalLength]);
-        pendingOffset += totalLength;
-        bufferedByteCount -= totalLength;
+            if (!IsKnownFrameType(header.FrameType))
+            {
+                AdvanceBuffer(totalLength);
+                continue;
+            }
+
+            frame = ParseFrame(pendingSpan[..totalLength]);
+            AdvanceBuffer(totalLength);
+            return true;
+        }
+    }
+
+    private void AdvanceBuffer(int length)
+    {
+        pendingOffset += length;
+        bufferedByteCount -= length;
         if (bufferedByteCount == 0)
         {
             pendingOffset = 0;
@@ -66,9 +82,26 @@ public sealed class LiveProtocolReader
         {
             CompactUnreadBytes();
         }
-
-        return true;
     }
+
+    private static bool IsKnownFrameType(LiveFrameType frameType) => frameType switch
+    {
+        LiveFrameType.StartLive => true,
+        LiveFrameType.StopLive => true,
+        LiveFrameType.Ping => true,
+        LiveFrameType.Identify => true,
+        LiveFrameType.StartLiveAck => true,
+        LiveFrameType.StopLiveAck => true,
+        LiveFrameType.Error => true,
+        LiveFrameType.Pong => true,
+        LiveFrameType.IdentifyAck => true,
+        LiveFrameType.SessionHeader => true,
+        LiveFrameType.TravelBatch => true,
+        LiveFrameType.ImuBatch => true,
+        LiveFrameType.GpsBatch => true,
+        LiveFrameType.SessionStats => true,
+        _ => false,
+    };
 
     private void EnsureWriteCapacity(int appendLength)
     {
@@ -202,6 +235,12 @@ public sealed class LiveProtocolReader
             throw new FormatException($"Live protocol version {header.Version} is not supported.");
         }
 
+        if (header.PayloadLength > LiveProtocolConstants.MaxPayloadLength)
+        {
+            throw new FormatException(
+                $"Live frame payload length {header.PayloadLength} exceeds maximum {LiveProtocolConstants.MaxPayloadLength}.");
+        }
+
         return header;
     }
 
@@ -332,10 +371,10 @@ public sealed class LiveProtocolReader
             var epe2d = ReadSingleLittleEndian(recordsData[(offset + 38)..(offset + 42)]);
             var epe3d = ReadSingleLittleEndian(recordsData[(offset + 42)..(offset + 46)]);
 
-            var year = (int)(date / 10000);
-            var month = (int)(date / 100 % 100);
-            var day = (int)(date % 100);
-            var timestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timeMs);
+            if (!TryCreateGpsTimestamp(date, timeMs, out var timestamp))
+            {
+                continue;
+            }
 
             records.Add(new GpsRecord(timestamp, latitude, longitude, altitude, speed, heading, fixMode, satellites, epe2d, epe3d));
         }
@@ -394,5 +433,33 @@ public sealed class LiveProtocolReader
     {
         var raw = BinaryPrimitives.ReadInt32LittleEndian(bytes);
         return BitConverter.Int32BitsToSingle(raw);
+    }
+
+    // Firmware emits date=0 before the GPS module has a fix. Skip those records
+    // instead of throwing from the DateTime constructor and tearing the stream down.
+    private static bool TryCreateGpsTimestamp(uint date, uint timeMs, out DateTime timestamp)
+    {
+        timestamp = default;
+        if (date == 0)
+        {
+            return false;
+        }
+
+        var year = (int)(date / 10000);
+        var month = (int)(date / 100 % 100);
+        var day = (int)(date % 100);
+
+        if (year is < 1 or > 9999 || month is < 1 or > 12)
+        {
+            return false;
+        }
+
+        if (day < 1 || day > DateTime.DaysInMonth(year, month))
+        {
+            return false;
+        }
+
+        timestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timeMs);
+        return true;
     }
 }

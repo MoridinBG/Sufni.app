@@ -63,15 +63,14 @@ On import, files move to an `uploaded/` subdirectory. On trash, files move to `t
 
 ### Network (WiFi DAQ)
 
-`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). File listing uses a custom TCP binary protocol implemented in `SstTcpClient` (`Sufni.App/Sufni.App/Models/SstTcpClient.cs`):
+`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import now goes through `IDaqManagementService` rather than a model-owned TCP utility: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
 
-```
-Request:  [0x03, 0x00, 0x00, 0x00, fileId_LE(4)]
-Response: [size_LE(4), padding(4)]  → ack [0x04] → data[size] → confirm [0x05]
-```
+- `Initialization` no longer lists files. It performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore.
+- `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, and maps only `DaqSstFileRecord` values into `NetworkTelemetryFile` instances sorted by descending `StartTime`.
+- `NetworkTelemetryFile` now carries the DAQ `recordId` from the management directory listing. `GeneratePsstAsync(...)` downloads bytes through `IDaqManagementService.GetFileAsync(...)`, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
+- Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
 
-- `fileId = 0` is a magic value that returns the directory listing instead of a file. The directory contains the board ID (8 bytes), sample rate (uint16), then 30-byte entries (9-char name + uint64 size + uint64 timestamp + uint32 durationMs + version byte).
-- `fileId < 0` (negative) triggers a remote delete; the server responds with status code 10.
+Import still shares the DAQ's single-client TCP port with live preview. If another live or management connection is already active, the resulting connection failure is surfaced through `TelemetryDataStoreService.ErrorOccurred` just as before.
 
 Network add / remove handling follows the same split as mass storage: any initialization work completes first, and only the `DataStores` collection mutation is marshaled back to the UI thread.
 

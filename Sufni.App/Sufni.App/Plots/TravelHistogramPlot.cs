@@ -27,8 +27,7 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if ((type == SuspensionType.Front && !telemetryData.Front.Present) ||
-            (type == SuspensionType.Rear && !telemetryData.Rear.Present))
+        if (!telemetryData.HasStrokeData(type))
         {
             return;
         }

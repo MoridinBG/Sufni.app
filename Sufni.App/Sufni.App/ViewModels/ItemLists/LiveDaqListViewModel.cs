@@ -79,7 +79,7 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
     [RelayCommand]
     private async System.Threading.Tasks.Task RowSelected(LiveDaqRowViewModel? row)
     {
-        if (row is null) return;
+        if (row is null || !row.IsOnline) return;
 
         await liveDaqCoordinator.SelectAsync(row.IdentityKey);
     }

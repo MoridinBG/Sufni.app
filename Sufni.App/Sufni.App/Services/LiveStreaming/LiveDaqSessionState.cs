@@ -45,6 +45,15 @@ public sealed class LiveDaqSessionState
         }
     }
 
+    public void ApplySharedSessionState(LiveSessionHeader? nextSessionHeader, LiveSensorMask nextSelectedSensorMask)
+    {
+        lock (gate)
+        {
+            sessionHeader = nextSessionHeader;
+            selectedSensorMask = nextSelectedSensorMask;
+        }
+    }
+
     // Applies one parsed live protocol frame to the cached session state.
     public void ApplyFrame(LiveProtocolFrame frame)
     {

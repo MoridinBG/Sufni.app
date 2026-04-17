@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -7,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Serilog;
@@ -20,20 +22,36 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private static readonly ILogger logger = Log.ForContext<LiveDaqDetailViewModel>();
 
     public string IdentityKey { get; }
-    public string? BoardId { get; }
-    public string? Endpoint { get; }
-    public string? SetupName { get; }
-    public string? BikeName { get; }
 
-    private readonly ILiveDaqClient? liveDaqClient;
+    [ObservableProperty]
+    private string? boardId;
+
+    [ObservableProperty]
+    private string? endpoint;
+
+    [ObservableProperty]
+    private string? setupName;
+
+    [ObservableProperty]
+    private string? bikeName;
+
+    private readonly ILiveDaqSharedStream? sharedStream;
+    private readonly ILiveDaqCoordinator? liveDaqCoordinator;
+    private readonly IDaqManagementService? daqManagementService;
+    private readonly IFilesService? filesService;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
+    private readonly ILiveDaqStore? liveDaqStore;
+
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
-    private readonly object stateGate = new();
-    private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
-    private string? lastError;
+    private readonly CancellableOperation managementOperation = new();
+    private string? managementHost;
+    private int? managementPort;
+    private ILiveDaqSharedStreamLease? streamLease;
     private LiveDaqTravelCalibration? travelCalibration;
+    private byte[]? pendingConfigBytes;
+    private bool hasLoaded;
 
     [ObservableProperty]
     private uint? requestedTravelHz;
@@ -47,9 +65,46 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [ObservableProperty]
     private LiveDaqUiSnapshot snapshot = LiveDaqUiSnapshot.Empty;
 
+    [ObservableProperty]
+    private bool canConnect = true;
+
+    [ObservableProperty]
+    private bool canDisconnect;
+
+    [ObservableProperty]
+    private bool areRequestedRatesEnabled = true;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartSessionCommand))]
+    private bool canStartSession;
+
+    [ObservableProperty]
+    private bool isManagementBusy;
+
+    [ObservableProperty]
+    private bool hasPendingConfig;
+
+    [ObservableProperty]
+    private string? pendingConfigFileName;
+
     public string FrontTravelText => FormatTravelText("Front", Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
 
     public string RearTravelText => FormatTravelText("Rear", Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
+
+    public bool CanManage => Snapshot.ConnectionState is LiveConnectionState.Disconnected
+        && daqManagementService is not null
+        && filesService is not null
+        && !string.IsNullOrWhiteSpace(managementHost)
+        && managementPort is > 0
+        && !IsManagementBusy;
+
+    public bool CanUploadConfig => CanManage && HasPendingConfig;
+
+    public string? ManagementDisabledTooltip => !string.IsNullOrWhiteSpace(managementHost)
+        && managementPort is > 0
+        && Snapshot.ConnectionState is not LiveConnectionState.Disconnected
+            ? "Disconnect live session first"
+            : null;
 
     public LiveDaqDetailViewModel()
     {
@@ -59,10 +114,14 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
-        ILiveDaqClientFactory liveDaqClientFactory,
+        ILiveDaqSharedStream sharedStream,
+        ILiveDaqCoordinator liveDaqCoordinator,
+        IDaqManagementService daqManagementService,
+        IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        ILiveDaqKnownBoardsQuery knownBoardsQuery)
+        ILiveDaqKnownBoardsQuery knownBoardsQuery,
+        ILiveDaqStore liveDaqStore)
         : base(shell, dialogService)
     {
         IdentityKey = snapshot.IdentityKey;
@@ -71,10 +130,18 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         SetupName = snapshot.SetupName;
         BikeName = snapshot.BikeName;
         Name = snapshot.DisplayName;
-        liveDaqClient = liveDaqClientFactory.CreateClient();
+        this.sharedStream = sharedStream;
+        this.liveDaqCoordinator = liveDaqCoordinator;
+        this.daqManagementService = daqManagementService;
+        this.filesService = filesService;
         this.knownBoardsQuery = knownBoardsQuery;
+        this.liveDaqStore = liveDaqStore;
+        managementHost = snapshot.Host;
+        managementPort = snapshot.Port;
+        ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
         uiRefreshTimer = CreateUiRefreshTimer();
+        RefreshSharedStreamState();
         RefreshSnapshot();
     }
 
@@ -86,22 +153,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             IdentityKey,
             Endpoint);
 
-        uiRefreshTimer.Start();
-        EnsureScopedSubscription(disposables =>
+        if (sharedStream is not null && streamLease is null)
         {
-            if (liveDaqClient is null)
-            {
-                return;
-            }
+            streamLease = sharedStream.AcquireLease();
+        }
 
-            disposables.Add(liveDaqClient.Events.Subscribe(HandleClientEvent));
-            if (knownBoardsQuery is not null)
-            {
-                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ => RequestTravelProjectionRefresh()));
-            }
-        });
-
-        RefreshSnapshot();
+        hasLoaded = true;
+        StartForegroundUpdates();
         await ConnectImplementationAsync(userInitiated: false);
     }
 
@@ -112,7 +170,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             "Live DAQ detail unloaded for {IdentityKey} {Endpoint}; disconnect already in progress: {DisconnectInProgress}",
             IdentityKey,
             Endpoint,
-            GetConnectionState() == LiveConnectionState.Disconnecting);
+            sharedStream?.CurrentState.ConnectionState == LiveConnectionState.Disconnecting);
 
         await DeactivateAsync();
     }
@@ -122,12 +180,26 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         await DeactivateAsync();
     }
 
+    protected override bool CanSave() => false;
+    protected override bool CanReset() => false;
+    protected override bool CanExport() => false;
+
     private async Task DeactivateAsync()
     {
         connectOperation.Cancel();
-        uiRefreshTimer.Stop();
-        DisposeScopedSubscriptions();
-        await DisconnectImplementationAsync(userInitiated: false);
+        SetTimeCommand.Cancel();
+        SelectConfigFileCommand.Cancel();
+        UploadConfigCommand.Cancel();
+        managementOperation.Cancel();
+        IsManagementBusy = false;
+        hasLoaded = false;
+        StopForegroundUpdates();
+
+        if (streamLease is not null)
+        {
+            await streamLease.DisposeAsync();
+            streamLease = null;
+        }
     }
 
     [RelayCommand]
@@ -142,25 +214,168 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         await DisconnectImplementationAsync(userInitiated: true);
     }
 
-    private async Task ConnectImplementationAsync(bool userInitiated)
+    [RelayCommand(CanExecute = nameof(CanStartSession))]
+    private async Task StartSession()
     {
-        if (liveDaqClient is null || GetConnectionState() is LiveConnectionState.Connecting or LiveConnectionState.Connected)
+        if (liveDaqCoordinator is null)
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(Endpoint) || !TryGetEndpoint(out var host, out var port))
+        await liveDaqCoordinator.OpenSessionAsync(IdentityKey);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task SetTime(CancellationToken cancellationToken)
+    {
+        if (daqManagementService is null || !TryGetManagementEndpoint(out var host, out var port))
         {
-            if (userInitiated)
+            return;
+        }
+
+        using var linkedCts = BeginManagementOperation(cancellationToken);
+        try
+        {
+            var result = await daqManagementService.SetTimeAsync(host, port, linkedCts.Token);
+            if (linkedCts.IsCancellationRequested)
             {
-                logger.Warning(
-                    "Live DAQ connect requested while endpoint was unavailable for {IdentityKey} {BoardId} {Endpoint}",
-                    IdentityKey,
-                    BoardId,
-                    Endpoint);
+                return;
             }
 
-            SetConnectionState(LiveConnectionState.Disconnected, "DAQ is offline.");
+            switch (result)
+            {
+                case DaqSetTimeResult.Ok ok:
+                    Notifications.Add(FormattableString.Invariant($"Device time updated ({ok.RoundTripTime.TotalMilliseconds:0} ms RTT)."));
+                    break;
+                case DaqSetTimeResult.Error error:
+                    ErrorMessages.Add(error.Message);
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!linkedCts.IsCancellationRequested)
+            {
+                logger.Error(ex, "Setting device time failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                ErrorMessages.Add(ex.Message);
+            }
+        }
+        finally
+        {
+            EndManagementOperation();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task SelectConfigFile(CancellationToken cancellationToken)
+    {
+        if (filesService is null)
+        {
+            return;
+        }
+
+        using var linkedCts = BeginManagementOperation(cancellationToken);
+        try
+        {
+            var selectedFile = await filesService.OpenDeviceConfigFileAsync(linkedCts.Token);
+            if (linkedCts.IsCancellationRequested || selectedFile is null)
+            {
+                return;
+            }
+
+            if (!string.Equals(selectedFile.FileName, "CONFIG", StringComparison.Ordinal))
+            {
+                ErrorMessages.Add("Selected file must be named CONFIG.");
+                return;
+            }
+
+            pendingConfigBytes = selectedFile.Bytes;
+            PendingConfigFileName = selectedFile.FileName;
+            HasPendingConfig = true;
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!linkedCts.IsCancellationRequested)
+            {
+                logger.Error(ex, "Selecting CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                ErrorMessages.Add(ex.Message);
+            }
+        }
+        finally
+        {
+            EndManagementOperation();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUploadConfig))]
+    private async Task UploadConfig(CancellationToken cancellationToken)
+    {
+        if (daqManagementService is null
+            || pendingConfigBytes is not { Length: > 0 } configBytes
+            || !TryGetManagementEndpoint(out var host, out var port))
+        {
+            return;
+        }
+
+        using var linkedCts = BeginManagementOperation(cancellationToken);
+        var uploadStarted = false;
+        try
+        {
+            uploadStarted = true;
+            var result = await daqManagementService.ReplaceConfigAsync(host, port, configBytes, linkedCts.Token);
+            if (linkedCts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            switch (result)
+            {
+                case DaqManagementResult.Ok:
+                    Notifications.Add("CONFIG uploaded.");
+                    break;
+                case DaqManagementResult.Error error:
+                    ErrorMessages.Add(error.Message);
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!linkedCts.IsCancellationRequested)
+            {
+                logger.Error(ex, "Uploading CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                ErrorMessages.Add(ex.Message);
+            }
+        }
+        finally
+        {
+            if (uploadStarted)
+            {
+                ClearPendingConfig();
+            }
+
+            EndManagementOperation();
+        }
+    }
+
+    private async Task ConnectImplementationAsync(bool userInitiated)
+    {
+        if (sharedStream is null)
+        {
+            return;
+        }
+
+        var streamState = sharedStream.CurrentState;
+        if (streamState.IsClosed || streamState.ConnectionState is LiveConnectionState.Connecting or LiveConnectionState.Connected)
+        {
             return;
         }
 
@@ -169,68 +384,47 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             IdentityKey,
             BoardId,
             Endpoint);
-        logger.Verbose(
-            "Live DAQ preview requested rates for {IdentityKey} at {Endpoint}: travel {RequestedTravelHz}, imu {RequestedImuHz}, gps {RequestedGpsFixHz}",
-            IdentityKey,
-            Endpoint,
-            RequestedTravelHz,
-            RequestedImuHz,
-            RequestedGpsFixHz);
 
         sessionState.Reset();
-        SetConnectionState(LiveConnectionState.Connecting, null);
         var cancellationToken = connectOperation.Start();
 
         try
         {
-            if (!liveDaqClient.IsConnected)
-            {
-                await liveDaqClient.ConnectAsync(host, port, cancellationToken);
-            }
-
-            var result = await liveDaqClient.StartPreviewAsync(CreateStartRequest(), cancellationToken);
+            await sharedStream.ApplyConfigurationAsync(CreateRequestedConfiguration(), cancellationToken);
             if (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
 
-            switch (result)
+            var result = await sharedStream.EnsureStartedAsync(cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
             {
-                case LivePreviewStartResult.Started started:
-                    logger.Verbose(
-                        "Live DAQ preview session accepted for {IdentityKey} at {Endpoint}: session {SessionId}, sensors {SelectedSensorMask}, travel {AcceptedTravelHz}, imu {AcceptedImuHz}, gps {AcceptedGpsFixHz}, active imu {ActiveImuMask}",
-                        IdentityKey,
-                        Endpoint,
-                        started.Header.SessionId,
-                        started.SelectedSensorMask,
-                        started.Header.AcceptedTravelHz,
-                        started.Header.AcceptedImuHz,
-                        started.Header.AcceptedGpsFixHz,
-                        started.Header.ActiveImuMask);
-                    logger.Information(
-                        "Live DAQ preview connected for {IdentityKey} {BoardId} {Endpoint}",
-                        IdentityKey,
-                        BoardId,
-                        Endpoint);
-                    break;
+                return;
+            }
 
-                case LivePreviewStartResult.Rejected rejected:
-                    LogRejectedStart(rejected);
-                    SetConnectionState(LiveConnectionState.Disconnected, rejected.UserMessage);
-                    await liveDaqClient.DisconnectAsync(cancellationToken);
-                    await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
-                    shell.Close(this);
-                    break;
-
-                case LivePreviewStartResult.Failed failed:
-                    logger.Error(
-                        "Live DAQ preview failed to start for {IdentityKey} {BoardId} {Endpoint}: {ErrorMessage}",
-                        IdentityKey,
-                        BoardId,
-                        Endpoint,
-                        failed.ErrorMessage);
-                    SetConnectionState(LiveConnectionState.Disconnected, failed.ErrorMessage);
-                    break;
+            var updatedState = sharedStream.CurrentState;
+            if (result is LivePreviewStartResult.Rejected rejected)
+            {
+                await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
+                shell.Close(this);
+                return;
+            }
+            else if (updatedState.ConnectionState == LiveConnectionState.Connected)
+            {
+                logger.Information(
+                    "Live DAQ preview connected for {IdentityKey} {BoardId} {Endpoint}",
+                    IdentityKey,
+                    BoardId,
+                    Endpoint);
+            }
+            else if (userInitiated && !string.IsNullOrWhiteSpace(updatedState.LastError))
+            {
+                logger.Warning(
+                    "Live DAQ preview connect failed for {IdentityKey} {BoardId} {Endpoint}: {ErrorMessage}",
+                    IdentityKey,
+                    BoardId,
+                    Endpoint,
+                    updatedState.LastError);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -244,19 +438,20 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 IdentityKey,
                 BoardId,
                 Endpoint);
-            SetConnectionState(LiveConnectionState.Disconnected, ex.Message);
         }
+
+        RefreshSharedStreamState();
     }
 
     private async Task DisconnectImplementationAsync(bool userInitiated)
     {
-        if (liveDaqClient is null)
+        if (sharedStream is null)
         {
             return;
         }
 
-        var currentState = GetConnectionState();
-        if (!liveDaqClient.IsConnected && currentState is LiveConnectionState.Disconnected)
+        var currentState = sharedStream.CurrentState;
+        if (currentState.IsClosed || currentState.ConnectionState is LiveConnectionState.Disconnected)
         {
             return;
         }
@@ -267,16 +462,14 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             BoardId,
             Endpoint);
 
-        SetConnectionState(LiveConnectionState.Disconnecting, null);
         try
         {
-            await liveDaqClient.DisconnectAsync();
+            await sharedStream.StopAsync();
             logger.Information(
                 "Live DAQ preview disconnected for {IdentityKey} {BoardId} {Endpoint}",
                 IdentityKey,
                 BoardId,
                 Endpoint);
-            SetConnectionState(LiveConnectionState.Disconnected, null);
         }
         catch (Exception ex)
         {
@@ -286,80 +479,17 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 IdentityKey,
                 BoardId,
                 Endpoint);
-            SetConnectionState(LiveConnectionState.Disconnected, ex.Message);
         }
+
+        RefreshSharedStreamState();
     }
 
-    private void HandleClientEvent(LiveDaqClientEvent clientEvent)
+    private void HandleFrame(LiveProtocolFrame frame)
     {
-        switch (clientEvent)
-        {
-            case LiveDaqClientEvent.FrameReceived frameReceived:
-                sessionState.ApplyFrame(frameReceived.Frame);
-                if (frameReceived.Frame is LiveSessionHeaderFrame)
-                {
-                    SetConnectionState(LiveConnectionState.Connected, null);
-                }
-                else if (frameReceived.Frame is LiveErrorFrame errorFrame)
-                {
-                    logger.Debug(
-                        "Live DAQ client reported error {ErrorCode} for {IdentityKey} at {Endpoint}: {ErrorMessage}",
-                        errorFrame.Payload.ErrorCode,
-                        IdentityKey,
-                        Endpoint,
-                        errorFrame.Payload.ErrorCode.ToUserMessage());
-                    SetConnectionState(LiveConnectionState.Disconnected, errorFrame.Payload.ErrorCode.ToUserMessage());
-                }
-                break;
-
-            case LiveDaqClientEvent.Faulted faulted:
-                logger.Verbose(
-                    "Live DAQ client faulted for {IdentityKey} at {Endpoint}: {ErrorMessage}",
-                    IdentityKey,
-                    Endpoint,
-                    faulted.ErrorMessage);
-                SetConnectionState(LiveConnectionState.Disconnected, faulted.ErrorMessage);
-                break;
-
-            case LiveDaqClientEvent.Disconnected disconnected:
-                if (!string.IsNullOrWhiteSpace(disconnected.ErrorMessage))
-                {
-                    logger.Verbose(
-                        "Live DAQ client disconnected for {IdentityKey} at {Endpoint}: {ErrorMessage}",
-                        IdentityKey,
-                        Endpoint,
-                        disconnected.ErrorMessage);
-                }
-
-                SetConnectionState(LiveConnectionState.Disconnected, disconnected.ErrorMessage);
-                break;
-        }
+        sessionState.ApplyFrame(frame);
     }
 
-    private void LogRejectedStart(LivePreviewStartResult.Rejected rejected)
-    {
-        if (rejected.ErrorCode is LiveStartErrorCode.Busy or LiveStartErrorCode.Unavailable)
-        {
-            logger.Warning(
-                "Live DAQ preview rejected for {IdentityKey} {BoardId} {Endpoint} with {ErrorCode}: {ErrorMessage}",
-                IdentityKey,
-                BoardId,
-                Endpoint,
-                rejected.ErrorCode,
-                rejected.UserMessage);
-            return;
-        }
-
-        logger.Error(
-            "Live DAQ preview rejected for {IdentityKey} {BoardId} {Endpoint} with {ErrorCode}: {ErrorMessage}",
-            IdentityKey,
-            BoardId,
-            Endpoint,
-            rejected.ErrorCode,
-            rejected.UserMessage);
-    }
-
-    private LiveStartRequest CreateStartRequest() => new(
+    private LiveDaqStreamConfiguration CreateRequestedConfiguration() => new(
         SensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu,
         TravelHz: RequestedTravelHz ?? 0,
         ImuHz: RequestedImuHz ?? 0,
@@ -367,46 +497,42 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RefreshSnapshot()
     {
-        Snapshot = sessionState.CreateSnapshot(GetConnectionState(), GetLastError());
+        var state = sharedStream?.CurrentState ?? LiveDaqSharedStreamState.Empty;
+        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
+        Snapshot = sessionState.CreateSnapshot(state.ConnectionState, state.LastError);
     }
 
     partial void OnSnapshotChanged(LiveDaqUiSnapshot value)
     {
         OnPropertyChanged(nameof(FrontTravelText));
         OnPropertyChanged(nameof(RearTravelText));
+        RefreshManagementAvailability();
     }
 
-    private void SetConnectionState(LiveConnectionState state, string? error)
-    {
-        lock (stateGate)
-        {
-            connectionState = state;
-            lastError = error;
-        }
+    partial void OnIsManagementBusyChanged(bool value) => RefreshManagementAvailability();
 
+    partial void OnHasPendingConfigChanged(bool value) => RefreshManagementAvailability();
+
+    private void RequestSharedStreamRefresh()
+    {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            RefreshSnapshot();
+            RefreshSharedStreamState();
             return;
         }
 
-        Dispatcher.UIThread.Post(RefreshSnapshot, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(RefreshSharedStreamState, DispatcherPriority.Background);
     }
 
-    private LiveConnectionState GetConnectionState()
+    private void RefreshSharedStreamState()
     {
-        lock (stateGate)
-        {
-            return connectionState;
-        }
-    }
-
-    private string? GetLastError()
-    {
-        lock (stateGate)
-        {
-            return lastError;
-        }
+        var state = sharedStream?.CurrentState ?? LiveDaqSharedStreamState.Empty;
+        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
+        CanConnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Disconnected;
+        CanDisconnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Connected;
+        AreRequestedRatesEnabled = !state.IsClosed && !state.IsConfigurationLocked;
+        RefreshSessionAvailability(state.ConnectionState);
+        RefreshSnapshot();
     }
 
     private void RequestTravelProjectionRefresh()
@@ -420,11 +546,126 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         Dispatcher.UIThread.Post(RefreshTravelCalibration, DispatcherPriority.Background);
     }
 
+    private void RequestSessionAvailabilityRefresh()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RefreshSessionAvailability(sharedStream?.CurrentState.ConnectionState ?? LiveConnectionState.Disconnected);
+            return;
+        }
+
+        Dispatcher.UIThread.Post(
+            () => RefreshSessionAvailability(sharedStream?.CurrentState.ConnectionState ?? LiveConnectionState.Disconnected),
+            DispatcherPriority.Background);
+    }
+
     private void RefreshTravelCalibration()
     {
         travelCalibration = knownBoardsQuery?.GetTravelCalibration(IdentityKey);
         OnPropertyChanged(nameof(FrontTravelText));
         OnPropertyChanged(nameof(RearTravelText));
+    }
+
+    private void RequestHeaderRefresh()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RefreshHeaderFromStore();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(RefreshHeaderFromStore, DispatcherPriority.Background);
+    }
+
+    private void RefreshHeaderFromStore()
+    {
+        var latest = liveDaqStore?.Get(IdentityKey);
+        if (latest is null)
+        {
+            managementHost = null;
+            managementPort = null;
+            RefreshManagementAvailability();
+            return;
+        }
+
+        Name = latest.DisplayName;
+        BoardId = latest.BoardId;
+        Endpoint = latest.Endpoint;
+        SetupName = latest.SetupName;
+        BikeName = latest.BikeName;
+        managementHost = latest.Host;
+        managementPort = latest.Port;
+        RefreshManagementAvailability();
+    }
+
+    private void RefreshSessionAvailability(LiveConnectionState connectionState)
+    {
+        CanStartSession = connectionState == LiveConnectionState.Connected
+            && knownBoardsQuery?.GetSessionContext(IdentityKey) is not null;
+    }
+
+    private CancellationTokenSource BeginManagementOperation(CancellationToken cancellationToken)
+    {
+        IsManagementBusy = true;
+        var operationToken = managementOperation.Start();
+        return CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, operationToken);
+    }
+
+    private void EndManagementOperation()
+    {
+        managementOperation.Cancel();
+        IsManagementBusy = false;
+    }
+
+    private void ClearPendingConfig()
+    {
+        pendingConfigBytes = null;
+        PendingConfigFileName = null;
+        HasPendingConfig = false;
+    }
+
+    private void RefreshManagementAvailability()
+    {
+        OnPropertyChanged(nameof(CanManage));
+        OnPropertyChanged(nameof(CanUploadConfig));
+        OnPropertyChanged(nameof(ManagementDisabledTooltip));
+        SetTimeCommand.NotifyCanExecuteChanged();
+        SelectConfigFileCommand.NotifyCanExecuteChanged();
+        UploadConfigCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool TryGetManagementEndpoint(out string host, out int port)
+    {
+        host = managementHost ?? string.Empty;
+        port = managementPort ?? 0;
+        return !string.IsNullOrWhiteSpace(host) && port > 0;
+    }
+
+    protected override void OnActivated()
+    {
+        if (!hasLoaded)
+        {
+            return;
+        }
+
+        StartForegroundUpdates();
+    }
+
+    protected override void OnDeactivated()
+    {
+        if (!hasLoaded)
+        {
+            return;
+        }
+
+        StopForegroundUpdates();
+    }
+
+    private void ApplyRequestedRates(LiveDaqStreamConfiguration configuration)
+    {
+        RequestedTravelHz = configuration.TravelHz;
+        RequestedImuHz = configuration.ImuHz;
+        RequestedGpsFixHz = configuration.GpsFixHz;
     }
 
     private static string FormatTravelText(string label, ushort? measurement, LiveDaqTravelChannelCalibration? calibration)
@@ -450,25 +691,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         return FormattableString.Invariant($"{label}: {travel:0}mm ({sagPercent:0}%)");
     }
 
-    private bool TryGetEndpoint(out string host, out int port)
-    {
-        host = string.Empty;
-        port = 0;
-        if (string.IsNullOrWhiteSpace(Endpoint))
-        {
-            return false;
-        }
-
-        var parts = Endpoint.Split(':', 2, StringSplitOptions.TrimEntries);
-        if (parts.Length != 2 || !int.TryParse(parts[1], out port))
-        {
-            return false;
-        }
-
-        host = parts[0];
-        return true;
-    }
-
     // Frames arrive far faster than the UI needs to repaint. The session state
     // accumulates every frame, and this timer snapshots it at a fixed cadence
     // so the UI thread is not overwhelmed by per-frame updates.
@@ -480,5 +702,42 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         };
         timer.Tick += (_, _) => RefreshSnapshot();
         return timer;
+    }
+
+    private void StartForegroundUpdates()
+    {
+        uiRefreshTimer.Start();
+        EnsureScopedSubscription(disposables =>
+        {
+            if (sharedStream is null)
+            {
+                return;
+            }
+
+            disposables.Add(sharedStream.Frames.Subscribe(frame => HandleFrame(frame)));
+            disposables.Add(sharedStream.States.Subscribe(_ => RequestSharedStreamRefresh()));
+            if (knownBoardsQuery is not null)
+            {
+                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ =>
+                {
+                    RequestTravelProjectionRefresh();
+                    RequestSessionAvailabilityRefresh();
+                }));
+            }
+
+            if (liveDaqStore is not null)
+            {
+                disposables.Add(liveDaqStore.Connect().Subscribe(_ => RequestHeaderRefresh()));
+            }
+        });
+
+        RefreshSharedStreamState();
+        RefreshSnapshot();
+    }
+
+    private void StopForegroundUpdates()
+    {
+        uiRefreshTimer.Stop();
+        DisposeScopedSubscriptions();
     }
 }

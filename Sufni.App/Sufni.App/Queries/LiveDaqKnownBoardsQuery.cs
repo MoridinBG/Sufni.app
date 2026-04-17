@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,14 +19,22 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqKnownBoardsQuery>();
 
+    private sealed record KnownLiveDaqProjection(
+        KnownLiveDaqRecord Record,
+        LiveDaqTravelCalibration? TravelCalibration,
+        LiveDaqSessionContext? SessionContext);
+
     private readonly IDatabaseService databaseService;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> changesSubject = new([]);
-    private IReadOnlyDictionary<string, KnownLiveDaqRecord> currentRecords = new Dictionary<string, KnownLiveDaqRecord>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, KnownLiveDaqProjection> currentProjections = new Dictionary<string, KnownLiveDaqProjection>(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim refreshGate = new(1, 1);
     private readonly IDisposable setupSubscription;
     private readonly IDisposable bikeSubscription;
+    private readonly object coalesceGate = new();
+    private bool refreshInProgress;
+    private bool refreshPending;
 
     public LiveDaqKnownBoardsQuery(
         IDatabaseService databaseService,
@@ -36,44 +45,50 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
 
-        setupSubscription = setupStore.Connect().Subscribe(changes =>
-        {
-            _ = RefreshAsync("setup store change");
-        });
-        bikeSubscription = bikeStore.Connect().Subscribe(changes =>
-        {
-            _ = RefreshAsync("bike store change");
-        });
+        // Skip the initial replay from each store — it fires synchronously at
+        // subscription time and would otherwise stack an extra refresh on top
+        // of the explicit initial-load call below.
+        setupSubscription = setupStore.Connect().Skip(1).Subscribe(_ => RequestRefresh("setup store change"));
+        bikeSubscription = bikeStore.Connect().Skip(1).Subscribe(_ => RequestRefresh("bike store change"));
 
-        _ = RefreshAsync("initial load");
+        RequestRefresh("initial load");
     }
 
     public IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes => changesSubject;
 
     public KnownLiveDaqRecord? Get(string identityKey) =>
-        currentRecords.TryGetValue(identityKey, out var record) ? record : null;
+        currentProjections.TryGetValue(identityKey, out var projection) ? projection.Record : null;
 
     public LiveDaqTravelCalibration? GetTravelCalibration(string identityKey)
     {
-        if (!currentRecords.TryGetValue(identityKey, out var record) || record.SetupId is not Guid setupId || record.BikeId is not Guid bikeId)
-        {
-            return null;
-        }
+        return currentProjections.TryGetValue(identityKey, out var projection)
+            ? projection.TravelCalibration
+            : null;
+    }
 
-        var setupSnapshot = setupStore.Get(setupId);
-        var bikeSnapshot = bikeStore.Get(bikeId);
-        if (setupSnapshot is null || bikeSnapshot is null)
-        {
-            return null;
-        }
+    public LiveDaqSessionContext? GetSessionContext(string identityKey)
+    {
+        return currentProjections.TryGetValue(identityKey, out var projection)
+            ? projection.SessionContext
+            : null;
+    }
 
-        var bike = Bike.FromSnapshot(bikeSnapshot);
-        var front = CreateCalibration(setupSnapshot.FrontSensorConfigurationJson, bike);
-        var rear = CreateCalibration(setupSnapshot.RearSensorConfigurationJson, bike);
+    private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
+    {
+        BikeId = snapshot.BikeId,
+        FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
+        RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
+        Updated = snapshot.Updated,
+    };
 
-        return front is null && rear is null
-            ? null
-            : new LiveDaqTravelCalibration(front, rear);
+    private static LiveDaqTravelCalibration CreateTravelCalibration(
+        ISensorConfiguration? frontSensorConfiguration,
+        ISensorConfiguration? rearSensorConfiguration)
+    {
+        var front = CreateCalibration(frontSensorConfiguration);
+        var rear = CreateCalibration(rearSensorConfiguration);
+
+        return new LiveDaqTravelCalibration(front, rear);
     }
 
     public void Dispose()
@@ -82,6 +97,46 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         bikeSubscription.Dispose();
         refreshGate.Dispose();
         changesSubject.Dispose();
+    }
+
+    // Coalesces overlapping refresh triggers so three near-simultaneous store
+    // changes produce at most two runs (the in-flight one, plus a single
+    // follow-up that batches everything that arrived while it was running).
+    private void RequestRefresh(string reason)
+    {
+        lock (coalesceGate)
+        {
+            if (refreshInProgress)
+            {
+                refreshPending = true;
+                return;
+            }
+
+            refreshInProgress = true;
+        }
+
+        _ = RefreshLoopAsync(reason);
+    }
+
+    private async Task RefreshLoopAsync(string initialReason)
+    {
+        var reason = initialReason;
+        while (true)
+        {
+            await RefreshAsync(reason).ConfigureAwait(false);
+
+            lock (coalesceGate)
+            {
+                if (!refreshPending)
+                {
+                    refreshInProgress = false;
+                    return;
+                }
+
+                refreshPending = false;
+                reason = "coalesced follow-up";
+            }
+        }
     }
 
     private async Task RefreshAsync(string reason)
@@ -93,12 +148,13 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
 
             var boards = await databaseService.GetAllAsync<Board>().ConfigureAwait(false);
 
-            var records = boards
+            var projections = boards
                 .OrderBy(board => board.Id)
-                .Select(BuildRecord)
+                .Select(BuildProjection)
                 .ToArray();
+            var records = projections.Select(projection => projection.Record).ToArray();
 
-            currentRecords = records.ToDictionary(record => record.IdentityKey, StringComparer.OrdinalIgnoreCase);
+            currentProjections = projections.ToDictionary(projection => projection.Record.IdentityKey, StringComparer.OrdinalIgnoreCase);
             changesSubject.OnNext(records);
             logger.Debug("Refreshed known live DAQ boards with {RecordCount} records", records.Length);
         }
@@ -114,46 +170,63 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         }
     }
 
-    private KnownLiveDaqRecord BuildRecord(Board board)
+    private KnownLiveDaqProjection BuildProjection(Board board)
     {
-        var setup = board.SetupId.HasValue
+        var setupSnapshot = board.SetupId.HasValue
             ? setupStore.Get(board.SetupId.Value)
             : null;
 
-        setup ??= setupStore.FindByBoardId(board.Id);
+        setupSnapshot ??= setupStore.FindByBoardId(board.Id);
 
-        var bike = setup is null
+        var bikeSnapshot = setupSnapshot is null
             ? null
-            : bikeStore.Get(setup.BikeId);
+            : bikeStore.Get(setupSnapshot.BikeId);
 
         var boardId = board.Id.ToString();
-        return new KnownLiveDaqRecord(
+        var record = new KnownLiveDaqRecord(
             IdentityKey: boardId,
-            DisplayName: boardId,
+            DisplayName: setupSnapshot?.Name ?? boardId,
             BoardId: boardId,
-            SetupId: setup?.Id,
-            SetupName: setup?.Name,
-            BikeId: bike?.Id,
-            BikeName: bike?.Name);
+            SetupId: setupSnapshot?.Id,
+            SetupName: setupSnapshot?.Name,
+            BikeId: bikeSnapshot?.Id,
+            BikeName: bikeSnapshot?.Name);
+
+        if (setupSnapshot is null || bikeSnapshot is null)
+        {
+            return new KnownLiveDaqProjection(record, null, null);
+        }
+
+        var setup = SetupFromSnapshot(setupSnapshot);
+        var bike = Bike.FromSnapshot(bikeSnapshot);
+        var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
+        var rearSensorConfiguration = setup.RearSensorConfiguration(bike);
+        var calibration = CreateTravelCalibration(frontSensorConfiguration, rearSensorConfiguration);
+
+        return new KnownLiveDaqProjection(
+            Record: record,
+            TravelCalibration: calibration is { Front: null, Rear: null } ? null : calibration,
+            SessionContext: new LiveDaqSessionContext(
+                IdentityKey: record.IdentityKey,
+                BoardId: Guid.Parse(record.BoardId),
+                DisplayName: record.DisplayName,
+                SetupId: record.SetupId!.Value,
+                SetupName: record.SetupName!,
+                BikeId: record.BikeId!.Value,
+                BikeName: record.BikeName!,
+                BikeData: TelemetryBikeData.Create(bike, frontSensorConfiguration, rearSensorConfiguration),
+                TravelCalibration: calibration));
     }
 
-    private static LiveDaqTravelChannelCalibration? CreateCalibration(string? configurationJson, Bike bike)
+    private static LiveDaqTravelChannelCalibration? CreateCalibration(Models.SensorConfigurations.ISensorConfiguration? configuration)
     {
-        if (string.IsNullOrWhiteSpace(configurationJson))
+        if (configuration is null)
         {
             return null;
         }
 
-        try
-        {
-            var configuration = SensorConfiguration.FromJson(configurationJson, bike);
-            return configuration is null || configuration.MaxTravel <= 0
-                ? null
-                : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
-        }
-        catch
-        {
-            return null;
-        }
+        return configuration.MaxTravel <= 0
+            ? null
+            : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
     }
 }

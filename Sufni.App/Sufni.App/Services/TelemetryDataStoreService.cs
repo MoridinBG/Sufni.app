@@ -37,6 +37,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     private static readonly ILogger logger = Log.ForContext<TelemetryDataStoreService>();
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly ILiveDaqBrowseOwner browseOwner;
+    private readonly IDaqManagementService daqManagementService;
+    private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly DispatcherTimer massStorageScanTimer;
     private int massStorageRefreshInProgress;
@@ -136,7 +138,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         NetworkTelemetryDataStore ds;
         try
         {
-            ds = new NetworkTelemetryDataStore(ipAddress, port);
+            ds = new NetworkTelemetryDataStore(ipAddress, port, daqManagementService, liveDaqBoardIdInspector);
             await ds.Initialization;
         }
         catch (Exception ex)
@@ -188,10 +190,14 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     public TelemetryDataStoreService(
         [FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery,
         ILiveDaqBrowseOwner browseOwner,
+        IDaqManagementService daqManagementService,
+        ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
         IBackgroundTaskRunner backgroundTaskRunner)
     {
         this.serviceDiscovery = serviceDiscovery;
         this.browseOwner = browseOwner;
+        this.daqManagementService = daqManagementService;
+        this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
         this.backgroundTaskRunner = backgroundTaskRunner;
 
         massStorageScanTimer = new DispatcherTimer(DispatcherPriority.Background);

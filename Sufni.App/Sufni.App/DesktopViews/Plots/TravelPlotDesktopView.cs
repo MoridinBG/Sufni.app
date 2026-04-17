@@ -34,10 +34,10 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
         {
             var point = args.GetPosition(AvaPlot);
             var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            if (Telemetry is null || Telemetry.Metadata.Duration <= 0 || MapView is null) return;
+            if (Telemetry is null || Telemetry.Metadata.Duration <= 0) return;
 
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
-            MapView.SetNormalizedCursorPosition(normalizedCursorPosition);
+            Timeline?.SetCursorPosition(normalizedCursorPosition);
 
             if (Plot is TravelPlot travelPlot)
             {
@@ -58,7 +58,7 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
             }
         };
 
-        AvaPlot.PointerReleased += (_, _) => UpdateMapZoom();
-        AvaPlot.PointerWheelChanged += (_, _) => UpdateMapZoom();
+        AvaPlot.PointerReleased += (_, _) => UpdateTimelineRange();
+        AvaPlot.PointerWheelChanged += (_, _) => UpdateTimelineRange();
     }
 }

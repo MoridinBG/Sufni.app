@@ -1,0 +1,54 @@
+<UserControl
+x:Class="Sufni.App.DesktopViews.Items.RecordedSessionGraphDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:IRecordedSessionGraphWorkspace"
+mc:Ignorable="d">
+
+    <Grid RowDefinitions="3* auto 2* auto 2*">
+        <plots:TravelPlotDesktopView
+        Name="Travel"
+        Grid.Row="0"
+        Telemetry="{Binding TelemetryData}"
+        Timeline="{Binding Timeline}"
+        VelocityPlotView="{Binding #Velocity}"
+        ImuPlotView="{Binding #Imu}" />
+
+        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+        <plots:VelocityPlotDesktopView
+        Name="Velocity"
+        Grid.Row="2"
+        Telemetry="{Binding TelemetryData}"
+        Timeline="{Binding Timeline}"
+        TravelPlotView="{Binding #Travel}"
+        ImuPlotView="{Binding #Imu}" />
+
+        <GridSplitter
+        Grid.Row="3"
+        ResizeDirection="Rows"
+        ResizeBehavior="PreviousAndNext">
+            <GridSplitter.IsVisible>
+                <Binding Path="TelemetryData.ImuData" Converter="{x:Static ObjectConverters.IsNotNull}" />
+            </GridSplitter.IsVisible>
+        </GridSplitter>
+
+        <plots:ImuPlotDesktopView
+        Name="Imu"
+        Grid.Row="4"
+        Telemetry="{Binding TelemetryData}"
+        Timeline="{Binding Timeline}"
+        TravelPlotView="{Binding #Travel}"
+        VelocityPlotView="{Binding #Velocity}">
+            <plots:ImuPlotDesktopView.IsVisible>
+                <Binding Path="TelemetryData.ImuData" Converter="{x:Static ObjectConverters.IsNotNull}" />
+            </plots:ImuPlotDesktopView.IsVisible>
+        </plots:ImuPlotDesktopView>
+    </Grid>
+</UserControl>

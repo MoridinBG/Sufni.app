@@ -1,15 +1,17 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using DynamicData.Kernel;
+using Sufni.App.Services.Management;
 
 namespace Sufni.App.Services;
 
-public class FilesService : IFilesService
+public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesService
 {
     private TopLevel? target;
     private readonly FilePickerFileType jsonType = new("JSON files")
@@ -107,5 +109,31 @@ public class FilesService : IFilesService
         });
 
         return files.AsList();
+    }
+
+    public async Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default)
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open device CONFIG",
+            AllowMultiple = false,
+            FileTypeFilter = [FilePickerFileTypes.All]
+        });
+
+        if (files.Count != 1)
+        {
+            return null;
+        }
+
+        var file = files[0];
+        return await backgroundTaskRunner.RunAsync(async () =>
+        {
+            await using var stream = await file.OpenReadAsync();
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream, cancellationToken);
+            return new SelectedDeviceConfigFile(file.Name, memoryStream.ToArray());
+        }, cancellationToken);
     }
 }

@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Sufni.App.Services.Management;
 
 namespace Sufni.App.Services;
 
@@ -14,4 +16,5 @@ public interface IFilesService
     public Task<IStorageFile?> SaveBikeFileAsync();
     public Task<IStorageFile?> OpenBikeFileAsync();
     public Task<List<IStorageFile>> OpenGpxFilesAsync();
+    public Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default);
 }

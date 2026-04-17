@@ -171,6 +171,60 @@ public class LiveDaqClientTests
     }
 
     [Fact]
+    public async Task StopPreviewAsync_WithoutActiveSession_ShortCircuits()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        var acceptTask = listener.AcceptTcpClientAsync();
+
+        await using var client = new LiveDaqClient();
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+
+        await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        await client.DisconnectAsync();
+        using var accepted = await acceptTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task StopPreviewAsync_WhenStopAckTimesOut_DoesNotHang()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 612);
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveSensorMask.Travel));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+            await stream.FlushAsync();
+
+            // Deliberately consume STOP_LIVE without ever replying with STOP_ACK
+            // so the client has to fall back to its bounded timeout.
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize);
+            await Task.Delay(500);
+        });
+
+        await using var client = new LiveDaqClient(TimeSpan.FromMilliseconds(150));
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0));
+        Assert.IsType<LivePreviewStartResult.Started>(started);
+
+        await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
     public async Task CreateClient_ReturnsDistinctInstances()
     {
         var factory = new LiveDaqClientFactory(new BackgroundTaskRunner());

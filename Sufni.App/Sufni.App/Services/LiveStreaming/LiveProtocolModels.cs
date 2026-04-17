@@ -11,6 +11,10 @@ public static class LiveProtocolConstants
     public const int DefaultPort = 1557;
 
     public const int FrameHeaderSize = 16;
+    // Hard cap on frame payload length. Prevents a bogus on-wire length field
+    // from driving the receive buffer toward OOM. 4 MiB comfortably exceeds
+    // any realistic batch (~250 KB at peak).
+    public const int MaxPayloadLength = 4 * 1024 * 1024;
     public const int StartRequestPayloadSize = 16;
     public const int StartAckPayloadSize = 12;
     public const int SessionHeaderPayloadSize = 64;

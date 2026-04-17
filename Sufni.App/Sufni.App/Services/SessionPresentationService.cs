@@ -21,7 +21,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
         double? frontHsr = null;
         double? rearHsr = null;
 
-        if (telemetryData.Front.Present)
+        if (telemetryData.HasStrokeData(SuspensionType.Front))
         {
             var frontBands = telemetryData.CalculateVelocityBands(SuspensionType.Front, HighSpeedThreshold);
             frontHsc = frontBands.HighSpeedCompression;
@@ -30,7 +30,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
             frontHsr = frontBands.HighSpeedRebound;
         }
 
-        if (telemetryData.Rear.Present)
+        if (telemetryData.HasStrokeData(SuspensionType.Rear))
         {
             var rearBands = telemetryData.CalculateVelocityBands(SuspensionType.Rear, HighSpeedThreshold);
             rearHsc = rearBands.HighSpeedCompression;
@@ -66,7 +66,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
         string? compressionBalance = null;
         string? reboundBalance = null;
 
-        if (telemetryData.Front.Present)
+        if (telemetryData.HasStrokeData(SuspensionType.Front))
         {
             frontTravelHistogram = RenderTravelHistogram(telemetryData, SuspensionType.Front, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
@@ -75,7 +75,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        if (telemetryData.Rear.Present)
+        if (telemetryData.HasStrokeData(SuspensionType.Rear))
         {
             rearTravelHistogram = RenderTravelHistogram(telemetryData, SuspensionType.Rear, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
@@ -84,15 +84,21 @@ public sealed class SessionPresentationService : ISessionPresentationService
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        var balanceAvailable = telemetryData.Front.Present && telemetryData.Rear.Present;
-        if (balanceAvailable)
+        var compressionBalanceAvailable = telemetryData.HasBalanceData(BalanceType.Compression);
+        var reboundBalanceAvailable = telemetryData.HasBalanceData(BalanceType.Rebound);
+        if (compressionBalanceAvailable)
         {
             compressionBalance = RenderBalance(telemetryData, BalanceType.Compression, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
+        }
 
+        if (reboundBalanceAvailable)
+        {
             reboundBalance = RenderBalance(telemetryData, BalanceType.Rebound, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
         }
+
+        var balanceAvailable = compressionBalanceAvailable || reboundBalanceAvailable;
 
         return new SessionCachePresentationData(
             frontTravelHistogram,

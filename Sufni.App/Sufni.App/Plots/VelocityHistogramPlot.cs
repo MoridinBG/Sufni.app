@@ -48,12 +48,11 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if ((type == SuspensionType.Front && !telemetryData.Front.Present) ||
-            (type == SuspensionType.Rear && !telemetryData.Rear.Present))
+        if (!telemetryData.HasStrokeData(type))
         {
             return;
         }
-        
+
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
@@ -94,10 +93,10 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         Plot.Axes.AutoScale(invertY: true);
         var limits = Plot.Axes.GetDataLimits();
         Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.1, minY: 2000, maxY: -2000);
-        
+
         // Lock axes
         Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.1, limits.Right / 0.9));
-        
+
         // Set left axis limit to 0.1 to hide the border line at 0 values. Otherwise
         // it would seem that there are actual measure travel data there too.
         // Also set a hardcoded limit for the velocity range.
@@ -109,13 +108,16 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
         var normalData = telemetryData.CalculateNormalDistribution(type);
-        var normal = Plot.Add.Scatter(
-            normalData.Pdf.ToArray(),
-            normalData.Y.ToArray());
-        normal.Color = Color.FromHex("#d53e4f");
-        normal.MarkerStyle.IsVisible = false;
-        normal.LineStyle.Width = 2;
-        normal.LineStyle.Pattern = LinePattern.DenselyDashed;
+        if (normalData.Pdf.Count > 0 && normalData.Y.Count > 0)
+        {
+            var normal = Plot.Add.Scatter(
+                normalData.Pdf.ToArray(),
+                normalData.Y.ToArray());
+            normal.Color = Color.FromHex("#d53e4f");
+            normal.MarkerStyle.IsVisible = false;
+            normal.LineStyle.Width = 2;
+            normal.LineStyle.Pattern = LinePattern.DenselyDashed;
+        }
 
         AddStatistics(telemetryData);
     }

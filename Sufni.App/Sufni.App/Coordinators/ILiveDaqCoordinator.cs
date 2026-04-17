@@ -14,4 +14,7 @@ public interface ILiveDaqCoordinator
 
     // Opens or focuses the detail tab for the given live DAQ identity.
     Task SelectAsync(string identityKey);
+
+    // Opens or focuses the live session tab for the given live DAQ identity.
+    Task OpenSessionAsync(string identityKey);
 }

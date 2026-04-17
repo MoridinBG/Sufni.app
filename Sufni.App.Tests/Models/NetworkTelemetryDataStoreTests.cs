@@ -1,72 +1,237 @@
+using System;
+using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using NSubstitute;
 using Sufni.App.Models;
+using Sufni.App.Services;
+using Sufni.App.Services.Management;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Models;
 
 public class NetworkTelemetryDataStoreTests
 {
     [Fact]
-    public void ParseDirectoryListing_ParsesDurationMillisecondsFromEntries()
+    public async Task Initialization_SetsBoardIdFromInspector()
     {
-        var boardBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        var expectedBoardId = UuidUtil.CreateDeviceUuid(boardBytes);
+        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        var expectedBoardId = Guid.NewGuid();
+        boardIdInspector
+            .InspectAsync(IPAddress.Loopback, 5555, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Guid?>(expectedBoardId));
 
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        writer.Write(boardBytes);
-        writer.Write((ushort)1000);
+        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
 
-        writer.Write(Encoding.ASCII.GetBytes("00001.SST"));
-        writer.Write((ulong)1234);
-        writer.Write((ulong)111);
-        writer.Write((uint)6000);
-        writer.Write((byte)4);
+        await dataStore.Initialization;
 
-        writer.Write(Encoding.ASCII.GetBytes("00002.SST"));
-        writer.Write((ulong)5678);
-        writer.Write((ulong)222);
-        writer.Write((uint)3000);
-        writer.Write((byte)3);
+        Assert.Equal(expectedBoardId, dataStore.BoardId);
+    }
 
-        var listing = NetworkTelemetryDataStore.ParseDirectoryListing(ms.ToArray());
+    [Fact]
+    public async Task GetFiles_IgnoresConfig_MapsSstMetadata_AndSortsDescending()
+    {
+        var boardIdInspector = CreateBoardIdInspector();
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, DaqDirectoryId.Root, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqListDirectoryResult>(
+                new DaqListDirectoryResult.Listed(
+                    new DaqRootDirectoryRecord(
+                    [
+                        new DaqConfigFileRecord("CONFIG", 48),
+                        new DaqSstFileRecord(
+                            DaqFileClass.RootSst,
+                            "RIDE-OLD.SST",
+                            1234,
+                            12,
+                            DateTimeOffset.FromUnixTimeSeconds(111),
+                            TimeSpan.FromSeconds(3),
+                            3),
+                        new DaqSstFileRecord(
+                            DaqFileClass.RootSst,
+                            "RIDE-NEW.SST",
+                            5678,
+                            42,
+                            DateTimeOffset.FromUnixTimeSeconds(222),
+                            TimeSpan.FromSeconds(6),
+                            4)
+                    ]))));
 
-        Assert.Equal(expectedBoardId, listing.BoardId);
+        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
+        await dataStore.Initialization;
+
+        var files = await dataStore.GetFiles();
+
         Assert.Collection(
-            listing.Entries,
+            files,
             first =>
             {
-                Assert.Equal("00001.SST", first.Name);
-                Assert.Equal((ulong)1234, first.Size);
-                Assert.Equal((ulong)111, first.Timestamp);
-                Assert.Equal((uint)6000, first.DurationMilliseconds);
+                Assert.Equal("RIDE-NEW.SST", first.FileName);
+                Assert.True(first.ShouldBeImported);
                 Assert.Equal((byte)4, first.Version);
+                Assert.Equal("00:00:06", first.Duration);
+                Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(222).LocalDateTime, first.StartTime);
             },
             second =>
             {
-                Assert.Equal("00002.SST", second.Name);
-                Assert.Equal((ulong)5678, second.Size);
-                Assert.Equal((ulong)222, second.Timestamp);
-                Assert.Equal((uint)3000, second.DurationMilliseconds);
+                Assert.Equal("RIDE-OLD.SST", second.FileName);
+                Assert.Null(second.ShouldBeImported);
                 Assert.Equal((byte)3, second.Version);
+                Assert.Equal("00:00:03", second.Duration);
+                Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(111).LocalDateTime, second.StartTime);
             });
     }
 
     [Fact]
-    public void NetworkTelemetryFile_UsesProvidedDurationForPreviewState()
+    public async Task GetFiles_ThrowsWhenListDirectoryReturnsTypedError()
     {
-        var endpoint = new IPEndPoint(IPAddress.Loopback, 5555);
+        var boardIdInspector = CreateBoardIdInspector();
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, DaqDirectoryId.Root, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqListDirectoryResult>(
+                new DaqListDirectoryResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
 
-        var importable = new NetworkTelemetryFile(endpoint, "00001.SST", 4, 111, TimeSpan.FromSeconds(6));
-        var shortFile = new NetworkTelemetryFile(endpoint, "00002.SST", 3, 222, TimeSpan.FromSeconds(3));
+        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
 
-        Assert.True(importable.ShouldBeImported);
-        Assert.Equal((byte)4, importable.Version);
-        Assert.Equal("00:00:06", importable.Duration);
-        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(111).LocalDateTime, importable.StartTime);
+        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => dataStore.GetFiles());
 
-        Assert.Null(shortFile.ShouldBeImported);
-        Assert.Equal((byte)3, shortFile.Version);
-        Assert.Equal("00:00:03", shortFile.Duration);
+        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GeneratePsstAsync_UsesInjectedRecordIdRatherThanFileName()
+    {
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqGetFileResult>(
+                new DaqGetFileResult.Loaded("DEVICE.SST", CreateValidV3SstBytes())));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        var psst = await file.GeneratePsstAsync(CreateBikeData());
+
+        Assert.NotEmpty(psst);
+        await daqManagementService.Received(1)
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GeneratePsstAsync_ThrowsWhenGetFileReturnsTypedError()
+    {
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqGetFileResult>(
+                new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.GeneratePsstAsync(CreateBikeData()));
+
+        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task OnTrashed_UsesInjectedRecordIdRatherThanFileName()
+    {
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        await file.OnTrashed();
+
+        await daqManagementService.Received(1)
+            .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OnTrashed_ThrowsWhenTrashReturnsTypedError()
+    {
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(
+                new DaqManagementResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.OnTrashed());
+
+        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ILiveDaqBoardIdInspector CreateBoardIdInspector()
+    {
+        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        boardIdInspector
+            .InspectAsync(IPAddress.Loopback, 5555, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Guid?>(null));
+        return boardIdInspector;
+    }
+
+    private static BikeData CreateBikeData() => new(
+        HeadAngle: 65.0,
+        FrontMaxTravel: 200.0,
+        RearMaxTravel: 200.0,
+        FrontMeasurementToTravel: measurement => Math.Clamp((measurement - 1500.0) / 5.0, 0.0, 200.0),
+        RearMeasurementToTravel: measurement => Math.Clamp((measurement - 1500.0) / 5.0, 0.0, 200.0));
+
+    private static byte[] CreateValidV3SstBytes()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)3);
+        writer.Write((ushort)1000);
+        writer.Write((ushort)0);
+        writer.Write((long)1_700_000_000);
+
+        for (var index = 0; index < 256; index++)
+        {
+            var front = 1900.0 + 260.0 * Math.Sin(index * 2.0 * Math.PI / 48.0);
+            var rear = 1850.0 + 240.0 * Math.Sin(index * 2.0 * Math.PI / 52.0);
+            writer.Write((ushort)Math.Round(front));
+            writer.Write((ushort)Math.Round(rear));
+        }
+
+        return ms.ToArray();
     }
 }

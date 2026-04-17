@@ -1,0 +1,64 @@
+using System;
+using System.Collections.Generic;
+using ScottPlot;
+using ScottPlot.Plottables;
+using Sufni.App.Services.LiveStreaming;
+
+namespace Sufni.App.Plots;
+
+public sealed class LiveVelocityPlot : LiveStreamingPlotBase
+{
+    private readonly DataStreamer frontStreamer;
+    private readonly DataStreamer rearStreamer;
+    private double[] frontVelocityScratch = [];
+    private double[] rearVelocityScratch = [];
+
+    public LiveVelocityPlot(Plot plot, double velocityMaximum)
+        : base(plot, 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum))
+    {
+        ConfigurePlot("Velocity", "Velocity (m/s)");
+        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
+    }
+
+    public void Append(LiveGraphBatch batch)
+    {
+        if (batch.FrontVelocity.Count == 0 && batch.RearVelocity.Count == 0)
+        {
+            return;
+        }
+
+        UpdateTiming(batch.VelocityTimes);
+
+        if (batch.FrontVelocity.Count > 0)
+        {
+            frontStreamer.AddRange(ConvertToMetersPerSecond(batch.FrontVelocity, ref frontVelocityScratch));
+        }
+
+        if (batch.RearVelocity.Count > 0)
+        {
+            rearStreamer.AddRange(ConvertToMetersPerSecond(batch.RearVelocity, ref rearVelocityScratch));
+        }
+    }
+
+    protected override void ClearStreamers()
+    {
+        frontStreamer.Clear(double.NaN);
+        rearStreamer.Clear(double.NaN);
+    }
+
+    private static ArraySegment<double> ConvertToMetersPerSecond(IReadOnlyList<double> values, ref double[] buffer)
+    {
+        if (buffer.Length < values.Count)
+        {
+            buffer = new double[values.Count];
+        }
+
+        for (var index = 0; index < values.Count; index++)
+        {
+            buffer[index] = values[index] / 1000.0;
+        }
+
+        return new ArraySegment<double>(buffer, 0, values.Count);
+    }
+}

@@ -38,6 +38,24 @@ public class LiveDaqKnownBoardsQueryTests
     }
 
     [Fact]
+    public async Task Changes_UsesSetupNameAsDisplayName_WhenSetupIsPresent()
+    {
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "enduro setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var bike = TestSnapshots.Bike(id: setup.BikeId, name: "enduro bike");
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        var records = await WaitForRecordsAsync(query.Changes);
+
+        var record = Assert.Single(records);
+        Assert.Equal("enduro setup", record.DisplayName);
+    }
+
+    [Fact]
     public async Task Changes_ReturnsEnrichedRecord_WhenBoardMapsToSetupAndBike()
     {
         var boardId = Guid.NewGuid();
@@ -130,6 +148,120 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Null(calibration.Rear);
         Assert.True(calibration.Front!.MaxTravel > 0);
         Assert.True(calibration.Front.MeasurementToTravel(1) > 0);
+    }
+
+    [Fact]
+    public async Task GetTravelCalibration_ReturnsCachedInstance_BetweenCalls()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached calibration bike");
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached calibration setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 8,
+                Resolution = 10,
+            })
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var first = query.GetTravelCalibration(boardId.ToString());
+        var second = query.GetTravelCalibration(boardId.ToString());
+
+        Assert.Same(first, second);
+        Assert.Same(first!.Front, second!.Front);
+    }
+
+    [Fact]
+    public async Task GetSessionContext_ReturnsBikeDataAndCalibration_WhenSetupAndBikeAreKnown()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "session bike") with
+        {
+            HeadAngle = 63.5,
+            ForkStroke = 170,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(),
+        };
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "session setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 120,
+                Resolution = 12,
+            }),
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 55,
+                Resolution = 12,
+            }),
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var context = query.GetSessionContext(boardId.ToString());
+
+        Assert.NotNull(context);
+        Assert.Equal(boardId, context!.BoardId);
+        Assert.Equal(setup.Id, context.SetupId);
+        Assert.Equal("session setup", context.SetupName);
+        Assert.Equal(bike.Id, context.BikeId);
+        Assert.Equal("session bike", context.BikeName);
+        Assert.Equal(bike.HeadAngle, context.BikeData.HeadAngle);
+        Assert.NotNull(context.BikeData.FrontMeasurementToTravel);
+        Assert.NotNull(context.BikeData.RearMeasurementToTravel);
+        Assert.NotNull(context.TravelCalibration.Front);
+        Assert.NotNull(context.TravelCalibration.Rear);
+    }
+
+    [Fact]
+    public async Task GetSessionContext_ReturnsCachedInstance_BetweenCalls()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached session bike") with
+        {
+            HeadAngle = 63.5,
+            ForkStroke = 170,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(),
+        };
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached session setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 120,
+                Resolution = 12,
+            }),
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 55,
+                Resolution = 12,
+            }),
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var first = query.GetSessionContext(boardId.ToString());
+        var second = query.GetSessionContext(boardId.ToString());
+
+        Assert.Same(first, second);
+        Assert.Same(first!.TravelCalibration, second!.TravelCalibration);
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
