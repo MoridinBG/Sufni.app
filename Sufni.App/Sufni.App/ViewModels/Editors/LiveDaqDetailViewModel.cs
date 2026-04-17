@@ -46,8 +46,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
     private readonly CancellableOperation managementOperation = new();
-    private readonly string? managementHost;
-    private readonly int? managementPort;
+    private string? managementHost;
+    private int? managementPort;
     private ILiveDaqSharedStreamLease? streamLease;
     private LiveDaqTravelCalibration? travelCalibration;
     private byte[]? pendingConfigBytes;
@@ -590,6 +590,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         Endpoint = latest.Endpoint;
         SetupName = latest.SetupName;
         BikeName = latest.BikeName;
+        managementHost = latest.Host;
+        managementPort = latest.Port;
+        RefreshManagementAvailability();
     }
 
     private void RefreshSessionAvailability(LiveConnectionState connectionState)
@@ -630,8 +633,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private bool TryGetManagementEndpoint(out string host, out int port)
     {
-        host = managementHost ?? string.Empty;
-        port = managementPort ?? 0;
+        var latest = liveDaqStore?.Get(IdentityKey);
+        host = latest?.Host ?? managementHost ?? string.Empty;
+        port = latest?.Port ?? managementPort ?? 0;
         return !string.IsNullOrWhiteSpace(host) && port > 0;
     }
 
