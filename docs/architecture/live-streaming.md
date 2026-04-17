@@ -6,7 +6,7 @@
 
 The live feature lets a desktop user inspect a connected DAQ in a diagnostics tab and optionally open a separate live session tab that accumulates graphable data and can persist it as a normal recorded session. It exists as a dedicated desktop feature slice: a primary page lists known and discovered DAQs, selection opens a diagnostics tab, and `Start Session` opens a second tab that subscribes to the same underlying transport.
 
-The feature is intentionally separate from the import pipeline. It does not reuse `ITelemetryDataStoreService.DataStores` for list state and does not share browse stop/start behavior with the import page. The diagnostics and live-session tabs share a per-identity transport through the live-streaming service layer, and the live session save path persists through `ISessionCoordinator` rather than through the live DAQ coordinator.
+The feature is intentionally separate from the import pipeline. It does not reuse `ITelemetryDataStoreService.DataStores` for list state and does not share browse stop/start behavior with the import page. The diagnostics and live-session tabs share a per-identity transport through the live-streaming service layer, and the live session save path persists through `ISessionCoordinator` rather than through the live DAQ coordinator. The diagnostics tab also exposes desktop-only management actions (Set Time and Replace Config) that run through a separate management service and only while the live client is disconnected.
 
 ```mermaid
 graph LR
@@ -100,11 +100,16 @@ User saves live capture
 Tab closes
   -> lease released
     -> shared stream disconnects only when the last diagnostics/live-session observer closes
+
+Desktop management action while disconnected
+  -> LiveDaqDetailViewModel.SetTime / SelectConfigFile / UploadConfig
+    -> IFilesService (CONFIG picker/load) and IDaqManagementService (MGMT TCP workflow)
+      -> ViewModelBase.Notifications / ErrorMessages
 ```
 
 ## Live Wire Protocol
 
-The live protocol uses a framed TCP stream separate from the file-transfer protocol in `SstTcpClient`. Every message consists of a 16-byte header followed by a typed payload.
+The live protocol uses a framed TCP stream separate from the framed management protocol used by import, remote trash, Set Time, and Replace Config. Both protocols share the DAQ's single-client TCP port, so only one live or management connection can be active at a time. Every LIVE message consists of a 16-byte header followed by a typed payload.
 
 ### Frame Header
 
@@ -200,7 +205,7 @@ When the last observer releases its lease, the registry disconnects and evicts t
 
 ### Board-ID Inspector
 
-`LiveDaqBoardIdInspector` connects to a DAQ's TCP port via `SstTcpClient`, fetches the file directory listing, and extracts the board GUID. The inspector runs entirely off the UI thread via `IBackgroundTaskRunner`.
+`LiveDaqBoardIdInspector` opens a short-lived LIVE connection, sends an `IDENTIFY` frame, and parses the matching `IDENTIFY_ACK` to recover the board GUID. The inspector runs entirely off the UI thread via `IBackgroundTaskRunner` and is shared by both the live catalog service and the network import path.
 
 ### Catalog Service
 
@@ -224,7 +229,7 @@ When the last observer releases its lease, the registry disconnects and evicts t
 
 **Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with `host:port` identity. The store is cleared and rebuilt on each reconciliation.
 
-**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a diagnostics tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot, the shared stream registry, and the shared known-board query.
+**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a diagnostics tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot, the shared stream registry, the shared known-board query, `IDaqManagementService`, and `IFilesService`.
 
 **OpenSessionAsync** — resolves `LiveDaqSessionContext` for a known DAQ, gets the shared stream for that identity, and routes one `LiveSessionDetailViewModel` per identity through `shell.OpenOrFocus`. The coordinator remains a routing layer only; live capture accumulation and save happen below it.
 
@@ -234,7 +239,15 @@ When the last observer releases its lease, the registry disconnects and evicts t
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It no longer owns a `LiveDaqClient` directly. Instead it acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It no longer owns a `LiveDaqClient` directly. Instead it acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. It also hosts the desktop management actions, each driven by its own `CancellableOperation` scoped to the tab lifecycle.
+
+Management actions stay in the detail view model rather than the transport layer or coordinator:
+
+- `SetTimeCommand` calls `IDaqManagementService.SetTimeAsync(...)` and reports success/failure through `Notifications` and `ErrorMessages`.
+- `SelectConfigFileCommand` calls `IFilesService.OpenDeviceConfigFileAsync(...)`, validates an exact `CONFIG` filename, and stages the selected bytes.
+- `UploadConfigCommand` calls `IDaqManagementService.ReplaceConfigAsync(...)`, then clears the staged CONFIG regardless of success, typed failure, or exception.
+
+The management endpoint is resolved from the latest `ILiveDaqStore` snapshot on every evaluation of `CanManage` and at command execution time, not from a constructor-captured host/port. The management affordances are enabled only when the DAQ endpoint is known and the live connection state is `Disconnected`. This avoids overlapping LIVE and MGMT connections on the shared single-client port, while letting a staged CONFIG blob survive temporary offline transitions.
 
 **`LiveSessionDetailViewModel`** extends `TabPageViewModelBase`, one instance per open live-session tab. It owns live session child graph/media workspaces plus the sidebar/statistics/control surface, but it does not own transport or raw capture logic. Instead it consumes `ILiveSessionService`, which subscribes to the shared stream, accumulates raw capture state, publishes `LiveGraphBatch` deltas for the DataStreamer plots, publishes statistics/map snapshots, and exposes `PrepareCaptureForSaveAsync` for create-only live saves.
 
@@ -243,7 +256,7 @@ When the last observer releases its lease, the registry disconnects and evicts t
 - `MainPagesDesktopView.axaml` — adds a "Live" tab to the primary page set
 - `LiveDaqListDesktopView.axaml` — `ItemsRepeater` bound to the list VM's `Items`, with search bar, notifications, and error bars
 - `LiveDaqListItemButton.axaml` — custom row control showing display name, setup/bike labels, endpoint, and an online/offline badge
-- `LiveDaqDetailDesktopView.axaml` — split layout with connection controls, requested rate inputs, accepted session info, travel/IMU/GPS sensor sections, and error/status display
+- `LiveDaqDetailDesktopView.axaml` — split layout with connection controls, requested rate inputs, accepted session info, a disconnected-only Device Management card (Set Time, Replace Config, Upload CONFIG), notifications/error bars, and travel/IMU/GPS sensor sections
 
 ## Design Decisions
 
@@ -255,3 +268,4 @@ When the last observer releases its lease, the registry disconnects and evicts t
 6. **Lease-based browse** — browse ownership uses reference counting so import and live can browse concurrently without interfering.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Create-only live save** — live sessions persist through `ISessionCoordinator.SaveLiveCaptureAsync(...)`, which always inserts a brand-new recorded session row rather than mutating the live tab in place.
+9. **Disconnected-only management** — the detail tab disables management actions while its live client is connected instead of trying to arbitrate concurrent LIVE and MGMT workflows on the DAQ's single-client port.

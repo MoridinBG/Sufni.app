@@ -170,7 +170,7 @@ and are registered as singletons.
 | `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                             |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                     |
 | `ITrackCoordinator` (`TrackCoordinator`)                                  | shared       | GPX import and session-track loading/association                                                                                                                                                                                                                                                                               |
-| `ILiveDaqCoordinator` (`LiveDaqCoordinator`)                              | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
+| `ILiveDaqCoordinator` (`LiveDaqCoordinator`)                              | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. When it creates a detail tab, it threads shared `IDaqManagementService` and `IFilesService` instances into `LiveDaqDetailViewModel`. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
 `InboundSyncCoordinator`, `SessionCoordinator`, `PairedDeviceCoordinator`,
 `PairingClientCoordinator` (mobile), `PairingServerCoordinator`
@@ -349,9 +349,13 @@ There are five kinds of view model in the presentation layer:
   diagnostics tab is a transport/configuration surface over the shared
   stream, while the live session tab is a create-only capture editor
   backed by `ILiveSessionService`. `LiveDaqDetailViewModel` projects a
-  throttled diagnostics snapshot from `LiveDaqSessionState`; the live
-  session editor projects graph/media/statistics state from the live
-  session service and persists through `ISessionCoordinator.SaveLiveCaptureAsync(...)`.
+  throttled diagnostics snapshot from `LiveDaqSessionState` and also
+  owns the disconnected-only Set Time / Replace Config / Upload CONFIG
+  command flow, reusing `ViewModelBase.Notifications` and
+  `ErrorMessages` while keeping management busy state separate from the
+  live connect/disconnect workflow. The live session editor projects
+  graph/media/statistics state from the live session service and
+  persists through `ISessionCoordinator.SaveLiveCaptureAsync(...)`.
 
 `TabPageViewModelBase` (`ViewModels/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
@@ -375,6 +379,7 @@ hover. It no longer carries any navigation surface — that moved to
 The architecture is intended to be tested in layers:
 
 - View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command `IsRunning`, and progress-driven notification updates under a test `SynchronizationContext`.
+- View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command or local busy-state transitions, and progress-driven notification updates under a test `SynchronizationContext`.
 - Coordinator tests assert workflow semantics such as persistence, store writes, branching, result shapes, per-file progress emission, and background-runner usage.
 - Service tests cover infrastructure ownership when the behavior is non-trivial, for example datastore registration, duplicate detection, or one-shot board detection.
 
@@ -399,7 +404,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   concrete shell view model, so the shell can be resolved lazily and
   tested against substitutes.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
-  `ITelemetryDataStoreService`, `IDatabaseService`, `IFilesService`,
+  `IDaqManagementService`, `ITelemetryDataStoreService`,
+  `IDatabaseService`, `IFilesService`,
   `IDialogService`.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
@@ -425,9 +431,11 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   (`PairingClientViewModel`, `PairingServerViewModel`) are optional
   and platform-specific.
 
-Concrete datastore construction, file-picker ownership, and background
-execution stay behind these service registrations rather than being
-created ad hoc in view models.
+Concrete datastore construction, management-protocol ownership,
+file-picker lifetime (including loaded `SelectedDeviceConfigFile`
+results for device CONFIG replacement), and background execution stay
+behind these service registrations rather than being created ad hoc in
+view models.
 
 Platform entry points add (a strict subset depending on the
 platform): `ISecureStorage`, `IServiceDiscovery` (registered as
