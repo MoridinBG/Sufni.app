@@ -142,6 +142,27 @@ public class BikeCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportBikeAsync_SkipsAnalysis_ForInvalidRearSuspensionShape()
+    {
+        var importedBike = new Bike(Guid.NewGuid(), "mismatched import")
+        {
+            HeadAngle = 64,
+            ForkStroke = 150,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            LeverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+        };
+        bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
+            .Returns(new BikeFileImportResult.Imported(importedBike));
+
+        var result = await CreateCoordinator().ImportBikeAsync();
+
+        var imported = Assert.IsType<BikeImportResult.Imported>(result);
+        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
+        await bikeEditorService.DidNotReceiveWithAnyArgs()
+            .LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ExportBikeAsync_DelegatesToBikeEditorService()
     {
         var bike = new Bike(Guid.NewGuid(), "export me") { HeadAngle = 65, ForkStroke = 160 };

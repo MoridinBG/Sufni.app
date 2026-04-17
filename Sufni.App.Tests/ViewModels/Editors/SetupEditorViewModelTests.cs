@@ -136,6 +136,35 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public void SelectedBike_InvalidResolution_ReportsInvalidDescription_AndRestrictsSensorTypes()
+    {
+        var invalidBike = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            LeverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+        };
+        bikesCache.AddOrUpdate(invalidBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: invalidBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        Assert.Equal("Invalid rear suspension", editor.RearSuspensionDescription);
+        Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
+    }
+
+    [AvaloniaFact]
+    public void SelectedBike_HardtailResolution_ReportsHardtailDescription()
+    {
+        var hardtailBike = TestSnapshots.Bike();
+        bikesCache.AddOrUpdate(hardtailBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: hardtailBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        Assert.Equal("Hardtail", editor.RearSuspensionDescription);
+    }
+
+    [AvaloniaFact]
     public void ChangingBike_ClearsIncompatibleRearSensorConfiguration()
     {
         var linkageBike = TestSnapshots.Bike() with
