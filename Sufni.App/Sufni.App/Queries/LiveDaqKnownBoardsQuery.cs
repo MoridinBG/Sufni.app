@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +32,9 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
     private readonly SemaphoreSlim refreshGate = new(1, 1);
     private readonly IDisposable setupSubscription;
     private readonly IDisposable bikeSubscription;
+    private readonly object coalesceGate = new();
+    private bool refreshInProgress;
+    private bool refreshPending;
 
     public LiveDaqKnownBoardsQuery(
         IDatabaseService databaseService,
@@ -41,16 +45,13 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
 
-        setupSubscription = setupStore.Connect().Subscribe(changes =>
-        {
-            _ = RefreshAsync("setup store change");
-        });
-        bikeSubscription = bikeStore.Connect().Subscribe(changes =>
-        {
-            _ = RefreshAsync("bike store change");
-        });
+        // Skip the initial replay from each store — it fires synchronously at
+        // subscription time and would otherwise stack an extra refresh on top
+        // of the explicit initial-load call below.
+        setupSubscription = setupStore.Connect().Skip(1).Subscribe(_ => RequestRefresh("setup store change"));
+        bikeSubscription = bikeStore.Connect().Skip(1).Subscribe(_ => RequestRefresh("bike store change"));
 
-        _ = RefreshAsync("initial load");
+        RequestRefresh("initial load");
     }
 
     public IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes => changesSubject;
@@ -96,6 +97,46 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         bikeSubscription.Dispose();
         refreshGate.Dispose();
         changesSubject.Dispose();
+    }
+
+    // Coalesces overlapping refresh triggers so three near-simultaneous store
+    // changes produce at most two runs (the in-flight one, plus a single
+    // follow-up that batches everything that arrived while it was running).
+    private void RequestRefresh(string reason)
+    {
+        lock (coalesceGate)
+        {
+            if (refreshInProgress)
+            {
+                refreshPending = true;
+                return;
+            }
+
+            refreshInProgress = true;
+        }
+
+        _ = RefreshLoopAsync(reason);
+    }
+
+    private async Task RefreshLoopAsync(string initialReason)
+    {
+        var reason = initialReason;
+        while (true)
+        {
+            await RefreshAsync(reason).ConfigureAwait(false);
+
+            lock (coalesceGate)
+            {
+                if (!refreshPending)
+                {
+                    refreshInProgress = false;
+                    return;
+                }
+
+                refreshPending = false;
+                reason = "coalesced follow-up";
+            }
+        }
     }
 
     private async Task RefreshAsync(string reason)
@@ -144,7 +185,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         var boardId = board.Id.ToString();
         var record = new KnownLiveDaqRecord(
             IdentityKey: boardId,
-            DisplayName: boardId,
+            DisplayName: setupSnapshot?.Name ?? boardId,
             BoardId: boardId,
             SetupId: setupSnapshot?.Id,
             SetupName: setupSnapshot?.Name,

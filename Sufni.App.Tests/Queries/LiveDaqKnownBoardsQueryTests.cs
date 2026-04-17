@@ -38,6 +38,24 @@ public class LiveDaqKnownBoardsQueryTests
     }
 
     [Fact]
+    public async Task Changes_UsesSetupNameAsDisplayName_WhenSetupIsPresent()
+    {
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "enduro setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var bike = TestSnapshots.Bike(id: setup.BikeId, name: "enduro bike");
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        var records = await WaitForRecordsAsync(query.Changes);
+
+        var record = Assert.Single(records);
+        Assert.Equal("enduro setup", record.DisplayName);
+    }
+
+    [Fact]
     public async Task Changes_ReturnsEnrichedRecord_WhenBoardMapsToSetupAndBike()
     {
         var boardId = Guid.NewGuid();
