@@ -26,6 +26,8 @@ internal static class ManagementProtocolConstants
     public const int PongPayloadSize = 0;
 
     public const int MaxPutFileChunkPayloadSize = 512;
+
+    public const int MaxPayloadLength = 64 * 1024;
 }
 
 internal enum ManagementFrameType : ushort

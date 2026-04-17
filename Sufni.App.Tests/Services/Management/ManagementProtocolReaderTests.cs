@@ -150,4 +150,37 @@ public class ManagementProtocolReaderTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             ManagementProtocolReader.CreatePutFileChunkFrame(1, new byte[513]));
     }
+
+    [Fact]
+    public void TryReadFrame_ThrowsWhenPayloadLengthExceedsMaximum()
+    {
+        var reader = new ManagementProtocolReader();
+        var header = new byte[ManagementProtocolConstants.FrameHeaderSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), ManagementProtocolConstants.Magic);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), ManagementProtocolConstants.Version);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(6, 2), (ushort)ManagementFrameType.ListDirectoryDone);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            header.AsSpan(12, 4),
+            (uint)ManagementProtocolConstants.MaxPayloadLength + 1);
+
+        reader.Append(header);
+
+        Assert.Throws<FormatException>(() => reader.TryReadFrame(out _));
+    }
+
+    [Fact]
+    public void ParseHeader_ThrowsWhenPayloadLengthExceedsMaximum()
+    {
+        var header = new byte[ManagementProtocolConstants.FrameHeaderSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), ManagementProtocolConstants.Magic);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), ManagementProtocolConstants.Version);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(6, 2), (ushort)ManagementFrameType.ListDirectoryDone);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            header.AsSpan(12, 4),
+            (uint)ManagementProtocolConstants.MaxPayloadLength + 1);
+
+        Assert.Throws<FormatException>(() => ManagementProtocolReader.ParseHeader(header));
+    }
 }

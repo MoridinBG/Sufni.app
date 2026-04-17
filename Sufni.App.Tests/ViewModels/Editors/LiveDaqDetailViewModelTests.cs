@@ -459,6 +459,46 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task CanManage_BecomesFalse_WhenStoreSnapshotGoesOffline()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.DisconnectCommand.ExecuteAsync(null);
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            ConnectionState = LiveConnectionState.Disconnected,
+            ConnectionStateText = LiveDaqUiSnapshot.ToConnectionStateText(LiveConnectionState.Disconnected)
+        };
+
+        liveDaqStore.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: "192.168.0.50",
+            Port: 1557,
+            IsOnline: true,
+            SetupName: "race",
+            BikeName: "demo"));
+        await Task.Yield();
+
+        Assert.True(editor.CanManage);
+
+        liveDaqStore.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: null,
+            Port: null,
+            IsOnline: false,
+            SetupName: "race",
+            BikeName: "demo"));
+        await Task.Yield();
+
+        Assert.False(editor.CanManage);
+    }
+
+    [AvaloniaFact]
     public async Task SetTimeCompletion_DoesNotOverwriteLiveConnectionState()
     {
         var serviceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

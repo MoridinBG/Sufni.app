@@ -185,6 +185,12 @@ internal sealed class ManagementProtocolReader
             throw new FormatException($"Management protocol version {header.Version} is not supported.");
         }
 
+        if (header.PayloadLength > ManagementProtocolConstants.MaxPayloadLength)
+        {
+            throw new FormatException(
+                $"Management frame payload length {header.PayloadLength} exceeds maximum {ManagementProtocolConstants.MaxPayloadLength}.");
+        }
+
         return header;
     }
 
