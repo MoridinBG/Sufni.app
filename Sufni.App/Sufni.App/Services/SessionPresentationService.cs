@@ -1,5 +1,6 @@
 using System.Threading;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;

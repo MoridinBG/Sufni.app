@@ -11,7 +11,6 @@ using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 

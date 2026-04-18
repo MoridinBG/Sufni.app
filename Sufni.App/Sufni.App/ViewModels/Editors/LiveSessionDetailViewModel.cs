@@ -9,7 +9,6 @@ using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
