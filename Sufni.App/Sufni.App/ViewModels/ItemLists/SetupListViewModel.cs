@@ -95,20 +95,18 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SetupRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(() => RequestRowDeleteAsync(row));
-    }
+        _ = RunPendingDeleteInteractionAsync(async () =>
+        {
+            var snapshot = setupStore.Get(row.Id);
+            if (snapshot is null) return;
 
-    private async Task RequestRowDeleteAsync(SetupRowViewModel row)
-    {
-        var snapshot = setupStore.Get(row.Id);
-        if (snapshot is null) return;
+            await FlushPendingDeleteAsync();
 
-        await FlushPendingDeleteAsync();
+            pendingDelete = (snapshot.Id, snapshot.Name);
+            RebuildFilter();
 
-        pendingDelete = (snapshot.Id, snapshot.Name);
-        RebuildFilter();
-
-        StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
+            StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
+        });
     }
 
     private async Task FinalizeSetupDeleteAsync(Guid setupId)

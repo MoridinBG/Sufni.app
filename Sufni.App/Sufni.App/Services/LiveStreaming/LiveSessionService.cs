@@ -18,16 +18,6 @@ internal sealed class LiveSessionServiceFactory(
     IBackgroundTaskRunner backgroundTaskRunner,
     ILiveGraphPipelineFactory liveGraphPipelineFactory) : ILiveSessionServiceFactory
 {
-    public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStream sharedStream)
-    {
-        return new LiveSessionService(
-            context,
-            sharedStream,
-            sessionPresentationService,
-            backgroundTaskRunner,
-            liveGraphPipelineFactory.Create());
-    }
-
     public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStreamReservation sharedStreamReservation)
     {
         return new LiveSessionService(
@@ -97,31 +87,16 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     public LiveSessionService(
         LiveDaqSessionContext context,
-        ILiveDaqSharedStream sharedStream,
+        ILiveDaqSharedStreamReservation sharedStreamReservation,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ILiveGraphPipeline graphPipeline)
     {
         this.context = context;
-        this.sharedStream = sharedStream;
+        sharedStream = sharedStreamReservation.Stream;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.graphPipeline = graphPipeline;
-    }
-
-    public LiveSessionService(
-        LiveDaqSessionContext context,
-        ILiveDaqSharedStreamReservation sharedStreamReservation,
-        ISessionPresentationService sessionPresentationService,
-        IBackgroundTaskRunner backgroundTaskRunner,
-        ILiveGraphPipeline graphPipeline)
-        : this(
-            context,
-            sharedStreamReservation.Stream,
-            sessionPresentationService,
-            backgroundTaskRunner,
-            graphPipeline)
-    {
         this.sharedStreamReservation = sharedStreamReservation;
     }
 

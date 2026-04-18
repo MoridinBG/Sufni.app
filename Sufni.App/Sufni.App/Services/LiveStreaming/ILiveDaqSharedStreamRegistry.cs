@@ -10,6 +10,5 @@ public interface ILiveDaqSharedStreamReservation : IAsyncDisposable
 
 public interface ILiveDaqSharedStreamRegistry
 {
-    ILiveDaqSharedStream GetOrCreate(LiveDaqSnapshot snapshot);
     ILiveDaqSharedStreamReservation Reserve(LiveDaqSnapshot snapshot);
 }

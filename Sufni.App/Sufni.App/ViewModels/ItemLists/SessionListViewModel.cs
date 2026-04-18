@@ -113,20 +113,18 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SessionRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(() => RequestRowDeleteAsync(row));
-    }
+        _ = RunPendingDeleteInteractionAsync(async () =>
+        {
+            var snapshot = sessionStore.Get(row.Id);
+            if (snapshot is null) return;
 
-    private async Task RequestRowDeleteAsync(SessionRowViewModel row)
-    {
-        var snapshot = sessionStore.Get(row.Id);
-        if (snapshot is null) return;
+            await FlushPendingDeleteAsync();
 
-        await FlushPendingDeleteAsync();
+            pendingDelete = (snapshot.Id, snapshot.Name);
+            RebuildFilter();
 
-        pendingDelete = (snapshot.Id, snapshot.Name);
-        RebuildFilter();
-
-        StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
+            StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
+        });
     }
 
     private async Task FinalizeSessionDeleteAsync(Guid sessionId)

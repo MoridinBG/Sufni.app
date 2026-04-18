@@ -115,7 +115,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
-        ILiveDaqSharedStream sharedStream,
+        ILiveDaqSharedStreamReservation sharedStreamReservation,
         ILiveDaqCoordinator liveDaqCoordinator,
         IDaqManagementService daqManagementService,
         IFilesService filesService,
@@ -125,6 +125,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         ILiveDaqStore liveDaqStore)
         : base(shell, dialogService)
     {
+        var sharedStream = sharedStreamReservation.Stream;
+
         IdentityKey = snapshot.IdentityKey;
         BoardId = snapshot.BoardId;
         Endpoint = snapshot.Endpoint;
@@ -144,29 +146,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         uiRefreshTimer = CreateUiRefreshTimer();
         RefreshSharedStreamState();
         RefreshSnapshot();
-    }
-
-    public LiveDaqDetailViewModel(
-        LiveDaqSnapshot snapshot,
-        ILiveDaqSharedStreamReservation sharedStreamReservation,
-        ILiveDaqCoordinator liveDaqCoordinator,
-        IDaqManagementService daqManagementService,
-        IFilesService filesService,
-        IShellCoordinator shell,
-        IDialogService dialogService,
-        ILiveDaqKnownBoardsQuery knownBoardsQuery,
-        ILiveDaqStore liveDaqStore)
-        : this(
-            snapshot,
-            sharedStreamReservation.Stream,
-            liveDaqCoordinator,
-            daqManagementService,
-            filesService,
-            shell,
-            dialogService,
-            knownBoardsQuery,
-            liveDaqStore)
-    {
         this.sharedStreamReservation = sharedStreamReservation;
     }
 

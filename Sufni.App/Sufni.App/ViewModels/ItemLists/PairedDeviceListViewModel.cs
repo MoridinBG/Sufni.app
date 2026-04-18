@@ -79,22 +79,20 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(PairedDeviceRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(() => RequestRowDeleteAsync(row));
-    }
+        _ = RunPendingDeleteInteractionAsync(async () =>
+        {
+            var snapshot = pairedDeviceStore.Get(row.DeviceId);
+            if (snapshot is null) return;
 
-    private async Task RequestRowDeleteAsync(PairedDeviceRowViewModel row)
-    {
-        var snapshot = pairedDeviceStore.Get(row.DeviceId);
-        if (snapshot is null) return;
+            await FlushPendingDeleteAsync();
 
-        await FlushPendingDeleteAsync();
+            var displayName =
+                string.IsNullOrWhiteSpace(snapshot.DisplayName) ? snapshot.DeviceId : snapshot.DisplayName!;
+            pendingDelete = (snapshot.DeviceId, displayName);
+            RebuildFilter();
 
-        var displayName =
-            string.IsNullOrWhiteSpace(snapshot.DisplayName) ? snapshot.DeviceId : snapshot.DisplayName!;
-        pendingDelete = (snapshot.DeviceId, displayName);
-        RebuildFilter();
-
-        StartUndoWindow(displayName, () => FinalizeUnpairAsync(snapshot.DeviceId));
+            StartUndoWindow(displayName, () => FinalizeUnpairAsync(snapshot.DeviceId));
+        });
     }
 
     private async Task FinalizeUnpairAsync(string deviceId)
