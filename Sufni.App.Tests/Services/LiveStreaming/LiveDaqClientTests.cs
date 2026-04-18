@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -299,6 +300,17 @@ public class LiveDaqClientTests
     }
 
     [Fact]
+    public async Task DisposeAsync_DisposesLifecycleGate()
+    {
+        var client = new LiveDaqClient();
+        var lifecycleGate = GetSemaphoreSlim(client, "lifecycleGate");
+
+        await client.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => lifecycleGate.Wait(0));
+    }
+
+    [Fact]
     public async Task CreateClient_ReturnsDistinctInstances()
     {
         var factory = new LiveDaqClientFactory(new BackgroundTaskRunner());
@@ -332,6 +344,13 @@ public class LiveDaqClientTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    private static SemaphoreSlim GetSemaphoreSlim(object target, string fieldName)
+    {
+        return (SemaphoreSlim)target.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(target)!;
     }
 
     private sealed class TrackingTcpClient : TcpClient

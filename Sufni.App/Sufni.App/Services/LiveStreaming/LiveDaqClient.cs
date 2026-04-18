@@ -313,6 +313,11 @@ internal sealed class LiveDaqClient : ILiveDaqClient
 
     public async ValueTask DisposeAsync()
     {
+        if (isDisposed)
+        {
+            return;
+        }
+
         await lifecycleGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
@@ -332,6 +337,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
         events.OnCompleted();
         receiveLoopCts?.Dispose();
         tcpClient?.Dispose();
+        lifecycleGate.Dispose();
     }
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
