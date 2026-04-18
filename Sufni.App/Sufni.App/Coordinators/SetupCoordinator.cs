@@ -99,6 +99,7 @@ public sealed class SetupCoordinator(
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
+            shell.GoBack();
 
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Updated);

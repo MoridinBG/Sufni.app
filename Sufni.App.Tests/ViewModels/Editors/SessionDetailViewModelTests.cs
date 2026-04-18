@@ -106,7 +106,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnMobile_NavigatesBack()
+    public async Task Save_OnMobile_DoesNotNavigateDirectly()
     {
         var snapshot = TestSnapshots.Session(updated: 5);
         var editor = CreateEditor(snapshot);
@@ -118,7 +118,7 @@ public class SessionDetailViewModelTests
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
     }
 
     [AvaloniaFact]

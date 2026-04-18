@@ -25,7 +25,8 @@ public partial class LinkageEditorViewModel : ObservableObject
     private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
     private bool suppressChangeNotifications;
 
-    public event EventHandler<LinkageEditorChange>? Changed;
+    public event EventHandler? PreviewChanged;
+    public event EventHandler? StateChanged;
 
     public ReadOnlyObservableCollection<JointViewModel> JointViewModels { get; }
     public ReadOnlyObservableCollection<LinkViewModel> LinkViewModels { get; }
@@ -50,7 +51,6 @@ public partial class LinkageEditorViewModel : ObservableObject
         ClearSelections();
         value.IsSelected = true;
         SelectedPoint = null;
-        RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.SelectionChanged, link: value));
     }
 
     partial void OnSelectedPointChanged(JointViewModel? value)
@@ -60,7 +60,6 @@ public partial class LinkageEditorViewModel : ObservableObject
         ClearSelections();
         value.IsSelected = true;
         SelectedLink = null;
-        RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.SelectionChanged, joint: value));
     }
 
     public void Load(Linkage? linkage, double? imageHeight, double? pixelsToMillimeters)
@@ -255,11 +254,18 @@ public partial class LinkageEditorViewModel : ObservableObject
         }
     }
 
-    private void RaiseChanged(LinkageEditorChange change)
+    private void RaisePreviewChanged()
     {
         if (suppressChangeNotifications) return;
 
-        Changed?.Invoke(this, change);
+        PreviewChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseStateChanged()
+    {
+        if (suppressChangeNotifications) return;
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ClearSelections()
@@ -287,17 +293,17 @@ public partial class LinkageEditorViewModel : ObservableObject
             {
                 case nameof(jointViewModel.WasPossiblyDragged) when jointViewModel.WasPossiblyDragged:
                     jointViewModel.WasPossiblyDragged = false;
-                    RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.DragCompleted, jointViewModel));
+                    RaiseStateChanged();
                     break;
 
                 case nameof(jointViewModel.Name):
                 case nameof(jointViewModel.Type):
-                    RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.JointMetadataChanged, jointViewModel));
+                    RaiseStateChanged();
                     break;
 
                 case nameof(jointViewModel.X):
                 case nameof(jointViewModel.Y):
-                    RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.JointCoordinatesChanged, jointViewModel));
+                    RaisePreviewChanged();
                     break;
             }
         };
@@ -333,7 +339,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
             if (eventArgs.PropertyName is nameof(linkViewModel.A) or nameof(linkViewModel.B))
             {
-                RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.LinkEndpointsChanged, link: linkViewModel));
+                RaiseStateChanged();
             }
         };
 
@@ -393,7 +399,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
             if (suppressChangeNotifications) return;
 
-            RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.JointStructureChanged));
+            RaiseStateChanged();
         };
     }
 
@@ -432,7 +438,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
             if (suppressChangeNotifications) return;
 
-            RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.LinkStructureChanged));
+            RaiseStateChanged();
         };
     }
 

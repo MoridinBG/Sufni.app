@@ -273,7 +273,7 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnMobile_NavigatesBack()
+    public async Task Save_OnMobile_DoesNotNavigateDirectly()
     {
         var bike = TestSnapshots.Bike();
         bikesCache.AddOrUpdate(bike);
@@ -291,7 +291,7 @@ public class SetupEditorViewModelTests
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
     }
 
     [AvaloniaFact]

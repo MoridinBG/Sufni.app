@@ -18,7 +18,9 @@ using Sufni.App.ViewModels.LinkageEditing;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
 using BikeModel = Sufni.App.Models.Bike;
+using BikeImageCanvasViewModel = Sufni.App.ViewModels.Editors.Bike.BikeImageCanvasViewModel;
 using BikeRearSuspensionEditorState = Sufni.App.ViewModels.Editors.Bike.BikeRearSuspensionEditorState;
+using BikeWheelGeometryViewModel = Sufni.App.ViewModels.Editors.Bike.BikeWheelGeometryViewModel;
 using LeverageRatioBikeEditorViewModel = Sufni.App.ViewModels.Editors.Bike.LeverageRatioEditorViewModel;
 
 namespace Sufni.App.ViewModels.Editors;
@@ -63,6 +65,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
     private readonly CancellableOperation analysisOperation = new();
     private readonly CancellableOperation imageOperation = new();
     private readonly CancellableOperation importOperation = new();
+    private readonly CancellableOperation leverageRatioImportOperation = new();
     // Guard edit-time callbacks while a snapshot is being applied.
     private bool isReplacingState;
     private bool suppressRearSuspensionModeChange;
@@ -198,7 +201,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         acceptedSnapshot = BikeSnapshot.From(new BikeModel(Guid.Empty, string.Empty));
         IsInDatabase = false;
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
-        LinkageEditor.Changed += OnLinkageEditorChanged;
+        LeverageRatioEditor.ImportCommand = ImportLeverageRatioCommand;
+        LinkageEditor.PreviewChanged += OnLinkageEditorPreviewChanged;
+        LinkageEditor.StateChanged += OnLinkageEditorStateChanged;
         LeverageRatioEditor.Changed += OnLeverageRatioEditorChanged;
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
         ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
@@ -217,8 +222,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         this.dependencyQuery = dependencyQuery;
         IsInDatabase = !isNew;
         acceptedSnapshot = snapshot;
-        LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(bikeCoordinator.ImportLeverageRatioAsync, CanChangeRearSuspensionMode);
-        LinkageEditor.Changed += OnLinkageEditorChanged;
+        LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
+        LeverageRatioEditor.ImportCommand = ImportLeverageRatioCommand;
+        LinkageEditor.PreviewChanged += OnLinkageEditorPreviewChanged;
+        LinkageEditor.StateChanged += OnLinkageEditorStateChanged;
         LeverageRatioEditor.Changed += OnLeverageRatioEditorChanged;
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
         ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
@@ -614,76 +621,44 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         SaveCommand.NotifyCanExecuteChanged();
         ResetCommand.NotifyCanExecuteChanged();
         ExportCommand.NotifyCanExecuteChanged();
+        ImportLeverageRatioCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnLinkageEditorChanged(object? sender, LinkageEditorChange change)
+    private void RefreshLinkagePreview()
     {
-        if (IsReplacingState) return;
-        if (!IsLinkageMode) return;
+        UpdatePixelsToMillimeters();
+        WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
+        ImageCanvas.RefreshLayout(LinkageEditor.GetJointBounds(), WheelGeometry.GetWheelBounds());
+        RecalculateHeadAngle();
+        TryClearRearSuspensionLoadError();
+    }
 
-        switch (change.Kind)
+    private void RefreshLinkageState()
+    {
+        RefreshLinkagePreview();
+        LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
+    }
+
+    private void OnLinkageEditorPreviewChanged(object? sender, EventArgs e)
+    {
+        if (IsReplacingState || !IsLinkageMode)
         {
-            case LinkageEditorChangeKind.JointStructureChanged:
-                EvaluateDirtiness();
-                NotifyEditorCommandStatesChanged();
-                LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
-                WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
-                ImageCanvas.RefreshLayout(LinkageEditor.GetJointBounds(), WheelGeometry.GetWheelBounds());
-                RecalculateHeadAngle();
-                TryClearRearSuspensionLoadError();
-                break;
-
-            case LinkageEditorChangeKind.LinkStructureChanged:
-                EvaluateDirtiness();
-                NotifyEditorCommandStatesChanged();
-                LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
-                TryClearRearSuspensionLoadError();
-                break;
-
-            case LinkageEditorChangeKind.JointMetadataChanged:
-                EvaluateDirtiness();
-                NotifyEditorCommandStatesChanged();
-                if (change.Joint?.Type == JointType.HeadTube)
-                {
-                    RecalculateHeadAngle();
-                }
-                TryClearRearSuspensionLoadError();
-                break;
-
-            case LinkageEditorChangeKind.JointCoordinatesChanged:
-                if (change.Joint?.Type is JointType.BottomBracket or JointType.RearWheel)
-                {
-                    UpdatePixelsToMillimeters();
-                }
-
-                if (change.Joint?.Type is JointType.FrontWheel or JointType.RearWheel)
-                {
-                    WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
-                }
-
-                ImageCanvas.RefreshLayout(LinkageEditor.GetJointBounds(), WheelGeometry.GetWheelBounds());
-                RecalculateHeadAngle();
-                TryClearRearSuspensionLoadError();
-                break;
-
-            case LinkageEditorChangeKind.LinkEndpointsChanged:
-                EvaluateDirtiness();
-                NotifyEditorCommandStatesChanged();
-                TryClearRearSuspensionLoadError();
-                break;
-
-            case LinkageEditorChangeKind.DragCompleted:
-                EvaluateDirtiness();
-                NotifyEditorCommandStatesChanged();
-                TryClearRearSuspensionLoadError();
-                break;
-
-            case LinkageEditorChangeKind.SelectionChanged:
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException();
+            return;
         }
+
+        RefreshLinkagePreview();
+    }
+
+    private void OnLinkageEditorStateChanged(object? sender, EventArgs e)
+    {
+        if (IsReplacingState || !IsLinkageMode)
+        {
+            return;
+        }
+
+        RefreshLinkageState();
+        EvaluateDirtiness();
+        NotifyEditorCommandStatesChanged();
     }
 
     private void OnWheelGeometryPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1020,12 +995,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
 
                 DeleteCommand.NotifyCanExecuteChanged();
                 FakeDeleteCommand.NotifyCanExecuteChanged();
-
-                Debug.Assert(App.Current is not null);
-                if (!App.Current.IsDesktop)
-                {
-                    OpenPreviousPage();
-                }
                 break;
 
             case BikeSaveResult.Conflict conflict:
@@ -1148,6 +1117,29 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
+    private bool CanImportLeverageRatio() =>
+        bikeCoordinator is not null &&
+        LeverageRatioEditor.CanEdit &&
+        IsLeverageRatioMode;
+
+    [RelayCommand(CanExecute = nameof(CanImportLeverageRatio))]
+    private async Task ImportLeverageRatio()
+    {
+        if (bikeCoordinator is null) return;
+
+        var token = leverageRatioImportOperation.Start();
+        try
+        {
+            var result = await bikeCoordinator.ImportLeverageRatioAsync(token);
+            if (token.IsCancellationRequested) return;
+
+            LeverageRatioEditor.ApplyImportResult(result);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+    }
+
     [RelayCommand]
     private async Task Import()
     {
@@ -1201,6 +1193,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         analysisOperation.Cancel();
         imageOperation.Cancel();
         importOperation.Cancel();
+        leverageRatioImportOperation.Cancel();
     }
 
     #endregion Commands

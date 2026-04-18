@@ -208,6 +208,7 @@ public sealed class BikeCoordinator(
             await databaseService.PutAsync(bike);
             var saved = BikeSnapshot.From(bike);
             bikeStore.Upsert(saved);
+            shell.GoBack();
 
             logger.Information("Bike save completed for {BikeId}", bike.Id);
             return new BikeSaveResult.Saved(saved.Updated, analysisResult);

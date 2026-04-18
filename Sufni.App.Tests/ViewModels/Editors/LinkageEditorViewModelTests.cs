@@ -135,18 +135,22 @@ public class LinkageEditorViewModelTests
         baseline.ResolveJoints();
 
         var viewModel = new LinkageEditorViewModel();
-        var changes = new List<LinkageEditorChange>();
-        viewModel.Changed += (_, change) => changes.Add(change);
+        var previewChanges = 0;
+        var stateChanges = 0;
+        viewModel.PreviewChanged += (_, _) => previewChanges++;
+        viewModel.StateChanged += (_, _) => stateChanges++;
 
         viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
         var removedJoint = Assert.Single(viewModel.JointViewModels, joint => joint.Name == "Detached point");
         viewModel.SelectedPoint = removedJoint;
         viewModel.DeleteSelectedItemCommand.Execute(null);
-        changes.Clear();
+        previewChanges = 0;
+        stateChanges = 0;
 
         removedJoint.Name = "Detached point renamed";
 
-        Assert.Empty(changes);
+        Assert.Equal(0, previewChanges);
+        Assert.Equal(0, stateChanges);
     }
 
     [AvaloniaFact]
@@ -159,8 +163,10 @@ public class LinkageEditorViewModelTests
         baseline.ResolveJoints();
 
         var viewModel = new LinkageEditorViewModel();
-        var changes = new List<LinkageEditorChange>();
-        viewModel.Changed += (_, change) => changes.Add(change);
+        var previewChanges = 0;
+        var stateChanges = 0;
+        viewModel.PreviewChanged += (_, _) => previewChanges++;
+        viewModel.StateChanged += (_, _) => stateChanges++;
 
         viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
         var removedLink = Assert.Single(
@@ -168,11 +174,58 @@ public class LinkageEditorViewModelTests
             link => link.A?.Name == baseline.Joints[0].Name && link.B?.Name == detachedPoint.Name);
         viewModel.SelectedLink = removedLink;
         viewModel.DeleteSelectedItemCommand.Execute(null);
-        changes.Clear();
+        previewChanges = 0;
+        stateChanges = 0;
 
         removedLink.A = viewModel.JointViewModels[2];
 
-        Assert.Empty(changes);
+        Assert.Equal(0, previewChanges);
+        Assert.Equal(0, stateChanges);
+    }
+
+    [AvaloniaFact]
+    public void MovingJoint_RaisesPreviewChanged_AndDragCompletionRaisesStateChanged()
+    {
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var viewModel = new LinkageEditorViewModel();
+        var previewChanges = 0;
+        var stateChanges = 0;
+        viewModel.PreviewChanged += (_, _) => previewChanges++;
+        viewModel.StateChanged += (_, _) => stateChanges++;
+
+        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        previewChanges = 0;
+        stateChanges = 0;
+
+        var joint = Assert.Single(viewModel.JointViewModels, item => item.Type == JointType.FrontWheel);
+        joint.X += 10;
+
+        Assert.Equal(1, previewChanges);
+        Assert.Equal(0, stateChanges);
+
+        joint.WasPossiblyDragged = true;
+
+        Assert.Equal(1, previewChanges);
+        Assert.Equal(1, stateChanges);
+    }
+
+    [AvaloniaFact]
+    public void Selection_DoesNotRaisePreviewOrStateChanged()
+    {
+        var viewModel = new LinkageEditorViewModel();
+        var previewChanges = 0;
+        var stateChanges = 0;
+        viewModel.PreviewChanged += (_, _) => previewChanges++;
+        viewModel.StateChanged += (_, _) => stateChanges++;
+
+        viewModel.AddInitialJoints();
+        previewChanges = 0;
+        stateChanges = 0;
+
+        viewModel.SelectedPoint = Assert.Single(viewModel.JointViewModels, joint => joint.Type == JointType.FrontWheel);
+
+        Assert.Equal(0, previewChanges);
+        Assert.Equal(0, stateChanges);
     }
 
     [AvaloniaFact]

@@ -317,12 +317,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
                 IsInDatabase = true;
                 EvaluateDirtiness();
-
-                Debug.Assert(App.Current is not null);
-                if (!App.Current.IsDesktop)
-                {
-                    OpenPreviousPage();
-                }
                 break;
 
             case SetupSaveResult.Conflict conflict:
