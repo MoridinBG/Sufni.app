@@ -203,6 +203,7 @@ public class BikeCoordinatorTests
             s.RearWheelDiameterMm == 750 &&
             s.ImageRotationDegrees == 13.5 &&
             s.Updated == 7));
+        shell.Received(1).GoBack();
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
@@ -223,6 +224,7 @@ public class BikeCoordinatorTests
         Assert.Same(current, conflict.CurrentSnapshot);
         await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -239,6 +241,7 @@ public class BikeCoordinatorTests
 
         Assert.IsType<BikeSaveResult.Failed>(result);
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -268,6 +271,7 @@ public class BikeCoordinatorTests
         Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
         await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     // ----- DeleteAsync -----

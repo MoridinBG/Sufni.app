@@ -88,6 +88,7 @@ public class SessionCoordinatorTests
         await database.Received(1).GetSessionAsync(existing.Id);
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7 && s.HasProcessedData));
+        shell.Received(1).GoBack();
         var saved = Assert.IsType<SessionSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
     }
@@ -105,6 +106,7 @@ public class SessionCoordinatorTests
 
         Assert.IsType<SessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -121,6 +123,7 @@ public class SessionCoordinatorTests
         Assert.Same(current, conflict.CurrentSnapshot);
         await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -136,6 +139,7 @@ public class SessionCoordinatorTests
 
         Assert.IsType<SessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]

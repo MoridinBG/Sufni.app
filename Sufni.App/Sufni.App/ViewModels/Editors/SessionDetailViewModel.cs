@@ -387,12 +387,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                 session.Updated = saved.NewBaselineUpdated;
                 BaselineUpdated = saved.NewBaselineUpdated;
                 IsDirty = false;
-
-                Debug.Assert(App.Current is not null);
-                if (!App.Current.IsDesktop)
-                {
-                    OpenPreviousPage();
-                }
                 break;
 
             case SessionSaveResult.Conflict conflict:

@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
 
-namespace Sufni.App.ViewModels.Editors;
+namespace Sufni.App.ViewModels.Editors.Bike;
 
 public partial class BikeImageCanvasViewModel : ObservableObject
 {

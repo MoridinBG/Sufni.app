@@ -31,6 +31,8 @@ public class BikeEditorViewModelTests
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
+        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
         bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
@@ -463,7 +465,7 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnForkOnlyBike_OnMobile_NavigatesBack()
+    public async Task Save_OnForkOnlyBike_OnMobile_DoesNotNavigateDirectly()
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
@@ -475,7 +477,7 @@ public class BikeEditorViewModelTests
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
     }
 
     [AvaloniaFact]
@@ -991,5 +993,36 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("imported bike", editor.Name);
         Assert.Equal(importedData, editor.LeverageRatioData);
+    }
+
+    [AvaloniaFact]
+    public async Task ImportLeverageRatio_AppliesImportedCurve_ThroughParentCommand()
+    {
+        var snapshot = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)));
+        var editor = CreateEditor(snapshot);
+        var imported = TestSnapshots.LeverageRatioCurve((0, 0), (20, 50), (40, 90));
+
+        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Imported(imported)));
+
+        await editor.ImportLeverageRatioCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).ImportLeverageRatioAsync(Arg.Any<CancellationToken>());
+        Assert.Equal(imported, editor.LeverageRatioEditor.BuildCurrent());
+        Assert.Empty(editor.LeverageRatioEditor.ValidationErrors);
+    }
+
+    [AvaloniaFact]
+    public async Task ImportLeverageRatio_SurfacesValidationErrors_ThroughChildState()
+    {
+        var snapshot = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)));
+        var editor = CreateEditor(snapshot);
+
+        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Invalid(["bad csv"])));
+
+        await editor.ImportLeverageRatioCommand.ExecuteAsync(null);
+
+        Assert.Equal(["bad csv"], editor.LeverageRatioEditor.ValidationErrors);
     }
 }

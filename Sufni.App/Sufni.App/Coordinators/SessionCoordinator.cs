@@ -233,6 +233,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
             }
             var saved = SessionSnapshot.From(fresh);
             sessionStore.Upsert(saved);
+            shell.GoBack();
 
             logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Updated);

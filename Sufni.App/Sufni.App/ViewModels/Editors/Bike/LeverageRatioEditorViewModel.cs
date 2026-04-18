@@ -12,26 +12,22 @@ namespace Sufni.App.ViewModels.Editors.Bike;
 
 public sealed partial class LeverageRatioEditorViewModel : ObservableObject
 {
-    private readonly Func<CancellationToken, Task<LeverageRatioImportResult>>? importCsvAsync;
-
     [ObservableProperty] private LeverageRatio? value;
     [ObservableProperty] private ObservableCollection<LeverageRatioPoint> pointsView = [];
     [ObservableProperty] private string[] validationErrors = [];
     [ObservableProperty] private CoordinateList? leverageRatioPlotData;
     [ObservableProperty] private bool canEdit;
-    [ObservableProperty] private bool isBusy;
 
     public event EventHandler? Changed;
+
+    public IRelayCommand? ImportCommand { get; set; }
 
     public int PointCount => Value?.Points.Count ?? 0;
     public double? MaxShockStroke => Value?.MaxShockStroke;
     public double? MaxWheelTravel => Value?.MaxWheelTravel;
 
-    public LeverageRatioEditorViewModel(
-        Func<CancellationToken, Task<LeverageRatioImportResult>>? importCsvAsync = null,
-        bool canEdit = true)
+    public LeverageRatioEditorViewModel(bool canEdit = true)
     {
-        this.importCsvAsync = importCsvAsync;
         CanEdit = canEdit;
     }
 
@@ -47,13 +43,12 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(PointCount));
         OnPropertyChanged(nameof(MaxShockStroke));
         OnPropertyChanged(nameof(MaxWheelTravel));
-        ImportCsvCommand.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnCanEditChanged(bool value)
     {
-        ImportCsvCommand.NotifyCanExecuteChanged();
+        ImportCommand?.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
     }
 
@@ -70,45 +65,26 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
         Value = initial;
     }
 
-    private bool CanImportCsv() => CanEdit && importCsvAsync is not null && !IsBusy;
-
-    [RelayCommand(CanExecute = nameof(CanImportCsv))]
-    private async Task ImportCsv()
+    public void ApplyImportResult(LeverageRatioImportResult result)
     {
-        if (importCsvAsync is null)
+        switch (result)
         {
-            return;
-        }
+            case LeverageRatioImportResult.Imported imported:
+                ValidationErrors = [];
+                Value = imported.Value;
+                Changed?.Invoke(this, EventArgs.Empty);
+                break;
 
-        IsBusy = true;
-        ImportCsvCommand.NotifyCanExecuteChanged();
-        try
-        {
-            var result = await importCsvAsync(CancellationToken.None);
-            switch (result)
-            {
-                case LeverageRatioImportResult.Imported imported:
-                    ValidationErrors = [];
-                    Value = imported.Value;
-                    Changed?.Invoke(this, EventArgs.Empty);
-                    break;
+            case LeverageRatioImportResult.Invalid invalid:
+                ValidationErrors = invalid.ErrorMessages;
+                break;
 
-                case LeverageRatioImportResult.Invalid invalid:
-                    ValidationErrors = invalid.ErrorMessages;
-                    break;
+            case LeverageRatioImportResult.Failed failed:
+                ValidationErrors = [failed.ErrorMessage];
+                break;
 
-                case LeverageRatioImportResult.Failed failed:
-                    ValidationErrors = [failed.ErrorMessage];
-                    break;
-
-                case LeverageRatioImportResult.Canceled:
-                    break;
-            }
-        }
-        finally
-        {
-            IsBusy = false;
-            ImportCsvCommand.NotifyCanExecuteChanged();
+            case LeverageRatioImportResult.Canceled:
+                break;
         }
     }
 
