@@ -52,6 +52,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly CancellableOperation loadOperation = new();
     private bool lastObservedHasProcessedData;
     private SessionPresentationDimensions? lastPresentationDimensions;
+    private bool suppressDirtinessEvaluation;
     private bool viewLoaded;
 
     #endregion Private fields
@@ -302,9 +303,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         MapViewModel = new MapViewModel(tileLayerService, dialogService);
         _ = MapViewModel.InitializeAsync();
 
-        NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
-        NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
-        NotesPage.PropertyChanged += (_, _) => EvaluateDirtiness();
+        NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
+        NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
+        NotesPage.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
 
         ResetImplementation();
     }
@@ -332,6 +333,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             Updated = snapshot.Updated,
         };
         return s;
+    }
+
+    private void EvaluateDirtinessFromPageChange()
+    {
+        if (suppressDirtinessEvaluation)
+        {
+            return;
+        }
+
+        EvaluateDirtiness();
     }
 
     #endregion Private methods
@@ -403,21 +414,31 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     protected override Task ResetImplementation()
     {
-        Id = session.Id;
-        Name = session.Name;
+        suppressDirtinessEvaluation = true;
+        try
+        {
+            Id = session.Id;
+            Name = session.Name;
 
-        NotesPage.Description = session.Description;
-        NotesPage.ForkSettings.SpringRate = session.FrontSpringRate;
-        NotesPage.ForkSettings.HighSpeedCompression = session.FrontHighSpeedCompression;
-        NotesPage.ForkSettings.LowSpeedCompression = session.FrontLowSpeedCompression;
-        NotesPage.ForkSettings.LowSpeedRebound = session.FrontLowSpeedRebound;
-        NotesPage.ForkSettings.HighSpeedRebound = session.FrontHighSpeedRebound;
+            NotesPage.Description = session.Description;
+            NotesPage.ForkSettings.SpringRate = session.FrontSpringRate;
+            NotesPage.ForkSettings.HighSpeedCompression = session.FrontHighSpeedCompression;
+            NotesPage.ForkSettings.LowSpeedCompression = session.FrontLowSpeedCompression;
+            NotesPage.ForkSettings.LowSpeedRebound = session.FrontLowSpeedRebound;
+            NotesPage.ForkSettings.HighSpeedRebound = session.FrontHighSpeedRebound;
 
-        NotesPage.ShockSettings.SpringRate = session.RearSpringRate;
-        NotesPage.ShockSettings.HighSpeedCompression = session.RearHighSpeedCompression;
-        NotesPage.ShockSettings.LowSpeedCompression = session.RearLowSpeedCompression;
-        NotesPage.ShockSettings.LowSpeedRebound = session.RearLowSpeedRebound;
-        NotesPage.ShockSettings.HighSpeedRebound = session.RearHighSpeedRebound;
+            NotesPage.ShockSettings.SpringRate = session.RearSpringRate;
+            NotesPage.ShockSettings.HighSpeedCompression = session.RearHighSpeedCompression;
+            NotesPage.ShockSettings.LowSpeedCompression = session.RearLowSpeedCompression;
+            NotesPage.ShockSettings.LowSpeedRebound = session.RearLowSpeedRebound;
+            NotesPage.ShockSettings.HighSpeedRebound = session.RearHighSpeedRebound;
+        }
+        finally
+        {
+            suppressDirtinessEvaluation = false;
+        }
+
+        EvaluateDirtiness();
 
         Timestamp = DateTimeOffset.FromUnixTimeSeconds(session.Timestamp ?? 0).LocalDateTime;
 
