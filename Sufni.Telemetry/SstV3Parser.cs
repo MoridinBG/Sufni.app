@@ -73,14 +73,32 @@ public class SstV3Parser : ISstParser
 
         var front = new int[count];
         var rear = new int[count];
+        var frontPresent = count > 0;
+        var rearPresent = count > 0;
         for (var i = 0; i < count; i++)
         {
-            var f = (int)reader.ReadUInt16();
-            var r = (int)reader.ReadUInt16();
-            if (f >= SignedEncoderThreshold) f -= SignedEncoderRange;
-            if (r >= SignedEncoderThreshold) r -= SignedEncoderRange;
-            front[i] = f;
-            rear[i] = r;
+            var rawFront = reader.ReadUInt16();
+            var rawRear = reader.ReadUInt16();
+
+            if (i == 0)
+            {
+                frontPresent = rawFront != ushort.MaxValue;
+                rearPresent = rawRear != ushort.MaxValue;
+            }
+
+            if (frontPresent)
+            {
+                var f = (int)rawFront;
+                if (f >= SignedEncoderThreshold) f -= SignedEncoderRange;
+                front[i] = f;
+            }
+
+            if (rearPresent)
+            {
+                var r = (int)rawRear;
+                if (r >= SignedEncoderThreshold) r -= SignedEncoderRange;
+                rear[i] = r;
+            }
         }
 
         var rtd = new RawTelemetryData
@@ -92,14 +110,14 @@ public class SstV3Parser : ISstParser
             Markers = []
         };
 
-        if (front.Length > 0 && front[0] != 0xffff)
+        if (frontPresent)
         {
             var (fixedFront, frontAnomalyCount) = SpikeElimination.EliminateSpikes(front);
             rtd.Front = fixedFront;
             rtd.FrontAnomalyRate = (double)frontAnomalyCount / rtd.Front.Length * rtd.SampleRate;
         }
 
-        if (rear.Length > 0 && rear[0] != 0xffff)
+        if (rearPresent)
         {
             var (fixedRear, rearAnomalyCount) = SpikeElimination.EliminateSpikes(rear);
             rtd.Rear = fixedRear;

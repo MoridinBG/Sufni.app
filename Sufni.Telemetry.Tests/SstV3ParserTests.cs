@@ -71,4 +71,60 @@ public class SstV3ParserTests
         Assert.Empty(result.Front);
         Assert.Empty(result.Rear);
     }
+
+    [Fact]
+    public void Parse_WithAbsentFrontChannel_LeavesFrontEmpty()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)3);
+        writer.Write((ushort)1000);
+        writer.Write((ushort)0);
+        writer.Write((long)123456789);
+
+        writer.Write(ushort.MaxValue);
+        writer.Write((ushort)200);
+        writer.Write(ushort.MaxValue);
+        writer.Write((ushort)210);
+
+        ms.Position = 4;
+        using var reader = new BinaryReader(ms);
+
+        var parser = new SstV3Parser();
+
+        var result = parser.Parse(reader, 3);
+
+        Assert.Empty(result.Front);
+        Assert.Equal([200, 210], result.Rear);
+    }
+
+    [Fact]
+    public void Parse_WithAbsentRearChannel_LeavesRearEmpty()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)3);
+        writer.Write((ushort)1000);
+        writer.Write((ushort)0);
+        writer.Write((long)123456789);
+
+        writer.Write((ushort)100);
+        writer.Write(ushort.MaxValue);
+        writer.Write((ushort)110);
+        writer.Write(ushort.MaxValue);
+
+        ms.Position = 4;
+        using var reader = new BinaryReader(ms);
+
+        var parser = new SstV3Parser();
+
+        var result = parser.Parse(reader, 3);
+
+        Assert.Equal([100, 110], result.Front);
+        Assert.Empty(result.Rear);
+    }
 }
