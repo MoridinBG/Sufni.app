@@ -29,7 +29,7 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
         catalogSubscription = liveDaqCatalogService.Observe().Subscribe(entries => _ = HandleCatalogEntriesAsync(entries));
     }
 
-    public ILiveDaqSharedStream GetOrCreate(LiveDaqSnapshot snapshot)
+    internal ILiveDaqSharedStream GetOrCreate(LiveDaqSnapshot snapshot)
     {
         lock (gate)
         {

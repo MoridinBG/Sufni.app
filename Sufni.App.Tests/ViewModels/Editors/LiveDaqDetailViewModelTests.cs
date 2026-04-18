@@ -16,6 +16,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class LiveDaqDetailViewModelTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
+    private readonly ILiveDaqSharedStreamReservation sharedStreamReservation = Substitute.For<ILiveDaqSharedStreamReservation>();
     private readonly ILiveDaqCoordinator liveDaqCoordinator = Substitute.For<ILiveDaqCoordinator>();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
@@ -46,6 +47,8 @@ public class LiveDaqDetailViewModelTests
         sharedStream.CurrentState.Returns(_ => currentStreamState);
         sharedStream.RequestedConfiguration.Returns(_ => currentConfiguration);
         sharedStream.AcquireLease().Returns(streamLease);
+        sharedStreamReservation.Stream.Returns(sharedStream);
+        sharedStreamReservation.DisposeAsync().Returns(ValueTask.CompletedTask);
         sharedStream.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
@@ -101,7 +104,7 @@ public class LiveDaqDetailViewModelTests
                 IsOnline: true,
                 SetupName: "race",
                 BikeName: "demo"),
-            sharedStream,
+            sharedStreamReservation,
             liveDaqCoordinator,
             daqManagementService,
             filesService,
@@ -152,6 +155,7 @@ public class LiveDaqDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         sharedStream.Received(1).AcquireLease();
+        await sharedStreamReservation.Received(1).DisposeAsync();
         await sharedStream.Received(1).ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
@@ -243,6 +247,8 @@ public class LiveDaqDetailViewModelTests
     {
         var stream1 = Substitute.For<ILiveDaqSharedStream>();
         var stream2 = Substitute.For<ILiveDaqSharedStream>();
+        var reservation1 = Substitute.For<ILiveDaqSharedStreamReservation>();
+        var reservation2 = Substitute.For<ILiveDaqSharedStreamReservation>();
         var lease1 = Substitute.For<ILiveDaqSharedStreamLease>();
         var lease2 = Substitute.For<ILiveDaqSharedStreamLease>();
         var query = Substitute.For<ILiveDaqKnownBoardsQuery>();
@@ -270,6 +276,10 @@ public class LiveDaqDetailViewModelTests
         stream2.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
         stream1.AcquireLease().Returns(lease1);
         stream2.AcquireLease().Returns(lease2);
+        reservation1.Stream.Returns(stream1);
+        reservation2.Stream.Returns(stream2);
+        reservation1.DisposeAsync().Returns(ValueTask.CompletedTask);
+        reservation2.DisposeAsync().Returns(ValueTask.CompletedTask);
         lease1.DisposeAsync().Returns(ValueTask.CompletedTask);
         lease2.DisposeAsync().Returns(ValueTask.CompletedTask);
         stream1.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -320,8 +330,8 @@ public class LiveDaqDetailViewModelTests
 
         var coordinator1 = Substitute.For<ILiveDaqCoordinator>();
         var coordinator2 = Substitute.For<ILiveDaqCoordinator>();
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, reservation1, coordinator1, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, reservation2, coordinator2, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
@@ -330,6 +340,8 @@ public class LiveDaqDetailViewModelTests
 
         await stream1.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         await stream2.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await reservation1.Received(1).DisposeAsync();
+        await reservation2.Received(1).DisposeAsync();
         await lease1.Received(1).DisposeAsync();
         await lease2.DidNotReceive().DisposeAsync();
         Assert.Equal((uint)101, editor1.Snapshot.Session.SessionId);

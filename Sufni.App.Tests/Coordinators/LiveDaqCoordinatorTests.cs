@@ -270,7 +270,7 @@ public class LiveDaqCoordinatorTests
 
         var other = new LiveDaqDetailViewModel(
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
-            sharedStream,
+            sharedStreamReservation,
             Substitute.For<ILiveDaqCoordinator>(),
             daqManagementService,
             filesService,

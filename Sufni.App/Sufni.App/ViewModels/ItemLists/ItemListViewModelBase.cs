@@ -76,12 +76,7 @@ public partial class ItemListViewModelBase : ViewModelBase
     /// </summary>
     protected virtual void RebuildFilter() { }
 
-    protected Task RunPendingDeleteInteractionAsync(Func<Task> action)
-    {
-        return RunPendingDeleteInteractionCoreAsync(action);
-    }
-
-    private async Task RunPendingDeleteInteractionCoreAsync(Func<Task> action)
+    protected async Task RunPendingDeleteInteractionAsync(Func<Task> action)
     {
         try
         {
