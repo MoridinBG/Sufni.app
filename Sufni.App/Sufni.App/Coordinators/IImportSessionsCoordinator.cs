@@ -22,7 +22,7 @@ public interface IImportSessionsCoordinator
 
     /// <summary>
     /// Run the per-file import / trash lifecycle for the supplied
-    /// files against the supplied data store and selected setup.
+    /// files against the selected setup.
     /// Files with <c>ShouldBeImported == true</c> are imported;
     /// files with <c>ShouldBeImported == null</c> are trashed; files
     /// with <c>ShouldBeImported == false</c> are left alone (matching
@@ -35,7 +35,6 @@ public interface IImportSessionsCoordinator
     /// import finishes.
     /// </summary>
     Task<SessionImportResult> ImportAsync(
-        ITelemetryDataStore dataStore,
         IReadOnlyList<ITelemetryFile> files,
         Guid setupId,
         IProgress<SessionImportEvent>? progress = null);

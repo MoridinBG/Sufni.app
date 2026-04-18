@@ -165,6 +165,13 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
             }
         });
 
+    private void AddImportSummary(SessionImportResult result)
+    {
+        Notifications.Insert(
+            0,
+            $"Import finished: {result.Imported.Count} imported, {result.Failures.Count} failed.");
+    }
+
     private void ResolveSelectedSetup()
     {
         if (setupStore is null)
@@ -246,11 +253,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         try
         {
             var progress = CreateImportProgress();
-            await importSessionsCoordinator.ImportAsync(
-                dataStore,
+            var result = await importSessionsCoordinator.ImportAsync(
                 files,
                 setupId,
                 progress);
+            AddImportSummary(result);
 
             await LoadTelemetryFilesAsync(dataStore);
         }
