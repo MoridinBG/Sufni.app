@@ -638,7 +638,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 SourceName = context.DisplayName,
                 Version = 4,
                 SampleRate = (int)(sessionHeader?.AcceptedTravelHz ?? 0),
-                Timestamp = (int)((captureStartUtc ?? sessionHeader?.SessionStartUtc ?? DateTimeOffset.UnixEpoch).ToUnixTimeSeconds()),
+                Timestamp = (captureStartUtc ?? sessionHeader?.SessionStartUtc ?? DateTimeOffset.UnixEpoch).ToUnixTimeSeconds(),
                 Duration = CalculateCaptureDurationLocked().TotalSeconds,
             },
             SessionHeader: sessionHeader,

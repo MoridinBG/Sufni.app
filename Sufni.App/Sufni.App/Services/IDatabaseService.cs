@@ -29,6 +29,8 @@ public interface IDatabaseService
     public Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId);
     public Task<long> GetLastSyncTimeAsync(string? serverUrl);
     public Task UpdateLastSyncTimeAsync(string? serverUrl);
+    public Task<SynchronizationData> GetSynchronizationDataAsync(long since);
+    public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data);
     public Task<List<PairedDevice>> GetPairedDevicesAsync();
     public Task<PairedDevice?> GetPairedDeviceAsync(string id);
     public Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token);

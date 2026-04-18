@@ -101,7 +101,7 @@ public sealed class ImportSessionsCoordinator(
                     if (telemetryData.GpsData is { Length: > 0 })
                     {
                         var track = Track.FromGpsRecords(telemetryData.GpsData);
-                        if (track.Points.Count > 0)
+                        if (track is not null)
                         {
                             await databaseService.PutAsync(track);
                             fullTrackId = track.Id;
@@ -113,7 +113,7 @@ public sealed class ImportSessionsCoordinator(
                         name: telemetryFile.Name,
                         description: telemetryFile.Description,
                         setup: setupId,
-                        timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
+                        timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
                     {
                         ProcessedData = psst,
                         FullTrack = fullTrackId

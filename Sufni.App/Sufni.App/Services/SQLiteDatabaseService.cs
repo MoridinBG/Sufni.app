@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
@@ -103,6 +104,20 @@ public class SqLiteDatabaseService : IDatabaseService
         return connection.Table<T>();
     }
 
+    private static string GetTableName<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
+    {
+        return typeof(T).GetCustomAttribute<TableAttribute>()?.Name
+               ?? throw new InvalidOperationException($"Type {typeof(T).Name} is missing a SQLite table attribute.");
+    }
+
+    private async Task<bool> EntityExistsAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(Guid id)
+        where T : Synchronizable, new()
+    {
+        var tableName = GetTableName<T>();
+        var count = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id);
+        return count > 0;
+    }
+
     private async Task<T?> FindAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(object primaryKey) where T : new()
     {
         return await connection.FindAsync<T>(primaryKey);
@@ -111,13 +126,23 @@ public class SqLiteDatabaseService : IDatabaseService
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
     private Task<int> InsertEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : new()
     {
+        ValidateEntityForPersistence(entity);
         return connection.InsertAsync(entity);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
     private Task<int> UpdateEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : new()
     {
+        ValidateEntityForPersistence(entity);
         return connection.UpdateAsync(entity);
+    }
+
+    private static void ValidateEntityForPersistence<T>(T entity) where T : new()
+    {
+        if (entity is Track { HasPoints: false } track && track.Deleted is null)
+        {
+            throw new InvalidOperationException("Track must contain at least one point.");
+        }
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
@@ -192,10 +217,9 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         await Initialization;
 
-        var existing = await Table<T>()
-            .Where(s => s.Id == item.Id && s.Deleted == null)
-            .FirstOrDefaultAsync() is not null;
-        item.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+        var existing = await EntityExistsAsync<T>(item.Id);
+        item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        item.Deleted = null;
         if (existing)
         {
             await UpdateEntityAsync(item);
@@ -214,9 +238,9 @@ public class SqLiteDatabaseService : IDatabaseService
         var item = await Table<T>()
             .Where(s => s.Id == id)
             .FirstOrDefaultAsync();
-        if (item is not null)
+        if (item is not null && item.Deleted is null)
         {
-            item.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+            item.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             await UpdateEntityAsync(item);
         }
     }
@@ -227,9 +251,9 @@ public class SqLiteDatabaseService : IDatabaseService
         var itemFromDatabase = await Table<T>()
             .Where(s => s.Id == item.Id)
             .FirstOrDefaultAsync();
-        if (itemFromDatabase is not null)
+        if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
         {
-            itemFromDatabase.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+            itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             await UpdateEntityAsync(itemFromDatabase);
         }
     }
@@ -304,7 +328,9 @@ public class SqLiteDatabaseService : IDatabaseService
         await Initialization;
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
-        return sessions.Count == 1 ? TelemetryData.FromBinary(sessions[0].ProcessedData) : null;
+        return sessions.Count == 1 && sessions[0].ProcessedData is not null
+            ? TelemetryData.FromBinary(sessions[0].ProcessedData)
+            : null;
     }
 
     public async Task<byte[]?> GetSessionRawPsstAsync(Guid id)
@@ -327,27 +353,39 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         await Initialization;
 
-        var existing = await connection.Table<Session>()
-            .Where(s => s.Id == session.Id && s.Deleted == null)
-            .FirstOrDefaultAsync() is not null;
-        session.Updated = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+        var existing = await EntityExistsAsync<Session>(session.Id);
+        session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        session.Deleted = null;
         if (existing)
         {
+            var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
             const string query = """
                                  UPDATE session
                                  SET
                                      name=?,
+                                     setup_id=?,
                                      description=?,
+                                     timestamp=?,
+                                     full_track_id=?,
+                                     track=COALESCE(?, track),
+                                     data=COALESCE(?, data),
                                      front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                      rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                     updated=?
+                                     updated=?,
+                                     deleted=NULL,
+                                     has_data=CASE WHEN COALESCE(?, data) IS NOT NULL THEN 1 ELSE 0 END
                                  WHERE
                                      id=?
                                  """;
             await connection.ExecuteAsync(query,
                 [
                     session.Name,
+                    session.Setup,
                     session.Description,
+                    session.Timestamp,
+                    session.FullTrack,
+                    trackJson,
+                    session.ProcessedData,
                     session.FrontSpringRate,
                     session.FrontHighSpeedCompression,
                     session.FrontLowSpeedCompression,
@@ -359,6 +397,7 @@ public class SqLiteDatabaseService : IDatabaseService
                     session.RearLowSpeedRebound,
                     session.RearHighSpeedRebound,
                     session.Updated,
+                    session.ProcessedData,
                     session.Id]);
         }
         else
@@ -381,7 +420,7 @@ public class SqLiteDatabaseService : IDatabaseService
             throw new Exception($"Session {id} does not exist.");
         }
 
-        await connection.ExecuteAsync("UPDATE session SET data=? WHERE id=?", [data, id]);
+        await connection.ExecuteAsync("UPDATE session SET data=?, has_data=1 WHERE id=?", [data, id]);
     }
 
     public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points)
@@ -397,7 +436,8 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         var pointsJson = AppJson.Serialize(points);
-        await connection.ExecuteAsync("UPDATE session SET track=? WHERE id=?", [pointsJson, id]);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await connection.ExecuteAsync("UPDATE session SET track=?, updated=? WHERE id=?", [pointsJson, now, id]);
     }
 
     public async Task<SessionCache?> GetSessionCacheAsync(Guid sessionId)
@@ -444,8 +484,65 @@ public class SqLiteDatabaseService : IDatabaseService
             .FirstOrDefaultAsync();
         if (track is null) return null;
 
-        await connection.ExecuteAsync("UPDATE session SET full_track_id=? WHERE id=?", track.Id, session.Id);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await connection.ExecuteAsync("UPDATE session SET full_track_id=?, updated=? WHERE id=?", track.Id, now, session.Id);
         return track.Id;
+    }
+
+    public async Task<SynchronizationData> GetSynchronizationDataAsync(long since)
+    {
+        await Initialization;
+
+        var boards = await GetChangedAsync<Board>(since);
+        var bikes = await GetChangedAsync<Bike>(since);
+        var setups = await GetChangedAsync<Setup>(since);
+        var sessions = await GetChangedAsync<Session>(since);
+        var tracks = await GetChangedAsync<Track>(since);
+
+        var changedTrackIds = tracks.Select(track => track.Id).ToHashSet();
+        var relatedTrackIds = sessions
+            .Where(session => session.Deleted is null && session.FullTrack.HasValue)
+            .Select(session => session.FullTrack!.Value)
+            .Where(trackId => !changedTrackIds.Contains(trackId))
+            .Distinct()
+            .ToList();
+
+        if (relatedTrackIds.Count > 0)
+        {
+            tracks.AddRange(await GetTracksByIdsAsync(relatedTrackIds));
+        }
+
+        return new SynchronizationData
+        {
+            Boards = boards,
+            Bikes = bikes,
+            Setups = setups,
+            Sessions = sessions,
+            Tracks = tracks
+        };
+    }
+
+    public async Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data)
+    {
+        await Initialization;
+
+        await connection.ExecuteAsync("BEGIN TRANSACTION");
+
+        try
+        {
+            foreach (var board in data.Boards) await ApplyRemoteEntityAsync(board);
+            foreach (var bike in data.Bikes) await ApplyRemoteEntityAsync(bike);
+            foreach (var setup in data.Setups) await ApplyRemoteEntityAsync(setup);
+            foreach (var track in data.Tracks) await ApplyRemoteEntityAsync(track);
+            foreach (var session in data.Sessions) await ApplyRemoteSessionAsync(session);
+
+            await connection.ExecuteAsync("COMMIT");
+        }
+        catch
+        {
+            await connection.ExecuteAsync("ROLLBACK");
+            throw;
+        }
     }
 
     public async Task<long> GetLastSyncTimeAsync(string? serverUrl)
@@ -556,6 +653,87 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
+    private async Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds)
+    {
+        var tracks = new List<Track>(trackIds.Count);
+
+        foreach (var trackId in trackIds)
+        {
+            var track = await GetAsync<Track>(trackId);
+            if (track is not null)
+            {
+                tracks.Add(track);
+            }
+        }
+
+        return tracks;
+    }
+
+    private async Task ApplyRemoteEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity)
+        where T : Synchronizable, new()
+    {
+        var existing = await FindAsync<T>(entity.Id);
+        if (existing is null)
+        {
+            await InsertEntityAsync(entity);
+            return;
+        }
+
+        await UpdateEntityAsync(entity);
+    }
+
+    private async Task ApplyRemoteSessionAsync(Session session)
+    {
+        var existing = await FindAsync<Session>(session.Id);
+        if (existing is null)
+        {
+            await InsertEntityAsync(session);
+            return;
+        }
+
+        const string query = """
+                             UPDATE session
+                             SET
+                                 name=?,
+                                 setup_id=?,
+                                 description=?,
+                                 timestamp=?,
+                                 full_track_id=?,
+                                 track=?,
+                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                 updated=?,
+                                 client_updated=?,
+                                 deleted=?
+                             WHERE
+                                 id=?
+                             """;
+
+        await connection.ExecuteAsync(query,
+            [
+                session.Name,
+                session.Setup,
+                session.Description,
+                session.Timestamp,
+                session.FullTrack,
+                session.Track is null ? null : AppJson.Serialize(session.Track),
+                session.FrontSpringRate,
+                session.FrontHighSpeedCompression,
+                session.FrontLowSpeedCompression,
+                session.FrontLowSpeedRebound,
+                session.FrontHighSpeedRebound,
+                session.RearSpringRate,
+                session.RearHighSpeedCompression,
+                session.RearLowSpeedCompression,
+                session.RearLowSpeedRebound,
+                session.RearHighSpeedRebound,
+                session.Updated,
+                session.ClientUpdated,
+                session.Deleted,
+                session.Id
+            ]);
+    }
+
     private async Task MergeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : Synchronizable, new()
     {
         await Initialization;
@@ -571,10 +749,33 @@ public class SqLiteDatabaseService : IDatabaseService
             return;
         }
 
+        var existingContentVersion = existing.ClientUpdated > 0
+            ? existing.ClientUpdated
+            : existing.Updated;
+
+        if (existing.Deleted.HasValue)
+        {
+            if (entity.Deleted.HasValue && entity.Deleted > existing.Deleted)
+            {
+                existing.Deleted = entity.Deleted;
+            }
+
+            existing.Updated = now;
+            await UpdateEntityAsync(existing);
+            return;
+        }
+
         if (entity.Deleted.HasValue)
         {
+            if (entity.Deleted <= existingContentVersion)
+            {
+                existing.Updated = now;
+                await UpdateEntityAsync(existing);
+                return;
+            }
+
             existing.Deleted = entity.Deleted;
-            existing.Updated = entity.Updated;
+            existing.Updated = now;
             await UpdateEntityAsync(existing);
             return;
         }
@@ -582,7 +783,7 @@ public class SqLiteDatabaseService : IDatabaseService
         // Some other client updated the row  later and synced earlier. We
         // want the latest update, so discard content in this update, but
         // adjust update timestamp.
-        if (existing.ClientUpdated > entity.Updated)
+        if (existingContentVersion > entity.Updated)
         {
             existing.Updated = now;
             await UpdateEntityAsync(existing);

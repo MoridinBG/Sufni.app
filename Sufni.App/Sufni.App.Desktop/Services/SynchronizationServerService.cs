@@ -293,16 +293,9 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok();
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
+            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] long since, ClaimsPrincipal user) =>
             {
-                var data = new SynchronizationData
-                {
-                    Boards = await databaseService.GetChangedAsync<Board>(since),
-                    Bikes = await databaseService.GetChangedAsync<Bike>(since),
-                    Setups = await databaseService.GetChangedAsync<Setup>(since),
-                    Sessions = await databaseService.GetChangedAsync<Session>(since),
-                    Tracks = await databaseService.GetChangedAsync<Track>(since)
-                };
+                var data = await databaseService.GetSynchronizationDataAsync(since);
 
                 logger.Verbose(
                     "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
@@ -341,18 +334,18 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
             {
-                var data = await databaseService.GetSessionPsstAsync(id);
+                var data = await databaseService.GetSessionRawPsstAsync(id);
                 if (data is null)
                 {
                     logger.Warning("Session data download failed because session {SessionId} was not found", id);
                     return Results.NotFound(new { msg = "Session does not exist!" });
                 }
 
-                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.BinaryForm.Length);
+                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.Length);
                 var name = $"{id}.psst";
 
                 return Results.File(
-                    fileContents: data.BinaryForm,
+                    fileContents: data,
                     contentType: "application/octet-stream",
                     fileDownloadName: name
                 );
