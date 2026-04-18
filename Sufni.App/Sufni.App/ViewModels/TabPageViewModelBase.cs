@@ -121,20 +121,29 @@ public partial class TabPageViewModelBase : ViewModelBase
         OnPropertyChanged(nameof(CanDeleteItem));
     }
 
+    protected void NotifyEditorCommandStateChanged()
+    {
+        SaveCommand.NotifyCanExecuteChanged();
+        ResetCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
+    }
+
     #region Commands
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task Save()
     {
         await SaveImplementation();
-        IsDirty = false;
+        EvaluateDirtiness();
+        NotifyEditorCommandStateChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanReset))]
     private async Task Reset()
     {
         await ResetImplementation();
-        IsDirty = false;
+        EvaluateDirtiness();
+        NotifyEditorCommandStateChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanExport))]
