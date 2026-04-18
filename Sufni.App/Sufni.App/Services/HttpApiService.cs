@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Authentication;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
@@ -28,8 +29,8 @@ internal class HttpApiService : IHttpApiService
 
     #region Private fields
 
-    private readonly HttpClient client = new(Handler);
-
+    private readonly HttpClient client;
+    private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
     private Task Initialization { get; }
     private readonly ISecureStorage secureStorage;
     private string? refreshToken;
@@ -54,8 +55,14 @@ internal class HttpApiService : IHttpApiService
     #region Constructors
 
     public HttpApiService(ISecureStorage secureStorage)
+        : this(secureStorage, new HttpClient(Handler))
+    {
+    }
+
+    internal HttpApiService(ISecureStorage secureStorage, HttpClient client)
     {
         this.secureStorage = secureStorage;
+        this.client = client;
         Initialization = Init();
     }
 
@@ -79,6 +86,17 @@ internal class HttpApiService : IHttpApiService
         }
 
         return url;
+    }
+
+    private static HttpRequestException CreateMissingCredentialsException() =>
+        new("Synchronization pairing credentials are missing.", null, HttpStatusCode.Unauthorized);
+
+    private void EnsureRefreshCredentialsPresent()
+    {
+        if (ServerUrl is null || refreshToken is null)
+        {
+            throw CreateMissingCredentialsException();
+        }
     }
 
     private async Task<HttpResponseMessage> SendWithLoggingAsync(
@@ -117,12 +135,11 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        Debug.Assert(ServerUrl is not null);
-        Debug.Assert(refreshToken is not null);
+        EnsureRefreshCredentialsPresent();
 
         logger.Verbose("Refreshing synchronization tokens");
 
-        var route = $"{ServerUrl}/pair/refresh";
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointPairRefresh}";
         using var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
@@ -137,6 +154,9 @@ internal class HttpApiService : IHttpApiService
         {
             logger.Warning("Clearing local pairing credentials after token refresh returned unauthorized");
             client.DefaultRequestHeaders.Authorization = null;
+            ServerUrl = null;
+            refreshToken = null;
+            tokenExpiry = null;
             await secureStorage.RemoveAsync(RefreshTokenKey);
             await secureStorage.RemoveAsync(ServerUrlKey);
         }
@@ -154,6 +174,38 @@ internal class HttpApiService : IHttpApiService
         logger.Verbose("Synchronization tokens refreshed and expire at {TokenExpiry}", tokenExpiry);
 
         await secureStorage.SetStringAsync(RefreshTokenKey, refreshToken);
+    }
+
+    private bool IsTokenRefreshRequired() =>
+        tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30);
+
+    private async Task EnsureTokenFreshAsync()
+    {
+        await Initialization;
+
+        EnsureRefreshCredentialsPresent();
+
+        if (!IsTokenRefreshRequired())
+        {
+            return;
+        }
+
+        await tokenRefreshGate.WaitAsync();
+        try
+        {
+            EnsureRefreshCredentialsPresent();
+
+            if (!IsTokenRefreshRequired())
+            {
+                return;
+            }
+
+            await RefreshTokensAsync();
+        }
+        finally
+        {
+            tokenRefreshGate.Release();
+        }
     }
 
     private async Task Init()
@@ -278,9 +330,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task<SynchronizationData> PullSyncAsync(long since = 0)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSyncPull}?since={since}";
         using var response = await SendWithLoggingAsync(
@@ -304,9 +354,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task PushSyncAsync(SynchronizationData syncData)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         logger.Verbose(
             "Uploading synchronization data with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
@@ -329,9 +377,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionIncomplete}";
         using var response = await SendWithLoggingAsync(
@@ -350,9 +396,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task<byte[]?> GetSessionPsstAsync(Guid id)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionData}{id}";
         using var response = await SendWithLoggingAsync(
@@ -374,9 +418,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         logger.Verbose("Uploading {ByteCount} bytes of session data for {SessionId}", data.Length, id);
 
