@@ -28,7 +28,7 @@ public sealed record BikeSnapshot(
     LeverageRatio? LeverageRatio,
     Linkage? Linkage,
     Bitmap? Image,
-    long Updated) : IVersionedSnapshot
+    long Updated)
 {
     public static BikeSnapshot From(Bike bike) => new(
         bike.Id,

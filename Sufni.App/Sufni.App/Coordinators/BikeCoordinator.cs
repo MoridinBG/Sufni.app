@@ -130,7 +130,7 @@ public sealed class BikeCoordinator(
         logger.Information("Starting bike save for {BikeId}", bike.Id);
 
         var current = bikeStore.Get(bike.Id);
-        if (current.IsNewerThan(baselineUpdated))
+        if (current is not null && current.Updated > baselineUpdated)
         {
             logger.Warning("Bike save conflict for {BikeId}", bike.Id);
             return new BikeSaveResult.Conflict(current);

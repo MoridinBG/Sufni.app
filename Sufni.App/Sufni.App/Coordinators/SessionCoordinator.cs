@@ -213,7 +213,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         logger.Information("Starting session save for {SessionId}", session.Id);
 
         var current = sessionStore.Get(session.Id);
-        if (current.IsNewerThan(baselineUpdated))
+        if (current is not null && current.Updated > baselineUpdated)
         {
             logger.Warning("Session save conflict for {SessionId}", session.Id);
             return new SessionSaveResult.Conflict(current);
