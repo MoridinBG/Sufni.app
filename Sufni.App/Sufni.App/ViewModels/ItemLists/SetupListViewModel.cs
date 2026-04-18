@@ -93,7 +93,12 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     #region Private methods
 
-    private async void RequestRowDelete(SetupRowViewModel row)
+    private void RequestRowDelete(SetupRowViewModel row)
+    {
+        _ = RunPendingDeleteInteractionAsync(() => RequestRowDeleteAsync(row));
+    }
+
+    private async Task RequestRowDeleteAsync(SetupRowViewModel row)
     {
         var snapshot = setupStore.Get(row.Id);
         if (snapshot is null) return;

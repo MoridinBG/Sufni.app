@@ -106,7 +106,12 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     #region Private methods
 
-    private async void RequestRowDelete(BikeRowViewModel row)
+    private void RequestRowDelete(BikeRowViewModel row)
+    {
+        _ = RunPendingDeleteInteractionAsync(() => RequestRowDeleteAsync(row));
+    }
+
+    private async Task RequestRowDeleteAsync(BikeRowViewModel row)
     {
         var snapshot = bikeStore.Get(row.Id);
         if (snapshot is null) return;
