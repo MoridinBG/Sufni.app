@@ -121,18 +121,6 @@ public partial class LinkViewModel : ViewModelBase
             Name = name;
         }
 
-        if (name is null)
-        {
-            if (a is not null && b is not null)
-            {
-                Name = $"{a.Name} - {b.Name}";
-            }
-        }
-        else
-        {
-            Name = name;
-        }
-
         UpdateLength();
     }
 
