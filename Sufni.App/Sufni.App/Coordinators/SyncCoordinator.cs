@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
@@ -89,10 +90,7 @@ public sealed class SyncCoordinator : ISyncCoordinator
             await synchronizationClientService.SyncAll();
 
             logger.Verbose("Refreshing local stores after synchronization");
-            await bikeStore.RefreshAsync();
-            await setupStore.RefreshAsync();
-            await sessionStore.RefreshAsync();
-            await pairedDeviceStore.RefreshAsync();
+            await RefreshStoresOnUiThreadAsync();
 
             logger.Information("Synchronization completed");
             SyncCompleted?.Invoke(this, new SyncCompletedEventArgs("Sync successful"));
@@ -106,5 +104,37 @@ public sealed class SyncCoordinator : ISyncCoordinator
         {
             IsRunning = false;
         }
+    }
+
+    private Task RefreshStoresOnUiThreadAsync()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            return RefreshStoresAsync();
+        }
+
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                await RefreshStoresAsync();
+                completion.SetResult(true);
+            }
+            catch (Exception e)
+            {
+                completion.SetException(e);
+            }
+        });
+
+        return completion.Task;
+    }
+
+    private async Task RefreshStoresAsync()
+    {
+        await bikeStore.RefreshAsync();
+        await setupStore.RefreshAsync();
+        await sessionStore.RefreshAsync();
+        await pairedDeviceStore.RefreshAsync();
     }
 }

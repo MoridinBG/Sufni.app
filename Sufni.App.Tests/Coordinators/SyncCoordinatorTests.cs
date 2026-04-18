@@ -1,5 +1,7 @@
+using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Avalonia.Threading;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -39,7 +41,7 @@ public class SyncCoordinatorTests
         Assert.False(coordinator.IsPaired);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task CanSync_IsFalse_WhileSyncIsRunning()
     {
         pairing.IsPaired.Returns(true);
@@ -95,7 +97,7 @@ public class SyncCoordinatorTests
 
     // ----- SyncAllAsync happy path -----
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SyncAllAsync_CallsSyncAll_AndRefreshesStores()
     {
         pairing.IsPaired.Returns(true);
@@ -115,7 +117,7 @@ public class SyncCoordinatorTests
         await pairedDeviceStore.Received(1).RefreshAsync();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
     {
         pairing.IsPaired.Returns(true);
@@ -138,7 +140,7 @@ public class SyncCoordinatorTests
         Assert.True(canSyncChanged > 0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncCompleted_OnSuccess()
     {
         pairing.IsPaired.Returns(true);
@@ -157,7 +159,7 @@ public class SyncCoordinatorTests
 
     // ----- SyncAllAsync failure -----
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenSyncThrows()
     {
         pairing.IsPaired.Returns(true);
@@ -197,7 +199,7 @@ public class SyncCoordinatorTests
         Assert.Equal(1, canSyncChanged);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task PairingConfirmed_KicksOffSyncAllAsync_Automatically()
     {
         // Pre-seed IsPaired = true so the fire-and-forget SyncAllAsync's
@@ -230,6 +232,26 @@ public class SyncCoordinatorTests
         pairing.PairingConfirmed += Raise.Event();
 
         _ = syncClient.DidNotReceive().SyncAll();
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RefreshesStores_OnUiThread()
+    {
+        pairing.IsPaired.Returns(true);
+
+        var refreshedOnUiThread = false;
+        bikeStore.RefreshAsync().Returns(_ =>
+        {
+            refreshedOnUiThread = Dispatcher.UIThread.CheckAccess();
+            return Task.CompletedTask;
+        });
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+
+        await CreateCoordinator().SyncAllAsync();
+
+        Assert.True(refreshedOnUiThread);
     }
 
     // ----- Constructor tolerates null pairing -----
