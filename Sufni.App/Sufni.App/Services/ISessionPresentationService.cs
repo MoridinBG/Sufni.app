@@ -1,4 +1,5 @@
 using System.Threading;
+using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 

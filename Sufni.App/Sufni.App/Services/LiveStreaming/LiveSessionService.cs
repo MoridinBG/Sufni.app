@@ -8,8 +8,6 @@ using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
-using Sufni.App.SessionDetails;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using Serilog;
 

@@ -4,7 +4,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 
