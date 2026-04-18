@@ -15,10 +15,9 @@ public class TravelHistogramDesktopView : SufniTelemetryPlotView
         get => GetValue(SuspensionTypeProperty);
         set => SetValue(SuspensionTypeProperty, value);
     }
-    
+
     protected override void CreatePlot()
     {
-        Debug.Assert(AvaPlot != null, nameof(AvaPlot) + " != null");
-        Plot = new TravelHistogramPlot(AvaPlot.Plot, SuspensionType);
+        SetPlotModel(new TravelHistogramPlot(PlotControl.Plot, SuspensionType));
     }
 }

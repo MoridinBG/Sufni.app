@@ -7,15 +7,20 @@ namespace Sufni.App.Views.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
 {
-    public AvaPlot? AvaPlot;
-    
+    private AvaPlot? avaPlot;
+
+    protected AvaPlot PlotControl => avaPlot!;
+    protected bool HasPlotControl => avaPlot is not null;
+
+    public void RefreshPlot() => avaPlot?.Refresh();
+
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
 
-        AvaPlot = e.NameScope.Find<AvaPlot>("Plot");
-        Debug.Assert(AvaPlot != null, nameof(AvaPlot) + " != null");
-        
+        avaPlot = e.NameScope.Find<AvaPlot>("Plot");
+        Debug.Assert(avaPlot != null, nameof(avaPlot) + " != null");
+
         CreatePlot();
     }
 

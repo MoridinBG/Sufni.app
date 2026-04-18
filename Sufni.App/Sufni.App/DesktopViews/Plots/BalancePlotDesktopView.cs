@@ -15,10 +15,9 @@ public class BalancePlotDesktopView : SufniTelemetryPlotView
         get => GetValue(BalanceTypeProperty);
         set => SetValue(BalanceTypeProperty, value);
     }
-    
+
     protected override void CreatePlot()
     {
-        Debug.Assert(AvaPlot != null, nameof(AvaPlot) + " != null");
-        Plot = new BalancePlot(AvaPlot.Plot, BalanceType);
+        SetPlotModel(new BalancePlot(PlotControl.Plot, BalanceType));
     }
 }

@@ -18,7 +18,6 @@ public class VelocityHistogramDesktopView : SufniTelemetryPlotView
 
     protected override void CreatePlot()
     {
-        Debug.Assert(AvaPlot != null, nameof(AvaPlot) + " != null");
-        Plot = new VelocityHistogramPlot(AvaPlot.Plot, SuspensionType);
+        SetPlotModel(new VelocityHistogramPlot(PlotControl.Plot, SuspensionType));
     }
 }

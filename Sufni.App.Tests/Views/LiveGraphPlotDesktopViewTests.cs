@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
+using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
@@ -49,24 +51,31 @@ public class LiveGraphPlotDesktopViewTests
         batches.OnNext(CreateBatch(revision: 1));
         await WaitForUiRefreshAsync();
 
-        Assert.All(travelView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
-        Assert.All(velocityView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
-        Assert.Contains(imuView!.Plot!.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
-        Assert.Equal(180, travelView.Plot.Plot.Axes.Left.Max);
-        Assert.Equal(0, travelView.Plot.Plot.Axes.Left.Min);
-        Assert.Equal(5, velocityView.Plot.Plot.Axes.Left.Max);
-        Assert.Equal(-5, velocityView.Plot.Plot.Axes.Left.Min);
-        Assert.Equal(5, imuView.Plot.Plot.Axes.Left.Max);
-        Assert.Equal(0, imuView.Plot.Plot.Axes.Left.Min);
+        var travelPlot = GetRenderedPlot(travelView!);
+        var velocityPlot = GetRenderedPlot(velocityView!);
+        var imuPlot = GetRenderedPlot(imuView!);
+
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
+        Assert.Equal(180, travelPlot.Plot.Axes.Left.Max);
+        Assert.Equal(0, travelPlot.Plot.Axes.Left.Min);
+        Assert.Equal(5, velocityPlot.Plot.Axes.Left.Max);
+        Assert.Equal(-5, velocityPlot.Plot.Axes.Left.Min);
+        Assert.Equal(5, imuPlot.Plot.Axes.Left.Max);
+        Assert.Equal(0, imuPlot.Plot.Axes.Left.Min);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
         await WaitForUiRefreshAsync();
 
-        Assert.All(travelView.Plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }
+
+    private static AvaPlot GetRenderedPlot(Control view) =>
+        Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
 
     private static LiveGraphBatch CreateBatch(long revision)
     {
