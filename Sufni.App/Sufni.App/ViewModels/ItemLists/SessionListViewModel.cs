@@ -111,7 +111,12 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #region Private methods
 
-    private async void RequestRowDelete(SessionRowViewModel row)
+    private void RequestRowDelete(SessionRowViewModel row)
+    {
+        _ = RunPendingDeleteInteractionAsync(() => RequestRowDeleteAsync(row));
+    }
+
+    private async Task RequestRowDeleteAsync(SessionRowViewModel row)
     {
         var snapshot = sessionStore.Get(row.Id);
         if (snapshot is null) return;
