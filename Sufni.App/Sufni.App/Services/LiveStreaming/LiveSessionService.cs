@@ -27,6 +27,16 @@ internal sealed class LiveSessionServiceFactory(
             backgroundTaskRunner,
             liveGraphPipelineFactory.Create());
     }
+
+    public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStreamReservation sharedStreamReservation)
+    {
+        return new LiveSessionService(
+            context,
+            sharedStreamReservation,
+            sessionPresentationService,
+            backgroundTaskRunner,
+            liveGraphPipelineFactory.Create());
+    }
 }
 
 internal sealed class LiveSessionService : ILiveSessionService
@@ -58,6 +68,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
     private readonly AppendOnlyChunkBuffer<ImuRecord> imuRecords = new(ImuChunkSize);
     private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
+    private ILiveDaqSharedStreamReservation? sharedStreamReservation;
 
     private IDisposable? framesSubscription;
     private IDisposable? statesSubscription;
@@ -98,6 +109,22 @@ internal sealed class LiveSessionService : ILiveSessionService
         this.graphPipeline = graphPipeline;
     }
 
+    public LiveSessionService(
+        LiveDaqSessionContext context,
+        ILiveDaqSharedStreamReservation sharedStreamReservation,
+        ISessionPresentationService sessionPresentationService,
+        IBackgroundTaskRunner backgroundTaskRunner,
+        ILiveGraphPipeline graphPipeline)
+        : this(
+            context,
+            sharedStreamReservation.Stream,
+            sessionPresentationService,
+            backgroundTaskRunner,
+            graphPipeline)
+    {
+        this.sharedStreamReservation = sharedStreamReservation;
+    }
+
     public IObservable<LiveSessionPresentationSnapshot> Snapshots => snapshotsSubject.AsObservable();
 
     public IObservable<LiveGraphBatch> GraphBatches => graphPipeline.GraphBatches;
@@ -107,6 +134,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     public async Task EnsureAttachedAsync(CancellationToken cancellationToken = default)
     {
         bool shouldStart;
+        ILiveDaqSharedStreamReservation? reservationToDispose = null;
 
         lock (gate)
         {
@@ -118,10 +146,17 @@ internal sealed class LiveSessionService : ILiveSessionService
                 graphPipeline.Start();
                 framesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
                 statesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
+                reservationToDispose = sharedStreamReservation;
+                sharedStreamReservation = null;
                 isAttached = true;
             }
 
             shouldStart = !isTerminalClosed;
+        }
+
+        if (reservationToDispose is not null)
+        {
+            await reservationToDispose.DisposeAsync();
         }
 
         HandleSharedStreamState(sharedStream.CurrentState);
@@ -190,6 +225,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         IDisposable? states;
         ILiveDaqSharedStreamLease? configurationLock;
         ILiveDaqSharedStreamLease? observer;
+        ILiveDaqSharedStreamReservation? reservation;
         Task? statisticsLoop;
 
         lock (gate)
@@ -204,11 +240,13 @@ internal sealed class LiveSessionService : ILiveSessionService
             states = statesSubscription;
             configurationLock = configurationLockLease;
             observer = observerLease;
+            reservation = sharedStreamReservation;
             statisticsLoop = statisticsLoopTask;
             framesSubscription = null;
             statesSubscription = null;
             configurationLockLease = null;
             observerLease = null;
+            sharedStreamReservation = null;
             statisticsLoopTask = null;
         }
 
@@ -236,6 +274,11 @@ internal sealed class LiveSessionService : ILiveSessionService
         if (observer is not null)
         {
             await observer.DisposeAsync();
+        }
+
+        if (reservation is not null)
+        {
+            await reservation.DisposeAsync();
         }
 
         await graphPipeline.DisposeAsync();

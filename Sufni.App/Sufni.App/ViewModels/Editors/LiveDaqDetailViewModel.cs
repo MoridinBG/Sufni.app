@@ -41,6 +41,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly IFilesService? filesService;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
     private readonly ILiveDaqStore? liveDaqStore;
+    private ILiveDaqSharedStreamReservation? sharedStreamReservation;
 
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
@@ -145,6 +146,30 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         RefreshSnapshot();
     }
 
+    public LiveDaqDetailViewModel(
+        LiveDaqSnapshot snapshot,
+        ILiveDaqSharedStreamReservation sharedStreamReservation,
+        ILiveDaqCoordinator liveDaqCoordinator,
+        IDaqManagementService daqManagementService,
+        IFilesService filesService,
+        IShellCoordinator shell,
+        IDialogService dialogService,
+        ILiveDaqKnownBoardsQuery knownBoardsQuery,
+        ILiveDaqStore liveDaqStore)
+        : this(
+            snapshot,
+            sharedStreamReservation.Stream,
+            liveDaqCoordinator,
+            daqManagementService,
+            filesService,
+            shell,
+            dialogService,
+            knownBoardsQuery,
+            liveDaqStore)
+    {
+        this.sharedStreamReservation = sharedStreamReservation;
+    }
+
     [RelayCommand]
     private async Task Loaded()
     {
@@ -156,6 +181,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         if (sharedStream is not null && streamLease is null)
         {
             streamLease = sharedStream.AcquireLease();
+            if (sharedStreamReservation is not null)
+            {
+                await sharedStreamReservation.DisposeAsync();
+                sharedStreamReservation = null;
+            }
         }
 
         hasLoaded = true;
@@ -199,6 +229,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         {
             await streamLease.DisposeAsync();
             streamLease = null;
+        }
+
+        if (sharedStreamReservation is not null)
+        {
+            await sharedStreamReservation.DisposeAsync();
+            sharedStreamReservation = null;
         }
     }
 
