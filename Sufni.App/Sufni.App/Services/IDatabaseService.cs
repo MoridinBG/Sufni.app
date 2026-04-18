@@ -22,7 +22,6 @@ public interface IDatabaseService
     public Task<byte[]?> GetSessionRawPsstAsync(Guid id);
     public Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id);
     public Task<Guid> PutSessionAsync(Session session);
-    public Task DeleteSessionAsync(Guid id);
     public Task PatchSessionPsstAsync(Guid id, byte[] data);
     public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points);
     public Task<SessionCache?> GetSessionCacheAsync(Guid sessionId);

@@ -369,35 +369,6 @@ public class SqLiteDatabaseService : IDatabaseService
         return session.Id;
     }
 
-    public async Task DeleteSessionAsync(Guid id)
-    {
-        await Initialization;
-
-        var session = await connection.Table<Session>()
-            .Where(s => s.Id == id)
-            .FirstOrDefaultAsync();
-        if (session is null) return;
-
-        var trackId = session.FullTrack;
-
-        // Soft-delete the session
-        session.Deleted = (int)DateTimeOffset.Now.ToUnixTimeSeconds();
-        await connection.UpdateAsync(session);
-
-        // If session had a track, check if any other sessions use it
-        if (trackId is not null)
-        {
-            var otherSessionsUsingTrack = await connection.Table<Session>()
-                .Where(s => s.FullTrack == trackId && s.Id != id && s.Deleted == null)
-                .CountAsync();
-
-            if (otherSessionsUsingTrack == 0)
-            {
-                await DeleteAsync<Track>(trackId.Value);
-            }
-        }
-    }
-
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
     {
         await Initialization;
@@ -491,8 +462,23 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         await Initialization;
 
-        await connection.QueryAsync<Synchronization>("UPDATE sync SET last_sync_time = ? WHERE server_url = ?",
-            (int)DateTimeOffset.Now.ToUnixTimeSeconds(), serverUrl);
+        var lastSyncTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+        var synchronization = await connection.Table<Synchronization>()
+            .Where(s => s.ServerUrl == serverUrl)
+            .FirstOrDefaultAsync();
+
+        if (synchronization is null)
+        {
+            await connection.InsertAsync(new Synchronization
+            {
+                ServerUrl = serverUrl,
+                LastSyncTime = lastSyncTime
+            });
+            return;
+        }
+
+        synchronization.LastSyncTime = lastSyncTime;
+        await connection.UpdateAsync(synchronization);
     }
 
     public async Task<List<PairedDevice>> GetPairedDevicesAsync()
