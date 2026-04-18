@@ -286,6 +286,50 @@ public class PairingClientCoordinatorTests
         Assert.True(urlChanged);
     }
 
+    [Fact]
+    public async Task ServiceRemoved_LeavesActiveServerUrl_WhenDifferentServiceIsRemoved()
+    {
+        SeedInitDefaults();
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
+
+        Assert.Equal("https://10.0.0.2:2345", coordinator.ServerUrl);
+
+        serviceDiscovery.ServiceRemoved += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+
+        Assert.Equal("https://10.0.0.2:2345", coordinator.ServerUrl);
+    }
+
+    [Fact]
+    public async Task ServiceRemoved_FallsBackToPreviousServer_WhenActiveServiceIsRemoved()
+    {
+        SeedInitDefaults();
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
+
+        serviceDiscovery.ServiceRemoved += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
+
+        Assert.Equal("https://10.0.0.1:1234", coordinator.ServerUrl);
+    }
+
     // ----- RequestPairingAsync -----
 
     [Fact]
