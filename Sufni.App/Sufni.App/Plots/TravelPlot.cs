@@ -15,13 +15,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 
         Plot.Axes.Title.Label.Text = "Travel (mm / seconds)";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
-        Plot.Axes.Right.TickLabelStyle.Bold = false;
-        Plot.Axes.Right.TickLabelStyle.FontSize = 12;
-        Plot.Axes.Right.MajorTickStyle.Length = 0;
-        Plot.Axes.Right.MinorTickStyle.Length = 0;
-        Plot.Axes.Right.MajorTickStyle.Width = 0;
-        Plot.Axes.Right.MinorTickStyle.Width = 0;
+        ConfigureRightAxisStyle();
         
         var step = 1.0 / telemetryData.Metadata.SampleRate;
 
@@ -66,20 +60,8 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
                 0, 0, Alignment.LowerCenter);
         }
         
-        // Maximize tick numbers
-        ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
-        {
-            TargetTickCount = 20,
-            LabelFormatter  = d => $"{d:0.###}"
-        };
-        Plot.Axes.Bottom.TickGenerator = tickGenTime;
-
-        ScottPlot.TickGenerators.NumericAutomatic tickGenTravel = new()
-        {
-            MinimumTickSpacing = 20
-        };
-        Plot.Axes.Left.TickGenerator = tickGenTravel;
-        Plot.Axes.Right.TickGenerator = tickGenTravel;
+        ConfigureTimeTicks();
+        ConfigureSymmetricValueTicks(20);
 
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;

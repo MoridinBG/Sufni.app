@@ -126,15 +126,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         ApplyTelemetryFiles(files);
     }
 
-    private async Task RefreshTelemetryFilesAfterImportAsync(ITelemetryDataStore dataStore)
-    {
-        var files = await telemetryDataStoreService.LoadFilesAsync(dataStore);
-        if (!IsCurrentTelemetryFilesLoad(dataStore))
-            return;
-
-        ApplyTelemetryFiles(files);
-    }
-
     private void ApplyTelemetryFiles(IReadOnlyList<ITelemetryFile> files)
     {
         TelemetryFiles.Clear();
@@ -261,7 +252,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 setupId,
                 progress);
 
-            await RefreshTelemetryFilesAfterImportAsync(dataStore);
+            await LoadTelemetryFilesAsync(dataStore);
         }
         catch (Exception e)
         {

@@ -19,13 +19,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 
         Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
-        Plot.Axes.Right.TickLabelStyle.Bold = false;
-        Plot.Axes.Right.TickLabelStyle.FontSize = 12;
-        Plot.Axes.Right.MajorTickStyle.Length = 0;
-        Plot.Axes.Right.MinorTickStyle.Length = 0;
-        Plot.Axes.Right.MajorTickStyle.Width = 0;
-        Plot.Axes.Right.MinorTickStyle.Width = 0;
+        ConfigureRightAxisStyle();
 
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;
@@ -125,19 +119,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             0, telemetryData.Metadata.Duration, minVal, maxVal);
         Plot.Axes.Rules.Add(ruleRight);
 
-        // Maximize tick numbers
-        ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
-        {
-            TargetTickCount = 20,
-            LabelFormatter = d => $"{d:0.###}"
-        };
-        Plot.Axes.Bottom.TickGenerator = tickGenTime;
-
-        ScottPlot.TickGenerators.NumericAutomatic tickGenValue = new()
-        {
-            MinimumTickSpacing = 0.1f
-        };
-        Plot.Axes.Left.TickGenerator = tickGenValue;
-        Plot.Axes.Right.TickGenerator = tickGenValue;
+        ConfigureTimeTicks();
+        ConfigureSymmetricValueTicks(0.1f);
     }
 }
