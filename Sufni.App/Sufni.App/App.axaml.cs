@@ -109,10 +109,10 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
-            sp.GetRequiredService<IBikeStoreWriter>(),
-            sp.GetRequiredService<ISetupStoreWriter>(),
-            sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<IPairedDeviceStoreWriter>(),
+            sp.GetRequiredService<IBikeStore>(),
+            sp.GetRequiredService<ISetupStore>(),
+            sp.GetRequiredService<ISessionStore>(),
+            sp.GetRequiredService<IPairedDeviceStore>(),
             sp.GetRequiredService<IImportSessionsCoordinator>(),
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISyncCoordinator>(),

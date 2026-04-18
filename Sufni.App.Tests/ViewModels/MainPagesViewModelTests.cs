@@ -11,14 +11,14 @@ public class MainPagesViewModelTests
     [Fact]
     public void SelectedIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
-        var bikeStoreWriter = Substitute.For<IBikeStoreWriter>();
-        var setupStoreWriter = Substitute.For<ISetupStoreWriter>();
-        var sessionStoreWriter = Substitute.For<ISessionStoreWriter>();
-        var pairedDeviceStoreWriter = Substitute.For<IPairedDeviceStoreWriter>();
-        bikeStoreWriter.RefreshAsync().Returns(Task.CompletedTask);
-        setupStoreWriter.RefreshAsync().Returns(Task.CompletedTask);
-        sessionStoreWriter.RefreshAsync().Returns(Task.CompletedTask);
-        pairedDeviceStoreWriter.RefreshAsync().Returns(Task.CompletedTask);
+        var bikeStore = Substitute.For<IBikeStore>();
+        var setupStore = Substitute.For<ISetupStore>();
+        var sessionStore = Substitute.For<ISessionStore>();
+        var pairedDeviceStore = Substitute.For<IPairedDeviceStore>();
+        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
 
         var importSessionsCoordinator = Substitute.For<IImportSessionsCoordinator>();
         var trackCoordinator = Substitute.For<ITrackCoordinator>();
@@ -28,10 +28,10 @@ public class MainPagesViewModelTests
         var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator);
 
         var viewModel = new MainPagesViewModel(
-            bikeStoreWriter,
-            setupStoreWriter,
-            sessionStoreWriter,
-            pairedDeviceStoreWriter,
+            bikeStore,
+            setupStore,
+            sessionStore,
+            pairedDeviceStore,
             importSessionsCoordinator,
             trackCoordinator,
             syncCoordinator,

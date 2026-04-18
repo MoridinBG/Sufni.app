@@ -12,10 +12,10 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IBikeStoreWriter bikeStoreWriter;
-    private readonly ISetupStoreWriter setupStoreWriter;
-    private readonly ISessionStoreWriter sessionStoreWriter;
-    private readonly IPairedDeviceStoreWriter pairedDeviceStoreWriter;
+    private readonly IBikeStore bikeStore;
+    private readonly ISetupStore setupStore;
+    private readonly ISessionStore sessionStore;
+    private readonly IPairedDeviceStore pairedDeviceStore;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
@@ -46,10 +46,10 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel()
     {
-        bikeStoreWriter = null!;
-        setupStoreWriter = null!;
-        sessionStoreWriter = null!;
-        pairedDeviceStoreWriter = null!;
+        bikeStore = null!;
+        setupStore = null!;
+        sessionStore = null!;
+        pairedDeviceStore = null!;
         importSessionsCoordinator = null!;
         trackCoordinator = null!;
         syncCoordinator = null!;
@@ -65,10 +65,10 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     public MainPagesViewModel(
-        IBikeStoreWriter bikeStoreWriter,
-        ISetupStoreWriter setupStoreWriter,
-        ISessionStoreWriter sessionStoreWriter,
-        IPairedDeviceStoreWriter pairedDeviceStoreWriter,
+        IBikeStore bikeStore,
+        ISetupStore setupStore,
+        ISessionStore sessionStore,
+        IPairedDeviceStore pairedDeviceStore,
         IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
@@ -82,10 +82,10 @@ public partial class MainPagesViewModel : ViewModelBase
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
-        this.bikeStoreWriter = bikeStoreWriter;
-        this.setupStoreWriter = setupStoreWriter;
-        this.sessionStoreWriter = sessionStoreWriter;
-        this.pairedDeviceStoreWriter = pairedDeviceStoreWriter;
+        this.bikeStore = bikeStore;
+        this.setupStore = setupStore;
+        this.sessionStore = sessionStore;
+        this.pairedDeviceStore = pairedDeviceStore;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
         this.syncCoordinator = syncCoordinator;
@@ -160,10 +160,10 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-        await bikeStoreWriter.RefreshAsync();
-        await setupStoreWriter.RefreshAsync();
-        await sessionStoreWriter.RefreshAsync();
-        await pairedDeviceStoreWriter.RefreshAsync();
+        await bikeStore.RefreshAsync();
+        await setupStore.RefreshAsync();
+        await sessionStore.RefreshAsync();
+        await pairedDeviceStore.RefreshAsync();
 
         DatabaseLoaded = true;
     }
