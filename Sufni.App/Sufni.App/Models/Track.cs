@@ -23,23 +23,32 @@ public class TrackPoint(double time, double x, double y, double? elevation)
 [Table("track")]
 public class Track : Synchronizable
 {
+    private List<TrackPoint> points = [];
+
+    [JsonIgnore]
+    public bool HasPoints => points.Count > 0;
+
     [JsonPropertyName("points")]
     [Ignore]
-    public List<TrackPoint> Points { get; set; } = [];
+    public List<TrackPoint> Points
+    {
+        get => points;
+        set => points = value ?? [];
+    }
 
     [JsonIgnore]
     [Column("points")]
     public string PointsJson
     {
         get => AppJson.Serialize(Points);
-        set => Points = AppJson.Deserialize<List<TrackPoint>>(value) ?? [];
+        set => points = AppJson.Deserialize<List<TrackPoint>>(value) ?? [];
     }
 
     [JsonIgnore]
     [Column("start_time")]
     public long StartTime
     {
-        get => (long)Points[0].Time;
+        get => HasPoints ? (long)Points[0].Time : 0;
         set => _ = value;
     }
 
@@ -47,23 +56,25 @@ public class Track : Synchronizable
     [Column("end_time")]
     public long EndTime
     {
-        get => (long)Points[^1].Time;
+        get => HasPoints ? (long)Points[^1].Time : 0;
         set => _ = value;
     }
 
-    public static Track FromGpx(string gpx)
+    public static Track? FromGpx(string gpx)
     {
-        return new Track
+        var points = ParseGpx(gpx);
+        return points.Count == 0 ? null : new Track
         {
-            Points = ParseGpx(gpx)
+            Points = points
         };
     }
 
-    public static Track FromGpsRecords(GpsRecord[] records)
+    public static Track? FromGpsRecords(GpsRecord[] records)
     {
-        return new Track
+        var points = GpsTrackPointProjection.ProjectAll(records);
+        return points.Count == 0 ? null : new Track
         {
-            Points = GpsTrackPointProjection.ProjectAll(records)
+            Points = points
         };
     }
 

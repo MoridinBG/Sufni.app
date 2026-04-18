@@ -270,7 +270,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (track.Points.Count > 0)
+                if (track is not null)
                 {
                     await databaseService.PutAsync(track);
                     fullTrackId = track.Id;
