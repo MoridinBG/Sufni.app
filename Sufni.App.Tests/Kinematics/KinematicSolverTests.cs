@@ -21,6 +21,23 @@ public class KinematicSolverTests
         AssertCoordinateListsEqual(resolvedCharacteristics.LeverageRatioData, unresolvedCharacteristics.LeverageRatioData);
     }
 
+    [Fact]
+    public void SolveSuspensionMotion_AppliesFullCorrection_WhenOnlyOneEndpointCanMove()
+    {
+        var fixedJoint = new Joint("fixed", JointType.Fixed, 0, 0);
+        var movingJoint = new Joint("moving", JointType.Floating, 2, 0);
+        var linkage = Linkage.CreateResolved(
+            joints: [fixedJoint, movingJoint],
+            links: [],
+            shock: new Link(fixedJoint, movingJoint),
+            shockStroke: 1);
+
+        var solution = new KinematicSolver(linkage, steps: 2, iterations: 1).SolveSuspensionMotion();
+
+        Assert.Equal(1.0, solution["moving"].X[1], 6);
+        Assert.Equal(0.0, solution["moving"].Y[1], 6);
+    }
+
     private static void AssertCoordinateListsEqual(CoordinateList expected, CoordinateList actual)
     {
         Assert.Equal(expected.Count, actual.Count);
