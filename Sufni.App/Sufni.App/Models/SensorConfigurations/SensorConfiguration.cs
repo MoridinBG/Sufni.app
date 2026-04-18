@@ -48,8 +48,8 @@ public class SensorConfiguration
             SensorType.LinearFork => AppJson.Deserialize<LinearForkSensorConfiguration>(json),
             SensorType.RotationalFork => AppJson.Deserialize<RotationalForkSensorConfiguration>(json),
             SensorType.LinearShock => AppJson.Deserialize<LinearShockSensorConfiguration>(json),
+            SensorType.LinearShockStroke => AppJson.Deserialize<LinearShockSensorConfiguration>(json),
             SensorType.RotationalShock => AppJson.Deserialize<RotationalShockSensorConfiguration>(json),
-            SensorType.LinearShockStroke => AppJson.Deserialize<LinearShockStrokeSensorConfiguration>(json),
             _ => null
         };
     }
@@ -62,7 +62,6 @@ public class SensorConfiguration
             RotationalForkSensorConfiguration rotationalFork => AppJson.Serialize(rotationalFork),
             LinearShockSensorConfiguration linearShock => AppJson.Serialize(linearShock),
             RotationalShockSensorConfiguration rotationalShock => AppJson.Serialize(rotationalShock),
-            LinearShockStrokeSensorConfiguration linearShockStroke => AppJson.Serialize(linearShockStroke),
             _ => throw new JsonException($"Unsupported sensor configuration type '{configuration.GetType().Name}'.")
         };
     }

@@ -66,4 +66,37 @@ public class LinearShockSensorConfigurationViewTests
             await ViewTestHelpers.FlushDispatcherAsync();
         }
     }
+
+    [AvaloniaFact]
+    public async Task LinearShockSensorConfigurationView_ShockStrokeVariant_UsesSameViewSurface()
+    {
+        var view = new LinearShockSensorConfigurationView
+        {
+            DataContext = new LinearShockSensorConfigurationViewModel(new LinearShockSensorConfiguration
+            {
+                Type = SensorType.LinearShockStroke,
+                Length = 190,
+                Resolution = 16
+            })
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        try
+        {
+            var length = view.FindControl<NumericUpDown>("LengthNumericUpDown");
+            var resolution = view.FindControl<NumericUpDown>("ResolutionNumericUpDown");
+
+            Assert.NotNull(length);
+            Assert.NotNull(resolution);
+            Assert.Equal(190, Convert.ToDouble(length!.Value));
+            Assert.Equal(16, Convert.ToInt32(resolution!.Value));
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
 }

@@ -32,7 +32,6 @@ public class ViewLocator : IDataTemplate
         [typeof(JointViewModel)] = static () => new global::Sufni.App.Views.LinkageParts.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearShockSensorConfigurationView(),
-        [typeof(LinearShockStrokeSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearShockStrokeSensorConfigurationView(),
         [typeof(RotationalForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.RotationalForkSensorConfigurationView(),
         [typeof(RotationalShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.RotationalShockSensorConfigurationView(),
         [typeof(BalancePageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.BalancePageView(),

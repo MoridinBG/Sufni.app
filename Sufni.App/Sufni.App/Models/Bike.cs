@@ -389,7 +389,6 @@ internal static class AppJson
 [JsonSerializable(typeof(RotationalForkSensorConfiguration))]
 [JsonSerializable(typeof(LinearShockSensorConfiguration))]
 [JsonSerializable(typeof(RotationalShockSensorConfiguration))]
-[JsonSerializable(typeof(LinearShockStrokeSensorConfiguration))]
 [JsonSerializable(typeof(RearSuspensionKind))]
 [JsonSerializable(typeof(LeverageRatio))]
 [JsonSerializable(typeof(LeverageRatioPoint))]
