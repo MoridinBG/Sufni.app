@@ -7,7 +7,7 @@ namespace Sufni.App;
 
 public static class TelemetryBikeData
 {
-    public static BikeData Create(
+    internal static BikeData Create(
         Bike bike,
         ISensorConfiguration? frontSensorConfiguration,
         RearTravelCalibration? rearTravelCalibration)

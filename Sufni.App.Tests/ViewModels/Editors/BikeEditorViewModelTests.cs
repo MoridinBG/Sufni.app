@@ -323,6 +323,38 @@ public class BikeEditorViewModelTests
         Assert.Equal(79.9, editor.HeadAngle);
     }
 
+    [AvaloniaFact]
+    public void AdditionalHeadTubeTypedPoint_DoesNotChangeWhichJointsDriveHeadAngle()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+        var baselineEditor = CreateEditor(snapshot);
+        var affectedEditor = CreateEditor(snapshot);
+        var mapping = new JointNameMapping();
+
+        var baselineHeadTube1 = Assert.Single(baselineEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.HeadTube1);
+        var affectedHeadTube1 = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.HeadTube1);
+        var extraHeadTube = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.ShockEye1);
+
+        var baselineHeadAngle = baselineEditor.HeadAngle;
+        baselineHeadTube1.Y += 10;
+
+        Assert.NotEqual(baselineHeadAngle, baselineEditor.HeadAngle);
+
+        extraHeadTube.Type = JointType.HeadTube;
+        affectedHeadTube1.Y += 10;
+
+        Assert.Equal(baselineEditor.HeadAngle, affectedEditor.HeadAngle);
+    }
+
     // ----- Dirtiness -----
 
     [AvaloniaFact]
