@@ -84,6 +84,30 @@ public class LiveDaqKnownBoardsQueryTests
     }
 
     [Fact]
+    public async Task Changes_RebuildsProjection_WhenSetupStoreFirstLoadsAfterQueryStarts()
+    {
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "startup setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        var initialRecords = await WaitForRecordsAsync(query.Changes);
+        var initialRecord = Assert.Single(initialRecords);
+        Assert.Equal(boardId.ToString(), initialRecord.DisplayName);
+        Assert.Null(initialRecord.SetupId);
+        Assert.Null(initialRecord.SetupName);
+
+        var nextChange = WaitForRecordsAsync(query.Changes, ignoreReplay: true);
+        setupStore.Upsert(setup);
+        var updatedRecords = await nextChange;
+
+        var updatedRecord = Assert.Single(updatedRecords);
+        Assert.Equal(setup.Id, updatedRecord.SetupId);
+        Assert.Equal("startup setup", updatedRecord.SetupName);
+        Assert.Equal("startup setup", updatedRecord.DisplayName);
+    }
+
+    [Fact]
     public async Task Changes_RebuildsProjection_WhenBikeStoreChanges()
     {
         var boardId = Guid.NewGuid();
