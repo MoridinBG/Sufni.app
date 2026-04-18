@@ -68,4 +68,43 @@ public class SpikeEliminationTests
         Assert.Equal((ushort)1000, fixedSignal[130]);
         Assert.Equal((ushort)1000, fixedSignal[199]);
     }
+
+    [Fact]
+    public void EliminateSpikes_WithUnresolvedDip_CorrectsSignalToEnd()
+    {
+        var signal = new int[200];
+        Array.Fill(signal, 1000);
+        for (int i = 120; i < 200; i++)
+        {
+            signal[i] = 200;
+        }
+
+        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray());
+
+        Assert.True(anomalyCount > 0);
+        Assert.Equal((ushort)1000, fixedSignal[130]);
+        Assert.Equal((ushort)1000, fixedSignal[199]);
+    }
+
+    [Fact]
+    public void EliminateSpikes_WithSuccessiveNegativeChanges_WaitsForActualRecovery()
+    {
+        var signal = new int[200];
+        Array.Fill(signal, 1000);
+        for (int i = 120; i < 140; i++)
+        {
+            signal[i] = 700;
+        }
+        for (int i = 140; i < 170; i++)
+        {
+            signal[i] = 500;
+        }
+
+        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray());
+
+        Assert.True(anomalyCount > 0);
+        Assert.Equal((ushort)1000, fixedSignal[130]);
+        Assert.Equal((ushort)1000, fixedSignal[150]);
+        Assert.Equal((ushort)1000, fixedSignal[199]);
+    }
 }

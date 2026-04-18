@@ -35,20 +35,33 @@ public static class SpikeElimination
             }
         }
 
-        // Sometimes the value reported by the sensor dips a large amount, and jumps back
-        // in a little while. We fix that here.
-        for (var i = 0; i < changes.Count - 1; i++)
+        // Sometimes the value reported by the sensor dips a large amount and later
+        // recovers. If the recovery never comes, treat the negative tail as sensor fault
+        // and correct it through the end of the capture.
+        var activeFaultDelta = 0;
+        var segmentStart = 0;
+        foreach (var change in changes)
         {
-            if (changes[i].Change >= 0)
-                continue;
-
-            var shiftStart = changes[i].Start + 1;
-            var delta = changes[i].Change;
-            var shiftEnd = changes[i + 1].Start;
-            for (var j = shiftStart; j < shiftEnd + 1; j++)
+            for (var j = segmentStart; j <= change.Start; j++)
             {
-                signal[j] -=  delta;
+                signal[j] -= activeFaultDelta;
             }
+
+            if (change.Change < 0)
+            {
+                activeFaultDelta += change.Change;
+            }
+            else if (activeFaultDelta < 0)
+            {
+                activeFaultDelta = Math.Min(0, activeFaultDelta + change.Change);
+            }
+
+            segmentStart = change.Start + 1;
+        }
+
+        for (var j = segmentStart; j < signal.Length; j++)
+        {
+            signal[j] -= activeFaultDelta;
         }
         
         var fixedSignal = signal.Select(v => (ushort)Math.Clamp(v, 0, 4095)).ToArray();
