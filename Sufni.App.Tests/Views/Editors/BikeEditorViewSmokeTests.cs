@@ -4,12 +4,9 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.BikeEditing;
@@ -33,7 +30,7 @@ public class BikeEditorViewSmokeTests
     public async Task BikeEditorView_ShowsWithPopulatedBikeEditorViewModel()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeEditorView
         {
@@ -47,7 +44,7 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         var bikeImage = view.FindControl<Image>("BikeImage");
 
@@ -55,14 +52,14 @@ public class BikeEditorViewSmokeTests
         Assert.NotNull(bikeImage.Source);
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task BikeEditorDesktopView_ShowsWithPopulatedBikeEditorViewModel()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeEditorDesktopView
         {
@@ -76,19 +73,19 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task BikeEditorView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeEditorView
         {
@@ -102,20 +99,20 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
         Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task BikeImageControlsDesktopView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeImageControlsDesktopView
         {
@@ -129,20 +126,20 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
         Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task BikeImageControlsDesktopView_ShowsWheelRemoveButtons_AndBindsCommands()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var viewModel = CreateViewModel();
         var view = new BikeImageControlsDesktopView
@@ -157,7 +154,7 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         var removeButtons = view.GetVisualDescendants()
             .OfType<Button>()
@@ -169,20 +166,20 @@ public class BikeEditorViewSmokeTests
 
         removeButtons[0].Command!.Execute(removeButtons[0].CommandParameter);
         removeButtons[1].Command!.Execute(removeButtons[1].CommandParameter);
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Null(viewModel.WheelGeometry.FrontWheelDiameter);
         Assert.Null(viewModel.WheelGeometry.RearWheelDiameter);
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task BikeImageControlsDesktopView_RendersLeverageRatioEditor_WhenInLeverageRatioMode()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeImageControlsDesktopView
         {
@@ -196,7 +193,7 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Single(view.GetVisualDescendants().OfType<LeverageRatioEditorView>());
         Assert.DoesNotContain(
@@ -204,14 +201,14 @@ public class BikeEditorViewSmokeTests
             textBlock => textBlock.Text?.Contains("Sufni.App.ViewModels.Editors.Bike.LeverageRatioEditorViewModel", StringComparison.Ordinal) == true);
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task BikeImageControlsDesktopView_HidesWheelEditors_WhenInLeverageRatioMode()
     {
         EnsureBikeEditorViewResources();
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new BikeImageControlsDesktopView
         {
@@ -225,7 +222,7 @@ public class BikeEditorViewSmokeTests
         };
 
         host.Show();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(view.FindControl<Grid>("FrontWheelEditorHeaderGrid")!.IsVisible);
         Assert.False(view.FindControl<Grid>("FrontWheelEditorInputsGrid")!.IsVisible);
@@ -233,7 +230,7 @@ public class BikeEditorViewSmokeTests
         Assert.False(view.FindControl<Grid>("RearWheelEditorInputsGrid")!.IsVisible);
 
         host.Close();
-        await FlushUiAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     private static BikeEditorViewModel CreateViewModel(BikeSnapshot? snapshot = null, IDialogService? dialogService = null)
@@ -300,13 +297,9 @@ public class BikeEditorViewSmokeTests
         };
     }
 
-
-    private static async Task FlushUiAsync() =>
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
     private static void EnsureBikeEditorViewResources()
     {
-        var resources = Application.Current?.Resources
+        var resources = Avalonia.Application.Current?.Resources
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
         resources["SufniAccentColor"] = Brushes.CornflowerBlue;
@@ -316,22 +309,5 @@ public class BikeEditorViewSmokeTests
         resources["SufniBorderBrush"] = Brushes.Black;
         resources["SufniDangerColor"] = Brushes.Red;
         resources["SufniDangerColorDark"] = Brushes.DarkRed;
-    }
-
-    private static void EnsurePlotViewStyle()
-    {
-        var application = Application.Current
-            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-        var source = new Uri("avares://Sufni.App/Views/Plots/SufniPlotView.axaml");
-
-        if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
-        {
-            return;
-        }
-
-        application.Styles.Add(new StyleInclude(new Uri("avares://Sufni.App/"))
-        {
-            Source = source
-        });
     }
 }

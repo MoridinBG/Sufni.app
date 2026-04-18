@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -69,6 +70,23 @@ public static class ViewTestHelpers
 
         application.DataTemplates.Add(new ViewLocator());
         application.Resources[ViewTemplatesRegisteredKey] = true;
+    }
+
+    public static void EnsurePlotViewStyle()
+    {
+        var application = Application.Current
+            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
+        var source = new Uri("avares://Sufni.App/Views/Plots/SufniPlotView.axaml");
+
+        if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
+        {
+            return;
+        }
+
+        application.Styles.Add(new StyleInclude(new Uri("avares://Sufni.App/"))
+        {
+            Source = source
+        });
     }
 
     public static T? FindFirstVisual<T>(this Control root)
