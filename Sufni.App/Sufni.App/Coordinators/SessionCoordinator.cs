@@ -58,8 +58,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
         if (synchronizationServer is not null)
         {
-            // Use += so the bike/setup handler set on the same property
-            // by MainPagesViewModel is preserved alongside this one.
             synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
             synchronizationServer.SessionDataArrived += OnSessionDataArrived;
         }

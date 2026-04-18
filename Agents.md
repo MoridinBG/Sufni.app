@@ -256,8 +256,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Data store abstraction** (`ITelemetryDataStore` / `ITelemetryFile`)
   unifies mass-storage, network and storage-provider sources.
 - **Live DAQ streaming** uses a separate framed TCP protocol, its own
-  discovery catalog and browse lease, a runtime-only store, and per-tab
-  transport clients. See
+  discovery catalog and browse lease, a runtime-only store, and a
+  per-identity shared stream that tabs attach to through leases. See
   [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Coordinators with

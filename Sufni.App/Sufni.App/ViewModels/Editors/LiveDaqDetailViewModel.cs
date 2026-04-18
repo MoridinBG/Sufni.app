@@ -15,8 +15,8 @@ using Serilog;
 
 namespace Sufni.App.ViewModels.Editors;
 
-// One live-preview tab. It owns one client instance, the requested-rate inputs, and
-// the throttled snapshot projected into the desktop detail view.
+// One live-preview tab. It owns the requested-rate inputs plus a shared-stream observer
+// lease, and projects a throttled snapshot into the desktop detail view.
 public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqDetailViewModel>();
