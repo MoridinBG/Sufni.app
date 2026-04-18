@@ -23,8 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\AppleShared\AppleBonjourServiceDiscoveryBase.cs" Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
-    <Compile Include="..\AppleShared\AppleSecureStorageBase.cs" Link="AppleShared/AppleSecureStorageBase.cs" />
+    <Compile Include="..\AppleShared\AppleBonjourServiceDiscoveryBase.cs"
+      Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
+    <Compile Include="..\AppleShared\AppleSecureStorageBase.cs"
+      Link="AppleShared/AppleSecureStorageBase.cs" />
   </ItemGroup>
 
   <ItemGroup>
