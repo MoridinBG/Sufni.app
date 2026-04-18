@@ -261,7 +261,7 @@ public class BikeCoordinatorTests
             RearSuspensionKind = RearSuspensionKind.Linkage,
             Chainstay = 440,
             PixelsToMillimeters = 1,
-            Image = TestImages.SmallPng(),
+            ImageBytes = TestImages.SmallPngBytes(),
             Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
         };
 

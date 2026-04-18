@@ -116,18 +116,22 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
 
         try
         {
-            var bitmap = await backgroundTaskRunner.RunAsync(async () =>
+            var loadedImage = await backgroundTaskRunner.RunAsync(async () =>
             {
                 await using var stream = await file.OpenReadAsync();
-                return new Bitmap(stream);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, cancellationToken);
+                var imageBytes = buffer.ToArray();
+                var bitmap = BikeImageData.Decode(imageBytes) ?? throw new InvalidOperationException("Bike image could not be decoded.");
+                return new BikeImageLoadResult.Loaded(imageBytes, bitmap);
             }, cancellationToken);
 
             logger.Verbose(
                 "Bike image loaded with width {PixelWidth} and height {PixelHeight}",
-                bitmap.PixelSize.Width,
-                bitmap.PixelSize.Height);
+                loadedImage.Bitmap.PixelSize.Width,
+                loadedImage.Bitmap.PixelSize.Height);
 
-            return new BikeImageLoadResult.Loaded(bitmap);
+            return loadedImage;
         }
         catch (OperationCanceledException)
         {

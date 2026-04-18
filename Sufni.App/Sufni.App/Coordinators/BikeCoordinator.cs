@@ -156,7 +156,7 @@ public sealed class BikeCoordinator(
                     return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for linkage bikes.");
                 }
 
-                if (bike.Image is null || bike.Chainstay is null || bike.PixelsToMillimeters <= 0)
+                if (bike.ImageBytes.Length == 0 || bike.Chainstay is null || bike.PixelsToMillimeters <= 0)
                 {
                     return new BikeSaveResult.InvalidRearSuspension("Linkage bikes require an image, chainstay, and calibrated linkage scale.");
                 }

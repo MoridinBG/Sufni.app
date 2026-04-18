@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
+using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
@@ -179,7 +180,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
     {
-        if (snapshot?.Image is null) return [];
+        if (snapshot is null || snapshot.ImageBytes.Length == 0) return [];
 
         var resolution = RearSuspensionResolver.Resolve(
             snapshot.RearSuspensionKind,
@@ -188,8 +189,14 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
         if (resolution is not RearSuspensionResolution.Linkage linkage) return [];
 
+        var imageHeight = BikeImageData.Decode(snapshot.ImageBytes)?.Size.Height;
+        if (!imageHeight.HasValue)
+        {
+            return [];
+        }
+
         var jvms = linkage.Value.Linkage.Joints
-            .Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
+            .Select(j => JointViewModel.FromJoint(j, imageHeight.Value, snapshot.PixelsToMillimeters));
         return [.. jvms];
     }
 

@@ -60,7 +60,7 @@ public class BikeEditorViewModelTests
         {
             HeadAngle = 64,
             ForkStroke = 170,
-            Image = TestImages.SmallPng(),
+            ImageBytes = TestImages.SmallPngBytes(),
             PixelsToMillimeters = 1,
             RearSuspensionKind = RearSuspensionKind.Linkage,
             Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints),
@@ -97,7 +97,7 @@ public class BikeEditorViewModelTests
             RearWheelRimSize = rearWheelRimSize,
             RearWheelTireWidth = rearWheelTireWidth,
             RearWheelDiameterMm = rearWheelDiameter,
-            Image = TestImages.SmallPng(),
+            ImageBytes = TestImages.SmallPngBytes(),
             ImageRotationDegrees = imageRotationDegrees,
             Updated = updated,
         };
@@ -173,7 +173,7 @@ public class BikeEditorViewModelTests
         }
 
         Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
-        Assert.Equal(snapshot.Image is not null, editor.ImageCanvas.Image is not null);
+        Assert.Equal(snapshot.ImageBytes.Length > 0, editor.ImageCanvas.Image is not null);
 
         Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
         Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
