@@ -8,7 +8,7 @@
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
     d:DesignHeight="600"
     d:DesignWidth="500"
-    x:DataType="vm:IListItemRow"
+    x:DataType="vm:ListItemRowViewModelBase"
     mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -80,7 +80,7 @@
                         HorizontalContentAlignment="Left"
                         VerticalContentAlignment="Center"
                         Classes="swipedelete"
-                        Command="{Binding $parent[labs:Swipe].((vm:IListItemRow)DataContext).FakeDeleteCommand}"
+                        Command="{Binding $parent[labs:Swipe].((vm:ListItemRowViewModelBase)DataContext).UndoableDeleteCommand}"
                         Svg.Css=".default { fill: #f0f0f0; }">
                         <Image
                             Width="16"

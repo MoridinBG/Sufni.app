@@ -25,20 +25,11 @@ namespace Sufni.App.ViewModels.Editors;
 /// conflict detection at save time. The bike combobox is populated
 /// from <see cref="IBikeStore"/>.
 /// </summary>
-public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
+public partial class SetupEditorViewModel : TabPageViewModelBase
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
-
-    // Explicit interface implementation: the generated commands are
-    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
-    // non-generic IRelayCommand interface property with.
-    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
-    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
-    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
-    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
-    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
 
     #region Private fields
 
@@ -364,8 +355,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         await bikeCoordinator.OpenEditAsync(bike.Id);
     }
 
-    [RelayCommand]
-    private async Task Delete(bool navigateBack)
+    protected override async Task DeleteImplementation(bool navigateBack)
     {
         if (setupCoordinator is null) return;
 
@@ -385,12 +375,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
                 ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
                 break;
         }
-    }
-
-    [RelayCommand]
-    private void FakeDelete()
-    {
-        // Exists so the editor button strip can bind to a delete command.
     }
 
     [RelayCommand]

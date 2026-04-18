@@ -70,6 +70,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     protected virtual Task SaveImplementation() { return Task.CompletedTask; }
     protected virtual Task ResetImplementation() { return Task.CompletedTask; }
     protected virtual Task ExportImplementation() { return Task.CompletedTask; }
+    protected virtual Task DeleteImplementation(bool navigateBack) { return Task.CompletedTask; }
     protected virtual Task CloseImplementation() { return Task.CompletedTask; }
     protected virtual void OnActivated() { }
     protected virtual void OnDeactivated() { }
@@ -92,6 +93,8 @@ public partial class TabPageViewModelBase : ViewModelBase
         return !IsDirty;
     }
 
+    protected virtual bool CanDelete() => true;
+
     #endregion Virtual methods
 
     partial void OnIsTabActiveChanged(bool value)
@@ -108,6 +111,14 @@ public partial class TabPageViewModelBase : ViewModelBase
     public void SetTabActive(bool value)
     {
         IsTabActive = value;
+    }
+
+    public bool CanDeleteItem => DeleteCommand.CanExecute(false);
+
+    protected void NotifyDeleteCommandStateChanged()
+    {
+        DeleteCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanDeleteItem));
     }
 
     #region Commands
@@ -130,6 +141,12 @@ public partial class TabPageViewModelBase : ViewModelBase
     private async Task Export()
     {
         await ExportImplementation();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDelete))]
+    private async Task Delete(bool navigateBack)
+    {
+        await DeleteImplementation(navigateBack);
     }
 
     [RelayCommand]

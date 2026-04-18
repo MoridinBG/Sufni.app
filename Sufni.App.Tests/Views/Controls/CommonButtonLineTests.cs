@@ -1,12 +1,14 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Headless.XUnit;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
+using Sufni.App.Coordinators;
+using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels;
 using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Controls;
@@ -16,10 +18,10 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_SaveButton_BindsConfiguredCommand()
     {
-        var saveCommand = new RelayCommand(() => { }, () => false);
+        var viewModel = new TestEditorViewModel(canSave: () => false);
         var view = new CommonButtonLine
         {
-            DataContext = CreateActions(saveCommand: saveCommand)
+            DataContext = viewModel
         };
 
         var host = ViewTestHelpers.ShowView(view);
@@ -30,7 +32,7 @@ public class CommonButtonLineTests
             var saveButton = view.FindControl<Button>("SaveButton");
             Assert.NotNull(saveButton);
 
-            Assert.Same(saveCommand, saveButton!.Command);
+            Assert.Same(viewModel.SaveCommand, saveButton!.Command);
             Assert.False(saveButton.Command!.CanExecute(saveButton.CommandParameter));
         }
         finally
@@ -43,10 +45,10 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_SaveButton_CommandCanExecuteReflectsCurrentState()
     {
-        var saveCommand = new RelayCommand(() => { }, () => true);
+        var viewModel = new TestEditorViewModel(canSave: () => true);
         var view = new CommonButtonLine
         {
-            DataContext = CreateActions(saveCommand: saveCommand)
+            DataContext = viewModel
         };
 
         var host = ViewTestHelpers.ShowView(view);
@@ -57,7 +59,7 @@ public class CommonButtonLineTests
             var saveButton = view.FindControl<Button>("SaveButton");
             Assert.NotNull(saveButton);
 
-            Assert.Same(saveCommand, saveButton!.Command);
+            Assert.Same(viewModel.SaveCommand, saveButton!.Command);
             Assert.True(saveButton.Command!.CanExecute(saveButton.CommandParameter));
         }
         finally
@@ -71,9 +73,10 @@ public class CommonButtonLineTests
     public async Task CommonButtonLine_SaveButton_InvokesSaveCommand()
     {
         var saveInvoked = false;
+        var viewModel = new TestEditorViewModel(onSave: () => saveInvoked = true);
         var view = new CommonButtonLine
         {
-            DataContext = CreateActions(saveCommand: new RelayCommand(() => saveInvoked = true))
+            DataContext = viewModel
         };
 
         var host = ViewTestHelpers.ShowView(view);
@@ -98,10 +101,11 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_BackButton_InvokesBackCommand()
     {
-        var backInvoked = false;
+        var shell = Substitute.For<IShellCoordinator>();
+        var viewModel = new TestEditorViewModel(shell: shell);
         var view = new CommonButtonLine
         {
-            DataContext = CreateActions(openPreviousPageCommand: new RelayCommand(() => backInvoked = true))
+            DataContext = viewModel
         };
 
         var host = ViewTestHelpers.ShowView(view);
@@ -114,7 +118,7 @@ public class CommonButtonLineTests
 
             backButton!.Command!.Execute(backButton.CommandParameter);
 
-            Assert.True(backInvoked);
+            shell.Received(1).GoBack();
         }
         finally
         {
@@ -127,10 +131,10 @@ public class CommonButtonLineTests
     public async Task CommonButtonLine_ResetButton_TracksCanExecuteChanges()
     {
         var canReset = false;
-        var resetCommand = new RelayCommand(() => { }, () => canReset);
+        var viewModel = new TestEditorViewModel(canReset: () => canReset);
         var view = new CommonButtonLine
         {
-            DataContext = CreateActions(resetCommand: resetCommand)
+            DataContext = viewModel
         };
 
         var host = ViewTestHelpers.ShowView(view);
@@ -141,11 +145,11 @@ public class CommonButtonLineTests
             var resetButton = view.FindControl<Button>("ResetButton");
             Assert.NotNull(resetButton);
 
-            Assert.Same(resetCommand, resetButton!.Command);
+            Assert.Same(viewModel.ResetCommand, resetButton!.Command);
             Assert.False(resetButton.Command!.CanExecute(resetButton.CommandParameter));
 
             canReset = true;
-            resetCommand.NotifyCanExecuteChanged();
+            viewModel.ResetCommand.NotifyCanExecuteChanged();
             await ViewTestHelpers.FlushDispatcherAsync();
 
             Assert.True(resetButton.Command!.CanExecute(resetButton.CommandParameter));
@@ -158,16 +162,13 @@ public class CommonButtonLineTests
     }
 
     [AvaloniaFact]
-    public async Task CommonButtonLine_DeleteFlyout_BindsDeleteConfirmationContent()
+    public async Task CommonButtonLine_DeleteButton_TracksCanExecuteChanges()
     {
-        object? deleteParameter = null;
-        var fakeDeleteInvoked = false;
-        var fakeDeleteCommand = new RelayCommand(() => fakeDeleteInvoked = true);
+        var canDelete = false;
+        var viewModel = new TestEditorViewModel(canDelete: () => canDelete);
         var view = new CommonButtonLine
         {
-            DataContext = CreateActions(
-                deleteCommand: new RelayCommand<object?>(parameter => deleteParameter = parameter),
-                fakeDeleteCommand: fakeDeleteCommand)
+            DataContext = viewModel
         };
 
         var host = ViewTestHelpers.ShowView(view);
@@ -177,21 +178,14 @@ public class CommonButtonLineTests
         {
             var deleteButton = view.FindControl<Button>("DeleteButton");
             Assert.NotNull(deleteButton);
-            var flyout = Assert.IsType<Flyout>(deleteButton!.Flyout);
-            var flyoutContent = Assert.IsType<StackPanel>(flyout.Content);
-            flyoutContent.DataContext = view.DataContext;
+
+            Assert.False(deleteButton!.IsEnabled);
+
+            canDelete = true;
+            viewModel.RefreshDeleteState();
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            deleteButton.Command!.Execute(deleteButton.CommandParameter);
-
-            var innerDeleteButton = Assert.Single(flyoutContent.Children.OfType<Button>(), button => Equals(button.Content, "delete"));
-            Assert.NotNull(innerDeleteButton.Command);
-
-            innerDeleteButton.Command!.Execute(innerDeleteButton.CommandParameter);
-
-            Assert.Same(fakeDeleteCommand, deleteButton.Command);
-            Assert.True(fakeDeleteInvoked);
-            Assert.Equal(true, deleteParameter);
+            Assert.True(deleteButton.IsEnabled);
         }
         finally
         {
@@ -200,21 +194,97 @@ public class CommonButtonLineTests
         }
     }
 
-    private static IEditorActions CreateActions(
-        IRelayCommand? openPreviousPageCommand = null,
-        IRelayCommand? saveCommand = null,
-        IRelayCommand? resetCommand = null,
-        IRelayCommand? deleteCommand = null,
-        IRelayCommand? fakeDeleteCommand = null)
+    [AvaloniaFact]
+    public async Task CommonButtonLine_DeleteFlyout_BindsDeleteConfirmationContent()
     {
-        var actions = Substitute.For<IEditorActions>();
+        bool? navigateBack = null;
+        var viewModel = new TestEditorViewModel(onDelete: value => navigateBack = value);
+        var view = new CommonButtonLine
+        {
+            DataContext = viewModel
+        };
 
-        actions.OpenPreviousPageCommand.Returns(openPreviousPageCommand ?? new RelayCommand(() => { }));
-        actions.SaveCommand.Returns(saveCommand ?? new RelayCommand(() => { }));
-        actions.ResetCommand.Returns(resetCommand ?? new RelayCommand(() => { }));
-        actions.DeleteCommand.Returns(deleteCommand ?? new RelayCommand(() => { }));
-        actions.FakeDeleteCommand.Returns(fakeDeleteCommand ?? new RelayCommand(() => { }));
+        var host = ViewTestHelpers.ShowView(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
-        return actions;
+        try
+        {
+            var deleteButton = view.FindControl<Button>("DeleteButton");
+            Assert.NotNull(deleteButton);
+            Assert.Null(deleteButton!.Command);
+
+            var flyout = Assert.IsType<Flyout>(deleteButton!.Flyout);
+            var flyoutContent = Assert.IsType<StackPanel>(flyout.Content);
+            flyoutContent.DataContext = view.DataContext;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var innerDeleteButton = Assert.Single(flyoutContent.Children.OfType<Button>(), button => Equals(button.Content, "delete"));
+            Assert.NotNull(innerDeleteButton.Command);
+
+            innerDeleteButton.Command!.Execute(innerDeleteButton.CommandParameter);
+
+            Assert.Same(viewModel.DeleteCommand, innerDeleteButton.Command);
+            Assert.Equal(true, navigateBack);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    private sealed class TestEditorViewModel : TabPageViewModelBase
+    {
+        private readonly Action onSave;
+        private readonly Action onReset;
+        private readonly Action<bool> onDelete;
+        private readonly Func<bool> canSave;
+        private readonly Func<bool> canReset;
+        private readonly Func<bool> canDelete;
+
+        public TestEditorViewModel(
+            Action? onSave = null,
+            Action? onReset = null,
+            Action<bool>? onDelete = null,
+            Func<bool>? canSave = null,
+            Func<bool>? canReset = null,
+            Func<bool>? canDelete = null,
+            IShellCoordinator? shell = null,
+            IDialogService? dialogService = null)
+            : base(shell ?? Substitute.For<IShellCoordinator>(), dialogService ?? Substitute.For<IDialogService>())
+        {
+            this.onSave = onSave ?? (() => { });
+            this.onReset = onReset ?? (() => { });
+            this.onDelete = onDelete ?? (_ => { });
+            this.canSave = canSave ?? (() => true);
+            this.canReset = canReset ?? (() => true);
+            this.canDelete = canDelete ?? (() => true);
+        }
+
+        public void RefreshDeleteState() => NotifyDeleteCommandStateChanged();
+
+        protected override bool CanSave() => canSave();
+
+        protected override bool CanReset() => canReset();
+
+        protected override bool CanDelete() => canDelete();
+
+        protected override Task SaveImplementation()
+        {
+            onSave();
+            return Task.CompletedTask;
+        }
+
+        protected override Task ResetImplementation()
+        {
+            onReset();
+            return Task.CompletedTask;
+        }
+
+        protected override Task DeleteImplementation(bool navigateBack)
+        {
+            onDelete(navigateBack);
+            return Task.CompletedTask;
+        }
     }
 }

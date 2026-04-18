@@ -40,20 +40,11 @@ public sealed record RimSizeOption(EtrtoRimSize Value, string DisplayName);
 /// value is kept as <see cref="BaselineUpdated"/> for optimistic
 /// conflict detection at save time.
 /// </summary>
-public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
+public partial class BikeEditorViewModel : TabPageViewModelBase
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
-
-    // Explicit interface implementation: the generated commands are
-    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
-    // non-generic IRelayCommand interface property with.
-    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
-    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
-    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
-    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
-    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
 
     #region Private fields
 
@@ -612,8 +603,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         ReplaceState(importedSnapshot);
         ApplyAnalysisResult(data.AnalysisResult);
 
-        DeleteCommand.NotifyCanExecuteChanged();
-        FakeDeleteCommand.NotifyCanExecuteChanged();
+        NotifyDeleteCommandStateChanged();
     }
 
     private void NotifyEditorCommandStatesChanged()
@@ -993,8 +983,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 ApplyAnalysisResult(saved.AnalysisResult);
                 EvaluateDirtiness();
 
-                DeleteCommand.NotifyCanExecuteChanged();
-                FakeDeleteCommand.NotifyCanExecuteChanged();
+                NotifyDeleteCommandStateChanged();
                 break;
 
             case BikeSaveResult.Conflict conflict:
@@ -1005,8 +994,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 {
                     IsInDatabase = true;
                     ReplaceState(conflict.CurrentSnapshot, refreshAnalysis: true, showPlotBusyOverlay: true);
-                    DeleteCommand.NotifyCanExecuteChanged();
-                    FakeDeleteCommand.NotifyCanExecuteChanged();
+                    NotifyDeleteCommandStateChanged();
                 }
                 break;
 
@@ -1024,11 +1012,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         }
     }
 
-    private bool CanDelete() =>
+    protected override bool CanDelete() =>
         !IsInDatabase || dependencyQuery is null || !dependencyQuery.IsBikeInUse(Id);
 
-    [RelayCommand(CanExecute = nameof(CanDelete))]
-    private async Task Delete(bool navigateBack)
+    protected override async Task DeleteImplementation(bool navigateBack)
     {
         if (bikeCoordinator is null) return;
 
@@ -1051,12 +1038,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
                 ErrorMessages.Add($"Bike could not be deleted: {result.ErrorMessage}");
                 break;
         }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanDelete))]
-    private void FakeDelete()
-    {
-        // Exists so the editor button strip can bind to a delete command.
     }
 
     protected override Task ResetImplementation()
@@ -1178,8 +1159,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase, IEditorActions
         {
             EnsureScopedSubscription(s => s.Add(dependencyQuery.Changes.Subscribe(_ =>
             {
-                DeleteCommand.NotifyCanExecuteChanged();
-                FakeDeleteCommand.NotifyCanExecuteChanged();
+                NotifyDeleteCommandStateChanged();
             })));
         }
 
