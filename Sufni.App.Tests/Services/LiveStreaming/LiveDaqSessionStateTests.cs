@@ -11,10 +11,7 @@ public class LiveDaqSessionStateTests
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 700);
 
-        state.ApplyFrame(new LiveStartAckFrame(
-            CreateHeader(LiveFrameType.StartLiveAck, 0),
-            new LiveStartAck(LiveStartErrorCode.Ok, 700, LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps)));
-        state.ApplyFrame(new LiveSessionHeaderFrame(CreateHeader(LiveFrameType.SessionHeader, 1), sessionHeader));
+        state.ApplySharedSessionState(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps);
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveFrameType.TravelBatch, 2),
             new LiveBatchHeader(700, 0, 10, 123456789, 2),
@@ -71,7 +68,7 @@ public class LiveDaqSessionStateTests
     {
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 701);
-        state.ApplyFrame(new LiveSessionHeaderFrame(CreateHeader(LiveFrameType.SessionHeader, 1), sessionHeader));
+        state.ApplySharedSessionState(sessionHeader, LiveSensorMask.Travel);
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveFrameType.TravelBatch, 2),
             new LiveBatchHeader(701, 0, 10, 123456789, 1),

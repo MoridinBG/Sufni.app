@@ -13,15 +13,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStream>();
 
-    private enum DeliberateDisconnectDisposition
-    {
-        None,
-        RejectedStartCleanup,
-        Stop,
-        Reconfigure,
-        Dispose,
-    }
-
     private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -36,7 +27,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private LiveDaqSharedStreamState currentState = LiveDaqSharedStreamState.Empty;
     private int observerCount;
     private int configurationLockCount;
-    private DeliberateDisconnectDisposition pendingDeliberateDisconnect;
+    private bool hasPendingDeliberateDisconnect;
     private bool isDisposed;
     private bool isEvicted;
 
@@ -146,7 +137,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         SessionHeader = null,
                         SelectedSensorMask = LiveSensorMask.None,
                     });
-                    BeginDeliberateDisconnect(DeliberateDisconnectDisposition.RejectedStartCleanup);
+                    BeginDeliberateDisconnect();
                     await client.DisconnectAsync(cancellationToken);
                     break;
 
@@ -239,7 +230,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Stop);
+            BeginDeliberateDisconnect();
             await liveDaqClient.DisconnectAsync(cancellationToken);
             PublishState(currentState with
             {
@@ -306,7 +297,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Reconfigure);
+            BeginDeliberateDisconnect();
             await liveDaqClient!.DisconnectAsync(cancellationToken);
             PublishState(currentState with
             {
@@ -358,7 +349,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         SessionHeader = null,
                         SelectedSensorMask = LiveSensorMask.None,
                     });
-                    BeginDeliberateDisconnect(DeliberateDisconnectDisposition.RejectedStartCleanup);
+                    BeginDeliberateDisconnect();
                     await client.DisconnectAsync(cancellationToken);
                     break;
 
@@ -526,7 +517,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             if (client.IsConnected)
             {
-                BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Dispose);
+                BeginDeliberateDisconnect();
             }
 
             await client.DisposeAsync();
@@ -674,19 +665,19 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         ObjectDisposedException.ThrowIf(isDisposed, this);
     }
 
-    private void BeginDeliberateDisconnect(DeliberateDisconnectDisposition disposition)
+    private void BeginDeliberateDisconnect()
     {
-        pendingDeliberateDisconnect = disposition;
+        hasPendingDeliberateDisconnect = true;
     }
 
     private bool TryConsumeDeliberateDisconnect()
     {
-        if (pendingDeliberateDisconnect is DeliberateDisconnectDisposition.None)
+        if (!hasPendingDeliberateDisconnect)
         {
             return false;
         }
 
-        pendingDeliberateDisconnect = DeliberateDisconnectDisposition.None;
+        hasPendingDeliberateDisconnect = false;
         return true;
     }
 
