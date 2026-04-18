@@ -27,8 +27,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly object presentationGate = new();
     private bool hasLoaded;
-    private long currentCaptureRevision;
-    private long? lastSavedCaptureRevision;
+    private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
     private bool hasPendingPresentation;
 
@@ -207,7 +206,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         try
         {
             var capture = await liveSessionService.PrepareCaptureForSaveAsync();
-            var savedCaptureRevision = currentCaptureRevision;
+            var savedCaptureRevision = liveSessionService.Current.CaptureRevision;
             var saveTime = DateTimeOffset.Now;
             var sessionName = shouldRefreshAutoName ? CreateDefaultName(saveTime) : Name!;
             var session = new Session(
@@ -233,7 +232,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             switch (result)
             {
                 case LiveSessionSaveResult.Saved saved:
-                    lastSavedCaptureRevision = savedCaptureRevision;
+                    blockedSavedCaptureRevision = savedCaptureRevision;
 
                     try
                     {
@@ -328,7 +327,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyPresentation(LiveSessionPresentationSnapshot snapshot)
     {
-        currentCaptureRevision = snapshot.CaptureRevision;
+        if (blockedSavedCaptureRevision != snapshot.CaptureRevision)
+        {
+            blockedSavedCaptureRevision = null;
+        }
+
         TelemetryData = snapshot.StatisticsTelemetry;
         DamperPercentages = snapshot.DamperPercentages;
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints);
@@ -345,8 +348,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private bool IsCurrentCaptureAlreadySaved()
     {
-        return lastSavedCaptureRevision is long savedCaptureRevision
-            && currentCaptureRevision == savedCaptureRevision;
+        return blockedSavedCaptureRevision is not null;
     }
 
     private LiveSessionControlState ApplyControlFlags(LiveSessionControlState controlState)

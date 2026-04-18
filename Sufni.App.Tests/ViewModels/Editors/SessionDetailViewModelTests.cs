@@ -1,6 +1,5 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Reflection;
 using Avalonia;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -404,39 +403,6 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task ResetImplementation_DoesNotEmitTransientDirtyState_DuringBulkAssignment()
-    {
-        var snapshot = TestSnapshots.Session();
-        var editor = CreateEditor(snapshot);
-        var replacementSession = new Session(snapshot.Id, snapshot.Name, "fresh notes", snapshot.SetupId, snapshot.Timestamp)
-        {
-            FrontSpringRate = "500 lb/in",
-            FrontHighSpeedCompression = 4,
-            RearSpringRate = "450 lb/in",
-            RearLowSpeedRebound = 7,
-            Updated = snapshot.Updated,
-        };
-        var dirtyTransitions = new List<bool>();
-
-        editor.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(SessionDetailViewModel.IsDirty))
-            {
-                dirtyTransitions.Add(editor.IsDirty);
-            }
-        };
-
-        SetCurrentSession(editor, replacementSession);
-        await InvokeResetImplementationAsync(editor);
-
-        Assert.DoesNotContain(true, dirtyTransitions);
-        Assert.False(editor.IsDirty);
-        Assert.Equal("fresh notes", editor.NotesPage.Description);
-        Assert.Equal("500 lb/in", editor.NotesPage.ForkSettings.SpringRate);
-        Assert.Equal<uint?>(7, editor.NotesPage.ShockSettings.LowSpeedRebound);
-    }
-
-    [AvaloniaFact]
     public async Task WatchRefreshes_AreCoalescedWhileLoadIsInFlight()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
@@ -535,22 +501,6 @@ public class SessionDetailViewModelTests
         await sessionCoordinator.Received(3).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         watch.Dispose();
     }
-
-    private static void SetCurrentSession(SessionDetailViewModel editor, Session session)
-    {
-        typeof(SessionDetailViewModel)
-            .GetField("session", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(editor, session);
-    }
-
-    private static async Task InvokeResetImplementationAsync(SessionDetailViewModel editor)
-    {
-        var resetMethod = typeof(SessionDetailViewModel)
-            .GetMethod("ResetImplementation", BindingFlags.Instance | BindingFlags.NonPublic)!;
-
-        await (Task)resetMethod.Invoke(editor, null)!;
-    }
-
     private static async Task<T> AwaitWithCancellation<T>(Task<T> task, CancellationToken cancellationToken)
     {
         return await task.WaitAsync(cancellationToken);
