@@ -194,6 +194,19 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_DoesNotCloseTab_WhenRejectedDialogIsCancelled()
+    {
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(false));
+        var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        shell.DidNotReceive().Close(editor);
+        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+    }
+
+    [AvaloniaFact]
     public async Task Unloaded_DisposesObserverLease()
     {
         var editor = CreateEditor();

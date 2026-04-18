@@ -441,8 +441,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             var updatedState = sharedStream.CurrentState;
             if (result is LivePreviewStartResult.Rejected rejected)
             {
-                await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
-                shell.Close(this);
+                var shouldClose = await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
+                if (!cancellationToken.IsCancellationRequested && shouldClose)
+                {
+                    shell.Close(this);
+                }
+
                 return;
             }
             else if (updatedState.ConnectionState == LiveConnectionState.Connected)
