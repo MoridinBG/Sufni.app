@@ -450,6 +450,11 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async ValueTask DisposeAsync()
     {
+        if (isDisposed)
+        {
+            return;
+        }
+
         await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
@@ -470,6 +475,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             gate.Release();
         }
+
+        gate.Dispose();
     }
 
     private ILiveDaqSharedStreamLease AcquireLease(bool releaseConfigurationLock)
@@ -564,7 +571,14 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private async Task HandleClientEventAsync(LiveDaqClientEvent clientEvent)
     {
         string? closeError = null;
-        await gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
 
         try
         {
@@ -629,7 +643,15 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     {
         var shouldEvict = false;
 
-        await gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
         try
         {
             if (isDisposed)
