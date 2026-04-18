@@ -132,6 +132,48 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
+    public async Task ReconfigureRejection_DoesNotCloseStream_WhenTwoDeliberateDisconnectsArePending()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+
+        var client = clientFactory.CreatedClients.Single();
+        client.DelayDisconnectEvents = true;
+        client.RejectNextStartPreview = true;
+
+        var markerObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = stream.Frames.Subscribe(frame =>
+        {
+            if (frame is LiveStartAckFrame startAck && startAck.Payload.SessionId == FakeLiveDaqClient.DisconnectFlushMarkerSessionId)
+            {
+                markerObserved.TrySetResult();
+            }
+        });
+
+        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
+            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Gps,
+            TravelHz: 100,
+            ImuHz: 0,
+            GpsFixHz: 5));
+
+        client.ReleasePendingDisconnectEvents();
+        await markerObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(stream.CurrentState.IsClosed);
+        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+
+        await stream.EnsureStartedAsync();
+
+        Assert.False(stream.CurrentState.IsClosed);
+        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+    }
+
+    [Fact]
     public async Task EnsureStartedAsync_WhenConnectThrowsCanceled_DoesNotPublishError()
     {
         using var registry = CreateRegistry();
@@ -194,6 +236,36 @@ public class LiveDaqSharedStreamTests
         Assert.False(stream.CurrentState.IsClosed);
     }
 
+    [Fact]
+    public async Task Reserve_ReturnsReplacementStream_WhenExistingStreamIsPendingEviction()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var first = registry.GetOrCreate(snapshot);
+        await using var firstLease = first.AcquireLease();
+        await first.EnsureStartedAsync();
+
+        var firstClient = clientFactory.CreatedClients.Single();
+        firstClient.BlockDisposeAsync = true;
+
+        var releaseTask = firstLease.DisposeAsync().AsTask();
+        var reservationTask = Task.Run(() => registry.Reserve(snapshot));
+
+        firstClient.ReleaseDispose();
+
+        await using var reservation = await reservationTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.NotSame(first, reservation.Stream);
+
+        await releaseTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await using var secondReservation = registry.Reserve(snapshot);
+
+        Assert.Same(reservation.Stream, secondReservation.Stream);
+    }
+
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
         new(clientFactory, catalogService);
 
@@ -233,9 +305,18 @@ public class LiveDaqSharedStreamTests
 
     private sealed class FakeLiveDaqClient : ILiveDaqClient
     {
+        public const uint DisconnectFlushMarkerSessionId = 4_242;
+
         private readonly Subject<LiveDaqClientEvent> events = new();
+        private int pendingDisconnectEvents;
 
         public bool FailNextStartPreview { get; set; }
+
+        public bool RejectNextStartPreview { get; set; }
+
+        public bool DelayDisconnectEvents { get; set; }
+
+        public bool BlockDisposeAsync { get; set; }
 
         public bool ThrowCanceledOnConnect { get; set; }
 
@@ -280,6 +361,13 @@ public class LiveDaqSharedStreamTests
                 return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Failed("preview start failed"));
             }
 
+            if (RejectNextStartPreview)
+            {
+                RejectNextStartPreview = false;
+                return Task.FromResult<LivePreviewStartResult>(
+                    new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, LiveStartErrorCode.Busy.ToUserMessage()));
+            }
+
             var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: (uint)(900 + ConnectCalls));
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
@@ -308,21 +396,71 @@ public class LiveDaqSharedStreamTests
             }
 
             IsConnected = false;
-            events.OnNext(new LiveDaqClientEvent.Disconnected(null));
+            PublishDisconnected();
             return Task.CompletedTask;
         }
 
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;
+            if (BlockDisposeAsync)
+            {
+                return new ValueTask(WaitForDisposeReleaseAsync());
+            }
+
             if (IsConnected)
             {
                 IsConnected = false;
-                events.OnNext(new LiveDaqClientEvent.Disconnected(null));
+                PublishDisconnected();
             }
 
             events.OnCompleted();
             return ValueTask.CompletedTask;
+        }
+
+        public void ReleaseDispose()
+        {
+            disposeRelease.TrySetResult();
+        }
+
+        public void ReleasePendingDisconnectEvents()
+        {
+            while (pendingDisconnectEvents > 0)
+            {
+                pendingDisconnectEvents--;
+                events.OnNext(new LiveDaqClientEvent.Disconnected(null));
+            }
+
+            events.OnNext(new LiveDaqClientEvent.FrameReceived(
+                new LiveStartAckFrame(
+                    new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0),
+                    new LiveStartAck(LiveStartErrorCode.Ok, DisconnectFlushMarkerSessionId, LiveSensorMask.None))));
+        }
+
+        private void PublishDisconnected()
+        {
+            if (DelayDisconnectEvents)
+            {
+                pendingDisconnectEvents++;
+                return;
+            }
+
+            events.OnNext(new LiveDaqClientEvent.Disconnected(null));
+        }
+
+        private readonly TaskCompletionSource disposeRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private async Task WaitForDisposeReleaseAsync()
+        {
+            await disposeRelease.Task;
+
+            if (IsConnected)
+            {
+                IsConnected = false;
+                PublishDisconnected();
+            }
+
+            events.OnCompleted();
         }
     }
 }

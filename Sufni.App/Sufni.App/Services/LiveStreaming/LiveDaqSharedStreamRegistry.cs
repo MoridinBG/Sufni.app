@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
@@ -42,6 +43,30 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
             var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, EvictAsync);
             streams.Add(snapshot.IdentityKey, stream);
             return stream;
+        }
+    }
+
+    public ILiveDaqSharedStreamReservation Reserve(LiveDaqSnapshot snapshot)
+    {
+        lock (gate)
+        {
+            if (streams.TryGetValue(snapshot.IdentityKey, out var existing))
+            {
+                _ = existing.UpdateCatalogSnapshotAsync(snapshot);
+                if (existing.TryAcquireReservationLease() is { } existingLease)
+                {
+                    return new SharedStreamReservation(existing, existingLease);
+                }
+
+                streams.Remove(snapshot.IdentityKey);
+            }
+
+            EnsureBrowseLeaseLocked();
+            var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, EvictAsync);
+            var lease = stream.TryAcquireReservationLease()
+                ?? throw new InvalidOperationException("Failed to reserve a newly created live DAQ stream.");
+            streams.Add(snapshot.IdentityKey, stream);
+            return new SharedStreamReservation(stream, lease);
         }
     }
 
@@ -104,10 +129,12 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
     {
         lock (gate)
         {
-            if (!streams.Remove(stream.IdentityKey))
+            if (!streams.TryGetValue(stream.IdentityKey, out var current) || !ReferenceEquals(current, stream))
             {
                 return;
             }
+
+            streams.Remove(stream.IdentityKey);
 
             logger.Debug("Evicted shared live DAQ stream for {IdentityKey}", stream.IdentityKey);
             if (streams.Count == 0)
@@ -121,5 +148,30 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
     private void EnsureBrowseLeaseLocked()
     {
         browseLease ??= liveDaqCatalogService.AcquireBrowse();
+    }
+
+    private sealed class SharedStreamReservation : ILiveDaqSharedStreamReservation
+    {
+        private ILiveDaqSharedStreamLease? lease;
+
+        public SharedStreamReservation(ILiveDaqSharedStream stream, ILiveDaqSharedStreamLease lease)
+        {
+            Stream = stream;
+            this.lease = lease;
+        }
+
+        public ILiveDaqSharedStream Stream { get; }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (lease is null)
+            {
+                return;
+            }
+
+            var heldLease = lease;
+            lease = null;
+            await heldLease.DisposeAsync();
+        }
     }
 }
