@@ -189,7 +189,7 @@ public class TelemetryData
 
                     var at = new Airtime
                     {
-                        Start = Math.Min(f.Start, r.Start) / (double)Metadata.SampleRate,
+                        Start = Math.Max(f.Start, r.Start) / (double)Metadata.SampleRate,
                         End = Math.Min(f.End, r.End) / (double)Metadata.SampleRate
                     };
                     airtimes.Add(at);
