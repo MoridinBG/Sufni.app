@@ -32,7 +32,6 @@ public class ImportSessionsViewModelTests
             .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(Array.Empty<ITelemetryFile>()));
 
         importSessionsCoordinator.ImportAsync(
-                Arg.Any<ITelemetryDataStore>(),
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
                 Arg.Any<Guid>(),
                 Arg.Any<IProgress<SessionImportEvent>?>())
@@ -260,13 +259,12 @@ public class ImportSessionsViewModelTests
             .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
 
         importSessionsCoordinator.ImportAsync(
-                dataStore,
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
                 setup.Id,
                 Arg.Any<IProgress<SessionImportEvent>?>())
             .Returns(callInfo =>
             {
-                var progress = callInfo.ArgAt<IProgress<SessionImportEvent>?>(3);
+                var progress = callInfo.ArgAt<IProgress<SessionImportEvent>?>(2);
                 progress?.Report(new SessionImportEvent.Imported(TestSnapshots.Session(name: "lap")));
                 progress?.Report(new SessionImportEvent.Failed("broken.SST", "boom"));
                 return Task.FromResult(new SessionImportResult(
@@ -281,6 +279,36 @@ public class ImportSessionsViewModelTests
 
         Assert.NotEmpty(viewModel.Notifications);
         Assert.Single(viewModel.ErrorMessages);
+    }
+
+    [Fact]
+    public async Task ImportSessions_AddsFinalSummaryNotification_FromCoordinatorResult()
+    {
+        using var _ = new TestSynchronizationContextScope();
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(boardId: boardId);
+        setupCache.AddOrUpdate(setup);
+
+        var dataStore = CreateDataStore(boardId: boardId);
+        var file = CreateTelemetryFile("lap");
+        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+
+        importSessionsCoordinator.ImportAsync(
+                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
+                setup.Id,
+                Arg.Any<IProgress<SessionImportEvent>?>())
+            .Returns(Task.FromResult(new SessionImportResult(
+                new[] { TestSnapshots.Session() },
+                new[] { ("broken.SST", "boom") })));
+
+        var viewModel = CreateViewModel();
+        viewModel.SelectedDataStore = dataStore;
+
+        await viewModel.ImportSessionsCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.Notifications);
+        Assert.Empty(viewModel.ErrorMessages);
     }
 
     [Fact]

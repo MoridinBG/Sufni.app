@@ -28,7 +28,6 @@ public sealed class ImportSessionsCoordinator(
     }
 
     public async Task<SessionImportResult> ImportAsync(
-        ITelemetryDataStore dataStore,
         IReadOnlyList<ITelemetryFile> files,
         Guid setupId,
         IProgress<SessionImportEvent>? progress = null)
@@ -37,9 +36,6 @@ public sealed class ImportSessionsCoordinator(
             "Starting session import for {FileCount} files and setup {SetupId}",
             files.Count,
             setupId);
-        logger.Verbose(
-            "Session import source is {DataStoreType}",
-            dataStore.GetType().Name);
 
         try
         {

@@ -73,7 +73,6 @@ public class ImportSessionsViewTests
 
         var importCompletion = new TaskCompletionSource<SessionImportResult>();
         importSessionsCoordinator.ImportAsync(
-                dataStore,
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
                 setup.Id,
                 Arg.Any<IProgress<SessionImportEvent>?>())
