@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using Sufni.Telemetry;
+using Sufni.App.Services;
 
 namespace Sufni.App.Services.LiveStreaming;
 
@@ -9,32 +10,21 @@ namespace Sufni.App.Services.LiveStreaming;
 // bytes stay buffered until a full header and payload are available.
 public sealed class LiveProtocolReader
 {
-    private byte[] pendingBytes = [];
-    private int pendingOffset;
-    private int bufferedByteCount;
+    private readonly UnreadByteBuffer unreadBytes = new();
 
     // Number of unread bytes currently buffered.
-    public int BufferedByteCount => bufferedByteCount;
+    public int BufferedByteCount => unreadBytes.BufferedByteCount;
 
     // Appends newly read socket bytes to the unread portion of the buffer.
     public void Append(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length == 0)
-        {
-            return;
-        }
-
-        EnsureWriteCapacity(bytes.Length);
-        bytes.CopyTo(pendingBytes.AsSpan(pendingOffset + bufferedByteCount, bytes.Length));
-        bufferedByteCount += bytes.Length;
+        unreadBytes.Append(bytes);
     }
 
     // Clears all unread buffered bytes.
     public void Reset()
     {
-        pendingBytes = [];
-        pendingOffset = 0;
-        bufferedByteCount = 0;
+        unreadBytes.Reset();
     }
 
     // Tries to parse and consume exactly one complete frame. Returns false when more
@@ -45,42 +35,28 @@ public sealed class LiveProtocolReader
         while (true)
         {
             frame = null;
-            if (bufferedByteCount < LiveProtocolConstants.FrameHeaderSize)
+            if (unreadBytes.BufferedByteCount < LiveProtocolConstants.FrameHeaderSize)
             {
                 return false;
             }
 
-            var pendingSpan = pendingBytes.AsSpan(pendingOffset, bufferedByteCount);
+            var pendingSpan = unreadBytes.UnreadBytes;
             var header = ParseHeader(pendingSpan[..LiveProtocolConstants.FrameHeaderSize]);
             var totalLength = header.TotalFrameLength;
-            if (bufferedByteCount < totalLength)
+            if (unreadBytes.BufferedByteCount < totalLength)
             {
                 return false;
             }
 
             if (!IsKnownFrameType(header.FrameType))
             {
-                AdvanceBuffer(totalLength);
+                unreadBytes.Consume(totalLength);
                 continue;
             }
 
             frame = ParseFrame(pendingSpan[..totalLength]);
-            AdvanceBuffer(totalLength);
+            unreadBytes.Consume(totalLength);
             return true;
-        }
-    }
-
-    private void AdvanceBuffer(int length)
-    {
-        pendingOffset += length;
-        bufferedByteCount -= length;
-        if (bufferedByteCount == 0)
-        {
-            pendingOffset = 0;
-        }
-        else if (pendingOffset >= pendingBytes.Length / 2)
-        {
-            CompactUnreadBytes();
         }
     }
 
@@ -102,54 +78,6 @@ public sealed class LiveProtocolReader
         LiveFrameType.SessionStats => true,
         _ => false,
     };
-
-    private void EnsureWriteCapacity(int appendLength)
-    {
-        var requiredLength = pendingOffset + bufferedByteCount + appendLength;
-        if (pendingBytes.Length >= requiredLength)
-        {
-            return;
-        }
-
-        CompactUnreadBytes();
-        requiredLength = bufferedByteCount + appendLength;
-        if (pendingBytes.Length >= requiredLength)
-        {
-            return;
-        }
-
-        var newLength = pendingBytes.Length == 0 ? 256 : pendingBytes.Length;
-        while (newLength < requiredLength)
-        {
-            newLength = checked(newLength * 2);
-        }
-
-        var resized = new byte[newLength];
-        if (bufferedByteCount > 0)
-        {
-            pendingBytes.AsSpan(pendingOffset, bufferedByteCount).CopyTo(resized);
-        }
-
-        pendingBytes = resized;
-        pendingOffset = 0;
-    }
-
-    private void CompactUnreadBytes()
-    {
-        if (pendingOffset == 0)
-        {
-            return;
-        }
-
-        if (bufferedByteCount == 0)
-        {
-            pendingOffset = 0;
-            return;
-        }
-
-        pendingBytes.AsSpan(pendingOffset, bufferedByteCount).CopyTo(pendingBytes);
-        pendingOffset = 0;
-    }
 
     // Encodes a START_LIVE request using the exact wire payload layout.
     public static byte[] CreateStartLiveFrame(uint sequence, LiveStartRequest request)
