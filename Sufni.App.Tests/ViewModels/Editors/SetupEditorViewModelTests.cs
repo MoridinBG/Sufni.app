@@ -208,7 +208,8 @@ public class SetupEditorViewModelTests
 
         editor.ShockSensorType = SensorType.LinearShockStroke;
 
-        Assert.IsType<LinearShockStrokeSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
+        var configuration = Assert.IsType<LinearShockSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
+        Assert.Equal(SensorType.LinearShockStroke, configuration.Type);
     }
 
     // ----- CanSave -----

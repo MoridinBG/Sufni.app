@@ -275,10 +275,11 @@ public class LiveDaqKnownBoardsQueryTests
             name: "curve bike");
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "curve setup", bikeId: bike.Id, boardId: boardId) with
         {
-            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockStrokeSensorConfiguration
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
             {
                 Length = 24,
                 Resolution = 4,
+                Type = SensorType.LinearShockStroke,
             })
         };
 

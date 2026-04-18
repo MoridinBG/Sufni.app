@@ -36,7 +36,8 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
         sensorConfiguration = new LinearShockSensorConfiguration
         {
             Length = Length.Value,
-            Resolution = Resolution.Value
+            Resolution = Resolution.Value,
+            Type = Type,
         };
 
         EvaluateDirtiness();
@@ -50,7 +51,8 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
         var sc = new LinearShockSensorConfiguration
         {
             Length = Length.Value,
-            Resolution = Resolution.Value
+            Resolution = Resolution.Value,
+            Type = Type,
         };
 
         return SensorConfiguration.ToJson(sc);
@@ -62,9 +64,14 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
 
     public LinearShockSensorConfigurationViewModel() : this(new LinearShockSensorConfiguration()) { }
 
+    public LinearShockSensorConfigurationViewModel(SensorType type)
+        : this(new LinearShockSensorConfiguration { Type = type }) { }
+
     public LinearShockSensorConfigurationViewModel(LinearShockSensorConfiguration configuration)
     {
-        Type = SensorType.LinearShock;
+        Type = configuration.Type is SensorType.LinearShockStroke
+            ? SensorType.LinearShockStroke
+            : SensorType.LinearShock;
         sensorConfiguration = configuration;
         Length = configuration.Length;
         Resolution = configuration.Resolution;
