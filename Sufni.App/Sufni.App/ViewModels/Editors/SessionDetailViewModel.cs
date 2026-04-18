@@ -25,7 +25,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// <see cref="SessionCoordinator"/> from a <see cref="SessionSnapshot"/>;
 /// save and delete route back through the coordinator.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions,
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
 {
     public Guid Id { get; private set; }
@@ -40,15 +40,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
     public SessionTimelineLinkViewModel Timeline { get; } = new();
-
-    // Explicit interface implementation: the generated commands are
-    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
-    // non-generic IRelayCommand interface property with.
-    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
-    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
-    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
-    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
-    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
 
     #region Private fields
 
@@ -433,8 +424,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         return Task.CompletedTask;
     }
 
-    [RelayCommand]
-    private async Task Delete(bool navigateBack)
+    protected override async Task DeleteImplementation(bool navigateBack)
     {
         if (sessionCoordinator is null) return;
 
@@ -448,12 +438,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                 ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
                 break;
         }
-    }
-
-    [RelayCommand]
-    private void FakeDelete()
-    {
-        // Exists so the editor button strip can bind to a delete command.
     }
 
     #endregion TabPageViewModelBase overrides

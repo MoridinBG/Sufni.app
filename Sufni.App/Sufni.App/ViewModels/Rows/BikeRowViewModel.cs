@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Stores;
@@ -22,7 +20,7 @@ namespace Sufni.App.ViewModels.Rows;
 /// release the dependency-query subscription via DynamicData's
 /// <c>DisposeMany</c> when a bike leaves the store.
 /// </summary>
-public partial class BikeRowViewModel : ObservableObject, IListItemRow, IDisposable
+public sealed class BikeRowViewModel : ListItemRowViewModelBase, IDisposable
 {
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly Action<BikeRowViewModel>? requestDelete;
@@ -30,13 +28,6 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow, IDisposa
     private readonly IDisposable? changesSubscription;
 
     public Guid Id { get; private set; }
-
-    [ObservableProperty] private string? name;
-
-    // Stub members for IListItemRow. Bikes have no timestamp or
-    // sync-completion concept on a row; the controls just hide them.
-    public DateTime? Timestamp => null;
-    public bool IsComplete => true;
 
     public BikeRowViewModel()
     {
@@ -63,8 +54,7 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow, IDisposa
         // leaves the store.
         changesSubscription = dependencyQuery.Changes.Subscribe(_ =>
         {
-            UndoableDeleteCommand.NotifyCanExecuteChanged();
-            FakeDeleteCommand.NotifyCanExecuteChanged();
+            NotifyDeleteCanExecuteChanged();
         });
     }
 
@@ -72,6 +62,8 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow, IDisposa
     {
         Id = snapshot.Id;
         Name = snapshot.Name;
+        Timestamp = null;
+        IsComplete = true;
     }
 
     public void Dispose()
@@ -79,29 +71,17 @@ public partial class BikeRowViewModel : ObservableObject, IListItemRow, IDisposa
         changesSubscription?.Dispose();
     }
 
-    private bool CanDelete() =>
-        dependencyQuery is null || !dependencyQuery.IsBikeInUse(Id);
-
-    [RelayCommand]
-    private async Task OpenPage()
+    protected override async Task OpenPageAsync()
     {
         if (bikeCoordinator is null) return;
         await bikeCoordinator.OpenEditAsync(Id);
     }
 
-    [RelayCommand(CanExecute = nameof(CanDelete))]
-    private void UndoableDelete()
+    protected override void UndoableDelete()
     {
         requestDelete?.Invoke(this);
     }
 
-    [RelayCommand(CanExecute = nameof(CanDelete))]
-    private void FakeDelete()
-    {
-        // Exists so the controls can bind to a delete command on this row.
-    }
-
-    IRelayCommand IListItemRow.OpenPageCommand => OpenPageCommand;
-    IRelayCommand IListItemRow.UndoableDeleteCommand => UndoableDeleteCommand;
-    IRelayCommand IListItemRow.FakeDeleteCommand => FakeDeleteCommand;
+    protected override bool CanDelete() =>
+        dependencyQuery is null || !dependencyQuery.IsBikeInUse(Id);
 }
