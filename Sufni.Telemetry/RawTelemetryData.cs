@@ -12,7 +12,7 @@ public class RawTelemetryData
     public byte[] Magic { get; set; } = null!;
     public byte Version { get; set; }
     public ushort SampleRate { get; set; }
-    public int Timestamp { get; set; }
+    public long Timestamp { get; set; }
     public ushort[] Front { get; set; } = [];
     public ushort[] Rear { get; set; } = [];
     public double FrontAnomalyRate { get; set; }

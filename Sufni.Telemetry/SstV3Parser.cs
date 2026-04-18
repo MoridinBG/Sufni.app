@@ -27,16 +27,6 @@ public class SstV3Parser : ISstParser
         var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
 
         var payloadLength = stream.Length - HeaderSize;
-        if (payloadLength < 0)
-        {
-            return new MalformedSstFileInspection(
-                Version: version,
-                StartTime: startTime,
-                Duration: null,
-                TelemetrySampleRate: sampleRate,
-                Message: "SST v3 telemetry payload is truncated.");
-        }
-
         if (payloadLength % TelemetryRecordSize != 0)
         {
             return new MalformedSstFileInspection(
@@ -70,10 +60,10 @@ public class SstV3Parser : ISstParser
 
         var sampleRate = reader.ReadUInt16();
         _ = reader.ReadUInt16(); // padding
-        var timestamp = (int)reader.ReadInt64();
+        var timestamp = reader.ReadInt64();
 
         var payloadLength = stream.Length - HeaderSize;
-        if (payloadLength < 0 || payloadLength % TelemetryRecordSize != 0)
+        if (payloadLength % TelemetryRecordSize != 0)
             throw new FormatException("SST v3 telemetry payload length is invalid.");
 
         if (sampleRate == 0)

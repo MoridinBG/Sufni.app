@@ -17,7 +17,7 @@ public class Metadata
     public string SourceName { get; set; }
     public int Version { get; set; }
     public int SampleRate { get; set; }
-    public int Timestamp { get; set; }
+    public long Timestamp { get; set; }
     public double Duration { get; set; }
 }
 
@@ -506,14 +506,14 @@ public class TelemetryData
         if (totalCount <= 0)
         {
             return new HistogramData(
-                suspension.TravelBins.ToList().GetRange(0, suspension.TravelBins.Length),
+                suspension.TravelBins.ToList(),
                 [.. hist]);
         }
 
         hist = hist.Select(value => value / totalCount * 100.0).ToArray();
 
         return new HistogramData(
-            suspension.TravelBins.ToList().GetRange(0, suspension.TravelBins.Length), [.. hist]);
+            suspension.TravelBins.ToList(), [.. hist]);
     }
 
     public StackedHistogramData CalculateVelocityHistogram(SuspensionType type)
@@ -542,7 +542,7 @@ public class TelemetryData
         if (totalCount <= 0)
         {
             return new StackedHistogramData(
-                suspension.VelocityBins.ToList().GetRange(0, suspension.VelocityBins.Length),
+                suspension.VelocityBins.ToList(),
                 [.. hist]);
         }
 
@@ -560,7 +560,7 @@ public class TelemetryData
         }
 
         return new StackedHistogramData(
-            suspension.VelocityBins.ToList().GetRange(0, suspension.VelocityBins.Length), [.. hist]);
+            suspension.VelocityBins.ToList(), [.. hist]);
     }
 
     public NormalDistributionData CalculateNormalDistribution(SuspensionType type)
