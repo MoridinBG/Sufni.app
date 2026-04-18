@@ -13,8 +13,14 @@ namespace Sufni.App.Tests.Queries;
 public class LiveDaqKnownBoardsQueryTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
-    private readonly TestSetupStore setupStore = new();
-    private readonly TestBikeStore bikeStore = new();
+    private readonly SetupStore setupStore;
+    private readonly BikeStore bikeStore;
+
+    public LiveDaqKnownBoardsQueryTests()
+    {
+        setupStore = new SetupStore(database);
+        bikeStore = new BikeStore(database);
+    }
 
     private LiveDaqKnownBoardsQuery CreateQuery() => new(database, setupStore, bikeStore);
 
@@ -322,42 +328,5 @@ public class LiveDaqKnownBoardsQueryTests
         });
 
         return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
-    }
-
-    private sealed class TestSetupStore : ISetupStore
-    {
-        private readonly SourceCache<SetupSnapshot, Guid> source = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<SetupSnapshot, Guid>> Connect() => source.Connect();
-
-        public SetupSnapshot? Get(Guid id)
-        {
-            var lookup = source.Lookup(id);
-            return lookup.HasValue ? lookup.Value : null;
-        }
-
-        public SetupSnapshot? FindByBoardId(Guid boardId) =>
-            source.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
-
-        public Task RefreshAsync() => Task.CompletedTask;
-
-        public void Upsert(SetupSnapshot snapshot) => source.AddOrUpdate(snapshot);
-    }
-
-    private sealed class TestBikeStore : IBikeStore
-    {
-        private readonly SourceCache<BikeSnapshot, Guid> source = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<BikeSnapshot, Guid>> Connect() => source.Connect();
-
-        public BikeSnapshot? Get(Guid id)
-        {
-            var lookup = source.Lookup(id);
-            return lookup.HasValue ? lookup.Value : null;
-        }
-
-        public Task RefreshAsync() => Task.CompletedTask;
-
-        public void Upsert(BikeSnapshot snapshot) => source.AddOrUpdate(snapshot);
     }
 }

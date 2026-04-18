@@ -15,7 +15,9 @@ namespace Sufni.App.Tests.Coordinators;
 
 public class LiveDaqCoordinatorTests
 {
-    private readonly TestLiveDaqStore liveDaqStore = new();
+    private readonly LiveDaqStore liveDaqStore = new();
+    private readonly List<IReadOnlyCollection<LiveDaqSnapshot>> observedStates = [];
+    private readonly Dictionary<string, LiveDaqSnapshot> currentObservedState = [];
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
     private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
@@ -36,6 +38,7 @@ public class LiveDaqCoordinatorTests
 
     public LiveDaqCoordinatorTests()
     {
+        liveDaqStore.Connect().Subscribe(RecordObservedState);
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
         catalogService.Observe().Returns(catalogEntries);
         catalogService.AcquireBrowse().Returns(browseLease);
@@ -84,7 +87,7 @@ public class LiveDaqCoordinatorTests
         CreateCoordinator().Activate();
 
         catalogService.Received(1).AcquireBrowse();
-        var snapshot = Assert.Single(liveDaqStore.Items);
+        var snapshot = Assert.Single(observedStates[^1]);
         Assert.Equal(boardId.ToString(), snapshot.IdentityKey);
         Assert.False(snapshot.IsOnline);
         Assert.Equal("park setup", snapshot.SetupName);
@@ -182,7 +185,7 @@ public class LiveDaqCoordinatorTests
         Assert.False(knownSnapshot.IsOnline);
         Assert.Null(knownSnapshot.Endpoint);
         Assert.Null(liveDaqStore.Get("192.168.0.21:6666"));
-        Assert.Single(liveDaqStore.Items);
+        Assert.Single(observedStates[^1]);
     }
 
     [Fact]
@@ -211,7 +214,6 @@ public class LiveDaqCoordinatorTests
         ]);
 
         var coordinator = CreateCoordinator();
-        _ = liveDaqStore.ObservedStates;
         coordinator.Activate();
 
         catalogEntries.OnNext(
@@ -221,7 +223,7 @@ public class LiveDaqCoordinatorTests
 
         // Every published state must include both known boards — no observer
         // should ever witness an empty or partial catalog during reconcile.
-        foreach (var state in liveDaqStore.ObservedStates)
+        foreach (var state in observedStates)
         {
             Assert.Equal(2, state.Count);
         }
@@ -343,52 +345,27 @@ public class LiveDaqCoordinatorTests
             TravelCalibration: new LiveDaqTravelCalibration(null, null));
     }
 
-    private sealed class TestLiveDaqStore : ILiveDaqStoreWriter
+    private void RecordObservedState(IChangeSet<LiveDaqSnapshot, string> changes)
     {
-        private readonly SourceCache<LiveDaqSnapshot, string> source = new(snapshot => snapshot.IdentityKey);
-        private readonly List<IReadOnlyList<LiveDaqSnapshot>> observedStates = [];
-        private bool observerAttached;
-
-        public IReadOnlyCollection<LiveDaqSnapshot> Items => source.Items;
-
-        public IReadOnlyList<IReadOnlyList<LiveDaqSnapshot>> ObservedStates
+        if (changes.Count == 0)
         {
-            get
+            return;
+        }
+
+        foreach (var change in changes)
+        {
+            switch (change.Reason)
             {
-                EnsureObserver();
-                return observedStates;
+                case ChangeReason.Remove:
+                    currentObservedState.Remove(change.Key);
+                    break;
+
+                default:
+                    currentObservedState[change.Key] = change.Current;
+                    break;
             }
         }
 
-        public IObservable<IChangeSet<LiveDaqSnapshot, string>> Connect() => source.Connect();
-
-        public LiveDaqSnapshot? Get(string identityKey)
-        {
-            var lookup = source.Lookup(identityKey);
-            return lookup.HasValue ? lookup.Value : null;
-        }
-
-        public void Upsert(LiveDaqSnapshot snapshot) => source.AddOrUpdate(snapshot);
-
-        public void Remove(string identityKey) => source.RemoveKey(identityKey);
-
-        public void Clear() => source.Clear();
-
-        public void ReplaceAll(IEnumerable<LiveDaqSnapshot> snapshots) =>
-            source.Edit(updater => updater.Load(snapshots));
-
-        private void EnsureObserver()
-        {
-            if (observerAttached)
-            {
-                return;
-            }
-
-            observerAttached = true;
-            source.Connect().Subscribe(_ =>
-            {
-                observedStates.Add(source.Items.ToList());
-            });
-        }
+        observedStates.Add(currentObservedState.Values.ToList());
     }
 }
