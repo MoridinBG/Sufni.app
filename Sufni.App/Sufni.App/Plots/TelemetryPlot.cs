@@ -82,5 +82,7 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
         Plot.Axes.Right.TickGenerator = tickGenerator;
     }
 
+    public virtual void SetCursorPosition(double position) { }
+
     public virtual void LoadTelemetryData(TelemetryData telemetryData) { }
 }

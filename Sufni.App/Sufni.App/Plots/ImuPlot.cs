@@ -13,9 +13,23 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 
     public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
+    public override void SetCursorPosition(double position)
+    {
+        if (CursorLine is not null)
+        {
+            CursorLine.Position = position;
+        }
+    }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
+
+        if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
+        {
+            ShowEmptyState();
+            return;
+        }
 
         Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
@@ -24,11 +38,6 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;
         CursorLine.LineColor = Colors.LightGray;
-
-        if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
-        {
-            return;
-        }
 
         var imuData = telemetryData.ImuData;
         var activeLocations = imuData.ActiveLocations;
@@ -121,5 +130,17 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 
         ConfigureTimeTicks();
         ConfigureSymmetricValueTicks(0.1f);
+    }
+
+    private void ShowEmptyState()
+    {
+        Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
+        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Axes.SetLimits(0, 1, 0, 1);
+
+        var text = Plot.Add.Text("No IMU data", 0.5, 0.5);
+        text.LabelFontColor = Color.FromHex("#fefefe");
+        text.LabelFontSize = 13;
+        text.LabelAlignment = Alignment.MiddleCenter;
     }
 }

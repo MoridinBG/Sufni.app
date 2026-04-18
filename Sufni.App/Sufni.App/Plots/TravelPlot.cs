@@ -9,6 +9,14 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 {
     public VerticalLine? CursorLine { get; set; }
 
+    public override void SetCursorPosition(double position)
+    {
+        if (CursorLine is not null)
+        {
+            CursorLine.Position = position;
+        }
+    }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);

@@ -45,4 +45,19 @@ public class ImuPlotTests
 
         Assert.Single(plot.PlottableList.OfType<Signal>());
     }
+
+    [Fact]
+    public void LoadTelemetryData_ShowsEmptyState_WhenImuDataIsMissing()
+    {
+        var plot = new Plot();
+        var sut = new ImuPlot(plot);
+
+        sut.LoadTelemetryData(CreateTelemetryData());
+
+        Assert.Null(sut.CursorLine);
+        Assert.Equal("IMU Acceleration (g)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.PlottableList.OfType<Signal>());
+        Assert.Empty(plot.Axes.Rules);
+        Assert.Single(plot.PlottableList.OfType<Text>());
+    }
 }

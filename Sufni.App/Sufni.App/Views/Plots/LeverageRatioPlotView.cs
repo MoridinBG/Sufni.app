@@ -7,7 +7,7 @@ namespace Sufni.App.Views.Plots;
 
 public class LeverageRatioPlotView : SufniPlotView
 {
-    public LeverageRatioPlot? Plot;
+    private LeverageRatioPlot? plot;
 
     public static readonly StyledProperty<CoordinateList?> LeverageRatioDataProperty =
         AvaloniaProperty.Register<LeverageRatioPlotView, CoordinateList?>(nameof(LeverageRatioData));
@@ -28,37 +28,36 @@ public class LeverageRatioPlotView : SufniPlotView
                 return;
             }
 
-            if (AvaPlot is null || Plot is null)
+            if (!HasPlotControl || plot is null)
             {
                 return;
             }
 
             if (e.NewValue is CoordinateList leverageRatioData)
             {
-                Plot.Plot.Clear();
-                Plot.LoadLeverageRatioData(leverageRatioData);
+                plot.Clear();
+                plot.LoadLeverageRatioData(leverageRatioData);
             }
             else
             {
-                Plot.Reset();
+                plot.Reset();
             }
 
-            AvaPlot.Refresh();
+            RefreshPlot();
         };
     }
 
     protected override void CreatePlot()
     {
-        Debug.Assert(AvaPlot != null);
-        Plot = new LeverageRatioPlot(AvaPlot.Plot);
+        plot = new LeverageRatioPlot(PlotControl.Plot);
 
         if (LeverageRatioData is CoordinateList leverageRatioData)
         {
-            Plot.LoadLeverageRatioData(leverageRatioData);
+            plot.LoadLeverageRatioData(leverageRatioData);
         }
         else
         {
-            Plot.Reset();
+            plot.Reset();
         }
     }
 }
