@@ -9,6 +9,78 @@ namespace Sufni.App.Tests.Services;
 public class SQLiteDatabaseServiceTests
 {
     [Fact]
+    public async Task UpdateLastSyncTimeAsync_InsertsRow_WhenMissing()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "sync.db");
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+
+            await database.UpdateLastSyncTimeAsync("https://sync.test");
+
+            var lastSyncTime = await database.GetLastSyncTimeAsync("https://sync.test");
+            Assert.True(lastSyncTime > 0);
+
+            using var connection = new SQLiteConnection(databasePath);
+            var rows = connection.Table<Synchronization>()
+                .Where(s => s.ServerUrl == "https://sync.test")
+                .ToList();
+            Assert.Single(rows);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpdateLastSyncTimeAsync_UpdatesExistingRow_WithoutDuplicatingIt()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "sync.db");
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            _ = await database.GetLastSyncTimeAsync("https://sync.test");
+
+            using (var connection = new SQLiteConnection(databasePath))
+            {
+                connection.Insert(new Synchronization
+                {
+                    ServerUrl = "https://sync.test",
+                    LastSyncTime = 1
+                });
+            }
+
+            await database.UpdateLastSyncTimeAsync("https://sync.test");
+
+            var lastSyncTime = await database.GetLastSyncTimeAsync("https://sync.test");
+            Assert.True(lastSyncTime > 1);
+
+            using var verificationConnection = new SQLiteConnection(databasePath);
+            var rows = verificationConnection.Table<Synchronization>()
+                .Where(s => s.ServerUrl == "https://sync.test")
+                .ToList();
+            Assert.Single(rows);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Initialization_BackfillsLegacyLinkageRows_AndKeepsBackfillIdempotent()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");

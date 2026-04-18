@@ -69,19 +69,6 @@ public interface ISessionCoordinator
     /// </summary>
     Task<SessionDeleteResult> DeleteAsync(Guid sessionId);
 
-    /// <summary>
-    /// Mobile telemetry-fetch path. If the snapshot's
-    /// <c>HasProcessedData</c> is already true, returns immediately.
-    /// Otherwise downloads the psst blob via <c>IHttpApiService</c>,
-    /// patches the local database, re-fetches the row through the
-    /// SQL-computed <c>has_data</c> path, and upserts the new
-    /// snapshot. The editor's <c>Watch</c> subscription will then
-    /// fire and trigger a telemetry reload — but during initial
-    /// load the editor short-circuits the Watch handler so this
-    /// method's caller is responsible for calling
-    /// <c>LoadTelemetryData</c> directly afterwards.
-    /// </summary>
-    Task EnsureTelemetryDataAvailableAsync(Guid sessionId);
 }
 
 /// <summary>

@@ -1,6 +1,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -310,7 +311,29 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
         try
         {
+            var session = await databaseService.GetSessionAsync(sessionId);
+            var trackId = session?.FullTrack;
+            var shouldDeleteTrack = false;
+
+            if (trackId.HasValue)
+            {
+                var sessions = await databaseService.GetAllAsync<Session>();
+                shouldDeleteTrack = !sessions.Any(existing => existing.Id != sessionId && existing.FullTrack == trackId);
+            }
+
             await databaseService.DeleteAsync<Session>(sessionId);
+
+            if (shouldDeleteTrack && trackId.HasValue)
+            {
+                try
+                {
+                    await databaseService.DeleteAsync<Track>(trackId.Value);
+                }
+                catch (Exception e)
+                {
+                    logger.Warning(e, "Failed to delete orphaned track {TrackId} after deleting session {SessionId}", trackId.Value, sessionId);
+                }
+            }
         }
         catch (Exception e)
         {
@@ -322,35 +345,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
-    }
-
-    public async Task EnsureTelemetryDataAvailableAsync(Guid sessionId)
-    {
-        var current = sessionStore.Get(sessionId);
-        if (current is { HasProcessedData: true })
-        {
-            logger.Verbose("Telemetry data already available for session {SessionId}", sessionId);
-            return;
-        }
-
-        try
-        {
-            logger.Verbose("Downloading telemetry data for session {SessionId}", sessionId);
-            var psst = await httpApiService.GetSessionPsstAsync(sessionId)
-                ?? throw new Exception("Session data could not be downloaded from server.");
-            await databaseService.PatchSessionPsstAsync(sessionId, psst);
-
-            var fresh = await databaseService.GetSessionAsync(sessionId);
-            if (fresh is not null)
-            {
-                sessionStore.Upsert(SessionSnapshot.From(fresh));
-            }
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Failed to ensure telemetry data for session {SessionId}", sessionId);
-            throw;
-        }
     }
 
     private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken)
