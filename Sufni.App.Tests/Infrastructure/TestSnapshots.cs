@@ -32,7 +32,7 @@ public static class TestSnapshots
         ImageRotationDegrees: 0,
         LeverageRatio: null,
         Linkage: null,
-        Image: null,
+        ImageBytes: [],
         Updated: updated);
 
     public static LeverageRatio LeverageRatioCurve(params (double ShockTravelMm, double WheelTravelMm)[] points) =>

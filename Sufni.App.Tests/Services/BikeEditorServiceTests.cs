@@ -22,19 +22,17 @@ public class BikeEditorServiceTests
     [AvaloniaFact]
     public async Task LoadImageAsync_DecodesBitmapFromStreamWithoutUsingPath()
     {
-        var sourceBitmap = TestImages.SmallPng();
-        var imageBytes = new MemoryStream();
-        sourceBitmap.Save(imageBytes);
-        imageBytes.Position = 0;
+        var imageBytes = TestImages.SmallPngBytes();
 
         var file = Substitute.For<IStorageFile>();
         file.Path.Returns(_ => throw new InvalidOperationException("Path should not be used for image loading."));
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(imageBytes.ToArray())));
+        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(imageBytes)));
         filesService.OpenBikeImageFileAsync().Returns(file);
 
         var result = await CreateService().LoadImageAsync();
 
         var loaded = Assert.IsType<BikeImageLoadResult.Loaded>(result);
+        Assert.Equal(imageBytes, loaded.ImageBytes);
         Assert.Equal(1, loaded.Bitmap.Size.Width);
         Assert.Equal(1, loaded.Bitmap.Size.Height);
     }

@@ -276,7 +276,7 @@ public class BikeEditorViewSmokeTests
             RearWheelTireWidth = 2.5,
             RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees = 12.5,
-            Image = TestImages.SmallPng(),
+            ImageBytes = TestImages.SmallPngBytes(),
             Updated = 1,
         };
 

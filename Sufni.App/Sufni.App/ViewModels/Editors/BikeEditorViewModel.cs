@@ -357,8 +357,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             case BikeRearSuspensionEditorState.Linkage linkage:
                 Chainstay = snapshot.Chainstay;
                 PixelsToMillimeters = snapshot.PixelsToMillimeters;
-                ImageCanvas.ApplySnapshot(snapshot.Image, snapshot.ImageRotationDegrees);
-                LinkageEditor.Load(linkage.Value.Linkage, snapshot.Image?.Size.Height, snapshot.PixelsToMillimeters);
+                ImageCanvas.ApplySnapshot(snapshot.ImageBytes, snapshot.ImageRotationDegrees);
+                LinkageEditor.Load(linkage.Value.Linkage, ImageCanvas.Image?.Size.Height, snapshot.PixelsToMillimeters);
                 LeverageRatioEditor.ReplaceState(null);
                 SetRearSuspensionLoadError(null);
                 break;
@@ -435,7 +435,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.ImageRotationDegrees : 0,
             (rearSuspension as LeverageRatioRearSuspension)?.LeverageRatio,
             (rearSuspension as LinkageRearSuspension)?.Linkage,
-            RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.Image : null,
+            RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.ImageBytes : [],
             updated);
     }
 
@@ -1075,7 +1075,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             switch (result)
             {
                 case BikeImageLoadResult.Loaded loaded:
-                    ImageCanvas.Image = loaded.Bitmap;
+                    ImageCanvas.ApplyLoadedImage(loaded.ImageBytes, loaded.Bitmap);
                     break;
                 case BikeImageLoadResult.Failed failed:
                     ErrorMessages.Add($"Bike image could not be loaded: {failed.ErrorMessage}");
