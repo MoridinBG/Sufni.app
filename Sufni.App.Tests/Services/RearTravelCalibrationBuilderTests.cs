@@ -31,8 +31,8 @@ public class RearTravelCalibrationBuilderTests
         Assert.Null(errorMessage);
         Assert.NotNull(calibration);
         Assert.Equal(50, calibration!.MaxTravel, 6);
-        Assert.Equal(30, calibration.MeasurementToTravel(3), 6);
-        Assert.Equal(50, calibration.MeasurementToTravel(5), 6);
+        Assert.Equal(12, calibration.MeasurementToTravel(3), 6);
+        Assert.Equal(20, calibration.MeasurementToTravel(5), 6);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class RearTravelCalibrationBuilderTests
             BikeId = bike.Id,
             RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
             {
-                Length = 0.3,
+                Length = linkage.ShockStroke,
                 Resolution = 4,
             })
         };
@@ -64,7 +64,7 @@ public class RearTravelCalibrationBuilderTests
         Assert.NotNull(calibration);
         Assert.Equal(0, calibration!.MeasurementToTravel(0), 6);
         Assert.True(calibration.MeasurementToTravel(5) > 0);
-        Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(10), 6);
+        Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
     }
 
     [Fact]
