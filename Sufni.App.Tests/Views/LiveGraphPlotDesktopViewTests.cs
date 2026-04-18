@@ -6,12 +6,11 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Markup.Xaml.Styling;
-using Avalonia.Threading;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Tests.Views;
@@ -21,7 +20,7 @@ public class LiveGraphPlotDesktopViewTests
     [AvaloniaFact]
     public async Task LiveSessionGraphDesktopView_WiresLivePlotViews_AndAppendsGraphBatches()
     {
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var batches = new Subject<LiveGraphBatch>();
         var workspace = new StubLiveSessionGraphWorkspace(batches);
@@ -37,7 +36,7 @@ public class LiveGraphPlotDesktopViewTests
         };
 
         host.Show();
-        await FlushAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         var travelView = view.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
         var velocityView = view.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
@@ -66,7 +65,7 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(travelView.Plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
 
         host.Close();
-        await FlushAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     private static LiveGraphBatch CreateBatch(long revision)
@@ -89,32 +88,10 @@ public class LiveGraphPlotDesktopViewTests
             });
     }
 
-    private static async Task FlushAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
-
     private static async Task WaitForUiRefreshAsync()
     {
         await Task.Delay(150);
-        await FlushAsync();
-    }
-
-    private static void EnsurePlotViewStyle()
-    {
-        var application = Application.Current
-            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-        var source = new Uri("avares://Sufni.App/Views/Plots/SufniPlotView.axaml");
-
-        if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
-        {
-            return;
-        }
-
-        application.Styles.Add(new StyleInclude(new Uri("avares://Sufni.App/"))
-        {
-            Source = source
-        });
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     private sealed class StubLiveSessionGraphWorkspace(Subject<LiveGraphBatch> graphBatches) : ILiveSessionGraphWorkspace
