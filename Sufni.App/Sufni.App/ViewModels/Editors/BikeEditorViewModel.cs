@@ -457,17 +457,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         return LinkageEditor.BuildCurrentLinkage(ImageCanvas.Image?.Size.Height, PixelsToMillimeters, ShockStroke);
     }
 
-    private RearSuspension? BuildCurrentRearSuspensionForAnalysis()
-    {
-        return RearSuspensionMode switch
-        {
-            BikeRearSuspensionMode.None => null,
-            BikeRearSuspensionMode.Linkage when CreateCurrentLinkage() is Linkage linkage => new LinkageRearSuspension(linkage),
-            BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatio leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
-            _ => null,
-        };
-    }
-
     private JointViewModel? GetFrontWheelJoint() =>
         LinkageEditor.GetFrontWheelJoint();
 
@@ -552,7 +541,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IsPlotBusy = showPlotBusyOverlay;
         try
         {
-            var result = await bikeCoordinator.LoadAnalysisAsync(BuildCurrentRearSuspensionForAnalysis(), token);
+            var result = await bikeCoordinator.LoadAnalysisAsync(BuildCurrentRearSuspension(), token);
             if (token.IsCancellationRequested) return;
 
             ApplyAnalysisResult(result);

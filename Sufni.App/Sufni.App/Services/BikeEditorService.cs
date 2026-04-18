@@ -78,27 +78,19 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         {
             return await backgroundTaskRunner.RunAsync<LeverageRatioImportResult>(async () =>
             {
-                try
+                await using var stream = await file.OpenReadAsync();
+                var parseResult = LeverageRatioCsvParser.Parse(stream);
+                return parseResult switch
                 {
-                    await using var stream = await file.OpenReadAsync();
-                    var parseResult = LeverageRatioCsvParser.Parse(stream);
-                    return parseResult switch
-                    {
-                        LeverageRatioParseResult.Parsed parsed => new LeverageRatioImportResult.Imported(parsed.Value),
-                        LeverageRatioParseResult.Invalid invalid => new LeverageRatioImportResult.Invalid(
-                            invalid.Errors
-                                .Select(error => error.LineNumber.HasValue
-                                    ? $"Line {error.LineNumber.Value}: {error.Message}"
-                                    : error.Message)
-                                .ToArray()),
-                        _ => new LeverageRatioImportResult.Failed("CSV file could not be parsed.")
-                    };
-                }
-                catch (JsonException exception)
-                {
-                    logger.Warning(exception, "Leverage ratio CSV import failed during JSON parsing");
-                    return new LeverageRatioImportResult.Failed("CSV file could not be parsed.");
-                }
+                    LeverageRatioParseResult.Parsed parsed => new LeverageRatioImportResult.Imported(parsed.Value),
+                    LeverageRatioParseResult.Invalid invalid => new LeverageRatioImportResult.Invalid(
+                        invalid.Errors
+                            .Select(error => error.LineNumber.HasValue
+                                ? $"Line {error.LineNumber.Value}: {error.Message}"
+                                : error.Message)
+                            .ToArray()),
+                    _ => new LeverageRatioImportResult.Failed("CSV file could not be parsed.")
+                };
             }, cancellationToken);
         }
         catch (OperationCanceledException)
