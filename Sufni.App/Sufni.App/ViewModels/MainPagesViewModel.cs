@@ -26,14 +26,6 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Observable properties
 
     [ObservableProperty] private bool databaseLoaded;
-    [ObservableProperty] private ImportSessionsViewModel importSessionsPage;
-    [ObservableProperty] private BikeListViewModel bikesPage;
-    [ObservableProperty] private SetupListViewModel setupsPage;
-    [ObservableProperty] private SessionListViewModel sessionsPage;
-    [ObservableProperty] private LiveDaqListViewModel? liveDaqsPage;
-    [ObservableProperty] private PairedDeviceListViewModel pairedDevicesPage;
-    [ObservableProperty] private PairingClientViewModel? pairingClientPage;
-    [ObservableProperty] private PairingServerViewModel? pairingServerViewModel;
     [ObservableProperty] private int selectedIndex;
     [ObservableProperty] private bool syncInProgress;
     [ObservableProperty] private bool isPaired;
@@ -41,6 +33,15 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private bool isPairedDevicesListOpen;
 
     #endregion
+
+    public ImportSessionsViewModel ImportSessionsPage { get; init; }
+    public BikeListViewModel BikesPage { get; init; }
+    public SetupListViewModel SetupsPage { get; init; }
+    public SessionListViewModel SessionsPage { get; init; }
+    public LiveDaqListViewModel? LiveDaqsPage { get; init; }
+    public PairedDeviceListViewModel PairedDevicesPage { get; init; }
+    public PairingClientViewModel? PairingClientPage { get; init; }
+    public PairingServerViewModel? PairingServerViewModel { get; init; }
 
     #region Constructors
 
@@ -54,13 +55,13 @@ public partial class MainPagesViewModel : ViewModelBase
         trackCoordinator = null!;
         syncCoordinator = null!;
         shell = null!;
-        importSessionsPage = new();
-        bikesPage = new();
-        setupsPage = new();
-        sessionsPage = new();
-        liveDaqsPage = new();
-        pairedDevicesPage = new();
-        primaryPages = [SessionsPage, SetupsPage, BikesPage, liveDaqsPage];
+        ImportSessionsPage = new();
+        BikesPage = new();
+        SetupsPage = new();
+        SessionsPage = new();
+        LiveDaqsPage = new();
+        PairedDevicesPage = new();
+        primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
         activePrimaryPage = SessionsPage;
     }
 
