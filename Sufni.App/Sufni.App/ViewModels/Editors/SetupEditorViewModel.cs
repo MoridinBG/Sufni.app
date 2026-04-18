@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -103,24 +104,30 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         ShockSensorConfiguration = SensorConfigurationViewModel.Create(value, JointsFromSnapshot(SelectedBike));
     }
 
-    partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? value)
+    partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
     {
-        if (value is null) return;
-        value.PropertyChanged += (_, e) =>
+        if (oldValue is not null)
         {
-            if (e.PropertyName == "IsDirty") EvaluateDirtiness();
-            SaveCommand.NotifyCanExecuteChanged();
-        };
+            oldValue.PropertyChanged -= OnSensorConfigurationPropertyChanged;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.PropertyChanged += OnSensorConfigurationPropertyChanged;
+        }
     }
 
-    partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? value)
+    partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
     {
-        if (value is null) return;
-        value.PropertyChanged += (_, e) =>
+        if (oldValue is not null)
         {
-            if (e.PropertyName == "IsDirty") EvaluateDirtiness();
-            SaveCommand.NotifyCanExecuteChanged();
-        };
+            oldValue.PropertyChanged -= OnSensorConfigurationPropertyChanged;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.PropertyChanged += OnSensorConfigurationPropertyChanged;
+        }
     }
 
     #endregion Property change handlers
@@ -251,6 +258,16 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         ShockSensorType = null;
         ShockSensorConfiguration = null;
         RearSensorCompatibilityMessage = "Rear sensor cleared because the selected bike does not support this sensor.";
+    }
+
+    private void OnSensorConfigurationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SensorConfigurationViewModel.IsDirty))
+        {
+            EvaluateDirtiness();
+        }
+
+        SaveCommand.NotifyCanExecuteChanged();
     }
 
     #endregion Private methods

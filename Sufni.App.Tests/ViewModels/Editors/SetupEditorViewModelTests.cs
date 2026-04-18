@@ -87,6 +87,29 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public void ReplacingForkSensorConfiguration_DetachesOldPropertyChangedHandler()
+    {
+        var snapshot = TestSnapshots.Setup() with
+        {
+            FrontSensorConfigurationJson = LinearForkConfigurationJson
+        };
+        var editor = CreateEditor(snapshot);
+        var staleConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
+        var activeConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(
+            SensorConfigurationViewModel.FromJson(LinearForkConfigurationJson));
+
+        editor.ForkSensorConfiguration = activeConfiguration;
+
+        var saveCommandStateChanges = 0;
+        editor.SaveCommand.CanExecuteChanged += (_, _) => saveCommandStateChanges++;
+
+        Assert.True(staleConfiguration.Length.HasValue);
+        staleConfiguration.Length = staleConfiguration.Length.Value + 5;
+
+        Assert.Equal(0, saveCommandStateChanges);
+    }
+
+    [AvaloniaFact]
     public void Loaded_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
     {
         var bike = TestSnapshots.Bike() with
