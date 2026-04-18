@@ -2,6 +2,7 @@ using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.Services;
 
@@ -16,10 +17,11 @@ public class RearTravelCalibrationBuilderTests
         var setup = new Setup(Guid.NewGuid(), "curve setup")
         {
             BikeId = bike.Id,
-            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockStrokeSensorConfiguration
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
             {
                 Length = 24,
                 Resolution = 4,
+                Type = SensorType.LinearShockStroke,
             })
         };
 
@@ -98,6 +100,64 @@ public class RearTravelCalibrationBuilderTests
         var setup = new Setup(Guid.NewGuid(), "missing rear config")
         {
             BikeId = bike.Id,
+        };
+
+        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.False(success);
+        Assert.Null(calibration);
+        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+    }
+
+    [Fact]
+    public void TryBuild_ComposesRotationalShockAndLinkageMapping()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var bike = new Bike(Guid.NewGuid(), "rotational linkage bike")
+        {
+            HeadAngle = 64,
+            ForkStroke = 170,
+            ShockStroke = linkage.ShockStroke,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            Linkage = linkage,
+        };
+        var mapping = new JointNameMapping();
+        var setup = new Setup(Guid.NewGuid(), "rotational setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new RotationalShockSensorConfiguration
+            {
+                CentralJoint = mapping.RearWheel,
+                AdjacentJoint1 = mapping.BottomBracket,
+                AdjacentJoint2 = mapping.ShockEye1,
+            })
+        };
+
+        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.True(success);
+        Assert.Null(errorMessage);
+        Assert.NotNull(calibration);
+        Assert.True(calibration!.MaxTravel > 0);
+        Assert.True(double.IsFinite(calibration.MeasurementToTravel(0)));
+        Assert.True(double.IsFinite(calibration.MeasurementToTravel(128)));
+        Assert.NotEqual(calibration.MeasurementToTravel(0), calibration.MeasurementToTravel(128));
+    }
+
+    [Fact]
+    public void TryBuild_ReturnsFalse_ForIncompatibleSensorAndBikePair()
+    {
+        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))));
+        var setup = new Setup(Guid.NewGuid(), "incompatible setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 0.3,
+                Resolution = 4,
+                Type = SensorType.LinearShock,
+            })
         };
 
         var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
