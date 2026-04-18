@@ -42,7 +42,7 @@ public class GpsPreviewStateTests
 
         Assert.True(state.HasFix);
         Assert.False(state.IsReady);
-        Assert.Equal("2D fix", state.StatusText);
+        Assert.Equal(GpsFixKind.TwoDimensional, state.FixKind);
     }
 
     [Fact]
@@ -62,6 +62,6 @@ public class GpsPreviewStateTests
 
         Assert.True(state.HasFix);
         Assert.True(state.IsReady);
-        Assert.Equal("3D fix", state.StatusText);
+        Assert.Equal(GpsFixKind.ThreeDimensional, state.FixKind);
     }
 }
