@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
@@ -21,24 +20,6 @@ public class PairingClientCoordinatorTests
 
     private PairingClientCoordinator CreateCoordinator() => new(
         secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, shell);
-
-    /// <summary>
-    /// `ServiceAnnouncement.Port` and `.Address` have internal setters
-    /// and the service-discovery models do not expose their internals to
-    /// the test project, so tests that need to raise a populated
-    /// `ServiceAdded` / `ServiceRemoved` event fall back to reflection.
-    /// </summary>
-    private static ServiceAnnouncement MakeAnnouncement(IPAddress address, ushort port)
-    {
-        var announcement = new ServiceAnnouncement();
-        typeof(ServiceAnnouncement)
-            .GetProperty(nameof(ServiceAnnouncement.Address), BindingFlags.Public | BindingFlags.Instance)!
-            .SetValue(announcement, address);
-        typeof(ServiceAnnouncement)
-            .GetProperty(nameof(ServiceAnnouncement.Port), BindingFlags.Public | BindingFlags.Instance)!
-            .SetValue(announcement, port);
-        return announcement;
-    }
 
     /// <summary>
     /// Seeds the secure-storage / http substitutes with defaults
@@ -223,7 +204,7 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
 
         Assert.Equal("https://192.168.1.10:8443", coordinator.ServerUrl);
         Assert.True(urlChanged);
@@ -242,7 +223,7 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(mapped, 9000)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(mapped, 9000)));
 
         Assert.Equal("https://192.0.2.1:9000", coordinator.ServerUrl);
     }
@@ -258,7 +239,7 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(ipv6, 4321)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(ipv6, 4321)));
 
         Assert.Equal("https://[fe80::1]:4321", coordinator.ServerUrl);
     }
@@ -272,7 +253,7 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
         Assert.NotNull(coordinator.ServerUrl);
 
         var urlChanged = false;
@@ -280,7 +261,7 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceRemoved += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
 
         Assert.Null(coordinator.ServerUrl);
         Assert.True(urlChanged);
@@ -295,16 +276,16 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
 
         Assert.Equal("https://10.0.0.2:2345", coordinator.ServerUrl);
 
         serviceDiscovery.ServiceRemoved += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
 
         Assert.Equal("https://10.0.0.2:2345", coordinator.ServerUrl);
     }
@@ -318,14 +299,14 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.1"), 1234)));
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
 
         serviceDiscovery.ServiceRemoved += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("10.0.0.2"), 2345)));
 
         Assert.Equal("https://10.0.0.1:1234", coordinator.ServerUrl);
     }
@@ -351,7 +332,7 @@ public class PairingClientCoordinatorTests
         var coordinator = CreateCoordinator();
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
 
         var result = await coordinator.RequestPairingAsync("  My Phone  ");
 
@@ -369,7 +350,7 @@ public class PairingClientCoordinatorTests
         var coordinator = CreateCoordinator();
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
         httpApiService.RequestPairingAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
             .ThrowsAsync(new InvalidOperationException("boom"));
 
