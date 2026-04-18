@@ -146,8 +146,10 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.NotNull(calibration);
         Assert.NotNull(calibration!.Front);
         Assert.Null(calibration.Rear);
-        Assert.True(calibration.Front!.MaxTravel > 0);
-        Assert.True(calibration.Front.MeasurementToTravel(1) > 0);
+        var expectedFrontMaxTravel = bike.ForkStroke!.Value * Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        var expectedFrontMeasurementToTravel = 8 / (Math.Pow(2.0, 10) - 1.0) * Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        Assert.Equal(expectedFrontMaxTravel, calibration.Front!.MaxTravel, 6);
+        Assert.Equal(expectedFrontMeasurementToTravel, calibration.Front.MeasurementToTravel(1), 9);
     }
 
     [Fact]
@@ -296,8 +298,8 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Null(context!.TravelCalibration.Front);
         Assert.NotNull(context.TravelCalibration.Rear);
         Assert.NotNull(context.BikeData.RearMeasurementToTravel);
-        Assert.Equal(30, context.TravelCalibration.Rear!.MeasurementToTravel(3), 6);
-        Assert.Equal(50, context.BikeData.RearMeasurementToTravel!((ushort)5), 6);
+        Assert.Equal(12, context.TravelCalibration.Rear!.MeasurementToTravel(3), 6);
+        Assert.Equal(20, context.BikeData.RearMeasurementToTravel!((ushort)5), 6);
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(

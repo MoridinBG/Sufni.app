@@ -92,7 +92,7 @@ internal static class RearTravelCalibrationBuilder
         Bike bike,
         RearSuspension rearSuspension)
     {
-        var measurementToStroke = configuration.Length / (2 ^ configuration.Resolution);
+        var measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(configuration.Length, configuration.Resolution);
         var maxShockStroke = bike.ShockStroke ?? configuration.Length;
         return BuildTravelCalibration(rearSuspension, maxShockStroke, measurement => measurement * measurementToStroke);
     }

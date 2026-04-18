@@ -154,7 +154,7 @@ For example, `LinearForkSensorConfiguration` stores `Length` (sensor physical ra
 
 ```csharp
 // Computed once during FromJson():
-measurementToStroke = Length / (2 ^ Resolution);            // ADC count → mm of fork stroke
+measurementToStroke = Length / (Math.Pow(2, Resolution) - 1); // ADC count → mm of fork stroke
 strokeToTravel = Math.Sin(headAngle * Math.PI / 180.0);    // fork stroke → vertical wheel travel
 
 // Applied per sample:
@@ -162,13 +162,13 @@ MeasurementToTravel = measurement => measurement * measurementToStroke * strokeT
 MaxTravel = bike.ForkStroke * strokeToTravel;
 ```
 
-> **Note**: `2 ^ Resolution` uses C#'s bitwise XOR operator, not exponentiation.
+The denominator is the ADC's full-scale count for an `n`-bit sensor: `2^Resolution - 1`.
 
 The bike context (head angle, fork stroke, shock stroke) is injected at deserialization time, making the closure self-contained for the processing pipeline.
 
-| Implementation                       | Parameters                                    | Calibration                                                               |
-| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------- |
-| `LinearForkSensorConfiguration`      | Length, Resolution                             | Linear potentiometer on fork, projected by head angle                     |
-| `RotationalForkSensorConfiguration`  | MaxLength, ArmLength                           | Rotary encoder on fork, cosine-based rigid-arm geometric projection       |
-| `LinearShockSensorConfiguration`     | Length, Resolution                             | Linear potentiometer on shock, kinematic solver + polynomial fit          |
-| `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2   | Rotary encoder on shock, kinematic solver + angle-to-travel polynomial    |
+| Implementation                       | Parameters                                   | Calibration                                                            |
+| ------------------------------------ | -------------------------------------------- | ---------------------------------------------------------------------- |
+| `LinearForkSensorConfiguration`      | Length, Resolution                           | Linear potentiometer on fork, projected by head angle                  |
+| `RotationalForkSensorConfiguration`  | MaxLength, ArmLength                         | Rotary encoder on fork, cosine-based rigid-arm geometric projection    |
+| `LinearShockSensorConfiguration`     | Length, Resolution                           | Linear potentiometer on shock, kinematic solver + polynomial fit       |
+| `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2 | Rotary encoder on shock, kinematic solver + angle-to-travel polynomial |
