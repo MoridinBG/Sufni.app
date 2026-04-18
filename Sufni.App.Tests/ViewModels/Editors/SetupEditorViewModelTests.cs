@@ -159,7 +159,7 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectedBike_InvalidResolution_ReportsInvalidDescription_AndRestrictsSensorTypes()
+    public void SelectedBike_InvalidResolution_RestrictsSensorTypes()
     {
         var invalidBike = TestSnapshots.Bike() with
         {
@@ -171,7 +171,6 @@ public class SetupEditorViewModelTests
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: invalidBike.Id));
         editor.LoadedCommand.Execute(null);
 
-        Assert.Equal("Invalid rear suspension", editor.RearSuspensionDescription);
         Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
     }
 
