@@ -35,6 +35,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private readonly IDatabaseService databaseService;
     private readonly ISecureStorage secureStorage;
+    private readonly object advertisingGate = new();
 
     private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
@@ -42,6 +43,8 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private string? jwtSecret;
     private string? certPassword;
+    private Makaretu.Dns.ServiceDiscovery? serviceDiscovery;
+    private ServiceProfile? advertisedService;
 
     private readonly string certPath = AppPaths.CertificatePath;
 
@@ -66,14 +69,36 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     #region Private methods
 
-    private static void StartAdvertising()
+    private void StartAdvertising()
     {
-        var service = new ServiceProfile("s1", SynchronizationProtocol.ServiceType, Port);
-        var sd = new Makaretu.Dns.ServiceDiscovery();
-        if (!sd.Probe(service))
+        lock (advertisingGate)
         {
-            sd.Advertise(service);
-            sd.Announce(service);
+            serviceDiscovery?.Dispose();
+            serviceDiscovery = null;
+            advertisedService = null;
+
+            var service = new ServiceProfile("s1", SynchronizationProtocol.ServiceType, Port);
+            var discovery = new Makaretu.Dns.ServiceDiscovery();
+            if (discovery.Probe(service))
+            {
+                discovery.Dispose();
+                return;
+            }
+
+            discovery.Advertise(service);
+            discovery.Announce(service);
+            advertisedService = service;
+            serviceDiscovery = discovery;
+        }
+    }
+
+    private void StopAdvertising()
+    {
+        lock (advertisingGate)
+        {
+            serviceDiscovery?.Dispose();
+            serviceDiscovery = null;
+            advertisedService = null;
         }
     }
 
@@ -197,6 +222,8 @@ public class SynchronizationServerService : ISynchronizationServerService
             logger.Information("Starting synchronization server on port {Port}", Port);
 
             var app = await BuildApplication(Port);
+            app.Lifetime.ApplicationStopping.Register(StopAdvertising);
+            app.Lifetime.ApplicationStopped.Register(StopAdvertising);
             app.UseAuthentication();
             app.UseAuthorization();
             app.Use(async (context, next) =>
@@ -379,6 +406,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
         catch (Exception ex)
         {
+            StopAdvertising();
             logger.Error(ex, "Synchronization server failed to start or run on port {Port}", Port);
             throw;
         }
