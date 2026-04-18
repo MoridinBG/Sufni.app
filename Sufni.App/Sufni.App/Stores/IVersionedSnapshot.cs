@@ -9,6 +9,9 @@ public interface IVersionedSnapshot
 
 public static class VersionedSnapshotExtensions
 {
-    public static bool IsNewerThan([NotNullWhen(true)] this IVersionedSnapshot? current, long baselineUpdated)
-        => current is not null && current.Updated > baselineUpdated;
+    extension([NotNullWhen(true)] IVersionedSnapshot? current)
+    {
+        public bool IsNewerThan(long baselineUpdated)
+            => current is not null && current.Updated > baselineUpdated;
+    }
 }

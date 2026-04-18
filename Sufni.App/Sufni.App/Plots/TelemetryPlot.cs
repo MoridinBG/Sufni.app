@@ -33,7 +33,7 @@ internal class FixedAutoScaler(double? minX = null, double? maxX = null, double?
             var max = maxX ?? axis.Max;
             axis.Range.Set(min, max);
         }
-        
+
         foreach (var axis in yAxes)
         {
             var min = minY ?? axis.Min;

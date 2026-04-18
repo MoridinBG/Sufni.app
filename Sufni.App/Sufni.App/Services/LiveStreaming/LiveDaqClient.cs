@@ -16,9 +16,10 @@ namespace Sufni.App.Services.LiveStreaming;
 //   → background receive loop parses framed data and emits Events → StopPreviewAsync (sends
 //   STOP_LIVE, awaits STOP_ACK) → DisconnectAsync (tears down socket and receive loop).
 //
-// The receive loop runs off the UI thread via IBackgroundTaskRunner. Start/stop handshakes use a
-// TaskCompletionSource that the caller awaits while the receive loop completes it on the matching
-// ACK or error frame. All state mutations are serialized through lifecycleGate.
+// The receive loop runs off the UI thread on a background task started with Task.Factory.StartNew.
+// Start/stop handshakes use a TaskCompletionSource that the caller awaits while the receive loop
+// completes it on the matching ACK or error frame. All state mutations are serialized through
+// lifecycleGate.
 internal sealed class LiveDaqClient : ILiveDaqClient
 {
     // Default upper bound on the STOP_ACK wait so an unresponsive firmware cannot

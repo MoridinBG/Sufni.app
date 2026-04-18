@@ -17,7 +17,7 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Axes.Title.Label.Text = "Velocity (m/seconds / time )";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
         ConfigureRightAxisStyle();
-        
+
         var step = 1.0 / telemetryData.Metadata.SampleRate;
         var minimum = 0.0;
         var maximum = 0.0;
@@ -34,7 +34,7 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         }
 
         if (telemetryData.Rear.Present)
-        { 
+        {
             var velocity = telemetryData.Rear.Velocity.Select(v => v / 1000).ToArray();
             var rearSignal = Plot.Add.Signal(velocity, step, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
@@ -43,15 +43,15 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
             minimum = Math.Min(minimum, velocity.Min());
             maximum = Math.Max(maximum, velocity.Max());
         }
-        
+
         // Lock the vertical, and set limits on the horizontal axis
-        var ruleFront = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
+        var ruleFront = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
             0, telemetryData.Metadata.Duration, minimum, maximum);
-        var ruleRear = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
+        var ruleRear = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right,
             0, telemetryData.Metadata.Duration, minimum, maximum);
         Plot.Axes.Rules.Add(ruleFront);
         Plot.Axes.Rules.Add(ruleRear);
-        
+
         ConfigureTimeTicks();
         ConfigureSymmetricValueTicks(20);
 
