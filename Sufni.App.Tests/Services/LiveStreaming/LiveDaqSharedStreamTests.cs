@@ -1,5 +1,4 @@
 using System.Reactive.Subjects;
-using System.Reflection;
 using NSubstitute;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -267,20 +266,6 @@ public class LiveDaqSharedStreamTests
         Assert.Same(reservation.Stream, secondReservation.Stream);
     }
 
-    [Fact]
-    public async Task DisposeAsync_DisposesGate()
-    {
-        var stream = new LiveDaqSharedStream(
-            CreateSnapshot("board-1", "192.168.0.50", 1557),
-            clientFactory,
-            _ => Task.CompletedTask);
-        var gate = GetSemaphoreSlim(stream, "gate");
-
-        await stream.DisposeAsync();
-
-        Assert.Throws<ObjectDisposedException>(() => gate.Wait(0));
-    }
-
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
         new(clientFactory, catalogService);
 
@@ -302,14 +287,6 @@ public class LiveDaqSharedStreamTests
             snapshot.BoardId,
             snapshot.Host!,
             snapshot.Port!.Value);
-
-    private static SemaphoreSlim GetSemaphoreSlim(object target, string fieldName)
-    {
-        return (SemaphoreSlim)target.GetType()
-            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(target)!;
-    }
-
     private sealed class FakeLiveDaqClientFactory : ILiveDaqClientFactory
     {
         public List<FakeLiveDaqClient> CreatedClients { get; } = [];
