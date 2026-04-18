@@ -166,4 +166,35 @@ public class RearTravelCalibrationBuilderTests
         Assert.Null(calibration);
         Assert.False(string.IsNullOrWhiteSpace(errorMessage));
     }
+
+    [Fact]
+    public void TryBuild_ReturnsFalse_WhenRotationalSensorGeometryIsDegenerate()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var bike = new Bike(Guid.NewGuid(), "degenerate rotational bike")
+        {
+            HeadAngle = 64,
+            ForkStroke = 170,
+            ShockStroke = linkage.ShockStroke,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            Linkage = linkage,
+        };
+        var mapping = new JointNameMapping();
+        var setup = new Setup(Guid.NewGuid(), "degenerate rotational setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new RotationalShockSensorConfiguration
+            {
+                CentralJoint = mapping.RearWheel,
+                AdjacentJoint1 = mapping.RearWheel,
+                AdjacentJoint2 = mapping.ShockEye1,
+            })
+        };
+
+        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.False(success);
+        Assert.Null(calibration);
+        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+    }
 }
