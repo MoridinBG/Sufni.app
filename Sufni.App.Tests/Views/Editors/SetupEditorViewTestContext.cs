@@ -49,9 +49,8 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)
     {
-        TestApp.SetIsDesktop(false);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
         var editor = CreateEditor(snapshot, isNew);
         var view = new SetupEditorView
@@ -66,9 +65,8 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public async Task<MountedSetupEditorView<SetupEditorDesktopView>> MountDesktopAsync(SetupSnapshot snapshot, bool isNew = false)
     {
-        TestApp.SetIsDesktop(true);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
         var editor = CreateEditor(snapshot, isNew);
         var view = new SetupEditorDesktopView

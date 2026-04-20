@@ -264,9 +264,8 @@ public class LiveDaqDetailDesktopViewTests
 
     private static async Task<MountedLiveDaqDetailDesktopView> MountAsync(LiveDaqDetailViewModel editor)
     {
-        TestApp.SetIsDesktop(true);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
         var view = new LiveDaqDetailDesktopView
         {

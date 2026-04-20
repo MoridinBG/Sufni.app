@@ -149,7 +149,8 @@ public class DaqManagementServiceTests
             CreateService().GetFileAsync(server.Host, server.Port, DaqFileClass.RootSst, 12));
         await serverTask;
 
-        Assert.Contains("exceeds the supported limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal((ulong)int.MaxValue + 1UL, exception.DeclaredFileSizeBytes);
+        Assert.Equal((ulong)int.MaxValue, exception.MaximumSupportedFileSizeBytes);
     }
 
     [Fact]

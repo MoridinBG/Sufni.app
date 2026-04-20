@@ -122,6 +122,44 @@ public class HttpApiServiceTests
         await secureStorage.Received(1).RemoveAsync("ServerUrl");
     }
 
+    [Fact]
+    public async Task GetIncompleteSessionIdsAsync_CoalescesConcurrentRefreshFailures()
+    {
+        var secureStorage = CreateSecureStorage();
+        var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowRefreshToComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refreshRequestCount = 0;
+
+        var service = CreateService(secureStorage, async (request, cancellationToken) =>
+        {
+            switch (request.RequestUri?.AbsolutePath)
+            {
+                case SynchronizationProtocol.EndpointPairRefresh:
+                    refreshRequestCount++;
+                    refreshStarted.TrySetResult();
+                    await allowRefreshToComplete.Task.WaitAsync(cancellationToken);
+                    return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                case SynchronizationProtocol.EndpointSessionIncomplete:
+                    throw new InvalidOperationException("Data requests should not run when refresh fails.");
+                default:
+                    throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}");
+            }
+        });
+
+        var firstRequest = service.GetIncompleteSessionIdsAsync();
+        var secondRequest = service.GetIncompleteSessionIdsAsync();
+
+        await refreshStarted.Task;
+        allowRefreshToComplete.TrySetResult();
+
+        var first = await Assert.ThrowsAsync<HttpRequestException>(async () => await firstRequest);
+        var second = await Assert.ThrowsAsync<HttpRequestException>(async () => await secondRequest);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, first.StatusCode);
+        Assert.Equal(HttpStatusCode.InternalServerError, second.StatusCode);
+        Assert.Equal(1, refreshRequestCount);
+    }
+
     private static HttpApiService CreateService(
         ISecureStorage secureStorage,
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync)

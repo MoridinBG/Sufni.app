@@ -34,9 +34,10 @@ internal class HttpApiService : IHttpApiService
 
     private readonly HttpClient client;
     private readonly object certificateStateGate = new();
-    private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
+    private readonly object tokenRefreshStateGate = new();
     private Task Initialization { get; }
     private readonly ISecureStorage secureStorage;
+    private Task? inFlightTokenRefreshTask;
     private string? pinnedServerCertificateThumbprint;
     private string? pendingPairingCertificateThumbprint;
     private string? lastObservedCertificateThumbprint;
@@ -269,31 +270,7 @@ internal class HttpApiService : IHttpApiService
 
     private async Task EnsureTokenFreshAsync()
     {
-        await Initialization;
-
-        EnsureRefreshCredentialsPresent();
-
-        if (!IsTokenRefreshRequired())
-        {
-            return;
-        }
-
-        await tokenRefreshGate.WaitAsync();
-        try
-        {
-            EnsureRefreshCredentialsPresent();
-
-            if (!IsTokenRefreshRequired())
-            {
-                return;
-            }
-
-            await RefreshTokensAsync();
-        }
-        finally
-        {
-            tokenRefreshGate.Release();
-        }
+        await EnsureTokenFreshAsync(forceRefresh: false);
     }
 
     private async Task Init()
@@ -395,7 +372,7 @@ internal class HttpApiService : IHttpApiService
 
         try
         {
-            await RefreshTokensAsync();
+            await EnsureTokenFreshAsync(forceRefresh: true);
         }
         catch (HttpRequestException e)
         {
@@ -414,6 +391,48 @@ internal class HttpApiService : IHttpApiService
         }
 
         return true;
+    }
+
+    private async Task EnsureTokenFreshAsync(bool forceRefresh)
+    {
+        await Initialization;
+
+        EnsureRefreshCredentialsPresent();
+
+        if (!forceRefresh && !IsTokenRefreshRequired())
+        {
+            return;
+        }
+
+        Task refreshTask;
+        lock (tokenRefreshStateGate)
+        {
+            EnsureRefreshCredentialsPresent();
+
+            if (!forceRefresh && !IsTokenRefreshRequired())
+            {
+                return;
+            }
+
+            inFlightTokenRefreshTask ??= RefreshTokensAsync();
+            refreshTask = inFlightTokenRefreshTask;
+        }
+
+        try
+        {
+            await refreshTask;
+        }
+        finally
+        {
+            lock (tokenRefreshStateGate)
+            {
+                if (ReferenceEquals(inFlightTokenRefreshTask, refreshTask)
+                    && refreshTask.IsCompleted)
+                {
+                    inFlightTokenRefreshTask = null;
+                }
+            }
+        }
     }
 
     #endregion Public methods - pairing

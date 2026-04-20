@@ -21,6 +21,7 @@ public class SessionDetailViewModelTests
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
 
     public SessionDetailViewModelTests()
     {
@@ -32,7 +33,12 @@ public class SessionDetailViewModelTests
     {
         sessionStore.Watch(snapshot.Id).Returns(watch ?? Observable.Empty<SessionSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, tileLayerService, shell, dialogService);
+        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, tileLayerService, shell, dialogService, platformMode);
+    }
+
+    private void SetDesktop(bool isDesktop)
+    {
+        platformMode.IsDesktop.Returns(isDesktop);
     }
 
     // ----- Construction -----
@@ -93,7 +99,7 @@ public class SessionDetailViewModelTests
 
         sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
             .Returns(new SessionSaveResult.Saved(11));
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -114,7 +120,7 @@ public class SessionDetailViewModelTests
 
         sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
             .Returns(new SessionSaveResult.Saved(11));
-        TestApp.SetIsDesktop(false);
+        SetDesktop(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -132,7 +138,7 @@ public class SessionDetailViewModelTests
         sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
             .Returns(new SessionSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -151,7 +157,7 @@ public class SessionDetailViewModelTests
         sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
             .Returns(new SessionSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -168,7 +174,7 @@ public class SessionDetailViewModelTests
 
         sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
             .Returns(new SessionSaveResult.Failed("disk full"));
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -222,7 +228,7 @@ public class SessionDetailViewModelTests
             400.0,
             new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8)));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -250,7 +256,7 @@ public class SessionDetailViewModelTests
             false));
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
-        TestApp.SetIsDesktop(false);
+        SetDesktop(false);
 
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
@@ -268,7 +274,7 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -283,7 +289,7 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.Failed("boom"));
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -302,7 +308,7 @@ public class SessionDetailViewModelTests
             .Returns(callInfo => AwaitWithCancellation(
                 pending.Task,
                 callInfo.ArgAt<CancellationToken>(1)));
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
         var loadTask = editor.LoadedCommand.ExecuteAsync(null);
@@ -333,7 +339,7 @@ public class SessionDetailViewModelTests
             .Returns(callInfo => AwaitWithCancellation(
                 pending.Task,
                 callInfo.ArgAt<CancellationToken>(2)));
-        TestApp.SetIsDesktop(false);
+        SetDesktop(false);
 
         var editor = CreateEditor(snapshot);
         var loadTask = editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
@@ -381,7 +387,7 @@ public class SessionDetailViewModelTests
                         null,
                         new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80))));
             });
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
         var firstLoad = editor.LoadedCommand.ExecuteAsync(null);
@@ -444,7 +450,7 @@ public class SessionDetailViewModelTests
                     return AwaitWithCancellation(task, token);
                 }
             });
-        TestApp.SetIsDesktop(true);
+        SetDesktop(true);
 
         var editor = CreateEditor(snapshot, watch.AsObservable());
 

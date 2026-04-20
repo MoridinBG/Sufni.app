@@ -100,7 +100,7 @@ public class NetworkTelemetryDataStoreTests
 
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => dataStore.GetFiles());
 
-        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class NetworkTelemetryDataStoreTests
 
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.GeneratePsstAsync(CreateBikeData()));
 
-        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class NetworkTelemetryDataStoreTests
 
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.OnTrashed());
 
-        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
     }
 
     private static ILiveDaqBoardIdInspector CreateBoardIdInspector()

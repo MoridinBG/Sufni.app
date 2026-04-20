@@ -8,12 +8,14 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sufni.App;
+using Sufni.App.Services;
 
 namespace Sufni.App.Tests.Infrastructure;
 
 public static class ViewTestHelpers
 {
     private const string ViewTemplatesRegisteredKey = "__ViewTestHelpers_ViewTemplatesRegistered";
+    private const string ViewTemplatesDesktopModeKey = "__ViewTestHelpers_ViewTemplatesDesktopMode";
 
     public static Window ShowView(Control view)
     {
@@ -58,18 +60,28 @@ public static class ViewTestHelpers
         resources["SufniDangerColorDark"] = Brushes.DarkRed;
     }
 
-    public static void EnsureViewTestDataTemplates()
+    public static void EnsureViewTestDataTemplates(bool isDesktop)
     {
         var application = Application.Current
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
-        if (application.Resources.ContainsKey(ViewTemplatesRegisteredKey))
+        if (application.Resources.TryGetValue(ViewTemplatesRegisteredKey, out var registered)
+            && registered is true
+            && application.Resources.TryGetValue(ViewTemplatesDesktopModeKey, out var currentMode)
+            && currentMode is bool registeredDesktopMode
+            && registeredDesktopMode == isDesktop)
         {
             return;
         }
 
-        application.DataTemplates.Add(new ViewLocator());
+        foreach (var existingLocator in application.DataTemplates.OfType<ViewLocator>().ToArray())
+        {
+            application.DataTemplates.Remove(existingLocator);
+        }
+
+        application.DataTemplates.Add(new ViewLocator(new PlatformMode(isDesktop)));
         application.Resources[ViewTemplatesRegisteredKey] = true;
+        application.Resources[ViewTemplatesDesktopModeKey] = isDesktop;
     }
 
     public static void EnsurePlotViewStyle()
