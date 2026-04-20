@@ -14,9 +14,8 @@ public class MainPagesDesktopViewTests
     [AvaloniaFact]
     public async Task MainPagesDesktopView_ContainsLiveDaqsPrimaryTab()
     {
-        TestApp.SetIsDesktop(true);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
         var viewModel = new MainPagesViewModel
         {

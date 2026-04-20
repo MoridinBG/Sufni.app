@@ -73,9 +73,8 @@ public class LiveDaqListDesktopViewTests
 
     private static async Task<MountedLiveDaqListDesktopView> MountAsync(LiveDaqListViewModel viewModel)
     {
-        TestApp.SetIsDesktop(true);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
         var view = new LiveDaqListDesktopView
         {

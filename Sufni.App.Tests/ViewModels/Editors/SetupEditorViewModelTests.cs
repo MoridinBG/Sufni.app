@@ -283,7 +283,6 @@ public class SetupEditorViewModelTests
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Saved(11));
-        TestApp.SetIsDesktop(true); // skip OpenPreviousPage navigation
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -310,7 +309,6 @@ public class SetupEditorViewModelTests
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Saved(11));
-        TestApp.SetIsDesktop(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -336,7 +334,6 @@ public class SetupEditorViewModelTests
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -363,7 +360,6 @@ public class SetupEditorViewModelTests
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -386,7 +382,6 @@ public class SetupEditorViewModelTests
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Failed("disk full"));
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 

@@ -35,7 +35,7 @@ public class NetworkTelemetryFile : ITelemetryFile
         var loadedFile = rawFileResult switch
         {
             DaqGetFileResult.Loaded loaded => loaded,
-            DaqGetFileResult.Error error => throw new DaqManagementException(error.Message),
+            DaqGetFileResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
             _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
         };
 
@@ -70,7 +70,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 
         if (result is DaqManagementResult.Error error)
         {
-            throw new DaqManagementException(error.Message);
+            throw new DaqManagementException(error.ErrorCode, error.Message);
         }
     }
 

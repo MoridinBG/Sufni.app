@@ -22,9 +22,11 @@ public class BikeEditorViewModelTests
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
 
     public BikeEditorViewModelTests()
     {
+        platformMode.IsDesktop.Returns(true);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
@@ -39,7 +41,12 @@ public class BikeEditorViewModelTests
     }
 
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false) =>
-        new(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService);
+        new(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, platformMode);
+
+    private void SetDesktop(bool isDesktop)
+    {
+        platformMode.IsDesktop.Returns(isDesktop);
+    }
 
     private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
         new(leverageRatioData, new CoordinateList([], []));
@@ -446,7 +453,6 @@ public class BikeEditorViewModelTests
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -473,7 +479,7 @@ public class BikeEditorViewModelTests
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
-        TestApp.SetIsDesktop(false);
+        SetDesktop(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -491,7 +497,6 @@ public class BikeEditorViewModelTests
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -516,7 +521,6 @@ public class BikeEditorViewModelTests
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -540,7 +544,6 @@ public class BikeEditorViewModelTests
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -560,7 +563,6 @@ public class BikeEditorViewModelTests
             rearWheelTireWidth: 2.5,
             rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
         var editor = CreateEditor(snapshot);
 
         editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
@@ -580,7 +582,6 @@ public class BikeEditorViewModelTests
     {
         var snapshot = FullSuspensionSnapshot();
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
         var editor = CreateEditor(snapshot);
         Assert.NotNull(editor.ShockStroke);
 
@@ -596,7 +597,6 @@ public class BikeEditorViewModelTests
     {
         var snapshot = FullSuspensionSnapshot();
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
         var editor = CreateEditor(snapshot);
         var originalShockStroke = editor.ShockStroke;
         Assert.NotNull(originalShockStroke);
@@ -612,7 +612,6 @@ public class BikeEditorViewModelTests
     {
         var snapshot = FullSuspensionSnapshot();
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
         var editor = CreateEditor(snapshot);
 
         editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
@@ -638,7 +637,6 @@ public class BikeEditorViewModelTests
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Failed("disk full"));
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -654,7 +652,6 @@ public class BikeEditorViewModelTests
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.InvalidLinkage());
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -674,7 +671,6 @@ public class BikeEditorViewModelTests
             .Returns(new BikeSaveResult.Saved(
                 11,
                 new BikeEditorAnalysisResult.Computed(PresentationData(data))));
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 

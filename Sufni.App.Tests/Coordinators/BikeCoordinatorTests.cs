@@ -22,9 +22,10 @@ public class BikeCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
 
     private BikeCoordinator CreateCoordinator() => new(
-        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService);
+        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService, platformMode);
 
     // ----- OpenCreateAsync -----
 

@@ -39,6 +39,8 @@ public partial class App : Application
     {
         LoggingBootstrapper.InstallGlobalExceptionHooks();
 
+        var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
             ServiceCollection.AddSingleton<IMainWindowShellHost>(sp =>
@@ -55,6 +57,8 @@ public partial class App : Application
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
+        ServiceCollection.AddSingleton<IPlatformMode>(_ => new PlatformMode(isDesktop));
+        ServiceCollection.AddSingleton<ViewLocator>();
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
@@ -129,8 +133,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
 
-        IsDesktop = ServiceCollection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
+        IsDesktop = isDesktop;
         Services = ServiceCollection.BuildServiceProvider();
+
+        if (!DataTemplates.OfType<ViewLocator>().Any())
+        {
+            DataTemplates.Add(Services.GetRequiredService<ViewLocator>());
+        }
 
         // Coordinators with constructor-time event subscriptions are
         // eagerly resolved here so the subscriptions are wired before any

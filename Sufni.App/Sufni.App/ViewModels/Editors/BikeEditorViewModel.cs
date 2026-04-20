@@ -50,6 +50,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IBikeDependencyQuery? dependencyQuery;
+    private readonly IPlatformMode platformMode;
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeSnapshot acceptedSnapshot;
     private BikeRearSuspensionEditorState acceptedRearSuspensionState = new BikeRearSuspensionEditorState.Hardtail();
@@ -113,7 +114,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     [ObservableProperty] private BikeRearSuspensionMode rearSuspensionMode;
 
-    public bool CanChangeRearSuspensionMode => App.Current?.IsDesktop ?? true;
+    public bool CanChangeRearSuspensionMode => platformMode.IsDesktop;
     public bool HasRearSuspension => RearSuspensionMode != BikeRearSuspensionMode.None;
     public bool IsHardtailMode => RearSuspensionMode == BikeRearSuspensionMode.None;
     public bool IsLinkageMode => RearSuspensionMode == BikeRearSuspensionMode.Linkage;
@@ -189,6 +190,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     {
         bikeCoordinator = null;
         dependencyQuery = null;
+        platformMode = new PlatformMode(true);
         acceptedSnapshot = BikeSnapshot.From(new BikeModel(Guid.Empty, string.Empty));
         IsInDatabase = false;
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
@@ -206,11 +208,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IBikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IPlatformMode? platformMode = null)
         : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
+        this.platformMode = platformMode ?? new PlatformMode(true);
         IsInDatabase = !isNew;
         acceptedSnapshot = snapshot;
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
