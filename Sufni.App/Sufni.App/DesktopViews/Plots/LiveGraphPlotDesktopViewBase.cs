@@ -67,11 +67,9 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             {
                 case nameof(GraphBatches):
                     graphBatchesSubscription?.Dispose();
+                    graphBatchesSubscription = null;
                     ClearPendingGraphBatches();
-                    if (e.NewValue is IObservable<LiveGraphBatch> graphBatches)
-                    {
-                        graphBatchesSubscription = graphBatches.Subscribe(HandleGraphBatch);
-                    }
+                    EnsureGraphBatchSubscription();
                     break;
 
                 case nameof(Timeline):
@@ -94,10 +92,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             }
         };
 
-        AttachedToVisualTree += (_, _) => uiRefreshTimer.Start();
+        AttachedToVisualTree += (_, _) =>
+        {
+            uiRefreshTimer.Start();
+            EnsureGraphBatchSubscription();
+        };
         DetachedFromVisualTree += (_, _) =>
         {
             graphBatchesSubscription?.Dispose();
+            graphBatchesSubscription = null;
             uiRefreshTimer.Stop();
             ClearPendingGraphBatches();
         };
@@ -159,6 +162,16 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         {
             pendingGraphBatches.Add(batch);
         }
+    }
+
+    private void EnsureGraphBatchSubscription()
+    {
+        if (graphBatchesSubscription is not null || GraphBatches is not IObservable<LiveGraphBatch> graphBatches)
+        {
+            return;
+        }
+
+        graphBatchesSubscription = graphBatches.Subscribe(HandleGraphBatch);
     }
 
     private void FlushPendingGraphBatches()

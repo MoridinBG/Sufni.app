@@ -44,6 +44,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public string IdentityKey => snapshot.IdentityKey;
 
+    public LiveDaqSnapshot CatalogSnapshot => snapshot;
+
     public LiveDaqStreamConfiguration RequestedConfiguration => requestedConfiguration;
 
     public LiveDaqSharedStreamState CurrentState => currentState;

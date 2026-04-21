@@ -256,7 +256,7 @@ classDiagram
 
     class EditorVM {
         +Id, BaselineUpdated, IsInDatabase
-        IEditorActions
+      inherits TabPageViewModelBase command surface
     }
 
     class ListVM {
@@ -266,7 +266,7 @@ classDiagram
 
     class RowVM {
         +Id, Name, Timestamp
-        IListItemRow
+      inherits ListItemRowViewModelBase
         +Update(snapshot)
     }
 
@@ -324,11 +324,11 @@ There are five kinds of view model in the presentation layer:
   non-editable wrappers around a single snapshot. They expose a
   `Update(snapshot)` method that DynamicData calls when the underlying
   snapshot changes, plus an `IRelayCommand`-based open/delete surface
-  defined in `IListItemRow` (a single shared `x:DataType` for the
+  inherited from `ListItemRowViewModelBase` (a single shared `x:DataType` for the
   `DeletableListItemButton` / `SwipeToDeleteButton` /
   `PairedDeviceListItemButton` controls). Open and delete commands
   route through the entity coordinator. `LiveDaqRowViewModel` is an
-  exception: it does not implement `IListItemRow` because live DAQ
+  exception: it does not derive from `ListItemRowViewModelBase` because live DAQ
   rows are not deletable and use a custom row control with
   online/offline presentation.
 
@@ -342,9 +342,10 @@ There are five kinds of view model in the presentation layer:
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
   `SaveResult.Conflict` they prompt the user via
   `IDialogService.ShowConfirmationAsync` and rebuild from the
-  conflict's current snapshot. Persisted-entity editors implement
-  `IEditorActions` so the shared `CommonButtonLine` editor button
-  strip resolves a single `x:DataType`. `LiveDaqDetailViewModel` and
+  conflict's current snapshot. Persisted-entity editors share the
+  `TabPageViewModelBase` command surface, which is the single
+  `x:DataType` used by the shared `CommonButtonLine` editor button
+  strip. `LiveDaqDetailViewModel` and
   `LiveSessionDetailViewModel` are the two live-only exceptions: the
   diagnostics tab is a transport/configuration surface over the shared
   stream, while the live session tab is a create-only capture editor
@@ -444,9 +445,10 @@ keyed singletons under `"gosst"` and optionally `"sync"`),
 `ISynchronizationServerService` + `IPairingServerCoordinator` +
 `IInboundSyncCoordinator` + `PairingServerViewModel` (desktop only),
 or `ISynchronizationClientService` + `IPairingClientCoordinator` +
-`PairingClientViewModel` (mobile only). Platform detection
-(`App.IsDesktop`) is true when the collection contains
-`ISynchronizationServerService`.
+`PairingClientViewModel` (mobile only). Platform mode is determined
+from the Avalonia application lifetime up front, registered as the
+singleton `IPlatformMode`, and mirrored onto `App.IsDesktop` for the
+few places that still read the application object directly.
 
 After `BuildServiceProvider()`, `App` eagerly resolves
 `ISessionCoordinator`, `IPairedDeviceCoordinator`,
@@ -485,7 +487,7 @@ view.
 
 ## Controls Library
 
-`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. The desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against the shared `IListItemRow` surface so list views can use a single `x:DataType` regardless of the entity family. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly (not `IListItemRow`) because live DAQ rows are not deletable and need online/offline presentation.
+`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
 
 ## Data Visualization
 

@@ -30,7 +30,7 @@ sequenceDiagram
 
 `SynchronizationServerService` (`Sufni.App/Sufni.App.Desktop/Services/SynchronizationServerService.cs`) embeds ASP.NET Core Kestrel on port 5575 with:
 
-- **TLS**: Self-signed ECDSA P-256 certificate (password stored in `SecureStorage`)
+- **TLS**: Self-signed ECDSA P-256 certificate (password stored in `SecureStorage`), served with TLS 1.2 and TLS 1.3 enabled
 - **JWT**: HS256 with a 64-byte random secret (stored in `SecureStorage`)
 - **Discovery**: mDNS advertisement as `_sstsync._tcp`
 
@@ -57,7 +57,7 @@ sequenceDiagram
 
 `SyncCoordinator` (`Sufni.App/Sufni.App/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, and refreshes every store after a successful round-trip. On mobile it subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Inbound sync arrival is split by entity family — see [Coordinators](ui.md#coordinators) — so that each store has exactly one writer.
 
-`HttpApiService` (`Sufni.App/Sufni.App/Services/HttpApiService.cs`) handles JWT auto-refresh: when the access token is within 30 seconds of expiry, it calls `/pair/refresh`. On 401, it clears stored credentials. TLS validation checks CN and expiry but not the certificate chain (suitable for LAN self-signed certs).
+`HttpApiService` (`Sufni.App/Sufni.App/Services/HttpApiService.cs`) handles JWT auto-refresh: when the access token is within 30 seconds of expiry, it calls `/pair/refresh`. On 401, it clears stored credentials. The client enables TLS 1.2 and TLS 1.3 to match the desktop server. TLS validation checks CN and expiry but not the certificate chain (suitable for LAN self-signed certs).
 
 `SynchronizationData` (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) is the sync payload:
 

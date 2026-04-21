@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http;
+using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 using NSubstitute;
@@ -11,6 +12,14 @@ namespace Sufni.App.Tests.Services;
 
 public class HttpApiServiceTests
 {
+    [Fact]
+    public void CreateHandler_AllowsTls12AndTls13()
+    {
+        using var handler = HttpApiService.CreateHandler((_, _, _, _) => true);
+
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, handler.SslProtocols);
+    }
+
     [Fact]
     public async Task GetIncompleteSessionIdsAsync_ReusesFreshTokenAcrossSequentialCalls()
     {

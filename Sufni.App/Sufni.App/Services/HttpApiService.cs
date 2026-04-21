@@ -89,12 +89,18 @@ internal class HttpApiService : IHttpApiService
 
     private HttpClientHandler CreateHandler()
     {
+        return CreateHandler(ValidateServerCertificate);
+    }
+
+    internal static HttpClientHandler CreateHandler(
+        Func<HttpRequestMessage, X509Certificate2?, X509Chain?, SslPolicyErrors, bool> validateServerCertificate)
+    {
         var handler = new HttpClientHandler
         {
-            SslProtocols = SslProtocols.Tls13,
+            SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
             UseCookies = false,
         };
-        handler.ServerCertificateCustomValidationCallback = ValidateServerCertificate;
+        handler.ServerCertificateCustomValidationCallback = validateServerCertificate;
         return handler;
     }
 

@@ -14,7 +14,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
     private readonly ILogger logger;
     private readonly string platformName;
     private readonly DispatchQueue dispatchQueue = new("com.sghctoma.sufni-bridge.serviceDiscovery");
-    private readonly Dictionary<string, ServiceAnnouncement> announcementsByResult = [];
+    private readonly BonjourBrowseLifecycle<NWConnection> browseLifecycle = new();
     private readonly NWParameters parameters = new()
     {
         LocalOnly = true,
@@ -35,16 +35,40 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
     public void StartBrowse(string type)
     {
+        if (!browseLifecycle.TryStart())
+        {
+            logger.Verbose("Ignoring Bonjour browse start on {Platform} for {ServiceType} because browsing is already active", platformName, type);
+            return;
+        }
+
         logger.Verbose("Starting Bonjour browse on {Platform} for {ServiceType}", platformName, type);
-        browser ??= CreateBrowser(type);
-        browser.Start();
+        var newBrowser = CreateBrowser(type);
+
+        try
+        {
+            browser = newBrowser;
+            newBrowser.Start();
+        }
+        catch
+        {
+            browser = null;
+            browseLifecycle.TryStop(static connection => connection.Cancel());
+            throw;
+        }
     }
 
     public void StopBrowse()
     {
-        Debug.Assert(browser is not null);
+        if (!browseLifecycle.TryStop(static connection => connection.Cancel()))
+        {
+            logger.Verbose("Ignoring Bonjour browse stop on {Platform} because browsing is not active", platformName);
+            return;
+        }
+
         logger.Verbose("Stopping Bonjour browse on {Platform}", platformName);
-        browser.Cancel();
+        Debug.Assert(browser is not null);
+        browser?.Cancel();
+        browser = null;
     }
 
     private void OnServiceAdded(NWBrowseResult? result)
@@ -57,6 +81,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
         var key = GetBrowseResultKey(result);
         var connection = new NWConnection(result.EndPoint, NWParameters.CreateTcp());
+        var resolutionId = browseLifecycle.TrackPending(key, connection, static pendingConnection => pendingConnection.Cancel());
         connection.SetStateChangeHandler((state, _) =>
         {
             if (state != NWConnectionState.Ready)
@@ -76,7 +101,15 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
             }
 
             var announcement = new ServiceAnnouncement(address, port.Value);
-            announcementsByResult[key] = announcement;
+            if (!browseLifecycle.TryResolve(key, resolutionId, announcement))
+            {
+                logger.Verbose(
+                    "Ignoring Bonjour resolution on {Platform} for {Address}:{Port} because the browse result was removed or restarted before resolution completed",
+                    platformName,
+                    address,
+                    port);
+                return;
+            }
 
             logger.Verbose(
                 "Resolved Bonjour service on {Platform} to {Address}:{Port}",
@@ -98,7 +131,13 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         }
 
         var key = GetBrowseResultKey(result);
-        if (!announcementsByResult.Remove(key, out var announcement))
+        if (browseLifecycle.CancelPending(key, static pendingConnection => pendingConnection.Cancel()))
+        {
+            logger.Verbose("Canceled pending Bonjour resolution on {Platform} because the service was removed before resolution completed", platformName);
+            return;
+        }
+
+        if (!browseLifecycle.TryRemoveResolved(key, out var announcement))
         {
             logger.Verbose("Ignoring Bonjour removal on {Platform} because the service was never resolved", platformName);
             return;
@@ -107,7 +146,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         logger.Verbose(
             "Removed Bonjour service on {Platform} for {Address}:{Port}",
             platformName,
-            announcement.Address,
+            announcement!.Address,
             announcement.Port);
         ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(announcement));
     }

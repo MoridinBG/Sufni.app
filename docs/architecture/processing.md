@@ -142,13 +142,15 @@ Output: `Dictionary<string, CoordinateList>` mapping each joint name to its X,Y 
 
 Four sensor types convert raw ADC counts to millimeters of travel through the `ISensorConfiguration` strategy pattern.
 
-`ISensorConfiguration` (`Sufni.App/Sufni.App/Models/SensorConfigurations/SensorConfiguration.cs`) defines:
+`ISensorConfiguration` (`Sufni.App/Sufni.App/Models/SensorConfigurations/SensorConfiguration.cs`) defines the front-suspension calibration surface used directly by the telemetry pipeline:
 
 - `Type` — `SensorType` enum discriminator (`LinearFork`, `RotationalFork`, `LinearShock`, `RotationalShock`)
 - `MeasurementToTravel` — `Func<ushort, double>` calibration closure
 - `MaxTravel` — physical suspension limit in mm
 
 Polymorphic JSON deserialization: `SensorConfiguration.FromJson(json, bike)` reads the `Type` field first, then dispatches to the concrete class's `FromJson()` which deserializes the type-specific parameters and computes calibration factors using bike geometry.
+
+Rear shock payloads are deserialized as data-only `SensorConfiguration` records, then `RearTravelCalibrationBuilder.TryBuild(setup, bike, ...)` combines that payload with the resolved rear-suspension model to produce the rear `MaxTravel` and `MeasurementToTravel` closure that `TelemetryBikeData.Create(setup, bike)` passes into `TelemetryData.FromRecording(...)`. This split keeps rear calibration rules in one place instead of spreading linkage and leverage-ratio logic across the sensor-configuration types.
 
 For example, `LinearForkSensorConfiguration` stores `Length` (sensor physical range) and `Resolution` (ADC bit depth). Its calibration:
 
@@ -170,5 +172,7 @@ The bike context (head angle, fork stroke, shock stroke) is injected at deserial
 | ------------------------------------ | -------------------------------------------- | ---------------------------------------------------------------------- |
 | `LinearForkSensorConfiguration`      | Length, Resolution                           | Linear potentiometer on fork, projected by head angle                  |
 | `RotationalForkSensorConfiguration`  | MaxLength, ArmLength                         | Rotary encoder on fork, cosine-based rigid-arm geometric projection    |
-| `LinearShockSensorConfiguration`     | Length, Resolution                           | Linear potentiometer on shock, kinematic solver + polynomial fit       |
-| `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2 | Rotary encoder on shock, kinematic solver + angle-to-travel polynomial |
+| `LinearShockSensorConfiguration`     | Length, Resolution                           | Rear shock payload consumed by `RearTravelCalibrationBuilder`; maps shock stroke to wheel travel via linkage interpolation or `LeverageRatio.WheelTravelAt(...)` |
+| `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2 | Rear shock payload consumed by `RearTravelCalibrationBuilder`; resolves angle-to-shock-stroke from linkage motion, then converts to wheel travel |
+
+For leverage-ratio bikes, `RearTravelCalibrationBuilder` validates that the bike's configured shock stroke matches the leverage-ratio curve's `MaxShockStroke` (within a small tolerance) before it accepts the calibration. The resulting rear max travel is the wheel travel at that validated max shock stroke, not a separately configured number.
