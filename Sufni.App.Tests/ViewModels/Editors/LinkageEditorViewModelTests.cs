@@ -184,7 +184,29 @@ public class LinkageEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void MovingJoint_RaisesPreviewChanged_AndDragCompletionRaisesStateChanged()
+    public void MovingJoint_RaisesPreviewChanged_WithMovedJoint()
+    {
+        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var viewModel = new LinkageEditorViewModel();
+        LinkagePreviewChangedEventArgs? previewArgs = null;
+        var stateChanges = 0;
+        viewModel.PreviewChanged += (_, args) => previewArgs = args;
+        viewModel.StateChanged += (_, _) => stateChanges++;
+
+        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        previewArgs = null;
+        stateChanges = 0;
+
+        var joint = Assert.Single(viewModel.JointViewModels, item => item.Type == JointType.FrontWheel);
+        joint.X += 10;
+
+        Assert.NotNull(previewArgs);
+        Assert.Same(joint, previewArgs!.Joint);
+        Assert.Equal(0, stateChanges);
+    }
+
+    [AvaloniaFact]
+    public void WasPossiblyDragged_RaisesStateChanged_WithoutPreviewChanged()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
@@ -198,14 +220,10 @@ public class LinkageEditorViewModelTests
         stateChanges = 0;
 
         var joint = Assert.Single(viewModel.JointViewModels, item => item.Type == JointType.FrontWheel);
-        joint.X += 10;
-
-        Assert.Equal(1, previewChanges);
-        Assert.Equal(0, stateChanges);
 
         joint.WasPossiblyDragged = true;
 
-        Assert.Equal(1, previewChanges);
+        Assert.Equal(0, previewChanges);
         Assert.Equal(1, stateChanges);
     }
 

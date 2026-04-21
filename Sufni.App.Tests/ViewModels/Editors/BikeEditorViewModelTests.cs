@@ -11,6 +11,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels.LinkageEditing;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
 
@@ -22,11 +23,9 @@ public class BikeEditorViewModelTests
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
 
     public BikeEditorViewModelTests()
     {
-        platformMode.IsDesktop.Returns(true);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
@@ -40,12 +39,15 @@ public class BikeEditorViewModelTests
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
     }
 
-    private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false) =>
-        new(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, platformMode);
+    private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool isDesktop = true)
+    {
+        TestApp.SetIsDesktop(isDesktop);
+        return new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService);
+    }
 
     private void SetDesktop(bool isDesktop)
     {
-        platformMode.IsDesktop.Returns(isDesktop);
+        TestApp.SetIsDesktop(isDesktop);
     }
 
     private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
@@ -364,6 +366,89 @@ public class BikeEditorViewModelTests
         Assert.Equal(baselineEditor.HeadAngle, affectedEditor.HeadAngle);
     }
 
+    [AvaloniaFact]
+    public void MovingFrontWheel_RefreshesWheelProjection_WithoutChangingPixelsToMillimeters()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var editor = CreateEditor(snapshot);
+        var frontWheel = Assert.Single(editor.LinkageEditor.JointViewModels, joint => joint.Type == JointType.FrontWheel);
+        var initialPixelsToMillimeters = Assert.IsType<double>(editor.PixelsToMillimeters);
+        var initialFrontWheelCircleLeft = editor.WheelGeometry.FrontWheelCircleLeft;
+        var initialHeadAngle = Assert.IsType<double>(editor.HeadAngle);
+
+        frontWheel.X += 25;
+
+        Assert.Equal(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters), 10);
+        Assert.NotEqual(initialFrontWheelCircleLeft, editor.WheelGeometry.FrontWheelCircleLeft);
+        Assert.NotEqual(initialHeadAngle, Assert.IsType<double>(editor.HeadAngle));
+    }
+
+    [AvaloniaFact]
+    public void MovingRearWheel_UpdatesPixelsToMillimeters_AndWheelProjection()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var editor = CreateEditor(snapshot);
+        var rearWheel = Assert.Single(editor.LinkageEditor.JointViewModels, joint => joint.Type == JointType.RearWheel);
+        var initialPixelsToMillimeters = Assert.IsType<double>(editor.PixelsToMillimeters);
+        var initialRearWheelCircleLeft = editor.WheelGeometry.RearWheelCircleLeft;
+
+        rearWheel.X += 20;
+
+        Assert.NotEqual(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters));
+        Assert.NotEqual(initialRearWheelCircleLeft, editor.WheelGeometry.RearWheelCircleLeft);
+    }
+
+    [AvaloniaFact]
+    public void MovingBottomBracket_UpdatesPixelsToMillimeters_AndWheelBounds()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var editor = CreateEditor(snapshot);
+        var bottomBracket = Assert.Single(editor.LinkageEditor.JointViewModels, joint => joint.Type == JointType.BottomBracket);
+        var initialPixelsToMillimeters = Assert.IsType<double>(editor.PixelsToMillimeters);
+        var initialFrontWheelCircleDiameter = editor.WheelGeometry.FrontWheelCircleDiameter;
+
+        bottomBracket.Y += 20;
+
+        Assert.NotEqual(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters));
+        Assert.NotEqual(initialFrontWheelCircleDiameter, editor.WheelGeometry.FrontWheelCircleDiameter);
+    }
+
+    [AvaloniaFact]
+    public void HandleLinkagePreviewChangedForTests_WithNullJoint_FallsBackToFullPreviewRefresh()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var editor = CreateEditor(snapshot);
+        var initialPixelsToMillimeters = Assert.IsType<double>(editor.PixelsToMillimeters);
+        var initialFrontWheelCircleLeft = editor.WheelGeometry.FrontWheelCircleLeft;
+        var modifiedLinkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var modifiedFrontWheel = Assert.Single(modifiedLinkage.Joints, joint => joint.Type == JointType.FrontWheel);
+        var modifiedBottomBracket = Assert.Single(modifiedLinkage.Joints, joint => joint.Type == JointType.BottomBracket);
+
+        modifiedFrontWheel.X += 30;
+        modifiedBottomBracket.Y += 20;
+        editor.LinkageEditor.Load(modifiedLinkage, editor.ImageCanvas.Image!.Size.Height, snapshot.PixelsToMillimeters);
+
+        Assert.Equal(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters), 10);
+        Assert.Equal(initialFrontWheelCircleLeft, editor.WheelGeometry.FrontWheelCircleLeft, 10);
+
+        editor.HandleLinkagePreviewChangedForTests(new LinkagePreviewChangedEventArgs(null));
+
+        Assert.NotEqual(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters));
+        Assert.NotEqual(initialFrontWheelCircleLeft, editor.WheelGeometry.FrontWheelCircleLeft);
+    }
+
     // ----- Dirtiness -----
 
     [AvaloniaFact]
@@ -474,12 +559,11 @@ public class BikeEditorViewModelTests
     public async Task Save_OnForkOnlyBike_OnMobile_DoesNotNavigateDirectly()
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, isDesktop: false);
         editor.Name = "renamed";
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
-        SetDesktop(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 

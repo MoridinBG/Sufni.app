@@ -34,7 +34,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
     private readonly ITileLayerService tileLayerService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
-    private readonly IPlatformMode platformMode;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -46,7 +45,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        IPlatformMode platformMode,
         ISynchronizationServerService? synchronizationServer = null)
     {
         this.sessionStore = sessionStore;
@@ -58,7 +56,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
         this.tileLayerService = tileLayerService;
         this.shell = shell;
         this.dialogService = dialogService;
-        this.platformMode = platformMode;
 
         if (synchronizationServer is not null)
         {
@@ -80,8 +77,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
                 sessionStore,
                 tileLayerService,
                 shell,
-                dialogService,
-                platformMode));
+                dialogService));
         return Task.CompletedTask;
     }
 
