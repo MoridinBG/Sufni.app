@@ -23,7 +23,7 @@ public class BonjourBrowseLifecycleTests
         var lifecycle = new BonjourBrowseLifecycle<string>();
         lifecycle.TryStart();
         var canceled = new List<string>();
-        var resolutionId = lifecycle.TrackPending("result", "pending", canceled.Add);
+        Assert.True(lifecycle.TryTrackPending("result", "pending", canceled.Add, out var resolutionId));
 
         Assert.True(lifecycle.CancelPending("result", canceled.Add));
         Assert.Equal(["pending"], canceled);
@@ -36,8 +36,8 @@ public class BonjourBrowseLifecycleTests
         var lifecycle = new BonjourBrowseLifecycle<string>();
         lifecycle.TryStart();
         var canceled = new List<string>();
-        var firstResolutionId = lifecycle.TrackPending("result", "first", canceled.Add);
-        var secondResolutionId = lifecycle.TrackPending("result", "second", canceled.Add);
+        Assert.True(lifecycle.TryTrackPending("result", "first", canceled.Add, out var firstResolutionId));
+        Assert.True(lifecycle.TryTrackPending("result", "second", canceled.Add, out var secondResolutionId));
 
         Assert.Equal(["first"], canceled);
         Assert.False(lifecycle.TryResolve("result", firstResolutionId, new ServiceAnnouncement(IPAddress.Loopback, 1234)));
@@ -52,8 +52,8 @@ public class BonjourBrowseLifecycleTests
         var lifecycle = new BonjourBrowseLifecycle<string>();
         lifecycle.TryStart();
         var canceled = new List<string>();
-        var resolutionId = lifecycle.TrackPending("pending", "pending-value", canceled.Add);
-        var resolvedId = lifecycle.TrackPending("resolved", "resolved-value", canceled.Add);
+        Assert.True(lifecycle.TryTrackPending("pending", "pending-value", canceled.Add, out var resolutionId));
+        Assert.True(lifecycle.TryTrackPending("resolved", "resolved-value", canceled.Add, out var resolvedId));
         Assert.True(lifecycle.TryResolve("resolved", resolvedId, new ServiceAnnouncement(IPAddress.Loopback, 4567)));
 
         Assert.True(lifecycle.TryStop(canceled.Add));
@@ -67,7 +67,7 @@ public class BonjourBrowseLifecycleTests
     {
         var lifecycle = new BonjourBrowseLifecycle<string>();
         lifecycle.TryStart();
-        var resolutionId = lifecycle.TrackPending("result", "pending", _ => { });
+        Assert.True(lifecycle.TryTrackPending("result", "pending", _ => { }, out var resolutionId));
         var expected = new ServiceAnnouncement(IPAddress.Parse("192.168.0.10"), 8080);
 
         Assert.False(lifecycle.TryRemoveResolved("result", out _));
@@ -76,5 +76,57 @@ public class BonjourBrowseLifecycleTests
         Assert.Equal(expected.Address, announcement!.Address);
         Assert.Equal(expected.Port, announcement.Port);
         Assert.False(lifecycle.TryRemoveResolved("result", out _));
+    }
+
+    [Fact]
+    public void TryTrackPending_ReturnsFalse_WhenBrowsingIsInactive()
+    {
+        var lifecycle = new BonjourBrowseLifecycle<string>();
+        var canceled = new List<string>();
+
+        Assert.False(lifecycle.TryTrackPending("result", "pending", canceled.Add, out var resolutionId));
+        Assert.Equal(0, resolutionId);
+        Assert.Equal(["pending"], canceled);
+        Assert.False(lifecycle.CancelPending("result", _ => { }));
+    }
+
+    [Fact]
+    public async Task TryStop_RejectsLateTracks_WhileCancellationCallbacksAreRunning()
+    {
+        var lifecycle = new BonjourBrowseLifecycle<string>();
+        Assert.True(lifecycle.TryStart());
+        for (var index = 0; index < 8; index++)
+        {
+            Assert.True(lifecycle.TryTrackPending($"existing-{index}", $"existing-{index}", _ => { }, out _));
+        }
+
+        var firstCancellationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowStopToFinish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancellationCount = 0;
+
+        var stopTask = Task.Run(() => lifecycle.TryStop(value =>
+        {
+            if (Interlocked.Increment(ref cancellationCount) != 1)
+            {
+                return;
+            }
+
+            firstCancellationStarted.TrySetResult();
+            allowStopToFinish.Task.GetAwaiter().GetResult();
+        }));
+
+        await firstCancellationStarted.Task;
+
+        var lateTrackResults = new List<bool>();
+        for (var index = 0; index < 8; index++)
+        {
+            lateTrackResults.Add(lifecycle.TryTrackPending($"late-{index}", $"late-{index}", _ => { }, out _));
+        }
+
+        allowStopToFinish.TrySetResult();
+
+        Assert.True(await stopTask);
+        Assert.All(lateTrackResults, Assert.False);
+        Assert.False(lifecycle.CancelPending("late-0", _ => { }));
     }
 }

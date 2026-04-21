@@ -81,7 +81,14 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
         var key = GetBrowseResultKey(result);
         var connection = new NWConnection(result.EndPoint, NWParameters.CreateTcp());
-        var resolutionId = browseLifecycle.TrackPending(key, connection, static pendingConnection => pendingConnection.Cancel());
+        if (!browseLifecycle.TryTrackPending(key, connection, static pendingConnection => pendingConnection.Cancel(), out var resolutionId))
+        {
+            logger.Verbose(
+                "Ignoring Bonjour browse result on {Platform} because browsing is no longer active",
+                platformName);
+            return;
+        }
+
         connection.SetStateChangeHandler((state, _) =>
         {
             if (state != NWConnectionState.Ready)

@@ -5,6 +5,7 @@ namespace Sufni.App.Services;
 
 internal sealed class BonjourBrowseLifecycle<TPending>
 {
+    private readonly object gate = new();
     private readonly Dictionary<string, PendingResolution> pendingByKey = [];
     private readonly Dictionary<string, ServiceAnnouncement> resolvedByKey = [];
     private long nextResolutionId;
@@ -12,50 +13,96 @@ internal sealed class BonjourBrowseLifecycle<TPending>
 
     public bool TryStart()
     {
-        if (isBrowsing)
+        lock (gate)
         {
-            return false;
-        }
+            if (isBrowsing)
+            {
+                return false;
+            }
 
-        isBrowsing = true;
-        return true;
+            isBrowsing = true;
+            return true;
+        }
     }
 
     public bool TryStop(Action<TPending> cancelPending)
     {
-        if (!isBrowsing)
+        List<TPending> pendingToCancel;
+        lock (gate)
         {
-            return false;
+            if (!isBrowsing)
+            {
+                return false;
+            }
+
+            isBrowsing = false;
+            pendingToCancel = new List<TPending>(pendingByKey.Count);
+            foreach (var pending in pendingByKey.Values)
+            {
+                pendingToCancel.Add(pending.Value);
+            }
+
+            pendingByKey.Clear();
+            resolvedByKey.Clear();
         }
 
-        isBrowsing = false;
-        foreach (var pending in pendingByKey.Values)
+        foreach (var pending in pendingToCancel)
         {
-            cancelPending(pending.Value);
+            cancelPending(pending);
         }
 
-        pendingByKey.Clear();
-        resolvedByKey.Clear();
         return true;
     }
 
-    public long TrackPending(string key, TPending pending, Action<TPending> cancelPending)
+    public bool TryTrackPending(string key, TPending pending, Action<TPending> cancelPending, out long resolutionId)
     {
-        if (pendingByKey.Remove(key, out var existingPending))
+        PendingResolution? existingPending = null;
+        var shouldCancelPending = false;
+
+        lock (gate)
+        {
+            if (!isBrowsing)
+            {
+                resolutionId = 0;
+                shouldCancelPending = true;
+            }
+            else
+            {
+                if (pendingByKey.Remove(key, out var removedPending))
+                {
+                    existingPending = removedPending;
+                }
+
+                resolutionId = ++nextResolutionId;
+                pendingByKey[key] = new PendingResolution(resolutionId, pending);
+            }
+        }
+
+        if (existingPending is not null)
         {
             cancelPending(existingPending.Value);
         }
 
-        var resolutionId = ++nextResolutionId;
-        pendingByKey[key] = new PendingResolution(resolutionId, pending);
-        return resolutionId;
+        if (shouldCancelPending)
+        {
+            cancelPending(pending);
+            return false;
+        }
+
+        return true;
     }
 
     public bool CancelPending(string key, Action<TPending> cancelPending)
     {
-        if (!pendingByKey.Remove(key, out var pending))
+        PendingResolution? pending = null;
+        lock (gate)
         {
-            return false;
+            if (!pendingByKey.Remove(key, out var removedPending))
+            {
+                return false;
+            }
+
+            pending = removedPending;
         }
 
         cancelPending(pending.Value);
@@ -64,26 +111,32 @@ internal sealed class BonjourBrowseLifecycle<TPending>
 
     public bool TryResolve(string key, long resolutionId, ServiceAnnouncement announcement)
     {
-        if (!pendingByKey.TryGetValue(key, out var pending) || pending.ResolutionId != resolutionId)
+        lock (gate)
         {
-            return false;
-        }
+            if (!pendingByKey.TryGetValue(key, out var pending) || pending.ResolutionId != resolutionId)
+            {
+                return false;
+            }
 
-        pendingByKey.Remove(key);
-        resolvedByKey[key] = announcement;
-        return true;
+            pendingByKey.Remove(key);
+            resolvedByKey[key] = announcement;
+            return true;
+        }
     }
 
     public bool TryRemoveResolved(string key, out ServiceAnnouncement? announcement)
     {
-        if (!resolvedByKey.Remove(key, out var removed))
+        lock (gate)
         {
-            announcement = null;
-            return false;
-        }
+            if (!resolvedByKey.Remove(key, out var removed))
+            {
+                announcement = null;
+                return false;
+            }
 
-        announcement = removed;
-        return true;
+            announcement = removed;
+            return true;
+        }
     }
 
     private sealed record PendingResolution(long ResolutionId, TPending Value);
