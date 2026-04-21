@@ -29,33 +29,16 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
         catalogSubscription = liveDaqCatalogService.Observe().Subscribe(entries => _ = HandleCatalogEntriesAsync(entries));
     }
 
-    internal ILiveDaqSharedStream GetOrCreate(LiveDaqSnapshot snapshot)
+    public ILiveDaqSharedStream GetOrCreate(LiveDaqSnapshot snapshot)
     {
         lock (gate)
         {
             if (streams.TryGetValue(snapshot.IdentityKey, out var existing))
             {
-                _ = existing.UpdateCatalogSnapshotAsync(snapshot);
-                return existing;
-            }
-
-            EnsureBrowseLeaseLocked();
-            var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, EvictAsync);
-            streams.Add(snapshot.IdentityKey, stream);
-            return stream;
-        }
-    }
-
-    public ILiveDaqSharedStreamReservation Reserve(LiveDaqSnapshot snapshot)
-    {
-        lock (gate)
-        {
-            if (streams.TryGetValue(snapshot.IdentityKey, out var existing))
-            {
-                _ = existing.UpdateCatalogSnapshotAsync(snapshot);
-                if (existing.TryAcquireReservationLease() is { } existingLease)
+                if (existing.CanBeReturnedFromRegistry())
                 {
-                    return new SharedStreamReservation(existing, existingLease);
+                    _ = existing.UpdateCatalogSnapshotAsync(snapshot);
+                    return existing;
                 }
 
                 streams.Remove(snapshot.IdentityKey);
@@ -63,10 +46,8 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
 
             EnsureBrowseLeaseLocked();
             var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, EvictAsync);
-            var lease = stream.TryAcquireReservationLease()
-                ?? throw new InvalidOperationException("Failed to reserve a newly created live DAQ stream.");
             streams.Add(snapshot.IdentityKey, stream);
-            return new SharedStreamReservation(stream, lease);
+            return stream;
         }
     }
 
@@ -150,28 +131,4 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
         browseLease ??= liveDaqCatalogService.AcquireBrowse();
     }
 
-    private sealed class SharedStreamReservation : ILiveDaqSharedStreamReservation
-    {
-        private ILiveDaqSharedStreamLease? lease;
-
-        public SharedStreamReservation(ILiveDaqSharedStream stream, ILiveDaqSharedStreamLease lease)
-        {
-            Stream = stream;
-            this.lease = lease;
-        }
-
-        public ILiveDaqSharedStream Stream { get; }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (lease is null)
-            {
-                return;
-            }
-
-            var heldLease = lease;
-            lease = null;
-            await heldLease.DisposeAsync();
-        }
-    }
 }

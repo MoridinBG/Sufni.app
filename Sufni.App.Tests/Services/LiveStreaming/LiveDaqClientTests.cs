@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reactive.Linq;
 using System.Threading;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -296,6 +297,41 @@ public class LiveDaqClientTests
 
         var failedClient = Assert.Single(createdClients);
         Assert.True(failedClient.WasDisposed);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WhenConnected_CompletesEvents_DisposesTcpClient_AndFutureConnectThrows()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var acceptTask = listener.AcceptTcpClientAsync();
+        var createdClients = new List<TrackingTcpClient>();
+
+        var client = new LiveDaqClient(
+            TimeSpan.FromSeconds(1),
+            () =>
+            {
+                var tcpClient = new TrackingTcpClient();
+                createdClients.Add(tcpClient);
+                return tcpClient;
+            });
+        var eventsCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = client.Events.Subscribe(
+            _ => { },
+            ex => eventsCompleted.TrySetException(ex),
+            () => eventsCompleted.TrySetResult());
+
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        using var accepted = await acceptTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await client.DisposeAsync();
+        await eventsCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisposeAsync();
+
+        var trackingClient = Assert.Single(createdClients);
+        Assert.True(trackingClient.WasDisposed);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
     }
 
     [Fact]

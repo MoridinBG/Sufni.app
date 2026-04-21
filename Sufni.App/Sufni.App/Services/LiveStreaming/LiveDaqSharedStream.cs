@@ -31,6 +31,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private bool isEvictionPending;
     private bool isDisposed;
     private bool isEvicted;
+    private long evictionSequence;
 
     public LiveDaqSharedStream(
         LiveDaqSnapshot snapshot,
@@ -487,7 +488,13 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         try
         {
             ThrowIfDisposed();
-            ObjectDisposedException.ThrowIf(isEvictionPending || currentState.IsClosed, this);
+            ObjectDisposedException.ThrowIf(isEvicted || currentState.IsClosed, this);
+            if (isEvictionPending)
+            {
+                isEvictionPending = false;
+                evictionSequence++;
+            }
+
             observerCount++;
             if (releaseConfigurationLock)
             {
@@ -503,19 +510,20 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
     }
 
-    internal ILiveDaqSharedStreamLease? TryAcquireReservationLease()
+    internal bool CanBeReturnedFromRegistry()
     {
-        gate.Wait();
         try
         {
-            if (isDisposed || isEvictionPending || currentState.IsClosed)
-            {
-                return null;
-            }
+            gate.Wait();
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
 
-            observerCount++;
-            PublishState(currentState);
-            return new LiveDaqSharedStreamLease(this, releaseConfigurationLock: false);
+        try
+        {
+            return !isDisposed && !isEvicted && !isEvictionPending && !currentState.IsClosed;
         }
         finally
         {
@@ -643,7 +651,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private async ValueTask ReleaseLeaseAsync(bool releaseConfigurationLock)
     {
-        var shouldEvict = false;
+        var shouldBeginEviction = false;
+        long currentEvictionSequence = 0;
 
         try
         {
@@ -675,8 +684,43 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
 
             isEvictionPending = true;
-            await DisposeClientAsync(CancellationToken.None);
-            shouldEvict = true;
+            currentEvictionSequence = ++evictionSequence;
+            shouldBeginEviction = true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        if (!shouldBeginEviction)
+        {
+            return;
+        }
+
+        await DisposeClientAsync(CancellationToken.None);
+
+        var shouldEvict = false;
+
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
+        try
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            shouldEvict = observerCount == 0
+                && isEvictionPending
+                && !currentState.IsClosed
+                && currentEvictionSequence == evictionSequence;
         }
         finally
         {

@@ -19,7 +19,6 @@ namespace Sufni.App.Tests.Services.LiveStreaming;
 public class LiveSessionServiceTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
-    private readonly ILiveDaqSharedStreamReservation sharedStreamReservation = Substitute.For<ILiveDaqSharedStreamReservation>();
     private readonly ILiveDaqSharedStreamLease observerLease = Substitute.For<ILiveDaqSharedStreamLease>();
     private readonly ILiveDaqSharedStreamLease configurationLockLease = Substitute.For<ILiveDaqSharedStreamLease>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -37,8 +36,6 @@ public class LiveSessionServiceTests
         sharedStream.CurrentState.Returns(_ => currentState);
         sharedStream.AcquireLease().Returns(observerLease);
         sharedStream.AcquireConfigurationLock().Returns(configurationLockLease);
-        sharedStreamReservation.Stream.Returns(sharedStream);
-        sharedStreamReservation.DisposeAsync().Returns(ValueTask.CompletedTask);
         observerLease.DisposeAsync().Returns(ValueTask.CompletedTask);
         configurationLockLease.DisposeAsync().Returns(ValueTask.CompletedTask);
         sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>()).Returns(_ =>
@@ -68,12 +65,33 @@ public class LiveSessionServiceTests
         sharedStream.Received(1).AcquireLease();
         sharedStream.Received(1).AcquireConfigurationLock();
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
-        await sharedStreamReservation.Received(1).DisposeAsync();
 
         var streaming = Assert.IsType<LiveSessionStreamPresentation.Streaming>(service.Current.Stream);
         Assert.Equal(sessionHeader.SessionId, streaming.SessionHeader.SessionId);
 
         await service.DisposeAsync();
+
+        await observerLease.Received(1).DisposeAsync();
+        await configurationLockLease.Received(1).DisposeAsync();
+    }
+
+    [Fact]
+    public void CreateService_DoesNotAcquireLeasesBeforeEnsureAttachedAsync()
+    {
+        _ = CreateService();
+
+        sharedStream.DidNotReceive().AcquireLease();
+        sharedStream.DidNotReceive().AcquireConfigurationLock();
+    }
+
+    [Fact]
+    public async Task EnsureAttachedAsync_DisposesFreshLeases_WhenStartThrows()
+    {
+        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<LivePreviewStartResult?>>(_ => throw new InvalidOperationException("boom"));
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAttachedAsync());
 
         await observerLease.Received(1).DisposeAsync();
         await configurationLockLease.Received(1).DisposeAsync();
@@ -236,7 +254,7 @@ public class LiveSessionServiceTests
         var pipeline = new LiveGraphPipeline(TimeSpan.FromMilliseconds(200), Logger.None);
         var service = new LiveSessionService(
             CreateSessionContext(),
-            sharedStreamReservation,
+            sharedStream,
             sessionPresentationService,
             backgroundTaskRunner,
             pipeline);
@@ -287,7 +305,7 @@ public class LiveSessionServiceTests
         var pipeline = new LiveGraphPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
         return new LiveSessionService(
             CreateSessionContext(),
-            sharedStreamReservation,
+            sharedStream,
             sessionPresentationService,
             backgroundTaskRunner,
             pipeline);
