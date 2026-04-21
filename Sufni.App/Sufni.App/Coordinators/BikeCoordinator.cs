@@ -181,16 +181,14 @@ public sealed class BikeCoordinator(
                 break;
 
             case RearSuspensionResolution.LeverageRatio leverageRatioResolution:
-                if (bike.ShockStroke is null)
-                {
-                    return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for leverage ratio bikes.");
-                }
-
                 var leverageRatio = leverageRatioResolution.Value.LeverageRatio;
-                if (bike.ShockStroke.Value > leverageRatio.MaxShockStroke)
+                if (!LeverageRatioShockStrokeRules.TryValidate(
+                        bike.ShockStroke,
+                        leverageRatio,
+                        out _,
+                        out var leverageRatioShockStrokeError))
                 {
-                    return new BikeSaveResult.InvalidRearSuspension(
-                        $"Shock stroke must be at most {leverageRatio.MaxShockStroke:0.###} mm.");
+                    return new BikeSaveResult.InvalidRearSuspension(leverageRatioShockStrokeError!);
                 }
 
                 logger.Verbose("Analyzing leverage ratio before bike save for {BikeId}", bike.Id);

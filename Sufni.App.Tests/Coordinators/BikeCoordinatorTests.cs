@@ -275,6 +275,29 @@ public class BikeCoordinatorTests
         shell.DidNotReceive().GoBack();
     }
 
+    [Fact]
+    public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLeverageRatioShockStrokeDoesNotMatchCurveMax()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+        var coordinator = CreateCoordinator();
+
+        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+            shockStroke: 15,
+            id: existing.Id,
+            updated: 7));
+
+        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
+
+        var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
+        Assert.Contains("must match leverage ratio max shock stroke", invalid.ErrorMessage, StringComparison.Ordinal);
+        await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(default!, default);
+        await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
+        bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
+    }
+
     // ----- DeleteAsync -----
 
     [Fact]

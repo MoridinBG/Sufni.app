@@ -734,7 +734,13 @@ public class SqLiteDatabaseService : IDatabaseService
             ]);
     }
 
-    private async Task MergeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : Synchronizable, new()
+    private static long GetContentVersion(Synchronizable entity) => entity.ClientUpdated > 0
+        ? entity.ClientUpdated
+        : entity.Updated;
+
+    private async Task MergeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        T entity,
+        Func<T, long, bool, Task> applyAcceptedContentAsync) where T : Synchronizable, new()
     {
         await Initialization;
 
@@ -743,15 +749,11 @@ public class SqLiteDatabaseService : IDatabaseService
 
         if (existing is null)
         {
-            entity.ClientUpdated = entity.Updated;
-            entity.Updated = now;
-            await InsertEntityAsync(entity);
+            await applyAcceptedContentAsync(entity, now, true);
             return;
         }
 
-        var existingContentVersion = existing.ClientUpdated > 0
-            ? existing.ClientUpdated
-            : existing.Updated;
+        var existingContentVersion = GetContentVersion(existing);
 
         if (existing.Deleted.HasValue)
         {
@@ -790,10 +792,100 @@ public class SqLiteDatabaseService : IDatabaseService
             return;
         }
 
-        entity.ClientUpdated = entity.Updated;
-        entity.Updated = now;
-        await UpdateEntityAsync(entity);
+        await applyAcceptedContentAsync(entity, now, false);
     }
+
+    private Task PersistAcceptedEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        T entity,
+        long now,
+        bool isInsert) where T : Synchronizable, new()
+    {
+        return PersistEntityWithServerTimestampsAsync(
+            entity,
+            updated: now,
+            clientUpdated: entity.Updated,
+            persistAsync: isInsert ? InsertEntityAsync : UpdateEntityAsync);
+    }
+
+    private async Task PersistEntityWithServerTimestampsAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        T entity,
+        long updated,
+        long clientUpdated,
+        Func<T, Task<int>> persistAsync) where T : Synchronizable, new()
+    {
+        var originalUpdated = entity.Updated;
+        var originalClientUpdated = entity.ClientUpdated;
+
+        try
+        {
+            entity.Updated = updated;
+            entity.ClientUpdated = clientUpdated;
+            await persistAsync(entity);
+        }
+        finally
+        {
+            entity.Updated = originalUpdated;
+            entity.ClientUpdated = originalClientUpdated;
+        }
+    }
+
+    private Task MergeGenericAcceptedContentAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        T entity,
+        long now,
+        bool isInsert) where T : Synchronizable, new()
+    {
+        return PersistAcceptedEntityAsync(entity, now, isInsert);
+    }
+
+    private Task MergeSessionMetadataAsync(Session session, long now)
+    {
+        const string query = """
+                             UPDATE session
+                             SET
+                                 name=?,
+                                 setup_id=?,
+                                 description=?,
+                                 timestamp=?,
+                                 full_track_id=?,
+                                 track=?,
+                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                 updated=?,
+                                 client_updated=?,
+                                 deleted=?
+                             WHERE
+                                 id=?
+                             """;
+
+        return connection.ExecuteAsync(query,
+            [
+                session.Name,
+                session.Setup,
+                session.Description,
+                session.Timestamp,
+                session.FullTrack,
+                session.Track is null ? null : AppJson.Serialize(session.Track),
+                session.FrontSpringRate,
+                session.FrontHighSpeedCompression,
+                session.FrontLowSpeedCompression,
+                session.FrontLowSpeedRebound,
+                session.FrontHighSpeedRebound,
+                session.RearSpringRate,
+                session.RearHighSpeedCompression,
+                session.RearLowSpeedCompression,
+                session.RearLowSpeedRebound,
+                session.RearHighSpeedRebound,
+                now,
+                session.Updated,
+                session.Deleted,
+                session.Id
+            ]);
+    }
+
+    private Task MergeSessionAcceptedContentAsync(Session session, long now, bool isInsert) =>
+        isInsert
+            ? PersistAcceptedEntityAsync(session, now, isInsert: true)
+            : MergeSessionMetadataAsync(session, now);
 
     public async Task MergeAllAsync(SynchronizationData data)
     {
@@ -803,11 +895,11 @@ public class SqLiteDatabaseService : IDatabaseService
 
         try
         {
-            foreach (var bike in data.Bikes) await MergeAsync(bike);
-            foreach (var setup in data.Setups) await MergeAsync(setup);
-            foreach (var board in data.Boards) await MergeAsync(board);
-            foreach (var session in data.Sessions) await MergeAsync(session);
-            foreach (var track in data.Tracks) await MergeAsync(track);
+            foreach (var bike in data.Bikes) await MergeAsync(bike, MergeGenericAcceptedContentAsync);
+            foreach (var setup in data.Setups) await MergeAsync(setup, MergeGenericAcceptedContentAsync);
+            foreach (var board in data.Boards) await MergeAsync(board, MergeGenericAcceptedContentAsync);
+            foreach (var session in data.Sessions) await MergeAsync(session, MergeSessionAcceptedContentAsync);
+            foreach (var track in data.Tracks) await MergeAsync(track, MergeGenericAcceptedContentAsync);
 
             await connection.ExecuteAsync("COMMIT");
         }
