@@ -586,8 +586,8 @@ public class LiveDaqDetailViewModelTests
 
         Assert.True(editor.CanManage);
 
-    currentStreamState = currentStreamState with { IsClosed = true };
-    streamStates.OnNext(currentStreamState);
+        currentStreamState = currentStreamState with { IsClosed = true };
+        streamStates.OnNext(currentStreamState);
 
         liveDaqStore.Remove("board-1");
         await Task.Yield();
