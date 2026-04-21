@@ -33,6 +33,80 @@ public class RearTravelCalibrationBuilderTests
         Assert.Equal(50, calibration!.MaxTravel, 6);
         Assert.Equal(12, calibration.MeasurementToTravel(3), 6);
         Assert.Equal(20, calibration.MeasurementToTravel(5), 6);
+        Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
+    }
+
+    [Fact]
+    public void TryBuild_ReturnsFalse_WhenLeverageRatioShockStrokeDoesNotMatchCurveMax()
+    {
+        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+            shockStroke: 15));
+        var setup = new Setup(Guid.NewGuid(), "curve setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 24,
+                Resolution = 4,
+                Type = SensorType.LinearShockStroke,
+            })
+        };
+
+        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.False(success);
+        Assert.Null(calibration);
+        Assert.Contains("must match leverage ratio max shock stroke", errorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryBuild_ReturnsFalse_WhenLeverageRatioShockStrokeIsMissing()
+    {
+        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+            shockStroke: null));
+        var setup = new Setup(Guid.NewGuid(), "curve setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 24,
+                Resolution = 4,
+                Type = SensorType.LinearShockStroke,
+            })
+        };
+
+        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.False(success);
+        Assert.Null(calibration);
+        Assert.Equal("Shock stroke is required for leverage ratio bikes.", errorMessage);
+    }
+
+    [Fact]
+    public void TryBuild_AllowsSmallLeverageRatioShockStrokeRoundingDifference()
+    {
+        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (9.99999935, 25), (19.9999987, 50)),
+            shockStroke: 20));
+        var setup = new Setup(Guid.NewGuid(), "curve setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 24,
+                Resolution = 4,
+                Type = SensorType.LinearShockStroke,
+            })
+        };
+
+        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.True(success);
+        Assert.Null(errorMessage);
+        Assert.NotNull(calibration);
+        Assert.Equal(50, calibration!.MaxTravel, 6);
     }
 
     [Fact]

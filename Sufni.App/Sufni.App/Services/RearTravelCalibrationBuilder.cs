@@ -93,7 +93,19 @@ internal static class RearTravelCalibrationBuilder
         RearSuspension rearSuspension)
     {
         var measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(configuration.Length, configuration.Resolution);
-        var maxShockStroke = bike.ShockStroke ?? configuration.Length;
+        var maxShockStroke = rearSuspension switch
+        {
+            LeverageRatioRearSuspension leverageRatioRearSuspension =>
+                LeverageRatioShockStrokeRules.TryValidate(
+                    bike.ShockStroke,
+                    leverageRatioRearSuspension.LeverageRatio,
+                    out var validatedShockStroke,
+                    out var errorMessage)
+                    ? validatedShockStroke
+                    : throw new InvalidOperationException(errorMessage),
+            _ => bike.ShockStroke ?? configuration.Length,
+        };
+
         return BuildTravelCalibration(rearSuspension, maxShockStroke, measurement => measurement * measurementToStroke);
     }
 
@@ -146,7 +158,7 @@ internal static class RearTravelCalibrationBuilder
         {
             LinkageRearSuspension linkageRearSuspension => BuildLinkageTravelCalibration(linkageRearSuspension.Linkage, maxShockStroke, measurementToShockStroke),
             LeverageRatioRearSuspension leverageRatioRearSuspension => new RearTravelCalibration(
-                leverageRatioRearSuspension.LeverageRatio.MaxWheelTravel,
+                leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(maxShockStroke),
                 measurement => leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(Math.Min(maxShockStroke, measurementToShockStroke(measurement)))),
             _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension)),
         };

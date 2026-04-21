@@ -10,7 +10,6 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Makaretu.Dns;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -353,7 +352,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     data.Sessions.Count,
                     data.Tracks.Count);
 
-                await databaseService.MergeAllAsync(CloneSynchronizationData(data));
+                await databaseService.MergeAllAsync(data);
 
                 SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
                 return Results.NoContent();
@@ -417,12 +416,6 @@ public class SynchronizationServerService : ISynchronizationServerService
             logger.Error(ex, "Synchronization server failed to start or run on port {Port}", Port);
             throw;
         }
-    }
-
-    private static SynchronizationData CloneSynchronizationData(SynchronizationData data)
-    {
-        var clone = JsonSerializer.Deserialize<SynchronizationData>(JsonSerializer.Serialize(data));
-        return clone ?? throw new InvalidOperationException("Failed to clone synchronization payload.");
     }
 
     #endregion
