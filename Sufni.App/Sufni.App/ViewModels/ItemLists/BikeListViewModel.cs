@@ -108,7 +108,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(BikeRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(async () =>
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
         {
             var snapshot = bikeStore.Get(row.Id);
             if (snapshot is null) return;

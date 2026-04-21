@@ -79,7 +79,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(PairedDeviceRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(async () =>
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
         {
             var snapshot = pairedDeviceStore.Get(row.DeviceId);
             if (snapshot is null) return;

@@ -76,7 +76,7 @@ public partial class ItemListViewModelBase : ViewModelBase
     /// </summary>
     protected virtual void RebuildFilter() { }
 
-    protected async Task RunPendingDeleteInteractionAsync(Func<Task> action)
+    protected async Task RunActionSwallowExceptionToErrorMessages(Func<Task> action)
     {
         try
         {
