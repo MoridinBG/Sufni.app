@@ -1,57 +1,99 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Editors;
-using Sufni.App.DesktopViews.Items;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Tests.Views.Editors;
 
 public class SessionDetailDesktopShellTests
 {
     [AvaloniaFact]
-    public async Task SessionDetailDesktopView_RendersRecordedShellContent()
+    public async Task SessionShellDesktopView_BindsRegionHostsToShellContentProperties()
     {
-        var editor = new SessionDetailViewModel
+        var graph = new Border();
+        var media = new Border();
+        var statistics = new Border();
+        var controls = new Border();
+        var sidebar = new Border();
+
+        var shell = new SessionShellDesktopView
         {
-            Name = "Recorded Session 01"
+            GraphContent = graph,
+            MediaContent = media,
+            StatisticsContent = statistics,
+            ControlContent = controls,
+            SidebarContent = sidebar,
         };
 
-        await using var mounted = await MountAsync(editor);
+        await using var mounted = await MountAsync(shell);
 
-        var controls = mounted.View.GetVisualDescendants().OfType<Control>().ToArray();
+        var graphHost = mounted.View.FindControl<ContentControl>("GraphHost");
+        var mediaHost = mounted.View.FindControl<ContentControl>("MediaHost");
+        var statisticsHost = mounted.View.FindControl<ContentControl>("StatisticsHost");
+        var controlHost = mounted.View.FindControl<ContentControl>("ControlHost");
+        var sidebarHost = mounted.View.FindControl<ContentControl>("SidebarHost");
 
-        Assert.NotNull(controls.OfType<SessionShellDesktopView>().FirstOrDefault());
-        Assert.NotNull(controls.OfType<RecordedSessionGraphDesktopView>().FirstOrDefault());
-        Assert.NotNull(controls.OfType<SessionMediaDesktopView>().FirstOrDefault());
-        Assert.NotNull(controls.OfType<SessionStatisticsDesktopView>().FirstOrDefault());
-        Assert.NotNull(controls.OfType<SessionSidebarDesktopView>().FirstOrDefault());
+        Assert.NotNull(graphHost);
+        Assert.NotNull(mediaHost);
+        Assert.NotNull(statisticsHost);
+        Assert.NotNull(controlHost);
+        Assert.NotNull(sidebarHost);
+        Assert.Same(graph, graphHost!.Content);
+        Assert.Same(media, mediaHost!.Content);
+        Assert.Same(statistics, statisticsHost!.Content);
+        Assert.Same(controls, controlHost!.Content);
+        Assert.Same(sidebar, sidebarHost!.Content);
     }
 
-    private static async Task<MountedSessionDetailDesktopView> MountAsync(SessionDetailViewModel editor)
+    [AvaloniaFact]
+    public async Task SessionShellDesktopView_UpdatesOptionalRegions_WhenOptionalContentChanges()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var view = new SessionDetailDesktopView
+        var shell = new SessionShellDesktopView
         {
-            DataContext = editor
+            GraphContent = new Border(),
+            MediaContent = new Border(),
+            StatisticsContent = new Border(),
+            ControlContent = new Border(),
+            SidebarContent = new Border(),
         };
 
-        var host = ViewTestHelpers.ShowView(view);
+        await using var mounted = await MountAsync(shell);
+
+        var mediaHost = mounted.View.FindControl<ContentControl>("MediaHost");
+        var controlHost = mounted.View.FindControl<ContentControl>("ControlHost");
+        var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
+        var controlSplitter = mounted.View.FindControl<GridSplitter>("ControlSplitter");
+
+        Assert.NotNull(mediaHost);
+        Assert.NotNull(controlHost);
+        Assert.NotNull(mediaSplitter);
+        Assert.NotNull(controlSplitter);
+        Assert.True(mediaSplitter!.IsVisible);
+        Assert.True(controlSplitter!.IsVisible);
+
+        shell.MediaContent = null;
+        shell.ControlContent = null;
         await ViewTestHelpers.FlushDispatcherAsync();
-        return new MountedSessionDetailDesktopView(host, view);
+
+        Assert.Null(mediaHost!.Content);
+        Assert.Null(controlHost!.Content);
+        Assert.False(mediaSplitter.IsVisible);
+        Assert.False(controlSplitter.IsVisible);
+    }
+
+    private static async Task<MountedSessionShellDesktopView> MountAsync(SessionShellDesktopView view)
+    {
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        return new MountedSessionShellDesktopView(host, view);
     }
 }
 
-internal sealed class MountedSessionDetailDesktopView(Window host, SessionDetailDesktopView view) : IAsyncDisposable
+internal sealed class MountedSessionShellDesktopView(Window host, SessionShellDesktopView view) : IAsyncDisposable
 {
     public Window Host { get; } = host;
-    public SessionDetailDesktopView View { get; } = view;
+    public SessionShellDesktopView View { get; } = view;
 
     public async ValueTask DisposeAsync()
     {

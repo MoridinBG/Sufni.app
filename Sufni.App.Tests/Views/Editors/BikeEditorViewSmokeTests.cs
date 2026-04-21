@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Media;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.BikeEditing;
@@ -19,6 +18,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
 using Sufni.Kinematics;
 
@@ -27,14 +27,15 @@ namespace Sufni.App.Tests.Views.Editors;
 public class BikeEditorViewSmokeTests
 {
     [AvaloniaFact]
-    public async Task BikeEditorView_ShowsWithPopulatedBikeEditorViewModel()
+    public async Task BikeEditorView_RendersBoundSummaryAndSharedChrome()
     {
         EnsureBikeEditorViewResources();
         ViewTestHelpers.EnsurePlotViewStyle();
 
+        var viewModel = CreateViewModel();
         var view = new BikeEditorView
         {
-            DataContext = CreateViewModel()
+            DataContext = viewModel
         };
         var host = new Window
         {
@@ -47,23 +48,36 @@ public class BikeEditorViewSmokeTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var bikeImage = view.FindControl<Image>("BikeImage");
+        var shockStrokeLabel = view.FindControl<TextBlock>("ShockStrokeLabel");
+        var shockStrokeValue = view.FindControl<TextBlock>("ShockStrokeValueTextBlock");
+        var importButton = view.FindControl<Button>("ImportButton");
 
         Assert.NotNull(bikeImage);
         Assert.NotNull(bikeImage.Source);
+        Assert.NotNull(shockStrokeLabel);
+        Assert.NotNull(shockStrokeValue);
+        Assert.NotNull(importButton);
+        Assert.True(shockStrokeLabel!.IsVisible);
+        Assert.True(shockStrokeValue!.IsVisible);
+        Assert.NotNull(importButton!.Command);
+        Assert.Same(viewModel.ImportCommand, importButton.Command);
+        Assert.Single(view.GetVisualDescendants().OfType<ErrorMessagesBar>());
+        Assert.Single(view.GetVisualDescendants().OfType<CommonButtonLine>());
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
-    public async Task BikeEditorDesktopView_ShowsWithPopulatedBikeEditorViewModel()
+    public async Task BikeEditorDesktopView_ComposesImageAndControlsPanes()
     {
         EnsureBikeEditorViewResources();
         ViewTestHelpers.EnsurePlotViewStyle();
 
+        var viewModel = CreateViewModel();
         var view = new BikeEditorDesktopView
         {
-            DataContext = CreateViewModel()
+            DataContext = viewModel
         };
         var host = new Window
         {
@@ -75,7 +89,14 @@ public class BikeEditorViewSmokeTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
+        var splitView = Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
+        var imageControls = Assert.IsType<BikeImageControlsDesktopView>(splitView.Pane);
+        var imageView = Assert.IsType<BikeImageDesktopView>(splitView.Content);
+
+        Assert.True(splitView.IsPaneOpen);
+        Assert.Equal(400, splitView.OpenPaneLength);
+        Assert.Same(viewModel, imageControls.DataContext);
+        Assert.Same(viewModel, imageView.DataContext);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -299,15 +320,6 @@ public class BikeEditorViewSmokeTests
 
     private static void EnsureBikeEditorViewResources()
     {
-        var resources = Avalonia.Application.Current?.Resources
-            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-
-        resources["SufniAccentColor"] = Brushes.CornflowerBlue;
-        resources["SufniRegion"] = Brushes.Gray;
-        resources["SufniForeground"] = Brushes.White;
-        resources["SufniBackgroundDisabled"] = Brushes.DimGray;
-        resources["SufniBorderBrush"] = Brushes.Black;
-        resources["SufniDangerColor"] = Brushes.Red;
-        resources["SufniDangerColorDark"] = Brushes.DarkRed;
+        ViewTestHelpers.EnsureViewTestResources();
     }
 }
