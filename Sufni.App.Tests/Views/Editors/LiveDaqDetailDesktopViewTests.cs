@@ -228,13 +228,10 @@ public class LiveDaqDetailDesktopViewTests
     private static LiveDaqDetailViewModel CreateEditorWithManagement()
     {
         var sharedStream = Substitute.For<ILiveDaqSharedStream>();
-        var sharedStreamReservation = Substitute.For<ILiveDaqSharedStreamReservation>();
         sharedStream.Frames.Returns(new Subject<LiveProtocolFrame>());
         sharedStream.States.Returns(new BehaviorSubject<LiveDaqSharedStreamState>(LiveDaqSharedStreamState.Empty));
         sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
         sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
-        sharedStreamReservation.Stream.Returns(sharedStream);
-        sharedStreamReservation.DisposeAsync().Returns(ValueTask.CompletedTask);
 
         var knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
         knownBoardsQuery.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
@@ -249,7 +246,7 @@ public class LiveDaqDetailDesktopViewTests
                 IsOnline: true,
                 SetupName: "race",
                 BikeName: "demo"),
-            sharedStreamReservation,
+            sharedStream,
             Substitute.For<ILiveDaqCoordinator>(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),

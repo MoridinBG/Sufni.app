@@ -18,11 +18,11 @@ internal sealed class LiveSessionServiceFactory(
     IBackgroundTaskRunner backgroundTaskRunner,
     ILiveGraphPipelineFactory liveGraphPipelineFactory) : ILiveSessionServiceFactory
 {
-    public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStreamReservation sharedStreamReservation)
+    public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStream sharedStream)
     {
         return new LiveSessionService(
             context,
-            sharedStreamReservation,
+            sharedStream,
             sessionPresentationService,
             backgroundTaskRunner,
             liveGraphPipelineFactory.Create());
@@ -58,7 +58,6 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
     private readonly AppendOnlyChunkBuffer<ImuRecord> imuRecords = new(ImuChunkSize);
     private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
-    private ILiveDaqSharedStreamReservation? sharedStreamReservation;
 
     private IDisposable? framesSubscription;
     private IDisposable? statesSubscription;
@@ -87,17 +86,16 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     public LiveSessionService(
         LiveDaqSessionContext context,
-        ILiveDaqSharedStreamReservation sharedStreamReservation,
+        ILiveDaqSharedStream sharedStream,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ILiveGraphPipeline graphPipeline)
     {
         this.context = context;
-        sharedStream = sharedStreamReservation.Stream;
+        this.sharedStream = sharedStream;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.graphPipeline = graphPipeline;
-        this.sharedStreamReservation = sharedStreamReservation;
     }
 
     public IObservable<LiveSessionPresentationSnapshot> Snapshots => snapshotsSubject.AsObservable();
@@ -109,40 +107,90 @@ internal sealed class LiveSessionService : ILiveSessionService
     public async Task EnsureAttachedAsync(CancellationToken cancellationToken = default)
     {
         bool shouldStart;
-        ILiveDaqSharedStreamReservation? reservationToDispose = null;
+        bool attachedNow = false;
+        IDisposable? attachedFramesSubscription = null;
+        IDisposable? attachedStatesSubscription = null;
+        ILiveDaqSharedStreamLease? attachedObserverLease = null;
+        ILiveDaqSharedStreamLease? attachedConfigurationLockLease = null;
 
-        lock (gate)
+        try
         {
-            ThrowIfDisposed();
-            if (!isAttached)
+            lock (gate)
             {
-                observerLease = sharedStream.AcquireLease();
-                configurationLockLease = sharedStream.AcquireConfigurationLock();
-                graphPipeline.Start();
-                framesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
-                statesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
-                reservationToDispose = sharedStreamReservation;
-                sharedStreamReservation = null;
-                isAttached = true;
+                ThrowIfDisposed();
+                if (!isAttached)
+                {
+                    attachedObserverLease = sharedStream.AcquireLease();
+                    attachedConfigurationLockLease = sharedStream.AcquireConfigurationLock();
+                    graphPipeline.Start();
+                    attachedFramesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
+                    attachedStatesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
+                    observerLease = attachedObserverLease;
+                    configurationLockLease = attachedConfigurationLockLease;
+                    framesSubscription = attachedFramesSubscription;
+                    statesSubscription = attachedStatesSubscription;
+                    isAttached = true;
+                    attachedNow = true;
+                }
+
+                shouldStart = !isTerminalClosed;
             }
 
-            shouldStart = !isTerminalClosed;
-        }
+            HandleSharedStreamState(sharedStream.CurrentState);
 
-        if (reservationToDispose is not null)
+            if (!shouldStart)
+            {
+                return;
+            }
+
+            await sharedStream.EnsureStartedAsync(cancellationToken);
+            HandleSharedStreamState(sharedStream.CurrentState);
+        }
+        catch
         {
-            await reservationToDispose.DisposeAsync();
+            if (attachedNow)
+            {
+                lock (gate)
+                {
+                    if (ReferenceEquals(framesSubscription, attachedFramesSubscription))
+                    {
+                        framesSubscription = null;
+                    }
+
+                    if (ReferenceEquals(statesSubscription, attachedStatesSubscription))
+                    {
+                        statesSubscription = null;
+                    }
+
+                    if (ReferenceEquals(configurationLockLease, attachedConfigurationLockLease))
+                    {
+                        configurationLockLease = null;
+                    }
+
+                    if (ReferenceEquals(observerLease, attachedObserverLease))
+                    {
+                        observerLease = null;
+                    }
+
+                    isAttached = false;
+                }
+
+                attachedFramesSubscription?.Dispose();
+                attachedStatesSubscription?.Dispose();
+
+                if (attachedConfigurationLockLease is not null)
+                {
+                    await attachedConfigurationLockLease.DisposeAsync();
+                }
+
+                if (attachedObserverLease is not null)
+                {
+                    await attachedObserverLease.DisposeAsync();
+                }
+            }
+
+            throw;
         }
-
-        HandleSharedStreamState(sharedStream.CurrentState);
-
-        if (!shouldStart)
-        {
-            return;
-        }
-
-        await sharedStream.EnsureStartedAsync(cancellationToken);
-        HandleSharedStreamState(sharedStream.CurrentState);
     }
 
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
@@ -200,7 +248,6 @@ internal sealed class LiveSessionService : ILiveSessionService
         IDisposable? states;
         ILiveDaqSharedStreamLease? configurationLock;
         ILiveDaqSharedStreamLease? observer;
-        ILiveDaqSharedStreamReservation? reservation;
         Task? statisticsLoop;
 
         lock (gate)
@@ -215,13 +262,11 @@ internal sealed class LiveSessionService : ILiveSessionService
             states = statesSubscription;
             configurationLock = configurationLockLease;
             observer = observerLease;
-            reservation = sharedStreamReservation;
             statisticsLoop = statisticsLoopTask;
             framesSubscription = null;
             statesSubscription = null;
             configurationLockLease = null;
             observerLease = null;
-            sharedStreamReservation = null;
             statisticsLoopTask = null;
         }
 
@@ -249,11 +294,6 @@ internal sealed class LiveSessionService : ILiveSessionService
         if (observer is not null)
         {
             await observer.DisposeAsync();
-        }
-
-        if (reservation is not null)
-        {
-            await reservation.DisposeAsync();
         }
 
         await graphPipeline.DisposeAsync();

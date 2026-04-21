@@ -134,7 +134,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             detail => detail.IdentityKey == snapshot.IdentityKey,
             () => new LiveDaqDetailViewModel(
                 snapshot,
-                liveDaqSharedStreamRegistry.Reserve(snapshot),
+                liveDaqSharedStreamRegistry.GetOrCreate(snapshot),
                 this,
                 daqManagementService,
                 filesService,
@@ -176,7 +176,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
             detail => detail.IdentityKey == snapshot.IdentityKey,
             () => new LiveSessionDetailViewModel(
                 context,
-                liveSessionServiceFactory.Create(context, liveDaqSharedStreamRegistry.Reserve(snapshot)),
+                liveSessionServiceFactory.Create(context, liveDaqSharedStreamRegistry.GetOrCreate(snapshot)),
                 sessionCoordinator,
                 tileLayerService,
                 shell,

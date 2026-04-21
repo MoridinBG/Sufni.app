@@ -1,4 +1,5 @@
 using System.Reactive.Subjects;
+using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -69,6 +70,40 @@ public class LiveDaqSharedStreamTests
 
         await configurationLock.DisposeAsync();
         Assert.False(stream.CurrentState.IsConfigurationLocked);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_CompletesObservables_DisposesClient_AndFutureLeaseAcquisitionThrows()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        var statesCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var framesCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var statesSubscription = stream.States.Subscribe(
+            _ => { },
+            ex => statesCompleted.TrySetException(ex),
+            () => statesCompleted.TrySetResult());
+        using var framesSubscription = stream.Frames.Subscribe(
+            _ => { },
+            ex => framesCompleted.TrySetException(ex),
+            () => framesCompleted.TrySetResult());
+        var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+
+        var client = clientFactory.CreatedClients.Single();
+
+        await stream.DisposeAsync();
+        await statesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await framesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await stream.DisposeAsync();
+
+        Assert.Equal(1, client.DisposeCalls);
+        Assert.Throws<ObjectDisposedException>(() => stream.AcquireLease());
+
+        await lease.DisposeAsync();
     }
 
     [Fact]
@@ -237,33 +272,59 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
-    public async Task Reserve_ReturnsReplacementStream_WhenExistingStreamIsPendingEviction()
+    public async Task GetOrCreate_ReturnsReplacementStream_WhenExistingStreamIsPendingEviction()
     {
         using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
         var first = registry.GetOrCreate(snapshot);
-        await using var firstLease = first.AcquireLease();
+        var firstLease = first.AcquireLease();
         await first.EnsureStartedAsync();
 
         var firstClient = clientFactory.CreatedClients.Single();
         firstClient.BlockDisposeAsync = true;
 
         var releaseTask = firstLease.DisposeAsync().AsTask();
-        var reservationTask = Task.Run(() => registry.Reserve(snapshot));
+        await firstClient.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var replacement = registry.GetOrCreate(snapshot);
 
         firstClient.ReleaseDispose();
-
-        await using var reservation = await reservationTask.WaitAsync(TimeSpan.FromSeconds(2));
-
-        Assert.NotSame(first, reservation.Stream);
-
         await releaseTask.WaitAsync(TimeSpan.FromSeconds(2));
 
-        await using var secondReservation = registry.Reserve(snapshot);
+        Assert.NotSame(first, replacement);
 
-        Assert.Same(reservation.Stream, secondReservation.Stream);
+        var again = registry.GetOrCreate(snapshot);
+        Assert.Same(replacement, again);
+    }
+
+    [Fact]
+    public async Task AcquireLease_RescuesPendingEviction_WhenCallerAlreadyHoldsStreamReference()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        var firstLease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+
+        var client = clientFactory.CreatedClients.Single();
+        client.BlockDisposeAsync = true;
+
+        var releaseTask = firstLease.DisposeAsync().AsTask();
+        await client.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var rescuedLease = stream.AcquireLease();
+
+        client.ReleaseDispose();
+        await releaseTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var again = registry.GetOrCreate(snapshot);
+        Assert.Same(stream, again);
+
+        await rescuedLease.DisposeAsync();
     }
 
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
@@ -307,6 +368,8 @@ public class LiveDaqSharedStreamTests
         public const uint DisconnectFlushMarkerSessionId = 4_242;
 
         private readonly Subject<LiveDaqClientEvent> events = new();
+        private readonly TaskCompletionSource disposeRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource disposeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int pendingDisconnectEvents;
 
         public bool FailNextStartPreview { get; set; }
@@ -332,6 +395,8 @@ public class LiveDaqSharedStreamTests
         public int DisposeCalls { get; private set; }
 
         public IObservable<LiveDaqClientEvent> Events => events;
+
+        public Task DisposeStarted => disposeStarted.Task;
 
         public Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
         {
@@ -402,6 +467,7 @@ public class LiveDaqSharedStreamTests
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;
+            disposeStarted.TrySetResult();
             if (BlockDisposeAsync)
             {
                 return new ValueTask(WaitForDisposeReleaseAsync());
@@ -446,8 +512,6 @@ public class LiveDaqSharedStreamTests
 
             events.OnNext(new LiveDaqClientEvent.Disconnected(null));
         }
-
-        private readonly TaskCompletionSource disposeRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private async Task WaitForDisposeReleaseAsync()
         {

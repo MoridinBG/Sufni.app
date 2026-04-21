@@ -21,7 +21,6 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
     private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
-    private readonly ILiveDaqSharedStreamReservation sharedStreamReservation = Substitute.For<ILiveDaqSharedStreamReservation>();
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
@@ -42,15 +41,14 @@ public class LiveDaqCoordinatorTests
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
         catalogService.Observe().Returns(catalogEntries);
         catalogService.AcquireBrowse().Returns(browseLease);
-        sharedStreamReservation.Stream.Returns(sharedStream);
         sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
         sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
-        sharedStreamRegistry.Reserve(Arg.Any<LiveDaqSnapshot>()).Returns(sharedStreamReservation);
+        sharedStreamRegistry.GetOrCreate(Arg.Any<LiveDaqSnapshot>()).Returns(sharedStream);
         liveSessionService.Snapshots.Returns(liveSessionSnapshots);
         liveSessionService.GraphBatches.Returns(Observable.Empty<LiveGraphBatch>());
         liveSessionService.Current.Returns(LiveSessionPresentationSnapshot.Empty);
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
-        liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStreamReservation>())
+        liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStream>())
             .Returns(liveSessionService);
     }
 
@@ -264,13 +262,13 @@ public class LiveDaqCoordinatorTests
         var created = capturedCreate();
         Assert.Equal(snapshot.IdentityKey, created.IdentityKey);
         Assert.Equal(snapshot.DisplayName, created.Name);
-        sharedStreamRegistry.Received(1).Reserve(snapshot);
+        sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
         Assert.NotNull(capturedMatch);
         Assert.True(capturedMatch(created));
 
         var other = new LiveDaqDetailViewModel(
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
-            sharedStreamReservation,
+            sharedStream,
             Substitute.For<ILiveDaqCoordinator>(),
             daqManagementService,
             filesService,
@@ -317,7 +315,7 @@ public class LiveDaqCoordinatorTests
         var created = capturedCreate();
         Assert.Equal(snapshot.IdentityKey, created.IdentityKey);
         Assert.Equal("setup", created.SetupName);
-        sharedStreamRegistry.Received(1).Reserve(snapshot);
+        sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
         Assert.NotNull(capturedMatch);
         Assert.True(capturedMatch(created));
 

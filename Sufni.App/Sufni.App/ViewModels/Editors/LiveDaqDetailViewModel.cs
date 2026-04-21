@@ -41,7 +41,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly IFilesService? filesService;
     private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
     private readonly ILiveDaqStore? liveDaqStore;
-    private ILiveDaqSharedStreamReservation? sharedStreamReservation;
 
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
@@ -115,7 +114,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
-        ILiveDaqSharedStreamReservation sharedStreamReservation,
+        ILiveDaqSharedStream sharedStream,
         ILiveDaqCoordinator liveDaqCoordinator,
         IDaqManagementService daqManagementService,
         IFilesService filesService,
@@ -125,8 +124,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         ILiveDaqStore liveDaqStore)
         : base(shell, dialogService)
     {
-        var sharedStream = sharedStreamReservation.Stream;
-
         IdentityKey = snapshot.IdentityKey;
         BoardId = snapshot.BoardId;
         Endpoint = snapshot.Endpoint;
@@ -146,7 +143,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         uiRefreshTimer = CreateUiRefreshTimer();
         RefreshSharedStreamState();
         RefreshSnapshot();
-        this.sharedStreamReservation = sharedStreamReservation;
     }
 
     [RelayCommand]
@@ -160,11 +156,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         if (sharedStream is not null && streamLease is null)
         {
             streamLease = sharedStream.AcquireLease();
-            if (sharedStreamReservation is not null)
-            {
-                await sharedStreamReservation.DisposeAsync();
-                sharedStreamReservation = null;
-            }
         }
 
         hasLoaded = true;
@@ -208,12 +199,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         {
             await streamLease.DisposeAsync();
             streamLease = null;
-        }
-
-        if (sharedStreamReservation is not null)
-        {
-            await sharedStreamReservation.DisposeAsync();
-            sharedStreamReservation = null;
         }
     }
 
