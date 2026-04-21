@@ -35,6 +35,20 @@ public static class ViewTestHelpers
         return ShowView(new TView { DataContext = dataContext });
     }
 
+    public static async Task<Window> ShowViewAsync(Control view)
+    {
+        var host = ShowView(view);
+        await FlushDispatcherAsync();
+
+        var width = host.Width > 0 ? host.Width : 900;
+        var height = host.Height > 0 ? host.Height : 700;
+        view.Measure(new Size(width, height));
+        view.Arrange(new Rect(0, 0, width, height));
+        await FlushDispatcherAsync();
+
+        return host;
+    }
+
     public static async Task FlushDispatcherAsync()
     {
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -45,18 +59,19 @@ public static class ViewTestHelpers
         var resources = Application.Current?.Resources
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
-        resources["SufniRegion"] = Brushes.Gray;
-        resources["SufniForeground"] = Brushes.Gainsboro;
-        resources["SufniForegroundPointerOver"] = Brushes.White;
-        resources["SufniBackground"] = Brushes.DimGray;
-        resources["SufniForegroundDisabled"] = Brushes.DarkGray;
-        resources["SufniBackgroundDisabled"] = Brushes.Gray;
-        resources["SufniBackgroundPointerOver"] = Brushes.SlateGray;
-        resources["SufniItemBackgroundPointerOver"] = Brushes.SlateGray;
-        resources["SufniBorderBrush"] = Brushes.Black;
-        resources["SufniAccentColor"] = Brushes.CornflowerBlue;
-        resources["SufniDangerColor"] = Brushes.Red;
-        resources["SufniDangerColorDark"] = Brushes.DarkRed;
+        resources["SufniForeground"] = Color.Parse("#a0a0a0");
+        resources["SufniForegroundPointerOver"] = Color.Parse("#c0c0c0");
+        resources["SufniRegion"] = Color.Parse("#15191c");
+        resources["SufniBackground"] = Color.Parse("#20262b");
+        resources["SufniForegroundDisabled"] = Color.Parse("#606060");
+        resources["SufniBackgroundDisabled"] = Color.Parse("#25292c");
+        resources["SufniBackgroundPointerOver"] = Color.Parse("#2c3032");
+        resources["SufniItemBackgroundPointerOver"] = Color.Parse("#1f2327");
+        resources["SufniBorderBrush"] = Color.Parse("#505050");
+        resources["SufniAccentColor"] = Color.Parse("#0078d7");
+        resources["SufniDangerColor"] = Color.Parse("#bf312d");
+        resources["SufniDangerColorDark"] = Color.Parse("#9f110d");
+        resources["SufniGridSplitter"] = Color.Parse("#404040");
     }
 
     public static void EnsureViewTestDataTemplates(bool isDesktop)
@@ -100,6 +115,17 @@ public static class ViewTestHelpers
         {
             Source = source
         });
+    }
+
+    public static void EnsureSessionDetailViewSetup(bool isDesktop)
+    {
+        EnsureViewTestResources();
+        EnsureViewTestDataTemplates(isDesktop);
+
+        if (isDesktop)
+        {
+            EnsurePlotViewStyle();
+        }
     }
 
     public static T? FindFirstVisual<T>(this Control root)

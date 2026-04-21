@@ -186,6 +186,7 @@ mc:Ignorable="d">
 
         <!--  New pairing request  -->
         <Grid
+        Name="PairingRequestPanel"
         Margin="50,0,20,25"
         VerticalAlignment="Bottom"
         Background="{StaticResource SufniBackgroundDisabled}"
