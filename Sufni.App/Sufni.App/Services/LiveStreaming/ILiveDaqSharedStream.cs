@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.Stores;
 
 namespace Sufni.App.Services.LiveStreaming;
 
@@ -11,6 +12,7 @@ public interface ILiveDaqSharedStreamLease : IAsyncDisposable
 public interface ILiveDaqSharedStream : IAsyncDisposable
 {
     string IdentityKey { get; }
+    LiveDaqSnapshot CatalogSnapshot { get; }
     LiveDaqStreamConfiguration RequestedConfiguration { get; }
     LiveDaqSharedStreamState CurrentState { get; }
 

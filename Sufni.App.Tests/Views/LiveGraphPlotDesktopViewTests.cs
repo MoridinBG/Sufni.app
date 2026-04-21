@@ -74,6 +74,51 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
+    [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_ContinuesUpdating_AfterDetachReattachCycle()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var batches = new Subject<LiveGraphBatch>();
+        var workspace = new StubLiveSessionGraphWorkspace(batches);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var travelView = view.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
+        Assert.NotNull(travelView);
+
+        batches.OnNext(CreateBatch(revision: 1));
+        await WaitForUiRefreshAsync();
+
+        var travelPlot = GetRenderedPlot(travelView!);
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+
+        host.Content = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        host.Content = view;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        batches.OnNext(CreateBatch(revision: 2));
+        await WaitForUiRefreshAsync();
+
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
 

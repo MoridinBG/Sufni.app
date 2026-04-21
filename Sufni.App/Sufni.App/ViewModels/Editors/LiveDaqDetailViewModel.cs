@@ -599,22 +599,46 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshHeaderFromStore()
     {
         var latest = liveDaqStore?.Get(IdentityKey);
-        if (latest is null)
+        if (latest is not null)
+        {
+            Name = latest.DisplayName;
+            BoardId = latest.BoardId;
+            SetupName = latest.SetupName;
+            BikeName = latest.BikeName;
+        }
+
+        if (TryGetCurrentEndpointSnapshot(latest, out var endpointSnapshot))
+        {
+            Endpoint = endpointSnapshot.Endpoint;
+            managementHost = endpointSnapshot.Host;
+            managementPort = endpointSnapshot.Port;
+        }
+        else
         {
             managementHost = null;
             managementPort = null;
-            RefreshManagementAvailability();
-            return;
         }
 
-        Name = latest.DisplayName;
-        BoardId = latest.BoardId;
-        Endpoint = latest.Endpoint;
-        SetupName = latest.SetupName;
-        BikeName = latest.BikeName;
-        managementHost = latest.Host;
-        managementPort = latest.Port;
         RefreshManagementAvailability();
+    }
+
+    private bool TryGetCurrentEndpointSnapshot(LiveDaqSnapshot? latest, out LiveDaqSnapshot endpointSnapshot)
+    {
+        if (latest is { Host: not null, Port: not null })
+        {
+            endpointSnapshot = latest;
+            return true;
+        }
+
+        if (sharedStream?.CurrentState.IsClosed == false
+            && sharedStream.CatalogSnapshot is { Host: not null, Port: not null } sharedSnapshot)
+        {
+            endpointSnapshot = sharedSnapshot;
+            return true;
+        }
+
+        endpointSnapshot = null!;
+        return false;
     }
 
     private void RefreshSessionAvailability(LiveConnectionState connectionState)
