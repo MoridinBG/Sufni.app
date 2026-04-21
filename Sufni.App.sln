@@ -26,7 +26,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Tests", "Sufni.App.Tests\Sufni.App.Tests.csproj", "{5E62A88D-566F-4B9C-AA1A-A83695D0CA33}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sufni.App", "Sufni.App", "{EBD68505-5B9D-A395-6909-71C4D7611850}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "App Projects", "App Projects", "{EBD68505-5B9D-A395-6909-71C4D7611850}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Desktop", "Sufni.App\Sufni.App.Desktop\Sufni.App.Desktop.csproj", "{3CFFCA02-7D48-4053-8069-9D720D009EE5}"
 EndProject
