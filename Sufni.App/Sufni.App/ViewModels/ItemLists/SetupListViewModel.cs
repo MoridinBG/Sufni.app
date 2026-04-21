@@ -95,7 +95,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SetupRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(async () =>
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
         {
             var snapshot = setupStore.Get(row.Id);
             if (snapshot is null) return;

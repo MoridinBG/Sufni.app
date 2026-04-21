@@ -113,7 +113,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SessionRowViewModel row)
     {
-        _ = RunPendingDeleteInteractionAsync(async () =>
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
         {
             var snapshot = sessionStore.Get(row.Id);
             if (snapshot is null) return;

@@ -39,7 +39,7 @@ public class ItemListViewModelBaseTests
 
         public Task RunPendingDeleteInteractionForTestAsync(Func<Task> action)
         {
-            return RunPendingDeleteInteractionAsync(action);
+            return RunActionSwallowExceptionToErrorMessages(action);
         }
     }
 }
