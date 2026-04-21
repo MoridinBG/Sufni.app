@@ -22,10 +22,9 @@ public class BikeCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
 
     private BikeCoordinator CreateCoordinator() => new(
-        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService, platformMode);
+        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService);
 
     // ----- OpenCreateAsync -----
 
@@ -36,6 +35,7 @@ public class BikeCoordinatorTests
     [AvaloniaFact]
     public async Task OpenCreateAsync_OpensNewEditor_OnShell()
     {
+        TestApp.SetIsDesktop(true);
         ViewModelBase? captured = null;
         shell.When(s => s.Open(Arg.Any<ViewModelBase>()))
             .Do(c => captured = c.Arg<ViewModelBase>());

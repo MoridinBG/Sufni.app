@@ -17,8 +17,7 @@ public sealed class BikeCoordinator(
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
-    IDialogService dialogService,
-    IPlatformMode platformMode) : IBikeCoordinator
+    IDialogService dialogService) : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 
@@ -32,8 +31,7 @@ public sealed class BikeCoordinator(
             this,
             dependencyQuery,
             shell,
-            dialogService,
-            platformMode)
+            dialogService)
         {
             IsDirty = true
         };
@@ -54,8 +52,7 @@ public sealed class BikeCoordinator(
                 this,
                 dependencyQuery,
                 shell,
-                dialogService,
-                platformMode));
+                dialogService));
         return Task.CompletedTask;
     }
 

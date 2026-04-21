@@ -11,9 +11,8 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
-    private readonly IPlatformMode platformMode;
 
-    public bool IsDesktop => platformMode.IsDesktop;
+    public bool IsDesktop => App.Current?.IsDesktop == true;
 
     #region Constructors
 
@@ -23,7 +22,6 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         setupCoordinator = null!;
         importSessionsCoordinator = null!;
         filesService = null!;
-        platformMode = new PlatformMode(false);
         Name = "Welcome";
     }
 
@@ -33,15 +31,13 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
         IImportSessionsCoordinator importSessionsCoordinator,
-        IFilesService filesService,
-        IPlatformMode platformMode)
+        IFilesService filesService)
         : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.setupCoordinator = setupCoordinator;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.filesService = filesService;
-        this.platformMode = platformMode;
         Name = "Welcome";
     }
 

@@ -8,7 +8,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sufni.App;
-using Sufni.App.Services;
 
 namespace Sufni.App.Tests.Infrastructure;
 
@@ -65,6 +64,8 @@ public static class ViewTestHelpers
         var application = Application.Current
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
+        TestApp.SetIsDesktop(isDesktop);
+
         if (application.Resources.TryGetValue(ViewTemplatesRegisteredKey, out var registered)
             && registered is true
             && application.Resources.TryGetValue(ViewTemplatesDesktopModeKey, out var currentMode)
@@ -79,7 +80,7 @@ public static class ViewTestHelpers
             application.DataTemplates.Remove(existingLocator);
         }
 
-        application.DataTemplates.Add(new ViewLocator(new PlatformMode(isDesktop)));
+        application.DataTemplates.Add(new ViewLocator());
         application.Resources[ViewTemplatesRegisteredKey] = true;
         application.Resources[ViewTemplatesDesktopModeKey] = isDesktop;
     }

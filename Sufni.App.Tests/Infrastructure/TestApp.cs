@@ -1,3 +1,5 @@
+using System;
+
 namespace Sufni.App.Tests.Infrastructure;
 
 /// <summary>
@@ -10,6 +12,13 @@ namespace Sufni.App.Tests.Infrastructure;
 /// </summary>
 public sealed class TestApp : Sufni.App.App
 {
+    public static void SetIsDesktop(bool isDesktop)
+    {
+        var app = Sufni.App.App.Current
+            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
+        app.SetIsDesktopForTests(isDesktop);
+    }
+
     public override void Initialize()
     {
         // Skip XAML loading. The real App.axaml pulls in plot/map style

@@ -21,7 +21,6 @@ public class SessionDetailViewModelTests
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
 
     public SessionDetailViewModelTests()
     {
@@ -29,16 +28,24 @@ public class SessionDetailViewModelTests
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
     }
 
-    private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot, IObservable<SessionSnapshot>? watch = null)
+    private SessionDetailViewModel CreateEditor(
+        SessionSnapshot snapshot,
+        IObservable<SessionSnapshot>? watch = null,
+        bool? isDesktop = null)
     {
+        if (isDesktop.HasValue)
+        {
+            TestApp.SetIsDesktop(isDesktop.Value);
+        }
+
         sessionStore.Watch(snapshot.Id).Returns(watch ?? Observable.Empty<SessionSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, tileLayerService, shell, dialogService, platformMode);
+        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, tileLayerService, shell, dialogService);
     }
 
     private void SetDesktop(bool isDesktop)
     {
-        platformMode.IsDesktop.Returns(isDesktop);
+        TestApp.SetIsDesktop(isDesktop);
     }
 
     // ----- Construction -----

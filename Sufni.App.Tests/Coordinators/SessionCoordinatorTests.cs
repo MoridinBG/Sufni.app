@@ -26,7 +26,6 @@ public class SessionCoordinatorTests
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly IPlatformMode platformMode = Substitute.For<IPlatformMode>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
     public SessionCoordinatorTests()
@@ -36,7 +35,7 @@ public class SessionCoordinatorTests
     }
 
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
-        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, tileLayerService, shell, dialogService, platformMode, sync);
+        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, tileLayerService, shell, dialogService, sync);
 
     // ----- OpenEditAsync -----
 

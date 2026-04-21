@@ -26,6 +26,12 @@ public partial class App : Application
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
     public bool IsDesktop { get; private set; }
+
+    internal void SetIsDesktopForTests(bool isDesktop)
+    {
+        IsDesktop = isDesktop;
+    }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -57,7 +63,6 @@ public partial class App : Application
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
-        ServiceCollection.AddSingleton<IPlatformMode>(_ => new PlatformMode(isDesktop));
         ServiceCollection.AddSingleton<ViewLocator>();
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();

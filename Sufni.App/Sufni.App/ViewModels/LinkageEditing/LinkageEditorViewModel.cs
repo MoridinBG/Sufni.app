@@ -15,6 +15,11 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.ViewModels.LinkageEditing;
 
+public sealed class LinkagePreviewChangedEventArgs(JointViewModel? joint) : EventArgs
+{
+    public JointViewModel? Joint { get; } = joint;
+}
+
 public partial class LinkageEditorViewModel : ObservableObject
 {
     private uint pointNumber = 1;
@@ -25,7 +30,7 @@ public partial class LinkageEditorViewModel : ObservableObject
     private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
     private bool suppressChangeNotifications;
 
-    public event EventHandler? PreviewChanged;
+    public event EventHandler<LinkagePreviewChangedEventArgs>? PreviewChanged;
     public event EventHandler? StateChanged;
 
     public ReadOnlyObservableCollection<JointViewModel> JointViewModels { get; }
@@ -254,11 +259,11 @@ public partial class LinkageEditorViewModel : ObservableObject
         }
     }
 
-    private void RaisePreviewChanged()
+    private void RaisePreviewChanged(JointViewModel? joint)
     {
         if (suppressChangeNotifications) return;
 
-        PreviewChanged?.Invoke(this, EventArgs.Empty);
+        PreviewChanged?.Invoke(this, new LinkagePreviewChangedEventArgs(joint));
     }
 
     private void RaiseStateChanged()
@@ -303,7 +308,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
                 case nameof(jointViewModel.X):
                 case nameof(jointViewModel.Y):
-                    RaisePreviewChanged();
+                    RaisePreviewChanged(jointViewModel);
                     break;
             }
         };

@@ -2,7 +2,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using System;
 using System.Collections.Generic;
-using Sufni.App.Services;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.Editors.Bike;
@@ -13,7 +12,7 @@ using Sufni.App.ViewModels.SessionPages;
 
 namespace Sufni.App;
 
-public class ViewLocator(IPlatformMode platformMode) : IDataTemplate
+public class ViewLocator : IDataTemplate
 {
     private static readonly IReadOnlyDictionary<Type, Func<Control>> ViewFactories = new Dictionary<Type, Func<Control>>
     {
@@ -61,7 +60,7 @@ public class ViewLocator(IPlatformMode platformMode) : IDataTemplate
         if (data is null)
             return null;
 
-        var isDesktop = platformMode.IsDesktop;
+        var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
 
         if (isDesktop && DesktopViewFactories.TryGetValue(viewModelType, out var desktopFactory))

@@ -45,7 +45,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private readonly ISessionCoordinator? sessionCoordinator;
     private readonly ISessionStore? sessionStore;
-    private readonly IPlatformMode platformMode;
     private Session session;
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
@@ -251,7 +250,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         var token = loadOperation.Start();
         try
         {
-            if (platformMode.IsDesktop)
+            if (App.Current?.IsDesktop == true)
             {
                 var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, token);
                 if (token.IsCancellationRequested) return;
@@ -279,7 +278,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         sessionCoordinator = null;
         sessionStore = null;
-        platformMode = new PlatformMode(false);
         session = new Session();
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
         MapViewModel = null;
@@ -291,13 +289,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         ISessionStore sessionStore,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
-        IDialogService dialogService,
-        IPlatformMode platformMode)
+        IDialogService dialogService)
         : base(shell, dialogService)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.sessionStore = sessionStore;
-        this.platformMode = platformMode;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;

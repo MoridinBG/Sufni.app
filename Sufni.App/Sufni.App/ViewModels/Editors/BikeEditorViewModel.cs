@@ -50,7 +50,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IBikeDependencyQuery? dependencyQuery;
-    private readonly IPlatformMode platformMode;
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeSnapshot acceptedSnapshot;
     private BikeRearSuspensionEditorState acceptedRearSuspensionState = new BikeRearSuspensionEditorState.Hardtail();
@@ -114,7 +113,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     [ObservableProperty] private BikeRearSuspensionMode rearSuspensionMode;
 
-    public bool CanChangeRearSuspensionMode => platformMode.IsDesktop;
+    public bool CanChangeRearSuspensionMode => App.Current?.IsDesktop == true;
     public bool HasRearSuspension => RearSuspensionMode != BikeRearSuspensionMode.None;
     public bool IsHardtailMode => RearSuspensionMode == BikeRearSuspensionMode.None;
     public bool IsLinkageMode => RearSuspensionMode == BikeRearSuspensionMode.Linkage;
@@ -190,7 +189,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     {
         bikeCoordinator = null;
         dependencyQuery = null;
-        platformMode = new PlatformMode(true);
         acceptedSnapshot = BikeSnapshot.From(new BikeModel(Guid.Empty, string.Empty));
         IsInDatabase = false;
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
@@ -208,13 +206,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IBikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
-        IDialogService dialogService,
-        IPlatformMode? platformMode = null)
+        IDialogService dialogService)
         : base(shell, dialogService)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
-        this.platformMode = platformMode ?? new PlatformMode(true);
         IsInDatabase = !isNew;
         acceptedSnapshot = snapshot;
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
@@ -622,14 +618,48 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         LinkageEditor.SetPixelsToMillimeters(PixelsToMillimeters);
     }
 
-    private void OnLinkageEditorPreviewChanged(object? sender, EventArgs e)
+    private void HandleLinkagePreviewChanged(LinkagePreviewChangedEventArgs args)
     {
         if (IsReplacingState || !IsLinkageMode)
         {
             return;
         }
 
-        RefreshLinkagePreview();
+        if (args.Joint is null)
+        {
+            RefreshLinkagePreview();
+            return;
+        }
+
+        switch (args.Joint.Type)
+        {
+            case JointType.BottomBracket:
+                UpdatePixelsToMillimeters();
+                break;
+
+            case JointType.FrontWheel:
+                WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
+                break;
+
+            case JointType.RearWheel:
+                UpdatePixelsToMillimeters();
+                WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
+                break;
+        }
+
+        ImageCanvas.RefreshLayout(LinkageEditor.GetJointBounds(), WheelGeometry.GetWheelBounds());
+        RecalculateHeadAngle();
+        TryClearRearSuspensionLoadError();
+    }
+
+    internal void HandleLinkagePreviewChangedForTests(LinkagePreviewChangedEventArgs args)
+    {
+        HandleLinkagePreviewChanged(args);
+    }
+
+    private void OnLinkageEditorPreviewChanged(object? sender, LinkagePreviewChangedEventArgs e)
+    {
+        HandleLinkagePreviewChanged(e);
     }
 
     private void OnLinkageEditorStateChanged(object? sender, EventArgs e)
