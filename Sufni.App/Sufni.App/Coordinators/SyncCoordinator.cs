@@ -106,28 +106,15 @@ public sealed class SyncCoordinator : ISyncCoordinator
         }
     }
 
-    private Task RefreshStoresOnUiThreadAsync()
+    private async Task RefreshStoresOnUiThreadAsync()
     {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            return RefreshStoresAsync();
+            await RefreshStoresAsync();
+            return;
         }
 
-        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Dispatcher.UIThread.Post(async () =>
-        {
-            try
-            {
-                await RefreshStoresAsync();
-                completion.SetResult(true);
-            }
-            catch (Exception e)
-            {
-                completion.SetException(e);
-            }
-        });
-
-        return completion.Task;
+        await Dispatcher.UIThread.InvokeAsync(RefreshStoresAsync);
     }
 
     private async Task RefreshStoresAsync()

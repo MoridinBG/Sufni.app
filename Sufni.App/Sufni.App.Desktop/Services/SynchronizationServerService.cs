@@ -154,12 +154,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
     }
 
-    internal static byte[] GetJwtSecretKeyBytes(string secret)
-    {
-        ArgumentNullException.ThrowIfNull(secret);
-        return Encoding.UTF8.GetBytes(secret);
-    }
-
     private string GenerateAccessToken(string deviceId)
     {
         Debug.Assert(jwtSecret is not null);
@@ -170,7 +164,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             Subject = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, deviceId)]),
             Expires = DateTime.UtcNow.AddMinutes(TokenTtlMinutes),
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(GetJwtSecretKeyBytes(jwtSecret)),
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
                 SecurityAlgorithms.HmacSha256Signature)
         };
         return tokenHandler.WriteToken(tokenHandler.CreateToken(descriptor));
@@ -198,7 +192,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             });
         });
 
-        var key = GetJwtSecretKeyBytes(jwtSecret);
+        var key = Encoding.UTF8.GetBytes(jwtSecret);
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
         {
             options.TokenValidationParameters = new TokenValidationParameters
