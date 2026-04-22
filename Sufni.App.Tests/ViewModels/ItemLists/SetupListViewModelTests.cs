@@ -1,3 +1,4 @@
+using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Stores;
@@ -11,7 +12,11 @@ public class SetupListViewModelTests
     public void AddCommand_OpensSetupCreate_WithoutImportPageBoardContext()
     {
         var setupStore = Substitute.For<ISetupStore>();
+        using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
         var setupCoordinator = Substitute.For<ISetupCoordinator>();
+
+        setupStore.Connect().Returns(setupCache.Connect());
+
         var viewModel = new SetupListViewModel(setupStore, setupCoordinator);
 
         viewModel.AddCommand.Execute(null);
