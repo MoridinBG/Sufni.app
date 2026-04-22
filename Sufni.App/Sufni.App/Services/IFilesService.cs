@@ -15,6 +15,7 @@ public interface IFilesService
     public Task<IStorageFile?> OpenBikeImageFileAsync();
     public Task<IStorageFile?> SaveBikeFileAsync();
     public Task<IStorageFile?> OpenBikeFileAsync();
+    public Task<IStorageFile?> OpenLeverageRatioCsvFileAsync();
     public Task<List<IStorageFile>> OpenGpxFilesAsync();
     public Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default);
 }

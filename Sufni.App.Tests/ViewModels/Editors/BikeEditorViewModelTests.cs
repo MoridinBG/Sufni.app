@@ -25,7 +25,7 @@ public class BikeEditorViewModelTests
 
     public BikeEditorViewModelTests()
     {
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
@@ -60,6 +60,7 @@ public class BikeEditorViewModelTests
             ForkStroke = 170,
             Image = TestImages.SmallPng(),
             PixelsToMillimeters = 1,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
             Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints),
             FrontWheelRimSize = frontWheelRimSize,
             FrontWheelTireWidth = frontWheelTireWidth,
@@ -157,17 +158,20 @@ public class BikeEditorViewModelTests
         Assert.Equal(snapshot.RearWheelRimSize, editor.WheelGeometry.RearWheelRimSize);
         Assert.Equal(snapshot.RearWheelTireWidth, editor.WheelGeometry.RearWheelTireWidth);
         Assert.Equal(snapshot.RearWheelDiameterMm, editor.WheelGeometry.RearWheelDiameter);
-        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
-        Assert.Equal(snapshot.Image is not null, editor.ImageCanvas.Image is not null);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
 
         if (snapshot.Linkage is null)
         {
+            Assert.Equal(0, editor.ImageCanvas.ImageRotationDegrees);
+            Assert.Null(editor.ImageCanvas.Image);
             Assert.Empty(editor.LinkageEditor.JointViewModels);
             Assert.Empty(editor.LinkageEditor.LinkViewModels);
             return;
         }
+
+        Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.Equal(snapshot.Image is not null, editor.ImageCanvas.Image is not null);
 
         Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
         Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
@@ -198,9 +202,9 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void Construction_NewBike_AddsInitialJoints()
+    public void Construction_NewLinkageBike_AddsInitialJoints()
     {
-        var snapshot = TestSnapshots.Bike();
+        var snapshot = TestSnapshots.Bike() with { RearSuspensionKind = RearSuspensionKind.Linkage };
         var editor = CreateEditor(snapshot, isNew: true);
 
         // AddInitialJoints contributes 7 joints (FrontWheel, BottomBracket,
@@ -208,6 +212,47 @@ public class BikeEditorViewModelTests
         // and the shock LinkViewModel.
         Assert.Equal(7, editor.LinkageEditor.JointViewModels.Count);
         Assert.Single(editor.LinkageEditor.LinkViewModels);
+        Assert.Equal(BikeRearSuspensionMode.Linkage, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromLeverageRatioSnapshot_LoadsInLeverageRatioMode_AndHasNoLoadError()
+    {
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150));
+        var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio);
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromDraftLeverageRatioSnapshot_SetsLeverageRatioMode_WithoutLoadError()
+    {
+        var snapshot = TestSnapshots.Bike() with { RearSuspensionKind = RearSuspensionKind.LeverageRatio };
+
+        var editor = CreateEditor(snapshot, isNew: true);
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public void Construction_FromInvalidMismatchSnapshot_FallsBackToHardtailMode_AndShowsLoadError()
+    {
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150));
+        var snapshot = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            LeverageRatio = leverageRatio,
+        };
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(BikeRearSuspensionMode.None, editor.RearSuspensionMode);
+        Assert.Single(editor.ErrorMessages);
     }
 
     [AvaloniaFact]
@@ -278,6 +323,38 @@ public class BikeEditorViewModelTests
         Assert.Equal(79.9, editor.HeadAngle);
     }
 
+    [AvaloniaFact]
+    public void AdditionalHeadTubeTypedPoint_DoesNotChangeWhichJointsDriveHeadAngle()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+            imageRotationDegrees: 12.5,
+            updated: 7);
+        var baselineEditor = CreateEditor(snapshot);
+        var affectedEditor = CreateEditor(snapshot);
+        var mapping = new JointNameMapping();
+
+        var baselineHeadTube1 = Assert.Single(baselineEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.HeadTube1);
+        var affectedHeadTube1 = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.HeadTube1);
+        var extraHeadTube = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.ShockEye1);
+
+        var baselineHeadAngle = baselineEditor.HeadAngle;
+        baselineHeadTube1.Y += 10;
+
+        Assert.NotEqual(baselineHeadAngle, baselineEditor.HeadAngle);
+
+        extraHeadTube.Type = JointType.HeadTube;
+        affectedHeadTube1.Y += 10;
+
+        Assert.Equal(baselineEditor.HeadAngle, affectedEditor.HeadAngle);
+    }
+
     // ----- Dirtiness -----
 
     [AvaloniaFact]
@@ -313,6 +390,20 @@ public class BikeEditorViewModelTests
         editor.WheelGeometry.FrontWheelDiameter = 760;
 
         Assert.False(editor.SaveCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void SaveCommand_Enabled_WhenOnlyOneWheelIsConfigured_OnLeverageRatioBike()
+    {
+        var snapshot = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150))) with
+        {
+            FrontWheelDiameterMm = 760,
+        };
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
     }
 
     // ----- CanSave -----
@@ -364,7 +455,7 @@ public class BikeEditorViewModelTests
                 b.Linkage == null &&
                 b.FrontWheelDiameterMm == 760 &&
                 b.RearWheelDiameterMm == 750 &&
-                b.ImageRotationDegrees == 13.5),
+                b.ImageRotationDegrees == 0),
             5);
         Assert.Equal(11, editor.BaselineUpdated);
         Assert.Empty(editor.ErrorMessages);
@@ -420,14 +511,14 @@ public class BikeEditorViewModelTests
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Conflict(fresh));
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>());
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
         Assert.True(editor.IsPlotBusy);
 
         pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Unavailable());
@@ -453,6 +544,87 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("renamed", editor.Name);
         Assert.Equal(5, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_ClearsWheelState_WhenSwitchingFromLinkageToLeverageRatio()
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelRimSize: EtrtoRimSize.Inch29,
+            frontWheelTireWidth: 2.4,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelRimSize: EtrtoRimSize.Inch275,
+            rearWheelTireWidth: 2.5,
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Null(editor.WheelGeometry.FrontWheelRimSize);
+        Assert.Null(editor.WheelGeometry.FrontWheelTireWidth);
+        Assert.Null(editor.WheelGeometry.FrontWheelDiameter);
+        Assert.Null(editor.WheelGeometry.RearWheelRimSize);
+        Assert.Null(editor.WheelGeometry.RearWheelTireWidth);
+        Assert.Null(editor.WheelGeometry.RearWheelDiameter);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_ClearsShockStroke_WhenSwitchingFromLinkageToHardtail()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+        Assert.NotNull(editor.ShockStroke);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
+        await Task.Yield();
+
+        Assert.Equal(BikeRearSuspensionMode.None, editor.RearSuspensionMode);
+        Assert.Null(editor.ShockStroke);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_PreservesShockStroke_WhenSwitchingBetweenLinkageAndLeverageRatio()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+        var originalShockStroke = editor.ShockStroke;
+        Assert.NotNull(originalShockStroke);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.Equal(originalShockStroke, editor.ShockStroke);
+    }
+
+    [AvaloniaFact]
+    public async Task SetRearSuspensionModeCommand_DoesNotReprompt_AfterOutgoingPayloadAlreadyDiscarded()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        TestApp.SetIsDesktop(true);
+        var editor = CreateEditor(snapshot);
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
+        await Task.Yield();
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.Linkage);
+        await Task.Yield();
+        dialogService.ClearReceivedCalls();
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        await dialogService.DidNotReceiveWithAnyArgs()
+            .ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [AvaloniaFact]
@@ -505,7 +677,7 @@ public class BikeEditorViewModelTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal(data, editor.LeverageRatioData);
-        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>());
+        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
     }
 
     // ----- CanDelete -----
@@ -595,7 +767,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var data = new CoordinateList([1, 2], [3, 4]);
         var rearAxlePathData = new CoordinateList([2, 4], [0.25, 0.75]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(
                 new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data, rearAxlePathData))));
 
@@ -615,7 +787,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
 
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -630,7 +802,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Failed("boom")));
 
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -646,7 +818,7 @@ public class BikeEditorViewModelTests
             frontWheelDiameter: 760,
             rearWheelDiameter: 750);
         var data = new CoordinateList([1, 2], [3, 4]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(
                 new BikeEditorAnalysisResult.Computed(PresentationData(data))));
 
@@ -654,7 +826,7 @@ public class BikeEditorViewModelTests
         await Task.Yield();
 
         Assert.Equal(data, editor.LeverageRatioData);
-        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>());
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -691,7 +863,7 @@ public class BikeEditorViewModelTests
         Assert.Equal(EtrtoRimSize.Inch275, editor.WheelGeometry.RearWheelRimSize);
         Assert.Equal(2.5, editor.WheelGeometry.RearWheelTireWidth);
         Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
-        Assert.Equal(12.5, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.Equal(0, editor.ImageCanvas.ImageRotationDegrees);
         Assert.Equal(0, editor.BaselineUpdated);
         Assert.False(editor.IsInDatabase);
     }
@@ -703,7 +875,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         editor.Name = "renamed";
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
 
         var resetTask = editor.ResetCommand.ExecuteAsync(null);
@@ -747,7 +919,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
 
         var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
@@ -769,7 +941,7 @@ public class BikeEditorViewModelTests
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         bikeCoordinator
-            .LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+            .LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 capturedToken = call.Arg<CancellationToken>();
@@ -795,7 +967,7 @@ public class BikeEditorViewModelTests
         var pendingImport = new TaskCompletionSource<BikeImportResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var importedData = new CoordinateList([5, 6], [7, 8]);
 
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(pendingImport.Task);

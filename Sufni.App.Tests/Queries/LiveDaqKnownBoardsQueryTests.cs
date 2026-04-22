@@ -264,6 +264,41 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Same(first!.TravelCalibration, second!.TravelCalibration);
     }
 
+    [Fact]
+    public async Task GetSessionContext_ComposesRearTravel_ForLeverageRatioBike()
+    {
+        var boardId = Guid.NewGuid();
+        var bike = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+            shockStroke: 20,
+            id: Guid.NewGuid(),
+            name: "curve bike");
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "curve setup", bikeId: bike.Id, boardId: boardId) with
+        {
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockStrokeSensorConfiguration
+            {
+                Length = 24,
+                Resolution = 4,
+            })
+        };
+
+        setupStore.Upsert(setup);
+        bikeStore.Upsert(bike);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        await WaitForRecordsAsync(query.Changes);
+
+        var context = query.GetSessionContext(boardId.ToString());
+
+        Assert.NotNull(context);
+        Assert.Null(context!.TravelCalibration.Front);
+        Assert.NotNull(context.TravelCalibration.Rear);
+        Assert.NotNull(context.BikeData.RearMeasurementToTravel);
+        Assert.Equal(30, context.TravelCalibration.Rear!.MeasurementToTravel(3), 6);
+        Assert.Equal(50, context.BikeData.RearMeasurementToTravel!((ushort)5), 6);
+    }
+
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
         IObservable<IReadOnlyList<KnownLiveDaqRecord>> changes,
         bool ignoreReplay = false)

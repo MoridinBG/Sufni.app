@@ -21,6 +21,7 @@ public class Bike : Synchronizable
     private double? chainstay;
     private double? shockStroke;
     private Linkage? linkage;
+    private LeverageRatio? leverageRatio;
 
     [JsonPropertyName("name")]
     [Column("name")]
@@ -49,6 +50,10 @@ public class Bike : Synchronizable
         }
     }
 
+    [JsonPropertyName("rear_suspension_kind")]
+    [Column("rear_suspension_kind")]
+    public RearSuspensionKind RearSuspensionKind { get; set; }
+
     [JsonPropertyName("linkage")]
     [Ignore]
     public Linkage? Linkage
@@ -58,6 +63,11 @@ public class Bike : Synchronizable
         {
             linkage = value;
             linkage?.ResolveJoints();
+
+            if (value is not null && RearSuspensionKind == RearSuspensionKind.None && leverageRatio is null)
+            {
+                RearSuspensionKind = RearSuspensionKind.Linkage;
+            }
 
             if (linkage is null) return;
 
@@ -72,6 +82,21 @@ public class Bike : Synchronizable
         }
     }
 
+    [JsonPropertyName("leverage_ratio")]
+    [Ignore]
+    public LeverageRatio? LeverageRatio
+    {
+        get => leverageRatio;
+        set
+        {
+            leverageRatio = value;
+            if (value is not null && RearSuspensionKind == RearSuspensionKind.None && linkage is null)
+            {
+                RearSuspensionKind = RearSuspensionKind.LeverageRatio;
+            }
+        }
+    }
+
     [JsonIgnore]
     [Column("linkage")]
     public string? LinkageJson
@@ -82,6 +107,14 @@ public class Bike : Synchronizable
             if (value is null) return;
             Linkage = Linkage.FromJson(value, false); // Linkage's setter will resolve joints.
         }
+    }
+
+    [JsonIgnore]
+    [Column("leverage_ratio")]
+    public string? LeverageRatioJson
+    {
+        get => leverageRatio?.ToJson();
+        set => LeverageRatio = value is null ? null : LeverageRatio.FromJson(value);
     }
 
     [JsonPropertyName("pixels_to_millimeters")]
@@ -179,6 +212,7 @@ public class Bike : Synchronizable
         HeadAngle = snapshot.HeadAngle,
         ForkStroke = snapshot.ForkStroke,
         ShockStroke = snapshot.ShockStroke,
+        RearSuspensionKind = snapshot.RearSuspensionKind,
         Chainstay = snapshot.Chainstay,
         PixelsToMillimeters = snapshot.PixelsToMillimeters,
         FrontWheelDiameterMm = snapshot.FrontWheelDiameterMm,
@@ -188,6 +222,7 @@ public class Bike : Synchronizable
         RearWheelRimSize = snapshot.RearWheelRimSize,
         RearWheelTireWidth = snapshot.RearWheelTireWidth,
         ImageRotationDegrees = snapshot.ImageRotationDegrees,
+        LeverageRatio = snapshot.LeverageRatio,
         Linkage = snapshot.Linkage,
         Image = snapshot.Image,
         Updated = snapshot.Updated,
@@ -195,9 +230,24 @@ public class Bike : Synchronizable
 
     public static Bike? FromJson(string json)
     {
-        var bike = AppJson.Deserialize<Bike>(json);
-        bike?.Linkage?.ResolveJoints();
-        return bike;
+        try
+        {
+            var bike = AppJson.Deserialize<Bike>(json);
+            bike?.Linkage?.ResolveJoints();
+            return bike;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (LeverageRatioValidationException)
+        {
+            return null;
+        }
     }
 
     private double? CalculateChainstay()
@@ -217,6 +267,9 @@ internal sealed class BikeExportModel
     [JsonPropertyName("name")]
     public string Name { get; init; } = null!;
 
+    [JsonPropertyName("rear_suspension_kind")]
+    public RearSuspensionKind RearSuspensionKind { get; init; }
+
     [JsonPropertyName("head_angle")]
     public double HeadAngle { get; init; }
 
@@ -228,6 +281,9 @@ internal sealed class BikeExportModel
 
     [JsonPropertyName("linkage")]
     public Linkage? Linkage { get; init; }
+
+    [JsonPropertyName("leverage_ratio")]
+    public LeverageRatio? LeverageRatio { get; init; }
 
     [JsonPropertyName("pixels_to_millimeters")]
     public double PixelsToMillimeters { get; init; }
@@ -261,10 +317,12 @@ internal sealed class BikeExportModel
         return new BikeExportModel
         {
             Name = bike.Name,
+            RearSuspensionKind = bike.RearSuspensionKind,
             HeadAngle = bike.HeadAngle,
             ForkStroke = bike.ForkStroke,
             ShockStroke = bike.ShockStroke,
             Linkage = bike.Linkage,
+            LeverageRatio = bike.LeverageRatio,
             PixelsToMillimeters = bike.PixelsToMillimeters,
             FrontWheelDiameterMm = bike.FrontWheelDiameterMm,
             RearWheelDiameterMm = bike.RearWheelDiameterMm,
@@ -331,6 +389,11 @@ internal static class AppJson
 [JsonSerializable(typeof(RotationalForkSensorConfiguration))]
 [JsonSerializable(typeof(LinearShockSensorConfiguration))]
 [JsonSerializable(typeof(RotationalShockSensorConfiguration))]
+[JsonSerializable(typeof(LinearShockStrokeSensorConfiguration))]
+[JsonSerializable(typeof(RearSuspensionKind))]
+[JsonSerializable(typeof(LeverageRatio))]
+[JsonSerializable(typeof(LeverageRatioPoint))]
+[JsonSerializable(typeof(List<LeverageRatioPoint>))]
 [JsonSerializable(typeof(Linkage))]
 [JsonSerializable(typeof(Link))]
 [JsonSerializable(typeof(Joint))]

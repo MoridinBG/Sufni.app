@@ -15,6 +15,7 @@ public sealed record BikeSnapshot(
     double HeadAngle,
     double? ForkStroke,
     double? ShockStroke,
+    RearSuspensionKind RearSuspensionKind,
     double? Chainstay,
     double PixelsToMillimeters,
     double? FrontWheelDiameterMm,
@@ -24,6 +25,7 @@ public sealed record BikeSnapshot(
     EtrtoRimSize? RearWheelRimSize,
     double? RearWheelTireWidth,
     double ImageRotationDegrees,
+    LeverageRatio? LeverageRatio,
     Linkage? Linkage,
     Bitmap? Image,
     long Updated) : IVersionedSnapshot
@@ -34,6 +36,7 @@ public sealed record BikeSnapshot(
         bike.HeadAngle,
         bike.ForkStroke,
         bike.ShockStroke,
+        bike.RearSuspensionKind,
         bike.Chainstay,
         bike.PixelsToMillimeters,
         bike.FrontWheelDiameterMm,
@@ -43,6 +46,7 @@ public sealed record BikeSnapshot(
         bike.RearWheelRimSize,
         bike.RearWheelTireWidth,
         bike.ImageRotationDegrees,
+        bike.LeverageRatio,
         bike.Linkage,
         bike.Image,
         bike.Updated);

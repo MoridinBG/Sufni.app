@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels.Editors.Bike;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.App.ViewModels.SensorConfigurations;
@@ -25,11 +26,13 @@ public class ViewLocator : IDataTemplate
         [typeof(SessionListViewModel)] = static () => new global::Sufni.App.Views.ItemLists.SessionListView(),
         [typeof(SetupListViewModel)] = static () => new global::Sufni.App.Views.ItemLists.SetupListView(),
         [typeof(BikeEditorViewModel)] = static () => new global::Sufni.App.Views.Editors.BikeEditorView(),
+        [typeof(LeverageRatioEditorViewModel)] = static () => new global::Sufni.App.Views.Editors.LeverageRatioEditorView(),
         [typeof(SessionDetailViewModel)] = static () => new global::Sufni.App.Views.Editors.SessionDetailView(),
         [typeof(SetupEditorViewModel)] = static () => new global::Sufni.App.Views.Editors.SetupEditorView(),
         [typeof(JointViewModel)] = static () => new global::Sufni.App.Views.LinkageParts.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearShockSensorConfigurationView(),
+        [typeof(LinearShockStrokeSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearShockStrokeSensorConfigurationView(),
         [typeof(RotationalForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.RotationalForkSensorConfigurationView(),
         [typeof(RotationalShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.RotationalShockSensorConfigurationView(),
         [typeof(BalancePageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.BalancePageView(),

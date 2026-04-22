@@ -19,6 +19,11 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         Patterns = ["*.json"],
         MimeTypes = ["application/json"]
     };
+    private readonly FilePickerFileType csvType = new("CSV files")
+    {
+        Patterns = ["*.csv"],
+        MimeTypes = ["text/csv", "text/plain"]
+    };
 
     public void SetTarget(TopLevel? newTarget)
     {
@@ -84,6 +89,20 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         {
             Title = "Open bike JSON",
             FileTypeFilter = [jsonType],
+            AllowMultiple = false
+        });
+
+        return files.Count == 1 ? files[0] : null;
+    }
+
+    public async Task<IStorageFile?> OpenLeverageRatioCsvFileAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open leverage ratio CSV",
+            FileTypeFilter = [csvType],
             AllowMultiple = false
         });
 

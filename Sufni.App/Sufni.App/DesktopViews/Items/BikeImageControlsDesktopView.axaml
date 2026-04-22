@@ -4,6 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="using:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editorViews="using:Sufni.App.Views.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
@@ -31,7 +32,10 @@ mc:Ignorable="d">
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer>
+    <ScrollViewer
+    HorizontalScrollBarVisibility="Disabled"
+    VerticalScrollBarVisibility="Auto">
+
     <Grid
     Margin="10"
     ColumnDefinitions="auto *"
@@ -49,14 +53,45 @@ mc:Ignorable="d">
         Margin="0,0,0,5"
         Text="{Binding Name}" />
 
+        <Grid
+        Grid.Row="1"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        Margin="0,0,0,8"
+        ColumnDefinitions="* * *">
+            <ToggleButton
+            Grid.Column="0"
+            Margin="0,0,5,0"
+            Command="{Binding SetRearSuspensionModeCommand}"
+            CommandParameter="{x:Static vm:BikeRearSuspensionMode.None}"
+            IsChecked="{Binding IsHardtailMode}"
+            IsEnabled="{Binding CanChangeRearSuspensionMode}"
+            Content="Hardtail" />
+            <ToggleButton
+            Grid.Column="1"
+            Margin="0,0,5,0"
+            Command="{Binding SetRearSuspensionModeCommand}"
+            CommandParameter="{x:Static vm:BikeRearSuspensionMode.Linkage}"
+            IsChecked="{Binding IsLinkageMode}"
+            IsEnabled="{Binding CanChangeRearSuspensionMode}"
+            Content="Linkage" />
+            <ToggleButton
+            Grid.Column="2"
+            Command="{Binding SetRearSuspensionModeCommand}"
+            CommandParameter="{x:Static vm:BikeRearSuspensionMode.LeverageRatio}"
+            IsChecked="{Binding IsLeverageRatioMode}"
+            IsEnabled="{Binding CanChangeRearSuspensionMode}"
+            Content="Leverage ratio" />
+        </Grid>
+
         <!--  Head angle  -->
         <TextBlock
-        Grid.Row="1"
+        Grid.Row="2"
         Grid.Column="0"
         Margin="0,0,0,5"
         Text="Head angle (°)" />
         <NumericUpDown
-        Grid.Row="1"
+        Grid.Row="2"
         Grid.Column="1"
         Margin="0,0,0,5"
         Maximum="90"
@@ -65,12 +100,12 @@ mc:Ignorable="d">
 
         <!--  Fork stroke  -->
         <TextBlock
-        Grid.Row="2"
+        Grid.Row="3"
         Grid.Column="0"
         Margin="0,0,0,5"
         Text="Fork stroke (mm)" />
         <NumericUpDown
-        Grid.Row="2"
+        Grid.Row="3"
         Grid.Column="1"
         Margin="0,0,0,5"
         Maximum="300"
@@ -79,42 +114,52 @@ mc:Ignorable="d">
 
         <!--  Shock stroke  -->
         <TextBlock
-        Grid.Row="3"
+        Name="ShockStrokeLabel"
+        Grid.Row="4"
         Grid.Column="0"
         Margin="0,0,10,5"
+        IsVisible="{Binding HasRearSuspension}"
         Text="Shock stroke (mm)" />
         <NumericUpDown
-        Grid.Row="3"
+        Name="ShockStrokeNumericUpDown"
+        Grid.Row="4"
         Grid.Column="1"
         Margin="0,0,0,5"
+        IsVisible="{Binding HasRearSuspension}"
         Maximum="1000"
         Minimum="0"
         Value="{Binding ShockStroke}" />
 
         <!--  Chainstay  -->
         <TextBlock
-        Grid.Row="4"
+        Grid.Row="5"
         Grid.Column="0"
         Margin="0,0,0,5"
-        IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+        IsVisible="{Binding IsLinkageMode}"
         Text="Chainstay (mm)" />
         <NumericUpDown
-        Grid.Row="4"
+        Grid.Row="5"
         Grid.Column="1"
         Margin="0,0,0,5"
-        IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
+        IsVisible="{Binding IsLinkageMode}"
         Maximum="1000"
         Minimum="0"
         Value="{Binding Chainstay}" />
 
         <!--  Front Wheel  -->
         <Grid
-        Grid.Row="5"
+        Name="FrontWheelEditorHeaderGrid"
+        Grid.Row="6"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,10,0,5"
-        IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
         ColumnDefinitions="auto,*">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </MultiBinding>
+            </Grid.IsVisible>
             <Button
             Grid.Column="0"
             Width="28"
@@ -134,14 +179,20 @@ mc:Ignorable="d">
             Text="Front Wheel" />
         </Grid>
         <Grid
-        Grid.Row="6"
+        Name="FrontWheelEditorInputsGrid"
+        Grid.Row="7"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
         ColumnDefinitions="* * *"
         x:DataType="vm:BikeWheelGeometryViewModel"
-        DataContext="{Binding WheelGeometry}"
-        IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
+        DataContext="{Binding WheelGeometry}">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </MultiBinding>
+            </Grid.IsVisible>
             <ComboBox
             Grid.Column="0"
             HorizontalAlignment="Stretch"
@@ -177,12 +228,18 @@ mc:Ignorable="d">
 
         <!--  Rear Wheel  -->
         <Grid
-        Grid.Row="7"
+        Name="RearWheelEditorHeaderGrid"
+        Grid.Row="8"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,10,0,5"
-        IsVisible="{Binding ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}"
         ColumnDefinitions="auto,*">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsLinkageMode" />
+                    <Binding Path="ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </MultiBinding>
+            </Grid.IsVisible>
             <Button
             Grid.Column="0"
             Width="28"
@@ -202,14 +259,20 @@ mc:Ignorable="d">
             Text="Rear Wheel" />
         </Grid>
         <Grid
-        Grid.Row="8"
+        Name="RearWheelEditorInputsGrid"
+        Grid.Row="9"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
         ColumnDefinitions="* * *"
         x:DataType="vm:BikeWheelGeometryViewModel"
-        DataContext="{Binding WheelGeometry}"
-        IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke, Converter={x:Static ObjectConverters.IsNotNull}}">
+        DataContext="{Binding WheelGeometry}">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </MultiBinding>
+            </Grid.IsVisible>
             <ComboBox
             Grid.Column="0"
             HorizontalAlignment="Stretch"
@@ -244,16 +307,13 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid
-        Grid.Row="9"
+        Grid.Row="10"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,0,0,15"
         ColumnDefinitions="* auto">
             <Grid.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
-                </MultiBinding>
+                <Binding Path="IsLinkageMode" />
             </Grid.IsVisible>
 
             <!--  Open bike picture  -->
@@ -275,111 +335,88 @@ mc:Ignorable="d">
 
         <!--  List of Points  -->
         <TextBlock
-        Grid.Row="10"
+        Grid.Row="11"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         Margin="0,0,0,5"
         Text="Points">
             <TextBlock.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ImageCanvas.Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
-                </MultiBinding>
+                <Binding Path="IsLinkageMode" />
             </TextBlock.IsVisible>
         </TextBlock>
-        <DataGrid
-        Grid.Row="11"
-        Grid.Column="0"
-        Grid.ColumnSpan="2"
-        Margin="2,0,2,6"
-        x:DataType="vmle:LinkageEditorViewModel"
-        BeginningEdit="DataGrid_OnBeginningEdit"
-        BorderBrush="Gray"
-        BorderThickness="1"
-        DataContext="{Binding LinkageEditor}"
-        GridLinesVisibility="All"
-        ItemsSource="{Binding JointViewModels}"
-        SelectedItem="{Binding SelectedPoint}">
-
-            <DataGrid.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
-                </MultiBinding>
-            </DataGrid.IsVisible>
-
-            <DataGrid.KeyBindings>
-                <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
-            </DataGrid.KeyBindings>
-
-            <DataGrid.Columns>
-
-                <!--  Name  -->
-                <DataGridTextColumn
-                Width="1.5*"
-                Binding="{Binding Name}"
-                Header="Name"
-                IsReadOnly="False" />
-
-                <!--  Type  -->
-                <DataGridTemplateColumn
-                Width="1.5*"
-                Header="Type"
-                IsReadOnly="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="vml:JointViewModel">
-                            <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Text="{Binding Type}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                    <DataGridTemplateColumn.CellEditingTemplate>
-                        <DataTemplate DataType="vml:JointViewModel">
-                            <ComboBox
-                            HorizontalAlignment="Stretch"
-                            IsDropDownOpen="True"
-                            ItemsSource="{Binding PointTypes}"
-                            SelectedItem="{Binding Type}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellEditingTemplate>
-                </DataGridTemplateColumn>
-
-                <!--  X  -->
-                <DataGridTextColumn
-                Width="*"
-                Binding="{Binding X, StringFormat={}{0:0.00}}"
-                Header="X (px)"
-                IsReadOnly="True" />
-
-                <!--  Y  -->
-                <DataGridTextColumn
-                Width="*"
-                Binding="{Binding Y, StringFormat={}{0:0.00}}"
-                Header="Y (px)"
-                IsReadOnly="True" />
-            </DataGrid.Columns>
-        </DataGrid>
-        <Button
+        <ScrollViewer
         Grid.Row="12"
         Grid.Column="0"
         Grid.ColumnSpan="2"
-        HorizontalAlignment="Stretch"
-        HorizontalContentAlignment="Center"
-        x:DataType="vmle:LinkageEditorViewModel"
-        DataContext="{Binding LinkageEditor}"
-        Command="{Binding CreateJointCommand}"
-        Content="Add new point">
-            <Button.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
-                </MultiBinding>
-            </Button.IsVisible>
-        </Button>
+        Margin="2,0,2,6">
+
+            <DataGrid
+            x:DataType="vmle:LinkageEditorViewModel"
+            BeginningEdit="DataGrid_OnBeginningEdit"
+            BorderBrush="Gray"
+            BorderThickness="1"
+            DataContext="{Binding LinkageEditor}"
+            GridLinesVisibility="All"
+            ItemsSource="{Binding JointViewModels}"
+            SelectedItem="{Binding SelectedPoint}">
+
+                <DataGrid.IsVisible>
+                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                </DataGrid.IsVisible>
+
+                <DataGrid.KeyBindings>
+                    <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+                </DataGrid.KeyBindings>
+
+                <DataGrid.Columns>
+
+                    <!--  Name  -->
+                    <DataGridTextColumn
+                    Width="1.5*"
+                    Binding="{Binding Name}"
+                    Header="Name"
+                    IsReadOnly="False" />
+
+                    <!--  Type  -->
+                    <DataGridTemplateColumn
+                    Width="1.5*"
+                    Header="Type"
+                    IsReadOnly="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="vml:JointViewModel">
+                                <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding Type}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="vml:JointViewModel">
+                                <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsDropDownOpen="True"
+                                ItemsSource="{Binding PointTypes}"
+                                SelectedItem="{Binding Type}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!--  X  -->
+                    <DataGridTextColumn
+                    Width="*"
+                    Binding="{Binding X, StringFormat={}{0:0.00}}"
+                    Header="X (px)"
+                    IsReadOnly="True" />
+
+                    <!--  Y  -->
+                    <DataGridTextColumn
+                    Width="*"
+                    Binding="{Binding Y, StringFormat={}{0:0.00}}"
+                    Header="Y (px)"
+                    IsReadOnly="True" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </ScrollViewer>
 
         <!--  List of Links  -->
         <TextBlock
@@ -389,109 +426,104 @@ mc:Ignorable="d">
         Margin="0,0,0,5"
         Text="Links">
             <TextBlock.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ImageCanvas.Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="Chainstay" />
-                </MultiBinding>
+                <Binding Path="IsLinkageMode" />
             </TextBlock.IsVisible>
         </TextBlock>
-        <DataGrid
+        <ScrollViewer
         Grid.Row="14"
         Grid.Column="0"
         Grid.ColumnSpan="2"
-        Margin="2,0,2,5"
-        x:DataType="vmle:LinkageEditorViewModel"
-        BeginningEdit="DataGrid_OnBeginningEdit"
-        BorderBrush="Gray"
-        BorderThickness="1"
-        DataContext="{Binding LinkageEditor}"
-        GridLinesVisibility="All"
-        ItemsSource="{Binding LinkViewModels}"
-        SelectedItem="{Binding SelectedLink}">
+        Margin="2,0,2,5">
 
-            <DataGrid.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
-                </MultiBinding>
-            </DataGrid.IsVisible>
+            <DataGrid
+            x:DataType="vmle:LinkageEditorViewModel"
+            BeginningEdit="DataGrid_OnBeginningEdit"
+            BorderBrush="Gray"
+            BorderThickness="1"
+            DataContext="{Binding LinkageEditor}"
+            GridLinesVisibility="All"
+            ItemsSource="{Binding LinkViewModels}"
+            SelectedItem="{Binding SelectedLink}">
 
-            <DataGrid.KeyBindings>
-                <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
-            </DataGrid.KeyBindings>
+                <DataGrid.IsVisible>
+                    <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
+                </DataGrid.IsVisible>
 
-            <DataGrid.Columns>
+                <DataGrid.KeyBindings>
+                    <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+                </DataGrid.KeyBindings>
 
-                <!--  Point A  -->
-                <DataGridTemplateColumn
-                Width="*"
-                Header="Point A"
-                IsReadOnly="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="vml:LinkViewModel">
-                            <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Text="{Binding A.Name}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                    <DataGridTemplateColumn.CellEditingTemplate>
-                        <DataTemplate DataType="vml:LinkViewModel">
-                            <ComboBox
-                            HorizontalAlignment="Stretch"
-                            IsDropDownOpen="True"
-                            ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
-                            SelectedItem="{Binding A}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellEditingTemplate>
-                </DataGridTemplateColumn>
+                <DataGrid.Columns>
 
-                <!--  Point B  -->
-                <DataGridTemplateColumn
-                Width="*"
-                Header="Point B"
-                IsReadOnly="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="vml:LinkViewModel">
-                            <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Text="{Binding B.Name}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                    <DataGridTemplateColumn.CellEditingTemplate>
-                        <DataTemplate DataType="vml:LinkViewModel">
-                            <ComboBox
-                            HorizontalAlignment="Stretch"
-                            IsDropDownOpen="True"
-                            ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
-                            SelectedItem="{Binding B}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellEditingTemplate>
-                </DataGridTemplateColumn>
+                    <!--  Point A  -->
+                    <DataGridTemplateColumn
+                    Width="*"
+                    Header="Point A"
+                    IsReadOnly="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="vml:LinkViewModel">
+                                <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding A.Name}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="vml:LinkViewModel">
+                                <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsDropDownOpen="True"
+                                ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
+                                SelectedItem="{Binding A}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
 
-                <!--  Length  -->
-                <DataGridTextColumn
-                Width="*"
-                Binding="{Binding Length, StringFormat={}{0:0.00}}"
-                Header="L (mm)"
-                IsReadOnly="True" />
-            </DataGrid.Columns>
-        </DataGrid>
+                    <!--  Point B  -->
+                    <DataGridTemplateColumn
+                    Width="*"
+                    Header="Point B"
+                    IsReadOnly="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="vml:LinkViewModel">
+                                <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding B.Name}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="vml:LinkViewModel">
+                                <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsDropDownOpen="True"
+                                ItemsSource="{Binding $parent[DataGrid].((vmle:LinkageEditorViewModel)DataContext).JointViewModels}"
+                                SelectedItem="{Binding B}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!--  Length  -->
+                    <DataGridTextColumn
+                    Width="*"
+                    Binding="{Binding Length, StringFormat={}{0:0.00}}"
+                    Header="L (mm)"
+                    IsReadOnly="True" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </ScrollViewer>
         <Button
         Grid.Row="15"
         Grid.Column="0"
@@ -503,19 +535,26 @@ mc:Ignorable="d">
         Command="{Binding CreateLinkCommand}"
         Content="Add new link">
             <Button.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ImageCanvas.Image" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).ShockStroke" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).Chainstay" />
-                </MultiBinding>
+                <Binding Path="$parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLinkageMode" />
             </Button.IsVisible>
         </Button>
 
+        <Border
+        Grid.Row="11"
+        Grid.RowSpan="5"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        IsVisible="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).IsLeverageRatioMode}">
+            <editorViews:LeverageRatioEditorView DataContext="{Binding $parent[v:BikeImageControlsDesktopView].((vm:BikeEditorViewModel)DataContext).LeverageRatioEditor}" />
+        </Border>
+
         <!--  Leverage ratio plot  -->
         <Grid
+        Name="LeverageRatioPlotGrid"
         Grid.Row="16"
         Grid.Column="0"
         Grid.ColumnSpan="2"
+        IsVisible="{Binding HasRearSuspension}"
         Height="250">
 
             <plots:LeverageRatioPlotView

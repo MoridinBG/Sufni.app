@@ -1,3 +1,4 @@
+using Sufni.App.Models;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
 
@@ -19,6 +20,7 @@ public static class TestSnapshots
         HeadAngle: 65,
         ForkStroke: 160,
         ShockStroke: null,
+        RearSuspensionKind: RearSuspensionKind.None,
         Chainstay: null,
         PixelsToMillimeters: 0,
         FrontWheelDiameterMm: null,
@@ -28,9 +30,33 @@ public static class TestSnapshots
         RearWheelRimSize: null,
         RearWheelTireWidth: null,
         ImageRotationDegrees: 0,
+        LeverageRatio: null,
         Linkage: null,
         Image: null,
         Updated: updated);
+
+    public static LeverageRatio LeverageRatioCurve(params (double ShockTravelMm, double WheelTravelMm)[] points) =>
+        LeverageRatio.FromPoints(points.Select(point => new LeverageRatioPoint(point.ShockTravelMm, point.WheelTravelMm)).ToArray());
+
+    public static BikeSnapshot LeverageRatioBike(
+        LeverageRatio leverageRatio,
+        double? shockStroke = 60,
+        Guid? id = null,
+        string name = "test leverage-ratio bike",
+        long updated = 1)
+    {
+        var bike = new Bike(id ?? Guid.NewGuid(), name)
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            ShockStroke = shockStroke,
+            RearSuspensionKind = RearSuspensionKind.LeverageRatio,
+            LeverageRatio = leverageRatio,
+            Updated = updated,
+        };
+
+        return BikeSnapshot.From(bike);
+    }
 
     public static SetupSnapshot Setup(
         Guid? id = null,
