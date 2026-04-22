@@ -21,6 +21,7 @@ mc:Ignorable="d">
         <TextBlock FontSize="36" Text="Sufni Suspension Telemetry" />
         <Border Height="100" />
         <Button
+        Name="ImportSessionsButton"
         Width="200"
         Margin="30,0,0,0"
         Classes="embedded hyperlink"
@@ -28,6 +29,7 @@ mc:Ignorable="d">
         Content="Import sessions ..."
         FontSize="18" />
         <Button
+        Name="AddBikeButton"
         Width="200"
         Margin="30,0,0,0"
         Classes="embedded hyperlink"
@@ -35,6 +37,7 @@ mc:Ignorable="d">
         Content="Create bike ..."
         FontSize="18" />
         <Button
+        Name="AddSetupButton"
         Width="200"
         Margin="30,0,0,0"
         Classes="embedded hyperlink"
@@ -42,6 +45,7 @@ mc:Ignorable="d">
         Content="Create setup ..."
         FontSize="18" />
         <Button
+        Name="OpenLogsFolderButton"
         Width="200"
         Margin="30,0,0,0"
         Classes="embedded hyperlink"

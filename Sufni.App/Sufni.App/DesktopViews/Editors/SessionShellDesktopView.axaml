@@ -15,14 +15,16 @@ mc:Ignorable="d">
     <Grid RowDefinitions="* auto *">
 
         <Grid Grid.Row="0" ColumnDefinitions="* auto auto">
-            <ContentControl Grid.Column="0" Content="{Binding #Root.GraphContent}" />
+            <ContentControl Name="GraphHost" Grid.Column="0" Content="{Binding #Root.GraphContent}" />
 
             <GridSplitter
+            Name="MediaSplitter"
             Grid.Column="1"
             ResizeDirection="Columns"
             IsVisible="{Binding #Root.MediaContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
             <ContentControl
+            Name="MediaHost"
             Grid.Column="2"
             Margin="0,39,0,0"
             Content="{Binding #Root.MediaContent}" />
@@ -31,20 +33,21 @@ mc:Ignorable="d">
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
         <Grid Grid.Row="2" ColumnDefinitions="* auto 400">
-            <ContentControl Grid.Column="0" Content="{Binding #Root.StatisticsContent}" />
+            <ContentControl Name="StatisticsHost" Grid.Column="0" Content="{Binding #Root.StatisticsContent}" />
 
             <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
 
             <Grid Grid.Column="2" RowDefinitions="auto auto *">
-                <ContentControl Grid.Row="0" Content="{Binding #Root.ControlContent}" />
+                <ContentControl Name="ControlHost" Grid.Row="0" Content="{Binding #Root.ControlContent}" />
 
                 <GridSplitter
+                Name="ControlSplitter"
                 Grid.Row="1"
                 ResizeDirection="Rows"
                 ResizeBehavior="PreviousAndNext"
                 IsVisible="{Binding #Root.ControlContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-                <ContentControl Grid.Row="2" Content="{Binding #Root.SidebarContent}" />
+                <ContentControl Name="SidebarHost" Grid.Row="2" Content="{Binding #Root.SidebarContent}" />
             </Grid>
         </Grid>
     </Grid>

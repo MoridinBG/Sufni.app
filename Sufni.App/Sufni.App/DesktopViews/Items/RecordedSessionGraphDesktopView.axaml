@@ -31,6 +31,7 @@ mc:Ignorable="d">
         ImuPlotView="{Binding #Imu}" />
 
         <GridSplitter
+        Name="ImuSplitter"
         Grid.Row="3"
         ResizeDirection="Rows"
         ResizeBehavior="PreviousAndNext">

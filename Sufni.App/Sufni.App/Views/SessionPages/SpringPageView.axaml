@@ -16,8 +16,8 @@
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical">
-            <Svg IsVisible="{Binding FrontTravelHistogram, Converter={x:Static ObjectConverters.IsNotNull}}" Source="{Binding FrontTravelHistogram}" />
-            <Svg IsVisible="{Binding RearTravelHistogram, Converter={x:Static ObjectConverters.IsNotNull}}" Source="{Binding RearTravelHistogram}" />
+            <Svg Name="FrontHistogramSvg" IsVisible="{Binding FrontTravelHistogram, Converter={x:Static ObjectConverters.IsNotNull}}" Source="{Binding FrontTravelHistogram}" />
+            <Svg Name="RearHistogramSvg" IsVisible="{Binding RearTravelHistogram, Converter={x:Static ObjectConverters.IsNotNull}}" Source="{Binding RearTravelHistogram}" />
         </StackPanel>
     </ScrollViewer>
 

@@ -1,17 +1,17 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.PairingClientView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
-    xmlns:v="clr-namespace:Sufni.App.Views.Controls"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    x:DataType="vm:PairingClientViewModel"
-    Background="{StaticResource SufniRegion}"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.PairingClientView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:PairingClientViewModel"
+Background="{StaticResource SufniRegion}"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:PairingClientViewModel />
@@ -27,10 +27,10 @@
     </Interaction.Behaviors>
 
     <StackPanel
-        Width="250"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        Orientation="Vertical">
+    Width="250"
+    HorizontalAlignment="Center"
+    VerticalAlignment="Center"
+    Orientation="Vertical">
 
         <StackPanel.Styles>
             <Style Selector="TextBox">
@@ -40,11 +40,12 @@
 
         <!--  Locating servers label  -->
         <Label
-            Margin="0,0,0,25"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Content="Locating servers"
-            FontSize="20">
+        Name="LocatingServersLabel"
+        Margin="0,0,0,25"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Content="Locating servers"
+        FontSize="20">
             <Label.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
@@ -55,12 +56,13 @@
 
         <!--  Prograss ring  -->
         <progRing:ProgressRing
-            Width="40"
-            Height="40"
-            Margin="0,0,0,25"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Foreground="{StaticResource SufniAccentColor}">
+        Name="BrowseProgressRing"
+        Width="40"
+        Height="40"
+        Margin="0,0,0,25"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Foreground="{StaticResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
@@ -70,10 +72,10 @@
         </progRing:ProgressRing>
 
         <!--  Display name. Locked once a pairing request is in flight
-             or the device is already paired — otherwise an edit between
-             request and confirm would change what we send on confirm
-             and the server would reject the mismatch.  -->
-        <TextBox Text="{Binding DisplayName}" Watermark="Display name">
+        or the device is already paired — otherwise an edit between
+        request and confirm would change what we send on confirm
+        and the server would reject the mismatch.  -->
+        <TextBox Name="DisplayNameTextBox" Text="{Binding DisplayName}" Watermark="Display name">
             <TextBox.IsEnabled>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="!IsRequestSent" />
@@ -84,10 +86,11 @@
 
         <!--  Send pairing request button  -->
         <Button
-            Height="50"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            Command="{Binding RequestPairingCommand}">
+        Name="RequestPairingButton"
+        Height="50"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        Command="{Binding RequestPairingCommand}">
 
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -106,26 +109,29 @@
 
         <!--  PIN code input  -->
         <v:PinInput
-            IsVisible="{Binding IsRequestSent}"
-            Pin="{Binding Pin}"
-            PinCompletedCommand="{Binding ConfirmPairingCommand}" />
+        Name="PinInputControl"
+        IsVisible="{Binding IsRequestSent}"
+        Pin="{Binding Pin}"
+        PinCompletedCommand="{Binding ConfirmPairingCommand}" />
 
         <!--  Unpair button  -->
         <Button
-            Margin="2"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            Command="{Binding UnpairCommand}"
-            Content="unpair"
-            IsVisible="{Binding IsPaired}" />
+        Name="UnpairButton"
+        Margin="2"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        Command="{Binding UnpairCommand}"
+        Content="unpair"
+        IsVisible="{Binding IsPaired}" />
 
         <!--  Cancel button  -->
         <Button
-            Margin="2"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            Command="{Binding OpenPreviousPageCommand}"
-            Content="cancel" />
+        Name="CancelButton"
+        Margin="2"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        Command="{Binding OpenPreviousPageCommand}"
+        Content="cancel" />
 
         <!--  Notifications  -->
         <v:NotificationsBar Margin="2,4" />
