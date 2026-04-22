@@ -68,6 +68,51 @@ public class RawTelemetryDataTests
     }
 
     [Fact]
+    public void FromStream_V3File_Preserves64BitTimestamp()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)3);
+        writer.Write((ushort)1000);
+        writer.Write((ushort)0);
+        writer.Write(3_000_000_000L);
+        writer.Write((ushort)100);
+        writer.Write((ushort)200);
+
+        ms.Position = 0;
+
+        var result = RawTelemetryData.FromStream(ms);
+
+        Assert.Equal(3_000_000_000L, result.Timestamp);
+    }
+
+    [Fact]
+    public void FromStream_V4File_Preserves64BitTimestamp()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write(3_000_000_000L);
+        writer.Write((byte)0x00);
+        writer.Write((ushort)3);
+        writer.Write((byte)0x01);
+        writer.Write((ushort)1000);
+        writer.Write((byte)0x01);
+        writer.Write((ushort)4);
+        writer.Write((ushort)123);
+        writer.Write((ushort)456);
+
+        ms.Position = 0;
+
+        var result = RawTelemetryData.FromStream(ms);
+
+        Assert.Equal(3_000_000_000L, result.Timestamp);
+    }
+
+    [Fact]
     public void SpikeElimination_AppliedDuringParsing()
     {
         // Arrange

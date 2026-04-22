@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Sufni.App.Models;
 using Sufni.App.Queries;
-using Sufni.App.SessionDetails;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Services.LiveStreaming;

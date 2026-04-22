@@ -30,7 +30,7 @@ public sealed record SessionSnapshot(
     uint? RearLowSpeedCompression,
     uint? RearLowSpeedRebound,
     uint? RearHighSpeedRebound,
-    long Updated) : IVersionedSnapshot
+    long Updated)
 {
     public static SessionSnapshot From(Session session) => new(
         session.Id,

@@ -13,8 +13,14 @@ namespace Sufni.App.Tests.Queries;
 public class LiveDaqKnownBoardsQueryTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
-    private readonly TestSetupStore setupStore = new();
-    private readonly TestBikeStore bikeStore = new();
+    private readonly SetupStore setupStore;
+    private readonly BikeStore bikeStore;
+
+    public LiveDaqKnownBoardsQueryTests()
+    {
+        setupStore = new SetupStore(database);
+        bikeStore = new BikeStore(database);
+    }
 
     private LiveDaqKnownBoardsQuery CreateQuery() => new(database, setupStore, bikeStore);
 
@@ -75,6 +81,30 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Equal("park setup", record.SetupName);
         Assert.Equal(bike.Id, record.BikeId);
         Assert.Equal("demo bike", record.BikeName);
+    }
+
+    [Fact]
+    public async Task Changes_RebuildsProjection_WhenSetupStoreFirstLoadsAfterQueryStarts()
+    {
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "startup setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+
+        using var query = CreateQuery();
+        var initialRecords = await WaitForRecordsAsync(query.Changes);
+        var initialRecord = Assert.Single(initialRecords);
+        Assert.Equal(boardId.ToString(), initialRecord.DisplayName);
+        Assert.Null(initialRecord.SetupId);
+        Assert.Null(initialRecord.SetupName);
+
+        var nextChange = WaitForRecordsAsync(query.Changes, ignoreReplay: true);
+        setupStore.Upsert(setup);
+        var updatedRecords = await nextChange;
+
+        var updatedRecord = Assert.Single(updatedRecords);
+        Assert.Equal(setup.Id, updatedRecord.SetupId);
+        Assert.Equal("startup setup", updatedRecord.SetupName);
+        Assert.Equal("startup setup", updatedRecord.DisplayName);
     }
 
     [Fact]
@@ -146,8 +176,10 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.NotNull(calibration);
         Assert.NotNull(calibration!.Front);
         Assert.Null(calibration.Rear);
-        Assert.True(calibration.Front!.MaxTravel > 0);
-        Assert.True(calibration.Front.MeasurementToTravel(1) > 0);
+        var expectedFrontMaxTravel = bike.ForkStroke!.Value * Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        var expectedFrontMeasurementToTravel = 8 / (Math.Pow(2.0, 10) - 1.0) * Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        Assert.Equal(expectedFrontMaxTravel, calibration.Front!.MaxTravel, 6);
+        Assert.Equal(expectedFrontMeasurementToTravel, calibration.Front.MeasurementToTravel(1), 9);
     }
 
     [Fact]
@@ -275,10 +307,11 @@ public class LiveDaqKnownBoardsQueryTests
             name: "curve bike");
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "curve setup", bikeId: bike.Id, boardId: boardId) with
         {
-            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockStrokeSensorConfiguration
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
             {
                 Length = 24,
                 Resolution = 4,
+                Type = SensorType.LinearShockStroke,
             })
         };
 
@@ -295,8 +328,8 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Null(context!.TravelCalibration.Front);
         Assert.NotNull(context.TravelCalibration.Rear);
         Assert.NotNull(context.BikeData.RearMeasurementToTravel);
-        Assert.Equal(30, context.TravelCalibration.Rear!.MeasurementToTravel(3), 6);
-        Assert.Equal(50, context.BikeData.RearMeasurementToTravel!((ushort)5), 6);
+        Assert.Equal(12, context.TravelCalibration.Rear!.MeasurementToTravel(3), 6);
+        Assert.Equal(20, context.BikeData.RearMeasurementToTravel!((ushort)5), 6);
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
@@ -319,42 +352,5 @@ public class LiveDaqKnownBoardsQueryTests
         });
 
         return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
-    }
-
-    private sealed class TestSetupStore : ISetupStore
-    {
-        private readonly SourceCache<SetupSnapshot, Guid> source = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<SetupSnapshot, Guid>> Connect() => source.Connect();
-
-        public SetupSnapshot? Get(Guid id)
-        {
-            var lookup = source.Lookup(id);
-            return lookup.HasValue ? lookup.Value : null;
-        }
-
-        public SetupSnapshot? FindByBoardId(Guid boardId) =>
-            source.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
-
-        public Task RefreshAsync() => Task.CompletedTask;
-
-        public void Upsert(SetupSnapshot snapshot) => source.AddOrUpdate(snapshot);
-    }
-
-    private sealed class TestBikeStore : IBikeStore
-    {
-        private readonly SourceCache<BikeSnapshot, Guid> source = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<BikeSnapshot, Guid>> Connect() => source.Connect();
-
-        public BikeSnapshot? Get(Guid id)
-        {
-            var lookup = source.Lookup(id);
-            return lookup.HasValue ? lookup.Value : null;
-        }
-
-        public Task RefreshAsync() => Task.CompletedTask;
-
-        public void Upsert(BikeSnapshot snapshot) => source.AddOrUpdate(snapshot);
     }
 }

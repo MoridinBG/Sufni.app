@@ -261,9 +261,8 @@ public class LiveDaqDetailDesktopViewTests
 
     private static async Task<MountedLiveDaqDetailDesktopView> MountAsync(LiveDaqDetailViewModel editor)
     {
-        TestApp.SetIsDesktop(true);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
         var view = new LiveDaqDetailDesktopView
         {
@@ -300,7 +299,7 @@ public class LiveDaqDetailDesktopViewTests
             Gps: new LiveGpsUiSnapshot(
                 IsActive: true,
                 HasData: true,
-                PreviewState: new GpsPreviewState(true, true, "3D fix"),
+                PreviewState: new GpsPreviewState(true, true, GpsFixKind.ThreeDimensional, "3D fix"),
                 FixTimestampUtc: new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
                 Latitude: 48.2082,
                 Longitude: 16.3738,

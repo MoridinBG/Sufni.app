@@ -76,7 +76,7 @@ public sealed class SetupCoordinator(
         logger.Information("Starting setup save for {SetupId}", setup.Id);
 
         var current = setupStore.Get(setup.Id);
-        if (current.IsNewerThan(baselineUpdated))
+        if (current is not null && current.Updated > baselineUpdated)
         {
             logger.Warning("Setup save conflict for {SetupId}", setup.Id);
             return new SetupSaveResult.Conflict(current);
@@ -99,6 +99,7 @@ public sealed class SetupCoordinator(
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
+            shell.GoBack();
 
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Updated);

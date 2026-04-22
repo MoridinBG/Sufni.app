@@ -111,17 +111,20 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #region Private methods
 
-    private async void RequestRowDelete(SessionRowViewModel row)
+    private void RequestRowDelete(SessionRowViewModel row)
     {
-        var snapshot = sessionStore.Get(row.Id);
-        if (snapshot is null) return;
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
+        {
+            var snapshot = sessionStore.Get(row.Id);
+            if (snapshot is null) return;
 
-        await FlushPendingDeleteAsync();
+            await FlushPendingDeleteAsync();
 
-        pendingDelete = (snapshot.Id, snapshot.Name);
-        RebuildFilter();
+            pendingDelete = (snapshot.Id, snapshot.Name);
+            RebuildFilter();
 
-        StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
+            StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
+        });
     }
 
     private async Task FinalizeSessionDeleteAsync(Guid sessionId)

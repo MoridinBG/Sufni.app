@@ -106,18 +106,21 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     #region Private methods
 
-    private async void RequestRowDelete(BikeRowViewModel row)
+    private void RequestRowDelete(BikeRowViewModel row)
     {
-        var snapshot = bikeStore.Get(row.Id);
-        if (snapshot is null) return;
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
+        {
+            var snapshot = bikeStore.Get(row.Id);
+            if (snapshot is null) return;
 
-        // Commit any in-flight pending delete first.
-        await FlushPendingDeleteAsync();
+            // Commit any in-flight pending delete first.
+            await FlushPendingDeleteAsync();
 
-        pendingDelete = (snapshot.Id, snapshot.Name);
-        RebuildFilter();
+            pendingDelete = (snapshot.Id, snapshot.Name);
+            RebuildFilter();
 
-        StartUndoWindow(snapshot.Name, () => FinalizeBikeDeleteAsync(snapshot.Id));
+            StartUndoWindow(snapshot.Name, () => FinalizeBikeDeleteAsync(snapshot.Id));
+        });
     }
 
     private async Task FinalizeBikeDeleteAsync(Guid bikeId)

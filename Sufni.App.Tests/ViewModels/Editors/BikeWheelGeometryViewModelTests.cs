@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels.Editors.Bike;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.ViewModels.Editors;

@@ -179,7 +179,7 @@ All transport types live in `Sufni.App/Sufni.App/Services/LiveStreaming/`.
 
 ### Client
 
-`LiveDaqClient` owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. The receive loop runs off the UI thread via `IBackgroundTaskRunner`, reading into a 4096-byte buffer and feeding it through the protocol reader. Parsed frames are dispatched through a `Subject<LiveDaqClientEvent>` observable. A `SemaphoreSlim` gate serializes all lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the receive loop completes it when the matching ACK or error arrives.
+`LiveDaqClient` owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. The receive loop runs off the UI thread on a background task started with `Task.Factory.StartNew`, reading into a 4096-byte buffer and feeding it through the protocol reader. Parsed frames are dispatched through a `Subject<LiveDaqClientEvent>` observable. A `SemaphoreSlim` gate serializes all lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the receive loop completes it when the matching ACK or error arrives.
 
 The client is no longer owned directly by a tab view model. It sits under `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
 

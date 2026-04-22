@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Stores;
 
@@ -16,16 +14,12 @@ namespace Sufni.App.ViewModels.Rows;
 /// view model via the <c>requestDelete</c> callback so the list can run
 /// its pending-delete undo window before finalizing.
 /// </summary>
-public partial class SessionRowViewModel : ObservableObject, IListItemRow
+public sealed class SessionRowViewModel : ListItemRowViewModelBase
 {
     private readonly ISessionCoordinator? sessionCoordinator;
     private readonly Action<SessionRowViewModel>? requestDelete;
 
     public Guid Id { get; private set; }
-
-    [ObservableProperty] private string? name;
-    [ObservableProperty] private DateTime? timestamp;
-    [ObservableProperty] private bool isComplete;
 
     public SessionRowViewModel()
     {
@@ -53,26 +47,14 @@ public partial class SessionRowViewModel : ObservableObject, IListItemRow
         IsComplete = snapshot.HasProcessedData;
     }
 
-    [RelayCommand]
-    private async Task OpenPage()
+    protected override async Task OpenPageAsync()
     {
         if (sessionCoordinator is null) return;
         await sessionCoordinator.OpenEditAsync(Id);
     }
 
-    [RelayCommand]
-    private void UndoableDelete()
+    protected override void UndoableDelete()
     {
         requestDelete?.Invoke(this);
     }
-
-    [RelayCommand]
-    private void FakeDelete()
-    {
-        // Exists so the controls can bind to a delete command on this row.
-    }
-
-    IRelayCommand IListItemRow.OpenPageCommand => OpenPageCommand;
-    IRelayCommand IListItemRow.UndoableDeleteCommand => UndoableDeleteCommand;
-    IRelayCommand IListItemRow.FakeDeleteCommand => FakeDeleteCommand;
 }

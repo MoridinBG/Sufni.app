@@ -35,6 +35,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private readonly IDatabaseService databaseService;
     private readonly ISecureStorage secureStorage;
+    private readonly object advertisingGate = new();
 
     private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
@@ -42,6 +43,8 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private string? jwtSecret;
     private string? certPassword;
+    private Makaretu.Dns.ServiceDiscovery? serviceDiscovery;
+    private ServiceProfile? advertisedService;
 
     private readonly string certPath = AppPaths.CertificatePath;
 
@@ -66,14 +69,36 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     #region Private methods
 
-    private static void StartAdvertising()
+    private void StartAdvertising()
     {
-        var service = new ServiceProfile("s1", SynchronizationProtocol.ServiceType, Port);
-        var sd = new Makaretu.Dns.ServiceDiscovery();
-        if (!sd.Probe(service))
+        lock (advertisingGate)
         {
-            sd.Advertise(service);
-            sd.Announce(service);
+            serviceDiscovery?.Dispose();
+            serviceDiscovery = null;
+            advertisedService = null;
+
+            var service = new ServiceProfile("s1", SynchronizationProtocol.ServiceType, Port);
+            var discovery = new Makaretu.Dns.ServiceDiscovery();
+            if (discovery.Probe(service))
+            {
+                discovery.Dispose();
+                return;
+            }
+
+            discovery.Advertise(service);
+            discovery.Announce(service);
+            advertisedService = service;
+            serviceDiscovery = discovery;
+        }
+    }
+
+    private void StopAdvertising()
+    {
+        lock (advertisingGate)
+        {
+            serviceDiscovery?.Dispose();
+            serviceDiscovery = null;
+            advertisedService = null;
         }
     }
 
@@ -167,7 +192,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             });
         });
 
-        var key = Encoding.ASCII.GetBytes(jwtSecret);
+        var key = Encoding.UTF8.GetBytes(jwtSecret);
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
         {
             options.TokenValidationParameters = new TokenValidationParameters
@@ -197,6 +222,8 @@ public class SynchronizationServerService : ISynchronizationServerService
             logger.Information("Starting synchronization server on port {Port}", Port);
 
             var app = await BuildApplication(Port);
+            app.Lifetime.ApplicationStopping.Register(StopAdvertising);
+            app.Lifetime.ApplicationStopped.Register(StopAdvertising);
             app.UseAuthentication();
             app.UseAuthorization();
             app.Use(async (context, next) =>
@@ -293,16 +320,9 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok();
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] int since, ClaimsPrincipal user) =>
+            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] long since, ClaimsPrincipal user) =>
             {
-                var data = new SynchronizationData
-                {
-                    Boards = await databaseService.GetChangedAsync<Board>(since),
-                    Bikes = await databaseService.GetChangedAsync<Bike>(since),
-                    Setups = await databaseService.GetChangedAsync<Setup>(since),
-                    Sessions = await databaseService.GetChangedAsync<Session>(since),
-                    Tracks = await databaseService.GetChangedAsync<Track>(since)
-                };
+                var data = await databaseService.GetSynchronizationDataAsync(since);
 
                 logger.Verbose(
                     "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
@@ -341,18 +361,18 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
             {
-                var data = await databaseService.GetSessionPsstAsync(id);
+                var data = await databaseService.GetSessionRawPsstAsync(id);
                 if (data is null)
                 {
                     logger.Warning("Session data download failed because session {SessionId} was not found", id);
                     return Results.NotFound(new { msg = "Session does not exist!" });
                 }
 
-                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.BinaryForm.Length);
+                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.Length);
                 var name = $"{id}.psst";
 
                 return Results.File(
-                    fileContents: data.BinaryForm,
+                    fileContents: data,
                     contentType: "application/octet-stream",
                     fileDownloadName: name
                 );
@@ -386,6 +406,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
         catch (Exception ex)
         {
+            StopAdvertising();
             logger.Error(ex, "Synchronization server failed to start or run on port {Port}", Port);
             throw;
         }

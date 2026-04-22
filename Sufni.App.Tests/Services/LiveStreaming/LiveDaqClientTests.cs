@@ -1,6 +1,9 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reactive.Linq;
+using System.Threading;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 
@@ -75,6 +78,56 @@ public class LiveDaqClientTests
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.Equal(LiveStartErrorCode.Busy, rejected.ErrorCode);
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task StartPreviewAsync_AllowsRetry_WhenInitialSendFails()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 888);
+        var sendAttempt = 0;
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveSensorMask.Travel));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqClient(
+            TimeSpan.FromSeconds(1),
+            () => new TcpClient(),
+            async (stream, frame, cancellationToken) =>
+            {
+                if (Interlocked.Increment(ref sendAttempt) == 1)
+                {
+                    throw new IOException("Injected send failure");
+                }
+
+                await stream.WriteAsync(frame, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+            });
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+
+        var failed = await client.StartPreviewAsync(
+            new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0));
+
+        Assert.IsType<LivePreviewStartResult.Failed>(failed);
+
+        var retried = await client.StartPreviewAsync(
+            new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0))
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.IsType<LivePreviewStartResult.Started>(retried);
 
         await client.DisconnectAsync();
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
@@ -225,6 +278,63 @@ public class LiveDaqClientTests
     }
 
     [Fact]
+    public async Task ConnectAsync_DisposesTcpClient_WhenConnectFails()
+    {
+        var createdClients = new List<TrackingTcpClient>();
+
+        await using var client = new LiveDaqClient(
+            TimeSpan.FromSeconds(1),
+            () =>
+            {
+                var tcpClient = new TrackingTcpClient();
+                createdClients.Add(tcpClient);
+                return tcpClient;
+            });
+
+        var unusedPort = GetUnusedPort();
+
+        await Assert.ThrowsAnyAsync<SocketException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), unusedPort));
+
+        var failedClient = Assert.Single(createdClients);
+        Assert.True(failedClient.WasDisposed);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WhenConnected_CompletesEvents_DisposesTcpClient_AndFutureConnectThrows()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var acceptTask = listener.AcceptTcpClientAsync();
+        var createdClients = new List<TrackingTcpClient>();
+
+        var client = new LiveDaqClient(
+            TimeSpan.FromSeconds(1),
+            () =>
+            {
+                var tcpClient = new TrackingTcpClient();
+                createdClients.Add(tcpClient);
+                return tcpClient;
+            });
+        var eventsCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = client.Events.Subscribe(
+            _ => { },
+            ex => eventsCompleted.TrySetException(ex),
+            () => eventsCompleted.TrySetResult());
+
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        using var accepted = await acceptTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await client.DisposeAsync();
+        await eventsCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisposeAsync();
+
+        var trackingClient = Assert.Single(createdClients);
+        Assert.True(trackingClient.WasDisposed);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
+    }
+
+    [Fact]
     public async Task CreateClient_ReturnsDistinctInstances()
     {
         var factory = new LiveDaqClientFactory(new BackgroundTaskRunner());
@@ -251,5 +361,22 @@ public class LiveDaqClientTests
         }
 
         return buffer;
+    }
+
+    private static int GetUnusedPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+    private sealed class TrackingTcpClient : TcpClient
+    {
+        public bool WasDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            WasDisposed = true;
+            base.Dispose(disposing);
+        }
     }
 }

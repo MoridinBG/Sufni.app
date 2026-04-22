@@ -41,36 +41,38 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         {
             try
             {
+                var boards = await databaseService.GetAllAsync<Board>();
                 var removedBikeCount = 0;
                 var upsertedBikeCount = 0;
                 foreach (var bike in e.Data.Bikes)
                 {
-                    if (bike.Deleted is not null)
+                    var freshBike = await databaseService.GetAsync<Bike>(bike.Id);
+                    if (freshBike is null)
                     {
                         bikeStoreWriter.Remove(bike.Id);
                         removedBikeCount++;
                     }
                     else
                     {
-                        bikeStoreWriter.Upsert(BikeSnapshot.From(bike));
+                        bikeStoreWriter.Upsert(BikeSnapshot.From(freshBike));
                         upsertedBikeCount++;
                     }
                 }
 
                 var removedSetupCount = 0;
                 var upsertedSetupCount = 0;
-                var boards = await databaseService.GetAllAsync<Board>();
                 foreach (var setup in e.Data.Setups)
                 {
-                    if (setup.Deleted is not null)
+                    var freshSetup = await databaseService.GetAsync<Setup>(setup.Id);
+                    if (freshSetup is null)
                     {
                         setupStoreWriter.Remove(setup.Id);
                         removedSetupCount++;
                     }
                     else
                     {
-                        var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-                        setupStoreWriter.Upsert(SetupSnapshot.From(setup, board?.Id));
+                        var board = boards.FirstOrDefault(b => b?.SetupId == freshSetup.Id, null);
+                        setupStoreWriter.Upsert(SetupSnapshot.From(freshSetup, board?.Id));
                         upsertedSetupCount++;
                     }
                 }

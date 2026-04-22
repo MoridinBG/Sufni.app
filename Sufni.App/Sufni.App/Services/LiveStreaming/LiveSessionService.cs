@@ -8,8 +8,6 @@ using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
-using Sufni.App.SessionDetails;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using Serilog;
 
@@ -109,32 +107,90 @@ internal sealed class LiveSessionService : ILiveSessionService
     public async Task EnsureAttachedAsync(CancellationToken cancellationToken = default)
     {
         bool shouldStart;
+        bool attachedNow = false;
+        IDisposable? attachedFramesSubscription = null;
+        IDisposable? attachedStatesSubscription = null;
+        ILiveDaqSharedStreamLease? attachedObserverLease = null;
+        ILiveDaqSharedStreamLease? attachedConfigurationLockLease = null;
 
-        lock (gate)
+        try
         {
-            ThrowIfDisposed();
-            if (!isAttached)
+            lock (gate)
             {
-                observerLease = sharedStream.AcquireLease();
-                configurationLockLease = sharedStream.AcquireConfigurationLock();
-                graphPipeline.Start();
-                framesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
-                statesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
-                isAttached = true;
+                ThrowIfDisposed();
+                if (!isAttached)
+                {
+                    attachedObserverLease = sharedStream.AcquireLease();
+                    attachedConfigurationLockLease = sharedStream.AcquireConfigurationLock();
+                    graphPipeline.Start();
+                    attachedFramesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
+                    attachedStatesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
+                    observerLease = attachedObserverLease;
+                    configurationLockLease = attachedConfigurationLockLease;
+                    framesSubscription = attachedFramesSubscription;
+                    statesSubscription = attachedStatesSubscription;
+                    isAttached = true;
+                    attachedNow = true;
+                }
+
+                shouldStart = !isTerminalClosed;
             }
 
-            shouldStart = !isTerminalClosed;
+            HandleSharedStreamState(sharedStream.CurrentState);
+
+            if (!shouldStart)
+            {
+                return;
+            }
+
+            await sharedStream.EnsureStartedAsync(cancellationToken);
+            HandleSharedStreamState(sharedStream.CurrentState);
         }
-
-        HandleSharedStreamState(sharedStream.CurrentState);
-
-        if (!shouldStart)
+        catch
         {
-            return;
-        }
+            if (attachedNow)
+            {
+                lock (gate)
+                {
+                    if (ReferenceEquals(framesSubscription, attachedFramesSubscription))
+                    {
+                        framesSubscription = null;
+                    }
 
-        await sharedStream.EnsureStartedAsync(cancellationToken);
-        HandleSharedStreamState(sharedStream.CurrentState);
+                    if (ReferenceEquals(statesSubscription, attachedStatesSubscription))
+                    {
+                        statesSubscription = null;
+                    }
+
+                    if (ReferenceEquals(configurationLockLease, attachedConfigurationLockLease))
+                    {
+                        configurationLockLease = null;
+                    }
+
+                    if (ReferenceEquals(observerLease, attachedObserverLease))
+                    {
+                        observerLease = null;
+                    }
+
+                    isAttached = false;
+                }
+
+                attachedFramesSubscription?.Dispose();
+                attachedStatesSubscription?.Dispose();
+
+                if (attachedConfigurationLockLease is not null)
+                {
+                    await attachedConfigurationLockLease.DisposeAsync();
+                }
+
+                if (attachedObserverLease is not null)
+                {
+                    await attachedObserverLease.DisposeAsync();
+                }
+            }
+
+            throw;
+        }
     }
 
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
@@ -640,7 +696,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 SourceName = context.DisplayName,
                 Version = 4,
                 SampleRate = (int)(sessionHeader?.AcceptedTravelHz ?? 0),
-                Timestamp = (int)((captureStartUtc ?? sessionHeader?.SessionStartUtc ?? DateTimeOffset.UnixEpoch).ToUnixTimeSeconds()),
+                Timestamp = (captureStartUtc ?? sessionHeader?.SessionStartUtc ?? DateTimeOffset.UnixEpoch).ToUnixTimeSeconds(),
                 Duration = CalculateCaptureDurationLocked().TotalSeconds,
             },
             SessionHeader: sessionHeader,

@@ -70,6 +70,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     protected virtual Task SaveImplementation() { return Task.CompletedTask; }
     protected virtual Task ResetImplementation() { return Task.CompletedTask; }
     protected virtual Task ExportImplementation() { return Task.CompletedTask; }
+    protected virtual Task DeleteImplementation(bool navigateBack) { return Task.CompletedTask; }
     protected virtual Task CloseImplementation() { return Task.CompletedTask; }
     protected virtual void OnActivated() { }
     protected virtual void OnDeactivated() { }
@@ -92,6 +93,8 @@ public partial class TabPageViewModelBase : ViewModelBase
         return !IsDirty;
     }
 
+    protected virtual bool CanDelete() => true;
+
     #endregion Virtual methods
 
     partial void OnIsTabActiveChanged(bool value)
@@ -110,26 +113,49 @@ public partial class TabPageViewModelBase : ViewModelBase
         IsTabActive = value;
     }
 
+    public bool CanDeleteItem => DeleteCommand.CanExecute(false);
+
+    protected void NotifyDeleteCommandStateChanged()
+    {
+        DeleteCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanDeleteItem));
+    }
+
+    protected void NotifyEditorCommandStateChanged()
+    {
+        SaveCommand.NotifyCanExecuteChanged();
+        ResetCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
+    }
+
     #region Commands
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task Save()
     {
         await SaveImplementation();
-        IsDirty = false;
+        EvaluateDirtiness();
+        NotifyEditorCommandStateChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanReset))]
     private async Task Reset()
     {
         await ResetImplementation();
-        IsDirty = false;
+        EvaluateDirtiness();
+        NotifyEditorCommandStateChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task Export()
     {
         await ExportImplementation();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDelete))]
+    private async Task Delete(bool navigateBack)
+    {
+        await DeleteImplementation(navigateBack);
     }
 
     [RelayCommand]

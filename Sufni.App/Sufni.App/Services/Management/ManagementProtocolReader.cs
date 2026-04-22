@@ -1,62 +1,43 @@
 using System;
 using System.Buffers.Binary;
 using System.Text;
+using Sufni.App.Services;
 
 namespace Sufni.App.Services.Management;
 
 internal sealed class ManagementProtocolReader
 {
-    private byte[] pendingBytes = [];
-    private int pendingOffset;
-    private int bufferedByteCount;
+    private readonly UnreadByteBuffer unreadBytes = new();
 
-    public int BufferedByteCount => bufferedByteCount;
+    public int BufferedByteCount => unreadBytes.BufferedByteCount;
 
     public void Append(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length == 0)
-        {
-            return;
-        }
-
-        EnsureWriteCapacity(bytes.Length);
-        bytes.CopyTo(pendingBytes.AsSpan(pendingOffset + bufferedByteCount, bytes.Length));
-        bufferedByteCount += bytes.Length;
+        unreadBytes.Append(bytes);
     }
 
     public void Reset()
     {
-        pendingBytes = [];
-        pendingOffset = 0;
-        bufferedByteCount = 0;
+        unreadBytes.Reset();
     }
 
     public bool TryReadFrame(out ManagementProtocolFrame? frame)
     {
         frame = null;
-        if (bufferedByteCount < ManagementProtocolConstants.FrameHeaderSize)
+        if (unreadBytes.BufferedByteCount < ManagementProtocolConstants.FrameHeaderSize)
         {
             return false;
         }
 
-        var pendingSpan = pendingBytes.AsSpan(pendingOffset, bufferedByteCount);
+        var pendingSpan = unreadBytes.UnreadBytes;
         var header = ParseHeader(pendingSpan[..ManagementProtocolConstants.FrameHeaderSize]);
-        if (bufferedByteCount < header.TotalFrameLength)
+        if (unreadBytes.BufferedByteCount < header.TotalFrameLength)
         {
             return false;
         }
 
         frame = ParseFrame(pendingSpan[..header.TotalFrameLength]);
-        pendingOffset += header.TotalFrameLength;
-        bufferedByteCount -= header.TotalFrameLength;
-        if (bufferedByteCount == 0)
-        {
-            pendingOffset = 0;
-        }
-        else if (pendingOffset >= pendingBytes.Length / 2)
-        {
-            CompactUnreadBytes();
-        }
+        unreadBytes.Consume(header.TotalFrameLength);
 
         return true;
     }
@@ -192,54 +173,6 @@ internal sealed class ManagementProtocolReader
         }
 
         return header;
-    }
-
-    private void EnsureWriteCapacity(int appendLength)
-    {
-        var requiredLength = pendingOffset + bufferedByteCount + appendLength;
-        if (pendingBytes.Length >= requiredLength)
-        {
-            return;
-        }
-
-        CompactUnreadBytes();
-        requiredLength = bufferedByteCount + appendLength;
-        if (pendingBytes.Length >= requiredLength)
-        {
-            return;
-        }
-
-        var newLength = pendingBytes.Length == 0 ? 256 : pendingBytes.Length;
-        while (newLength < requiredLength)
-        {
-            newLength = checked(newLength * 2);
-        }
-
-        var resized = new byte[newLength];
-        if (bufferedByteCount > 0)
-        {
-            pendingBytes.AsSpan(pendingOffset, bufferedByteCount).CopyTo(resized);
-        }
-
-        pendingBytes = resized;
-        pendingOffset = 0;
-    }
-
-    private void CompactUnreadBytes()
-    {
-        if (pendingOffset == 0)
-        {
-            return;
-        }
-
-        if (bufferedByteCount == 0)
-        {
-            pendingOffset = 0;
-            return;
-        }
-
-        pendingBytes.AsSpan(pendingOffset, bufferedByteCount).CopyTo(pendingBytes);
-        pendingOffset = 0;
     }
 
     private static ManagementListDirectoryRequestFrame ParseListDirectoryRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)

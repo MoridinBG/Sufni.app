@@ -16,9 +16,10 @@ namespace Sufni.App.Services.LiveStreaming;
 //   → background receive loop parses framed data and emits Events → StopPreviewAsync (sends
 //   STOP_LIVE, awaits STOP_ACK) → DisconnectAsync (tears down socket and receive loop).
 //
-// The receive loop runs off the UI thread via IBackgroundTaskRunner. Start/stop handshakes use a
-// TaskCompletionSource that the caller awaits while the receive loop completes it on the matching
-// ACK or error frame. All state mutations are serialized through lifecycleGate.
+// The receive loop runs off the UI thread on a background task started with Task.Factory.StartNew.
+// Start/stop handshakes use a TaskCompletionSource that the caller awaits while the receive loop
+// completes it on the matching ACK or error frame. All state mutations are serialized through
+// lifecycleGate.
 internal sealed class LiveDaqClient : ILiveDaqClient
 {
     // Default upper bound on the STOP_ACK wait so an unresponsive firmware cannot
@@ -28,6 +29,8 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     private static readonly ILogger logger = Log.ForContext<LiveDaqClient>();
 
     private readonly TimeSpan stopAckTimeout;
+    private readonly Func<TcpClient> tcpClientFactory;
+    private readonly Func<NetworkStream, byte[], CancellationToken, Task> sendFrameAsync;
     private readonly LiveProtocolReader reader = new();
     private readonly Subject<LiveDaqClientEvent> events = new();
     // Serializes all public lifecycle methods (Connect, Start, Stop, Disconnect, Dispose) and
@@ -48,13 +51,28 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     private bool intentionalDisconnect;
 
     public LiveDaqClient()
-        : this(DefaultStopAckTimeout)
+        : this(DefaultStopAckTimeout, static () => new TcpClient(), SendFrameAsync)
     {
     }
 
     internal LiveDaqClient(TimeSpan stopAckTimeout)
+        : this(stopAckTimeout, static () => new TcpClient(), SendFrameAsync)
+    {
+    }
+
+    internal LiveDaqClient(TimeSpan stopAckTimeout, Func<TcpClient> tcpClientFactory)
+        : this(stopAckTimeout, tcpClientFactory, SendFrameAsync)
+    {
+    }
+
+    internal LiveDaqClient(
+        TimeSpan stopAckTimeout,
+        Func<TcpClient> tcpClientFactory,
+        Func<NetworkStream, byte[], CancellationToken, Task> sendFrameAsync)
     {
         this.stopAckTimeout = stopAckTimeout;
+        this.tcpClientFactory = tcpClientFactory;
+        this.sendFrameAsync = sendFrameAsync;
     }
 
     public bool IsConnected => tcpClient?.Connected == true && stream is not null;
@@ -77,8 +95,18 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             reader.Reset();
             intentionalDisconnect = false;
             receiveLoopCts?.Dispose();
-            tcpClient = new TcpClient();
-            await tcpClient.ConnectAsync(host, port, cancellationToken);
+            var nextTcpClient = tcpClientFactory();
+            try
+            {
+                await nextTcpClient.ConnectAsync(host, port, cancellationToken);
+            }
+            catch
+            {
+                nextTcpClient.Dispose();
+                throw;
+            }
+
+            tcpClient = nextTcpClient;
             stream = tcpClient.GetStream();
             receiveLoopCts = new CancellationTokenSource();
             receiveLoopTask = Task.Factory
@@ -123,12 +151,13 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 request.ImuHz,
                 request.GpsFixHz);
             var frame = LiveProtocolReader.CreateStartLiveFrame(GetNextSequence(), request);
-            await stream.WriteAsync(frame, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
+            await sendFrameAsync(stream, frame, cancellationToken);
             task = tcs.Task;
         }
         catch (Exception ex)
         {
+            pendingStartResult = null;
+            startAckAwaitingHeader = null;
             logger.Warning(ex, "Failed to send live preview start request");
             return new LivePreviewStartResult.Failed(ex.Message);
         }
@@ -176,8 +205,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             pendingStopAck = tcs;
             logger.Debug("Sending live DAQ preview stop request");
             var frame = LiveProtocolReader.CreateStopLiveFrame(GetNextSequence());
-            await stream.WriteAsync(frame, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
+            await sendFrameAsync(stream, frame, cancellationToken);
             waitTask = tcs.Task;
         }
         finally
@@ -225,7 +253,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         Task? receiveLoopToAwait = null;
-        await lifecycleGate.WaitAsync(cancellationToken);
+        await lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (tcpClient is null && stream is null && receiveLoopTask is null)
@@ -241,8 +269,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 try
                 {
                     var frame = LiveProtocolReader.CreateStopLiveFrame(GetNextSequence());
-                    await stream.WriteAsync(frame, cancellationToken);
-                    await stream.FlushAsync(cancellationToken);
+                    await sendFrameAsync(stream, frame, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -273,7 +300,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
         {
             try
             {
-                await receiveLoopToAwait;
+                await receiveLoopToAwait.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -286,7 +313,12 @@ internal sealed class LiveDaqClient : ILiveDaqClient
 
     public async ValueTask DisposeAsync()
     {
-        await lifecycleGate.WaitAsync(CancellationToken.None);
+        if (isDisposed)
+        {
+            return;
+        }
+
+        await lifecycleGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (isDisposed)
@@ -301,10 +333,11 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             lifecycleGate.Release();
         }
 
-        await DisconnectAsync();
+        await DisconnectAsync().ConfigureAwait(false);
         events.OnCompleted();
         receiveLoopCts?.Dispose();
         tcpClient?.Dispose();
+        lifecycleGate.Dispose();
     }
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
@@ -490,6 +523,12 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     }
 
     private uint GetNextSequence() => unchecked(++nextSequence);
+
+    private static async Task SendFrameAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
+    {
+        await stream.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     // Must be called inside lifecycleGate — the disposed flag is set under the gate in
     // DisposeAsync, so callers that already hold the gate get a consistent read.

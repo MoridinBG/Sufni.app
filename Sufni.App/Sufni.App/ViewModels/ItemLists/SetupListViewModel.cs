@@ -20,7 +20,6 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private readonly ISetupStore setupStore;
     private readonly ISetupCoordinator setupCoordinator;
-    private readonly ImportSessionsViewModel importSessionsPage;
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
     private (Guid Id, string Name)? pendingDelete;
@@ -39,18 +38,15 @@ public partial class SetupListViewModel : ItemListViewModelBase
     {
         setupStore = null!;
         setupCoordinator = null!;
-        importSessionsPage = null!;
         setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>([]);
     }
 
     public SetupListViewModel(
         ISetupStore setupStore,
-        ISetupCoordinator setupCoordinator,
-        ImportSessionsViewModel importSessionsPage)
+        ISetupCoordinator setupCoordinator)
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;
-        this.importSessionsPage = importSessionsPage;
 
         setupStore.Connect()
             .Filter(filterSubject)
@@ -90,27 +86,27 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     protected override void AddImplementation()
     {
-        // The coordinator validates the suggested board id (ignores
-        // it if a setup is already associated with it), so just pass
-        // the currently-selected datastore's board id straight through.
-        _ = setupCoordinator.OpenCreateAsync(importSessionsPage.SelectedDataStore?.BoardId);
+        _ = setupCoordinator.OpenCreateAsync();
     }
 
     #endregion ItemListViewModelBase overrides
 
     #region Private methods
 
-    private async void RequestRowDelete(SetupRowViewModel row)
+    private void RequestRowDelete(SetupRowViewModel row)
     {
-        var snapshot = setupStore.Get(row.Id);
-        if (snapshot is null) return;
+        _ = RunActionSwallowExceptionToErrorMessages(async () =>
+        {
+            var snapshot = setupStore.Get(row.Id);
+            if (snapshot is null) return;
 
-        await FlushPendingDeleteAsync();
+            await FlushPendingDeleteAsync();
 
-        pendingDelete = (snapshot.Id, snapshot.Name);
-        RebuildFilter();
+            pendingDelete = (snapshot.Id, snapshot.Name);
+            RebuildFilter();
 
-        StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
+            StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
+        });
     }
 
     private async Task FinalizeSetupDeleteAsync(Guid setupId)

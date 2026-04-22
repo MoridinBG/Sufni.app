@@ -57,36 +57,40 @@ mc:Ignorable="d">
                 RowDefinitions="2* * *">
 
                     <!--  Front travel histogram  -->
-                    <plots:TravelHistogramDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Row="0"
                     Grid.Column="0"
                     IsVisible="{Binding HasFrontStatistics}"
+                    PlotKind="TravelHistogram"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}" />
 
                     <!--  Rear travel histogram  -->
-                    <plots:TravelHistogramDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Row="0"
                     Grid.Column="1"
                     IsVisible="{Binding HasRearStatistics}"
+                    PlotKind="TravelHistogram"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}" />
 
                     <!--  Front travel FFT  -->
-                    <plots:TravelFrequencyHistogramDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Row="1"
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
                     IsVisible="{Binding HasFrontStatistics}"
+                    PlotKind="TravelFrequencyHistogram"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}" />
 
                     <!--  Rear travel FFT  -->
-                    <plots:TravelFrequencyHistogramDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Row="2"
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
                     IsVisible="{Binding HasRearStatistics}"
+                    PlotKind="TravelFrequencyHistogram"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}" />
                 </Grid>
@@ -105,10 +109,11 @@ mc:Ignorable="d">
                     IsVisible="{Binding HasFrontStatistics}" />
 
                     <!--  Front velocity histogram  -->
-                    <plots:VelocityHistogramDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Row="1"
                     Grid.Column="0"
                     IsVisible="{Binding HasFrontStatistics}"
+                    PlotKind="VelocityHistogram"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}" />
 
@@ -130,10 +135,11 @@ mc:Ignorable="d">
                     IsVisible="{Binding HasRearStatistics}" />
 
                     <!--  Rear velocity histogram  -->
-                    <plots:VelocityHistogramDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Row="1"
                     Grid.Column="2"
                     IsVisible="{Binding HasRearStatistics}"
+                    PlotKind="VelocityHistogram"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}" />
 
@@ -150,17 +156,19 @@ mc:Ignorable="d">
 
                 <!--  Balance graphs  -->
                 <Grid Name="Balance" ColumnDefinitions="* *">
-                    <plots:BalancePlotDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Column="0"
                     BalanceType="Compression"
                     IsHitTestVisible="False"
                     IsVisible="{Binding HasCompressionBalanceTelemetry}"
+                    PlotKind="Balance"
                     Telemetry="{Binding TelemetryData}" />
-                    <plots:BalancePlotDesktopView
+                    <plots:SessionStatisticsPlotView
                     Grid.Column="1"
                     BalanceType="Rebound"
                     IsHitTestVisible="False"
                     IsVisible="{Binding HasReboundBalanceTelemetry}"
+                    PlotKind="Balance"
                     Telemetry="{Binding TelemetryData}" />
                 </Grid>
             </ItemsControl.Items>

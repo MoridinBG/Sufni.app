@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -13,6 +14,7 @@ namespace Sufni.App.Tests.Infrastructure;
 public static class ViewTestHelpers
 {
     private const string ViewTemplatesRegisteredKey = "__ViewTestHelpers_ViewTemplatesRegistered";
+    private const string ViewTemplatesDesktopModeKey = "__ViewTestHelpers_ViewTemplatesDesktopMode";
 
     public static Window ShowView(Control view)
     {
@@ -57,18 +59,47 @@ public static class ViewTestHelpers
         resources["SufniDangerColorDark"] = Brushes.DarkRed;
     }
 
-    public static void EnsureViewTestDataTemplates()
+    public static void EnsureViewTestDataTemplates(bool isDesktop)
     {
         var application = Application.Current
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
-        if (application.Resources.ContainsKey(ViewTemplatesRegisteredKey))
+        TestApp.SetIsDesktop(isDesktop);
+
+        if (application.Resources.TryGetValue(ViewTemplatesRegisteredKey, out var registered)
+            && registered is true
+            && application.Resources.TryGetValue(ViewTemplatesDesktopModeKey, out var currentMode)
+            && currentMode is bool registeredDesktopMode
+            && registeredDesktopMode == isDesktop)
         {
             return;
         }
 
+        foreach (var existingLocator in application.DataTemplates.OfType<ViewLocator>().ToArray())
+        {
+            application.DataTemplates.Remove(existingLocator);
+        }
+
         application.DataTemplates.Add(new ViewLocator());
         application.Resources[ViewTemplatesRegisteredKey] = true;
+        application.Resources[ViewTemplatesDesktopModeKey] = isDesktop;
+    }
+
+    public static void EnsurePlotViewStyle()
+    {
+        var application = Application.Current
+            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
+        var source = new Uri("avares://Sufni.App/Views/Plots/SufniPlotView.axaml");
+
+        if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
+        {
+            return;
+        }
+
+        application.Styles.Add(new StyleInclude(new Uri("avares://Sufni.App/"))
+        {
+            Source = source
+        });
     }
 
     public static T? FindFirstVisual<T>(this Control root)

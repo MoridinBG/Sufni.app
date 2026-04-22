@@ -87,6 +87,29 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public void ReplacingForkSensorConfiguration_DetachesOldPropertyChangedHandler()
+    {
+        var snapshot = TestSnapshots.Setup() with
+        {
+            FrontSensorConfigurationJson = LinearForkConfigurationJson
+        };
+        var editor = CreateEditor(snapshot);
+        var staleConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
+        var activeConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(
+            SensorConfigurationViewModel.FromJson(LinearForkConfigurationJson));
+
+        editor.ForkSensorConfiguration = activeConfiguration;
+
+        var saveCommandStateChanges = 0;
+        editor.SaveCommand.CanExecuteChanged += (_, _) => saveCommandStateChanges++;
+
+        Assert.True(staleConfiguration.Length.HasValue);
+        staleConfiguration.Length = staleConfiguration.Length.Value + 5;
+
+        Assert.Equal(0, saveCommandStateChanges);
+    }
+
+    [AvaloniaFact]
     public void Loaded_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
     {
         var bike = TestSnapshots.Bike() with
@@ -136,7 +159,7 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectedBike_InvalidResolution_ReportsInvalidDescription_AndRestrictsSensorTypes()
+    public void SelectedBike_InvalidResolution_RestrictsSensorTypes()
     {
         var invalidBike = TestSnapshots.Bike() with
         {
@@ -148,7 +171,6 @@ public class SetupEditorViewModelTests
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: invalidBike.Id));
         editor.LoadedCommand.Execute(null);
 
-        Assert.Equal("Invalid rear suspension", editor.RearSuspensionDescription);
         Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
     }
 
@@ -208,7 +230,8 @@ public class SetupEditorViewModelTests
 
         editor.ShockSensorType = SensorType.LinearShockStroke;
 
-        Assert.IsType<LinearShockStrokeSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
+        var configuration = Assert.IsType<LinearShockSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
+        Assert.Equal(SensorType.LinearShockStroke, configuration.Type);
     }
 
     // ----- CanSave -----
@@ -260,7 +283,6 @@ public class SetupEditorViewModelTests
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Saved(11));
-        TestApp.SetIsDesktop(true); // skip OpenPreviousPage navigation
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -273,7 +295,7 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnMobile_NavigatesBack()
+    public async Task Save_OnMobile_DoesNotNavigateDirectly()
     {
         var bike = TestSnapshots.Bike();
         bikesCache.AddOrUpdate(bike);
@@ -287,11 +309,10 @@ public class SetupEditorViewModelTests
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Saved(11));
-        TestApp.SetIsDesktop(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
     }
 
     [AvaloniaFact]
@@ -313,7 +334,6 @@ public class SetupEditorViewModelTests
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -340,7 +360,6 @@ public class SetupEditorViewModelTests
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -363,7 +382,6 @@ public class SetupEditorViewModelTests
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Failed("disk full"));
-        TestApp.SetIsDesktop(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 

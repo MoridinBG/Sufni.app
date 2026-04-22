@@ -130,7 +130,7 @@ public sealed class BikeCoordinator(
         logger.Information("Starting bike save for {BikeId}", bike.Id);
 
         var current = bikeStore.Get(bike.Id);
-        if (current.IsNewerThan(baselineUpdated))
+        if (current is not null && current.Updated > baselineUpdated)
         {
             logger.Warning("Bike save conflict for {BikeId}", bike.Id);
             return new BikeSaveResult.Conflict(current);
@@ -156,7 +156,7 @@ public sealed class BikeCoordinator(
                     return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for linkage bikes.");
                 }
 
-                if (bike.Image is null || bike.Chainstay is null || bike.PixelsToMillimeters <= 0)
+                if (bike.ImageBytes.Length == 0 || bike.Chainstay is null || bike.PixelsToMillimeters <= 0)
                 {
                     return new BikeSaveResult.InvalidRearSuspension("Linkage bikes require an image, chainstay, and calibrated linkage scale.");
                 }
@@ -178,16 +178,14 @@ public sealed class BikeCoordinator(
                 break;
 
             case RearSuspensionResolution.LeverageRatio leverageRatioResolution:
-                if (bike.ShockStroke is null)
-                {
-                    return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for leverage ratio bikes.");
-                }
-
                 var leverageRatio = leverageRatioResolution.Value.LeverageRatio;
-                if (bike.ShockStroke.Value > leverageRatio.MaxShockStroke)
+                if (!LeverageRatioShockStrokeRules.TryValidate(
+                        bike.ShockStroke,
+                        leverageRatio,
+                        out _,
+                        out var leverageRatioShockStrokeError))
                 {
-                    return new BikeSaveResult.InvalidRearSuspension(
-                        $"Shock stroke must be at most {leverageRatio.MaxShockStroke:0.###} mm.");
+                    return new BikeSaveResult.InvalidRearSuspension(leverageRatioShockStrokeError!);
                 }
 
                 logger.Verbose("Analyzing leverage ratio before bike save for {BikeId}", bike.Id);
@@ -208,6 +206,7 @@ public sealed class BikeCoordinator(
             await databaseService.PutAsync(bike);
             var saved = BikeSnapshot.From(bike);
             bikeStore.Upsert(saved);
+            shell.GoBack();
 
             logger.Information("Bike save completed for {BikeId}", bike.Id);
             return new BikeSaveResult.Saved(saved.Updated, analysisResult);

@@ -15,8 +15,8 @@ using Serilog;
 
 namespace Sufni.App.ViewModels.Editors;
 
-// One live-preview tab. It owns one client instance, the requested-rate inputs, and
-// the throttled snapshot projected into the desktop detail view.
+// One live-preview tab. It owns the requested-rate inputs plus a shared-stream observer
+// lease, and projects a throttled snapshot into the desktop detail view.
 public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqDetailViewModel>();
@@ -405,8 +405,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             var updatedState = sharedStream.CurrentState;
             if (result is LivePreviewStartResult.Rejected rejected)
             {
-                await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
-                shell.Close(this);
+                var shouldClose = await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
+                if (!cancellationToken.IsCancellationRequested && shouldClose)
+                {
+                    shell.Close(this);
+                }
+
                 return;
             }
             else if (updatedState.ConnectionState == LiveConnectionState.Connected)
@@ -580,22 +584,46 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshHeaderFromStore()
     {
         var latest = liveDaqStore?.Get(IdentityKey);
-        if (latest is null)
+        if (latest is not null)
+        {
+            Name = latest.DisplayName;
+            BoardId = latest.BoardId;
+            SetupName = latest.SetupName;
+            BikeName = latest.BikeName;
+        }
+
+        if (TryGetCurrentEndpointSnapshot(latest, out var endpointSnapshot))
+        {
+            Endpoint = endpointSnapshot.Endpoint;
+            managementHost = endpointSnapshot.Host;
+            managementPort = endpointSnapshot.Port;
+        }
+        else
         {
             managementHost = null;
             managementPort = null;
-            RefreshManagementAvailability();
-            return;
         }
 
-        Name = latest.DisplayName;
-        BoardId = latest.BoardId;
-        Endpoint = latest.Endpoint;
-        SetupName = latest.SetupName;
-        BikeName = latest.BikeName;
-        managementHost = latest.Host;
-        managementPort = latest.Port;
         RefreshManagementAvailability();
+    }
+
+    private bool TryGetCurrentEndpointSnapshot(LiveDaqSnapshot? latest, out LiveDaqSnapshot endpointSnapshot)
+    {
+        if (latest is { Host: not null, Port: not null })
+        {
+            endpointSnapshot = latest;
+            return true;
+        }
+
+        if (sharedStream?.CurrentState.IsClosed == false
+            && sharedStream.CatalogSnapshot is { Host: not null, Port: not null } sharedSnapshot)
+        {
+            endpointSnapshot = sharedSnapshot;
+            return true;
+        }
+
+        endpointSnapshot = null!;
+        return false;
     }
 
     private void RefreshSessionAvailability(LiveConnectionState connectionState)

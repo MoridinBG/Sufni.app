@@ -1,5 +1,4 @@
 using System;
-using Avalonia.Media.Imaging;
 using Sufni.App.Models;
 using Sufni.Kinematics;
 
@@ -27,8 +26,8 @@ public sealed record BikeSnapshot(
     double ImageRotationDegrees,
     LeverageRatio? LeverageRatio,
     Linkage? Linkage,
-    Bitmap? Image,
-    long Updated) : IVersionedSnapshot
+    byte[] ImageBytes,
+    long Updated)
 {
     public static BikeSnapshot From(Bike bike) => new(
         bike.Id,
@@ -48,6 +47,6 @@ public sealed record BikeSnapshot(
         bike.ImageRotationDegrees,
         bike.LeverageRatio,
         bike.Linkage,
-        bike.Image,
+        bike.ImageBytes,
         bike.Updated);
 }

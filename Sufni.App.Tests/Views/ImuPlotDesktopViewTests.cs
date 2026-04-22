@@ -1,24 +1,26 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Markup.Xaml.Styling;
-using Avalonia.Threading;
+using Avalonia.VisualTree;
+using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
-using Sufni.App.Plots;
+using Sufni.App.Tests.Infrastructure;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Views;
 
 public class DesktopTelemetryPlotViewTests
 {
+    private static AvaPlot GetRenderedPlot(Control view) =>
+        Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
+
     [AvaloniaFact]
     public async Task ImuPlotDesktopView_LoadsSignalsFromTelemetryProperty()
     {
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new ImuPlotDesktopView();
         var host = new Window
@@ -29,24 +31,51 @@ public class DesktopTelemetryPlotViewTests
         };
 
         host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         view.Telemetry = CreateTelemetryDataWithImu();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
-        var plot = Assert.IsType<ImuPlot>(view.Plot);
-        Assert.NotNull(view.AvaPlot);
-        Assert.NotNull(plot.CursorLine);
+        var plot = GetRenderedPlot(view);
+        Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
 
         host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ImuPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoImuData()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var view = new ImuPlotDesktopView();
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        view.Telemetry = CreateTelemetryData();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = GetRenderedPlot(view);
+        Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
+        Assert.Empty(plot.Plot.PlottableList.OfType<VerticalLine>());
+        Assert.Single(plot.Plot.PlottableList.OfType<Text>());
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task TravelPlotDesktopView_LoadsSignalsFromTelemetryProperty()
     {
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var view = new TravelPlotDesktopView();
         var host = new Window
@@ -57,24 +86,23 @@ public class DesktopTelemetryPlotViewTests
         };
 
         host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         view.Telemetry = CreateTelemetryData();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
-        var plot = Assert.IsType<TravelPlot>(view.Plot);
-        Assert.NotNull(view.AvaPlot);
-        Assert.NotNull(plot.CursorLine);
+        var plot = GetRenderedPlot(view);
+        Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
 
         host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
     public async Task VelocityPlotDesktopView_LoadsSignalsFromTelemetryProperty()
     {
-        EnsurePlotViewStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
 
         var travelView = new TravelPlotDesktopView();
         var travelHost = new Window
@@ -85,10 +113,10 @@ public class DesktopTelemetryPlotViewTests
         };
 
         travelHost.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         travelView.Telemetry = CreateTelemetryData();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         var velocityView = new VelocityPlotDesktopView
         {
@@ -102,35 +130,17 @@ public class DesktopTelemetryPlotViewTests
         };
 
         velocityHost.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         velocityView.Telemetry = CreateTelemetryData();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
-        var plot = Assert.IsType<VelocityPlot>(velocityView.Plot);
-        Assert.NotNull(velocityView.AvaPlot);
-        Assert.NotNull(plot.CursorLine);
+        var plot = GetRenderedPlot(velocityView);
+        Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
 
         velocityHost.Close();
         travelHost.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
-
-    private static void EnsurePlotViewStyle()
-    {
-        var application = Application.Current
-            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-        var source = new Uri("avares://Sufni.App/Views/Plots/SufniPlotView.axaml");
-
-        if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
-        {
-            return;
-        }
-
-        application.Styles.Add(new StyleInclude(new Uri("avares://Sufni.App/"))
-        {
-            Source = source
-        });
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 }

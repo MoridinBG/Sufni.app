@@ -23,10 +23,21 @@ public static class GeometryUtils
         var dotProduct = x1 * x2 + y1 * y2;
         var magnitude1 = Math.Sqrt(x1 * x1 + y1 * y1);
         var magnitude2 = Math.Sqrt(x2 * x2 + y2 * y2);
+        var magnitudeProduct = magnitude1 * magnitude2;
 
-        var cosAngle = dotProduct / (magnitude1 * magnitude2);
+        if (magnitudeProduct == 0 || !double.IsFinite(magnitudeProduct))
+        {
+            throw new InvalidOperationException("Cannot calculate angle for coincident or degenerate points.");
+        }
+
+        var cosAngle = dotProduct / magnitudeProduct;
+        if (!double.IsFinite(cosAngle))
+        {
+            throw new InvalidOperationException("Cannot calculate angle for coincident or degenerate points.");
+        }
+
         // Clamp value to the valid range for Math.Acos to avoid NaN due to floating point errors
-        cosAngle = Math.Max(-1.0, Math.Min(1.0, cosAngle));
+        cosAngle = Math.Clamp(cosAngle, -1.0, 1.0);
         return Math.Acos(cosAngle);
     }
 }

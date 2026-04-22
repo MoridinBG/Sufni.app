@@ -23,6 +23,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\AppleShared\AppleBonjourServiceDiscoveryBase.cs"
+      Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
+    <Compile Include="..\AppleShared\AppleSecureStorageBase.cs"
+      Link="AppleShared/AppleSecureStorageBase.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ImageAsset Remove="Assets.xcassets\AppIcon.appiconset\icon_512x512@2x.png" />
   </ItemGroup>
 </Project>

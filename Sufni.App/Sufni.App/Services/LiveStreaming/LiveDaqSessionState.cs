@@ -63,17 +63,6 @@ public sealed class LiveDaqSessionState
 
             switch (frame)
             {
-                case LiveStartAckFrame startAckFrame:
-                    if (startAckFrame.Payload.Result == LiveStartErrorCode.Ok)
-                    {
-                        selectedSensorMask = startAckFrame.Payload.SelectedSensorMask;
-                    }
-                    break;
-
-                case LiveSessionHeaderFrame sessionHeaderFrame:
-                    sessionHeader = sessionHeaderFrame.Payload;
-                    break;
-
                 case LiveTravelBatchFrame travelBatchFrame:
                     ApplyTravelBatch(travelBatchFrame);
                     break;

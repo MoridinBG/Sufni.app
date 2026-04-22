@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
+using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
@@ -25,20 +27,11 @@ namespace Sufni.App.ViewModels.Editors;
 /// conflict detection at save time. The bike combobox is populated
 /// from <see cref="IBikeStore"/>.
 /// </summary>
-public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
+public partial class SetupEditorViewModel : TabPageViewModelBase
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
-
-    // Explicit interface implementation: the generated commands are
-    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
-    // non-generic IRelayCommand interface property with.
-    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
-    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
-    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
-    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
-    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
 
     #region Private fields
 
@@ -111,24 +104,30 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         ShockSensorConfiguration = SensorConfigurationViewModel.Create(value, JointsFromSnapshot(SelectedBike));
     }
 
-    partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? value)
+    partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
     {
-        if (value is null) return;
-        value.PropertyChanged += (_, e) =>
+        if (oldValue is not null)
         {
-            if (e.PropertyName == "IsDirty") EvaluateDirtiness();
-            SaveCommand.NotifyCanExecuteChanged();
-        };
+            oldValue.PropertyChanged -= OnSensorConfigurationPropertyChanged;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.PropertyChanged += OnSensorConfigurationPropertyChanged;
+        }
     }
 
-    partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? value)
+    partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
     {
-        if (value is null) return;
-        value.PropertyChanged += (_, e) =>
+        if (oldValue is not null)
         {
-            if (e.PropertyName == "IsDirty") EvaluateDirtiness();
-            SaveCommand.NotifyCanExecuteChanged();
-        };
+            oldValue.PropertyChanged -= OnSensorConfigurationPropertyChanged;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.PropertyChanged += OnSensorConfigurationPropertyChanged;
+        }
     }
 
     #endregion Property change handlers
@@ -188,7 +187,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
     private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
     {
-        if (snapshot?.Image is null) return [];
+        if (snapshot is null || snapshot.ImageBytes.Length == 0) return [];
 
         var resolution = RearSuspensionResolver.Resolve(
             snapshot.RearSuspensionKind,
@@ -197,8 +196,14 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
         if (resolution is not RearSuspensionResolution.Linkage linkage) return [];
 
+        var imageHeight = BikeImageData.Decode(snapshot.ImageBytes)?.Size.Height;
+        if (!imageHeight.HasValue)
+        {
+            return [];
+        }
+
         var jvms = linkage.Value.Linkage.Joints
-            .Select(j => JointViewModel.FromJoint(j, snapshot.Image.Size.Height, snapshot.PixelsToMillimeters));
+            .Select(j => JointViewModel.FromJoint(j, imageHeight.Value, snapshot.PixelsToMillimeters));
         return [.. jvms];
     }
 
@@ -253,6 +258,16 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         ShockSensorType = null;
         ShockSensorConfiguration = null;
         RearSensorCompatibilityMessage = "Rear sensor cleared because the selected bike does not support this sensor.";
+    }
+
+    private void OnSensorConfigurationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SensorConfigurationViewModel.IsDirty))
+        {
+            EvaluateDirtiness();
+        }
+
+        SaveCommand.NotifyCanExecuteChanged();
     }
 
     #endregion Private methods
@@ -317,12 +332,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
 
                 IsInDatabase = true;
                 EvaluateDirtiness();
-
-                Debug.Assert(App.Current is not null);
-                if (!App.Current.IsDesktop)
-                {
-                    OpenPreviousPage();
-                }
                 break;
 
             case SetupSaveResult.Conflict conflict:
@@ -370,8 +379,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
         await bikeCoordinator.OpenEditAsync(bike.Id);
     }
 
-    [RelayCommand]
-    private async Task Delete(bool navigateBack)
+    protected override async Task DeleteImplementation(bool navigateBack)
     {
         if (setupCoordinator is null) return;
 
@@ -391,12 +399,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase, IEditorActions
                 ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
                 break;
         }
-    }
-
-    [RelayCommand]
-    private void FakeDelete()
-    {
-        // Exists so the editor button strip can bind to a delete command.
     }
 
     [RelayCommand]

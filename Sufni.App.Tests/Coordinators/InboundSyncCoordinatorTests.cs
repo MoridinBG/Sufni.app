@@ -17,8 +17,8 @@ public class InboundSyncCoordinatorTests
 
     private InboundSyncCoordinator CreateCoordinator(List<Board>? boards = null)
     {
-        // Setup handlers call GetAllAsync<Board>() on every arrival, so
-        // always stub it to avoid a null-deref when no boards were seeded.
+        // Bike/setup handlers reload authoritative state on every arrival,
+        // so always seed board lookups to avoid null task results.
         database.GetAllAsync<Board>().Returns(Task.FromResult(boards ?? new List<Board>()));
         return new InboundSyncCoordinator(database, bikeStore, setupStore, server);
     }
@@ -33,6 +33,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
+        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(new Bike(bikeId, "fresh bike") { HeadAngle = 65, ForkStroke = 160, Updated = 7 }));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "test bike") { HeadAngle = 65, ForkStroke = 160, Updated = 4 } },
@@ -41,7 +42,7 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "test bike"));
+        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "fresh bike" && s.Updated == 7));
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
 
@@ -50,6 +51,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
+        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult<Bike>(null!));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "gone") { Updated = 5, Deleted = 5 } },
@@ -62,6 +64,24 @@ public class InboundSyncCoordinatorTests
         bikeStore.DidNotReceiveWithAnyArgs().Upsert(default!);
     }
 
+    [AvaloniaFact]
+    public async Task SynchronizationDataArrived_DoesNotRemoveBike_WhenDeleteWasDiscardedByMerge()
+    {
+        var coordinator = CreateCoordinator();
+        var bikeId = Guid.NewGuid();
+        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(new Bike(bikeId, "kept bike") { Updated = 9 }));
+        var data = new SynchronizationData
+        {
+            Bikes = { new Bike(bikeId, "gone") { Updated = 5, Deleted = 5 } },
+        };
+
+        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
+        await DrainDispatcherAsync();
+
+        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "kept bike"));
+        bikeStore.DidNotReceive().Remove(bikeId);
+    }
+
     // ----- Setups with matching and non-matching boards -----
 
     [AvaloniaFact]
@@ -69,6 +89,7 @@ public class InboundSyncCoordinatorTests
     {
         var setupId = Guid.NewGuid();
         var boardId = Guid.NewGuid();
+        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(new Setup(setupId, "fresh tuned") { BikeId = Guid.NewGuid(), Updated = 8 }));
         var coordinator = CreateCoordinator(boards: new List<Board>
         {
             new(boardId, setupId),
@@ -83,13 +104,14 @@ public class InboundSyncCoordinatorTests
         await DrainDispatcherAsync();
 
         setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
-            s.Id == setupId && s.Name == "tuned" && s.BoardId == boardId));
+            s.Id == setupId && s.Name == "fresh tuned" && s.BoardId == boardId && s.Updated == 8));
     }
 
     [AvaloniaFact]
     public async Task SynchronizationDataArrived_UpsertsSetup_WithNullBoardId_WhenNoMatchingBoard()
     {
         var setupId = Guid.NewGuid();
+        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(new Setup(setupId, "untuned") { BikeId = Guid.NewGuid(), Updated = 3 }));
         var coordinator = CreateCoordinator(boards: new List<Board>
         {
             new(Guid.NewGuid(), Guid.NewGuid()),
@@ -112,6 +134,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var setupId = Guid.NewGuid();
+        database.GetAsync<Setup>(setupId).Returns(Task.FromResult<Setup>(null!));
         var data = new SynchronizationData
         {
             Setups = { new Setup(setupId, "gone") { Updated = 9, Deleted = 9 } },
@@ -132,6 +155,8 @@ public class InboundSyncCoordinatorTests
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
+        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(new Bike(bikeId, "authoritative bike") { Updated = 2 }));
+        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(new Setup(setupId, "authoritative setup") { BikeId = bikeId, Updated = 2 }));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "test bike") { Updated = 1 } },
@@ -141,7 +166,7 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId));
-        setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s => s.Id == setupId));
+        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "authoritative bike"));
+        setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s => s.Id == setupId && s.Name == "authoritative setup"));
     }
 }

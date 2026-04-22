@@ -2,7 +2,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.Editors.Bike;
@@ -32,7 +31,6 @@ public class ViewLocator : IDataTemplate
         [typeof(JointViewModel)] = static () => new global::Sufni.App.Views.LinkageParts.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearShockSensorConfigurationView(),
-        [typeof(LinearShockStrokeSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.LinearShockStrokeSensorConfigurationView(),
         [typeof(RotationalForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.RotationalForkSensorConfigurationView(),
         [typeof(RotationalShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Views.SensorConfigurations.RotationalShockSensorConfigurationView(),
         [typeof(BalancePageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.BalancePageView(),
@@ -62,8 +60,7 @@ public class ViewLocator : IDataTemplate
         if (data is null)
             return null;
 
-        Debug.Assert(App.Current is not null);
-        var isDesktop = App.Current.IsDesktop;
+        var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
 
         if (isDesktop && DesktopViewFactories.TryGetValue(viewModelType, out var desktopFactory))

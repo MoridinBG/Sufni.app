@@ -1,4 +1,4 @@
-using System.Reflection;
+using System;
 
 namespace Sufni.App.Tests.Infrastructure;
 
@@ -12,6 +12,13 @@ namespace Sufni.App.Tests.Infrastructure;
 /// </summary>
 public sealed class TestApp : Sufni.App.App
 {
+    public static void SetIsDesktop(bool isDesktop)
+    {
+        var app = Sufni.App.App.Current
+            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
+        app.SetIsDesktopForTests(isDesktop);
+    }
+
     public override void Initialize()
     {
         // Skip XAML loading. The real App.axaml pulls in plot/map style
@@ -21,22 +28,5 @@ public sealed class TestApp : Sufni.App.App
     public override void OnFrameworkInitializationCompleted()
     {
         // Skip the real DI bootstrap.
-    }
-
-    /// <summary>
-    /// Flip the underlying <see cref="Sufni.App.App.IsDesktop"/> for
-    /// the duration of a test. Has a private setter on the real
-    /// <c>App</c>, so we go through reflection.
-    /// </summary>
-    public static void SetIsDesktop(bool value)
-    {
-        var current = Sufni.App.App.Current
-            ?? throw new InvalidOperationException(
-                "App.Current is null. Did you forget [AvaloniaFact]?");
-        var prop = typeof(Sufni.App.App).GetProperty(
-            nameof(Sufni.App.App.IsDesktop),
-            BindingFlags.Public | BindingFlags.Instance)
-            ?? throw new MissingMemberException(nameof(Sufni.App.App), nameof(Sufni.App.App.IsDesktop));
-        prop.SetValue(current, value);
     }
 }

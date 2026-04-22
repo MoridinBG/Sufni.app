@@ -132,6 +132,7 @@ public class SetupCoordinatorTests
         await database.Received(1).PutAsync(setup);
         setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7));
+        shell.Received(1).GoBack();
         var saved = Assert.IsType<SetupSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
     }
@@ -215,6 +216,7 @@ public class SetupCoordinatorTests
         Assert.Same(current, conflict.CurrentSnapshot);
         await database.DidNotReceive().PutAsync(Arg.Any<Setup>());
         setupStore.DidNotReceive().Upsert(Arg.Any<SetupSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -230,6 +232,7 @@ public class SetupCoordinatorTests
 
         Assert.IsType<SetupSaveResult.Failed>(result);
         setupStore.DidNotReceive().Upsert(Arg.Any<SetupSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     // ----- DeleteAsync -----

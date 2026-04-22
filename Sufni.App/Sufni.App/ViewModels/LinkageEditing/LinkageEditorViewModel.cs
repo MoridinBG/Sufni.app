@@ -15,6 +15,11 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.ViewModels.LinkageEditing;
 
+public sealed class LinkagePreviewChangedEventArgs(JointViewModel? joint) : EventArgs
+{
+    public JointViewModel? Joint { get; } = joint;
+}
+
 public partial class LinkageEditorViewModel : ObservableObject
 {
     private uint pointNumber = 1;
@@ -25,7 +30,8 @@ public partial class LinkageEditorViewModel : ObservableObject
     private readonly Dictionary<LinkViewModel, PropertyChangedEventHandler> linkPropertyChangedHandlers = [];
     private bool suppressChangeNotifications;
 
-    public event EventHandler<LinkageEditorChange>? Changed;
+    public event EventHandler<LinkagePreviewChangedEventArgs>? PreviewChanged;
+    public event EventHandler? StateChanged;
 
     public ReadOnlyObservableCollection<JointViewModel> JointViewModels { get; }
     public ReadOnlyObservableCollection<LinkViewModel> LinkViewModels { get; }
@@ -50,7 +56,6 @@ public partial class LinkageEditorViewModel : ObservableObject
         ClearSelections();
         value.IsSelected = true;
         SelectedPoint = null;
-        RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.SelectionChanged, link: value));
     }
 
     partial void OnSelectedPointChanged(JointViewModel? value)
@@ -60,7 +65,6 @@ public partial class LinkageEditorViewModel : ObservableObject
         ClearSelections();
         value.IsSelected = true;
         SelectedLink = null;
-        RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.SelectionChanged, joint: value));
     }
 
     public void Load(Linkage? linkage, double? imageHeight, double? pixelsToMillimeters)
@@ -255,11 +259,18 @@ public partial class LinkageEditorViewModel : ObservableObject
         }
     }
 
-    private void RaiseChanged(LinkageEditorChange change)
+    private void RaisePreviewChanged(JointViewModel? joint)
     {
         if (suppressChangeNotifications) return;
 
-        Changed?.Invoke(this, change);
+        PreviewChanged?.Invoke(this, new LinkagePreviewChangedEventArgs(joint));
+    }
+
+    private void RaiseStateChanged()
+    {
+        if (suppressChangeNotifications) return;
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ClearSelections()
@@ -287,17 +298,17 @@ public partial class LinkageEditorViewModel : ObservableObject
             {
                 case nameof(jointViewModel.WasPossiblyDragged) when jointViewModel.WasPossiblyDragged:
                     jointViewModel.WasPossiblyDragged = false;
-                    RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.DragCompleted, jointViewModel));
+                    RaiseStateChanged();
                     break;
 
                 case nameof(jointViewModel.Name):
                 case nameof(jointViewModel.Type):
-                    RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.JointMetadataChanged, jointViewModel));
+                    RaiseStateChanged();
                     break;
 
                 case nameof(jointViewModel.X):
                 case nameof(jointViewModel.Y):
-                    RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.JointCoordinatesChanged, jointViewModel));
+                    RaisePreviewChanged(jointViewModel);
                     break;
             }
         };
@@ -333,7 +344,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
             if (eventArgs.PropertyName is nameof(linkViewModel.A) or nameof(linkViewModel.B))
             {
-                RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.LinkEndpointsChanged, link: linkViewModel));
+                RaiseStateChanged();
             }
         };
 
@@ -393,7 +404,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
             if (suppressChangeNotifications) return;
 
-            RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.JointStructureChanged));
+            RaiseStateChanged();
         };
     }
 
@@ -432,7 +443,7 @@ public partial class LinkageEditorViewModel : ObservableObject
 
             if (suppressChangeNotifications) return;
 
-            RaiseChanged(new LinkageEditorChange(LinkageEditorChangeKind.LinkStructureChanged));
+            RaiseStateChanged();
         };
     }
 

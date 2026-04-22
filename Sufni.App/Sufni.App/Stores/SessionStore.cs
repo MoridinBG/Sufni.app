@@ -20,12 +20,10 @@ internal sealed class SessionStore(IDatabaseService databaseService) : ISessionS
 
     public IObservable<SessionSnapshot> Watch(Guid id) =>
         source.Watch(id)
-            // Skip Remove (and Refresh) events: a removed snapshot can carry
-            // a stale or null Current value, and the editor should not react
-            // to its own session disappearing from the store (the tab close
-            // path handles that). The clear-and-reload inside RefreshAsync
-            // is also surfaced as Remove → Add, so this filter ensures the
-            // editor only reacts to the Add side after the dust settles.
+            // Skip Remove events: RefreshAsync clears and repopulates the
+            // cache, so a watched session can briefly disappear before the
+            // fresh Add arrives. The editor should react only to the current
+            // Add/Update snapshot, not to that transient removal.
             .Where(c => c.Reason is ChangeReason.Add or ChangeReason.Update)
             .Select(c => c.Current);
 

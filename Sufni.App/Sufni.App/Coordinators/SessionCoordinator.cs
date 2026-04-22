@@ -1,6 +1,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -58,8 +59,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
         if (synchronizationServer is not null)
         {
-            // Use += so the bike/setup handler set on the same property
-            // by MainPagesViewModel is preserved alongside this one.
             synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
             synchronizationServer.SessionDataArrived += OnSessionDataArrived;
         }
@@ -215,7 +214,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         logger.Information("Starting session save for {SessionId}", session.Id);
 
         var current = sessionStore.Get(session.Id);
-        if (current.IsNewerThan(baselineUpdated))
+        if (current is not null && current.Updated > baselineUpdated)
         {
             logger.Warning("Session save conflict for {SessionId}", session.Id);
             return new SessionSaveResult.Conflict(current);
@@ -235,6 +234,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
             }
             var saved = SessionSnapshot.From(fresh);
             sessionStore.Upsert(saved);
+            shell.GoBack();
 
             logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Updated);
@@ -270,7 +270,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (track.Points.Count > 0)
+                if (track is not null)
                 {
                     await databaseService.PutAsync(track);
                     fullTrackId = track.Id;
@@ -311,7 +311,29 @@ public sealed class SessionCoordinator : ISessionCoordinator
 
         try
         {
+            var session = await databaseService.GetSessionAsync(sessionId);
+            var trackId = session?.FullTrack;
+            var shouldDeleteTrack = false;
+
+            if (trackId.HasValue)
+            {
+                var sessions = await databaseService.GetAllAsync<Session>();
+                shouldDeleteTrack = !sessions.Any(existing => existing.Id != sessionId && existing.FullTrack == trackId);
+            }
+
             await databaseService.DeleteAsync<Session>(sessionId);
+
+            if (shouldDeleteTrack && trackId.HasValue)
+            {
+                try
+                {
+                    await databaseService.DeleteAsync<Track>(trackId.Value);
+                }
+                catch (Exception e)
+                {
+                    logger.Warning(e, "Failed to delete orphaned track {TrackId} after deleting session {SessionId}", trackId.Value, sessionId);
+                }
+            }
         }
         catch (Exception e)
         {
@@ -323,35 +345,6 @@ public sealed class SessionCoordinator : ISessionCoordinator
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
-    }
-
-    public async Task EnsureTelemetryDataAvailableAsync(Guid sessionId)
-    {
-        var current = sessionStore.Get(sessionId);
-        if (current is { HasProcessedData: true })
-        {
-            logger.Verbose("Telemetry data already available for session {SessionId}", sessionId);
-            return;
-        }
-
-        try
-        {
-            logger.Verbose("Downloading telemetry data for session {SessionId}", sessionId);
-            var psst = await httpApiService.GetSessionPsstAsync(sessionId)
-                ?? throw new Exception("Session data could not be downloaded from server.");
-            await databaseService.PatchSessionPsstAsync(sessionId, psst);
-
-            var fresh = await databaseService.GetSessionAsync(sessionId);
-            if (fresh is not null)
-            {
-                sessionStore.Upsert(SessionSnapshot.From(fresh));
-            }
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Failed to ensure telemetry data for session {SessionId}", sessionId);
-            throw;
-        }
     }
 
     private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken)

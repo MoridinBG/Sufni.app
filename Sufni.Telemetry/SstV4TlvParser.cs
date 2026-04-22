@@ -195,7 +195,7 @@ public class SstV4TlvParser : ISstParser
             throw new FormatException("SST v4 header is truncated.");
 
         _ = reader.ReadUInt32(); // Padding
-        var timestamp = (int)reader.ReadInt64();
+        var timestamp = reader.ReadInt64();
 
         var frontList = new List<int>();
         var rearList = new List<int>();
