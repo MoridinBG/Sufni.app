@@ -82,7 +82,13 @@ mc:Ignorable="d">
                     </Canvas>
 
                     <!--  Wheels  -->
-                    <Canvas IsVisible="{Binding WheelGeometry.HasWheels}">
+                    <Canvas Name="WheelOverlayCanvas">
+                        <Canvas.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsLinkageMode" />
+                                <Binding Path="WheelGeometry.HasWheels" />
+                            </MultiBinding>
+                        </Canvas.IsVisible>
                         <!--  Front wheel  -->
                         <Grid
                         Canvas.Left="{Binding WheelGeometry.FrontWheelCircleLeft}"

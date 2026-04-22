@@ -85,6 +85,60 @@ public class BikeEditorViewSmokeTests
     }
 
     [AvaloniaFact]
+    public async Task BikeEditorView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
+    {
+        EnsureBikeEditorViewResources();
+        EnsurePlotViewStyle();
+
+        var view = new BikeEditorView
+        {
+            DataContext = CreateViewModel(TestSnapshots.Bike())
+        };
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = view
+        };
+
+        host.Show();
+        await FlushUiAsync();
+
+        Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
+
+        host.Close();
+        await FlushUiAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task BikeImageControlsDesktopView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
+    {
+        EnsureBikeEditorViewResources();
+        EnsurePlotViewStyle();
+
+        var view = new BikeImageControlsDesktopView
+        {
+            DataContext = CreateViewModel(TestSnapshots.Bike())
+        };
+        var host = new Window
+        {
+            Width = 500,
+            Height = 800,
+            Content = view
+        };
+
+        host.Show();
+        await FlushUiAsync();
+
+        Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
+
+        host.Close();
+        await FlushUiAsync();
+    }
+
+    [AvaloniaFact]
     public async Task BikeImageControlsDesktopView_ShowsWheelRemoveButtons_AndBindsCommands()
     {
         EnsureBikeEditorViewResources();
@@ -124,10 +178,68 @@ public class BikeEditorViewSmokeTests
         await FlushUiAsync();
     }
 
-    private static BikeEditorViewModel CreateViewModel()
+    [AvaloniaFact]
+    public async Task BikeImageControlsDesktopView_RendersLeverageRatioEditor_WhenInLeverageRatioMode()
+    {
+        EnsureBikeEditorViewResources();
+        EnsurePlotViewStyle();
+
+        var view = new BikeImageControlsDesktopView
+        {
+            DataContext = CreateViewModel(CreateLeverageRatioSnapshot())
+        };
+        var host = new Window
+        {
+            Width = 500,
+            Height = 800,
+            Content = view
+        };
+
+        host.Show();
+        await FlushUiAsync();
+
+        Assert.Single(view.GetVisualDescendants().OfType<LeverageRatioEditorView>());
+        Assert.DoesNotContain(
+            view.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text?.Contains("Sufni.App.ViewModels.Editors.Bike.LeverageRatioEditorViewModel", StringComparison.Ordinal) == true);
+
+        host.Close();
+        await FlushUiAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task BikeImageControlsDesktopView_HidesWheelEditors_WhenInLeverageRatioMode()
+    {
+        EnsureBikeEditorViewResources();
+        EnsurePlotViewStyle();
+
+        var view = new BikeImageControlsDesktopView
+        {
+            DataContext = CreateViewModel(CreateLeverageRatioSnapshot())
+        };
+        var host = new Window
+        {
+            Width = 500,
+            Height = 800,
+            Content = view
+        };
+
+        host.Show();
+        await FlushUiAsync();
+
+        Assert.False(view.FindControl<Grid>("FrontWheelEditorHeaderGrid")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("FrontWheelEditorInputsGrid")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("RearWheelEditorHeaderGrid")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("RearWheelEditorInputsGrid")!.IsVisible);
+
+        host.Close();
+        await FlushUiAsync();
+    }
+
+    private static BikeEditorViewModel CreateViewModel(BikeSnapshot? snapshot = null, IDialogService? dialogService = null)
     {
         var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
@@ -141,12 +253,12 @@ public class BikeEditorViewSmokeTests
         dependencyQuery.IsBikeInUse(Arg.Any<Guid>()).Returns(false);
 
         return new BikeEditorViewModel(
-            CreateSnapshot(),
+            snapshot ?? CreateSnapshot(),
             isNew: false,
             bikeCoordinator,
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>());
+            dialogService ?? Substitute.For<IDialogService>());
     }
 
     private static BikeSnapshot CreateSnapshot()
@@ -156,6 +268,7 @@ public class BikeEditorViewSmokeTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = 0.5,
+            RearSuspensionKind = RearSuspensionKind.Linkage,
             Chainstay = 440,
             PixelsToMillimeters = 1,
             Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
@@ -171,6 +284,20 @@ public class BikeEditorViewSmokeTests
         };
 
         return BikeSnapshot.From(bike);
+    }
+
+    private static BikeSnapshot CreateLeverageRatioSnapshot()
+    {
+        return TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150))) with
+        {
+            FrontWheelRimSize = EtrtoRimSize.Inch29,
+            FrontWheelTireWidth = 2.4,
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            RearWheelRimSize = EtrtoRimSize.Inch275,
+            RearWheelTireWidth = 2.5,
+            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
+        };
     }
 
 

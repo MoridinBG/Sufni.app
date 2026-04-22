@@ -9,6 +9,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels.SensorConfigurations;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
@@ -83,6 +84,131 @@ public class SetupEditorViewModelTests
 
         Assert.NotNull(editor.ForkSensorConfiguration);
         Assert.Equal(SensorType.LinearFork, editor.ForkSensorConfiguration!.Type);
+    }
+
+    [AvaloniaFact]
+    public void Loaded_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
+    {
+        var bike = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+        };
+        bikesCache.AddOrUpdate(bike);
+        var snapshot = TestSnapshots.Setup(bikeId: bike.Id) with
+        {
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 75,
+                Resolution = 14
+            })
+        };
+
+        var editor = CreateEditor(snapshot);
+        editor.LoadedCommand.Execute(null);
+
+        Assert.Equal(SensorType.LinearShock, editor.ShockSensorType);
+    }
+
+    [AvaloniaFact]
+    public void SelectedBike_UpdatesAllowedShockSensorTypes_FromRearSuspensionKind()
+    {
+        var linkageBike = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+        };
+        var leverageRatioBike = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
+        bikesCache.AddOrUpdate(linkageBike);
+        bikesCache.AddOrUpdate(leverageRatioBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: linkageBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        Assert.Equal(new SensorType?[] { null, SensorType.LinearShock, SensorType.RotationalShock }, editor.ShockSensorTypes);
+
+        editor.SelectedBike = leverageRatioBike;
+
+        Assert.Equal(new SensorType?[] { null, SensorType.LinearShockStroke }, editor.ShockSensorTypes);
+    }
+
+    [AvaloniaFact]
+    public void SelectedBike_InvalidResolution_ReportsInvalidDescription_AndRestrictsSensorTypes()
+    {
+        var invalidBike = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            LeverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+        };
+        bikesCache.AddOrUpdate(invalidBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: invalidBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        Assert.Equal("Invalid rear suspension", editor.RearSuspensionDescription);
+        Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
+    }
+
+    [AvaloniaFact]
+    public void SelectedBike_HardtailResolution_ReportsHardtailDescription()
+    {
+        var hardtailBike = TestSnapshots.Bike();
+        bikesCache.AddOrUpdate(hardtailBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: hardtailBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        Assert.Equal("Hardtail", editor.RearSuspensionDescription);
+    }
+
+    [AvaloniaFact]
+    public void ChangingBike_ClearsIncompatibleRearSensorConfiguration()
+    {
+        var linkageBike = TestSnapshots.Bike() with
+        {
+            RearSuspensionKind = RearSuspensionKind.Linkage,
+            ShockStroke = 0.5,
+            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+        };
+        var leverageRatioBike = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
+        bikesCache.AddOrUpdate(linkageBike);
+        bikesCache.AddOrUpdate(leverageRatioBike);
+        var snapshot = TestSnapshots.Setup(bikeId: linkageBike.Id) with
+        {
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 75,
+                Resolution = 14
+            })
+        };
+
+        var editor = CreateEditor(snapshot);
+        editor.LoadedCommand.Execute(null);
+
+        editor.SelectedBike = leverageRatioBike;
+
+        Assert.Null(editor.ShockSensorType);
+        Assert.Null(editor.ShockSensorConfiguration);
+        Assert.NotNull(editor.RearSensorCompatibilityMessage);
+    }
+
+    [AvaloniaFact]
+    public void SettingShockSensorType_ToLinearShockStroke_OnCurveBike_CreatesMatchingViewModel()
+    {
+        var leverageRatioBike = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
+        bikesCache.AddOrUpdate(leverageRatioBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: leverageRatioBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        editor.ShockSensorType = SensorType.LinearShockStroke;
+
+        Assert.IsType<LinearShockStrokeSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
     }
 
     // ----- CanSave -----
