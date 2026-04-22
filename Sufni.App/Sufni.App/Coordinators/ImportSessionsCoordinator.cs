@@ -28,7 +28,6 @@ public sealed class ImportSessionsCoordinator(
     }
 
     public async Task<SessionImportResult> ImportAsync(
-        ITelemetryDataStore dataStore,
         IReadOnlyList<ITelemetryFile> files,
         Guid setupId,
         IProgress<SessionImportEvent>? progress = null)
@@ -37,9 +36,6 @@ public sealed class ImportSessionsCoordinator(
             "Starting session import for {FileCount} files and setup {SetupId}",
             files.Count,
             setupId);
-        logger.Verbose(
-            "Session import source is {DataStoreType}",
-            dataStore.GetType().Name);
 
         try
         {
@@ -105,7 +101,7 @@ public sealed class ImportSessionsCoordinator(
                     if (telemetryData.GpsData is { Length: > 0 })
                     {
                         var track = Track.FromGpsRecords(telemetryData.GpsData);
-                        if (track.Points.Count > 0)
+                        if (track is not null)
                         {
                             await databaseService.PutAsync(track);
                             fullTrackId = track.Id;
@@ -117,7 +113,7 @@ public sealed class ImportSessionsCoordinator(
                         name: telemetryFile.Name,
                         description: telemetryFile.Description,
                         setup: setupId,
-                        timestamp: (int)((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
+                        timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
                     {
                         ProcessedData = psst,
                         FullTrack = fullTrackId

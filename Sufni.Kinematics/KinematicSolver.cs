@@ -172,8 +172,10 @@ public class KinematicSolver
         if (length < 1e-12) return;
 
         var diff = (length - targetLength) / length;
-        var correctionX = 0.5 * dx * diff;
-        var correctionY = 0.5 * dy * diff;
+        var movableEndpointCount = (link.A.IsFixed ? 0 : 1) + (link.B.IsFixed ? 0 : 1);
+        var correctionScale = movableEndpointCount == 1 ? 1.0 : 0.5;
+        var correctionX = correctionScale * dx * diff;
+        var correctionY = correctionScale * dy * diff;
 
         if (!link.A.IsFixed)
         {

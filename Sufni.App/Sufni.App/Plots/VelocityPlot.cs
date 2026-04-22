@@ -10,20 +10,22 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
 {
     public VerticalLine? CursorLine { get; set; }
 
+    public override void SetCursorPosition(double position)
+    {
+        if (CursorLine is not null)
+        {
+            CursorLine.Position = position;
+        }
+    }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = "Velocity (m/seconds / time )";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
-        Plot.Axes.Right.TickLabelStyle.Bold = false;
-        Plot.Axes.Right.TickLabelStyle.FontSize = 12;
-        Plot.Axes.Right.MajorTickStyle.Length = 0;
-        Plot.Axes.Right.MinorTickStyle.Length = 0;
-        Plot.Axes.Right.MajorTickStyle.Width = 0;
-        Plot.Axes.Right.MinorTickStyle.Width = 0;
-        
+        ConfigureRightAxisStyle();
+
         var step = 1.0 / telemetryData.Metadata.SampleRate;
         var minimum = 0.0;
         var maximum = 0.0;
@@ -40,7 +42,7 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         }
 
         if (telemetryData.Rear.Present)
-        { 
+        {
             var velocity = telemetryData.Rear.Velocity.Select(v => v / 1000).ToArray();
             var rearSignal = Plot.Add.Signal(velocity, step, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
@@ -49,29 +51,17 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
             minimum = Math.Min(minimum, velocity.Min());
             maximum = Math.Max(maximum, velocity.Max());
         }
-        
+
         // Lock the vertical, and set limits on the horizontal axis
-        var ruleFront = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left, 
+        var ruleFront = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
             0, telemetryData.Metadata.Duration, minimum, maximum);
-        var ruleRear = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right, 
+        var ruleRear = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right,
             0, telemetryData.Metadata.Duration, minimum, maximum);
         Plot.Axes.Rules.Add(ruleFront);
         Plot.Axes.Rules.Add(ruleRear);
-        
-        // Maximize tick numbers
-        ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
-        {
-            TargetTickCount = 20,
-            LabelFormatter  = d => $"{d:0.###}"
-        };
-        Plot.Axes.Bottom.TickGenerator = tickGenTime;
 
-        ScottPlot.TickGenerators.NumericAutomatic tickGenTravel = new()
-        {
-            MinimumTickSpacing = 20
-        };
-        Plot.Axes.Left.TickGenerator = tickGenTravel;
-        Plot.Axes.Right.TickGenerator = tickGenTravel;
+        ConfigureTimeTicks();
+        ConfigureSymmetricValueTicks(20);
 
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;

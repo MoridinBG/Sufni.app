@@ -88,6 +88,7 @@ public class SessionCoordinatorTests
         await database.Received(1).GetSessionAsync(existing.Id);
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7 && s.HasProcessedData));
+        shell.Received(1).GoBack();
         var saved = Assert.IsType<SessionSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
     }
@@ -105,6 +106,7 @@ public class SessionCoordinatorTests
 
         Assert.IsType<SessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -121,6 +123,7 @@ public class SessionCoordinatorTests
         Assert.Same(current, conflict.CurrentSnapshot);
         await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -136,6 +139,7 @@ public class SessionCoordinatorTests
 
         Assert.IsType<SessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -186,14 +190,64 @@ public class SessionCoordinatorTests
     // ----- DeleteAsync -----
 
     [Fact]
-    public async Task DeleteAsync_HappyPath_DeletesClosesAndRemoves()
+    public async Task DeleteAsync_DeletesOrphanedTrack_ClosesAndRemoves()
     {
         var id = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+        database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session>
+        {
+            new(id, "name", "desc", null) { FullTrack = trackId }
+        }));
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Session>(id);
+        await database.Received(1).DeleteAsync<Track>(trackId);
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
+        sessionStore.Received(1).Remove(id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DoesNotDeleteTrack_WhenAnotherSessionStillUsesIt()
+    {
+        var id = Guid.NewGuid();
+        var otherSessionId = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+        database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session>
+        {
+            new(id, "name", "desc", null) { FullTrack = trackId },
+            new(otherSessionId, "other", "desc", null) { FullTrack = trackId }
+        }));
+
+        var result = await CreateCoordinator().DeleteAsync(id);
+
+        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        await database.Received(1).DeleteAsync<Session>(id);
+        await database.DidNotReceive().DeleteAsync<Track>(Arg.Any<Guid>());
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
+        sessionStore.Received(1).Remove(id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ReturnsDeleted_WhenTrackCleanupFails()
+    {
+        var id = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+        database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session>
+        {
+            new(id, "name", "desc", null) { FullTrack = trackId }
+        }));
+        database.DeleteAsync<Track>(trackId).ThrowsAsync(new InvalidOperationException("track locked"));
+
+        var result = await CreateCoordinator().DeleteAsync(id);
+
+        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        await database.Received(1).DeleteAsync<Session>(id);
+        await database.Received(1).DeleteAsync<Track>(trackId);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
         sessionStore.Received(1).Remove(id);
     }
@@ -209,54 +263,6 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!);
-    }
-
-    // ----- EnsureTelemetryDataAvailableAsync -----
-
-    [Fact]
-    public async Task EnsureTelemetryDataAvailableAsync_NoOp_WhenAlreadyHasProcessedData()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-
-        await CreateCoordinator().EnsureTelemetryDataAvailableAsync(snapshot.Id);
-
-        await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
-        await database.DidNotReceive().PatchSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>());
-    }
-
-    [Fact]
-    public async Task EnsureTelemetryDataAvailableAsync_PullsAndPatches_AndUpsertsRefetchedSnapshot()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        var psst = new byte[] { 1, 2, 3 };
-        http.GetSessionPsstAsync(snapshot.Id).Returns(psst);
-        var fresh = new Session(snapshot.Id, snapshot.Name, "", null)
-        {
-            Updated = 9,
-            HasProcessedData = true,
-        };
-        database.GetSessionAsync(snapshot.Id).Returns(fresh);
-
-        await CreateCoordinator().EnsureTelemetryDataAvailableAsync(snapshot.Id);
-
-        await http.Received(1).GetSessionPsstAsync(snapshot.Id);
-        await database.Received(1).PatchSessionPsstAsync(snapshot.Id, psst);
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
-            s.Id == snapshot.Id && s.HasProcessedData && s.Updated == 9));
-    }
-
-    [Fact]
-    public async Task EnsureTelemetryDataAvailableAsync_Throws_WhenHttpReturnsNull()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        http.GetSessionPsstAsync(snapshot.Id).Returns((byte[]?)null);
-
-        await Assert.ThrowsAsync<Exception>(() =>
-            CreateCoordinator().EnsureTelemetryDataAvailableAsync(snapshot.Id));
-        await database.DidNotReceive().PatchSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>());
     }
 
     // ----- Desktop / Mobile load workflows -----

@@ -33,7 +33,7 @@ internal class FixedAutoScaler(double? minX = null, double? maxX = null, double?
             var max = maxX ?? axis.Max;
             axis.Range.Set(min, max);
         }
-        
+
         foreach (var axis in yAxes)
         {
             var min = minY ?? axis.Min;
@@ -50,6 +50,39 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 {
     public static readonly Color FrontColor = Color.FromHex("#3288bd");
     public static readonly Color RearColor = Color.FromHex("#66c2a5");
+
+    protected void ConfigureRightAxisStyle()
+    {
+        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
+        Plot.Axes.Right.TickLabelStyle.Bold = false;
+        Plot.Axes.Right.TickLabelStyle.FontSize = 12;
+        Plot.Axes.Right.MajorTickStyle.Length = 0;
+        Plot.Axes.Right.MinorTickStyle.Length = 0;
+        Plot.Axes.Right.MajorTickStyle.Width = 0;
+        Plot.Axes.Right.MinorTickStyle.Width = 0;
+    }
+
+    protected void ConfigureTimeTicks()
+    {
+        Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic
+        {
+            TargetTickCount = 20,
+            LabelFormatter = value => $"{value:0.###}"
+        };
+    }
+
+    protected void ConfigureSymmetricValueTicks(float minimumTickSpacing)
+    {
+        ScottPlot.TickGenerators.NumericAutomatic tickGenerator = new()
+        {
+            MinimumTickSpacing = minimumTickSpacing
+        };
+
+        Plot.Axes.Left.TickGenerator = tickGenerator;
+        Plot.Axes.Right.TickGenerator = tickGenerator;
+    }
+
+    public virtual void SetCursorPosition(double position) { }
 
     public virtual void LoadTelemetryData(TelemetryData telemetryData) { }
 }

@@ -5,14 +5,11 @@ using System.Net;
 using System.Threading.Tasks;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
-using Serilog;
 
 namespace Sufni.App.Models;
 
 public class NetworkTelemetryDataStore : ITelemetryDataStore
 {
-    private static readonly ILogger logger = Log.ForContext<NetworkTelemetryDataStore>();
-
     public string Name { get; }
     public Guid? BoardId { get; private set; }
     private readonly IPEndPoint ipEndPoint;
@@ -31,7 +28,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
         {
             DaqListDirectoryResult.Listed listed => listed.Directory as DaqRootDirectoryRecord
                 ?? throw new DaqManagementException("ROOT listing did not return a root directory record."),
-            DaqListDirectoryResult.Error error => throw new DaqManagementException(error.Message),
+            DaqListDirectoryResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
             _ => throw new DaqManagementException("LIST_DIR returned an unsupported result shape.")
         };
 
@@ -43,22 +40,14 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                 case DaqConfigFileRecord:
                     continue;
                 case DaqSstFileRecord sstRecord:
-                    try
-                    {
-                        files.Add(new NetworkTelemetryFile(
-                            ipEndPoint,
-                            daqManagementService,
-                            sstRecord.RecordId,
-                            sstRecord.Name,
-                            sstRecord.SstVersion,
-                            sstRecord.TimestampUtc,
-                            sstRecord.Duration));
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.Warning(ex, "Skipping invalid network file entry {Name}", sstRecord.Name);
-                    }
-
+                    files.Add(new NetworkTelemetryFile(
+                        ipEndPoint,
+                        daqManagementService,
+                        sstRecord.RecordId,
+                        sstRecord.Name,
+                        sstRecord.SstVersion,
+                        sstRecord.TimestampUtc,
+                        sstRecord.Duration));
                     break;
             }
         }

@@ -18,7 +18,7 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
     private readonly ILogger logger;
     private readonly object gate = new();
     private readonly Subject<LiveGraphBatch> graphBatchesSubject = new();
-    private readonly PendingGraphBatch pendingGraphBatch = new();
+    private PendingGraphBatch pendingGraphBatch = new();
     private readonly SlidingWindowBuffer<double> recentTravelTimes = new(MaxVelocityWindowSamples);
     private readonly SlidingWindowBuffer<double> recentFrontTravel = new(MaxVelocityWindowSamples);
     private readonly SlidingWindowBuffer<double> recentRearTravel = new(MaxVelocityWindowSamples);
@@ -213,6 +213,7 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
         double[]? velocityRearSnap = null;
         int batchCount;
         long batchRevision;
+        PendingGraphBatch batchToFlush;
 
         lock (gate)
         {
@@ -221,19 +222,22 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                 return;
             }
 
-            batchCount = pendingGraphBatch.TravelTimes.Count;
-            travelTimesArr = pendingGraphBatch.TravelTimes.ToArray();
-            frontTravelArr = pendingGraphBatch.FrontTravel.ToArray();
-            rearTravelArr = pendingGraphBatch.RearTravel.ToArray();
+            batchToFlush = pendingGraphBatch;
+            pendingGraphBatch = new PendingGraphBatch();
 
-            imuTimesDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(pendingGraphBatch.ImuTimes.Count);
-            imuMagnitudesDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(pendingGraphBatch.ImuMagnitudes.Count);
-            foreach (var entry in pendingGraphBatch.ImuTimes)
+            batchCount = batchToFlush.TravelTimes.Count;
+            travelTimesArr = batchToFlush.TravelTimes.ToArray();
+            frontTravelArr = batchToFlush.FrontTravel.ToArray();
+            rearTravelArr = batchToFlush.RearTravel.ToArray();
+
+            imuTimesDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(batchToFlush.ImuTimes.Count);
+            imuMagnitudesDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(batchToFlush.ImuMagnitudes.Count);
+            foreach (var entry in batchToFlush.ImuTimes)
             {
                 imuTimesDict[entry.Key] = entry.Value.ToArray();
             }
 
-            foreach (var entry in pendingGraphBatch.ImuMagnitudes)
+            foreach (var entry in batchToFlush.ImuMagnitudes)
             {
                 imuMagnitudesDict[entry.Key] = entry.Value.ToArray();
             }
@@ -247,34 +251,46 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
 
             graphRevision++;
             batchRevision = graphRevision;
-            pendingGraphBatch.Clear();
         }
 
-        double[] frontVelocity;
-        double[] rearVelocity;
-        if (batchCount > 0)
+        try
         {
-            frontVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityFrontSnap!, batchCount);
-            rearVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityRearSnap!, batchCount);
+            double[] frontVelocity;
+            double[] rearVelocity;
+            if (batchCount > 0)
+            {
+                frontVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityFrontSnap!, batchCount);
+                rearVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityRearSnap!, batchCount);
+            }
+            else
+            {
+                frontVelocity = [];
+                rearVelocity = [];
+            }
+
+            var batch = new LiveGraphBatch(
+                Revision: batchRevision,
+                TravelTimes: travelTimesArr,
+                FrontTravel: frontTravelArr,
+                RearTravel: rearTravelArr,
+                VelocityTimes: travelTimesArr,
+                FrontVelocity: frontVelocity,
+                RearVelocity: rearVelocity,
+                ImuTimes: imuTimesDict,
+                ImuMagnitudes: imuMagnitudesDict);
+
+            graphBatchesSubject.OnNext(batch);
         }
-        else
+        catch
         {
-            frontVelocity = [];
-            rearVelocity = [];
+            lock (gate)
+            {
+                batchToFlush.AppendFrom(pendingGraphBatch);
+                pendingGraphBatch = batchToFlush;
+            }
+
+            throw;
         }
-
-        var batch = new LiveGraphBatch(
-            Revision: batchRevision,
-            TravelTimes: travelTimesArr,
-            FrontTravel: frontTravelArr,
-            RearTravel: rearTravelArr,
-            VelocityTimes: travelTimesArr,
-            FrontVelocity: frontVelocity,
-            RearVelocity: rearVelocity,
-            ImuTimes: imuTimesDict,
-            ImuMagnitudes: imuMagnitudesDict);
-
-        graphBatchesSubject.OnNext(batch);
     }
 
     private double[] ComputeVelocityAppend(IReadOnlyList<double> times, IReadOnlyList<double> travel, int batchCount)
@@ -297,7 +313,19 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
         }
 
         var velocities = cachedVelocityFilter.Process(travel.ToArray(), times.ToArray());
-        return velocities[^batchCount..];
+        if (velocities.Length >= batchCount)
+        {
+            return velocities[^batchCount..];
+        }
+
+        var result = Enumerable.Repeat(double.NaN, batchCount).ToArray();
+        Array.Copy(
+            velocities,
+            sourceIndex: 0,
+            result,
+            destinationIndex: batchCount - velocities.Length,
+            length: velocities.Length);
+        return result;
     }
 
     private sealed class PendingGraphBatch
@@ -342,6 +370,35 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
             foreach (var entry in ImuMagnitudes)
             {
                 entry.Value.Clear();
+            }
+        }
+
+        public void AppendFrom(PendingGraphBatch other)
+        {
+            TravelTimes.AddRange(other.TravelTimes);
+            FrontTravel.AddRange(other.FrontTravel);
+            RearTravel.AddRange(other.RearTravel);
+
+            foreach (var entry in other.ImuTimes)
+            {
+                if (!ImuTimes.TryGetValue(entry.Key, out var values))
+                {
+                    values = new List<double>();
+                    ImuTimes[entry.Key] = values;
+                }
+
+                values.AddRange(entry.Value);
+            }
+
+            foreach (var entry in other.ImuMagnitudes)
+            {
+                if (!ImuMagnitudes.TryGetValue(entry.Key, out var values))
+                {
+                    values = new List<double>();
+                    ImuMagnitudes[entry.Key] = values;
+                }
+
+                values.AddRange(entry.Value);
             }
         }
     }

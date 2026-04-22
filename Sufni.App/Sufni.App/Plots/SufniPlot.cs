@@ -22,7 +22,7 @@ public class FixedHorizontalLine : HorizontalLine
 
 public class SufniPlot
 {
-    public Plot Plot;
+    protected Plot Plot { get; }
 
     protected enum LabelLinePosition
     {
@@ -68,6 +68,10 @@ public class SufniPlot
         Plot.Axes.Bottom.MajorTickStyle.Width = 0;
         Plot.Axes.Bottom.MinorTickStyle.Width = 0;
     }
+
+    public void Clear() => Plot.Clear();
+
+    public string GetSvgXml(int width, int height) => Plot.GetSvgXml(width, height);
 
     protected void AddLabel(string content, double x, double y, int xoffset, int yoffset, Alignment alignment = Alignment.LowerLeft)
     {

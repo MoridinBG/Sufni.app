@@ -34,9 +34,8 @@ public class SessionDetailDesktopShellTests
 
     private static async Task<MountedSessionDetailDesktopView> MountAsync(SessionDetailViewModel editor)
     {
-        TestApp.SetIsDesktop(true);
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
         var view = new SessionDetailDesktopView
         {

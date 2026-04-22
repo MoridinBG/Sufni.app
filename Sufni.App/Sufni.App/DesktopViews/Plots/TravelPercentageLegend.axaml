@@ -27,19 +27,9 @@
                 TextAlignment="Right" />
         </Grid>
         <UniformGrid
+            x:Name="PaletteGrid"
             Height="10"
             Columns="10"
-            Rows="1">
-            <Border Background="#3288bd" />
-            <Border Background="#66c2a5" />
-            <Border Background="#abdda4" />
-            <Border Background="#e6f598" />
-            <Border Background="#ffffbf" />
-            <Border Background="#fee08b" />
-            <Border Background="#fdae61" />
-            <Border Background="#f46d43" />
-            <Border Background="#d53e4f" />
-            <Border Background="#9e0142" />
-        </UniformGrid>
+            Rows="1" />
     </StackPanel>
 </UserControl>

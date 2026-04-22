@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
@@ -9,19 +10,8 @@ namespace Sufni.App.Plots;
 public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot(plot)
 {
     private const double VelocityLimit = 2000.0;
-    private readonly List<Color> palette =
-    [
-        Color.FromHex("#3288bd"),
-        Color.FromHex("#66c2a5"),
-        Color.FromHex("#abdda4"),
-        Color.FromHex("#e6f598"),
-        Color.FromHex("#ffffbf"),
-        Color.FromHex("#fee08b"),
-        Color.FromHex("#fdae61"),
-        Color.FromHex("#f46d43"),
-        Color.FromHex("#d53e4f"),
-        Color.FromHex("#9e0142"),
-    ];
+    private static readonly IReadOnlyList<Color> palette =
+        TravelZonePalette.HexColors.Select(Color.FromHex).ToArray();
 
     private void AddStatistics(TelemetryData telemetryData)
     {

@@ -1,5 +1,6 @@
 using System.Threading;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
@@ -118,7 +119,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
     {
         var plot = new TravelHistogramPlot(new Plot(), type);
         plot.LoadTelemetryData(telemetryData);
-        return plot.Plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
+        return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
     }
 
     private static string RenderVelocityHistogram(
@@ -128,7 +129,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
     {
         var plot = new VelocityHistogramPlot(new Plot(), type);
         plot.LoadTelemetryData(telemetryData);
-        return plot.Plot.GetSvgXml(dimensions.VelocityHistogramWidth, dimensions.VelocityHistogramHeight);
+        return plot.GetSvgXml(dimensions.VelocityHistogramWidth, dimensions.VelocityHistogramHeight);
     }
 
     private static string RenderBalance(
@@ -138,6 +139,6 @@ public sealed class SessionPresentationService : ISessionPresentationService
     {
         var plot = new BalancePlot(new Plot(), type);
         plot.LoadTelemetryData(telemetryData);
-        return plot.Plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
+        return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
     }
 }

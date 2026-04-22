@@ -61,6 +61,40 @@ public class LiveGraphPipelineTests
     }
 
     [Fact]
+    public async Task AppendTravelSamples_LargerThanVelocityWindow_PreservesTravelAndImuData()
+    {
+        await using var pipeline = CreatePipeline();
+        pipeline.Start();
+
+        var sampleCount = 150;
+        var times = BuildRampTimes(sampleCount);
+        var front = BuildLinearTravel(sampleCount, startValue: 10);
+        var rear = BuildLinearTravel(sampleCount, startValue: 20);
+        var imuTimes = new[] { times[^1] };
+        var imuMagnitudes = new[] { 9.81 };
+
+        var batchTask = WaitForBatchAsync(
+            pipeline,
+            batch => batch.FrontTravel.Count == sampleCount
+                && batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var values)
+                && values.Count == 1);
+
+        pipeline.AppendTravelSamples(times, front, rear);
+        pipeline.AppendImuSamples(LiveImuLocation.Frame, imuTimes, imuMagnitudes);
+
+        var batch = await batchTask;
+
+        Assert.Equal(sampleCount, batch.TravelTimes.Count);
+        Assert.Equal(sampleCount, batch.FrontVelocity.Count);
+        Assert.Equal(sampleCount, batch.RearVelocity.Count);
+        Assert.Single(batch.ImuTimes[LiveImuLocation.Frame]);
+        Assert.Equal(9.81, batch.ImuMagnitudes[LiveImuLocation.Frame][0]);
+        Assert.All(batch.FrontVelocity.Take(sampleCount - 127), value => Assert.True(double.IsNaN(value)));
+        Assert.All(batch.FrontVelocity.Skip(sampleCount - 127), value => Assert.False(double.IsNaN(value)));
+        Assert.All(batch.RearVelocity.Skip(sampleCount - 127), value => Assert.False(double.IsNaN(value)));
+    }
+
+    [Fact]
     public async Task AppendImuSamples_OnlyImu_FlushesWithEmptyTravel()
     {
         await using var pipeline = CreatePipeline();

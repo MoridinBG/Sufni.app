@@ -4,15 +4,17 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.BikeEditing;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
 
-namespace Sufni.App.ViewModels.Editors;
+namespace Sufni.App.ViewModels.Editors.Bike;
 
 public partial class BikeImageCanvasViewModel : ObservableObject
 {
     private const double CanvasPadding = 20;
 
+    private byte[] imageBytes = [];
     private CoordinateList? rearAxlePathData;
     private Bitmap? rotatedImageCache;
     private double rotatedImageCacheAngle = double.NaN;
@@ -23,6 +25,8 @@ public partial class BikeImageCanvasViewModel : ObservableObject
     [ObservableProperty] private double imageRotationDegrees;
     [ObservableProperty] private bool overlayVisible;
     [ObservableProperty] private List<Point> rearAxlePath = [];
+
+    public byte[] ImageBytes => imageBytes;
 
     public Bitmap? RotatedImage
     {
@@ -68,10 +72,17 @@ public partial class BikeImageCanvasViewModel : ObservableObject
         NotifyLayoutPropertiesChanged();
     }
 
-    public void ApplySnapshot(Bitmap? image, double imageRotationDegrees)
+    public void ApplySnapshot(byte[]? imageBytes, double imageRotationDegrees)
     {
-        Image = image;
+        this.imageBytes = imageBytes ?? [];
+        Image = BikeImageData.Decode(this.imageBytes);
         ImageRotationDegrees = imageRotationDegrees;
+    }
+
+    public void ApplyLoadedImage(byte[] imageBytes, Bitmap image)
+    {
+        this.imageBytes = imageBytes;
+        Image = image;
     }
 
     public void RefreshLayout(Rect? jointBounds, Rect? wheelBounds)
@@ -106,7 +117,7 @@ public partial class BikeImageCanvasViewModel : ObservableObject
 
     public bool HasChangesComparedTo(BikeSnapshot snapshot) =>
         !MathUtils.AreEqual(ImageRotationDegrees, snapshot.ImageRotationDegrees) ||
-        !ReferenceEquals(Image, snapshot.Image);
+        !snapshot.ImageBytes.AsSpan().SequenceEqual(imageBytes);
 
     private void InvalidateRotatedImageCache()
     {

@@ -13,28 +13,31 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 
     public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
+    public override void SetCursorPosition(double position)
+    {
+        if (CursorLine is not null)
+        {
+            CursorLine.Position = position;
+        }
+    }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
 
+        if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
+        {
+            ShowEmptyState();
+            return;
+        }
+
         Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
-        Plot.Axes.Right.TickLabelStyle.Bold = false;
-        Plot.Axes.Right.TickLabelStyle.FontSize = 12;
-        Plot.Axes.Right.MajorTickStyle.Length = 0;
-        Plot.Axes.Right.MinorTickStyle.Length = 0;
-        Plot.Axes.Right.MajorTickStyle.Width = 0;
-        Plot.Axes.Right.MinorTickStyle.Width = 0;
+        ConfigureRightAxisStyle();
 
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;
         CursorLine.LineColor = Colors.LightGray;
-
-        if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
-        {
-            return;
-        }
 
         var imuData = telemetryData.ImuData;
         var activeLocations = imuData.ActiveLocations;
@@ -125,19 +128,19 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             0, telemetryData.Metadata.Duration, minVal, maxVal);
         Plot.Axes.Rules.Add(ruleRight);
 
-        // Maximize tick numbers
-        ScottPlot.TickGenerators.NumericAutomatic tickGenTime = new()
-        {
-            TargetTickCount = 20,
-            LabelFormatter = d => $"{d:0.###}"
-        };
-        Plot.Axes.Bottom.TickGenerator = tickGenTime;
+        ConfigureTimeTicks();
+        ConfigureSymmetricValueTicks(0.1f);
+    }
 
-        ScottPlot.TickGenerators.NumericAutomatic tickGenValue = new()
-        {
-            MinimumTickSpacing = 0.1f
-        };
-        Plot.Axes.Left.TickGenerator = tickGenValue;
-        Plot.Axes.Right.TickGenerator = tickGenValue;
+    private void ShowEmptyState()
+    {
+        Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
+        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Axes.SetLimits(0, 1, 0, 1);
+
+        var text = Plot.Add.Text("No IMU data", 0.5, 0.5);
+        text.LabelFontColor = Color.FromHex("#fefefe");
+        text.LabelFontSize = 13;
+        text.LabelAlignment = Alignment.MiddleCenter;
     }
 }

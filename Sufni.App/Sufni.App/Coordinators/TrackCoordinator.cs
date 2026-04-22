@@ -51,6 +51,11 @@ public sealed class TrackCoordinator(
             using var reader = new StreamReader(stream);
             var gpx = await reader.ReadToEndAsync(cancellationToken);
             var track = Track.FromGpx(gpx);
+            if (track is null)
+            {
+                throw new InvalidOperationException("GPX file did not contain any valid track points.");
+            }
+
             await databaseService.PutAsync(track);
         }
     }

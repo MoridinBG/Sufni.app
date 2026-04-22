@@ -11,7 +11,6 @@ using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
@@ -193,6 +192,57 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task SaveCommand_WhenPostSaveCleanupFails_DisablesResavingPersistedCapture()
+    {
+        liveSessionService
+            .ResetCaptureAsync(Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("reset failed"));
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create(), captureRevision: 7);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        await editor.SaveCommand.ExecuteAsync(null);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
+            Arg.Any<Session>(),
+            capturePackage,
+            Arg.Any<CancellationToken>());
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.True(editor.ResetCommand.CanExecute(null));
+        Assert.Contains(editor.ErrorMessages, message => message.Contains("reset failed", StringComparison.Ordinal));
+    }
+
+    [AvaloniaFact]
+    public async Task SnapshotUpdate_WithNewCaptureRevision_ReenablesSave_AfterCleanupFailure()
+    {
+        liveSessionService
+            .ResetCaptureAsync(Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("reset failed"));
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create(), captureRevision: 7);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        await editor.SaveCommand.ExecuteAsync(null);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create(), captureRevision: 8);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
     public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
     {
         var editor = CreateEditor();
@@ -238,7 +288,8 @@ public class LiveSessionDetailViewModelTests
     private static LiveSessionPresentationSnapshot CreateSnapshot(
         bool canSave,
         TelemetryData? telemetryData = null,
-        IReadOnlyList<TrackPoint>? trackPoints = null)
+        IReadOnlyList<TrackPoint>? trackPoints = null,
+        long captureRevision = 1)
     {
         var header = LiveProtocolTestFrames.CreateSessionHeaderModel();
         return new LiveSessionPresentationSnapshot(
@@ -259,7 +310,7 @@ public class LiveSessionDetailViewModelTests
                 ImuDroppedBatches: 0,
                 GpsDroppedBatches: 0,
                 CanSave: canSave),
-            CaptureRevision: canSave ? 1 : 0);
+            CaptureRevision: canSave ? captureRevision : 0);
     }
 
     private static LiveDaqSessionContext CreateSessionContext()

@@ -10,9 +10,12 @@ namespace Sufni.App.DesktopViews.Plots;
 
 public abstract class SufniTelemetryPlotView : SufniPlotView
 {
-    public TelemetryPlot? Plot;
+    private TelemetryPlot? plot;
     private bool applyingTimelineRange;
     private bool hasPendingTelemetryLoad;
+
+    protected TelemetryPlot PlotModel => plot!;
+    public bool IsPlotReady => plot is not null && HasPlotControl;
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
         AvaloniaProperty.Register<SufniTelemetryPlotView, TelemetryData?>(nameof(Telemetry));
@@ -37,7 +40,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         // Populate the ScottPlot plot when the Telemetry property is set.
         PropertyChanged += (_, e) =>
         {
-            if (e.NewValue is null || AvaPlot is null || Plot is null) return;
+            if (e.NewValue is null || plot is null || !HasPlotControl) return;
 
             switch (e.Property.Name)
             {
@@ -48,12 +51,11 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
                         return;
                     }
 
-                    Plot.Plot.Clear();
-                    Plot.LoadTelemetryData((TelemetryData)e.NewValue);
+                    LoadTelemetryIntoPlot((TelemetryData)e.NewValue);
                     break;
             }
 
-            AvaPlot.Refresh();
+            RefreshPlot();
         };
 
         // When the plot becomes visible again (tab switch), apply any deferred telemetry load.
@@ -66,12 +68,10 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
                 return;
             }
 
-            if (Telemetry is { } data && Plot is not null && AvaPlot is not null)
+            if (Telemetry is { } data && plot is not null && HasPlotControl)
             {
                 hasPendingTelemetryLoad = false;
-                Plot.Plot.Clear();
-                Plot.LoadTelemetryData(data);
-                AvaPlot.Refresh();
+                LoadTelemetryIntoPlot(data);
             }
         };
 
@@ -92,6 +92,28 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         };
     }
 
+    protected void SetPlotModel(TelemetryPlot plotModel)
+    {
+        plot = plotModel;
+    }
+
+    public void SetCursorPosition(double position)
+    {
+        plot?.SetCursorPosition(position);
+        RefreshPlot();
+    }
+
+    public void LinkXAxisWith(SufniTelemetryPlotView other)
+    {
+        if (!IsPlotReady || !other.IsPlotReady)
+        {
+            return;
+        }
+
+        PlotControl.Plot.Axes.Link(other.PlotControl, x: true, y: false);
+        other.PlotControl.Plot.Axes.Link(PlotControl, x: true, y: false);
+    }
+
     private void OnTimelineChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(SessionTimelineLinkViewModel.VisibleRangeStart) or nameof(SessionTimelineLinkViewModel.VisibleRangeEnd))
@@ -100,11 +122,23 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         }
     }
 
+    private void LoadTelemetryIntoPlot(TelemetryData telemetryData)
+    {
+        if (plot is null || !HasPlotControl)
+        {
+            return;
+        }
+
+        plot.Clear();
+        plot.LoadTelemetryData(telemetryData);
+        RefreshPlot();
+    }
+
     protected void UpdateTimelineRange()
     {
-        if (applyingTimelineRange || AvaPlot is null || Telemetry is null || Timeline is null) return;
+        if (applyingTimelineRange || !HasPlotControl || Telemetry is null || Timeline is null) return;
 
-        var limits = AvaPlot.Plot.Axes.GetLimits();
+        var limits = PlotControl.Plot.Axes.GetLimits();
         var duration = Telemetry.Metadata.Duration;
         if (duration <= 0) return;
 
@@ -116,7 +150,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
 
     private void ApplyTimelineRange()
     {
-        if (applyingTimelineRange || AvaPlot is null || Telemetry is null || Timeline is null)
+        if (applyingTimelineRange || !HasPlotControl || Telemetry is null || Timeline is null)
         {
             return;
         }
@@ -130,8 +164,8 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         applyingTimelineRange = true;
         try
         {
-            AvaPlot.Plot.Axes.SetLimitsX(Timeline.VisibleRangeStart * duration, Timeline.VisibleRangeEnd * duration);
-            AvaPlot.Refresh();
+            PlotControl.Plot.Axes.SetLimitsX(Timeline.VisibleRangeStart * duration, Timeline.VisibleRangeEnd * duration);
+            RefreshPlot();
         }
         finally
         {

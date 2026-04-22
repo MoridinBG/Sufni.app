@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Avalonia.Media.Imaging;
 using SQLite;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Stores;
@@ -19,6 +18,7 @@ namespace Sufni.App.Models;
 public class Bike : Synchronizable
 {
     private double? chainstay;
+    private byte[] imageBytes = [];
     private double? shockStroke;
     private Linkage? linkage;
     private LeverageRatio? leverageRatio;
@@ -157,28 +157,9 @@ public class Bike : Synchronizable
     [Column("image")]
     public byte[] ImageBytes
     {
-        get
-        {
-            if (Image is null) return [];
-            using var ms = new MemoryStream();
-            Image.Save(ms);
-            return ms.ToArray();
-        }
-        set
-        {
-            if (value.Length == 0)
-            {
-                Image = null;
-                return;
-            }
-            var stream = new MemoryStream(value);
-            Image = new Bitmap(stream);
-        }
+        get => imageBytes;
+        set => imageBytes = value ?? [];
     }
-
-    [JsonIgnore]
-    [Ignore]
-    public Bitmap? Image { get; set; }
 
     [JsonIgnore]
     [Ignore]
@@ -224,7 +205,7 @@ public class Bike : Synchronizable
         ImageRotationDegrees = snapshot.ImageRotationDegrees,
         LeverageRatio = snapshot.LeverageRatio,
         Linkage = snapshot.Linkage,
-        Image = snapshot.Image,
+        ImageBytes = snapshot.ImageBytes,
         Updated = snapshot.Updated,
     };
 
@@ -389,7 +370,6 @@ internal static class AppJson
 [JsonSerializable(typeof(RotationalForkSensorConfiguration))]
 [JsonSerializable(typeof(LinearShockSensorConfiguration))]
 [JsonSerializable(typeof(RotationalShockSensorConfiguration))]
-[JsonSerializable(typeof(LinearShockStrokeSensorConfiguration))]
 [JsonSerializable(typeof(RearSuspensionKind))]
 [JsonSerializable(typeof(LeverageRatio))]
 [JsonSerializable(typeof(LeverageRatioPoint))]

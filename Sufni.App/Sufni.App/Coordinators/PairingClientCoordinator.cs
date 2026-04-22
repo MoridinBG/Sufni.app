@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly IFriendlyNameProvider friendlyNameProvider;
     private readonly IShellCoordinator shell;
+    private readonly List<string> discoveredServerUrls = [];
 
     private string? deviceId;
     private string? displayName;
@@ -103,24 +105,50 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         IsPairedChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
+    private static string BuildServerUrl(ServiceAnnouncement announcement)
     {
-        var address = e.Announcement.Address.IsIPv4MappedToIPv6
-            ? e.Announcement.Address.MapToIPv4()
-            : e.Announcement.Address;
+        var address = announcement.Address.IsIPv4MappedToIPv6
+            ? announcement.Address.MapToIPv4()
+            : announcement.Address;
         var host = address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
             ? $"[{address}]"
             : address.ToString();
-        serverUrl = $"https://{host}:{e.Announcement.Port}";
-        logger.Verbose("Pairing server discovered at {ServerUrl}", serverUrl);
+        return $"https://{host}:{announcement.Port}";
+    }
+
+    private void SetServerUrl(string? value)
+    {
+        if (serverUrl == value)
+        {
+            return;
+        }
+
+        serverUrl = value;
         ServerUrlChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
+    {
+        var discoveredServerUrl = BuildServerUrl(e.Announcement);
+        discoveredServerUrls.Remove(discoveredServerUrl);
+        discoveredServerUrls.Add(discoveredServerUrl);
+
+        logger.Verbose("Pairing server discovered at {ServerUrl}", discoveredServerUrl);
+        SetServerUrl(discoveredServerUrl);
     }
 
     private void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e)
     {
-        logger.Verbose("Pairing server removed from discovery for {Port}", e.Announcement.Port);
-        serverUrl = null;
-        ServerUrlChanged?.Invoke(this, EventArgs.Empty);
+        var removedServerUrl = BuildServerUrl(e.Announcement);
+        logger.Verbose("Pairing server removed from discovery for {ServerUrl}", removedServerUrl);
+
+        discoveredServerUrls.Remove(removedServerUrl);
+        if (serverUrl != removedServerUrl)
+        {
+            return;
+        }
+
+        SetServerUrl(discoveredServerUrls.Count > 0 ? discoveredServerUrls[^1] : null);
     }
 
     public void StartBrowsing()

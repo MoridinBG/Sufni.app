@@ -45,11 +45,15 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
 
-        // Skip the initial replay from each store — it fires synchronously at
-        // subscription time and would otherwise stack an extra refresh on top
-        // of the explicit initial-load call below.
-        setupSubscription = setupStore.Connect().Skip(1).Subscribe(_ => RequestRefresh("setup store change"));
-        bikeSubscription = bikeStore.Connect().Skip(1).Subscribe(_ => RequestRefresh("bike store change"));
+        // Ignore only the synchronous replay that can happen during
+        // subscription. If a store starts empty, its first real load must still
+        // trigger a refresh so known boards can become enriched after startup.
+        setupSubscription = SubscribeIgnoringSynchronousReplay(
+            setupStore.Connect(),
+            "setup store change");
+        bikeSubscription = SubscribeIgnoringSynchronousReplay(
+            bikeStore.Connect(),
+            "bike store change");
 
         RequestRefresh("initial load");
     }
@@ -97,6 +101,23 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         bikeSubscription.Dispose();
         refreshGate.Dispose();
         changesSubject.Dispose();
+    }
+
+    private IDisposable SubscribeIgnoringSynchronousReplay<T>(IObservable<T> source, string reason)
+    {
+        var ignoreSynchronousReplay = true;
+        var subscription = source.Subscribe(_ =>
+        {
+            if (ignoreSynchronousReplay)
+            {
+                return;
+            }
+
+            RequestRefresh(reason);
+        });
+
+        ignoreSynchronousReplay = false;
+        return subscription;
     }
 
     // Coalesces overlapping refresh triggers so three near-simultaneous store

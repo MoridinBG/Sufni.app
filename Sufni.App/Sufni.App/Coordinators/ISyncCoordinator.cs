@@ -16,10 +16,22 @@ namespace Sufni.App.Coordinators;
 public interface ISyncCoordinator
 {
     bool IsRunning { get; }
+
+    /// <summary>
+    /// Sync-facing paired state mirrored from
+    /// <see cref="IPairingClientCoordinator"/> so shells can depend on
+    /// a single coordinator for sync availability.
+    /// </summary>
     bool IsPaired { get; }
+
     bool CanSync { get; }
     event EventHandler? IsRunningChanged;
+
+    /// <summary>
+    /// Raised when the mirrored pairing state changes.
+    /// </summary>
     event EventHandler? IsPairedChanged;
+
     event EventHandler? CanSyncChanged;
     event EventHandler<SyncCompletedEventArgs>? SyncCompleted;
     event EventHandler<SyncFailedEventArgs>? SyncFailed;

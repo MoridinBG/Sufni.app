@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Linq;
+using System.Threading.Tasks;
 using Sufni.App.Models;
 using Serilog;
 
@@ -19,14 +20,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PushLocalChanges(long lastSyncTime)
     {
-        var changes = new SynchronizationData
-        {
-            Boards = await databaseService.GetChangedAsync<Board>(lastSyncTime),
-            Bikes = await databaseService.GetChangedAsync<Bike>(lastSyncTime),
-            Setups = await databaseService.GetChangedAsync<Setup>(lastSyncTime),
-            Sessions = await databaseService.GetChangedAsync<Session>(lastSyncTime),
-            Tracks = await databaseService.GetChangedAsync<Track>(lastSyncTime)
-        };
+        var changes = await databaseService.GetSynchronizationDataAsync(lastSyncTime);
 
         logger.Verbose(
             "Pushing local changes since {LastSyncTime} with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
@@ -64,98 +58,20 @@ public class SynchronizationClientService : ISynchronizationClientService
     private async Task PullRemoteChanges(long lastSyncTime)
     {
         var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
-        var removedBoardCount = 0;
-        var upsertedBoardCount = 0;
-        foreach (var board in syncData.Boards)
-        {
-            if (board.Deleted.HasValue)
-            {
-                await databaseService.DeleteAsync(board);
-                removedBoardCount++;
-            }
-            else
-            {
-                await databaseService.PutAsync(board);
-                upsertedBoardCount++;
-            }
-        }
-
-        var removedBikeCount = 0;
-        var upsertedBikeCount = 0;
-        foreach (var bike in syncData.Bikes)
-        {
-            if (bike.Deleted.HasValue)
-            {
-                await databaseService.DeleteAsync(bike);
-                removedBikeCount++;
-            }
-            else
-            {
-                await databaseService.PutAsync(bike);
-                upsertedBikeCount++;
-            }
-        }
-
-        var removedSetupCount = 0;
-        var upsertedSetupCount = 0;
-        foreach (var setup in syncData.Setups)
-        {
-            if (setup.Deleted.HasValue)
-            {
-                await databaseService.DeleteAsync(setup);
-                removedSetupCount++;
-            }
-            else
-            {
-                await databaseService.PutAsync(setup);
-                upsertedSetupCount++;
-            }
-        }
-
-        var removedTrackCount = 0;
-        var upsertedTrackCount = 0;
-        foreach (var track in syncData.Tracks)
-        {
-            if (track.Deleted.HasValue)
-            {
-                await databaseService.DeleteAsync(track);
-                removedTrackCount++;
-            }
-            else
-            {
-                await databaseService.PutAsync(track);
-                upsertedTrackCount++;
-            }
-        }
-
-        var removedSessionCount = 0;
-        var upsertedSessionCount = 0;
-        foreach (var session in syncData.Sessions)
-        {
-            if (session.Deleted.HasValue)
-            {
-                await databaseService.DeleteAsync(session);
-                removedSessionCount++;
-            }
-            else
-            {
-                await databaseService.PutSessionAsync(session);
-                upsertedSessionCount++;
-            }
-        }
+        await databaseService.ApplyRemoteSynchronizationDataAsync(syncData);
 
         logger.Verbose(
             "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, and {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted",
-            removedBoardCount,
-            upsertedBoardCount,
-            removedBikeCount,
-            upsertedBikeCount,
-            removedSetupCount,
-            upsertedSetupCount,
-            removedTrackCount,
-            upsertedTrackCount,
-            removedSessionCount,
-            upsertedSessionCount);
+            syncData.Boards.Count(board => board.Deleted.HasValue),
+            syncData.Boards.Count(board => !board.Deleted.HasValue),
+            syncData.Bikes.Count(bike => bike.Deleted.HasValue),
+            syncData.Bikes.Count(bike => !bike.Deleted.HasValue),
+            syncData.Setups.Count(setup => setup.Deleted.HasValue),
+            syncData.Setups.Count(setup => !setup.Deleted.HasValue),
+            syncData.Tracks.Count(track => track.Deleted.HasValue),
+            syncData.Tracks.Count(track => !track.Deleted.HasValue),
+            syncData.Sessions.Count(session => session.Deleted.HasValue),
+            syncData.Sessions.Count(session => !session.Deleted.HasValue));
     }
 
     private async Task PullIncompleteSessions()

@@ -38,7 +38,7 @@ public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfigu
         if (sc is null) return null;
 
         sc.bike = bike;
-        sc.measurementToStroke = sc.Length / (2 ^ sc.Resolution);
+        sc.measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(sc.Length, sc.Resolution);
         sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
         return sc;
     }

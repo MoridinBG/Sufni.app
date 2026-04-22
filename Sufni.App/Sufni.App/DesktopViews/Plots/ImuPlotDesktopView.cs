@@ -27,11 +27,11 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
 
     protected override void CreatePlot()
     {
-        Debug.Assert(AvaPlot != null);
+        Debug.Assert(HasPlotControl);
 
-        Plot = new ImuPlot(AvaPlot.Plot);
+        SetPlotModel(new ImuPlot(PlotControl.Plot));
 
-        if (VelocityPlotView?.AvaPlot != null)
+        if (VelocityPlotView?.IsPlotReady == true)
         {
             LinkVelocity();
         }
@@ -40,7 +40,7 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
             VelocityPlotView.Loaded += (_, _) => LinkVelocity();
         }
 
-        if (TravelPlotView?.AvaPlot != null)
+        if (TravelPlotView?.IsPlotReady == true)
         {
             LinkTravel();
         }
@@ -49,46 +49,30 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
             TravelPlotView.Loaded += (_, _) => LinkTravel();
         }
 
-        AvaPlot.PointerMoved += (_, args) =>
+        PlotControl.PointerMoved += (_, args) =>
         {
-            var point = args.GetPosition(AvaPlot);
-            var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
+            var point = args.GetPosition(PlotControl);
+            var coords = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
             if (Telemetry is null || Telemetry.Metadata.Duration <= 0) return;
 
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             Timeline?.SetCursorPosition(normalizedCursorPosition);
 
-            if (Plot is ImuPlot imuPlot)
-            {
-                imuPlot.CursorLine!.Position = coords.X;
-                Plot.Plot.PlotControl!.Refresh();
-            }
-
-            if (VelocityPlotView?.Plot is VelocityPlot velocityPlot)
-            {
-                velocityPlot.CursorLine!.Position = coords.X;
-                velocityPlot.Plot.PlotControl!.Refresh();
-            }
-
-            if (TravelPlotView?.Plot is TravelPlot travelPlot)
-            {
-                travelPlot.CursorLine!.Position = coords.X;
-                travelPlot.Plot.PlotControl!.Refresh();
-            }
+            SetCursorPosition(coords.X);
+            VelocityPlotView?.SetCursorPosition(coords.X);
+            TravelPlotView?.SetCursorPosition(coords.X);
         };
     }
 
     private void LinkVelocity()
     {
-        if (VelocityPlotView?.AvaPlot == null || AvaPlot == null) return;
-        Plot!.Plot.Axes.Link(VelocityPlotView.AvaPlot, x: true, y: false);
-        VelocityPlotView.AvaPlot.Plot.Axes.Link(AvaPlot, x: true, y: false);
+        if (VelocityPlotView is null) return;
+        LinkXAxisWith(VelocityPlotView);
     }
 
     private void LinkTravel()
     {
-        if (TravelPlotView?.AvaPlot == null || AvaPlot == null) return;
-        Plot!.Plot.Axes.Link(TravelPlotView.AvaPlot, x: true, y: false);
-        TravelPlotView.AvaPlot.Plot.Axes.Link(AvaPlot, x: true, y: false);
+        if (TravelPlotView is null) return;
+        LinkXAxisWith(TravelPlotView);
     }
 }

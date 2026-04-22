@@ -25,7 +25,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// <see cref="SessionCoordinator"/> from a <see cref="SessionSnapshot"/>;
 /// save and delete route back through the coordinator.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEditorActions,
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
 {
     public Guid Id { get; private set; }
@@ -41,15 +41,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
     public SessionTimelineLinkViewModel Timeline { get; } = new();
 
-    // Explicit interface implementation: the generated commands are
-    // IAsyncRelayCommand[<T>] which C# does not implicitly satisfy a
-    // non-generic IRelayCommand interface property with.
-    IRelayCommand IEditorActions.OpenPreviousPageCommand => OpenPreviousPageCommand;
-    IRelayCommand IEditorActions.SaveCommand => SaveCommand;
-    IRelayCommand IEditorActions.ResetCommand => ResetCommand;
-    IRelayCommand IEditorActions.DeleteCommand => DeleteCommand;
-    IRelayCommand IEditorActions.FakeDeleteCommand => FakeDeleteCommand;
-
     #region Private fields
 
     private readonly ISessionCoordinator? sessionCoordinator;
@@ -61,6 +52,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
     private readonly CancellableOperation loadOperation = new();
     private bool lastObservedHasProcessedData;
     private SessionPresentationDimensions? lastPresentationDimensions;
+    private bool suppressDirtinessEvaluation;
     private bool viewLoaded;
 
     #endregion Private fields
@@ -250,7 +242,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     private async Task RequestLoadAsync()
     {
-        if (sessionCoordinator is null || !viewLoaded || App.Current is null)
+        if (sessionCoordinator is null || !viewLoaded)
         {
             return;
         }
@@ -258,7 +250,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         var token = loadOperation.Start();
         try
         {
-            if (App.Current.IsDesktop)
+            if (App.Current?.IsDesktop == true)
             {
                 var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, token);
                 if (token.IsCancellationRequested) return;
@@ -311,9 +303,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
         MapViewModel = new MapViewModel(tileLayerService, dialogService);
         _ = MapViewModel.InitializeAsync();
 
-        NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
-        NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtiness();
-        NotesPage.PropertyChanged += (_, _) => EvaluateDirtiness();
+        NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
+        NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
+        NotesPage.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
 
         ResetImplementation();
     }
@@ -341,6 +333,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
             Updated = snapshot.Updated,
         };
         return s;
+    }
+
+    private void EvaluateDirtinessFromPageChange()
+    {
+        if (suppressDirtinessEvaluation)
+        {
+            return;
+        }
+
+        EvaluateDirtiness();
     }
 
     #endregion Private methods
@@ -387,12 +389,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                 session.Updated = saved.NewBaselineUpdated;
                 BaselineUpdated = saved.NewBaselineUpdated;
                 IsDirty = false;
-
-                Debug.Assert(App.Current is not null);
-                if (!App.Current.IsDesktop)
-                {
-                    OpenPreviousPage();
-                }
                 break;
 
             case SessionSaveResult.Conflict conflict:
@@ -418,29 +414,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
 
     protected override Task ResetImplementation()
     {
-        Id = session.Id;
-        Name = session.Name;
+        suppressDirtinessEvaluation = true;
+        try
+        {
+            Id = session.Id;
+            Name = session.Name;
 
-        NotesPage.Description = session.Description;
-        NotesPage.ForkSettings.SpringRate = session.FrontSpringRate;
-        NotesPage.ForkSettings.HighSpeedCompression = session.FrontHighSpeedCompression;
-        NotesPage.ForkSettings.LowSpeedCompression = session.FrontLowSpeedCompression;
-        NotesPage.ForkSettings.LowSpeedRebound = session.FrontLowSpeedRebound;
-        NotesPage.ForkSettings.HighSpeedRebound = session.FrontHighSpeedRebound;
+            NotesPage.Description = session.Description;
+            NotesPage.ForkSettings.SpringRate = session.FrontSpringRate;
+            NotesPage.ForkSettings.HighSpeedCompression = session.FrontHighSpeedCompression;
+            NotesPage.ForkSettings.LowSpeedCompression = session.FrontLowSpeedCompression;
+            NotesPage.ForkSettings.LowSpeedRebound = session.FrontLowSpeedRebound;
+            NotesPage.ForkSettings.HighSpeedRebound = session.FrontHighSpeedRebound;
 
-        NotesPage.ShockSettings.SpringRate = session.RearSpringRate;
-        NotesPage.ShockSettings.HighSpeedCompression = session.RearHighSpeedCompression;
-        NotesPage.ShockSettings.LowSpeedCompression = session.RearLowSpeedCompression;
-        NotesPage.ShockSettings.LowSpeedRebound = session.RearLowSpeedRebound;
-        NotesPage.ShockSettings.HighSpeedRebound = session.RearHighSpeedRebound;
+            NotesPage.ShockSettings.SpringRate = session.RearSpringRate;
+            NotesPage.ShockSettings.HighSpeedCompression = session.RearHighSpeedCompression;
+            NotesPage.ShockSettings.LowSpeedCompression = session.RearLowSpeedCompression;
+            NotesPage.ShockSettings.LowSpeedRebound = session.RearLowSpeedRebound;
+            NotesPage.ShockSettings.HighSpeedRebound = session.RearHighSpeedRebound;
+        }
+        finally
+        {
+            suppressDirtinessEvaluation = false;
+        }
+
+        EvaluateDirtiness();
 
         Timestamp = DateTimeOffset.FromUnixTimeSeconds(session.Timestamp ?? 0).LocalDateTime;
 
         return Task.CompletedTask;
     }
 
-    [RelayCommand]
-    private async Task Delete(bool navigateBack)
+    protected override async Task DeleteImplementation(bool navigateBack)
     {
         if (sessionCoordinator is null) return;
 
@@ -454,12 +459,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IEdit
                 ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
                 break;
         }
-    }
-
-    [RelayCommand]
-    private void FakeDelete()
-    {
-        // Exists so the editor button strip can bind to a delete command.
     }
 
     #endregion TabPageViewModelBase overrides

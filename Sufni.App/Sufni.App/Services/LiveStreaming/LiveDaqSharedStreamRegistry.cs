@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
@@ -34,8 +35,13 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
         {
             if (streams.TryGetValue(snapshot.IdentityKey, out var existing))
             {
-                _ = existing.UpdateCatalogSnapshotAsync(snapshot);
-                return existing;
+                if (existing.CanBeReturnedFromRegistry())
+                {
+                    _ = existing.UpdateCatalogSnapshotAsync(snapshot);
+                    return existing;
+                }
+
+                streams.Remove(snapshot.IdentityKey);
             }
 
             EnsureBrowseLeaseLocked();
@@ -104,10 +110,12 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
     {
         lock (gate)
         {
-            if (!streams.Remove(stream.IdentityKey))
+            if (!streams.TryGetValue(stream.IdentityKey, out var current) || !ReferenceEquals(current, stream))
             {
                 return;
             }
+
+            streams.Remove(stream.IdentityKey);
 
             logger.Debug("Evicted shared live DAQ stream for {IdentityKey}", stream.IdentityKey);
             if (streams.Count == 0)
@@ -122,4 +130,5 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
     {
         browseLease ??= liveDaqCatalogService.AcquireBrowse();
     }
+
 }

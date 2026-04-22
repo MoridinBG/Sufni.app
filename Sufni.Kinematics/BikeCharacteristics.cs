@@ -15,11 +15,6 @@ public class BikeCharacteristics
 {
     #region Public properties
 
-    public double? FrontStroke { get; private set; }
-    public double? RearStroke { get; private set; }
-    public double HeadAngle { get; private set; }
-    public double? MaxFrontTravel { get; private set; }
-    public double? MaxRearTravel { get; private set; }
     public CoordinateList LeverageRatioData
     {
         get
@@ -41,20 +36,10 @@ public class BikeCharacteristics
 
     #region Constructors
 
-    public BikeCharacteristics(Dictionary<string, CoordinateList> solution, JointNameMapping? mapping = null, double? frontStroke = null, double headAngle = 0)
+    public BikeCharacteristics(Dictionary<string, CoordinateList> solution, JointNameMapping? mapping = null)
     {
         this.solution = solution;
         this.mapping = mapping ?? new JointNameMapping();
-        FrontStroke = frontStroke;
-        HeadAngle = headAngle;
-
-        MaxFrontTravel = Math.Sin(HeadAngle * Math.PI / 180.0) * frontStroke;
-        var rearWheelDx = solution[this.mapping.RearWheel].X[^1] - solution[this.mapping.RearWheel].X[0];
-        var rearWheelDy = solution[this.mapping.RearWheel].Y[^1] - solution[this.mapping.RearWheel].Y[0];
-        MaxRearTravel = Math.Sqrt(rearWheelDx * rearWheelDx + rearWheelDy * rearWheelDy);
-        var dx = solution[this.mapping.ShockEye1].X[0] - solution[this.mapping.ShockEye2].X[0];
-        var dy = solution[this.mapping.ShockEye1].Y[0] - solution[this.mapping.ShockEye2].Y[0];
-        RearStroke = Math.Sqrt(dx * dx + dy * dy);
     }
 
     #endregion Constructors

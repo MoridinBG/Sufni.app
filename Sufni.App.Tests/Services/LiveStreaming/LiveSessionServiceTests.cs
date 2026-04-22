@@ -11,7 +11,6 @@ using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 
@@ -71,6 +70,28 @@ public class LiveSessionServiceTests
         Assert.Equal(sessionHeader.SessionId, streaming.SessionHeader.SessionId);
 
         await service.DisposeAsync();
+
+        await observerLease.Received(1).DisposeAsync();
+        await configurationLockLease.Received(1).DisposeAsync();
+    }
+
+    [Fact]
+    public void CreateService_DoesNotAcquireLeasesBeforeEnsureAttachedAsync()
+    {
+        _ = CreateService();
+
+        sharedStream.DidNotReceive().AcquireLease();
+        sharedStream.DidNotReceive().AcquireConfigurationLock();
+    }
+
+    [Fact]
+    public async Task EnsureAttachedAsync_DisposesFreshLeases_WhenStartThrows()
+    {
+        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<LivePreviewStartResult?>>(_ => throw new InvalidOperationException("boom"));
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAttachedAsync());
 
         await observerLease.Received(1).DisposeAsync();
         await configurationLockLease.Received(1).DisposeAsync();

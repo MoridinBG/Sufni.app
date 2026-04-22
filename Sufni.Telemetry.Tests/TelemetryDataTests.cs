@@ -163,6 +163,90 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void FromRecording_WithOffsetAirtimeCandidates_UsesOverlapStart()
+    {
+        var count = 700;
+        var front = new ushort[count];
+        var rear = new ushort[count];
+
+        for (int i = 0; i < 100; i++)
+        {
+            front[i] = (ushort)(200 - i * 2);
+        }
+        for (int i = 100; i < 400; i++)
+        {
+            front[i] = 0;
+        }
+        for (int i = 400; i < 500; i++)
+        {
+            front[i] = (ushort)((i - 400) * 6);
+        }
+        for (int i = 500; i < 600; i++)
+        {
+            front[i] = (ushort)(600 - (i - 500) * 6);
+        }
+
+        for (int i = 0; i < 150; i++)
+        {
+            rear[i] = (ushort)(300 - i * 2);
+        }
+        for (int i = 150; i < 450; i++)
+        {
+            rear[i] = 0;
+        }
+        for (int i = 450; i < 550; i++)
+        {
+            rear[i] = (ushort)((i - 450) * 6);
+        }
+        for (int i = 550; i < 650; i++)
+        {
+            rear[i] = (ushort)(600 - (i - 550) * 6);
+        }
+
+        var combinedRawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = front,
+            Rear = rear
+        };
+
+        var frontOnlyRawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = front,
+            Rear = []
+        };
+
+        var rearOnlyRawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = [],
+            Rear = rear
+        };
+
+        var metadata = new Metadata { SampleRate = 1000 };
+        var bikeData = new BikeData(
+            65.0, 100.0, 100.0,
+            value => value / 10.0,
+            value => value / 10.0
+        );
+
+        var result = TelemetryData.FromRecording(combinedRawData, metadata, bikeData);
+        var frontOnlyResult = TelemetryData.FromRecording(frontOnlyRawData, metadata, bikeData);
+        var rearOnlyResult = TelemetryData.FromRecording(rearOnlyRawData, metadata, bikeData);
+
+        var airtime = Assert.Single(result.Airtimes);
+        var frontOnlyAirtime = Assert.Single(frontOnlyResult.Airtimes);
+        var rearOnlyAirtime = Assert.Single(rearOnlyResult.Airtimes);
+
+        Assert.Equal(Math.Max(frontOnlyAirtime.Start, rearOnlyAirtime.Start), airtime.Start, 3);
+        Assert.Equal(Math.Min(frontOnlyAirtime.End, rearOnlyAirtime.End), airtime.End, 3);
+    }
+
+    [Fact]
     public void BinarySerialization_WithV4Data_PreservesMarkersAndImuData()
     {
         // Arrange

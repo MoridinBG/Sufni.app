@@ -78,27 +78,19 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         {
             return await backgroundTaskRunner.RunAsync<LeverageRatioImportResult>(async () =>
             {
-                try
+                await using var stream = await file.OpenReadAsync();
+                var parseResult = LeverageRatioCsvParser.Parse(stream);
+                return parseResult switch
                 {
-                    await using var stream = await file.OpenReadAsync();
-                    var parseResult = LeverageRatioCsvParser.Parse(stream);
-                    return parseResult switch
-                    {
-                        LeverageRatioParseResult.Parsed parsed => new LeverageRatioImportResult.Imported(parsed.Value),
-                        LeverageRatioParseResult.Invalid invalid => new LeverageRatioImportResult.Invalid(
-                            invalid.Errors
-                                .Select(error => error.LineNumber.HasValue
-                                    ? $"Line {error.LineNumber.Value}: {error.Message}"
-                                    : error.Message)
-                                .ToArray()),
-                        _ => new LeverageRatioImportResult.Failed("CSV file could not be parsed.")
-                    };
-                }
-                catch (JsonException exception)
-                {
-                    logger.Warning(exception, "Leverage ratio CSV import failed during JSON parsing");
-                    return new LeverageRatioImportResult.Failed("CSV file could not be parsed.");
-                }
+                    LeverageRatioParseResult.Parsed parsed => new LeverageRatioImportResult.Imported(parsed.Value),
+                    LeverageRatioParseResult.Invalid invalid => new LeverageRatioImportResult.Invalid(
+                        invalid.Errors
+                            .Select(error => error.LineNumber.HasValue
+                                ? $"Line {error.LineNumber.Value}: {error.Message}"
+                                : error.Message)
+                            .ToArray()),
+                    _ => new LeverageRatioImportResult.Failed("CSV file could not be parsed.")
+                };
             }, cancellationToken);
         }
         catch (OperationCanceledException)
@@ -124,18 +116,22 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
 
         try
         {
-            var bitmap = await backgroundTaskRunner.RunAsync(async () =>
+            var loadedImage = await backgroundTaskRunner.RunAsync(async () =>
             {
                 await using var stream = await file.OpenReadAsync();
-                return new Bitmap(stream);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, cancellationToken);
+                var imageBytes = buffer.ToArray();
+                var bitmap = BikeImageData.Decode(imageBytes) ?? throw new InvalidOperationException("Bike image could not be decoded.");
+                return new BikeImageLoadResult.Loaded(imageBytes, bitmap);
             }, cancellationToken);
 
             logger.Verbose(
                 "Bike image loaded with width {PixelWidth} and height {PixelHeight}",
-                bitmap.PixelSize.Width,
-                bitmap.PixelSize.Height);
+                loadedImage.Bitmap.PixelSize.Width,
+                loadedImage.Bitmap.PixelSize.Height);
 
-            return new BikeImageLoadResult.Loaded(bitmap);
+            return loadedImage;
         }
         catch (OperationCanceledException)
         {

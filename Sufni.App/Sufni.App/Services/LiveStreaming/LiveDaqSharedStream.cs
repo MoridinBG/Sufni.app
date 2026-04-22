@@ -13,15 +13,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStream>();
 
-    private enum DeliberateDisconnectDisposition
-    {
-        None,
-        RejectedStartCleanup,
-        Stop,
-        Reconfigure,
-        Dispose,
-    }
-
     private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -36,9 +27,11 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private LiveDaqSharedStreamState currentState = LiveDaqSharedStreamState.Empty;
     private int observerCount;
     private int configurationLockCount;
-    private DeliberateDisconnectDisposition pendingDeliberateDisconnect;
+    private int pendingDeliberateDisconnectCount;
+    private bool isEvictionPending;
     private bool isDisposed;
     private bool isEvicted;
+    private long evictionSequence;
 
     public LiveDaqSharedStream(
         LiveDaqSnapshot snapshot,
@@ -51,6 +44,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     }
 
     public string IdentityKey => snapshot.IdentityKey;
+
+    public LiveDaqSnapshot CatalogSnapshot => snapshot;
 
     public LiveDaqStreamConfiguration RequestedConfiguration => requestedConfiguration;
 
@@ -146,7 +141,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         SessionHeader = null,
                         SelectedSensorMask = LiveSensorMask.None,
                     });
-                    BeginDeliberateDisconnect(DeliberateDisconnectDisposition.RejectedStartCleanup);
+                    BeginDeliberateDisconnect();
                     await client.DisconnectAsync(cancellationToken);
                     break;
 
@@ -239,7 +234,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Stop);
+            BeginDeliberateDisconnect();
             await liveDaqClient.DisconnectAsync(cancellationToken);
             PublishState(currentState with
             {
@@ -306,7 +301,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Reconfigure);
+            BeginDeliberateDisconnect();
             await liveDaqClient!.DisconnectAsync(cancellationToken);
             PublishState(currentState with
             {
@@ -358,7 +353,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         SessionHeader = null,
                         SelectedSensorMask = LiveSensorMask.None,
                     });
-                    BeginDeliberateDisconnect(DeliberateDisconnectDisposition.RejectedStartCleanup);
+                    BeginDeliberateDisconnect();
                     await client.DisconnectAsync(cancellationToken);
                     break;
 
@@ -440,6 +435,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 IsClosed = true,
             });
 
+            isEvictionPending = true;
             await DisposeClientAsync(cancellationToken);
             shouldEvict = true;
         }
@@ -457,7 +453,12 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async ValueTask DisposeAsync()
     {
-        await gate.WaitAsync(CancellationToken.None);
+        if (isDisposed)
+        {
+            return;
+        }
+
+        await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (isDisposed)
@@ -466,7 +467,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
 
             isDisposed = true;
-            await DisposeClientAsync(CancellationToken.None);
+            await DisposeClientAsync(CancellationToken.None).ConfigureAwait(false);
             statesSubject.OnCompleted();
             framesSubject.OnCompleted();
             statesSubject.Dispose();
@@ -477,6 +478,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             gate.Release();
         }
+
+        gate.Dispose();
     }
 
     private ILiveDaqSharedStreamLease AcquireLease(bool releaseConfigurationLock)
@@ -485,6 +488,13 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         try
         {
             ThrowIfDisposed();
+            ObjectDisposedException.ThrowIf(isEvicted || currentState.IsClosed, this);
+            if (isEvictionPending)
+            {
+                isEvictionPending = false;
+                evictionSequence++;
+            }
+
             observerCount++;
             if (releaseConfigurationLock)
             {
@@ -493,6 +503,27 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
             PublishState(currentState);
             return new LiveDaqSharedStreamLease(this, releaseConfigurationLock);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    internal bool CanBeReturnedFromRegistry()
+    {
+        try
+        {
+            gate.Wait();
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+
+        try
+        {
+            return !isDisposed && !isEvicted && !isEvictionPending && !currentState.IsClosed;
         }
         finally
         {
@@ -526,10 +557,10 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             if (client.IsConnected)
             {
-                BeginDeliberateDisconnect(DeliberateDisconnectDisposition.Dispose);
+                BeginDeliberateDisconnect();
             }
 
-            await client.DisposeAsync();
+            await client.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -550,7 +581,14 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private async Task HandleClientEventAsync(LiveDaqClientEvent clientEvent)
     {
         string? closeError = null;
-        await gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
 
         try
         {
@@ -613,9 +651,18 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private async ValueTask ReleaseLeaseAsync(bool releaseConfigurationLock)
     {
-        var shouldEvict = false;
+        var shouldBeginEviction = false;
+        long currentEvictionSequence = 0;
 
-        await gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
         try
         {
             if (isDisposed)
@@ -636,8 +683,44 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 return;
             }
 
-            await DisposeClientAsync(CancellationToken.None);
-            shouldEvict = true;
+            isEvictionPending = true;
+            currentEvictionSequence = ++evictionSequence;
+            shouldBeginEviction = true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        if (!shouldBeginEviction)
+        {
+            return;
+        }
+
+        await DisposeClientAsync(CancellationToken.None);
+
+        var shouldEvict = false;
+
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
+        try
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            shouldEvict = observerCount == 0
+                && isEvictionPending
+                && !currentState.IsClosed
+                && currentEvictionSequence == evictionSequence;
         }
         finally
         {
@@ -674,19 +757,19 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         ObjectDisposedException.ThrowIf(isDisposed, this);
     }
 
-    private void BeginDeliberateDisconnect(DeliberateDisconnectDisposition disposition)
+    private void BeginDeliberateDisconnect()
     {
-        pendingDeliberateDisconnect = disposition;
+        pendingDeliberateDisconnectCount++;
     }
 
     private bool TryConsumeDeliberateDisconnect()
     {
-        if (pendingDeliberateDisconnect is DeliberateDisconnectDisposition.None)
+        if (pendingDeliberateDisconnectCount == 0)
         {
             return false;
         }
 
-        pendingDeliberateDisconnect = DeliberateDisconnectDisposition.None;
+        pendingDeliberateDisconnectCount--;
         return true;
     }
 

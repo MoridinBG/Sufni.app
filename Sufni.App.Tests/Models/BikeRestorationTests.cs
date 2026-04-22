@@ -25,7 +25,7 @@ public class BikeRestorationTests
             RearWheelTireWidth = 2.5,
             RearWheelDiameterMm = Math.Round(EtrtoRimSize.Inch275.CalculateTotalDiameterMm(2.5), 1),
             ImageRotationDegrees = 12.5,
-            Image = TestImages.SmallPng(),
+            ImageBytes = TestImages.SmallPngBytes(),
             Linkage = TestSnapshots.FullSuspensionLinkage(),
             Updated = 7,
         };

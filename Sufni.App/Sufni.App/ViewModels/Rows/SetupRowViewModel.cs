@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Stores;
 
@@ -17,20 +15,19 @@ namespace Sufni.App.ViewModels.Rows;
 /// <c>requestDelete</c> callback so the list can run its pending-delete
 /// undo window before finalizing.
 /// </summary>
-public partial class SetupRowViewModel : ObservableObject, IListItemRow
+public sealed class SetupRowViewModel : ListItemRowViewModelBase
 {
     private readonly ISetupCoordinator? setupCoordinator;
     private readonly Action<SetupRowViewModel>? requestDelete;
+    private Guid? boardId;
 
     public Guid Id { get; private set; }
 
-    [ObservableProperty] private string? name;
-    [ObservableProperty] private Guid? boardId;
-
-    // Stub members for IListItemRow. Setups have no timestamp or
-    // sync-completion concept on a row; the controls just hide them.
-    public DateTime? Timestamp => null;
-    public bool IsComplete => true;
+    public Guid? BoardId
+    {
+        get => boardId;
+        private set => SetProperty(ref boardId, value);
+    }
 
     public SetupRowViewModel()
     {
@@ -53,28 +50,18 @@ public partial class SetupRowViewModel : ObservableObject, IListItemRow
         Id = snapshot.Id;
         Name = snapshot.Name;
         BoardId = snapshot.BoardId;
+        Timestamp = null;
+        IsComplete = true;
     }
 
-    [RelayCommand]
-    private async Task OpenPage()
+    protected override async Task OpenPageAsync()
     {
         if (setupCoordinator is null) return;
         await setupCoordinator.OpenEditAsync(Id);
     }
 
-    [RelayCommand]
-    private void UndoableDelete()
+    protected override void UndoableDelete()
     {
         requestDelete?.Invoke(this);
     }
-
-    [RelayCommand]
-    private void FakeDelete()
-    {
-        // Exists so the controls can bind to a delete command on this row.
-    }
-
-    IRelayCommand IListItemRow.OpenPageCommand => OpenPageCommand;
-    IRelayCommand IListItemRow.UndoableDeleteCommand => UndoableDeleteCommand;
-    IRelayCommand IListItemRow.FakeDeleteCommand => FakeDeleteCommand;
 }

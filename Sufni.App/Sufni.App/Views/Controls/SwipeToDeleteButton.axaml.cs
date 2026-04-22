@@ -60,7 +60,7 @@ public partial class SwipeToDeleteButton : UserControl
     {
         if (e.Property.Name == "SwipeState" && sender is Swipe swipe && e.NewValue is SwipeState.LeftVisible)
         {
-            var vm = swipe.DataContext as IListItemRow;
+            var vm = swipe.DataContext as ListItemRowViewModelBase;
             if (vm is not null && vm.UndoableDeleteCommand.CanExecute(false))
             {
                 vm.UndoableDeleteCommand.Execute(false);

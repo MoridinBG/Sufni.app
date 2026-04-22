@@ -9,8 +9,8 @@ public sealed class LiveVelocityPlotDesktopView : LiveGraphPlotDesktopViewBase
 {
     protected override void CreatePlot()
     {
-        Debug.Assert(AvaPlot is not null);
-        Plot = new LiveVelocityPlot(AvaPlot.Plot, Math.Max(Math.Abs(MinimumY ?? 0), Math.Abs(MaximumY ?? 5)));
+        Debug.Assert(HasPlotControl);
+        Plot = new LiveVelocityPlot(PlotControl.Plot, Math.Max(Math.Abs(MinimumY ?? 0), Math.Abs(MaximumY ?? 5)));
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();
     }

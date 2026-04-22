@@ -76,6 +76,18 @@ public partial class ItemListViewModelBase : ViewModelBase
     /// </summary>
     protected virtual void RebuildFilter() { }
 
+    protected async Task RunActionSwallowExceptionToErrorMessages(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            ErrorMessages.Add(exception.Message);
+        }
+    }
+
     #endregion Virtual methods
 
     #region Pending-delete helpers
@@ -105,7 +117,19 @@ public partial class ItemListViewModelBase : ViewModelBase
         PendingName = null;
         IsUndoVisible = false;
 
-        if (finalize is not null) await finalize();
+        if (finalize is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await finalize();
+        }
+        catch (Exception exception)
+        {
+            ErrorMessages.Add(exception.Message);
+        }
     }
 
     /// <summary>

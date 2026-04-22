@@ -7,7 +7,10 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Security;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
@@ -19,6 +22,7 @@ internal class HttpApiService : IHttpApiService
 
     private const string RefreshTokenKey = "RefreshToken";
     private const string ServerUrlKey = "ServerUrl";
+    private const string ServerCertificateThumbprintKey = "ServerCertificateThumbprint";
 
     #region Public fields
 
@@ -28,26 +32,17 @@ internal class HttpApiService : IHttpApiService
 
     #region Private fields
 
-    private readonly HttpClient client = new(Handler);
-
+    private readonly HttpClient client;
+    private readonly object certificateStateGate = new();
+    private readonly object tokenRefreshStateGate = new();
     private Task Initialization { get; }
     private readonly ISecureStorage secureStorage;
+    private Task? inFlightTokenRefreshTask;
+    private string? pinnedServerCertificateThumbprint;
+    private string? pendingPairingCertificateThumbprint;
+    private string? lastObservedCertificateThumbprint;
     private string? refreshToken;
     private DateTimeOffset? tokenExpiry;
-
-    private static readonly HttpClientHandler Handler = new()
-    {
-        SslProtocols = SslProtocols.Tls13,
-        UseCookies = false,
-
-        // XXX: Checking only expiration and the CN. This is NOT secure, but we are on a home (local) network.
-        // Ideal solution would be registration via QR codes, which would allow exchanging certificates too, but
-        // there's no cross-platform Avalonia library for handling the camera.
-        ServerCertificateCustomValidationCallback = (_, cert, _, _) =>
-            cert is not null &&
-            cert.NotAfter >= DateTimeOffset.Now &&
-            string.Equals(cert.Subject, SynchronizationProtocol.CertificateSubjectName, StringComparison.OrdinalIgnoreCase)
-    };
 
     #endregion
 
@@ -56,6 +51,14 @@ internal class HttpApiService : IHttpApiService
     public HttpApiService(ISecureStorage secureStorage)
     {
         this.secureStorage = secureStorage;
+        client = new HttpClient(CreateHandler());
+        Initialization = Init();
+    }
+
+    internal HttpApiService(ISecureStorage secureStorage, HttpClient client)
+    {
+        this.secureStorage = secureStorage;
+        this.client = client;
         Initialization = Init();
     }
 
@@ -79,6 +82,118 @@ internal class HttpApiService : IHttpApiService
         }
 
         return url;
+    }
+
+    private static HttpRequestException CreateMissingCredentialsException() =>
+        new("Synchronization pairing credentials are missing.", null, HttpStatusCode.Unauthorized);
+
+    private HttpClientHandler CreateHandler()
+    {
+        return CreateHandler(ValidateServerCertificate);
+    }
+
+    internal static HttpClientHandler CreateHandler(
+        Func<HttpRequestMessage, X509Certificate2?, X509Chain?, SslPolicyErrors, bool> validateServerCertificate)
+    {
+        var handler = new HttpClientHandler
+        {
+            SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+            UseCookies = false,
+        };
+        handler.ServerCertificateCustomValidationCallback = validateServerCertificate;
+        return handler;
+    }
+
+    private bool ValidateServerCertificate(
+        HttpRequestMessage _,
+        X509Certificate2? certificate,
+        X509Chain? __,
+        SslPolicyErrors ___)
+    {
+        string? requiredThumbprint;
+        lock (certificateStateGate)
+        {
+            requiredThumbprint = pinnedServerCertificateThumbprint ?? pendingPairingCertificateThumbprint;
+        }
+
+        var isValid = SynchronizationCertificateValidator.TryValidate(
+            certificate,
+            requiredThumbprint,
+            DateTimeOffset.Now,
+            out var observedThumbprint);
+
+        if (isValid)
+        {
+            lock (certificateStateGate)
+            {
+                lastObservedCertificateThumbprint = observedThumbprint;
+            }
+        }
+
+        return isValid;
+    }
+
+    private void EnsureRefreshCredentialsPresent()
+    {
+        if (ServerUrl is null || refreshToken is null)
+        {
+            throw CreateMissingCredentialsException();
+        }
+    }
+
+    private void ResetPendingPairingCertificate()
+    {
+        lock (certificateStateGate)
+        {
+            pendingPairingCertificateThumbprint = null;
+            lastObservedCertificateThumbprint = null;
+        }
+    }
+
+    private void CapturePendingPairingCertificate()
+    {
+        lock (certificateStateGate)
+        {
+            pendingPairingCertificateThumbprint = lastObservedCertificateThumbprint;
+        }
+    }
+
+    private async Task PersistPinnedCertificateAsync()
+    {
+        string? certificateThumbprint;
+        lock (certificateStateGate)
+        {
+            certificateThumbprint = lastObservedCertificateThumbprint ?? pendingPairingCertificateThumbprint;
+            pinnedServerCertificateThumbprint = certificateThumbprint;
+            pendingPairingCertificateThumbprint = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(certificateThumbprint))
+        {
+            return;
+        }
+
+        logger.Verbose("Persisting pinned synchronization certificate thumbprint");
+        await secureStorage.SetStringAsync(ServerCertificateThumbprintKey, certificateThumbprint);
+    }
+
+    private async Task ClearPairingCredentialsAsync()
+    {
+        client.DefaultRequestHeaders.Authorization = null;
+        ServerUrl = null;
+        refreshToken = null;
+        tokenExpiry = null;
+
+        lock (certificateStateGate)
+        {
+            pinnedServerCertificateThumbprint = null;
+            pendingPairingCertificateThumbprint = null;
+            lastObservedCertificateThumbprint = null;
+        }
+
+        await secureStorage.RemoveAsync(RefreshTokenKey);
+        await secureStorage.RemoveAsync(ServerUrlKey);
+        await secureStorage.RemoveAsync(ServerCertificateThumbprintKey);
     }
 
     private async Task<HttpResponseMessage> SendWithLoggingAsync(
@@ -117,18 +232,20 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        Debug.Assert(ServerUrl is not null);
-        Debug.Assert(refreshToken is not null);
+        EnsureRefreshCredentialsPresent();
+
+        var currentServerUrl = ServerUrl ?? throw CreateMissingCredentialsException();
+        var currentRefreshToken = refreshToken ?? throw CreateMissingCredentialsException();
 
         logger.Verbose("Refreshing synchronization tokens");
 
-        var route = $"{ServerUrl}/pair/refresh";
+        var route = $"{currentServerUrl}{SynchronizationProtocol.EndpointPairRefresh}";
         using var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
             () => client.PostAsJsonAsync(
                 route,
-                new RefreshRequest(refreshToken),
+            new RefreshRequest(currentRefreshToken),
                 AppJson.Context.RefreshRequest));
 
         // Clear out pairing information if we received a 401 - Unauthorized response before throwing an
@@ -136,9 +253,7 @@ internal class HttpApiService : IHttpApiService
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
             logger.Warning("Clearing local pairing credentials after token refresh returned unauthorized");
-            client.DefaultRequestHeaders.Authorization = null;
-            await secureStorage.RemoveAsync(RefreshTokenKey);
-            await secureStorage.RemoveAsync(ServerUrlKey);
+            await ClearPairingCredentialsAsync();
         }
         response.EnsureSuccessStatusCode();
 
@@ -156,15 +271,25 @@ internal class HttpApiService : IHttpApiService
         await secureStorage.SetStringAsync(RefreshTokenKey, refreshToken);
     }
 
+    private bool IsTokenRefreshRequired() =>
+        tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30);
+
+    private async Task EnsureTokenFreshAsync()
+    {
+        await EnsureTokenFreshAsync(forceRefresh: false);
+    }
+
     private async Task Init()
     {
         ServerUrl = await secureStorage.GetStringAsync(ServerUrlKey);
         refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
+        pinnedServerCertificateThumbprint = await secureStorage.GetStringAsync(ServerCertificateThumbprintKey);
 
         logger.Verbose(
-            "HTTP API service initialized with stored server URL present {HasServerUrl} and refresh token present {HasRefreshToken}",
+            "HTTP API service initialized with stored server URL present {HasServerUrl}, refresh token present {HasRefreshToken}, and pinned certificate present {HasPinnedCertificate}",
             ServerUrl is not null,
-            refreshToken is not null);
+            refreshToken is not null,
+            pinnedServerCertificateThumbprint is not null);
     }
 
     #endregion Private methods
@@ -174,6 +299,7 @@ internal class HttpApiService : IHttpApiService
     public async Task RequestPairingAsync(string url, string deviceId, string? displayName)
     {
         await Initialization;
+        ResetPendingPairingCertificate();
 
         var route = $"{url}{SynchronizationProtocol.EndpointPairRequest}";
         using var response = await SendWithLoggingAsync(
@@ -187,6 +313,7 @@ internal class HttpApiService : IHttpApiService
 
         ServerUrl = url;
         await secureStorage.SetStringAsync(ServerUrlKey, ServerUrl);
+        CapturePendingPairingCertificate();
     }
 
     public async Task ConfirmPairingAsync(string deviceId, string? displayName, string pin)
@@ -215,28 +342,28 @@ internal class HttpApiService : IHttpApiService
         logger.Verbose("Pairing confirmation stored refreshed credentials expiring at {TokenExpiry}", tokenExpiry);
 
         await secureStorage.SetStringAsync(RefreshTokenKey, tokens.RefreshToken);
+        await PersistPinnedCertificateAsync();
     }
 
     public async Task UnpairAsync(string deviceId)
     {
         await Initialization;
 
-        Debug.Assert(refreshToken is not null);
+        var currentRefreshToken = refreshToken ?? throw CreateMissingCredentialsException();
+        var currentServerUrl = ServerUrl ?? throw CreateMissingCredentialsException();
 
         // Clean out locally first, so even if the server call fails for some reason (e.g. no network),
         // the client won't store the server URL and refresh token anymore.
         // TODO: defer failed deletions until next connection
-        await secureStorage.RemoveAsync(RefreshTokenKey);
-        await secureStorage.RemoveAsync(ServerUrlKey);
-        client.DefaultRequestHeaders.Authorization = null;
+        await ClearPairingCredentialsAsync();
 
-        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointPairUnpair}";
+        var route = $"{currentServerUrl}{SynchronizationProtocol.EndpointPairUnpair}";
         var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
             () => client.PostAsJsonAsync(
                 route,
-                new UnpairRequest(deviceId, refreshToken),
+                new UnpairRequest(deviceId, currentRefreshToken),
                 AppJson.Context.UnpairRequest));
         response.EnsureSuccessStatusCode();
     }
@@ -251,7 +378,7 @@ internal class HttpApiService : IHttpApiService
 
         try
         {
-            await RefreshTokensAsync();
+            await EnsureTokenFreshAsync(forceRefresh: true);
         }
         catch (HttpRequestException e)
         {
@@ -272,15 +399,55 @@ internal class HttpApiService : IHttpApiService
         return true;
     }
 
+    private async Task EnsureTokenFreshAsync(bool forceRefresh)
+    {
+        await Initialization;
+
+        EnsureRefreshCredentialsPresent();
+
+        if (!forceRefresh && !IsTokenRefreshRequired())
+        {
+            return;
+        }
+
+        Task refreshTask;
+        lock (tokenRefreshStateGate)
+        {
+            EnsureRefreshCredentialsPresent();
+
+            if (!forceRefresh && !IsTokenRefreshRequired())
+            {
+                return;
+            }
+
+            inFlightTokenRefreshTask ??= RefreshTokensAsync();
+            refreshTask = inFlightTokenRefreshTask;
+        }
+
+        try
+        {
+            await refreshTask;
+        }
+        finally
+        {
+            lock (tokenRefreshStateGate)
+            {
+                if (ReferenceEquals(inFlightTokenRefreshTask, refreshTask)
+                    && refreshTask.IsCompleted)
+                {
+                    inFlightTokenRefreshTask = null;
+                }
+            }
+        }
+    }
+
     #endregion Public methods - pairing
 
     #region Public methods - syncing
 
     public async Task<SynchronizationData> PullSyncAsync(long since = 0)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSyncPull}?since={since}";
         using var response = await SendWithLoggingAsync(
@@ -304,9 +471,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task PushSyncAsync(SynchronizationData syncData)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         logger.Verbose(
             "Uploading synchronization data with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
@@ -329,9 +494,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionIncomplete}";
         using var response = await SendWithLoggingAsync(
@@ -350,9 +513,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task<byte[]?> GetSessionPsstAsync(Guid id)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionData}{id}";
         using var response = await SendWithLoggingAsync(
@@ -374,9 +535,7 @@ internal class HttpApiService : IHttpApiService
 
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
     {
-        await Initialization;
-
-        if (tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30)) await RefreshTokensAsync();
+        await EnsureTokenFreshAsync();
 
         logger.Verbose("Uploading {ByteCount} bytes of session data for {SessionId}", data.Length, id);
 

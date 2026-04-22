@@ -16,6 +16,8 @@ public static class TestImages
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63N" +
         "kAAAAASUVORK5CYII=");
 
+    public static byte[] SmallPngBytes() => [.. OnePixelPng];
+
     public static Bitmap SmallPng()
     {
         using var ms = new MemoryStream(OnePixelPng);

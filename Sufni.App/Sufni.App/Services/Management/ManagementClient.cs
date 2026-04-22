@@ -152,7 +152,9 @@ internal sealed class ManagementClient : IDisposable
                     if (begin.FileSizeBytes > int.MaxValue)
                     {
                         throw new DaqManagementException(
-                            $"GET_FILE declared file size {begin.FileSizeBytes} which exceeds the supported limit of {int.MaxValue} bytes.");
+                            $"GET_FILE declared file size {begin.FileSizeBytes} which exceeds the supported limit of {int.MaxValue} bytes.",
+                            begin.FileSizeBytes,
+                            (ulong)int.MaxValue);
                     }
 
                     declaredSize = begin.FileSizeBytes;

@@ -27,6 +27,15 @@ public class LiveDaqDetailViewModelTests
     private readonly BehaviorSubject<LiveDaqSharedStreamState> streamStates = new(LiveDaqSharedStreamState.Empty);
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private LiveDaqSharedStreamState currentStreamState = LiveDaqSharedStreamState.Empty;
+    private LiveDaqSnapshot currentCatalogSnapshot = new(
+        IdentityKey: "board-1",
+        DisplayName: "Board 1",
+        BoardId: "board-1",
+        Host: "192.168.0.50",
+        Port: 1557,
+        IsOnline: true,
+        SetupName: "race",
+        BikeName: "demo");
     private LiveDaqStreamConfiguration currentConfiguration = LiveDaqStreamConfiguration.Default;
     private readonly ILiveDaqSharedStreamLease streamLease = Substitute.For<ILiveDaqSharedStreamLease>();
 
@@ -44,6 +53,7 @@ public class LiveDaqDetailViewModelTests
         sharedStream.Frames.Returns(frames);
         sharedStream.States.Returns(streamStates);
         sharedStream.CurrentState.Returns(_ => currentStreamState);
+        sharedStream.CatalogSnapshot.Returns(_ => currentCatalogSnapshot);
         sharedStream.RequestedConfiguration.Returns(_ => currentConfiguration);
         sharedStream.AcquireLease().Returns(streamLease);
         sharedStream.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>())
@@ -109,6 +119,14 @@ public class LiveDaqDetailViewModelTests
             dialogService,
             knownBoardsQuery,
             liveDaqStore);
+    }
+
+    [AvaloniaFact]
+    public void CreateEditor_DoesNotAcquireLeaseBeforeLoaded()
+    {
+        _ = CreateEditor();
+
+        sharedStream.DidNotReceive().AcquireLease();
     }
 
     [AvaloniaFact]
@@ -190,6 +208,19 @@ public class LiveDaqDetailViewModelTests
 
         await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.Received(1).Close(editor);
+        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_DoesNotCloseTab_WhenRejectedDialogIsCancelled()
+    {
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(false));
+        var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        shell.DidNotReceive().Close(editor);
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
     }
 
@@ -368,6 +399,34 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task CanManage_StaysTrue_WhenStoreSnapshotGoesOffline_ButSharedStreamStillHasEndpoint()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.DisconnectCommand.ExecuteAsync(null);
+
+        editor.Snapshot = LiveDaqUiSnapshot.Empty with
+        {
+            ConnectionState = LiveConnectionState.Disconnected,
+            ConnectionStateText = LiveDaqUiSnapshot.ToConnectionStateText(LiveConnectionState.Disconnected)
+        };
+
+        liveDaqStore.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: null,
+            Port: null,
+            IsOnline: false,
+            SetupName: "race",
+            BikeName: "demo"));
+        await Task.Yield();
+
+        Assert.True(editor.CanManage);
+        Assert.Equal("192.168.0.50:1557", editor.Endpoint);
+    }
+
+    [AvaloniaFact]
     public async Task SetTimeCommand_AddsNotification_OnSuccess()
     {
         var editor = CreateEditor();
@@ -484,6 +543,9 @@ public class LiveDaqDetailViewModelTests
 
         Assert.True(editor.CanManage);
 
+        currentStreamState = currentStreamState with { IsClosed = true };
+        streamStates.OnNext(currentStreamState);
+
         liveDaqStore.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
             DisplayName: "Board 1",
@@ -524,6 +586,9 @@ public class LiveDaqDetailViewModelTests
 
         Assert.True(editor.CanManage);
 
+        currentStreamState = currentStreamState with { IsClosed = true };
+        streamStates.OnNext(currentStreamState);
+
         liveDaqStore.Remove("board-1");
         await Task.Yield();
 
@@ -553,6 +618,9 @@ public class LiveDaqDetailViewModelTests
             SetupName: "race",
             BikeName: "demo"));
         await Task.Yield();
+
+        currentStreamState = currentStreamState with { IsClosed = true };
+        streamStates.OnNext(currentStreamState);
 
         liveDaqStore.Remove("board-1");
         await Task.Yield();

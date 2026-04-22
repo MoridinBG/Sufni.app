@@ -5,16 +5,6 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.SessionDetails;
 
-public sealed record SessionDamperPercentages(
-    double? FrontHscPercentage,
-    double? RearHscPercentage,
-    double? FrontLscPercentage,
-    double? RearLscPercentage,
-    double? FrontLsrPercentage,
-    double? RearLsrPercentage,
-    double? FrontHsrPercentage,
-    double? RearHsrPercentage);
-
 public sealed record SessionTelemetryPresentationData(
     TelemetryData TelemetryData,
     Guid? FullTrackId,

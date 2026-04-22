@@ -67,11 +67,9 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             {
                 case nameof(GraphBatches):
                     graphBatchesSubscription?.Dispose();
+                    graphBatchesSubscription = null;
                     ClearPendingGraphBatches();
-                    if (e.NewValue is IObservable<LiveGraphBatch> graphBatches)
-                    {
-                        graphBatchesSubscription = graphBatches.Subscribe(HandleGraphBatch);
-                    }
+                    EnsureGraphBatchSubscription();
                     break;
 
                 case nameof(Timeline):
@@ -94,10 +92,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             }
         };
 
-        AttachedToVisualTree += (_, _) => uiRefreshTimer.Start();
+        AttachedToVisualTree += (_, _) =>
+        {
+            uiRefreshTimer.Start();
+            EnsureGraphBatchSubscription();
+        };
         DetachedFromVisualTree += (_, _) =>
         {
             graphBatchesSubscription?.Dispose();
+            graphBatchesSubscription = null;
             uiRefreshTimer.Stop();
             ClearPendingGraphBatches();
         };
@@ -105,20 +108,22 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     protected void InitializeInteractions()
     {
-        if (AvaPlot is null)
+        if (!HasPlotControl)
         {
             return;
         }
 
-        AvaPlot.PointerMoved += (_, args) =>
+        var plotControl = PlotControl;
+
+        plotControl.PointerMoved += (_, args) =>
         {
             if (Plot is null)
             {
                 return;
             }
 
-            var point = args.GetPosition(AvaPlot);
-            var coords = AvaPlot.Plot.GetCoordinates((float)point.X, (float)point.Y);
+            var point = args.GetPosition(plotControl);
+            var coords = plotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
             var normalizedTime = Plot.CoordinateToNormalizedTime(coords.X);
             if (normalizedTime is null)
             {
@@ -127,11 +132,11 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
             Timeline?.SetCursorPosition(normalizedTime);
             Plot.SetCursorFromNormalized(normalizedTime);
-            AvaPlot.Refresh();
+            RefreshPlot();
         };
 
-        AvaPlot.PointerReleased += (_, _) => UpdateTimelineRange();
-        AvaPlot.PointerWheelChanged += (_, _) => UpdateTimelineRange();
+        plotControl.PointerReleased += (_, _) => UpdateTimelineRange();
+        plotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();
     }
 
     protected abstract void ApplyGraphBatch(LiveGraphBatch batch);
@@ -159,9 +164,19 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         }
     }
 
+    private void EnsureGraphBatchSubscription()
+    {
+        if (graphBatchesSubscription is not null || GraphBatches is not IObservable<LiveGraphBatch> graphBatches)
+        {
+            return;
+        }
+
+        graphBatchesSubscription = graphBatches.Subscribe(HandleGraphBatch);
+    }
+
     private void FlushPendingGraphBatches()
     {
-        if (Plot is null || AvaPlot is null)
+        if (Plot is null || !HasPlotControl)
         {
             return;
         }
@@ -207,7 +222,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         }
 
         Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
-        AvaPlot.Refresh();
+        RefreshPlot();
         if (didReset)
         {
             UpdateTimelineRange();
@@ -243,7 +258,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         {
             case nameof(SessionTimelineLinkViewModel.NormalizedCursorPosition):
                 Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
-                AvaPlot?.Refresh();
+                RefreshPlot();
                 break;
 
             case nameof(SessionTimelineLinkViewModel.VisibleRangeStart):
@@ -266,7 +281,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     private void ApplyTimelineRange()
     {
-        if (Plot is null || Timeline is null || AvaPlot is null || applyingTimelineRange)
+        if (Plot is null || Timeline is null || !HasPlotControl || applyingTimelineRange)
         {
             return;
         }
@@ -275,7 +290,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         try
         {
             Plot.ApplyVisibleRange(Timeline.VisibleRangeStart, Timeline.VisibleRangeEnd);
-            AvaPlot.Refresh();
+            RefreshPlot();
         }
         finally
         {

@@ -4,7 +4,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 
@@ -38,6 +37,17 @@ public class TrackCoordinatorTests
         filesService.OpenGpxFilesAsync().Returns([file]);
 
         await Assert.ThrowsAsync<System.Xml.XmlException>(() => CreateCoordinator().ImportGpxAsync());
+        await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_Throws_WhenGpxContainsNoValidTrackPoints()
+    {
+        var file = Substitute.For<IStorageFile>();
+        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(EmptyTrackGpx()))));
+        filesService.OpenGpxFilesAsync().Returns([file]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateCoordinator().ImportGpxAsync());
         await database.DidNotReceive().PutAsync(Arg.Any<Track>());
     }
 
@@ -122,5 +132,20 @@ public class TrackCoordinatorTests
                  </trk>
                </gpx>
                """;
+    }
+
+    private static string EmptyTrackGpx()
+    {
+        return """
+                             <?xml version="1.0" encoding="UTF-8"?>
+                             <gpx version="1.1" creator="tests" xmlns="http://www.topografix.com/GPX/1/1">
+                                 <trk>
+                                     <name>Example</name>
+                                     <trkseg>
+                                         <trkpt lat="42.0" lon="23.0"><ele>600</ele></trkpt>
+                                     </trkseg>
+                                 </trk>
+                             </gpx>
+                             """;
     }
 }

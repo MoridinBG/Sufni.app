@@ -9,7 +9,6 @@ using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
@@ -28,6 +27,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly object presentationGate = new();
     private bool hasLoaded;
+    private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
     private bool hasPendingPresentation;
 
@@ -170,12 +170,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     protected override void EvaluateDirtiness()
     {
-        IsDirty = ControlState.CanSave;
+        IsDirty = ControlState.CanSave && !IsCurrentCaptureAlreadySaved();
     }
 
     protected override bool CanSave()
     {
-        return ControlState.CanSave && !SaveCommand.IsRunning && !ResetCommand.IsRunning;
+        return ControlState.CanSave && !IsCurrentCaptureAlreadySaved() && !SaveCommand.IsRunning && !ResetCommand.IsRunning;
     }
 
     protected override bool CanReset()
@@ -206,6 +206,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         try
         {
             var capture = await liveSessionService.PrepareCaptureForSaveAsync();
+            var savedCaptureRevision = liveSessionService.Current.CaptureRevision;
             var saveTime = DateTimeOffset.Now;
             var sessionName = shouldRefreshAutoName ? CreateDefaultName(saveTime) : Name!;
             var session = new Session(
@@ -231,13 +232,27 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             switch (result)
             {
                 case LiveSessionSaveResult.Saved saved:
-                    await liveSessionService.ResetCaptureAsync();
-                    ResetCapturePresentation();
-                    if (shouldRefreshAutoName)
+                    blockedSavedCaptureRevision = savedCaptureRevision;
+
+                    try
                     {
-                        Name = CreateDefaultName(DateTimeOffset.Now);
+                        await liveSessionService.ResetCaptureAsync();
+                        ResetCapturePresentation();
+                        if (shouldRefreshAutoName)
+                        {
+                            Name = CreateDefaultName(DateTimeOffset.Now);
+                        }
+
+                        await sessionCoordinator.OpenEditAsync(saved.SessionId);
                     }
-                    await sessionCoordinator.OpenEditAsync(saved.SessionId);
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception e)
+                    {
+                        ErrorMessages.Add($"Live session was saved, but post-save cleanup failed: {e.Message}");
+                    }
                     break;
 
                 case LiveSessionSaveResult.Failed failed:
@@ -312,6 +327,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyPresentation(LiveSessionPresentationSnapshot snapshot)
     {
+        if (blockedSavedCaptureRevision != snapshot.CaptureRevision)
+        {
+            blockedSavedCaptureRevision = null;
+        }
+
         TelemetryData = snapshot.StatisticsTelemetry;
         DamperPercentages = snapshot.DamperPercentages;
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints);
@@ -324,6 +344,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ControlState = ApplyControlFlags(snapshot.Controls);
         EvaluateDirtiness();
         RefreshCommandState();
+    }
+
+    private bool IsCurrentCaptureAlreadySaved()
+    {
+        return blockedSavedCaptureRevision is not null;
     }
 
     private LiveSessionControlState ApplyControlFlags(LiveSessionControlState controlState)

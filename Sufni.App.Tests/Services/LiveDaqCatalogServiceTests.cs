@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
 using NSubstitute;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -79,7 +78,7 @@ public class LiveDaqCatalogServiceTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("192.168.1.10"), 4567)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 4567)));
 
         var entries = await updateTask;
         var entry = Assert.Single(entries);
@@ -102,7 +101,7 @@ public class LiveDaqCatalogServiceTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(MakeAnnouncement(IPAddress.Parse("192.168.1.11"), 6789)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.11"), 6789)));
 
         var entry = Assert.Single(await updateTask);
         Assert.Null(entry.BoardId);
@@ -119,7 +118,7 @@ public class LiveDaqCatalogServiceTests
 
         using var service = CreateCatalogService();
         var added = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
-        var announcement = MakeAnnouncement(IPAddress.Parse("192.168.1.12"), 9001);
+        var announcement = new ServiceAnnouncement(IPAddress.Parse("192.168.1.12"), 9001);
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -169,18 +168,6 @@ public class LiveDaqCatalogServiceTests
 
         Assert.Equal(expectedBoardId, boardId);
         await serverTask;
-    }
-
-    private static ServiceAnnouncement MakeAnnouncement(IPAddress address, ushort port)
-    {
-        var announcement = new ServiceAnnouncement();
-        typeof(ServiceAnnouncement)
-            .GetProperty(nameof(ServiceAnnouncement.Address), BindingFlags.Public | BindingFlags.Instance)!
-            .SetValue(announcement, address);
-        typeof(ServiceAnnouncement)
-            .GetProperty(nameof(ServiceAnnouncement.Port), BindingFlags.Public | BindingFlags.Instance)!
-            .SetValue(announcement, port);
-        return announcement;
     }
 
     private static async Task<IReadOnlyList<LiveDaqCatalogEntry>> WaitForEntriesAsync(

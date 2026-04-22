@@ -19,14 +19,4 @@ public class SmokeTests
         Assert.Equal(1, bitmap.Size.Width);
         Assert.Equal(1, bitmap.Size.Height);
     }
-
-    [AvaloniaFact]
-    public void SetIsDesktop_FlipsAppFlag()
-    {
-        TestApp.SetIsDesktop(true);
-        Assert.True(Sufni.App.App.Current!.IsDesktop);
-
-        TestApp.SetIsDesktop(false);
-        Assert.False(Sufni.App.App.Current!.IsDesktop);
-    }
 }

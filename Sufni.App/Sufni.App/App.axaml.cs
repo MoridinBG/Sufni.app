@@ -26,6 +26,12 @@ public partial class App : Application
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
     public bool IsDesktop { get; private set; }
+
+    internal void SetIsDesktopForTests(bool isDesktop)
+    {
+        IsDesktop = isDesktop;
+    }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -38,6 +44,8 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         LoggingBootstrapper.InstallGlobalExceptionHooks();
+
+        var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
@@ -55,6 +63,7 @@ public partial class App : Application
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
+        ServiceCollection.AddSingleton<ViewLocator>();
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
@@ -109,10 +118,10 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
         ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
-            sp.GetRequiredService<IBikeStoreWriter>(),
-            sp.GetRequiredService<ISetupStoreWriter>(),
-            sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<IPairedDeviceStoreWriter>(),
+            sp.GetRequiredService<IBikeStore>(),
+            sp.GetRequiredService<ISetupStore>(),
+            sp.GetRequiredService<ISessionStore>(),
+            sp.GetRequiredService<IPairedDeviceStore>(),
             sp.GetRequiredService<IImportSessionsCoordinator>(),
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISyncCoordinator>(),
@@ -129,8 +138,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
 
-        IsDesktop = ServiceCollection.Any(s => s.ServiceType == typeof(ISynchronizationServerService));
+        IsDesktop = isDesktop;
         Services = ServiceCollection.BuildServiceProvider();
+
+        if (!DataTemplates.OfType<ViewLocator>().Any())
+        {
+            DataTemplates.Add(Services.GetRequiredService<ViewLocator>());
+        }
 
         // Coordinators with constructor-time event subscriptions are
         // eagerly resolved here so the subscriptions are wired before any
