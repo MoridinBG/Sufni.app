@@ -1,21 +1,21 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.Controls.SwipeToDeleteButton"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:labs="clr-namespace:Avalonia.Labs.Controls;assembly=Avalonia.Labs.Controls"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    x:DataType="vm:ListItemRowViewModelBase"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.Controls.SwipeToDeleteButton"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:labs="clr-namespace:Avalonia.Labs.Controls;assembly=Avalonia.Labs.Controls"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:ListItemRowViewModelBase"
+mc:Ignorable="d">
 
     <UserControl.Resources>
         <Animation
-            x:Key="ImageSizeAnimation"
-            x:SetterTargetType="Image"
-            Duration="0:0:0.2">
+        x:Key="ImageSizeAnimation"
+        x:SetterTargetType="Image"
+        Duration="0:0:0.2">
             <KeyFrame Cue="0%">
                 <Setter Property="Height" Value="16" />
                 <Setter Property="Width" Value="16" />
@@ -44,48 +44,50 @@
 
     <Panel Margin="0,0,0,0">
         <Border
-            Height="48"
-            Margin="10,0,10,0"
-            HorizontalAlignment="Stretch"
-            Background="#1a1e21" />
+        Height="48"
+        Margin="10,0,10,0"
+        HorizontalAlignment="Stretch"
+        Background="#1a1e21" />
         <labs:Swipe Name="SwipeButton" PropertyChanged="SwipePropertyChanged">
             <labs:Swipe.Content>
                 <Button
-                    Height="48"
-                    Padding="30,0,10,0"
-                    HorizontalAlignment="Stretch"
-                    VerticalContentAlignment="Center"
-                    Classes="item"
-                    Command="{Binding OpenPageCommand}"
-                    CommandParameter="{Binding}"
-                    CornerRadius="0">
+                Name="OpenButton"
+                Height="48"
+                Padding="30,0,10,0"
+                HorizontalAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                Classes="item"
+                Command="{Binding OpenPageCommand}"
+                CommandParameter="{Binding}"
+                CornerRadius="0">
                     <Grid HorizontalAlignment="Stretch" ColumnDefinitions="auto * auto 40">
-                        <TextBlock Grid.Column="0" Text="{Binding Name}" />
-                        <TextBlock Grid.Column="2" Text="{Binding Timestamp}" />
+                        <TextBlock Name="NameTextBlock" Grid.Column="0" Text="{Binding Name}" />
+                        <TextBlock Name="TimestampTextBlock" Grid.Column="2" Text="{Binding Timestamp}" />
                         <Image
-                            Grid.Column="3"
-                            Width="16"
-                            Height="16"
-                            IsVisible="{Binding !IsComplete}"
-                            Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}" />
+                        Name="IncompleteStatusIcon"
+                        Grid.Column="3"
+                        Width="16"
+                        Height="16"
+                        IsVisible="{Binding !IsComplete}"
+                        Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}" />
                     </Grid>
                 </Button>
             </labs:Swipe.Content>
             <labs:Swipe.Left>
                 <DataTemplate>
                     <Button
-                        Width="64"
-                        Height="48"
-                        Padding="0"
-                        HorizontalContentAlignment="Left"
-                        VerticalContentAlignment="Center"
-                        Classes="swipedelete"
-                        Command="{Binding $parent[labs:Swipe].((vm:ListItemRowViewModelBase)DataContext).UndoableDeleteCommand}"
-                        Svg.Css=".default { fill: #f0f0f0; }">
+                    Width="64"
+                    Height="48"
+                    Padding="0"
+                    HorizontalContentAlignment="Left"
+                    VerticalContentAlignment="Center"
+                    Classes="swipedelete"
+                    Command="{Binding $parent[labs:Swipe].((vm:ListItemRowViewModelBase)DataContext).UndoableDeleteCommand}"
+                    Svg.Css=".default { fill: #f0f0f0; }">
                         <Image
-                            Width="16"
-                            Height="16"
-                            Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                        Width="16"
+                        Height="16"
+                        Source="{SvgImage /Assets/fa-trash-can.svg}" />
                     </Button>
                 </DataTemplate>
             </labs:Swipe.Left>

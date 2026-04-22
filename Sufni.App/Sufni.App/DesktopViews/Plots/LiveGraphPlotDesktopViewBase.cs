@@ -174,7 +174,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         graphBatchesSubscription = graphBatches.Subscribe(HandleGraphBatch);
     }
 
-    private void FlushPendingGraphBatches()
+    internal void FlushPendingGraphBatches()
     {
         if (Plot is null || !HasPlotControl)
         {

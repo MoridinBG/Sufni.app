@@ -49,7 +49,7 @@ public class LiveGraphPlotDesktopViewTests
         Assert.NotNull(imuView);
 
         batches.OnNext(CreateBatch(revision: 1));
-        await WaitForUiRefreshAsync();
+        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!);
 
         var travelPlot = GetRenderedPlot(travelView!);
         var velocityPlot = GetRenderedPlot(velocityView!);
@@ -66,7 +66,7 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Equal(0, imuPlot.Plot.Axes.Left.Min);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
-        await WaitForUiRefreshAsync();
+        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!);
 
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
 
@@ -99,7 +99,7 @@ public class LiveGraphPlotDesktopViewTests
         Assert.NotNull(travelView);
 
         batches.OnNext(CreateBatch(revision: 1));
-        await WaitForUiRefreshAsync();
+        await FlushGraphBatchesAsync(travelView!);
 
         var travelPlot = GetRenderedPlot(travelView!);
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
@@ -111,7 +111,7 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         batches.OnNext(CreateBatch(revision: 2));
-        await WaitForUiRefreshAsync();
+        await FlushGraphBatchesAsync(travelView!);
 
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
 
@@ -142,9 +142,13 @@ public class LiveGraphPlotDesktopViewTests
             });
     }
 
-    private static async Task WaitForUiRefreshAsync()
+    private static async Task FlushGraphBatchesAsync(params LiveGraphPlotDesktopViewBase[] views)
     {
-        await Task.Delay(150);
+        foreach (var view in views)
+        {
+            view.FlushPendingGraphBatches();
+        }
+
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
