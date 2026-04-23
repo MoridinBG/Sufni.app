@@ -9,6 +9,8 @@ namespace Sufni.App.Models;
 
 public class NetworkTelemetryFile : ITelemetryFile
 {
+    private static readonly DateTimeOffset FallbackStartTimeUtc = DateTimeOffset.UnixEpoch;
+
     public string Name { get; set; }
     public string FileName { get; }
     public bool? ShouldBeImported { get; set; }
@@ -17,7 +19,7 @@ public class NetworkTelemetryFile : ITelemetryFile
     public byte Version { get; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
-    public string? MalformedMessage => null;
+    public string? MalformedMessage { get; }
     public bool HasUnknown => false;
 
     private readonly IPEndPoint ipEndPoint;
@@ -80,15 +82,21 @@ public class NetworkTelemetryFile : ITelemetryFile
         int recordId,
         string name,
         byte version,
-        DateTimeOffset timestampUtc,
-        TimeSpan duration)
+        DateTimeOffset? timestampUtc,
+        TimeSpan? duration,
+        string? malformedMessage = null)
     {
         this.daqManagementService = daqManagementService;
         this.recordId = recordId;
-        ShouldBeImported = duration.TotalSeconds >= 5 ? true : null;
+
+        var effectiveDuration = duration;
+        ShouldBeImported = string.IsNullOrWhiteSpace(malformedMessage)
+            ? effectiveDuration?.TotalSeconds >= 5 ? true : null
+            : false;
         Version = version;
-        StartTime = timestampUtc.LocalDateTime;
-        Duration = duration.ToString(@"hh\:mm\:ss");
+        StartTime = (timestampUtc ?? FallbackStartTimeUtc).LocalDateTime;
+        Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
+        MalformedMessage = malformedMessage;
         Name = name;
         FileName = name;
         Description = $"Imported from {name}";

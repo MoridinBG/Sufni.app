@@ -104,6 +104,60 @@ public class NetworkTelemetryDataStoreTests
     }
 
     [Fact]
+    public async Task GetFiles_MapsMalformedSstMetadata_WithoutFailingTheWholeList()
+    {
+        var boardIdInspector = CreateBoardIdInspector();
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, DaqDirectoryId.Root, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqListDirectoryResult>(
+                new DaqListDirectoryResult.Listed(
+                    new DaqRootDirectoryRecord(
+                    [
+                        new DaqMalformedSstFileRecord(
+                            DaqFileClass.RootSst,
+                            "00012.SST",
+                            1234,
+                            12,
+                            TimestampUtc: null,
+                            Duration: TimeSpan.FromSeconds(6),
+                            SstVersion: 4,
+                            MalformedMessage: "The device reported an invalid SST timestamp (7809639177543108896)."),
+                        new DaqSstFileRecord(
+                            DaqFileClass.RootSst,
+                            "RIDE-NEW.SST",
+                            5678,
+                            42,
+                            DateTimeOffset.FromUnixTimeSeconds(222),
+                            TimeSpan.FromSeconds(7),
+                            4)
+                    ]))));
+
+        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
+        await dataStore.Initialization;
+
+        var files = await dataStore.GetFiles();
+
+        Assert.Collection(
+            files,
+            first =>
+            {
+                Assert.Equal("RIDE-NEW.SST", first.FileName);
+                Assert.True(first.ShouldBeImported);
+                Assert.Null(first.MalformedMessage);
+            },
+            second =>
+            {
+                Assert.Equal("00012.SST", second.FileName);
+                Assert.False(second.ShouldBeImported);
+                Assert.Equal((byte)4, second.Version);
+                Assert.Equal("00:00:06", second.Duration);
+                Assert.Equal(DateTimeOffset.UnixEpoch.LocalDateTime, second.StartTime);
+                Assert.Contains("invalid SST timestamp", second.MalformedMessage);
+            });
+    }
+
+    [Fact]
     public async Task GeneratePsstAsync_UsesInjectedRecordIdRatherThanFileName()
     {
         var daqManagementService = Substitute.For<IDaqManagementService>();

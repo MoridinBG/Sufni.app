@@ -39,6 +39,17 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
             {
                 case DaqConfigFileRecord:
                     continue;
+                case DaqMalformedSstFileRecord malformedRecord:
+                    files.Add(new NetworkTelemetryFile(
+                        ipEndPoint,
+                        daqManagementService,
+                        malformedRecord.RecordId,
+                        malformedRecord.Name,
+                        malformedRecord.SstVersion,
+                        malformedRecord.TimestampUtc,
+                        malformedRecord.Duration,
+                        malformedRecord.MalformedMessage));
+                    break;
                 case DaqSstFileRecord sstRecord:
                     files.Add(new NetworkTelemetryFile(
                         ipEndPoint,
