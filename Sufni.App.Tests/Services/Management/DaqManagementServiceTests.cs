@@ -93,6 +93,45 @@ public class DaqManagementServiceTests
     }
 
     [Fact]
+    public async Task ListDirectoryAsync_ReturnsMalformedSstRecord_WhenDeviceReportsOutOfRangeTimestamp()
+    {
+        await using var server = new ManagementTestServer();
+        var serverTask = server.RunSessionAsync(async stream =>
+        {
+            var reader = new ManagementProtocolReader();
+            var request = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
+
+            await ManagementTestServer.WriteFrameAsync(stream,
+                ManagementProtocolTestFrames.CreateListDirectoryEntryFrame(
+                    request.RequestId,
+                    directoryId: DaqDirectoryId.Root,
+                    fileClass: DaqFileClass.RootSst,
+                    recordId: 42,
+                    fileSizeBytes: 4096,
+                    timestampUtcSeconds: 7_809_639_177_543_108_896L,
+                    durationMilliseconds: 6500,
+                    sstVersion: 4,
+                    name: "00042.SST"));
+            await ManagementTestServer.WriteFrameAsync(stream,
+                ManagementProtocolTestFrames.CreateListDirectoryDoneFrame(request.RequestId, 1));
+        });
+
+        var result = await CreateService().ListDirectoryAsync(server.Host, server.Port, DaqDirectoryId.Root);
+        await serverTask;
+
+        var listed = Assert.IsType<DaqListDirectoryResult.Listed>(result);
+        var directory = Assert.IsType<DaqRootDirectoryRecord>(listed.Directory);
+        var malformed = Assert.IsType<DaqMalformedSstFileRecord>(Assert.Single(directory.Files));
+        Assert.Equal(DaqFileClass.RootSst, malformed.FileClass);
+        Assert.Equal(42, malformed.RecordId);
+        Assert.Equal("00042.SST", malformed.Name);
+        Assert.Equal((byte)4, malformed.SstVersion);
+        Assert.Equal(TimeSpan.FromMilliseconds(6500), malformed.Duration);
+        Assert.Null(malformed.TimestampUtc);
+        Assert.Contains("invalid SST timestamp", malformed.MalformedMessage);
+    }
+
+    [Fact]
     public async Task GetFileAsync_ReturnsLoadedBytes_OnSuccess()
     {
         await using var server = new ManagementTestServer();

@@ -10,6 +10,9 @@ namespace Sufni.App.Services.Management;
 
 internal sealed class ManagementClient : IDisposable
 {
+    private static readonly long MinUnixTimeSeconds = DateTimeOffset.MinValue.ToUnixTimeSeconds();
+    private static readonly long MaxUnixTimeSeconds = DateTimeOffset.MaxValue.ToUnixTimeSeconds();
+
     private readonly ManagementProtocolReader reader = new();
     private readonly TimeSpan connectTimeout;
     private readonly TimeSpan ioTimeout;
@@ -406,14 +409,39 @@ internal sealed class ManagementClient : IDisposable
                 $"Directory {directoryId} returned file class {entry.FileClass}, expected {expectedFileClass}.");
         }
 
+        if (!TryCreateTimestamp(entry.TimestampUtcSeconds, out var timestampUtc))
+        {
+            return new DaqMalformedSstFileRecord(
+                entry.FileClass,
+                entry.Name,
+                entry.FileSizeBytes,
+                entry.RecordId,
+                TimestampUtc: null,
+                Duration: TimeSpan.FromMilliseconds(entry.DurationMilliseconds),
+                entry.SstVersion,
+                $"The device reported an invalid SST timestamp ({entry.TimestampUtcSeconds}).");
+        }
+
         return new DaqSstFileRecord(
             entry.FileClass,
             entry.Name,
             entry.FileSizeBytes,
             entry.RecordId,
-            DateTimeOffset.FromUnixTimeSeconds(entry.TimestampUtcSeconds),
+            timestampUtc,
             TimeSpan.FromMilliseconds(entry.DurationMilliseconds),
             entry.SstVersion);
+    }
+
+    private static bool TryCreateTimestamp(long timestampUtcSeconds, out DateTimeOffset timestampUtc)
+    {
+        if (timestampUtcSeconds < MinUnixTimeSeconds || timestampUtcSeconds > MaxUnixTimeSeconds)
+        {
+            timestampUtc = default;
+            return false;
+        }
+
+        timestampUtc = DateTimeOffset.FromUnixTimeSeconds(timestampUtcSeconds);
+        return true;
     }
 
     private static void ValidateFileBegin(ManagementFileBeginFrame begin, DaqFileClass requestedClass, int requestedRecordId)
