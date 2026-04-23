@@ -1,15 +1,16 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.SessionPages.DamperPageView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    x:DataType="vm:DamperPageViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.SessionPages.DamperPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:DamperPageViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:DamperPageViewModel />
@@ -17,29 +18,41 @@
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical">
-            <!--  Front velocity histogram  -->
-            <Grid Name="FrontHistogramRow" ColumnDefinitions="* auto" IsVisible="{Binding FrontVelocityHistogram, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Svg Name="FrontVelocityHistogramSvg" Grid.Column="0" Source="{Binding FrontVelocityHistogram}" />
-                <plots:VelocityBandView
-                    Name="FrontVelocityBands"
-                    Grid.Column="1"
-                    HscPercentage="{Binding FrontHscPercentage}"
-                    HsrPercentage="{Binding FrontHsrPercentage}"
-                    LscPercentage="{Binding FrontLscPercentage}"
-                    LsrPercentage="{Binding FrontLsrPercentage}" />
-            </Grid>
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontHistogramState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Grid Name="FrontHistogramRow" ColumnDefinitions="* auto">
+                        <Svg Name="FrontVelocityHistogramSvg" Grid.Column="0" Source="{Binding FrontVelocityHistogram}" />
+                        <plots:VelocityBandView
+                        Name="FrontVelocityBands"
+                        Grid.Column="1"
+                        HscPercentage="{Binding FrontHscPercentage}"
+                        HsrPercentage="{Binding FrontHsrPercentage}"
+                        LscPercentage="{Binding FrontLscPercentage}"
+                        LsrPercentage="{Binding FrontLsrPercentage}" />
+                    </Grid>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Margin="0,0,0,12" Title="Front damping" MinCardHeight="220" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
 
-            <!--  Rear velocity histogram  -->
-            <Grid Name="RearHistogramRow" ColumnDefinitions="* auto" IsVisible="{Binding RearVelocityHistogram, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Svg Name="RearVelocityHistogramSvg" Grid.Column="0" Source="{Binding RearVelocityHistogram}" />
-                <plots:VelocityBandView
-                    Name="RearVelocityBands"
-                    Grid.Column="1"
-                    HscPercentage="{Binding RearHscPercentage}"
-                    HsrPercentage="{Binding RearHsrPercentage}"
-                    LscPercentage="{Binding RearLscPercentage}"
-                    LsrPercentage="{Binding RearLsrPercentage}" />
-            </Grid>
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding RearHistogramState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Grid Name="RearHistogramRow" ColumnDefinitions="* auto">
+                        <Svg Name="RearVelocityHistogramSvg" Grid.Column="0" Source="{Binding RearVelocityHistogram}" />
+                        <plots:VelocityBandView
+                        Name="RearVelocityBands"
+                        Grid.Column="1"
+                        HscPercentage="{Binding RearHscPercentage}"
+                        HsrPercentage="{Binding RearHsrPercentage}"
+                        LscPercentage="{Binding RearLscPercentage}"
+                        LsrPercentage="{Binding RearLsrPercentage}" />
+                    </Grid>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Rear damping" MinCardHeight="220" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
 
         </StackPanel>
     </ScrollViewer>

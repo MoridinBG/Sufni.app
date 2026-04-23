@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -60,37 +61,37 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #region Public fields
 
     public DamperPageViewModel DamperPage { get; } = new();
+    public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
     public NotesPageViewModel NotesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
-    public bool HasSessionTrackPoints => MapViewModel?.SessionTrackPoints?.Count > 0;
 
     #endregion Public fields
 
     #region Observable properties
 
+    [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private string? videoUrl;
     [ObservableProperty] private double? mapVideoWidth;
     [ObservableProperty] private bool isComplete;
+    [ObservableProperty] private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState frontStatisticsState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     public ObservableCollection<PageViewModelBase> Pages { get; }
-
-    public bool HasFrontStatistics => TelemetryData?.HasStrokeData(SuspensionType.Front) == true;
-    public bool HasRearStatistics => TelemetryData?.HasStrokeData(SuspensionType.Rear) == true;
-    public bool HasCompressionBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Compression) == true;
-    public bool HasReboundBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Rebound) == true;
 
     #endregion Observable properties
 
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         IsComplete = value != null;
-        OnPropertyChanged(nameof(HasFrontStatistics));
-        OnPropertyChanged(nameof(HasRearStatistics));
-        OnPropertyChanged(nameof(HasCompressionBalanceTelemetry));
-        OnPropertyChanged(nameof(HasReboundBalanceTelemetry));
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -111,7 +112,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
 
         MapViewModel.SessionTrackPoints = value;
-        OnPropertyChanged(nameof(HasSessionTrackPoints));
+    }
+
+    partial void OnMapStateChanged(SurfacePresentationState value)
+    {
+        OnPropertyChanged(nameof(HasMediaContent));
+    }
+
+    partial void OnVideoUrlChanged(string? value)
+    {
+        VideoState = string.IsNullOrWhiteSpace(value)
+            ? SurfacePresentationState.Hidden
+            : SurfacePresentationState.Ready;
+    }
+
+    partial void OnVideoStateChanged(SurfacePresentationState value)
+    {
+        OnPropertyChanged(nameof(HasMediaContent));
     }
 
     #region Private methods
@@ -175,14 +192,169 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
     {
+        var hasFrontTravelHistogram = !string.IsNullOrWhiteSpace(data.FrontTravelHistogram);
+        var hasRearTravelHistogram = !string.IsNullOrWhiteSpace(data.RearTravelHistogram);
+        var hasFrontVelocityHistogram = !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
+        var hasRearVelocityHistogram = !string.IsNullOrWhiteSpace(data.RearVelocityHistogram);
+        var hasCompressionBalance = !string.IsNullOrWhiteSpace(data.CompressionBalance);
+        var hasReboundBalance = !string.IsNullOrWhiteSpace(data.ReboundBalance);
+
         SpringPage.FrontTravelHistogram = data.FrontTravelHistogram;
         SpringPage.RearTravelHistogram = data.RearTravelHistogram;
+        SpringPage.FrontHistogramState = hasFrontTravelHistogram
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        SpringPage.RearHistogramState = hasRearTravelHistogram
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+
         DamperPage.FrontVelocityHistogram = data.FrontVelocityHistogram;
         DamperPage.RearVelocityHistogram = data.RearVelocityHistogram;
+        DamperPage.FrontHistogramState = hasFrontVelocityHistogram
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        DamperPage.RearHistogramState = hasRearVelocityHistogram
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+
+        FrontStatisticsState = SpringPage.FrontHistogramState.ReservesLayout || DamperPage.FrontHistogramState.ReservesLayout
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        RearStatisticsState = SpringPage.RearHistogramState.ReservesLayout || DamperPage.RearHistogramState.ReservesLayout
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+
         ApplyDamperPercentages(data.DamperPercentages);
         BalancePage.CompressionBalance = data.CompressionBalance;
         BalancePage.ReboundBalance = data.ReboundBalance;
+        BalancePage.CompressionBalanceState = hasCompressionBalance
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        BalancePage.ReboundBalanceState = hasReboundBalance
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        CompressionBalanceState = BalancePage.CompressionBalanceState;
+        ReboundBalanceState = BalancePage.ReboundBalanceState;
         EnsureBalancePage(data.BalanceAvailable);
+    }
+
+    private static bool HasTravelTelemetry(TelemetryData? telemetry)
+    {
+        return telemetry is { } value && (value.Front.Present || value.Rear.Present);
+    }
+
+    private static bool HasImuTelemetry(TelemetryData? telemetry)
+    {
+        return telemetry?.ImuData is { } imuData &&
+               imuData.Records.Count > 0 &&
+               imuData.ActiveLocations.Count > 0;
+    }
+
+    private static SurfacePresentationState CreateStatisticsState(TelemetryData? telemetry, SuspensionType suspensionType)
+    {
+        if (telemetry is null)
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        var suspension = suspensionType == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
+        if (!suspension.Present)
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        return telemetry.HasStrokeData(suspensionType)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.WaitingForData("Waiting for statistics.");
+    }
+
+    private static SurfacePresentationState CreateBalanceState(TelemetryData? telemetry, BalanceType balanceType)
+    {
+        if (telemetry is null || !telemetry.Front.Present || !telemetry.Rear.Present)
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        return telemetry.HasBalanceData(balanceType)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.WaitingForData("Waiting for balance data.");
+    }
+
+    private static SurfacePresentationState CreateMapState(IReadOnlyCollection<TrackPoint>? trackPoints, bool mapExpected)
+    {
+        if (trackPoints is { Count: > 0 })
+        {
+            return SurfacePresentationState.Ready;
+        }
+
+        return mapExpected
+            ? SurfacePresentationState.WaitingForData("Waiting for map data.")
+            : SurfacePresentationState.Hidden;
+    }
+
+    private void ClearRecordedPresentation()
+    {
+        TelemetryData = null;
+        FullTrackPoints = null;
+        TrackPoints = null;
+        MapVideoWidth = null;
+        ClearDamperPercentages();
+    }
+
+    private void ApplyRecordedLoadingStates(bool mapExpected)
+    {
+        ScreenState = SessionScreenPresentationState.Ready;
+        TravelGraphState = SurfacePresentationState.Loading("Loading travel graphs.");
+        ImuGraphState = SurfacePresentationState.Loading("Loading IMU graph.");
+        FrontStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
+        RearStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
+        CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
+        ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
+        MapState = mapExpected
+            ? SurfacePresentationState.Loading("Loading map data.")
+            : SurfacePresentationState.Hidden;
+        SpringPage.FrontHistogramState = SurfacePresentationState.Loading("Loading spring chart.");
+        SpringPage.RearHistogramState = SurfacePresentationState.Loading("Loading spring chart.");
+        DamperPage.FrontHistogramState = SurfacePresentationState.Loading("Loading damping chart.");
+        DamperPage.RearHistogramState = SurfacePresentationState.Loading("Loading damping chart.");
+        BalancePage.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
+        BalancePage.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
+    }
+
+    private void ApplyRecordedWaitingStates(bool mapExpected)
+    {
+        ScreenState = SessionScreenPresentationState.Ready;
+        TravelGraphState = SurfacePresentationState.WaitingForData("Waiting for travel data.");
+        ImuGraphState = SurfacePresentationState.WaitingForData("Waiting for IMU data.");
+        FrontStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        RearStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        MapState = mapExpected
+            ? SurfacePresentationState.WaitingForData("Waiting for map data.")
+            : SurfacePresentationState.Hidden;
+        SpringPage.FrontHistogramState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
+        SpringPage.RearHistogramState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
+        DamperPage.FrontHistogramState = SurfacePresentationState.WaitingForData("Waiting for damping chart.");
+        DamperPage.RearHistogramState = SurfacePresentationState.WaitingForData("Waiting for damping chart.");
+        BalancePage.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
+        BalancePage.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
+    }
+
+    private void ApplyRecordedLoadedStates(SessionTelemetryPresentationData data)
+    {
+        ScreenState = SessionScreenPresentationState.Ready;
+        TravelGraphState = HasTravelTelemetry(data.TelemetryData)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        ImuGraphState = HasImuTelemetry(data.TelemetryData)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        FrontStatisticsState = CreateStatisticsState(data.TelemetryData, SuspensionType.Front);
+        RearStatisticsState = CreateStatisticsState(data.TelemetryData, SuspensionType.Rear);
+        CompressionBalanceState = CreateBalanceState(data.TelemetryData, BalanceType.Compression);
+        ReboundBalanceState = CreateBalanceState(data.TelemetryData, BalanceType.Rebound);
+        MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
     }
 
     private void ApplyDesktopLoadResult(SessionDesktopLoadResult result)
@@ -196,20 +368,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 TrackPoints = loaded.Data.TrackPoints;
                 MapVideoWidth = loaded.Data.MapVideoWidth;
                 ApplyDamperPercentages(loaded.Data.DamperPercentages);
+                ApplyRecordedLoadedStates(loaded.Data);
                 lastObservedHasProcessedData = true;
                 break;
 
             case SessionDesktopLoadResult.TelemetryPending:
-                TelemetryData = null;
-                FullTrackPoints = null;
-                TrackPoints = null;
-                MapVideoWidth = null;
-                ClearDamperPercentages();
+                ClearRecordedPresentation();
+                ApplyRecordedWaitingStates(session.FullTrack is not null);
                 lastObservedHasProcessedData = false;
                 break;
 
             case SessionDesktopLoadResult.Failed failed:
-                ErrorMessages.Add($"Could not load session data: {failed.ErrorMessage}");
+                ClearRecordedPresentation();
+                ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
     }
@@ -220,22 +391,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         {
             case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
                 ApplyCachePresentation(loadedFromCache.Data);
+                ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 lastObservedHasProcessedData = true;
                 break;
 
             case SessionMobileLoadResult.BuiltCache builtCache:
                 ApplyCachePresentation(builtCache.Data);
+                ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 lastObservedHasProcessedData = true;
                 break;
 
             case SessionMobileLoadResult.TelemetryPending:
+                ApplyRecordedWaitingStates(mapExpected: false);
                 lastObservedHasProcessedData = false;
                 break;
 
             case SessionMobileLoadResult.Failed failed:
-                ErrorMessages.Add($"Could not load session data: {failed.ErrorMessage}");
+                ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
     }
@@ -248,6 +422,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
 
         var token = loadOperation.Start();
+        var currentSnapshot = sessionStore?.Get(Id);
+        if (currentSnapshot?.HasProcessedData == true)
+        {
+            ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
+        }
+        else
+        {
+            ScreenState = SessionScreenPresentationState.Ready;
+        }
+
         try
         {
             if (App.Current?.IsDesktop == true)
@@ -302,6 +486,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
         MapViewModel = new MapViewModel(tileLayerService, dialogService);
         _ = MapViewModel.InitializeAsync();
+        if (snapshot.HasProcessedData)
+        {
+            ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
+        }
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
         NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();

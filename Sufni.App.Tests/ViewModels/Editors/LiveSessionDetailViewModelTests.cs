@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -105,6 +106,90 @@ public class LiveSessionDetailViewModelTests
         Assert.Equal(2, editor.MediaWorkspace.MapViewModel!.SessionTrackPoints!.Count);
         Assert.True(editor.SaveCommand.CanExecute(null));
         Assert.True(editor.ResetCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public async Task SnapshotUpdate_UsesWaitingStates_ForExpectedLiveSurfacesBeforeDataArrives()
+    {
+        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: false);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.ReboundBalanceState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task GraphBatches_PromoteTravelAndImuStates_Independently()
+    {
+        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: false);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        graphBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
+
+        graphBatches.OnNext(CreateImuOnlyBatch(revision: 2));
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.ImuGraphState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task SnapshotUpdate_TransitionsMapState_FromWaitingToReady_WhenTrackPointsArrive()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: false, trackPoints: []);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
+
+        currentSnapshot = CreateSnapshot(
+            canSave: false,
+            trackPoints:
+            [
+                new TrackPoint(1, 2, 0, 1),
+                new TrackPoint(2, 3, 1, 2),
+            ]);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(SurfaceStateKind.Ready, editor.MediaWorkspace.MapState.Kind);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
+    }
+
+    [AvaloniaFact]
+    public async Task SnapshotUpdate_KeepsStatisticsHidden_ForUnconfiguredSide()
+    {
+        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: false));
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: false);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
     }
 
     [AvaloniaFact]
@@ -274,10 +359,10 @@ public class LiveSessionDetailViewModelTests
         Assert.False(editor.ResetCommand.CanExecute(null));
     }
 
-    private LiveSessionDetailViewModel CreateEditor()
+    private LiveSessionDetailViewModel CreateEditor(LiveDaqSessionContext? context = null)
     {
         return new LiveSessionDetailViewModel(
-            CreateSessionContext(),
+            context ?? CreateSessionContext(),
             liveSessionService,
             sessionCoordinator,
             tileLayerService,
@@ -289,9 +374,10 @@ public class LiveSessionDetailViewModelTests
         bool canSave,
         TelemetryData? telemetryData = null,
         IReadOnlyList<TrackPoint>? trackPoints = null,
+        LiveSessionHeader? header = null,
         long captureRevision = 1)
     {
-        var header = LiveProtocolTestFrames.CreateSessionHeaderModel();
+        header ??= LiveProtocolTestFrames.CreateSessionHeaderModel();
         return new LiveSessionPresentationSnapshot(
             Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
             StatisticsTelemetry: telemetryData,
@@ -313,7 +399,9 @@ public class LiveSessionDetailViewModelTests
             CaptureRevision: canSave ? captureRevision : 0);
     }
 
-    private static LiveDaqSessionContext CreateSessionContext()
+    private static LiveDaqSessionContext CreateSessionContext(
+        bool hasFrontTravelCalibration = true,
+        bool hasRearTravelCalibration = true)
     {
         return new LiveDaqSessionContext(
             IdentityKey: "board-1",
@@ -324,7 +412,14 @@ public class LiveSessionDetailViewModelTests
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
             BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
-            TravelCalibration: new LiveDaqTravelCalibration(null, null));
+            TravelCalibration: new LiveDaqTravelCalibration(
+                hasFrontTravelCalibration ? CreateTravelCalibration(180) : null,
+                hasRearTravelCalibration ? CreateTravelCalibration(170) : null));
+    }
+
+    private static LiveDaqTravelChannelCalibration CreateTravelCalibration(double maxTravel)
+    {
+        return new LiveDaqTravelChannelCalibration(maxTravel, measurement => measurement);
     }
 
     private static LiveSessionCapturePackage CreateCapturePackage()
@@ -366,5 +461,39 @@ public class LiveSessionDetailViewModelTests
     {
         await Task.Delay(150);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    private static LiveGraphBatch CreateTravelOnlyBatch(long revision)
+    {
+        return new LiveGraphBatch(
+            Revision: revision,
+            TravelTimes: [0.0, 0.01],
+            FrontTravel: [10.0, 11.0],
+            RearTravel: [9.0, 10.0],
+            VelocityTimes: [0.0, 0.01],
+            FrontVelocity: [100.0, 110.0],
+            RearVelocity: [90.0, 100.0],
+            ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
+            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>());
+    }
+
+    private static LiveGraphBatch CreateImuOnlyBatch(long revision)
+    {
+        return new LiveGraphBatch(
+            Revision: revision,
+            TravelTimes: [],
+            FrontTravel: [],
+            RearTravel: [],
+            VelocityTimes: [],
+            FrontVelocity: [],
+            RearVelocity: [],
+            ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
+            {
+                [LiveImuLocation.Frame] = [0.0, 0.01],
+            },
+            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
+            {
+                [LiveImuLocation.Frame] = [1.0, 1.5],
+            });
     }
 }

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Coordinators;
+using Sufni.App.Presentation;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -30,6 +31,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
     private bool hasPendingPresentation;
+    private readonly bool hasFrontTravelCalibration;
+    private readonly bool hasRearTravelCalibration;
 
     public string IdentityKey { get; }
     public Guid SetupId { get; }
@@ -54,10 +57,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     private LiveSessionControlState controlState = LiveSessionControlState.Empty;
 
-    public bool HasFrontStatistics => TelemetryData?.HasStrokeData(SuspensionType.Front) == true;
-    public bool HasRearStatistics => TelemetryData?.HasStrokeData(SuspensionType.Rear) == true;
-    public bool HasCompressionBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Compression) == true;
-    public bool HasReboundBalanceTelemetry => TelemetryData?.HasBalanceData(BalanceType.Rebound) == true;
+    [ObservableProperty]
+    private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+
+    public SurfacePresentationState FrontStatisticsState => CreateStatisticsState(ControlState.SessionHeader, TelemetryData, SuspensionType.Front, hasFrontTravelCalibration);
+    public SurfacePresentationState RearStatisticsState => CreateStatisticsState(ControlState.SessionHeader, TelemetryData, SuspensionType.Rear, hasRearTravelCalibration);
+    public SurfacePresentationState CompressionBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Compression);
+    public SurfacePresentationState ReboundBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Rebound);
 
     public LiveSessionDetailViewModel()
     {
@@ -84,6 +90,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         BikeName = context.BikeName;
         this.liveSessionService = liveSessionService;
         this.sessionCoordinator = sessionCoordinator;
+        hasFrontTravelCalibration = context.TravelCalibration.Front is not null;
+        hasRearTravelCalibration = context.TravelCalibration.Rear is not null;
 
         var timeline = new SessionTimelineLinkViewModel();
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.GraphBatches);
@@ -111,10 +119,18 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
-        OnPropertyChanged(nameof(HasFrontStatistics));
-        OnPropertyChanged(nameof(HasRearStatistics));
-        OnPropertyChanged(nameof(HasCompressionBalanceTelemetry));
-        OnPropertyChanged(nameof(HasReboundBalanceTelemetry));
+        OnPropertyChanged(nameof(FrontStatisticsState));
+        OnPropertyChanged(nameof(RearStatisticsState));
+        OnPropertyChanged(nameof(CompressionBalanceState));
+        OnPropertyChanged(nameof(ReboundBalanceState));
+    }
+
+    partial void OnControlStateChanged(LiveSessionControlState value)
+    {
+        OnPropertyChanged(nameof(FrontStatisticsState));
+        OnPropertyChanged(nameof(RearStatisticsState));
+        OnPropertyChanged(nameof(CompressionBalanceState));
+        OnPropertyChanged(nameof(ReboundBalanceState));
     }
 
     partial void OnDescriptionTextChanged(string? value)
@@ -130,7 +146,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         if (liveSessionService is not null)
         {
             EnsureScopedSubscription(disposables =>
-                disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh)));
+            {
+                disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh));
+                disposables.Add(liveSessionService.GraphBatches.Subscribe(QueueGraphBatchRefresh));
+            });
         }
 
         if (hasLoaded)
@@ -316,6 +335,60 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             ImuMaximum: 5);
     }
 
+    private static SurfacePresentationState CreateStatisticsState(
+        LiveSessionHeader? sessionHeader,
+        TelemetryData? telemetryData,
+        SuspensionType suspensionType,
+        bool sideConfigured)
+    {
+        if (!sideConfigured || sessionHeader is not { AcceptedTravelHz: > 0 })
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        if (telemetryData is null)
+        {
+            return SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        }
+
+        var suspension = suspensionType == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
+        if (!suspension.Present)
+        {
+            return SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        }
+
+        return telemetryData.HasStrokeData(suspensionType)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.WaitingForData("Waiting for statistics.");
+    }
+
+    private static SurfacePresentationState CreateBalanceState(
+        LiveSessionHeader? sessionHeader,
+        TelemetryData? telemetryData,
+        bool frontConfigured,
+        bool rearConfigured,
+        BalanceType balanceType)
+    {
+        if (!frontConfigured || !rearConfigured || sessionHeader is not { AcceptedTravelHz: > 0 })
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        if (telemetryData is null || !telemetryData.Front.Present || !telemetryData.Rear.Present)
+        {
+            return SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        }
+
+        return telemetryData.HasBalanceData(balanceType)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.WaitingForData("Waiting for balance data.");
+    }
+
+    private void QueueGraphBatchRefresh(LiveGraphBatch batch)
+    {
+        Dispatcher.UIThread.Post(() => graphWorkspace.ApplyGraphBatch(batch), DispatcherPriority.Background);
+    }
+
     private void QueuePresentationRefresh(LiveSessionPresentationSnapshot snapshot)
     {
         lock (presentationGate)
@@ -332,6 +405,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             blockedSavedCaptureRevision = null;
         }
 
+        graphWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
+        mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
         TelemetryData = snapshot.StatisticsTelemetry;
         DamperPercentages = snapshot.DamperPercentages;
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints);

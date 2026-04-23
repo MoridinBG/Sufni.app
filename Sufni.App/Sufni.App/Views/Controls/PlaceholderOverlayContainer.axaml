@@ -1,0 +1,80 @@
+<UserControl
+x:Class="Sufni.App.Views.Controls.PlaceholderOverlayContainer"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+d:DesignHeight="240"
+d:DesignWidth="320"
+x:Name="Root"
+x:CompileBindings="True"
+x:DataType="controls:PlaceholderOverlayContainer"
+mc:Ignorable="d">
+
+    <UserControl.IsVisible>
+        <Binding ElementName="Root" Path="PresentationState.ReservesLayout" />
+    </UserControl.IsVisible>
+
+    <Grid>
+        <ContentControl
+        Name="ReadyHost"
+        Content="{Binding ReadyContent, ElementName=Root}"
+        IsVisible="{Binding PresentationState.IsReady, ElementName=Root}" />
+
+        <ContentControl
+        Name="PlaceholderHost"
+        Content="{Binding PlaceholderContent, ElementName=Root}"
+        IsVisible="{Binding PresentationState.ShowPlaceholder, ElementName=Root}" />
+
+        <Border
+        Name="TintOverlay"
+        Background="{Binding OverlayTintBrush, ElementName=Root}"
+        IsHitTestVisible="False"
+        IsVisible="{Binding PresentationState.ShowOverlay, ElementName=Root}"
+        Opacity="{Binding OverlayTintOpacity, ElementName=Root}" />
+
+        <Border
+        Name="OverlayPanel"
+        MinWidth="180"
+        MaxWidth="260"
+        Padding="16,14"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Background="{StaticResource SufniBackground}"
+        BorderBrush="{StaticResource SufniBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="6"
+        IsHitTestVisible="False"
+        IsVisible="{Binding PresentationState.ShowOverlay, ElementName=Root}">
+            <StackPanel Spacing="10">
+                <progRing:ProgressRing
+                Name="ProgressIndicator"
+                Width="36"
+                Height="36"
+                HorizontalAlignment="Center"
+                Foreground="{StaticResource SufniAccentColor}"
+                IsActive="True"
+                IsVisible="{Binding PresentationState.ShowSpinner, ElementName=Root}" />
+
+                <TextBlock
+                Name="ErrorIconText"
+                HorizontalAlignment="Center"
+                FontSize="28"
+                FontWeight="Bold"
+                Foreground="{StaticResource SufniDangerColor}"
+                IsVisible="{Binding PresentationState.ShowErrorIcon, ElementName=Root}"
+                Text="X" />
+
+                <TextBlock
+                Name="StateMessageText"
+                HorizontalAlignment="Center"
+                IsVisible="{Binding PresentationState.Message, ElementName=Root, Converter={x:Static ObjectConverters.IsNotNull}}"
+                Text="{Binding PresentationState.Message, ElementName=Root}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

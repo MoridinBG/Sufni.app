@@ -8,8 +8,10 @@ using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Controls;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 
@@ -40,7 +42,7 @@ public class SessionStatisticsDesktopViewTests
         Assert.True(springRate!.IsVisible);
         Assert.False(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
-        Assert.Equal(4, springRate.GetVisualDescendants().OfType<SessionStatisticsPlotView>().Count(plot => plot.IsVisible));
+        Assert.Equal(2, springRate.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
     }
 
     [AvaloniaFact]
@@ -71,7 +73,7 @@ public class SessionStatisticsDesktopViewTests
         Assert.False(springRate!.IsVisible);
         Assert.True(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
-        Assert.Equal(1, damping.GetVisualDescendants().OfType<SessionStatisticsPlotView>().Count(plot => plot.IsVisible));
+        Assert.Equal(1, damping.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
         Assert.Equal(1, damping.GetVisualDescendants().OfType<TravelPercentageLegend>().Count(legend => legend.IsVisible));
         Assert.Equal(1, damping.GetVisualDescendants().OfType<VelocityBandView>().Count(view => view.IsVisible));
     }
@@ -104,7 +106,7 @@ public class SessionStatisticsDesktopViewTests
         Assert.False(springRate!.IsVisible);
         Assert.False(damping!.IsVisible);
         Assert.True(balance!.IsVisible);
-        Assert.Equal(1, balance.GetVisualDescendants().OfType<SessionStatisticsPlotView>().Count(plot => plot.IsVisible));
+        Assert.Equal(1, balance.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
     }
 
     private static async Task<MountedSessionStatisticsDesktopView> MountAsync(SessionStatisticsWorkspaceStub workspace)
@@ -128,10 +130,18 @@ public class SessionStatisticsDesktopViewTests
         bool hasReboundBalanceTelemetry) : ISessionStatisticsWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
-        public bool HasFrontStatistics { get; } = hasFrontStatistics;
-        public bool HasRearStatistics { get; } = hasRearStatistics;
-        public bool HasCompressionBalanceTelemetry { get; } = hasCompressionBalanceTelemetry;
-        public bool HasReboundBalanceTelemetry { get; } = hasReboundBalanceTelemetry;
+        public SurfacePresentationState FrontStatisticsState { get; } = hasFrontStatistics
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearStatisticsState { get; } = hasRearStatistics
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState CompressionBalanceState { get; } = hasCompressionBalanceTelemetry
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState ReboundBalanceState { get; } = hasReboundBalanceTelemetry
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
     }
 }
