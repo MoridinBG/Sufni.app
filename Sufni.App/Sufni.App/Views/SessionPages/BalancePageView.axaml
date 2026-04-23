@@ -1,23 +1,39 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.SessionPages.BalancePageView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    x:DataType="vm:BalancePageViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.SessionPages.BalancePageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:BalancePageViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:BalancePageViewModel />
     </Design.DataContext>
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
-        <Grid RowDefinitions="* *">
-            <Svg Grid.Row="0" Source="{Binding CompressionBalance}" />
-            <Svg Grid.Row="1" Source="{Binding ReboundBalance}" />
-        </Grid>
+        <StackPanel Orientation="Vertical">
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding CompressionBalanceState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Svg Name="CompressionBalanceSvg" Source="{Binding CompressionBalance}" />
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Margin="0,0,0,12" Title="Compression balance" MinCardHeight="220" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding ReboundBalanceState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Svg Name="ReboundBalanceSvg" Source="{Binding ReboundBalance}" />
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Rebound balance" MinCardHeight="220" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+        </StackPanel>
     </ScrollViewer>
 </UserControl>

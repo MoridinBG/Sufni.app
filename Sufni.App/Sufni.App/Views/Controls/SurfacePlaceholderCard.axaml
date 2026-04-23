@@ -1,0 +1,20 @@
+<UserControl
+x:Class="Sufni.App.Views.Controls.SurfacePlaceholderCard"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+d:DesignHeight="180"
+d:DesignWidth="320"
+x:Name="Root"
+x:DataType="controls:SurfacePlaceholderCard"
+mc:Ignorable="d">
+
+    <Border MinHeight="{Binding MinCardHeight, ElementName=Root}" Background="{StaticResource SufniBackground}" BorderBrush="{StaticResource SufniBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12">
+        <Grid RowDefinitions="Auto,*">
+            <TextBlock FontSize="15" Text="{Binding Title, ElementName=Root}" />
+            <Border Grid.Row="1" Margin="0,12,0,0" Background="{Binding PreviewBrush, ElementName=Root}" CornerRadius="3" />
+        </Grid>
+    </Border>
+</UserControl>

@@ -2,7 +2,9 @@
 x:Class="Sufni.App.DesktopViews.Items.SessionMediaDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:v="clr-namespace:Sufni.App.Views"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
@@ -12,35 +14,47 @@ x:Name="Root"
 x:CompileBindings="False"
 mc:Ignorable="d">
 
-    <Grid
-    Width="{Binding MapVideoWidth, TargetNullValue=400}"
-    RowDefinitions="auto auto *">
-        <Grid.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                <Binding Path="HasSessionTrackPoints" />
-                <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="VideoUrl" />
-            </MultiBinding>
-        </Grid.IsVisible>
+    <Grid x:Name="MediaGrid" Width="{Binding MapVideoWidth, TargetNullValue=400}" IsVisible="{Binding HasMediaContent}">
+        <Grid.Resources>
+            <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+        </Grid.Resources>
 
-        <Border
-        Grid.Row="0"
-        Background="DarkSlateBlue"
-        IsVisible="{Binding VideoUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{Binding VideoState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{Binding MapState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+        </Grid.RowDefinitions>
 
-        <GridSplitter Grid.Row="1" ResizeDirection="Rows">
+        <controls:PlaceholderOverlayContainer x:Name="VideoHost" Grid.Row="0" PresentationState="{Binding VideoState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <Border Background="DarkSlateBlue" />
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <controls:SurfacePlaceholderCard Title="Video" PreviewBrush="DarkSlateBlue" />
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
+
+        <GridSplitter x:Name="MediaSplitter" Grid.Row="1" ResizeDirection="Rows">
             <GridSplitter.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="HasSessionTrackPoints" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="VideoUrl" />
+                    <Binding Path="MapState.ReservesLayout" />
+                    <Binding Path="VideoState.ReservesLayout" />
                 </MultiBinding>
             </GridSplitter.IsVisible>
         </GridSplitter>
 
-        <v:MapView
-        x:Name="MapViewControl"
-        Grid.Row="2"
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        DataContext="{Binding MapViewModel}" />
+        <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding MapState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <v:MapView
+                x:Name="MapViewControl"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                DataContext="{Binding MapViewModel}"
+                Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.Timeline}" />
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <controls:SurfacePlaceholderCard Title="Map" />
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
     </Grid>
 </UserControl>

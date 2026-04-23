@@ -53,6 +53,7 @@ public class SessionDetailDesktopShellTests
         var shell = new SessionShellDesktopView
         {
             GraphContent = new Border(),
+            HasMediaContent = true,
             MediaContent = new Border(),
             StatisticsContent = new Border(),
             ControlContent = new Border(),
@@ -65,22 +66,26 @@ public class SessionDetailDesktopShellTests
         var controlHost = mounted.View.FindControl<ContentControl>("ControlHost");
         var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
         var controlSplitter = mounted.View.FindControl<GridSplitter>("ControlSplitter");
+        var topLayoutGrid = mounted.View.FindControl<Grid>("TopLayoutGrid");
 
         Assert.NotNull(mediaHost);
         Assert.NotNull(controlHost);
         Assert.NotNull(mediaSplitter);
         Assert.NotNull(controlSplitter);
+        Assert.NotNull(topLayoutGrid);
         Assert.True(mediaSplitter!.IsVisible);
         Assert.True(controlSplitter!.IsVisible);
 
-        shell.MediaContent = null;
+        shell.HasMediaContent = false;
         shell.ControlContent = null;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Null(mediaHost!.Content);
+        Assert.NotNull(mediaHost!.Content);
         Assert.Null(controlHost!.Content);
         Assert.False(mediaSplitter.IsVisible);
         Assert.False(controlSplitter.IsVisible);
+        Assert.False(mediaHost.IsVisible);
+        Assert.Equal(0, topLayoutGrid!.ColumnDefinitions[2].Width.Value);
     }
 
     private static async Task<MountedSessionShellDesktopView> MountAsync(SessionShellDesktopView view)

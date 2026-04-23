@@ -11,6 +11,7 @@ using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
@@ -119,6 +120,76 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
+    [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_CollapsesTravelRows_WhenTravelSectionUnavailable()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var workspace = new StubLiveSessionGraphWorkspace(new Subject<LiveGraphBatch>(), hasTravelSection: false, hasImuSection: true);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var grid = view.FindControl<Grid>("GraphGrid");
+        var travelView = view.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
+        var velocityView = view.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
+        var imuView = view.FindControl<LiveImuPlotDesktopView>("ImuPlot");
+
+        Assert.NotNull(grid);
+        Assert.NotNull(travelView);
+        Assert.NotNull(velocityView);
+        Assert.NotNull(imuView);
+        Assert.Equal(0, grid!.RowDefinitions[0].Height.Value);
+        Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[0].Height.GridUnitType);
+        Assert.NotEqual(0, grid.RowDefinitions[2].Height.Value);
+        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_CollapsesImuRows_WhenImuSectionUnavailable()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var workspace = new StubLiveSessionGraphWorkspace(new Subject<LiveGraphBatch>(), hasTravelSection: true, hasImuSection: false);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var grid = view.FindControl<Grid>("GraphGrid");
+        var imuView = view.FindControl<LiveImuPlotDesktopView>("ImuPlot");
+
+        Assert.NotNull(grid);
+        Assert.NotNull(imuView);
+        Assert.Equal(0, grid!.RowDefinitions[2].Height.Value);
+        Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[2].Height.GridUnitType);
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
 
@@ -152,10 +223,19 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    private sealed class StubLiveSessionGraphWorkspace(Subject<LiveGraphBatch> graphBatches) : ILiveSessionGraphWorkspace
+    private sealed class StubLiveSessionGraphWorkspace(
+        Subject<LiveGraphBatch> graphBatches,
+        bool hasTravelSection = true,
+        bool hasImuSection = true) : ILiveSessionGraphWorkspace
     {
         public IObservable<LiveGraphBatch> GraphBatches { get; } = graphBatches;
         public LiveSessionPlotRanges PlotRanges { get; } = new(180, 5, 5);
+        public SurfacePresentationState TravelGraphState { get; } = hasTravelSection
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState ImuGraphState { get; } = hasImuSection
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }
 }
