@@ -94,6 +94,8 @@ public record BalanceData(
 public class TelemetryData
 {
     private static readonly ILogger logger = Log.ForContext<TelemetryData>();
+    private const int SignedEncoderThreshold = 2048;
+    private const int SignedEncoderRange = 4096;
 
     public const int TravelBinsForVelocityHistogram = 10;
 
@@ -444,6 +446,7 @@ public class TelemetryData
         return td;
     }
 
+
     public static TelemetryData FromLiveCapture(LiveTelemetryCapture capture)
     {
         var front = capture.FrontMeasurements.ToArray();
@@ -454,14 +457,14 @@ public class TelemetryData
 
         if (front.Length > 0)
         {
-            var fixedFront = SpikeElimination.EliminateSpikes(front.Select(value => (int)value).ToArray());
+            var fixedFront = SpikeElimination.EliminateSpikes(NormalizeWrappedEncoderSamples(front));
             front = fixedFront.fixedSignal;
             frontAnomalyCount = fixedFront.anomalyCount;
         }
 
         if (rear.Length > 0)
         {
-            var fixedRear = SpikeElimination.EliminateSpikes(rear.Select(value => (int)value).ToArray());
+            var fixedRear = SpikeElimination.EliminateSpikes(NormalizeWrappedEncoderSamples(rear));
             rear = fixedRear.fixedSignal;
             rearAnomalyCount = fixedRear.anomalyCount;
         }
@@ -481,6 +484,20 @@ public class TelemetryData
         };
 
         return FromRecording(rawData, capture.Metadata, capture.BikeData, logLifecycle: false);
+    }
+
+    private static int[] NormalizeWrappedEncoderSamples(IReadOnlyList<ushort> samples)
+    {
+        var normalized = new int[samples.Count];
+        for (var index = 0; index < samples.Count; index++)
+        {
+            var value = samples[index];
+            normalized[index] = value >= SignedEncoderThreshold
+                ? value - SignedEncoderRange
+                : value;
+        }
+
+        return normalized;
     }
 
     #endregion
