@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Queries;
+using Sufni.App.SessionGraphs;
 using Sufni.App.Services;
 using Sufni.Telemetry;
 using Serilog;
@@ -587,7 +588,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 revision = queuedStatisticsRevision;
                 capture = CreateCaptureSnapshotLocked();
-                nextStatisticsRunAt = DateTimeOffset.UtcNow.AddMilliseconds(LiveSessionRefreshCadence.StatisticsRefreshIntervalMs);
+                nextStatisticsRunAt = DateTimeOffset.UtcNow.AddMilliseconds(SessionGraphSettings.LiveStatisticsRefreshIntervalMs);
             }
 
             try
