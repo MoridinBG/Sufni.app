@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
@@ -12,9 +15,11 @@ using Sufni.App.Presentation;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
@@ -23,6 +28,8 @@ public class LiveSessionDetailViewModelTests
 {
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
     private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
+    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
+    private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
@@ -359,12 +366,455 @@ public class LiveSessionDetailViewModelTests
         Assert.False(editor.ResetCommand.CanExecute(null));
     }
 
+    [AvaloniaFact]
+    public void Pages_Initial_IsLiveGraphSpringDamperNotes()
+    {
+        var editor = CreateEditor();
+
+        Assert.Equal(
+            ["Graph", "Spring", "Damper", "Notes"],
+            editor.Pages.Select(page => page.DisplayName));
+        Assert.IsType<LiveGraphPageViewModel>(editor.Pages[0]);
+        Assert.IsType<SpringPageViewModel>(editor.Pages[1]);
+        Assert.IsType<DamperPageViewModel>(editor.Pages[2]);
+        Assert.IsType<NotesPageViewModel>(editor.Pages[3]);
+        Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_WithNewStatisticsTelemetry_AndDimensions_PopulatesPageFields()
+    {
+        var bakeData = new SessionCachePresentationData(
+            FrontTravelHistogram: "<svg id='front-travel' />",
+            RearTravelHistogram: "<svg id='rear-travel' />",
+            FrontVelocityHistogram: "<svg id='front-vel' />",
+            RearVelocityHistogram: "<svg id='rear-vel' />",
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            BalanceAvailable: false);
+
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(bakeData);
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        sessionPresentationService
+            .Received(1)
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>());
+        Assert.Equal(bakeData.FrontTravelHistogram, editor.SpringPage.FrontTravelHistogram);
+        Assert.Equal(bakeData.RearTravelHistogram, editor.SpringPage.RearTravelHistogram);
+        Assert.Equal(bakeData.FrontVelocityHistogram, editor.DamperPage.FrontVelocityHistogram);
+        Assert.Equal(bakeData.RearVelocityHistogram, editor.DamperPage.RearVelocityHistogram);
+        Assert.Equal(1d, editor.DamperPage.FrontHscPercentage);
+        Assert.Equal(8d, editor.DamperPage.RearHsrPercentage);
+        Assert.Equal(1d, editor.DamperPercentages.FrontHscPercentage);
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_WithoutDimensions_DoesNotRun()
+    {
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        sessionPresentationService
+            .DidNotReceive()
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_InsertsBalancePageBeforeNotes_WhenBothSidesConfigured_AndPagePersists()
+    {
+        var balanceData = new SessionCachePresentationData(
+            FrontTravelHistogram: null,
+            RearTravelHistogram: null,
+            FrontVelocityHistogram: null,
+            RearVelocityHistogram: null,
+            CompressionBalance: "<svg id='compression' />",
+            ReboundBalance: "<svg id='rebound' />",
+            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            BalanceAvailable: true);
+        var noBalanceData = balanceData with
+        {
+            CompressionBalance = null,
+            ReboundBalance = null,
+            BalanceAvailable = false,
+        };
+
+        var returnValue = balanceData;
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(_ => returnValue);
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
+        var balanceIndex = editor.Pages.IndexOf(editor.BalancePage);
+        var notesIndex = editor.Pages.IndexOf(editor.NotesPage);
+        Assert.True(balanceIndex < notesIndex);
+        Assert.True(editor.BalancePage.CompressionBalanceState.IsReady);
+
+        returnValue = noBalanceData;
+        // Simulate a warm-up-style telemetry (strokes cleared) so the live
+        // workspace's balance state becomes WaitingForData.
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TelemetryWithoutStrokes(), captureRevision: 2);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        // Both sides are configured and the session header is accepted, so the
+        // balance workspace stays in WaitingForData when SVGs aren't emitted.
+        // The tab should remain visible during the warm-up and render the
+        // waiting placeholder.
+        Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
+        Assert.Equal(
+            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            editor.BalancePage.CompressionBalanceState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_OmitsBalancePage_WhenOneSideUnconfigured()
+    {
+        var bakeData = new SessionCachePresentationData(
+            FrontTravelHistogram: null,
+            RearTravelHistogram: null,
+            FrontVelocityHistogram: null,
+            RearVelocityHistogram: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            BalanceAvailable: false);
+
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(bakeData);
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: false));
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_SecondSnapshot_CancelsInFlightToken_AndDoesNotApplyStaleResult()
+    {
+        var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>();
+        var firstData = new SessionCachePresentationData(
+            FrontTravelHistogram: "<svg id='first-front' />",
+            RearTravelHistogram: null,
+            FrontVelocityHistogram: null,
+            RearVelocityHistogram: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            BalanceAvailable: false);
+        var secondData = firstData with
+        {
+            FrontTravelHistogram = "<svg id='second-front' />",
+        };
+
+        CancellationToken capturedFirstToken = default;
+        var callCount = 0;
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                callCount++;
+                if (callCount == 1)
+                {
+                    capturedFirstToken = callInfo.Arg<CancellationToken>();
+                    return firstBakeGate.Task.Result;
+                }
+
+                return secondData;
+            });
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        var firstTelemetry = TestTelemetryData.Create();
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: firstTelemetry);
+        snapshots.OnNext(currentSnapshot);
+
+        // Wait for the runner to actually pick up the first bake — poll until the
+        // first call reached the service (synchronous runner blocks inside the task
+        // pool worker on firstBakeGate.Task.Result after this point).
+        var waited = 0;
+        while (callCount == 0 && waited < 2000)
+        {
+            await Task.Delay(25);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            waited += 25;
+        }
+
+        Assert.Equal(1, callCount);
+
+        var secondTelemetry = TestTelemetryData.Create();
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: secondTelemetry, captureRevision: 2);
+        snapshots.OnNext(currentSnapshot);
+
+        // Release the first bake — but by now the CTS for the first bake should be cancelled.
+        firstBakeGate.SetResult(firstData);
+
+        await WaitForUiRefreshAsync();
+        await WaitForUiRefreshAsync();
+
+        Assert.True(capturedFirstToken.IsCancellationRequested);
+        Assert.Equal(secondData.FrontTravelHistogram, editor.SpringPage.FrontTravelHistogram);
+    }
+
+    [AvaloniaFact]
+    public async Task NotesPageDescription_Change_FiresDescriptionTextInpc()
+    {
+        var editor = CreateEditor();
+        var raised = new List<string?>();
+        editor.PropertyChanged += (_, args) => raised.Add(args.PropertyName);
+
+        editor.NotesPage.Description = "new notes";
+
+        Assert.Contains("DescriptionText", raised);
+        Assert.Equal("new notes", editor.DescriptionText);
+    }
+
+    [AvaloniaFact]
+    public async Task NotesPageDescription_Change_RefreshesCommandState()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        var canExecuteChangedCount = 0;
+        editor.SaveCommand.CanExecuteChanged += (_, _) => canExecuteChangedCount++;
+
+        editor.NotesPage.Description = "edit";
+
+        Assert.True(canExecuteChangedCount > 0);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveCommand_WritesNotesPageFields_IntoPersistedSession()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        editor.NotesPage.Description = "lap notes";
+        editor.NotesPage.ForkSettings.SpringRate = "520";
+        editor.NotesPage.ShockSettings.HighSpeedCompression = 4;
+
+        await editor.SaveCommand.ExecuteAsync(null);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
+            Arg.Is<Session>(session =>
+                session.Description == "lap notes" &&
+                session.FrontSpringRate == "520" &&
+                session.RearHighSpeedCompression == 4),
+            Arg.Any<LiveSessionCapturePackage>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_WarmUp_WithoutStrokeData_PushesWaitingState_OntoPageVMs()
+    {
+        var warmUpData = new SessionCachePresentationData(
+            FrontTravelHistogram: null,
+            RearTravelHistogram: null,
+            FrontVelocityHistogram: null,
+            RearVelocityHistogram: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            BalanceAvailable: false);
+
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(warmUpData);
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        // Telemetry with no stroke data yet — the live-VM workspace state is
+        // WaitingForData, and the bake returns null SVGs because
+        // HasStrokeData / HasBalanceData are false during warm-up.
+        var warmUpTelemetry = TelemetryWithoutStrokes();
+        currentSnapshot = CreateSnapshot(canSave: false, telemetryData: warmUpTelemetry);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Equal(
+            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            editor.SpringPage.FrontHistogramState.Kind);
+        Assert.Equal(
+            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            editor.DamperPage.RearHistogramState.Kind);
+        Assert.Equal(
+            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            editor.BalancePage.CompressionBalanceState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task Reset_ClearsStaleHistograms_RemovesBalancePage_AndCancelsInFlightBake()
+    {
+        var bakedData = new SessionCachePresentationData(
+            FrontTravelHistogram: "<svg id='front' />",
+            RearTravelHistogram: "<svg id='rear' />",
+            FrontVelocityHistogram: "<svg id='front-vel' />",
+            RearVelocityHistogram: "<svg id='rear-vel' />",
+            CompressionBalance: "<svg id='comp' />",
+            ReboundBalance: "<svg id='reb' />",
+            DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            BalanceAvailable: true);
+
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(bakedData);
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
+        Assert.True(editor.SpringPage.FrontHistogramState.IsReady);
+        Assert.Equal(1d, editor.DamperPage.FrontHscPercentage);
+
+        await editor.ResetCommand.ExecuteAsync(null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Null(editor.SpringPage.FrontTravelHistogram);
+        Assert.Null(editor.SpringPage.RearTravelHistogram);
+        Assert.Null(editor.DamperPage.FrontVelocityHistogram);
+        Assert.Null(editor.DamperPage.RearVelocityHistogram);
+        Assert.Null(editor.BalancePage.CompressionBalance);
+        Assert.Null(editor.BalancePage.ReboundBalance);
+        Assert.True(editor.SpringPage.FrontHistogramState.IsHidden);
+        Assert.True(editor.DamperPage.FrontHistogramState.IsHidden);
+        Assert.True(editor.BalancePage.CompressionBalanceState.IsHidden);
+        Assert.Null(editor.DamperPage.FrontHscPercentage);
+        Assert.Null(editor.DamperPercentages.FrontHscPercentage);
+        Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
+    }
+
+    [AvaloniaFact]
+    public async Task Reset_DuringInFlightBake_DoesNotRepaintWithStaleData()
+    {
+        var bakeGate = new TaskCompletionSource<SessionCachePresentationData>();
+        var staleData = new SessionCachePresentationData(
+            FrontTravelHistogram: "<svg id='stale' />",
+            RearTravelHistogram: null,
+            FrontVelocityHistogram: null,
+            RearVelocityHistogram: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            BalanceAvailable: false);
+        CancellationToken capturedBakeToken = default;
+
+        sessionPresentationService
+            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                capturedBakeToken = callInfo.Arg<CancellationToken>();
+                return bakeGate.Task.Result;
+            });
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        snapshots.OnNext(currentSnapshot);
+
+        var waited = 0;
+        while (capturedBakeToken == default && waited < 2000)
+        {
+            await Task.Delay(25);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            waited += 25;
+        }
+
+        await editor.ResetCommand.ExecuteAsync(null);
+        bakeGate.SetResult(staleData);
+        await WaitForUiRefreshAsync();
+
+        Assert.True(capturedBakeToken.IsCancellationRequested);
+        Assert.Null(editor.SpringPage.FrontTravelHistogram);
+        Assert.True(editor.SpringPage.FrontHistogramState.IsHidden);
+    }
+
+    private static TelemetryData TelemetryWithoutStrokes()
+    {
+        // TestTelemetryData.Create() happens to produce strokes; we want a
+        // warm-up-style telemetry with present front/rear but no strokes.
+        var telemetry = TestTelemetryData.Create();
+        telemetry.Front.Strokes.Compressions = [];
+        telemetry.Front.Strokes.Rebounds = [];
+        telemetry.Rear.Strokes.Compressions = [];
+        telemetry.Rear.Strokes.Rebounds = [];
+        return telemetry;
+    }
+
+    private void ConfigureRunnerToRunSynchronously()
+    {
+        backgroundTaskRunner
+            .RunAsync(Arg.Any<Func<SessionCachePresentationData>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var work = callInfo.Arg<Func<SessionCachePresentationData>>();
+                return Task.FromResult(work());
+            });
+    }
+
     private LiveSessionDetailViewModel CreateEditor(LiveDaqSessionContext? context = null)
     {
         return new LiveSessionDetailViewModel(
             context ?? CreateSessionContext(),
             liveSessionService,
             sessionCoordinator,
+            sessionPresentationService,
+            backgroundTaskRunner,
             tileLayerService,
             shell,
             dialogService);
