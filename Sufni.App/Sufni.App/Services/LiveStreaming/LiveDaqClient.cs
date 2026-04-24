@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Sufni.App.Services;
 using Serilog;
@@ -13,13 +14,14 @@ namespace Sufni.App.Services.LiveStreaming;
 // Socket-backed live preview transport client. One instance per DAQ connection.
 //
 // Lifecycle: ConnectAsync (TCP) → StartPreviewAsync (sends START_LIVE, awaits ACK + SESSION_HEADER)
-//   → background receive loop parses framed data and emits Events → StopPreviewAsync (sends
-//   STOP_LIVE, awaits STOP_ACK) → DisconnectAsync (tears down socket and receive loop).
+//   → background socket receive loop drains bytes into a channel → background parse loop decodes
+//   frames and emits Events → StopPreviewAsync (sends STOP_LIVE, awaits STOP_ACK) →
+//   DisconnectAsync (tears down socket and both background loops).
 //
-// The receive loop runs off the UI thread on a background task started with Task.Factory.StartNew.
-// Start/stop handshakes use a TaskCompletionSource that the caller awaits while the receive loop
-// completes it on the matching ACK or error frame. All state mutations are serialized through
-// lifecycleGate.
+// The socket drain loop and the parse loop both run off the UI thread on background tasks started
+// with Task.Factory.StartNew. Start/stop handshakes use a TaskCompletionSource that the caller
+// awaits while the parse loop completes it on the matching ACK or error frame. All state mutations
+// are serialized through lifecycleGate.
 internal sealed class LiveDaqClient : ILiveDaqClient
 {
     // Default upper bound on the STOP_ACK wait so an unresponsive firmware cannot
@@ -38,10 +40,14 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     // completions, stream/CTS swaps, disposed flag) never interleave.
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
 
+    private readonly record struct ReceivedChunk(byte[] Bytes);
+
     private TcpClient? tcpClient;
     private NetworkStream? stream;
     private CancellationTokenSource? receiveLoopCts;
+    private Channel<ReceivedChunk>? receiveChunks;
     private Task? receiveLoopTask;
+    private Task? receiveParseTask;
     private TaskCompletionSource<LivePreviewStartResult>? pendingStartResult;
     private TaskCompletionSource<uint>? pendingStopAck;
     private LiveStartAck? startAckAwaitingHeader;
@@ -109,9 +115,22 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             tcpClient = nextTcpClient;
             stream = tcpClient.GetStream();
             receiveLoopCts = new CancellationTokenSource();
+            receiveChunks = Channel.CreateUnbounded<ReceivedChunk>(new UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = true,
+                AllowSynchronousContinuations = false,
+            });
             receiveLoopTask = Task.Factory
                 .StartNew(
                     () => ReceiveLoopAsync(receiveLoopCts.Token),
+                    receiveLoopCts.Token,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default)
+                .Unwrap();
+            receiveParseTask = Task.Factory
+                .StartNew(
+                    () => ParseLoopAsync(receiveLoopCts.Token),
                     receiveLoopCts.Token,
                     TaskCreationOptions.LongRunning,
                     TaskScheduler.Default)
@@ -253,10 +272,11 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         Task? receiveLoopToAwait = null;
+        Task? receiveParseToAwait = null;
         await lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (tcpClient is null && stream is null && receiveLoopTask is null)
+            if (tcpClient is null && stream is null && receiveLoopTask is null && receiveParseTask is null)
             {
                 return;
             }
@@ -278,13 +298,17 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             }
 
             receiveLoopCts?.Cancel();
+            receiveChunks?.Writer.TryComplete();
             stream?.Close();
             tcpClient?.Close();
             stream = null;
             tcpClient = null;
             activeSessionId = null;
             receiveLoopToAwait = receiveLoopTask;
+            receiveParseToAwait = receiveParseTask;
             receiveLoopTask = null;
+            receiveParseTask = null;
+            receiveChunks = null;
             pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed("Live preview disconnected before startup completed."));
             pendingStartResult = null;
             pendingStopAck?.TrySetException(new IOException("Disconnected before STOP_LIVE_ACK was received."));
@@ -305,6 +329,18 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             catch (Exception ex)
             {
                 logger.Debug(ex, "Receive loop threw during disconnect");
+            }
+        }
+
+        if (receiveParseToAwait is not null)
+        {
+            try
+            {
+                await receiveParseToAwait.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.Debug(ex, "Parse loop threw during disconnect");
             }
         }
 
@@ -342,9 +378,11 @@ internal sealed class LiveDaqClient : ILiveDaqClient
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
     {
+        ChannelWriter<ReceivedChunk>? writer = null;
         try
         {
             var buffer = new byte[4096];
+            writer = receiveChunks?.Writer;
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (stream is null)
@@ -355,15 +393,57 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 var read = await stream.ReadAsync(buffer, cancellationToken);
                 if (read == 0)
                 {
-                    await HandleDisconnectAsync(null);
                     return;
                 }
 
-                reader.Append(buffer.AsSpan(0, read));
+                if (writer is null)
+                {
+                    return;
+                }
+
+                var chunk = new byte[read];
+                Buffer.BlockCopy(buffer, 0, chunk, 0, read);
+                await writer.WriteAsync(new ReceivedChunk(chunk), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            writer ??= receiveChunks?.Writer;
+            writer?.TryComplete(ex);
+            return;
+        }
+        finally
+        {
+            writer ??= receiveChunks?.Writer;
+            writer?.TryComplete();
+        }
+    }
+
+    private async Task ParseLoopAsync(CancellationToken cancellationToken)
+    {
+        var readerChannel = receiveChunks?.Reader;
+        if (readerChannel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await foreach (var chunk in readerChannel.ReadAllAsync(cancellationToken))
+            {
+                reader.Append(chunk.Bytes);
                 while (reader.TryReadFrame(out var frame))
                 {
                     await HandleFrameAsync(frame!);
                 }
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                await HandleDisconnectAsync(null);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -472,9 +552,12 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             tcpClient = null;
             activeSessionId = null;
             receiveLoopCts?.Cancel();
+            receiveChunks?.Writer.TryComplete();
             receiveLoopCts?.Dispose();
             receiveLoopCts = null;
             receiveLoopTask = null;
+            receiveParseTask = null;
+            receiveChunks = null;
 
             if (pendingStartResult is not null)
             {
