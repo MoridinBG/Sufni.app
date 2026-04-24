@@ -11,6 +11,7 @@ using Sufni.App.Models;
 using Sufni.App.Coordinators;
 using Sufni.App.Presentation;
 using Sufni.App.Queries;
+using Sufni.App.SessionGraphs;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -746,7 +747,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     {
         var timer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(LiveSessionRefreshCadence.UiRefreshIntervalMs)
+            Interval = TimeSpan.FromMilliseconds(SessionGraphSettings.LiveUiRefreshIntervalMs)
         };
         timer.Tick += (_, _) => RefreshUi();
         return timer;

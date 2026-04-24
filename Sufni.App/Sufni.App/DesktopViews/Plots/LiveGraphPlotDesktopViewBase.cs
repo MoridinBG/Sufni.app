@@ -4,6 +4,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Threading;
 using Sufni.App.Plots;
+using Sufni.App.SessionGraphs;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
@@ -233,7 +234,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     {
         var timer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(LiveSessionRefreshCadence.GraphRefreshIntervalMs)
+            Interval = TimeSpan.FromMilliseconds(SessionGraphSettings.LiveGraphRefreshIntervalMs)
         };
         timer.Tick += (_, _) => FlushPendingGraphBatches();
         return timer;

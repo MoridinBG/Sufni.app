@@ -6,7 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Presentation;
-using Sufni.App.SessionDetails;
+using Sufni.App.SessionGraphs;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
@@ -42,9 +42,9 @@ public class RecordedGraphPageViewTests
         Assert.True(travelView!.IsVisible);
         Assert.True(velocityView!.IsVisible);
         Assert.True(imuView!.IsVisible);
-        Assert.Equal(RecordedSessionGraphDisplaySettings.DefaultMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
-        Assert.Equal(RecordedSessionGraphDisplaySettings.DefaultMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
-        Assert.Equal(RecordedSessionGraphDisplaySettings.DefaultMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
+        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
+        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
+        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
