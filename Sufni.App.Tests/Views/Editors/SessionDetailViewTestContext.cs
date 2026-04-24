@@ -82,7 +82,8 @@ internal sealed class SessionDetailViewTestContext
             CompressionBalance: includeBalance ? DefaultSvg : null,
             ReboundBalance: includeBalance ? DefaultSvg : null,
             DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
-            BalanceAvailable: includeBalance));
+            BalanceAvailable: includeBalance),
+            TestTelemetryData.Create());
     }
 
     public async Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(

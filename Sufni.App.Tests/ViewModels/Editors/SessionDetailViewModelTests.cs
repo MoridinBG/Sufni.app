@@ -286,7 +286,8 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
-            false));
+            false),
+            TestTelemetryData.Create());
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
@@ -295,9 +296,12 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
 
+        Assert.NotNull(editor.TelemetryData);
         Assert.Equal("front-travel", springPage.FrontTravelHistogram);
         Assert.Equal("front-velocity", editor.DamperPage.FrontVelocityHistogram);
         Assert.True(editor.IsComplete);
+        Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, springPage.FrontHistogramState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, springPage.RearHistogramState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.FrontStatisticsState.Kind);
@@ -402,7 +406,8 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
-            false)));
+            false),
+            TestTelemetryData.Create()));
 
         await loadTask;
 
@@ -410,6 +415,37 @@ public class SessionDetailViewModelTests
         Assert.Null(springPage.FrontTravelHistogram);
         Assert.Null(editor.DamperPage.FrontVelocityHistogram);
         Assert.False(editor.IsComplete);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveAfter_LoadedFromCacheWithNullTelemetry_PreservesHasProcessedData()
+    {
+        var snapshot = TestSnapshots.Session(updated: 5, hasProcessedData: true);
+        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+            "front-travel",
+            null,
+            "front-velocity",
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            false),
+            null);
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
+            .Returns(new SessionSaveResult.Saved(11));
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+        editor.Name = "renamed";
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await sessionCoordinator.Received(1).SaveAsync(
+            Arg.Is<Session>(session => session.Id == snapshot.Id && session.HasProcessedData),
+            5);
     }
 
     [AvaloniaFact]

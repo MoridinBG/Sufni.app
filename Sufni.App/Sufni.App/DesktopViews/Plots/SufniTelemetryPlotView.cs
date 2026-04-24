@@ -26,6 +26,15 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         set => SetValue(TelemetryProperty, value);
     }
 
+    public static readonly StyledProperty<int?> MaximumDisplayHzProperty =
+        AvaloniaProperty.Register<SufniTelemetryPlotView, int?>(nameof(MaximumDisplayHz));
+
+    public int? MaximumDisplayHz
+    {
+        get => GetValue(MaximumDisplayHzProperty);
+        set => SetValue(MaximumDisplayHzProperty, value);
+    }
+
     public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
         AvaloniaProperty.Register<SufniTelemetryPlotView, SessionTimelineLinkViewModel?>(nameof(Timeline));
 
@@ -61,6 +70,14 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
 
                 case nameof(IsVisible):
                     TryApplyPendingTelemetryLoad();
+                    break;
+
+                case nameof(MaximumDisplayHz):
+                    if (Telemetry is not null)
+                    {
+                        hasPendingTelemetryLoad = true;
+                        TryApplyPendingTelemetryLoad();
+                    }
                     break;
             }
 
@@ -130,6 +147,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
             return;
         }
 
+        plot.MaximumDisplayHz = MaximumDisplayHz;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
         RefreshPlot();

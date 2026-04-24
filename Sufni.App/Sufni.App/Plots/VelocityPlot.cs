@@ -25,31 +25,31 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Axes.Title.Label.Text = "Velocity (m/seconds / time )";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
         ConfigureRightAxisStyle();
-
-        var step = 1.0 / telemetryData.Metadata.SampleRate;
         var minimum = 0.0;
         var maximum = 0.0;
 
         if (telemetryData.Front.Present)
         {
-            var velocity = telemetryData.Front.Velocity.Select(v => v / 1000).ToArray();
+            var fullVelocity = telemetryData.Front.Velocity.Select(v => v / 1000).ToArray();
+            var (velocity, step) = PrepareDisplaySignal(fullVelocity, telemetryData.Metadata.SampleRate);
             var frontSignal = Plot.Add.Signal(velocity, step, FrontColor);
             frontSignal.Axes.XAxis = Plot.Axes.Bottom;
             frontSignal.Axes.YAxis = Plot.Axes.Left;
             frontSignal.LineWidth = 2.0f;
-            minimum = velocity.Min();
-            maximum = velocity.Max();
+            minimum = fullVelocity.Min();
+            maximum = fullVelocity.Max();
         }
 
         if (telemetryData.Rear.Present)
         {
-            var velocity = telemetryData.Rear.Velocity.Select(v => v / 1000).ToArray();
+            var fullVelocity = telemetryData.Rear.Velocity.Select(v => v / 1000).ToArray();
+            var (velocity, step) = PrepareDisplaySignal(fullVelocity, telemetryData.Metadata.SampleRate);
             var rearSignal = Plot.Add.Signal(velocity, step, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
             rearSignal.Axes.YAxis = Plot.Axes.Left;
             rearSignal.LineWidth = 2.0f;
-            minimum = Math.Min(minimum, velocity.Min());
-            maximum = Math.Max(maximum, velocity.Max());
+            minimum = Math.Min(minimum, fullVelocity.Min());
+            maximum = Math.Max(maximum, fullVelocity.Max());
         }
 
         // Lock the vertical, and set limits on the horizontal axis
