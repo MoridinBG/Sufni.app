@@ -11,6 +11,28 @@ public class MainPagesViewModelTests
     [Fact]
     public void SelectedIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
+        var liveCoordinator = Substitute.For<ILiveDaqCoordinator>();
+        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator);
+        var viewModel = CreateViewModel(livePage);
+
+        viewModel.SelectedIndex = 3;
+        viewModel.SelectedIndex = 0;
+
+        liveCoordinator.Received(1).Activate();
+        liveCoordinator.Received(1).Deactivate();
+    }
+
+    [Fact]
+    public void LiveDaqsPage_IsAlwaysProvided()
+    {
+        var livePage = new LiveDaqListViewModel();
+        var viewModel = CreateViewModel(livePage);
+
+        Assert.Same(livePage, viewModel.LiveDaqsPage);
+    }
+
+    private static MainPagesViewModel CreateViewModel(LiveDaqListViewModel livePage)
+    {
         var bikeStore = Substitute.For<IBikeStore>();
         var setupStore = Substitute.For<ISetupStore>();
         var sessionStore = Substitute.For<ISessionStore>();
@@ -24,10 +46,8 @@ public class MainPagesViewModelTests
         var trackCoordinator = Substitute.For<ITrackCoordinator>();
         var syncCoordinator = Substitute.For<ISyncCoordinator>();
         var shell = Substitute.For<IShellCoordinator>();
-        var liveCoordinator = Substitute.For<ILiveDaqCoordinator>();
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator);
 
-        var viewModel = new MainPagesViewModel(
+        return new MainPagesViewModel(
             bikeStore,
             setupStore,
             sessionStore,
@@ -42,11 +62,5 @@ public class MainPagesViewModelTests
             livePage,
             new ImportSessionsViewModel(),
             new PairedDeviceListViewModel());
-
-        viewModel.SelectedIndex = 3;
-        viewModel.SelectedIndex = 0;
-
-        liveCoordinator.Received(1).Activate();
-        liveCoordinator.Received(1).Deactivate();
     }
 }

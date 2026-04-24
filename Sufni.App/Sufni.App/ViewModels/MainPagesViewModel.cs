@@ -38,7 +38,7 @@ public partial class MainPagesViewModel : ViewModelBase
     public BikeListViewModel BikesPage { get; init; }
     public SetupListViewModel SetupsPage { get; init; }
     public SessionListViewModel SessionsPage { get; init; }
-    public LiveDaqListViewModel? LiveDaqsPage { get; init; }
+    public LiveDaqListViewModel LiveDaqsPage { get; init; }
     public PairedDeviceListViewModel PairedDevicesPage { get; init; }
     public PairingClientViewModel? PairingClientPage { get; init; }
     public PairingServerViewModel? PairingServerViewModel { get; init; }
@@ -77,7 +77,7 @@ public partial class MainPagesViewModel : ViewModelBase
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
-        LiveDaqListViewModel? liveDaqsPage,
+        LiveDaqListViewModel liveDaqsPage,
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
         PairingClientViewModel? pairingClientPage = null,
@@ -99,9 +99,7 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
-        primaryPages = LiveDaqsPage is null
-            ? [SessionsPage, SetupsPage, BikesPage]
-            : [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
+        primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
         activePrimaryPage = GetSelectedPrimaryPage();
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
