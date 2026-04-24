@@ -59,17 +59,24 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
-        Assert.Equal(180, travelPlot.Plot.Axes.Left.Max);
+        // Live plots auto-size around the largest value seen so far (with 10% headroom),
+        // falling back to a per-metric floor when running max is below it.
+        Assert.Equal(13.2, travelPlot.Plot.Axes.Left.Max, precision: 4);
         Assert.Equal(0, travelPlot.Plot.Axes.Left.Min);
-        Assert.Equal(5, velocityPlot.Plot.Axes.Left.Max);
-        Assert.Equal(-5, velocityPlot.Plot.Axes.Left.Min);
-        Assert.Equal(5, imuPlot.Plot.Axes.Left.Max);
+        Assert.Equal(1.122, velocityPlot.Plot.Axes.Left.Max, precision: 4);
+        Assert.Equal(-1.122, velocityPlot.Plot.Axes.Left.Min, precision: 4);
+        Assert.Equal(1.65, imuPlot.Plot.Axes.Left.Max, precision: 4);
         Assert.Equal(0, imuPlot.Plot.Axes.Left.Min);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
         await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!);
 
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
+        // After a reset batch the running max clears, so axes shrink back to the floor.
+        Assert.Equal(5, travelPlot.Plot.Axes.Left.Max);
+        Assert.Equal(0.5, velocityPlot.Plot.Axes.Left.Max);
+        Assert.Equal(-0.5, velocityPlot.Plot.Axes.Left.Min);
+        Assert.Equal(1, imuPlot.Plot.Axes.Left.Max);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();

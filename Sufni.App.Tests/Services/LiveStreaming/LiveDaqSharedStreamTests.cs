@@ -327,6 +327,71 @@ public class LiveDaqSharedStreamTests
         await rescuedLease.DisposeAsync();
     }
 
+    [Fact]
+    public async Task Frames_SlowSubscriber_DoesNotBlockPublishing_AndDropsOldestBufferedFrames()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+
+        var client = clientFactory.CreatedClients.Single();
+        var firstFrameEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var receivedOffsets = new List<ulong>();
+
+        using var subscription = stream.Frames.Subscribe(frame =>
+        {
+            if (frame is not LiveTravelBatchFrame travelFrame)
+            {
+                return;
+            }
+
+            if (!firstFrameEntered.Task.IsCompleted)
+            {
+                firstFrameEntered.TrySetResult();
+                releaseFirstFrame.Task.GetAwaiter().GetResult();
+            }
+
+            lock (receivedOffsets)
+            {
+                receivedOffsets.Add(travelFrame.Batch.FirstMonotonicUs);
+            }
+        });
+
+        const int publishedFrameCount = 1500;
+        var publishTask = Task.Run(() =>
+        {
+            for (var index = 1; index <= publishedFrameCount; index++)
+            {
+                client.PublishFrame(CreateTravelBatchFrame((ulong)index));
+            }
+        });
+
+        await firstFrameEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        releaseFirstFrame.TrySetResult();
+
+        await AssertEventuallyAsync(() =>
+        {
+            lock (receivedOffsets)
+            {
+                return receivedOffsets.Count > 0 && receivedOffsets.Contains((ulong)publishedFrameCount);
+            }
+        });
+
+        lock (receivedOffsets)
+        {
+            Assert.DoesNotContain(2UL, receivedOffsets);
+            Assert.True(receivedOffsets.Count < publishedFrameCount);
+            Assert.Contains((ulong)publishedFrameCount, receivedOffsets);
+        }
+    }
+
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
         new(clientFactory, catalogService);
 
@@ -348,6 +413,23 @@ public class LiveDaqSharedStreamTests
             snapshot.BoardId,
             snapshot.Host!,
             snapshot.Port!.Value);
+
+    private static LiveTravelBatchFrame CreateTravelBatchFrame(ulong firstMonotonicUs) =>
+        new(
+            new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.TravelBatch, 0, 0),
+            new LiveBatchHeader(901, 0, 0, firstMonotonicUs, 1),
+            [new LiveTravelRecord((ushort)firstMonotonicUs, (ushort)firstMonotonicUs)]);
+
+    private static async Task AssertEventuallyAsync(Func<bool> predicate)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!predicate())
+        {
+            timeoutCts.Token.ThrowIfCancellationRequested();
+            await Task.Yield();
+        }
+    }
+
     private sealed class FakeLiveDaqClientFactory : ILiveDaqClientFactory
     {
         public List<FakeLiveDaqClient> CreatedClients { get; } = [];
@@ -462,6 +544,11 @@ public class LiveDaqSharedStreamTests
             IsConnected = false;
             PublishDisconnected();
             return Task.CompletedTask;
+        }
+
+        public void PublishFrame(LiveProtocolFrame frame)
+        {
+            events.OnNext(new LiveDaqClientEvent.FrameReceived(frame));
         }
 
         public ValueTask DisposeAsync()

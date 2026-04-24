@@ -8,10 +8,14 @@ namespace Sufni.App.Plots;
 
 public sealed class LiveVelocityPlot : LiveStreamingPlotBase
 {
+    private const double Floor = 0.5;
+    private const double Padding = 1.1;
+
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
     private double[] frontVelocityScratch = [];
     private double[] rearVelocityScratch = [];
+    private double runningMaxAbs;
 
     public LiveVelocityPlot(Plot plot, double velocityMaximum)
         : base(plot, 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum))
@@ -19,6 +23,7 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         ConfigurePlot("Velocity", "Velocity (m/s)");
         frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
+        ApplyAutoLimits();
     }
 
     public void Append(LiveGraphBatch batch)
@@ -32,13 +37,26 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
 
         if (batch.FrontVelocity.Count > 0)
         {
-            frontStreamer.AddRange(ConvertToMetersPerSecond(batch.FrontVelocity, ref frontVelocityScratch));
+            var frontVelocity = ConvertToMetersPerSecond(batch.FrontVelocity, ref frontVelocityScratch);
+            frontStreamer.AddRange(frontVelocity);
+            UpdateRunningMaxAbs(frontVelocity);
         }
 
         if (batch.RearVelocity.Count > 0)
         {
-            rearStreamer.AddRange(ConvertToMetersPerSecond(batch.RearVelocity, ref rearVelocityScratch));
+            var rearVelocity = ConvertToMetersPerSecond(batch.RearVelocity, ref rearVelocityScratch);
+            rearStreamer.AddRange(rearVelocity);
+            UpdateRunningMaxAbs(rearVelocity);
         }
+
+        ApplyAutoLimits();
+    }
+
+    public override void Reset()
+    {
+        runningMaxAbs = 0;
+        ApplyAutoLimits();
+        base.Reset();
     }
 
     protected override void ClearStreamers()
@@ -60,5 +78,23 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         }
 
         return new ArraySegment<double>(buffer, 0, values.Count);
+    }
+
+    private void UpdateRunningMaxAbs(ArraySegment<double> values)
+    {
+        for (var i = 0; i < values.Count; i++)
+        {
+            var abs = Math.Abs(values.Array![values.Offset + i]);
+            if (abs > runningMaxAbs)
+            {
+                runningMaxAbs = abs;
+            }
+        }
+    }
+
+    private void ApplyAutoLimits()
+    {
+        var max = Math.Max(runningMaxAbs * Padding, Floor);
+        SetVerticalLimits(-max, max);
     }
 }
