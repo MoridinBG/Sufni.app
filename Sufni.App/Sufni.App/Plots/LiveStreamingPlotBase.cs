@@ -156,7 +156,7 @@ public abstract class LiveStreamingPlotBase : SufniPlot
         Plot.Axes.SetLimitsX(TimeToCoordinate(startTime), TimeToCoordinate(endTime));
     }
 
-    public void Reset()
+    public virtual void Reset()
     {
         ClearStreamers();
         hasTiming = false;
