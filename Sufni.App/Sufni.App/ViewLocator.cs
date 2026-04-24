@@ -39,6 +39,7 @@ public class ViewLocator : IDataTemplate
         [typeof(BalancePageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.BalancePageView(),
         [typeof(DamperPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.DamperPageView(),
         [typeof(LiveGraphPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.LiveGraphPageView(),
+        [typeof(RecordedGraphPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.RecordedGraphPageView(),
         [typeof(NotesPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.NotesPageView(),
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.SpringPageView(),
     };

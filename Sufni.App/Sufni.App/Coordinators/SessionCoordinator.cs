@@ -159,8 +159,16 @@ public sealed class SessionCoordinator : ISessionCoordinator
             if (cached is not null)
             {
                 logger.Verbose("Mobile session cache hit for {SessionId}", sessionId);
+                var cachedTelemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
+                if (cachedTelemetryData is null)
+                {
+                    logger.Warning("Mobile session cache is present but local telemetry could not be read for {SessionId}", sessionId);
+                }
+
                 logger.Information("Mobile session load completed from cache for {SessionId}", sessionId);
-                return new SessionMobileLoadResult.LoadedFromCache(SessionCachePresentationData.FromCache(cached));
+                return new SessionMobileLoadResult.LoadedFromCache(
+                    SessionCachePresentationData.FromCache(cached),
+                    cachedTelemetryData);
             }
 
             logger.Verbose("Mobile session cache miss for {SessionId}", sessionId);
@@ -196,7 +204,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
                 cancellationToken);
 
             logger.Information("Mobile session load completed for {SessionId}", sessionId);
-            return new SessionMobileLoadResult.BuiltCache(presentation);
+            return new SessionMobileLoadResult.BuiltCache(presentation, telemetryData);
         }
         catch (OperationCanceledException)
         {

@@ -23,10 +23,10 @@ public class SessionDetailViewTests
             .OfType<ItemsControl>()
             .FirstOrDefault(c => c.Name == "TabHeaders");
         Assert.NotNull(tabHeaders);
-        Assert.Equal(4, tabHeaders!.ItemCount);
-        Assert.Equal(["Spring", "Damper", "Balance", "Notes"], mounted.Editor.Pages.Select(page => page.DisplayName));
-        Assert.True(mounted.Editor.Pages.OfType<PageViewModelBase>().First(page => page.DisplayName == "Spring").Selected);
-        Assert.All(mounted.Editor.Pages.OfType<PageViewModelBase>().Where(page => page.DisplayName != "Spring"), page => Assert.False(page.Selected));
+        Assert.Equal(5, tabHeaders!.ItemCount);
+        Assert.Equal(["Graph", "Spring", "Damper", "Balance", "Notes"], mounted.Editor.Pages.Select(page => page.DisplayName));
+        Assert.True(mounted.Editor.Pages.OfType<PageViewModelBase>().First(page => page.DisplayName == "Graph").Selected);
+        Assert.All(mounted.Editor.Pages.OfType<PageViewModelBase>().Where(page => page.DisplayName != "Graph"), page => Assert.False(page.Selected));
 
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<EditableTitle>().SingleOrDefault());
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<ErrorMessagesBar>().SingleOrDefault());
@@ -44,8 +44,8 @@ public class SessionDetailViewTests
             .OfType<ItemsControl>()
             .FirstOrDefault(c => c.Name == "TabHeaders");
         Assert.NotNull(tabHeaders);
-        Assert.Equal(3, tabHeaders!.ItemCount);
-        Assert.Equal(["Spring", "Damper", "Notes"], mounted.Editor.Pages.Select(page => page.DisplayName));
+        Assert.Equal(4, tabHeaders!.ItemCount);
+        Assert.Equal(["Graph", "Spring", "Damper", "Notes"], mounted.Editor.Pages.Select(page => page.DisplayName));
         Assert.DoesNotContain(mounted.Editor.Pages, page => page.DisplayName == "Balance");
     }
 

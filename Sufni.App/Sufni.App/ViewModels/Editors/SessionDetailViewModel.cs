@@ -47,6 +47,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly ISessionCoordinator? sessionCoordinator;
     private readonly ISessionStore? sessionStore;
     private Session session;
+    private RecordedGraphPageViewModel GraphPage { get; }
     private SpringPageViewModel SpringPage { get; } = new();
     private BalancePageViewModel BalancePage { get; } = new();
 
@@ -391,6 +392,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         {
             case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
                 ApplyCachePresentation(loadedFromCache.Data);
+                TelemetryData = loadedFromCache.Telemetry;
+                TravelGraphState = HasTravelTelemetry(TelemetryData)
+                    ? SurfacePresentationState.Ready
+                    : SurfacePresentationState.Hidden;
+                ImuGraphState = HasImuTelemetry(TelemetryData)
+                    ? SurfacePresentationState.Ready
+                    : SurfacePresentationState.Hidden;
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 lastObservedHasProcessedData = true;
@@ -398,6 +406,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
             case SessionMobileLoadResult.BuiltCache builtCache:
                 ApplyCachePresentation(builtCache.Data);
+                TelemetryData = builtCache.Telemetry;
+                TravelGraphState = HasTravelTelemetry(TelemetryData)
+                    ? SurfacePresentationState.Ready
+                    : SurfacePresentationState.Hidden;
+                ImuGraphState = HasImuTelemetry(TelemetryData)
+                    ? SurfacePresentationState.Ready
+                    : SurfacePresentationState.Hidden;
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 lastObservedHasProcessedData = true;
@@ -463,7 +478,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         sessionCoordinator = null;
         sessionStore = null;
         session = new Session();
-        Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
+        GraphPage = new RecordedGraphPageViewModel(this);
+        Pages = [GraphPage, SpringPage, DamperPage, BalancePage, NotesPage];
         MapViewModel = null;
     }
 
@@ -483,7 +499,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BaselineUpdated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
-        Pages = [SpringPage, DamperPage, BalancePage, NotesPage];
+        GraphPage = new RecordedGraphPageViewModel(this);
+        Pages = [GraphPage, SpringPage, DamperPage, BalancePage, NotesPage];
         MapViewModel = new MapViewModel(tileLayerService, dialogService);
         _ = MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
