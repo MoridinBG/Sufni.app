@@ -1,6 +1,9 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,6 +11,7 @@ using Sufni.App.Models;
 using Sufni.App.Coordinators;
 using Sufni.App.Presentation;
 using Sufni.App.Queries;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels;
@@ -25,6 +29,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService? liveSessionService;
     private readonly ISessionCoordinator? sessionCoordinator;
+    private readonly ISessionPresentationService? sessionPresentationService;
+    private readonly IBackgroundTaskRunner? backgroundTaskRunner;
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly object presentationGate = new();
     private bool hasLoaded;
@@ -33,6 +39,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private bool hasPendingPresentation;
     private readonly bool hasFrontTravelCalibration;
     private readonly bool hasRearTravelCalibration;
+    private SessionPresentationDimensions? lastPresentationDimensions;
+    private TelemetryData? lastBakedTelemetryData;
+    private CancellationTokenSource? bakeCts;
 
     public string IdentityKey { get; }
     public Guid SetupId { get; }
@@ -42,11 +51,21 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     public ILiveSessionGraphWorkspace GraphWorkspace => graphWorkspace;
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;
-    public SuspensionSettings ForkSettings { get; } = new();
-    public SuspensionSettings ShockSettings { get; } = new();
+    public NotesPageViewModel NotesPage { get; } = new();
+    public SpringPageViewModel SpringPage { get; } = new();
+    public DamperPageViewModel DamperPage { get; } = new();
+    public BalancePageViewModel BalancePage { get; } = new();
+    public LiveGraphPageViewModel LiveGraphPage { get; }
+    public ObservableCollection<PageViewModelBase> Pages { get; }
 
-    [ObservableProperty]
-    private string? descriptionText;
+    public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
+    public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
+
+    public string? DescriptionText
+    {
+        get => NotesPage.Description;
+        set => NotesPage.Description = value;
+    }
 
     [ObservableProperty]
     private TelemetryData? telemetryData;
@@ -72,12 +91,17 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel();
         uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
+        LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace);
+        Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage];
+        WireNotesPageForwarding();
     }
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
         ILiveSessionService liveSessionService,
         ISessionCoordinator sessionCoordinator,
+        ISessionPresentationService sessionPresentationService,
+        IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
@@ -90,6 +114,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         BikeName = context.BikeName;
         this.liveSessionService = liveSessionService;
         this.sessionCoordinator = sessionCoordinator;
+        this.sessionPresentationService = sessionPresentationService;
+        this.backgroundTaskRunner = backgroundTaskRunner;
         hasFrontTravelCalibration = context.TravelCalibration.Front is not null;
         hasRearTravelCalibration = context.TravelCalibration.Rear is not null;
 
@@ -98,6 +124,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline);
         uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
+        LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace);
+        Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage];
+        WireNotesPageForwarding();
 
         ApplyPresentation(liveSessionService.Current);
 
@@ -133,13 +162,15 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         OnPropertyChanged(nameof(ReboundBalanceState));
     }
 
-    partial void OnDescriptionTextChanged(string? value)
-    {
-    }
-
     [RelayCommand]
-    private async Task Loaded()
+    private async Task Loaded(Rect? bounds = null)
     {
+        var dimensions = CreatePresentationDimensions(bounds);
+        if (dimensions is not null)
+        {
+            lastPresentationDimensions = dimensions;
+        }
+
         uiRefreshTimer.Start();
         RefreshUi();
 
@@ -173,13 +204,25 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private async Task Unloaded()
     {
         uiRefreshTimer.Stop();
+        CancelBake();
         DisposeScopedSubscriptions();
         await Task.CompletedTask;
+    }
+
+    private static SessionPresentationDimensions? CreatePresentationDimensions(Rect? bounds)
+    {
+        if (bounds is not Rect rect || rect.Width <= 0 || rect.Height <= 0)
+        {
+            return null;
+        }
+
+        return new SessionPresentationDimensions((int)rect.Width, (int)(rect.Height / 2.0));
     }
 
     protected override async Task CloseImplementation()
     {
         uiRefreshTimer.Stop();
+        CancelBake();
 
         if (liveSessionService is not null)
         {
@@ -294,6 +337,59 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 RefreshCommandState();
             }, DispatcherPriority.Background);
         }
+    }
+
+    private void EnsureBalancePage(bool balanceAvailable)
+    {
+        var containsBalancePage = Pages.Contains(BalancePage);
+        if (balanceAvailable)
+        {
+            if (containsBalancePage)
+            {
+                return;
+            }
+
+            var notesIndex = Pages.IndexOf(NotesPage);
+            if (notesIndex < 0)
+            {
+                Pages.Add(BalancePage);
+            }
+            else
+            {
+                Pages.Insert(notesIndex, BalancePage);
+            }
+
+            return;
+        }
+
+        if (containsBalancePage)
+        {
+            Pages.Remove(BalancePage);
+        }
+    }
+
+    private void WireNotesPageForwarding()
+    {
+        NotesPage.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(NotesPageViewModel.Description))
+            {
+                OnPropertyChanged(nameof(DescriptionText));
+            }
+
+            EvaluateDirtiness();
+            RefreshCommandState();
+        };
+        NotesPage.ForkSettings.PropertyChanged += (_, _) =>
+        {
+            EvaluateDirtiness();
+            RefreshCommandState();
+        };
+        NotesPage.ShockSettings.PropertyChanged += (_, _) =>
+        {
+            EvaluateDirtiness();
+            RefreshCommandState();
+        };
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)
@@ -419,6 +515,140 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ControlState = ApplyControlFlags(snapshot.Controls);
         EvaluateDirtiness();
         RefreshCommandState();
+
+        MaybeQueueBake(snapshot.StatisticsTelemetry);
+    }
+
+    private void MaybeQueueBake(TelemetryData? telemetryData)
+    {
+        if (telemetryData is null ||
+            sessionPresentationService is null ||
+            backgroundTaskRunner is null ||
+            lastPresentationDimensions is not { } dimensions)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(lastBakedTelemetryData, telemetryData))
+        {
+            return;
+        }
+
+        lastBakedTelemetryData = telemetryData;
+        CancelBake();
+        var cts = new CancellationTokenSource();
+        bakeCts = cts;
+        var service = sessionPresentationService;
+        var runner = backgroundTaskRunner;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var data = await runner.RunAsync(
+                    () => service.BuildCachePresentation(telemetryData, dimensions, cts.Token),
+                    cts.Token);
+
+                if (cts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (cts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    ApplyCachePresentation(data);
+                }, DispatcherPriority.Background);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                Dispatcher.UIThread.Post(() =>
+                    ErrorMessages.Add($"Live statistics render failed: {e.Message}"),
+                    DispatcherPriority.Background);
+            }
+        });
+    }
+
+    private void CancelBake()
+    {
+        var cts = bakeCts;
+        bakeCts = null;
+        if (cts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        cts.Dispose();
+    }
+
+    private void ApplyCachePresentation(SessionCachePresentationData data)
+    {
+        var hasFrontTravelHistogram = !string.IsNullOrWhiteSpace(data.FrontTravelHistogram);
+        var hasRearTravelHistogram = !string.IsNullOrWhiteSpace(data.RearTravelHistogram);
+        var hasFrontVelocityHistogram = !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
+        var hasRearVelocityHistogram = !string.IsNullOrWhiteSpace(data.RearVelocityHistogram);
+        var hasCompressionBalance = !string.IsNullOrWhiteSpace(data.CompressionBalance);
+        var hasReboundBalance = !string.IsNullOrWhiteSpace(data.ReboundBalance);
+
+        var frontStats = FrontStatisticsState;
+        var rearStats = RearStatisticsState;
+        var compressionBalance = CompressionBalanceState;
+        var reboundBalance = ReboundBalanceState;
+
+        SpringPage.FrontTravelHistogram = data.FrontTravelHistogram;
+        SpringPage.RearTravelHistogram = data.RearTravelHistogram;
+        SpringPage.FrontHistogramState = ResolveSurfaceState(hasFrontTravelHistogram, frontStats);
+        SpringPage.RearHistogramState = ResolveSurfaceState(hasRearTravelHistogram, rearStats);
+
+        DamperPage.FrontVelocityHistogram = data.FrontVelocityHistogram;
+        DamperPage.RearVelocityHistogram = data.RearVelocityHistogram;
+        DamperPage.FrontHistogramState = ResolveSurfaceState(hasFrontVelocityHistogram, frontStats);
+        DamperPage.RearHistogramState = ResolveSurfaceState(hasRearVelocityHistogram, rearStats);
+
+        DamperPage.FrontHscPercentage = data.DamperPercentages.FrontHscPercentage;
+        DamperPage.RearHscPercentage = data.DamperPercentages.RearHscPercentage;
+        DamperPage.FrontLscPercentage = data.DamperPercentages.FrontLscPercentage;
+        DamperPage.RearLscPercentage = data.DamperPercentages.RearLscPercentage;
+        DamperPage.FrontLsrPercentage = data.DamperPercentages.FrontLsrPercentage;
+        DamperPage.RearLsrPercentage = data.DamperPercentages.RearLsrPercentage;
+        DamperPage.FrontHsrPercentage = data.DamperPercentages.FrontHsrPercentage;
+        DamperPage.RearHsrPercentage = data.DamperPercentages.RearHsrPercentage;
+        DamperPercentages = data.DamperPercentages;
+
+        BalancePage.CompressionBalance = data.CompressionBalance;
+        BalancePage.ReboundBalance = data.ReboundBalance;
+        BalancePage.CompressionBalanceState = ResolveSurfaceState(hasCompressionBalance, compressionBalance);
+        BalancePage.ReboundBalanceState = ResolveSurfaceState(hasReboundBalance, reboundBalance);
+
+        var balancePageVisible = data.BalanceAvailable
+            || compressionBalance.ReservesLayout
+            || reboundBalance.ReservesLayout;
+        EnsureBalancePage(balancePageVisible);
+    }
+
+    private static SurfacePresentationState ResolveSurfaceState(bool svgPresent, SurfacePresentationState workspaceState)
+    {
+        if (svgPresent)
+        {
+            return SurfacePresentationState.Ready;
+        }
+
+        return workspaceState.IsHidden ? SurfacePresentationState.Hidden : workspaceState;
     }
 
     private bool IsCurrentCaptureAlreadySaved()
@@ -474,8 +704,40 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void ResetCapturePresentation()
     {
+        CancelBake();
+        lastBakedTelemetryData = null;
+        ClearStatisticsPages();
         graphWorkspace.Timeline.Reset();
         ApplyPresentation(liveSessionService!.Current);
+    }
+
+    private void ClearStatisticsPages()
+    {
+        SpringPage.FrontTravelHistogram = null;
+        SpringPage.RearTravelHistogram = null;
+        SpringPage.FrontHistogramState = SurfacePresentationState.Hidden;
+        SpringPage.RearHistogramState = SurfacePresentationState.Hidden;
+
+        DamperPage.FrontVelocityHistogram = null;
+        DamperPage.RearVelocityHistogram = null;
+        DamperPage.FrontHistogramState = SurfacePresentationState.Hidden;
+        DamperPage.RearHistogramState = SurfacePresentationState.Hidden;
+        DamperPage.FrontHscPercentage = null;
+        DamperPage.RearHscPercentage = null;
+        DamperPage.FrontLscPercentage = null;
+        DamperPage.RearLscPercentage = null;
+        DamperPage.FrontLsrPercentage = null;
+        DamperPage.RearLsrPercentage = null;
+        DamperPage.FrontHsrPercentage = null;
+        DamperPage.RearHsrPercentage = null;
+
+        BalancePage.CompressionBalance = null;
+        BalancePage.ReboundBalance = null;
+        BalancePage.CompressionBalanceState = SurfacePresentationState.Hidden;
+        BalancePage.ReboundBalanceState = SurfacePresentationState.Hidden;
+
+        DamperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
+        EnsureBalancePage(balanceAvailable: false);
     }
 
     // Live session updates arrive far faster than the controls need to repaint.

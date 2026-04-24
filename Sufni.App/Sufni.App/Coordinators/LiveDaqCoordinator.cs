@@ -25,6 +25,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
     private readonly ISessionCoordinator sessionCoordinator;
+    private readonly ISessionPresentationService sessionPresentationService;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITileLayerService tileLayerService;
     private readonly IDaqManagementService daqManagementService;
     private readonly IFilesService filesService;
@@ -43,6 +45,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
         ILiveSessionServiceFactory liveSessionServiceFactory,
         ISessionCoordinator sessionCoordinator,
+        ISessionPresentationService sessionPresentationService,
+        IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,
         IDaqManagementService daqManagementService,
         IFilesService filesService,
@@ -55,6 +59,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
         this.liveSessionServiceFactory = liveSessionServiceFactory;
         this.sessionCoordinator = sessionCoordinator;
+        this.sessionPresentationService = sessionPresentationService;
+        this.backgroundTaskRunner = backgroundTaskRunner;
         this.tileLayerService = tileLayerService;
         this.daqManagementService = daqManagementService;
         this.filesService = filesService;
@@ -178,6 +184,8 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
                 context,
                 liveSessionServiceFactory.Create(context, liveDaqSharedStreamRegistry.GetOrCreate(snapshot)),
                 sessionCoordinator,
+                sessionPresentationService,
+                backgroundTaskRunner,
                 tileLayerService,
                 shell,
                 dialogService));

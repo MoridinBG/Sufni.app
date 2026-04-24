@@ -1,0 +1,72 @@
+<UserControl
+    x:Class="Sufni.App.Views.Editors.LiveSessionControlsMobileView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+    d:DesignHeight="140"
+    d:DesignWidth="400"
+    x:DataType="vm:LiveSessionDetailViewModel"
+    mc:Ignorable="d">
+
+    <Border
+        Padding="12,10"
+        Background="{StaticResource SufniBackgroundDisabled}"
+        CornerRadius="6">
+        <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="* Auto">
+                <TextBlock
+                    Grid.Column="0"
+                    x:Name="LiveConnectionStateTextBlock"
+                    FontWeight="SemiBold"
+                    Text="{Binding ControlState.ConnectionStateText}"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    Grid.Column="1"
+                    x:Name="LiveCaptureDurationTextBlock"
+                    Text="{Binding ControlState.CaptureDurationText}" />
+            </Grid>
+
+            <StackPanel
+                IsVisible="{Binding ControlState.HasSessionHeader}"
+                Spacing="2">
+                <TextBlock
+                    x:Name="LiveSessionIdTextBlock"
+                    FontSize="12"
+                    Opacity="0.85"
+                    Text="{Binding ControlState.SessionIdText}" />
+                <TextBlock
+                    x:Name="LiveAcceptedTravelRateTextBlock"
+                    FontSize="12"
+                    Opacity="0.85"
+                    Text="{Binding ControlState.AcceptedTravelRateText}" />
+                <TextBlock
+                    x:Name="LiveAcceptedImuRateTextBlock"
+                    FontSize="12"
+                    Opacity="0.85"
+                    Text="{Binding ControlState.AcceptedImuRateText}" />
+                <TextBlock
+                    x:Name="LiveAcceptedGpsRateTextBlock"
+                    FontSize="12"
+                    Opacity="0.85"
+                    Text="{Binding ControlState.AcceptedGpsRateText}" />
+            </StackPanel>
+
+            <TextBlock
+                x:Name="LiveWaitingForHeaderTextBlock"
+                FontSize="12"
+                IsVisible="{Binding !ControlState.HasSessionHeader}"
+                Opacity="0.7"
+                Text="Waiting for the accepted live session header." />
+
+            <TextBlock
+                x:Name="LiveLastErrorTextBlock"
+                FontSize="12"
+                Foreground="{StaticResource SufniDangerColor}"
+                IsVisible="{Binding ControlState.HasLastError}"
+                Text="{Binding ControlState.LastError}"
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>
