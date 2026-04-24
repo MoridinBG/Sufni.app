@@ -19,7 +19,9 @@ public class SessionDetailViewTests
 
         await using var mounted = await context.MountMobileAsync();
 
-        var tabHeaders = mounted.View.FindControl<ItemsControl>("TabHeaders");
+        var tabHeaders = mounted.View.GetVisualDescendants()
+            .OfType<ItemsControl>()
+            .FirstOrDefault(c => c.Name == "TabHeaders");
         Assert.NotNull(tabHeaders);
         Assert.Equal(4, tabHeaders!.ItemCount);
         Assert.Equal(["Spring", "Damper", "Balance", "Notes"], mounted.Editor.Pages.Select(page => page.DisplayName));
@@ -38,7 +40,9 @@ public class SessionDetailViewTests
 
         await using var mounted = await context.MountMobileAsync(loadResult: context.CreateMobileLoadedState(includeBalance: false));
 
-        var tabHeaders = mounted.View.FindControl<ItemsControl>("TabHeaders");
+        var tabHeaders = mounted.View.GetVisualDescendants()
+            .OfType<ItemsControl>()
+            .FirstOrDefault(c => c.Name == "TabHeaders");
         Assert.NotNull(tabHeaders);
         Assert.Equal(3, tabHeaders!.ItemCount);
         Assert.Equal(["Spring", "Damper", "Notes"], mounted.Editor.Pages.Select(page => page.DisplayName));
