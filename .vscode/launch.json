@@ -53,6 +53,14 @@
       "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
     },
     {
+      "name": "Sufni iOS Device (Release)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "mobile: build iOS device (Release)",
+      "command": "MLAUNCH=\"$(command -v mlaunch || find /usr/local/share/dotnet/packs -path '*/tools/bin/mlaunch' -print | sort | tail -n 1)\" && SDK_VERSION=\"$(xcrun --sdk iphoneos --show-sdk-version)\" && SDK_ROOT=\"$(xcode-select -p)\" && test -n \"$MLAUNCH\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --installdev Sufni.App/Sufni.App.iOS/bin/Release/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\" && \"$MLAUNCH\" --devname \"${input:iosDeviceName}\" --killdev com.moridinbg.Sufni.App --launchdev Sufni.App/Sufni.App.iOS/bin/Release/net10.0-ios/ios-arm64/Sufni.App.iOS.app --wait-for-unlock --argument=-connection-mode --argument=usb -sdk \"$SDK_VERSION\" --sdkroot \"$SDK_ROOT\""
+    },
+    {
       "name": "Sufni Android (arm64)",
       "type": "node-terminal",
       "request": "launch",
