@@ -269,6 +269,8 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         }
     }
 
+    protected override void OnViewportChanged() => UpdateTimelineRange();
+
     private void UpdateTimelineRange()
     {
         if (Plot is null || Timeline is null || applyingTimelineRange)

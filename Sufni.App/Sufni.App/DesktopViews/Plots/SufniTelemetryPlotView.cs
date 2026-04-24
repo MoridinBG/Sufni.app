@@ -169,6 +169,8 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         LoadTelemetryIntoPlot(data);
     }
 
+    protected override void OnViewportChanged() => UpdateTimelineRange();
+
     protected void UpdateTimelineRange()
     {
         if (applyingTimelineRange || !HasPlotControl || Telemetry is null || Timeline is null) return;
