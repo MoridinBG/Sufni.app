@@ -50,14 +50,21 @@ public class MainPagesViewTests
 
         var tabControl = mounted.View.FindControl<TabControl>("PagesTabControl");
         var sessionsTab = mounted.View.FindControl<TabItem>("SessionTabItem");
+        var setupsTab = mounted.View.FindControl<TabItem>("BikeSetupsTabItem");
         var bikesTab = mounted.View.FindControl<TabItem>("BikesTabItem");
+        var liveDaqsTab = mounted.View.FindControl<TabItem>("LiveDaqsTabItem");
 
         Assert.NotNull(tabControl);
         Assert.NotNull(sessionsTab);
+        Assert.NotNull(setupsTab);
         Assert.NotNull(bikesTab);
+        Assert.NotNull(liveDaqsTab);
         Assert.Same(viewModel.SessionsPage, sessionsTab!.Content);
+        Assert.Same(viewModel.SetupsPage, setupsTab!.Content);
         Assert.Same(viewModel.BikesPage, bikesTab!.Content);
+        Assert.Same(viewModel.LiveDaqsPage, liveDaqsTab!.Content);
         Assert.Same(sessionsTab, tabControl!.SelectedItem);
+        Assert.Equal(4, tabControl.ItemCount);
 
         tabControl.SelectedIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -65,6 +72,12 @@ public class MainPagesViewTests
         Assert.Equal(2, viewModel.SelectedIndex);
         Assert.Equal(2, tabControl.SelectedIndex);
         Assert.Same(bikesTab, tabControl.SelectedItem);
+
+        tabControl.SelectedIndex = 3;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(3, viewModel.SelectedIndex);
+        Assert.Same(liveDaqsTab, tabControl.SelectedItem);
     }
 
     private static async Task<MountedMainPagesView> MountAsync(MainPagesView view)
