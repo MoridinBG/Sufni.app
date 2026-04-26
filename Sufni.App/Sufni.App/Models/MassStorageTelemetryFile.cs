@@ -18,6 +18,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; } = "unknown";
     public string? MalformedMessage { get; private set; }
+    public bool CanImport { get; private set; }
     public bool HasUnknown { get; private set; }
 
     public MassStorageTelemetryFile(FileInfo fileInfo)
@@ -73,7 +74,8 @@ public class MassStorageTelemetryFile : ITelemetryFile
                 Version = valid.Version;
                 StartTime = valid.StartTime;
                 Duration = valid.Duration.ToString(@"hh\:mm\:ss");
-                MalformedMessage = null;
+                MalformedMessage = valid.MalformedMessage;
+                CanImport = true;
                 HasUnknown = valid.HasUnknown;
                 break;
             case MalformedSstFileInspection malformed:
@@ -82,6 +84,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
                 StartTime = malformed.StartTime ?? fallbackStartTime;
                 Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
                 MalformedMessage = malformed.Message;
+                CanImport = false;
                 HasUnknown = false;
                 break;
         }

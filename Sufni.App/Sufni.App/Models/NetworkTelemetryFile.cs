@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 using Sufni.App.Services;
@@ -20,6 +21,7 @@ public class NetworkTelemetryFile : ITelemetryFile
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
     public string? MalformedMessage { get; }
+    public bool CanImport { get; }
     public bool HasUnknown => false;
 
     private readonly IPEndPoint ipEndPoint;
@@ -28,39 +30,76 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
-        var rawFileResult = await daqManagementService.GetFileAsync(
-            ipEndPoint.Address.ToString(),
-            ipEndPoint.Port,
-            DaqFileClass.RootSst,
-            recordId);
-
-        var loadedFile = rawFileResult switch
+        var tempPath = Path.Combine(Path.GetTempPath(), $"sufni-{Guid.NewGuid():N}.SST");
+        try
         {
-            DaqGetFileResult.Loaded loaded => loaded,
-            DaqGetFileResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
-            _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
-        };
+            DaqGetFileResult downloadedFile;
+            await using (var destination = new FileStream(
+                tempPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 64 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                downloadedFile = await daqManagementService.GetFileAsync(
+                    ipEndPoint.Address.ToString(),
+                    ipEndPoint.Port,
+                    DaqFileClass.RootSst,
+                    recordId,
+                    destination);
+            }
 
-        var rawData = loadedFile.Bytes;
-        var rawTelemetryData = RawTelemetryData.FromByteArray(rawData);
-        var telemetryMetadata = new Metadata
+            var loadedFile = downloadedFile switch
+            {
+                DaqGetFileResult.Downloaded loaded => loaded,
+                DaqGetFileResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
+                _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
+            };
+
+            await using var source = new FileStream(
+                tempPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 64 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var rawTelemetryData = RawTelemetryData.FromStream(source);
+            var telemetryMetadata = new Metadata
+            {
+                SourceName = loadedFile.Name,
+                Version = rawTelemetryData.Version,
+                SampleRate = rawTelemetryData.SampleRate,
+                Timestamp = rawTelemetryData.Timestamp,
+                Duration = rawTelemetryData.SampleRate > 0
+                    ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
+                    : 0.0
+            };
+            var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
+            return telemetryData.BinaryForm;
+        }
+        finally
         {
-            SourceName = loadedFile.Name,
-            Version = rawTelemetryData.Version,
-            SampleRate = rawTelemetryData.SampleRate,
-            Timestamp = rawTelemetryData.Timestamp,
-            Duration = rawTelemetryData.SampleRate > 0
-                ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
-                : 0.0
-        };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
-        return telemetryData.BinaryForm;
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
     }
 
-    public Task OnImported()
+    public async Task OnImported()
     {
+        var result = await daqManagementService.MarkSstUploadedAsync(
+            ipEndPoint.Address.ToString(),
+            ipEndPoint.Port,
+            recordId);
+
+        if (result is DaqManagementResult.Error error)
+        {
+            throw new DaqManagementException(error.ErrorCode, error.Message);
+        }
+
         Imported = true;
-        return Task.CompletedTask;
     }
 
     public async Task OnTrashed()
@@ -84,13 +123,15 @@ public class NetworkTelemetryFile : ITelemetryFile
         byte version,
         DateTimeOffset? timestampUtc,
         TimeSpan? duration,
-        string? malformedMessage = null)
+        string? malformedMessage = null,
+        bool canImport = true)
     {
         this.daqManagementService = daqManagementService;
         this.recordId = recordId;
 
         var effectiveDuration = duration;
-        ShouldBeImported = string.IsNullOrWhiteSpace(malformedMessage)
+        CanImport = canImport;
+        ShouldBeImported = canImport
             ? effectiveDuration?.TotalSeconds >= 5 ? true : null
             : false;
         Version = version;

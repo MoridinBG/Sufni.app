@@ -5,13 +5,14 @@ namespace Sufni.App.Services.Management;
 internal static class ManagementProtocolConstants
 {
     public const uint Magic = 0x544D474D;
-    public const ushort Version = 1;
+    public const ushort Version = 2;
 
     public const int FrameHeaderSize = 16;
 
     public const int ListDirectoryRequestPayloadSize = 4;
     public const int GetFileRequestPayloadSize = 8;
     public const int TrashFileRequestPayloadSize = 4;
+    public const int MarkSstUploadedRequestPayloadSize = 4;
     public const int PutFileBeginPayloadSize = 12;
     public const int PutFileCommitPayloadSize = 0;
     public const int SetTimeRequestPayloadSize = 8;
@@ -19,7 +20,7 @@ internal static class ManagementProtocolConstants
 
     public const int ListDirectoryEntryPayloadSize = 41;
     public const int ListDirectoryDonePayloadSize = 4;
-    public const int FileBeginPayloadSize = 28;
+    public const int FileBeginPayloadSize = 32;
     public const int FileEndPayloadSize = 0;
     public const int ActionResultPayloadSize = 4;
     public const int ErrorPayloadSize = 4;
@@ -27,7 +28,7 @@ internal static class ManagementProtocolConstants
 
     public const int MaxPutFileChunkPayloadSize = 512;
 
-    public const int MaxPayloadLength = 64 * 1024;
+    public const int MaxPayloadLength = 1024 * 1024;
 }
 
 internal enum ManagementFrameType : ushort
@@ -40,6 +41,7 @@ internal enum ManagementFrameType : ushort
     PutFileCommit = 6,
     SetTimeRequest = 7,
     Ping = 8,
+    MarkSstUploadedRequest = 9,
 
     ListDirectoryEntry = 16,
     ListDirectoryDone = 17,
@@ -95,6 +97,10 @@ internal sealed record ManagementTrashFileRequestFrame(
     ManagementFrameHeader Header,
     int RecordId) : ManagementProtocolFrame(Header);
 
+internal sealed record ManagementMarkSstUploadedRequestFrame(
+    ManagementFrameHeader Header,
+    int RecordId) : ManagementProtocolFrame(Header);
+
 internal sealed record ManagementPutFileBeginRequestFrame(
     ManagementFrameHeader Header,
     DaqFileClass FileClass,
@@ -133,6 +139,7 @@ internal sealed record ManagementFileBeginFrame(
     DaqFileClass FileClass,
     int RecordId,
     ulong FileSizeBytes,
+    uint MaxChunkPayload,
     string Name) : ManagementProtocolFrame(Header);
 
 internal sealed record ManagementFileChunkFrame(
