@@ -20,6 +20,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; }
     public string? MalformedMessage { get; private set; }
+    public bool CanImport { get; private set; }
     public bool HasUnknown { get; private set; }
 
     private async Task Init()
@@ -113,7 +114,8 @@ public class StorageProviderTelemetryFile : ITelemetryFile
                 Version = valid.Version;
                 StartTime = valid.StartTime;
                 Duration = valid.Duration.ToString(@"hh\:mm\:ss");
-                MalformedMessage = null;
+                MalformedMessage = valid.MalformedMessage;
+                CanImport = true;
                 HasUnknown = valid.HasUnknown;
                 break;
             case MalformedSstFileInspection malformed:
@@ -122,6 +124,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
                 StartTime = malformed.StartTime ?? ResolveFallbackStartTime(storageFile);
                 Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
                 MalformedMessage = malformed.Message;
+                CanImport = false;
                 break;
         }
     }

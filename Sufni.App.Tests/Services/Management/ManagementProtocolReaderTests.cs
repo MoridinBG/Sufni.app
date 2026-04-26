@@ -45,7 +45,7 @@ public class ManagementProtocolReaderTests
     {
         var reader = new ManagementProtocolReader();
         var frameBytes = ManagementProtocolTestFrames.CreateListDirectoryDoneFrame(requestId: 1, entryCount: 0);
-        BinaryPrimitives.WriteUInt16LittleEndian(frameBytes.AsSpan(4, 2), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(frameBytes.AsSpan(4, 2), 1);
 
         reader.Append(frameBytes);
 
@@ -98,6 +98,7 @@ public class ManagementProtocolReaderTests
             fileClass: DaqFileClass.Config,
             recordId: 0,
             fileSizeBytes: 77,
+            maxChunkPayload: 8192,
             name: "CONFIG");
 
         var frame = Assert.IsType<ManagementFileBeginFrame>(ManagementProtocolReader.ParseFrame(frameBytes));
@@ -106,6 +107,7 @@ public class ManagementProtocolReaderTests
         Assert.Equal(DaqFileClass.Config, frame.FileClass);
         Assert.Equal(0, frame.RecordId);
         Assert.Equal((ulong)77, frame.FileSizeBytes);
+        Assert.Equal((uint)8192, frame.MaxChunkPayload);
         Assert.Equal("CONFIG", frame.Name);
     }
 
@@ -127,6 +129,11 @@ public class ManagementProtocolReaderTests
             ManagementProtocolReader.ParseFrame(
                 ManagementProtocolReader.CreateTrashFileRequest(3, 99)));
         Assert.Equal(99, trash.RecordId);
+
+        var uploaded = Assert.IsType<ManagementMarkSstUploadedRequestFrame>(
+            ManagementProtocolReader.ParseFrame(
+                ManagementProtocolReader.CreateMarkSstUploadedRequest(7, 88)));
+        Assert.Equal(88, uploaded.RecordId);
 
         var putBegin = Assert.IsType<ManagementPutFileBeginRequestFrame>(
             ManagementProtocolReader.ParseFrame(

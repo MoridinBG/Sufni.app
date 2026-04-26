@@ -67,7 +67,7 @@ On import, files move to an `uploaded/` subdirectory. On trash, files move to `t
 
 - `Initialization` no longer lists files. It performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore.
 - `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, and maps only `DaqSstFileRecord` values into `NetworkTelemetryFile` instances sorted by descending `StartTime`.
-- `NetworkTelemetryFile` now carries the DAQ `recordId` from the management directory listing. `GeneratePsstAsync(...)` downloads bytes through `IDaqManagementService.GetFileAsync(...)`, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
+- `NetworkTelemetryFile` now carries the DAQ `recordId` from the management directory listing. `GeneratePsstAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temp file before SST validation and processing. `OnImported()` sends `MARK_SST_UPLOADED_REQ` after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
 - Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
 
 Import still shares the DAQ's single-client TCP port with live preview. If another live or management connection is already active, the resulting connection failure is surfaced through `TelemetryDataStoreService.ErrorOccurred` just as before.
@@ -136,7 +136,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
-The `Inspect()` path scans only the header and rate/telemetry chunk metadata to compute duration and version without fully parsing all data — used for UI display before import. It also detects unknown TLV chunk types and malformed headers, returning a `MalformedSstFileInspection` with a diagnostic message when the file cannot be imported.
+The `Inspect()` path scans only the header and rate/telemetry chunk metadata to compute duration and version without fully parsing all data — used for UI display before import. It also detects unknown TLV chunk types and malformed headers, returning a `MalformedSstFileInspection` with a diagnostic message when the file cannot be imported. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the file with a malformed warning, and still allows import.
 
 ### Spike Elimination
 

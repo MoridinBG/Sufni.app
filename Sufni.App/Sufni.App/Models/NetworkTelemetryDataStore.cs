@@ -48,7 +48,8 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                         malformedRecord.SstVersion,
                         malformedRecord.TimestampUtc,
                         malformedRecord.Duration,
-                        malformedRecord.MalformedMessage));
+                        malformedRecord.MalformedMessage,
+                        canImport: false));
                     break;
                 case DaqSstFileRecord sstRecord:
                     files.Add(new NetworkTelemetryFile(

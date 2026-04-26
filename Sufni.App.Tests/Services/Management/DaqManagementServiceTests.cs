@@ -132,7 +132,7 @@ public class DaqManagementServiceTests
     }
 
     [Fact]
-    public async Task GetFileAsync_ReturnsLoadedBytes_OnSuccess()
+    public async Task GetFileAsync_StreamsBytesToDestination_OnSuccess()
     {
         await using var server = new ManagementTestServer();
         var expectedBytes = new byte[] { 1, 2, 3, 4, 5, 6 };
@@ -150,6 +150,7 @@ public class DaqManagementServiceTests
                     fileClass: DaqFileClass.RootSst,
                     recordId: 42,
                     fileSizeBytes: (ulong)expectedBytes.Length,
+                    maxChunkPayload: 4,
                     name: "00042.SST"));
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateFileChunkFrame(request.RequestId, expectedBytes[..2]));
@@ -159,16 +160,18 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateFileEndFrame(request.RequestId));
         });
 
-        var result = await CreateService().GetFileAsync(server.Host, server.Port, DaqFileClass.RootSst, 42);
+        using var destination = new MemoryStream();
+        var result = await CreateService().GetFileAsync(server.Host, server.Port, DaqFileClass.RootSst, 42, destination);
         await serverTask;
 
-        var loaded = Assert.IsType<DaqGetFileResult.Loaded>(result);
+        var loaded = Assert.IsType<DaqGetFileResult.Downloaded>(result);
         Assert.Equal("00042.SST", loaded.Name);
-        Assert.Equal(expectedBytes, loaded.Bytes);
+        Assert.Equal((ulong)expectedBytes.Length, loaded.FileSizeBytes);
+        Assert.Equal(expectedBytes, destination.ToArray());
     }
 
     [Fact]
-    public async Task GetFileAsync_RejectsOversizedFiles_BeforeAllocation()
+    public async Task GetFileAsync_RejectsChunksAboveAdvertisedLimit()
     {
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
@@ -180,16 +183,39 @@ public class DaqManagementServiceTests
                     request.RequestId,
                     fileClass: DaqFileClass.RootSst,
                     recordId: request.RecordId,
-                    fileSizeBytes: (ulong)int.MaxValue + 1UL,
+                    fileSizeBytes: 3,
+                    maxChunkPayload: 2,
                     name: "99999.SST"));
+            await ManagementTestServer.WriteFrameAsync(stream,
+                ManagementProtocolTestFrames.CreateFileChunkFrame(request.RequestId, new byte[] { 1, 2, 3 }));
         });
 
-        var exception = await Assert.ThrowsAsync<DaqManagementException>(() =>
-            CreateService().GetFileAsync(server.Host, server.Port, DaqFileClass.RootSst, 12));
+        using var destination = new MemoryStream();
+        _ = await Assert.ThrowsAsync<DaqManagementException>(() =>
+            CreateService().GetFileAsync(server.Host, server.Port, DaqFileClass.RootSst, 12, destination));
         await serverTask;
 
-        Assert.Equal((ulong)int.MaxValue + 1UL, exception.DeclaredFileSizeBytes);
-        Assert.Equal((ulong)int.MaxValue, exception.MaximumSupportedFileSizeBytes);
+        Assert.Empty(destination.ToArray());
+    }
+
+    [Fact]
+    public async Task MarkSstUploadedAsync_ReturnsTypedResult()
+    {
+        await using var server = new ManagementTestServer();
+        var serverTask = server.RunSessionAsync(async stream =>
+        {
+            var reader = new ManagementProtocolReader();
+            var request = Assert.IsType<ManagementMarkSstUploadedRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
+            Assert.Equal((uint)1, request.RequestId);
+            Assert.Equal(42, request.RecordId);
+            await ManagementTestServer.WriteFrameAsync(stream,
+                ManagementProtocolTestFrames.CreateActionResultFrame(request.RequestId, 0));
+        });
+
+        var result = await CreateService().MarkSstUploadedAsync(server.Host, server.Port, 42);
+        await serverTask;
+
+        Assert.IsType<DaqManagementResult.Ok>(result);
     }
 
     [Fact]
@@ -288,15 +314,15 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateActionResultFrame(begin.RequestId, 0));
 
             var chunk1 = Assert.IsType<ManagementPutFileChunkFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)2, chunk1.RequestId);
+            Assert.Equal((uint)1, chunk1.RequestId);
             Assert.Equal(expectedBytes[..512], chunk1.Bytes);
 
             var chunk2 = Assert.IsType<ManagementPutFileChunkFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)3, chunk2.RequestId);
+            Assert.Equal((uint)1, chunk2.RequestId);
             Assert.Equal(expectedBytes[512..], chunk2.Bytes);
 
             var commit = Assert.IsType<ManagementPutFileCommitFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)4, commit.RequestId);
+            Assert.Equal((uint)1, commit.RequestId);
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateActionResultFrame(commit.RequestId, 0));
         });

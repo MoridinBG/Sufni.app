@@ -162,9 +162,14 @@ public class NetworkTelemetryDataStoreTests
     {
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqGetFileResult>(
-                new DaqGetFileResult.Loaded("DEVICE.SST", CreateValidV3SstBytes())));
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var bytes = CreateValidV3SstBytes();
+                var destination = callInfo.ArgAt<Stream>(4);
+                destination.Write(bytes);
+                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
+            });
 
         var file = new NetworkTelemetryFile(
             new IPEndPoint(IPAddress.Loopback, 5555),
@@ -179,7 +184,7 @@ public class NetworkTelemetryDataStoreTests
 
         Assert.NotEmpty(psst);
         await daqManagementService.Received(1)
-            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<CancellationToken>());
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -187,7 +192,7 @@ public class NetworkTelemetryDataStoreTests
     {
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<CancellationToken>())
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqGetFileResult>(
                 new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
 
@@ -203,6 +208,54 @@ public class NetworkTelemetryDataStoreTests
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.GeneratePsstAsync(CreateBikeData()));
 
         Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task OnImported_MarksSstUploadedByRecordId()
+    {
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        await file.OnImported();
+
+        Assert.True(file.Imported);
+        await daqManagementService.Received(1)
+            .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OnImported_ThrowsWhenMarkUploadedReturnsTypedError()
+    {
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(
+                new DaqManagementResult.Error(DaqManagementErrorCode.NotFound, "Missing")));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.OnImported());
+
+        Assert.Equal(DaqManagementErrorCode.NotFound, exception.ErrorCode);
+        Assert.False(file.Imported);
     }
 
     [Fact]
