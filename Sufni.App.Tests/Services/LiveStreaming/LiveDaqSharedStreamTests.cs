@@ -341,7 +341,16 @@ public class LiveDaqSharedStreamTests
         var client = clientFactory.CreatedClients.Single();
         var firstFrameEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirstFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscriberDropsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var receivedOffsets = new List<ulong>();
+
+        using var stateSubscription = stream.States.Subscribe(state =>
+        {
+            if (state.ClientDropCounters.SubscriberFramesDropped > 0)
+            {
+                subscriberDropsObserved.TrySetResult();
+            }
+        });
 
         using var subscription = stream.Frames.Subscribe(frame =>
         {
@@ -383,6 +392,7 @@ public class LiveDaqSharedStreamTests
                 return receivedOffsets.Count > 0 && receivedOffsets.Contains((ulong)publishedFrameCount);
             }
         });
+        await subscriberDropsObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         lock (receivedOffsets)
         {
@@ -390,6 +400,8 @@ public class LiveDaqSharedStreamTests
             Assert.True(receivedOffsets.Count < publishedFrameCount);
             Assert.Contains((ulong)publishedFrameCount, receivedOffsets);
         }
+
+        Assert.True(stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0);
     }
 
     private LiveDaqSharedStreamRegistry CreateRegistry() =>

@@ -34,10 +34,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly IBackgroundTaskRunner? backgroundTaskRunner;
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly object presentationGate = new();
+    private readonly object graphBatchRefreshGate = new();
     private bool hasLoaded;
     private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
     private bool hasPendingPresentation;
+    private GraphBatchPresence pendingGraphBatchPresence;
+    private bool hasPendingGraphBatchRefresh;
     private readonly bool hasFrontTravelCalibration;
     private readonly bool hasRearTravelCalibration;
     private SessionPresentationDimensions? lastPresentationDimensions;
@@ -483,7 +486,43 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void QueueGraphBatchRefresh(LiveGraphBatch batch)
     {
-        Dispatcher.UIThread.Post(() => graphWorkspace.ApplyGraphBatch(batch), DispatcherPriority.Background);
+        var presence = GraphBatchPresence.FromBatch(batch);
+        if (!presence.HasAnyData)
+        {
+            return;
+        }
+
+        var shouldPost = false;
+        lock (graphBatchRefreshGate)
+        {
+            pendingGraphBatchPresence = pendingGraphBatchPresence.Combine(presence);
+            if (!hasPendingGraphBatchRefresh)
+            {
+                hasPendingGraphBatchRefresh = true;
+                shouldPost = true;
+            }
+        }
+
+        if (shouldPost)
+        {
+            Dispatcher.UIThread.Post(FlushGraphBatchRefresh, DispatcherPriority.Background);
+        }
+    }
+
+    private void FlushGraphBatchRefresh()
+    {
+        GraphBatchPresence presence;
+        lock (graphBatchRefreshGate)
+        {
+            presence = pendingGraphBatchPresence;
+            pendingGraphBatchPresence = default;
+            hasPendingGraphBatchRefresh = false;
+        }
+
+        if (presence.HasAnyData)
+        {
+            graphWorkspace.ApplyGraphDataPresence(presence.HasTravelData, presence.HasImuData);
+        }
     }
 
     private void QueuePresentationRefresh(LiveSessionPresentationSnapshot snapshot)
@@ -762,5 +801,47 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         var duration = DateTimeOffset.UtcNow - captureStartUtc.Value;
         return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
+    }
+
+    private readonly record struct GraphBatchPresence(bool HasTravelData, bool HasImuData)
+    {
+        public bool HasAnyData => HasTravelData || HasImuData;
+
+        public static GraphBatchPresence FromBatch(LiveGraphBatch batch)
+        {
+            return new GraphBatchPresence(
+                HasTravelData: batch.TravelTimes.Count > 0
+                    || batch.FrontTravel.Count > 0
+                    || batch.RearTravel.Count > 0
+                    || batch.VelocityTimes.Count > 0
+                    || batch.FrontVelocity.Count > 0
+                    || batch.RearVelocity.Count > 0,
+                HasImuData: HasAnyImuData(batch));
+        }
+
+        public GraphBatchPresence Combine(GraphBatchPresence other) => new(
+            HasTravelData || other.HasTravelData,
+            HasImuData || other.HasImuData);
+
+        private static bool HasAnyImuData(LiveGraphBatch batch)
+        {
+            foreach (var series in batch.ImuTimes.Values)
+            {
+                if (series.Count > 0)
+                {
+                    return true;
+                }
+            }
+
+            foreach (var series in batch.ImuMagnitudes.Values)
+            {
+                if (series.Count > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

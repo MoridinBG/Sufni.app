@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Threading;
 using Sufni.App.Plots;
@@ -13,12 +14,16 @@ namespace Sufni.App.DesktopViews.Plots;
 
 public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 {
+    private const int DefaultPendingSampleMargin = 512;
+    private const int PendingSampleMarginStep = 128;
+
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly object pendingGraphBatchesGate = new();
     private IDisposable? graphBatchesSubscription;
     private bool applyingTimelineRange;
     private long lastRevision;
-    private List<LiveGraphBatch> pendingGraphBatches = [];
+    private int pendingSampleMargin = DefaultPendingSampleMargin;
+    private PendingGraphBatchBuffer pendingGraphBatches = new();
 
     public LiveStreamingPlotBase? Plot { get; protected set; }
 
@@ -161,7 +166,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     {
         lock (pendingGraphBatchesGate)
         {
-            pendingGraphBatches.Add(batch);
+            pendingGraphBatches.Enqueue(batch, GetPendingSampleLimit());
         }
     }
 
@@ -185,17 +190,17 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         List<LiveGraphBatch> batches;
         lock (pendingGraphBatchesGate)
         {
-            if (pendingGraphBatches.Count == 0)
+            if (!pendingGraphBatches.HasContent)
             {
                 return;
             }
 
-            batches = pendingGraphBatches;
-            pendingGraphBatches = [];
+            batches = pendingGraphBatches.Take();
         }
 
         var didApplyBatch = false;
         var didReset = false;
+        var stopwatch = Stopwatch.StartNew();
         foreach (var batch in batches)
         {
             if (batch.Revision < lastRevision)
@@ -228,6 +233,9 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         {
             UpdateTimelineRange();
         }
+
+        stopwatch.Stop();
+        AdjustPendingSampleMargin(stopwatch.Elapsed);
     }
 
     private DispatcherTimer CreateUiRefreshTimer()
@@ -245,6 +253,27 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         lock (pendingGraphBatchesGate)
         {
             pendingGraphBatches.Clear();
+        }
+    }
+
+    private int GetPendingSampleLimit()
+    {
+        return Math.Max(1, (Plot?.SampleCapacity ?? 2048) + pendingSampleMargin);
+    }
+
+    private void AdjustPendingSampleMargin(TimeSpan flushDuration)
+    {
+        var refreshInterval = TimeSpan.FromMilliseconds(SessionGraphSettings.LiveGraphRefreshIntervalMs);
+        lock (pendingGraphBatchesGate)
+        {
+            if (flushDuration > refreshInterval && pendingSampleMargin > 0)
+            {
+                pendingSampleMargin = Math.Max(0, pendingSampleMargin - PendingSampleMarginStep);
+            }
+            else if (flushDuration < refreshInterval / 2 && pendingSampleMargin < DefaultPendingSampleMargin)
+            {
+                pendingSampleMargin = Math.Min(DefaultPendingSampleMargin, pendingSampleMargin + PendingSampleMarginStep);
+            }
         }
     }
 
@@ -311,5 +340,171 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             && batch.RearVelocity.Count == 0
             && batch.ImuTimes.Count == 0
             && batch.ImuMagnitudes.Count == 0;
+    }
+
+    private sealed class PendingGraphBatchBuffer
+    {
+        private LiveGraphBatch? resetBatch;
+        private MutableGraphBatch? pendingBatch;
+
+        public bool HasContent => resetBatch is not null || pendingBatch?.HasContent == true;
+
+        public void Enqueue(LiveGraphBatch batch, int sampleLimit)
+        {
+            if (IsResetBatch(batch))
+            {
+                resetBatch = batch;
+                pendingBatch = null;
+                return;
+            }
+
+            pendingBatch ??= new MutableGraphBatch();
+            pendingBatch.Append(batch);
+            pendingBatch.TrimToNewest(sampleLimit);
+        }
+
+        public List<LiveGraphBatch> Take()
+        {
+            var batches = new List<LiveGraphBatch>(2);
+            if (resetBatch is not null)
+            {
+                batches.Add(resetBatch);
+                resetBatch = null;
+            }
+
+            if (pendingBatch?.HasContent == true)
+            {
+                batches.Add(pendingBatch.ToBatch());
+                pendingBatch = null;
+            }
+
+            return batches;
+        }
+
+        public void Clear()
+        {
+            resetBatch = null;
+            pendingBatch = null;
+        }
+    }
+
+    private sealed class MutableGraphBatch
+    {
+        private readonly List<double> travelTimes = [];
+        private readonly List<double> frontTravel = [];
+        private readonly List<double> rearTravel = [];
+        private readonly List<double> velocityTimes = [];
+        private readonly List<double> frontVelocity = [];
+        private readonly List<double> rearVelocity = [];
+        private readonly Dictionary<LiveImuLocation, List<double>> imuTimes = [];
+        private readonly Dictionary<LiveImuLocation, List<double>> imuMagnitudes = [];
+
+        private long revision;
+
+        public bool HasContent => travelTimes.Count > 0
+            || frontTravel.Count > 0
+            || rearTravel.Count > 0
+            || velocityTimes.Count > 0
+            || frontVelocity.Count > 0
+            || rearVelocity.Count > 0
+            || HasDictionaryContent(imuTimes)
+            || HasDictionaryContent(imuMagnitudes);
+
+        public void Append(LiveGraphBatch batch)
+        {
+            revision = Math.Max(revision, batch.Revision);
+            travelTimes.AddRange(batch.TravelTimes);
+            frontTravel.AddRange(batch.FrontTravel);
+            rearTravel.AddRange(batch.RearTravel);
+            velocityTimes.AddRange(batch.VelocityTimes);
+            frontVelocity.AddRange(batch.FrontVelocity);
+            rearVelocity.AddRange(batch.RearVelocity);
+            AppendDictionary(imuTimes, batch.ImuTimes);
+            AppendDictionary(imuMagnitudes, batch.ImuMagnitudes);
+        }
+
+        public void TrimToNewest(int sampleLimit)
+        {
+            TrimListToNewest(travelTimes, sampleLimit);
+            TrimListToNewest(frontTravel, sampleLimit);
+            TrimListToNewest(rearTravel, sampleLimit);
+            TrimListToNewest(velocityTimes, sampleLimit);
+            TrimListToNewest(frontVelocity, sampleLimit);
+            TrimListToNewest(rearVelocity, sampleLimit);
+            TrimDictionaryToNewest(imuTimes, sampleLimit);
+            TrimDictionaryToNewest(imuMagnitudes, sampleLimit);
+        }
+
+        public LiveGraphBatch ToBatch()
+        {
+            return new LiveGraphBatch(
+                Revision: revision,
+                TravelTimes: travelTimes.ToArray(),
+                FrontTravel: frontTravel.ToArray(),
+                RearTravel: rearTravel.ToArray(),
+                VelocityTimes: velocityTimes.ToArray(),
+                FrontVelocity: frontVelocity.ToArray(),
+                RearVelocity: rearVelocity.ToArray(),
+                ImuTimes: CloneDictionary(imuTimes),
+                ImuMagnitudes: CloneDictionary(imuMagnitudes));
+        }
+
+        private static void AppendDictionary(
+            Dictionary<LiveImuLocation, List<double>> destination,
+            IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> source)
+        {
+            foreach (var entry in source)
+            {
+                if (!destination.TryGetValue(entry.Key, out var values))
+                {
+                    values = [];
+                    destination[entry.Key] = values;
+                }
+
+                values.AddRange(entry.Value);
+            }
+        }
+
+        private static Dictionary<LiveImuLocation, IReadOnlyList<double>> CloneDictionary(
+            Dictionary<LiveImuLocation, List<double>> source)
+        {
+            var clone = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(source.Count);
+            foreach (var entry in source)
+            {
+                clone[entry.Key] = entry.Value.ToArray();
+            }
+
+            return clone;
+        }
+
+        private static void TrimDictionaryToNewest(Dictionary<LiveImuLocation, List<double>> values, int sampleLimit)
+        {
+            foreach (var entry in values)
+            {
+                TrimListToNewest(entry.Value, sampleLimit);
+            }
+        }
+
+        private static void TrimListToNewest(List<double> values, int sampleLimit)
+        {
+            var excess = values.Count - sampleLimit;
+            if (excess > 0)
+            {
+                values.RemoveRange(0, excess);
+            }
+        }
+
+        private static bool HasDictionaryContent(Dictionary<LiveImuLocation, List<double>> values)
+        {
+            foreach (var entry in values)
+            {
+                if (entry.Value.Count > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

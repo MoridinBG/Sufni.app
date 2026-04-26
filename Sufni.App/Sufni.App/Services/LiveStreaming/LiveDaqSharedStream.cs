@@ -20,7 +20,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly SemaphoreSlim gate = new(1, 1);
-    private readonly BufferedFrameStream frames = new(FrameBufferCapacity);
+    private readonly BufferedFrameStream frames;
     private readonly BehaviorSubject<LiveDaqSharedStreamState> statesSubject = new(LiveDaqSharedStreamState.Empty);
     private readonly EventLoopScheduler clientEventScheduler = new();
 
@@ -45,6 +45,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         this.snapshot = snapshot;
         this.liveDaqClientFactory = liveDaqClientFactory;
         this.evictAsync = evictAsync;
+        frames = new BufferedFrameStream(FrameBufferCapacity);
     }
 
     public string IdentityKey => snapshot.IdentityKey;
@@ -128,6 +129,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         LastError = null,
                         SessionHeader = started.Header,
                         SelectedSensorMask = started.SelectedSensorMask,
+                        ClientDropCounters = LiveDaqClientDropCounters.Empty,
                     });
                     break;
 
@@ -346,6 +348,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         LastError = null,
                         SessionHeader = started.Header,
                         SelectedSensorMask = started.SelectedSensorMask,
+                        ClientDropCounters = LiveDaqClientDropCounters.Empty,
                     });
                     break;
 
@@ -614,8 +617,16 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         });
                     }
 
-                    frames.Publish(frameReceived.Frame);
+                    var subscriberDroppedFrameCount = frames.Publish(frameReceived.Frame);
+                    NoteSubscriberFrameDropsLocked(subscriberDroppedFrameCount);
 
+                    break;
+
+                case LiveDaqClientEvent.DropCountersChanged countersChanged:
+                    PublishClientDropCountersLocked(countersChanged.Counters with
+                    {
+                        SubscriberFramesDropped = currentState.ClientDropCounters.SubscriberFramesDropped,
+                    });
                     break;
 
                 case LiveDaqClientEvent.Faulted faulted:
@@ -654,6 +665,26 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             IsConfigurationLocked = configurationLockCount > 0,
         };
+        statesSubject.OnNext(currentState);
+    }
+
+    private void NoteSubscriberFrameDropsLocked(int droppedFrameCount)
+    {
+        if (droppedFrameCount <= 0)
+        {
+            return;
+        }
+
+        PublishClientDropCountersLocked(currentState.ClientDropCounters.Add(
+            LiveDaqClientDropCounters.Empty with
+            {
+                SubscriberFramesDropped = (ulong)droppedFrameCount,
+            }));
+    }
+
+    private void PublishClientDropCountersLocked(LiveDaqClientDropCounters counters)
+    {
+        currentState = currentState with { ClientDropCounters = counters };
         statesSubject.OnNext(currentState);
     }
 
@@ -815,7 +846,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             return new FrameSubscription(this, subscriber);
         }
 
-        public void Publish(LiveProtocolFrame frame)
+        public int Publish(LiveProtocolFrame frame)
         {
             BufferedFrameSubscriber[] snapshot;
             long frameEpoch;
@@ -823,7 +854,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             {
                 if (isCompleted)
                 {
-                    return;
+                    return 0;
                 }
 
                 frameEpoch = epoch;
@@ -831,10 +862,16 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
 
             var item = new BufferedFrameItem(frame, frameEpoch);
+            var droppedFrameCount = 0;
             foreach (var subscriber in snapshot)
             {
-                subscriber.Enqueue(item);
+                if (subscriber.Enqueue(item))
+                {
+                    droppedFrameCount++;
+                }
             }
+
+            return droppedFrameCount;
         }
 
         public void Reset()
@@ -902,6 +939,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             private readonly Channel<BufferedFrameItem> channel;
             private readonly CancellationTokenSource disposeCts = new();
             private int completionMode;
+            private int queuedCount;
 
             public BufferedFrameSubscriber(BufferedFrameStream owner, IObserver<LiveProtocolFrame> observer, int capacity)
             {
@@ -925,9 +963,20 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     TaskScheduler.Default);
             }
 
-            public void Enqueue(BufferedFrameItem item)
+            public bool Enqueue(BufferedFrameItem item)
             {
-                channel.Writer.TryWrite(item);
+                var willDropOldest = Volatile.Read(ref queuedCount) >= owner.capacity;
+                if (!channel.Writer.TryWrite(item))
+                {
+                    return false;
+                }
+
+                if (!willDropOldest)
+                {
+                    Interlocked.Increment(ref queuedCount);
+                }
+
+                return willDropOldest;
             }
 
             public void CompleteFromSource()
@@ -949,6 +998,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 {
                     await foreach (var item in channel.Reader.ReadAllAsync(disposeCts.Token).ConfigureAwait(false))
                     {
+                        Interlocked.Decrement(ref queuedCount);
+
                         if (item.Epoch != owner.GetCurrentEpoch())
                         {
                             continue;

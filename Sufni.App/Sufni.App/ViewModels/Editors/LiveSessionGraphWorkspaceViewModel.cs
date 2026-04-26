@@ -75,36 +75,53 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
 
     public void ApplyGraphBatch(LiveGraphBatch batch)
     {
-        if (!hasTravelData && (batch.TravelTimes.Count > 0 || batch.FrontTravel.Count > 0 || batch.RearTravel.Count > 0 || batch.VelocityTimes.Count > 0 || batch.FrontVelocity.Count > 0 || batch.RearVelocity.Count > 0))
+        ApplyGraphDataPresence(HasTravelData(batch), HasImuData(batch));
+    }
+
+    public void ApplyGraphDataPresence(bool hasTravelData, bool hasImuData)
+    {
+        if (!this.hasTravelData && hasTravelData)
         {
-            hasTravelData = true;
+            this.hasTravelData = true;
         }
 
-        if (!hasImuData)
+        if (!this.hasImuData && hasImuData)
         {
-            foreach (var series in batch.ImuTimes.Values)
-            {
-                if (series.Count > 0)
-                {
-                    hasImuData = true;
-                    break;
-                }
-            }
-
-            if (!hasImuData)
-            {
-                foreach (var series in batch.ImuMagnitudes.Values)
-                {
-                    if (series.Count > 0)
-                    {
-                        hasImuData = true;
-                        break;
-                    }
-                }
-            }
+            this.hasImuData = true;
         }
 
         RefreshStates();
+    }
+
+    private static bool HasTravelData(LiveGraphBatch batch)
+    {
+        return batch.TravelTimes.Count > 0
+            || batch.FrontTravel.Count > 0
+            || batch.RearTravel.Count > 0
+            || batch.VelocityTimes.Count > 0
+            || batch.FrontVelocity.Count > 0
+            || batch.RearVelocity.Count > 0;
+    }
+
+    private static bool HasImuData(LiveGraphBatch batch)
+    {
+        foreach (var series in batch.ImuTimes.Values)
+        {
+            if (series.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        foreach (var series in batch.ImuMagnitudes.Values)
+        {
+            if (series.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void RefreshStates()

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Queries;
@@ -35,6 +36,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private const int MeasurementChunkSize = 4096;
     private const int ImuChunkSize = 2048;
     private const int GpsChunkSize = 256;
+    private const int DisplayUpdateQueueCapacity = 8;
+    private static readonly TimeSpan StatisticsPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
 
     private static readonly ILogger logger = Log.ForContext<LiveSessionService>();
 
@@ -46,14 +49,45 @@ internal sealed class LiveSessionService : ILiveSessionService
         ChunkedBufferSnapshot<ImuRecord> ImuRecords,
         ChunkedBufferSnapshot<GpsRecord> GpsRecords);
 
+    private abstract record LiveDisplayUpdate(long Epoch)
+    {
+        public abstract int SampleCount { get; }
+
+        public sealed record Travel(
+            long Epoch,
+            double[] Times,
+            double[] FrontTravel,
+            double[] RearTravel) : LiveDisplayUpdate(Epoch)
+        {
+            public override int SampleCount => Times.Length;
+        }
+
+        public sealed record Imu(
+            long Epoch,
+            IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> Times,
+            IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> Magnitudes) : LiveDisplayUpdate(Epoch)
+        {
+            public override int SampleCount => Times.Values.Sum(series => series.Count);
+        }
+    }
+
     private readonly LiveDaqSessionContext context;
     private readonly ILiveDaqSharedStream sharedStream;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ILiveGraphPipeline graphPipeline;
     private readonly object gate = new();
+    private readonly object displayQueueGate = new();
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshotsSubject = new(LiveSessionPresentationSnapshot.Empty);
     private readonly CancellationTokenSource disposalCts = new();
+    private readonly Channel<LiveDisplayUpdate> displayUpdates = Channel.CreateBounded<LiveDisplayUpdate>(
+        new BoundedChannelOptions(DisplayUpdateQueueCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+            AllowSynchronousContinuations = false,
+        });
 
     private readonly AppendOnlyChunkBuffer<ushort> frontMeasurements = new(MeasurementChunkSize);
     private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
@@ -64,19 +98,27 @@ internal sealed class LiveSessionService : ILiveSessionService
     private IDisposable? statesSubscription;
     private ILiveDaqSharedStreamLease? observerLease;
     private ILiveDaqSharedStreamLease? configurationLockLease;
+    private Task? displayLoopTask;
     private LiveSessionPresentationSnapshot current = LiveSessionPresentationSnapshot.Empty;
     private LiveSessionHeader? sessionHeader;
     private LiveSessionStats? latestSessionStats;
     private TelemetryData? statisticsTelemetry;
     private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     private TrackPoint[] sessionTrackPoints = [];
+    private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
     private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
     private string? lastError;
     private ulong? captureStartMonotonicUs;
     private DateTimeOffset? captureStartUtc;
     private long captureRevision;
+    private long displayEpoch;
+    private int queuedDisplayUpdates;
     private long latestStatisticsRevision = -1;
     private long queuedStatisticsRevision = -1;
+    private long runningStatisticsRevision = -1;
+    private ulong statisticsRecomputesSkipped;
+    private ulong graphBatchesCoalesced;
+    private ulong graphSamplesDiscarded;
     private Task? statisticsLoopTask;
 
     private bool hasPublishedSaveableCapture;
@@ -84,6 +126,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private bool isAttached;
     private bool isDisposed;
     private DateTimeOffset nextStatisticsRunAt = DateTimeOffset.MinValue;
+    private DateTimeOffset lastClientPressureUtc = DateTimeOffset.MinValue;
 
     public LiveSessionService(
         LiveDaqSessionContext context,
@@ -124,6 +167,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                     attachedObserverLease = sharedStream.AcquireLease();
                     attachedConfigurationLockLease = sharedStream.AcquireConfigurationLock();
                     graphPipeline.Start();
+                    displayLoopTask ??= Task.Run(() => RunDisplayLoopAsync(disposalCts.Token));
                     attachedFramesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
                     attachedStatesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
                     observerLease = attachedObserverLease;
@@ -210,9 +254,15 @@ internal sealed class LiveSessionService : ILiveSessionService
             captureStartMonotonicUs = null;
             captureStartUtc = null;
             captureRevision++;
+            displayEpoch++;
             latestStatisticsRevision = captureRevision;
             queuedStatisticsRevision = -1;
+            runningStatisticsRevision = -1;
+            statisticsRecomputesSkipped = 0;
+            graphBatchesCoalesced = 0;
+            graphSamplesDiscarded = 0;
             nextStatisticsRunAt = DateTimeOffset.MinValue;
+            lastClientPressureUtc = DateTimeOffset.MinValue;
             hasPublishedSaveableCapture = false;
             snapshot = BuildSnapshotLocked();
         }
@@ -250,6 +300,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         ILiveDaqSharedStreamLease? configurationLock;
         ILiveDaqSharedStreamLease? observer;
         Task? statisticsLoop;
+        Task? displayLoop;
 
         lock (gate)
         {
@@ -264,23 +315,37 @@ internal sealed class LiveSessionService : ILiveSessionService
             configurationLock = configurationLockLease;
             observer = observerLease;
             statisticsLoop = statisticsLoopTask;
+            displayLoop = displayLoopTask;
             framesSubscription = null;
             statesSubscription = null;
             configurationLockLease = null;
             observerLease = null;
             statisticsLoopTask = null;
+            displayLoopTask = null;
         }
 
         frames?.Dispose();
         states?.Dispose();
 
         disposalCts.Cancel();
+        displayUpdates.Writer.TryComplete();
 
         if (statisticsLoop is not null)
         {
             try
             {
                 await statisticsLoop;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        if (displayLoop is not null)
+        {
+            try
+            {
+                await displayLoop;
             }
             catch (OperationCanceledException)
             {
@@ -316,6 +381,12 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             connectionState = state.ConnectionState;
             lastError = state.LastError;
+            if (GetPressureDropTotal(state.ClientDropCounters) > GetPressureDropTotal(sharedClientDropCounters))
+            {
+                lastClientPressureUtc = DateTimeOffset.UtcNow;
+            }
+
+            sharedClientDropCounters = state.ClientDropCounters;
 
             if (state.SessionHeader is { } nextHeader)
             {
@@ -344,6 +415,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private void HandleFrame(LiveProtocolFrame frame)
     {
         LiveSessionPresentationSnapshot? snapshotToPublish = null;
+        LiveDisplayUpdate? displayUpdate = null;
         var shouldQueueStatistics = false;
 
         lock (gate)
@@ -356,7 +428,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             switch (frame)
             {
                 case LiveTravelBatchFrame travelBatchFrame:
-                    ApplyTravelBatchLocked(travelBatchFrame);
+                    displayUpdate = ApplyTravelBatchLocked(travelBatchFrame);
                     shouldQueueStatistics = CanBuildStatisticsLocked();
                     if (CanSaveLocked() && !hasPublishedSaveableCapture)
                     {
@@ -366,7 +438,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                     break;
 
                 case LiveImuBatchFrame imuBatchFrame:
-                    ApplyImuBatchLocked(imuBatchFrame);
+                    displayUpdate = ApplyImuBatchLocked(imuBatchFrame);
                     break;
 
                 case LiveGpsBatchFrame gpsBatchFrame:
@@ -386,17 +458,27 @@ internal sealed class LiveSessionService : ILiveSessionService
             PublishSnapshot(snapshotToPublish);
         }
 
+        if (displayUpdate is not null && QueueDisplayUpdate(displayUpdate))
+        {
+            lock (gate)
+            {
+                snapshotToPublish = BuildSnapshotLocked();
+            }
+
+            PublishSnapshot(snapshotToPublish);
+        }
+
         if (shouldQueueStatistics)
         {
             QueueStatisticsRecompute();
         }
     }
 
-    private void ApplyTravelBatchLocked(LiveTravelBatchFrame frame)
+    private LiveDisplayUpdate? ApplyTravelBatchLocked(LiveTravelBatchFrame frame)
     {
         if (sessionHeader is null || frame.Records.Count == 0)
         {
-            return;
+            return null;
         }
 
         var batchCount = frame.Records.Count;
@@ -422,20 +504,20 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         captureRevision++;
-        graphPipeline.AppendTravelSamples(travelTimes, frontTravel, rearTravel);
+        return new LiveDisplayUpdate.Travel(displayEpoch, travelTimes, frontTravel, rearTravel);
     }
 
-    private void ApplyImuBatchLocked(LiveImuBatchFrame frame)
+    private LiveDisplayUpdate? ApplyImuBatchLocked(LiveImuBatchFrame frame)
     {
         if (sessionHeader is null || frame.Records.Count == 0)
         {
-            return;
+            return null;
         }
 
         var activeLocations = sessionHeader.GetActiveImuLocations();
         if (activeLocations.Count == 0)
         {
-            return;
+            return null;
         }
 
         imuRecords.AppendRange(frame.Records);
@@ -444,12 +526,13 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         var tickCount = (int)frame.Batch.SampleCount;
         var recordsPerTick = activeLocations.Count;
-        var perLocationTimes = new Dictionary<LiveImuLocation, List<double>>();
-        var perLocationMagnitudes = new Dictionary<LiveImuLocation, List<double>>();
-        foreach (var location in activeLocations)
+        var perLocationTimes = new double[recordsPerTick][];
+        var perLocationMagnitudes = new double[recordsPerTick][];
+        var perLocationCounts = new int[recordsPerTick];
+        for (var locationIndex = 0; locationIndex < recordsPerTick; locationIndex++)
         {
-            perLocationTimes[location] = new List<double>(tickCount);
-            perLocationMagnitudes[location] = new List<double>(tickCount);
+            perLocationTimes[locationIndex] = new double[tickCount];
+            perLocationMagnitudes[locationIndex] = new double[tickCount];
         }
 
         for (var tickIndex = 0; tickIndex < tickCount; tickIndex++)
@@ -466,18 +549,40 @@ internal sealed class LiveSessionService : ILiveSessionService
                 }
 
                 var location = activeLocations[locationIndex];
-                perLocationTimes[location].Add(timeOffset);
-                perLocationMagnitudes[location].Add(
-                    ConvertImuMagnitude(frame.Records[recordIndex], location, sessionHeader.ImuCalibrationScales));
+                var nextIndex = perLocationCounts[locationIndex]++;
+                perLocationTimes[locationIndex][nextIndex] = timeOffset;
+                perLocationMagnitudes[locationIndex][nextIndex] =
+                    ConvertImuMagnitude(frame.Records[recordIndex], location, sessionHeader.ImuCalibrationScales);
             }
         }
 
-        foreach (var location in activeLocations)
+        var imuTimes = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(activeLocations.Count);
+        var imuMagnitudes = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(activeLocations.Count);
+        for (var locationIndex = 0; locationIndex < activeLocations.Count; locationIndex++)
         {
-            graphPipeline.AppendImuSamples(
-                location,
-                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(perLocationTimes[location]),
-                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(perLocationMagnitudes[location]));
+            var location = activeLocations[locationIndex];
+            var sampleCount = perLocationCounts[locationIndex];
+            imuTimes[location] = TrimSeries(perLocationTimes[locationIndex], sampleCount);
+            imuMagnitudes[location] = TrimSeries(perLocationMagnitudes[locationIndex], sampleCount);
+        }
+
+        return new LiveDisplayUpdate.Imu(displayEpoch, imuTimes, imuMagnitudes);
+
+        static IReadOnlyList<double> TrimSeries(double[] values, int count)
+        {
+            if (count == values.Length)
+            {
+                return values;
+            }
+
+            if (count == 0)
+            {
+                return Array.Empty<double>();
+            }
+
+            var trimmed = new double[count];
+            Array.Copy(values, trimmed, count);
+            return trimmed;
         }
     }
 
@@ -531,6 +636,94 @@ internal sealed class LiveSessionService : ILiveSessionService
         captureRevision++;
     }
 
+    private bool QueueDisplayUpdate(LiveDisplayUpdate update)
+    {
+        var droppedOldest = false;
+        lock (displayQueueGate)
+        {
+            droppedOldest = queuedDisplayUpdates >= DisplayUpdateQueueCapacity;
+            if (!displayUpdates.Writer.TryWrite(update))
+            {
+                return false;
+            }
+
+            if (droppedOldest)
+            {
+                queuedDisplayUpdates = DisplayUpdateQueueCapacity;
+            }
+            else
+            {
+                queuedDisplayUpdates++;
+            }
+        }
+
+        if (droppedOldest)
+        {
+            lock (gate)
+            {
+                graphBatchesCoalesced++;
+                graphSamplesDiscarded += (ulong)update.SampleCount;
+                lastClientPressureUtc = DateTimeOffset.UtcNow;
+            }
+        }
+
+        return droppedOldest;
+    }
+
+    private async Task RunDisplayLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var update in displayUpdates.Reader.ReadAllAsync(cancellationToken))
+            {
+                lock (displayQueueGate)
+                {
+                    queuedDisplayUpdates = Math.Max(0, queuedDisplayUpdates - 1);
+                }
+
+                long currentEpoch;
+                lock (gate)
+                {
+                    if (isDisposed)
+                    {
+                        return;
+                    }
+
+                    currentEpoch = displayEpoch;
+                }
+
+                if (update.Epoch != currentEpoch)
+                {
+                    continue;
+                }
+
+                switch (update)
+                {
+                    case LiveDisplayUpdate.Travel travel:
+                        graphPipeline.AppendTravelSamples(travel.Times, travel.FrontTravel, travel.RearTravel);
+                        break;
+
+                    case LiveDisplayUpdate.Imu imu:
+                        foreach (var entry in imu.Times)
+                        {
+                            if (!imu.Magnitudes.TryGetValue(entry.Key, out var magnitudes))
+                            {
+                                continue;
+                            }
+
+                            var times = entry.Value as double[] ?? entry.Value.ToArray();
+                            var magnitudeValues = magnitudes as double[] ?? magnitudes.ToArray();
+                            graphPipeline.AppendImuSamples(entry.Key, times, magnitudeValues);
+                        }
+                        break;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
     private void QueueStatisticsRecompute()
     {
         lock (gate)
@@ -540,7 +733,20 @@ internal sealed class LiveSessionService : ILiveSessionService
                 return;
             }
 
-            queuedStatisticsRevision = captureRevision;
+            if (IsStatisticsPressureQuietPeriodActiveLocked(DateTimeOffset.UtcNow))
+            {
+                statisticsRecomputesSkipped++;
+                return;
+            }
+
+            var nextRevision = captureRevision;
+            var activeRevision = Math.Max(latestStatisticsRevision, runningStatisticsRevision);
+            if (queuedStatisticsRevision > activeRevision && nextRevision > queuedStatisticsRevision)
+            {
+                statisticsRecomputesSkipped += (ulong)(nextRevision - queuedStatisticsRevision);
+            }
+
+            queuedStatisticsRevision = nextRevision;
             if (statisticsLoopTask is null || statisticsLoopTask.IsCompleted)
             {
                 statisticsLoopTask = Task.Run(() => RunStatisticsLoopAsync(disposalCts.Token));
@@ -588,6 +794,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 revision = queuedStatisticsRevision;
                 capture = CreateCaptureSnapshotLocked();
+                runningStatisticsRevision = revision;
                 nextStatisticsRunAt = DateTimeOffset.UtcNow.AddMilliseconds(SessionGraphSettings.LiveStatisticsRefreshIntervalMs);
             }
 
@@ -614,6 +821,11 @@ internal sealed class LiveSessionService : ILiveSessionService
                         latestStatisticsRevision = revision;
                     }
 
+                    if (runningStatisticsRevision == revision)
+                    {
+                        runningStatisticsRevision = -1;
+                    }
+
                     snapshot = BuildSnapshotLocked();
                     shouldContinue = queuedStatisticsRevision > revision;
                 }
@@ -635,6 +847,11 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 lock (gate)
                 {
+                    if (runningStatisticsRevision == revision)
+                    {
+                        runningStatisticsRevision = -1;
+                    }
+
                     if (queuedStatisticsRevision <= revision)
                     {
                         return;
@@ -686,8 +903,30 @@ internal sealed class LiveSessionService : ILiveSessionService
             TravelDroppedBatches: latestSessionStats?.TravelDroppedBatches ?? 0,
             ImuDroppedBatches: latestSessionStats?.ImuDroppedBatches ?? 0,
             GpsDroppedBatches: latestSessionStats?.GpsDroppedBatches ?? 0,
-            CanSave: CanSaveLocked());
+            CanSave: CanSaveLocked())
+        {
+            ClientDropCounters = sharedClientDropCounters.Add(
+                LiveDaqClientDropCounters.Empty with
+                {
+                    GraphBatchesCoalesced = graphBatchesCoalesced,
+                    GraphSamplesDiscarded = graphSamplesDiscarded,
+                    StatisticsRecomputesSkipped = statisticsRecomputesSkipped,
+                }),
+        };
     }
+
+    private bool IsStatisticsPressureQuietPeriodActiveLocked(DateTimeOffset now)
+    {
+        return lastClientPressureUtc != DateTimeOffset.MinValue
+            && now - lastClientPressureUtc < StatisticsPressureQuietPeriod;
+    }
+
+    private static ulong GetPressureDropTotal(LiveDaqClientDropCounters counters) =>
+        counters.RawTelemetryFramesSkipped
+        + counters.ParsedTelemetryFramesDropped
+        + counters.SubscriberFramesDropped
+        + counters.GraphBatchesCoalesced
+        + counters.GraphSamplesDiscarded;
 
     private LiveCaptureSnapshot CreateCaptureSnapshotLocked()
     {

@@ -128,6 +128,46 @@ public class LiveGraphPlotDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_CoalescesPendingGraphBatches_ToBoundRenderWork()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var batches = new Subject<LiveGraphBatch>();
+        var workspace = new StubLiveSessionGraphWorkspace(batches);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var travelView = view.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
+        Assert.NotNull(travelView);
+
+        for (var revision = 1; revision <= 6; revision++)
+        {
+            batches.OnNext(CreateBatch(revision, sampleCount: 600, startOffset: (revision - 1) * 600));
+        }
+
+        await FlushGraphBatchesAsync(travelView!);
+
+        var travelPlot = GetRenderedPlot(travelView!);
+        Assert.All(
+            travelPlot.Plot.PlottableList.OfType<DataStreamer>(),
+            streamer => Assert.Equal(2560, streamer.Data.CountTotal));
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
     public async Task LiveSessionGraphDesktopView_CollapsesTravelRows_WhenTravelSectionUnavailable()
     {
         ViewTestHelpers.EnsurePlotViewStyle();
@@ -200,19 +240,35 @@ public class LiveGraphPlotDesktopViewTests
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
 
-    private static LiveGraphBatch CreateBatch(long revision)
+    private static LiveGraphBatch CreateBatch(long revision, int sampleCount = 3, int startOffset = 0)
     {
+        var times = Enumerable.Range(startOffset, sampleCount)
+            .Select(index => index * 0.01)
+            .ToArray();
+        var frontTravel = Enumerable.Range(startOffset, sampleCount)
+            .Select(index => 10.0 + index)
+            .ToArray();
+        var rearTravel = Enumerable.Range(startOffset, sampleCount)
+            .Select(index => 9.0 + index)
+            .ToArray();
+        var frontVelocity = Enumerable.Range(startOffset, sampleCount)
+            .Select(index => 1000.0 + index * 10.0)
+            .ToArray();
+        var rearVelocity = Enumerable.Range(startOffset, sampleCount)
+            .Select(index => 900.0 + index * 10.0)
+            .ToArray();
+
         return new LiveGraphBatch(
             Revision: revision,
-            TravelTimes: [0.0, 0.01, 0.02],
-            FrontTravel: [10.0, 11.0, 12.0],
-            RearTravel: [9.0, 10.0, 11.0],
-            VelocityTimes: [0.0, 0.01, 0.02],
-            FrontVelocity: [1000.0, 1010.0, 1020.0],
-            RearVelocity: [900.0, 910.0, 920.0],
+            TravelTimes: times,
+            FrontTravel: frontTravel,
+            RearTravel: rearTravel,
+            VelocityTimes: times,
+            FrontVelocity: frontVelocity,
+            RearVelocity: rearVelocity,
             ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
             {
-                [LiveImuLocation.Frame] = [0.02],
+                [LiveImuLocation.Frame] = [times[^1]],
             },
             ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
             {

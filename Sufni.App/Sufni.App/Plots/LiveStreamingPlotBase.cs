@@ -22,6 +22,7 @@ public abstract class LiveStreamingPlotBase : SufniPlot
     }
 
     protected int Capacity { get; }
+    public int SampleCapacity => Capacity;
     public VerticalLine CursorLine { get; }
 
     public bool HasTiming => hasTiming;

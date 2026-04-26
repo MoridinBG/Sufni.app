@@ -8,6 +8,8 @@ public sealed record LiveDaqSharedStreamState(
     bool IsConfigurationLocked,
     bool IsClosed)
 {
+    public LiveDaqClientDropCounters ClientDropCounters { get; init; } = LiveDaqClientDropCounters.Empty;
+
     public static readonly LiveDaqSharedStreamState Empty = new(
         ConnectionState: LiveConnectionState.Disconnected,
         LastError: null,
