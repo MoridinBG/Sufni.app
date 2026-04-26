@@ -16,6 +16,8 @@ public sealed record LiveSessionControlState(
     uint GpsDroppedBatches,
     bool CanSave)
 {
+    public LiveDaqClientDropCounters ClientDropCounters { get; init; } = LiveDaqClientDropCounters.Empty;
+
     public string ConnectionStateText => $"State: {ConnectionState}";
     public string CaptureDurationText => $"Capture: {CaptureDuration:g}";
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);

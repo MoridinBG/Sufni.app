@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -6,6 +7,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
@@ -188,6 +190,131 @@ public class LiveDaqClientTests
     }
 
     [Fact]
+    public async Task ReceiveLoop_SkipsTelemetryPayload_WhenRawCapacityUnavailable_AndReadsFollowingStatusFrame()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 901);
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveSensorMask.Gps));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+            await stream.WriteAsync(CreateGpsBatchFrame(3, sessionHeader.SessionId));
+            await stream.WriteAsync(CreateSessionStatsFrame(4, sessionHeader.SessionId));
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqClient(
+            TimeSpan.FromSeconds(1),
+            () => new TcpClient(),
+            SendFrameForTestAsync,
+            rawTelemetryFrameCapacity: 0);
+        var statusObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dropObserved = new TaskCompletionSource<LiveDaqClientDropCounters>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var telemetryFrameObserved = false;
+        using var subscription = client.Events.Subscribe(clientEvent =>
+        {
+            switch (clientEvent)
+            {
+                case LiveDaqClientEvent.DropCountersChanged countersChanged
+                    when countersChanged.Counters.RawTelemetryFramesSkipped > 0:
+                    dropObserved.TrySetResult(countersChanged.Counters);
+                    break;
+
+                case LiveDaqClientEvent.FrameReceived { Frame: LiveGpsBatchFrame }:
+                    telemetryFrameObserved = true;
+                    break;
+
+                case LiveDaqClientEvent.FrameReceived { Frame: LiveSessionStatsFrame }:
+                    statusObserved.TrySetResult();
+                    break;
+            }
+        });
+
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Gps, 0, 0, 10));
+        Assert.IsType<LivePreviewStartResult.Started>(started);
+
+        var counters = await dropObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await statusObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal((ulong)1, counters.RawTelemetryFramesSkipped);
+        Assert.False(telemetryFrameObserved);
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task ParseLoop_DropsTelemetryFrame_WhenParsedCapacityUnavailable_AndReadsFollowingStatusFrame()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 902);
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveSensorMask.Gps));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+            await stream.WriteAsync(CreateGpsBatchFrame(3, sessionHeader.SessionId));
+            await stream.WriteAsync(CreateSessionStatsFrame(4, sessionHeader.SessionId));
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqClient(
+            TimeSpan.FromSeconds(1),
+            () => new TcpClient(),
+            SendFrameForTestAsync,
+            rawTelemetryFrameCapacity: 1,
+            parsedTelemetryFrameCapacity: 0);
+        var statusObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dropObserved = new TaskCompletionSource<LiveDaqClientDropCounters>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var telemetryFrameObserved = false;
+        using var subscription = client.Events.Subscribe(clientEvent =>
+        {
+            switch (clientEvent)
+            {
+                case LiveDaqClientEvent.DropCountersChanged countersChanged
+                    when countersChanged.Counters.ParsedTelemetryFramesDropped > 0:
+                    dropObserved.TrySetResult(countersChanged.Counters);
+                    break;
+
+                case LiveDaqClientEvent.FrameReceived { Frame: LiveGpsBatchFrame }:
+                    telemetryFrameObserved = true;
+                    break;
+
+                case LiveDaqClientEvent.FrameReceived { Frame: LiveSessionStatsFrame }:
+                    statusObserved.TrySetResult();
+                    break;
+            }
+        });
+
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Gps, 0, 0, 10));
+        Assert.IsType<LivePreviewStartResult.Started>(started);
+
+        var counters = await dropObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await statusObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal((ulong)1, counters.ParsedTelemetryFramesDropped);
+        Assert.False(telemetryFrameObserved);
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
     public async Task StopPreviewAsync_WaitsForStopAck()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -361,6 +488,43 @@ public class LiveDaqClientTests
         }
 
         return buffer;
+    }
+
+    private static byte[] CreateGpsBatchFrame(uint sequence, uint sessionId)
+    {
+        return LiveProtocolTestFrames.CreateGpsBatchFrame(
+            sequence,
+            sessionId,
+            new GpsRecord(
+                Timestamp: new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
+                Latitude: 42.6977,
+                Longitude: 23.3219,
+                Altitude: 600,
+                Speed: 10,
+                Heading: 90,
+                FixMode: 3,
+                Satellites: 12,
+                Epe2d: 0.5f,
+                Epe3d: 0.8f));
+    }
+
+    private static byte[] CreateSessionStatsFrame(uint sequence, uint sessionId)
+    {
+        var payload = new byte[LiveProtocolConstants.SessionStatsPayloadSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12, 4), 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16, 4), 4);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20, 4), 5);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), 6);
+        return LiveProtocolReader.CreateFrame(LiveFrameType.SessionStats, sequence, payload);
+    }
+
+    private static async Task SendFrameForTestAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
+    {
+        await stream.WriteAsync(frame, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
     }
 
     private static int GetUnusedPort()
