@@ -12,10 +12,10 @@ public partial class AddTileLayerView : UserControl
     public AddTileLayerView()
     {
         InitializeComponent();
-        
+
         var okButton = this.FindControl<Button>("OkButton");
         var cancelButton = this.FindControl<Button>("CancelButton");
-        
+
         if (okButton != null) okButton.Click += OkButton_Click;
         if (cancelButton != null) cancelButton.Click += CancelButton_Click;
     }
@@ -29,7 +29,7 @@ public partial class AddTileLayerView : UserControl
 
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url))
         {
-            return; 
+            return;
         }
 
         var config = new TileLayerConfig
