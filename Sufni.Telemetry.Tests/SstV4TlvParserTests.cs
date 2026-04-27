@@ -304,6 +304,43 @@ public class SstV4TlvParserTests
         Assert.Equal(2, result.Rear.Length);
     }
 
+    [Fact]
+    public void Parse_PreservesHighAdcSamples_WithoutSignedWrap()
+    {
+        ushort[] front = [2500, 2510, 2520, 2530, 2540];
+        ushort[] rear  = [3000, 3010, 3020, 3030, 3040];
+
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)(front.Length * 4));
+        for (var i = 0; i < front.Length; i++)
+        {
+            writer.Write(front[i]);
+            writer.Write(rear[i]);
+        }
+
+        ms.Position = 0;
+        using var reader = new BinaryReader(ms);
+        reader.ReadBytes(4);
+
+        var result = new SstV4TlvParser().Parse(reader, 4);
+
+        Assert.Equal(front, result.Front);
+        Assert.Equal(rear, result.Rear);
+    }
+
     private static MemoryStream CreateV4WithTelemetryChunkExtendingPastEnd(
         int actualTelemetryPayloadBytes,
         int declaredTelemetryPayloadBytes)

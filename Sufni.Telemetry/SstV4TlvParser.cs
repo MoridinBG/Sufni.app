@@ -12,8 +12,6 @@ public class SstV4TlvParser : ISstParser
     private const int ImuMetaEntrySize = 9;
     private const int ImuRecordSize = 12;
     private const int GpsRecordSize = 46;
-    private const int SignedEncoderThreshold = 2048;
-    private const int SignedEncoderRange = 4096;
     private const string TrimmedTrailingChunkMessage = "SST v4 chunk extends past end of file; incomplete trailing chunk data was trimmed.";
 
     public SstFileInspection Inspect(BinaryReader reader, byte version)
@@ -253,12 +251,8 @@ public class SstV4TlvParser : ISstParser
                     var recordCount = usableTelemetryLength / TelemetryRecordSize;
                     for (int i = 0; i < recordCount; i++)
                     {
-                        var f = (int)reader.ReadUInt16();
-                        var r = (int)reader.ReadUInt16();
-                        if (f >= SignedEncoderThreshold) f -= SignedEncoderRange;
-                        if (r >= SignedEncoderThreshold) r -= SignedEncoderRange;
-                        frontList.Add(f);
-                        rearList.Add(r);
+                        frontList.Add(reader.ReadUInt16());
+                        rearList.Add(reader.ReadUInt16());
                         telemetrySampleCount++;
                     }
                     break;
