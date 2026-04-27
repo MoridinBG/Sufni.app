@@ -22,7 +22,7 @@ mc:Ignorable="d">
         </EventTriggerBehavior>
     </Interaction.Behaviors>
 
-    <Grid RowDefinitions="* auto">
+    <Grid RowDefinitions="* auto auto">
         <ScrollViewer Grid.Row="0" Name="DiagnosticsScrollViewer">
             <StackPanel Margin="14" Spacing="14">
 
@@ -352,14 +352,17 @@ mc:Ignorable="d">
                 <!--  9. Notifications  -->
                 <controls:NotificationsBar Name="ManagementNotificationsBar" />
 
-                <!--  10. Errors  -->
-                <controls:ErrorMessagesBar Name="ManagementErrorMessagesBar" />
-
             </StackPanel>
         </ScrollViewer>
 
-        <Grid
+        <controls:ErrorMessagesBar
         Grid.Row="1"
+        Name="ManagementErrorMessagesBar"
+        Margin="14,0,14,8"
+        ZIndex="10" />
+
+        <Grid
+        Grid.Row="2"
         Margin="14,0,14,14"
         ColumnDefinitions="auto *"
         ColumnSpacing="10">

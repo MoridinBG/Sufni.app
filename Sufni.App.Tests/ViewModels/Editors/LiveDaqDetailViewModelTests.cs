@@ -243,26 +243,14 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task ConnectCommand_ShowsDialogAndClosesTab_WhenStartIsRejected()
+    public async Task ConnectCommand_PushesErrorMessage_WhenStartIsRejected()
     {
         var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
 
         await editor.ConnectCommand.ExecuteAsync(null);
 
-        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
-        shell.Received(1).Close(editor);
-        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
-    }
-
-    [AvaloniaFact]
-    public async Task ConnectCommand_DoesNotCloseTab_WhenRejectedDialogIsCancelled()
-    {
-        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(false));
-        var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
-
-        await editor.ConnectCommand.ExecuteAsync(null);
-
-        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        Assert.Contains("busy", editor.ErrorMessages);
+        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.DidNotReceive().Close(editor);
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
     }

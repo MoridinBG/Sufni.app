@@ -15,6 +15,7 @@ using Sufni.App.Services.Management;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
 
 namespace Sufni.App.Tests.Views.Editors;
@@ -45,7 +46,6 @@ public class LiveDaqDetailViewTests
             "ReadingsSection",
             "DeviceManagementCard",
             "ManagementNotificationsBar",
-            "ManagementErrorMessagesBar",
         }, orderedNames);
 
         var readings = mounted.View.FindControl<StackPanel>("ReadingsSection")!;
@@ -74,6 +74,19 @@ public class LiveDaqDetailViewTests
         Assert.Same(backButton.Parent, startSessionButton.Parent);
         Assert.Equal(0, Grid.GetColumn(backButton));
         Assert.Equal(1, Grid.GetColumn(startSessionButton));
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailView_ErrorMessagesBar_IsFixedAboveBottomActions()
+    {
+        var editor = CreateEditor();
+        await using var mounted = await MountAsync(editor);
+
+        var errorBar = mounted.View.FindControl<ErrorMessagesBar>("ManagementErrorMessagesBar")!;
+        var scrollViewer = mounted.View.FindControl<ScrollViewer>("DiagnosticsScrollViewer")!;
+
+        Assert.NotSame(scrollViewer, errorBar.Parent);
+        Assert.Equal(1, Grid.GetRow(errorBar));
     }
 
     [AvaloniaFact]

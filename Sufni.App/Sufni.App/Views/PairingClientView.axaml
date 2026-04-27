@@ -22,117 +22,125 @@ mc:Ignorable="d">
         </EventTriggerBehavior>
     </Interaction.Behaviors>
 
-    <StackPanel
-    Width="250"
-    HorizontalAlignment="Center"
-    VerticalAlignment="Center"
-    Orientation="Vertical">
-
-        <StackPanel.Styles>
-            <Style Selector="TextBox">
-                <Setter Property="Margin" Value="2" />
-            </Style>
-        </StackPanel.Styles>
-
-        <!--  Locating servers label  -->
-        <Label
-        Name="LocatingServersLabel"
-        Margin="0,0,0,25"
+    <Grid RowDefinitions="* auto">
+        <StackPanel
+        Grid.Row="0"
+        Width="250"
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
-        Content="Locating servers"
-        FontSize="20">
-            <Label.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
-                    <Binding Path="!IsPaired" />
-                </MultiBinding>
-            </Label.IsVisible>
-        </Label>
+        Orientation="Vertical">
 
-        <!--  Prograss ring  -->
-        <progRing:ProgressRing
-        Name="BrowseProgressRing"
-        Width="40"
-        Height="40"
-        Margin="0,0,0,25"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        Foreground="{StaticResource SufniAccentColor}">
-            <progRing:ProgressRing.IsActive>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
-                    <Binding Path="!IsPaired" />
-                </MultiBinding>
-            </progRing:ProgressRing.IsActive>
-        </progRing:ProgressRing>
+            <StackPanel.Styles>
+                <Style Selector="TextBox">
+                    <Setter Property="Margin" Value="2" />
+                </Style>
+            </StackPanel.Styles>
 
-        <!--  Display name. Locked once a pairing request is in flight
-        or the device is already paired — otherwise an edit between
-        request and confirm would change what we send on confirm
-        and the server would reject the mismatch.  -->
-        <TextBox Name="DisplayNameTextBox" Text="{Binding DisplayName}" Watermark="Display name">
-            <TextBox.IsEnabled>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="!IsRequestSent" />
-                    <Binding Path="!IsPaired" />
-                </MultiBinding>
-            </TextBox.IsEnabled>
-        </TextBox>
+            <!--  Locating servers label  -->
+            <Label
+            Name="LocatingServersLabel"
+            Margin="0,0,0,25"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Content="Locating servers"
+            FontSize="20">
+                <Label.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
+                        <Binding Path="!IsPaired" />
+                    </MultiBinding>
+                </Label.IsVisible>
+            </Label>
 
-        <!--  Send pairing request button  -->
-        <Button
-        Name="RequestPairingButton"
-        Height="50"
-        HorizontalAlignment="Stretch"
-        HorizontalContentAlignment="Center"
-        Command="{Binding RequestPairingCommand}">
+            <!--  Prograss ring  -->
+            <progRing:ProgressRing
+            Name="BrowseProgressRing"
+            Width="40"
+            Height="40"
+            Margin="0,0,0,25"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource SufniAccentColor}">
+                <progRing:ProgressRing.IsActive>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
+                        <Binding Path="!IsPaired" />
+                    </MultiBinding>
+                </progRing:ProgressRing.IsActive>
+            </progRing:ProgressRing>
 
-            <Button.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="!IsPaired" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ServerUrl" />
-                    <Binding Path="!IsRequestSent" />
-                </MultiBinding>
-            </Button.IsVisible>
+            <!--  Display name. Locked once a pairing request is in flight
+            or the device is already paired — otherwise an edit between
+            request and confirm would change what we send on confirm
+            and the server would reject the mismatch.  -->
+            <TextBox Name="DisplayNameTextBox" Text="{Binding DisplayName}" Watermark="Display name">
+                <TextBox.IsEnabled>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!IsRequestSent" />
+                        <Binding Path="!IsPaired" />
+                    </MultiBinding>
+                </TextBox.IsEnabled>
+            </TextBox>
 
-            <TextBlock>
-                <Run Text="send pairing request to" />
-                <LineBreak />
-                <Run Foreground="MediumSeaGreen" Text="{Binding ServerUrl}" />
-            </TextBlock>
-        </Button>
+            <!--  Send pairing request button  -->
+            <Button
+            Name="RequestPairingButton"
+            Height="50"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Command="{Binding RequestPairingCommand}">
 
-        <!--  PIN code input  -->
-        <v:PinInput
-        Name="PinInputControl"
-        IsVisible="{Binding IsRequestSent}"
-        Pin="{Binding Pin}"
-        PinCompletedCommand="{Binding ConfirmPairingCommand}" />
+                <Button.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!IsPaired" />
+                        <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ServerUrl" />
+                        <Binding Path="!IsRequestSent" />
+                    </MultiBinding>
+                </Button.IsVisible>
 
-        <!--  Unpair button  -->
-        <Button
-        Name="UnpairButton"
-        Margin="2"
-        HorizontalAlignment="Stretch"
-        HorizontalContentAlignment="Center"
-        Command="{Binding UnpairCommand}"
-        Content="unpair"
-        IsVisible="{Binding IsPaired}" />
+                <TextBlock>
+                    <Run Text="send pairing request to" />
+                    <LineBreak />
+                    <Run Foreground="MediumSeaGreen" Text="{Binding ServerUrl}" />
+                </TextBlock>
+            </Button>
 
-        <!--  Cancel button  -->
-        <Button
-        Name="CancelButton"
-        Margin="2"
-        HorizontalAlignment="Stretch"
-        HorizontalContentAlignment="Center"
-        Command="{Binding OpenPreviousPageCommand}"
-        Content="cancel" />
+            <!--  PIN code input  -->
+            <v:PinInput
+            Name="PinInputControl"
+            IsVisible="{Binding IsRequestSent}"
+            Pin="{Binding Pin}"
+            PinCompletedCommand="{Binding ConfirmPairingCommand}" />
 
-        <!--  Notifications  -->
-        <v:NotificationsBar Margin="2,4" />
+            <!--  Unpair button  -->
+            <Button
+            Name="UnpairButton"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Command="{Binding UnpairCommand}"
+            Content="unpair"
+            IsVisible="{Binding IsPaired}" />
+
+            <!--  Cancel button  -->
+            <Button
+            Name="CancelButton"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Command="{Binding OpenPreviousPageCommand}"
+            Content="cancel" />
+
+            <!--  Notifications  -->
+            <v:NotificationsBar Margin="2,4" />
+
+        </StackPanel>
 
         <!--  Error messages  -->
-        <v:ErrorMessagesBar Margin="2,4" />
-    </StackPanel>
+        <v:ErrorMessagesBar
+        Grid.Row="1"
+        Name="PairingErrorMessagesBar"
+        Margin="20,0,20,10"
+        ZIndex="10" />
+    </Grid>
 </UserControl>
