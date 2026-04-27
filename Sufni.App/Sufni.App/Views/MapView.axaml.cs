@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using BruTile.Predefined;
 using BruTile.Web;
 using Mapsui.Layers;
@@ -23,6 +24,8 @@ public partial class MapView : UserControl
 {
     private MapControl? mapControl;
     private bool applyingTimelineUpdate;
+    private bool mapPointerInteractionActive;
+    private bool viewportNotificationQueued;
 
     private readonly WritableLayer positionMarkerLayer = new()
     {
@@ -54,12 +57,14 @@ public partial class MapView : UserControl
 
             if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
             {
-                oldTimeline.PropertyChanged -= OnTimelineChanged;
+                oldTimeline.PropertyChanged -= OnTimelinePropertyChanged;
+                oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
             }
 
             if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
             {
-                newTimeline.PropertyChanged += OnTimelineChanged;
+                newTimeline.PropertyChanged += OnTimelinePropertyChanged;
+                newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
                 ApplyTimeline(newTimeline);
             }
         };
@@ -77,8 +82,26 @@ public partial class MapView : UserControl
             mapControl.Map.Layers.Add(CreateStartEndPointsLayer());
             mapControl.Map.Layers.Add(positionMarkerLayer);
 
-            mapControl.PointerReleased += (_, _) => NotifyViewportChanged();
-            mapControl.PointerWheelChanged += (_, _) => NotifyViewportChanged();
+            mapControl.Map.Navigator.ViewportChanged += OnNavigatorViewportChanged;
+            mapControl.PointerPressed += (_, _) => mapPointerInteractionActive = true;
+            mapControl.PointerMoved += (_, _) =>
+            {
+                if (mapPointerInteractionActive)
+                {
+                    QueueViewportChangedNotification();
+                }
+            };
+            mapControl.PointerReleased += (_, _) =>
+            {
+                QueueViewportChangedNotification();
+                mapPointerInteractionActive = false;
+            };
+            mapControl.PointerCaptureLost += (_, _) =>
+            {
+                QueueViewportChangedNotification();
+                mapPointerInteractionActive = false;
+            };
+            mapControl.PointerWheelChanged += (_, _) => QueueViewportChangedNotification();
         }
 
         SetNormalizedCursorPosition(1);
@@ -137,7 +160,17 @@ public partial class MapView : UserControl
             // Zoom to session
             if (sessionTrackLayer.Extent != null)
             {
-                mapControl.Map.Navigator.CenterOnAndZoomTo(sessionTrackLayer.Extent.Centroid, 10);
+                RunWithoutViewportTimelineUpdates(() =>
+                {
+                    if (ViewModel.SessionTrackPoints.Count > 1)
+                    {
+                        ZoomToNormalizedRange(0, 1);
+                    }
+                    else
+                    {
+                        mapControl.Map.Navigator.CenterOnAndZoomTo(sessionTrackLayer.Extent.Centroid, 10);
+                    }
+                });
             }
         }
 
@@ -270,6 +303,29 @@ public partial class MapView : UserControl
         mapControl.Map.Navigator.ZoomToBox(extent);
     }
 
+    private void OnNavigatorViewportChanged(object? sender, EventArgs e)
+    {
+        if (mapPointerInteractionActive)
+        {
+            QueueViewportChangedNotification();
+        }
+    }
+
+    private void QueueViewportChangedNotification()
+    {
+        if (viewportNotificationQueued || applyingTimelineUpdate)
+        {
+            return;
+        }
+
+        viewportNotificationQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            viewportNotificationQueued = false;
+            NotifyViewportChanged();
+        }, DispatcherPriority.Background);
+    }
+
     private void NotifyViewportChanged()
     {
         var sessionTrackPoints = ViewModel?.SessionTrackPoints;
@@ -283,24 +339,12 @@ public partial class MapView : UserControl
         var minY = viewport.CenterY - halfHeight;
         var maxY = viewport.CenterY + halfHeight;
 
-        int firstVisible = -1, lastVisible = -1;
-        for (var i = 0; i < sessionTrackPoints.Count; i++)
-        {
-            var p = sessionTrackPoints[i];
-            if (p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY)
-            {
-                if (firstVisible == -1) firstVisible = i;
-                lastVisible = i;
-            }
-        }
+        if (!TryGetVisibleTrackRange(sessionTrackPoints, minX, maxX, minY, maxY, out var start, out var end)) return;
 
-        if (firstVisible < 0 || lastVisible <= firstVisible) return;
-
-        var count = sessionTrackPoints.Count - 1;
-        Timeline.SetVisibleRange((double)firstVisible / count, (double)lastVisible / count);
+        Timeline.SetVisibleRange(start, end, this);
     }
 
-    private void OnTimelineChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (Timeline is null)
         {
@@ -319,12 +363,17 @@ public partial class MapView : UserControl
                     ClearNormalizedCursorPosition();
                 }
                 break;
-
-            case nameof(SessionTimelineLinkViewModel.VisibleRangeStart):
-            case nameof(SessionTimelineLinkViewModel.VisibleRangeEnd):
-                ApplyTimeline(Timeline);
-                break;
         }
+    }
+
+    private void OnTimelineVisibleRangeChanged(object? sender, EventArgs e)
+    {
+        if (Timeline is null || ReferenceEquals(Timeline.VisibleRangeChangeSource, this))
+        {
+            return;
+        }
+
+        ApplyTimeline(Timeline);
     }
 
     private void ApplyTimeline(SessionTimelineLinkViewModel timeline)
@@ -352,6 +401,116 @@ public partial class MapView : UserControl
         {
             applyingTimelineUpdate = false;
         }
+    }
+
+    private void RunWithoutViewportTimelineUpdates(Action action)
+    {
+        if (applyingTimelineUpdate)
+        {
+            action();
+            return;
+        }
+
+        applyingTimelineUpdate = true;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            applyingTimelineUpdate = false;
+        }
+    }
+
+    private static bool TryGetVisibleTrackRange(
+        IReadOnlyList<TrackPoint> sessionTrackPoints,
+        double minX,
+        double maxX,
+        double minY,
+        double maxY,
+        out double start,
+        out double end)
+    {
+        var firstVisible = -1;
+        var lastVisible = -1;
+
+        for (var i = 0; i < sessionTrackPoints.Count; i++)
+        {
+            var point = sessionTrackPoints[i];
+            if (IsPointVisible(point, minX, maxX, minY, maxY))
+            {
+                if (firstVisible == -1) firstVisible = i;
+                lastVisible = i;
+            }
+
+            if (i == 0 || !SegmentIntersectsViewport(sessionTrackPoints[i - 1], point, minX, maxX, minY, maxY))
+            {
+                continue;
+            }
+
+            if (firstVisible == -1) firstVisible = i - 1;
+            lastVisible = i;
+        }
+
+        if (firstVisible < 0 || lastVisible <= firstVisible)
+        {
+            start = 0;
+            end = 1;
+            return false;
+        }
+
+        var count = sessionTrackPoints.Count - 1;
+        start = (double)firstVisible / count;
+        end = (double)lastVisible / count;
+        return true;
+    }
+
+    private static bool IsPointVisible(TrackPoint point, double minX, double maxX, double minY, double maxY)
+    {
+        return point.X >= minX && point.X <= maxX && point.Y >= minY && point.Y <= maxY;
+    }
+
+    private static bool SegmentIntersectsViewport(
+        TrackPoint start,
+        TrackPoint end,
+        double minX,
+        double maxX,
+        double minY,
+        double maxY)
+    {
+        var x0 = start.X;
+        var y0 = start.Y;
+        var dx = end.X - x0;
+        var dy = end.Y - y0;
+        var entering = 0d;
+        var leaving = 1d;
+
+        return ClipSegment(-dx, x0 - minX, ref entering, ref leaving)
+            && ClipSegment(dx, maxX - x0, ref entering, ref leaving)
+            && ClipSegment(-dy, y0 - minY, ref entering, ref leaving)
+            && ClipSegment(dy, maxY - y0, ref entering, ref leaving);
+    }
+
+    private static bool ClipSegment(double direction, double distance, ref double entering, ref double leaving)
+    {
+        if (Math.Abs(direction) <= 0.000000001)
+        {
+            return distance >= 0;
+        }
+
+        var ratio = distance / direction;
+        if (direction < 0)
+        {
+            if (ratio > leaving) return false;
+            if (ratio > entering) entering = ratio;
+        }
+        else
+        {
+            if (ratio < entering) return false;
+            if (ratio < leaving) leaving = ratio;
+        }
+
+        return true;
     }
 
     private MemoryLayer CreateSessionTrackLayer()

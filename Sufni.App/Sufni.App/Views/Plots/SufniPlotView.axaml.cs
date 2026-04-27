@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Threading;
 using ScottPlot;
 using ScottPlot.Avalonia;
 
@@ -13,6 +14,7 @@ public abstract class SufniPlotView : TemplatedControl
     private AvaPlot? avaPlot;
     private AxisLimits? pinchStartLimits;
     private Coordinates? pinchOrigin;
+    private bool viewportChangeQueued;
 
     protected AvaPlot PlotControl => avaPlot!;
     protected bool HasPlotControl => avaPlot is not null;
@@ -38,6 +40,7 @@ public abstract class SufniPlotView : TemplatedControl
         avaPlot.AddHandler(Gestures.PinchEndedEvent, OnPlotPinchEnded);
 
         CreatePlot();
+        avaPlot.Plot.RenderManager.AxisLimitsChanged += (_, _) => NotifyViewportChanged();
     }
 
     protected abstract void CreatePlot();
@@ -79,6 +82,27 @@ public abstract class SufniPlotView : TemplatedControl
     {
         pinchStartLimits = null;
         pinchOrigin = null;
-        OnViewportChanged();
+        NotifyViewportChanged();
+    }
+
+    private void NotifyViewportChanged()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            OnViewportChanged();
+            return;
+        }
+
+        if (viewportChangeQueued)
+        {
+            return;
+        }
+
+        viewportChangeQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            viewportChangeQueued = false;
+            OnViewportChanged();
+        }, DispatcherPriority.Background);
     }
 }

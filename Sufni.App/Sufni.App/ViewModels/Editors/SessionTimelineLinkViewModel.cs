@@ -11,6 +11,10 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject
     [ObservableProperty] private double visibleRangeStart;
     [ObservableProperty] private double visibleRangeEnd = 1;
 
+    public event EventHandler? VisibleRangeChanged;
+
+    public object? VisibleRangeChangeSource { get; private set; }
+
     public void SetCursorPosition(double? normalizedPosition)
     {
         double? clamped = normalizedPosition is null
@@ -37,7 +41,7 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject
         SetCursorPosition(null);
     }
 
-    public void SetVisibleRange(double start, double end)
+    public void SetVisibleRange(double start, double end, object? source = null)
     {
         if (double.IsNaN(start) || double.IsNaN(end) || double.IsInfinity(start) || double.IsInfinity(end))
         {
@@ -56,8 +60,10 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject
             return;
         }
 
+        VisibleRangeChangeSource = source;
         VisibleRangeStart = start;
         VisibleRangeEnd = end;
+        VisibleRangeChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Reset()
