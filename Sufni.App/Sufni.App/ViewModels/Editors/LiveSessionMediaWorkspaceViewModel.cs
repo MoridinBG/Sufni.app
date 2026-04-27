@@ -2,7 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels;
 
 namespace Sufni.App.ViewModels.Editors;
@@ -10,9 +12,16 @@ namespace Sufni.App.ViewModels.Editors;
 public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISessionMediaWorkspace
 {
     private bool isInitialized;
+    private bool mapExpected;
 
+    public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
     public MapViewModel? MapViewModel { get; }
-    public bool HasSessionTrackPoints => MapViewModel?.SessionTrackPoints?.Count > 0;
+    public SurfacePresentationState MapState => !mapExpected
+        ? SurfacePresentationState.Hidden
+        : MapViewModel?.SessionTrackPoints?.Count > 0
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.WaitingForData("Waiting for map data.");
+    public SurfacePresentationState VideoState => SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; }
     public double? MapVideoWidth { get; } = 400;
     public string? VideoUrl => null;
@@ -52,6 +61,13 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
         await MapViewModel.InitializeAsync();
     }
 
+    public void ApplySessionHeader(LiveSessionHeader? sessionHeader)
+    {
+        mapExpected = sessionHeader is { AcceptedGpsFixHz: > 0 };
+        OnPropertyChanged(nameof(MapState));
+        OnPropertyChanged(nameof(HasMediaContent));
+    }
+
     public void SetTrackPoints(IReadOnlyList<TrackPoint>? trackPoints)
     {
         if (MapViewModel is null)
@@ -60,6 +76,7 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
         }
 
         MapViewModel.SessionTrackPoints = trackPoints?.ToList() ?? [];
-        OnPropertyChanged(nameof(HasSessionTrackPoints));
+        OnPropertyChanged(nameof(MapState));
+        OnPropertyChanged(nameof(HasMediaContent));
     }
 }

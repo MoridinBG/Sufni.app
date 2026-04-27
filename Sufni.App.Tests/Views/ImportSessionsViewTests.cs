@@ -37,6 +37,18 @@ public class ImportSessionsViewTests
         await AssertEditorsDisabledWhileImportRunsAsync(() => new ImportSessionsDesktopView());
     }
 
+    [AvaloniaFact]
+    public async Task ImportSessionsView_MalformedLabel_ShowsTooltipReason()
+    {
+        await AssertMalformedLabelTooltipAsync(() => new ImportSessionsView());
+    }
+
+    [AvaloniaFact]
+    public async Task ImportSessionsDesktopView_MalformedLabel_ShowsTooltipReason()
+    {
+        await AssertMalformedLabelTooltipAsync(() => new ImportSessionsDesktopView());
+    }
+
     private static async Task AssertEditorsDisabledWhileImportRunsAsync(Func<UserControl> createView)
     {
         using var _ = new TestSynchronizationContextScope();
@@ -121,6 +133,70 @@ public class ImportSessionsViewTests
             Array.Empty<SessionSnapshot>(),
             Array.Empty<(string FileName, string ErrorMessage)>()));
         await importTask;
+
+        host.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    private static async Task AssertMalformedLabelTooltipAsync(Func<UserControl> createView)
+    {
+        using var _ = new TestSynchronizationContextScope();
+        EnsureImportViewResources();
+
+        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
+        var filesService = Substitute.For<IFilesService>();
+        var shell = Substitute.For<IShellCoordinator>();
+        var dialogService = Substitute.For<IDialogService>();
+        var setupCoordinator = Substitute.For<ISetupCoordinator>();
+        var importSessionsCoordinator = Substitute.For<IImportSessionsCoordinator>();
+        var setupStore = Substitute.For<ISetupStore>();
+
+        var dataStores = new ObservableCollection<ITelemetryDataStore>();
+        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
+        var reason = "trailing chunk was trimmed";
+
+        telemetryDataStoreService.DataStores.Returns(dataStores);
+        setupStore.Connect().Returns(setupCache.Connect());
+        setupStore.FindByBoardId(Arg.Any<Guid>())
+            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
+
+        var dataStore = CreateDataStore();
+        var file = CreateTelemetryFile(
+            "trimmed",
+            malformedMessage: reason,
+            canImport: true);
+        dataStores.Add(dataStore);
+
+        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+
+        var viewModel = new ImportSessionsViewModel(
+            telemetryDataStoreService,
+            filesService,
+            shell,
+            dialogService,
+            setupCoordinator,
+            importSessionsCoordinator,
+            setupStore);
+
+        var view = createView();
+        view.DataContext = viewModel;
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = view
+        };
+
+        host.Show();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.Single(viewModel.TelemetryFiles);
+
+        var label = view.GetLogicalDescendants().OfType<TextBlock>()
+            .First(textBlock => textBlock.Text == "(Malformed)");
+
+        Assert.Equal(reason, ToolTip.GetTip(label));
 
         host.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

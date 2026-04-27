@@ -1,8 +1,12 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
+using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.Controls;
 using Sufni.App.Views.Plots;
 using Sufni.App.Views.SessionPages;
 
@@ -16,6 +20,8 @@ public class DamperPageViewTests
         var viewModel = new DamperPageViewModel
         {
             FrontVelocityHistogram = TestSvg,
+            FrontHistogramState = SurfacePresentationState.Ready,
+            RearHistogramState = SurfacePresentationState.Hidden,
             FrontHscPercentage = 10,
             FrontLscPercentage = 20,
             FrontLsrPercentage = 30,
@@ -24,6 +30,7 @@ public class DamperPageViewTests
 
         await using var mounted = await MountAsync(viewModel);
 
+        var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
         var frontRow = mounted.View.FindControl<Grid>("FrontHistogramRow");
         var rearRow = mounted.View.FindControl<Grid>("RearHistogramRow");
         var frontSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("FrontVelocityHistogramSvg");
@@ -31,14 +38,15 @@ public class DamperPageViewTests
         var frontBands = mounted.View.FindControl<VelocityBandView>("FrontVelocityBands");
         var rearBands = mounted.View.FindControl<VelocityBandView>("RearVelocityBands");
 
+        Assert.Equal(2, hosts.Length);
         Assert.NotNull(frontRow);
         Assert.NotNull(rearRow);
         Assert.NotNull(frontSvg);
         Assert.NotNull(rearSvg);
         Assert.NotNull(frontBands);
         Assert.NotNull(rearBands);
-        Assert.True(frontRow!.IsVisible);
-        Assert.False(rearRow!.IsVisible);
+        Assert.True(hosts[0].IsVisible);
+        Assert.False(hosts[1].IsVisible);
         Assert.NotNull(frontSvg!.Source);
         Assert.Null(rearSvg!.Source);
         Assert.Equal(10, frontBands!.HscPercentage);
@@ -53,6 +61,8 @@ public class DamperPageViewTests
         var viewModel = new DamperPageViewModel
         {
             RearVelocityHistogram = TestSvg,
+            FrontHistogramState = SurfacePresentationState.Hidden,
+            RearHistogramState = SurfacePresentationState.Ready,
             RearHscPercentage = 11,
             RearLscPercentage = 21,
             RearLsrPercentage = 31,
@@ -61,19 +71,21 @@ public class DamperPageViewTests
 
         await using var mounted = await MountAsync(viewModel);
 
+        var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
         var frontRow = mounted.View.FindControl<Grid>("FrontHistogramRow");
         var rearRow = mounted.View.FindControl<Grid>("RearHistogramRow");
         var frontSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("FrontVelocityHistogramSvg");
         var rearSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("RearVelocityHistogramSvg");
         var rearBands = mounted.View.FindControl<VelocityBandView>("RearVelocityBands");
 
+        Assert.Equal(2, hosts.Length);
         Assert.NotNull(frontRow);
         Assert.NotNull(rearRow);
         Assert.NotNull(frontSvg);
         Assert.NotNull(rearSvg);
         Assert.NotNull(rearBands);
-        Assert.False(frontRow!.IsVisible);
-        Assert.True(rearRow!.IsVisible);
+        Assert.False(hosts[0].IsVisible);
+        Assert.True(hosts[1].IsVisible);
         Assert.Null(frontSvg!.Source);
         Assert.NotNull(rearSvg!.Source);
         Assert.Equal(11, rearBands!.HscPercentage);
@@ -89,23 +101,27 @@ public class DamperPageViewTests
         {
             FrontVelocityHistogram = TestSvg,
             RearVelocityHistogram = TestSvg,
+            FrontHistogramState = SurfacePresentationState.Ready,
+            RearHistogramState = SurfacePresentationState.Ready,
             FrontHscPercentage = 10,
             RearHscPercentage = 11,
         };
 
         await using var mounted = await MountAsync(viewModel);
 
+        var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
         var frontRow = mounted.View.FindControl<Grid>("FrontHistogramRow");
         var rearRow = mounted.View.FindControl<Grid>("RearHistogramRow");
         var frontBands = mounted.View.FindControl<VelocityBandView>("FrontVelocityBands");
         var rearBands = mounted.View.FindControl<VelocityBandView>("RearVelocityBands");
 
+        Assert.Equal(2, hosts.Length);
         Assert.NotNull(frontRow);
         Assert.NotNull(rearRow);
         Assert.NotNull(frontBands);
         Assert.NotNull(rearBands);
-        Assert.True(frontRow!.IsVisible);
-        Assert.True(rearRow!.IsVisible);
+        Assert.True(hosts[0].IsVisible);
+        Assert.True(hosts[1].IsVisible);
         Assert.True(frontBands!.IsVisible);
         Assert.True(rearBands!.IsVisible);
     }

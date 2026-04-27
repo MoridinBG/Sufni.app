@@ -1,6 +1,7 @@
 using System;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
@@ -10,13 +11,17 @@ namespace Sufni.App.ViewModels.Editors;
 public interface IRecordedSessionGraphWorkspace
 {
     TelemetryData? TelemetryData { get; }
+    SurfacePresentationState TravelGraphState { get; }
+    SurfacePresentationState ImuGraphState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 
 public interface ISessionMediaWorkspace
 {
+    bool HasMediaContent { get; }
     MapViewModel? MapViewModel { get; }
-    bool HasSessionTrackPoints { get; }
+    SurfacePresentationState MapState { get; }
+    SurfacePresentationState VideoState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     double? MapVideoWidth { get; }
     string? VideoUrl { get; }
@@ -25,10 +30,10 @@ public interface ISessionMediaWorkspace
 public interface ISessionStatisticsWorkspace
 {
     TelemetryData? TelemetryData { get; }
-    bool HasFrontStatistics { get; }
-    bool HasRearStatistics { get; }
-    bool HasCompressionBalanceTelemetry { get; }
-    bool HasReboundBalanceTelemetry { get; }
+    SurfacePresentationState FrontStatisticsState { get; }
+    SurfacePresentationState RearStatisticsState { get; }
+    SurfacePresentationState CompressionBalanceState { get; }
+    SurfacePresentationState ReboundBalanceState { get; }
     SessionDamperPercentages DamperPercentages { get; }
 }
 
@@ -46,6 +51,8 @@ public interface ILiveSessionGraphWorkspace
 {
     IObservable<LiveGraphBatch> GraphBatches { get; }
     LiveSessionPlotRanges PlotRanges { get; }
+    SurfacePresentationState TravelGraphState { get; }
+    SurfacePresentationState ImuGraphState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 

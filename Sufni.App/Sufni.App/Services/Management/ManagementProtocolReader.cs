@@ -66,6 +66,13 @@ internal sealed class ManagementProtocolReader
         return CreateFrame(ManagementFrameType.TrashFileRequest, requestId, payload);
     }
 
+    public static byte[] CreateMarkSstUploadedRequest(uint requestId, int recordId)
+    {
+        var payload = new byte[ManagementProtocolConstants.MarkSstUploadedRequestPayloadSize];
+        BinaryPrimitives.WriteInt32LittleEndian(payload, recordId);
+        return CreateFrame(ManagementFrameType.MarkSstUploadedRequest, requestId, payload);
+    }
+
     public static byte[] CreatePutFileBeginRequest(uint requestId, DaqFileClass fileClass, ulong fileSizeBytes)
     {
         var payload = new byte[ManagementProtocolConstants.PutFileBeginPayloadSize];
@@ -125,6 +132,7 @@ internal sealed class ManagementProtocolReader
             ManagementFrameType.ListDirectoryRequest => ParseListDirectoryRequest(header, payload),
             ManagementFrameType.GetFileRequest => ParseGetFileRequest(header, payload),
             ManagementFrameType.TrashFileRequest => ParseTrashFileRequest(header, payload),
+            ManagementFrameType.MarkSstUploadedRequest => ParseMarkSstUploadedRequest(header, payload),
             ManagementFrameType.PutFileBegin => ParsePutFileBeginRequest(header, payload),
             ManagementFrameType.PutFileChunk => new ManagementPutFileChunkFrame(header, payload.ToArray()),
             ManagementFrameType.PutFileCommit => ParseEmptyPayload<ManagementPutFileCommitFrame>(header, payload),
@@ -196,6 +204,12 @@ internal sealed class ManagementProtocolReader
         return new ManagementTrashFileRequestFrame(header, BinaryPrimitives.ReadInt32LittleEndian(payload));
     }
 
+    private static ManagementMarkSstUploadedRequestFrame ParseMarkSstUploadedRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
+    {
+        EnsurePayloadLength(payload, ManagementProtocolConstants.MarkSstUploadedRequestPayloadSize, header.FrameType);
+        return new ManagementMarkSstUploadedRequestFrame(header, BinaryPrimitives.ReadInt32LittleEndian(payload));
+    }
+
     private static ManagementPutFileBeginRequestFrame ParsePutFileBeginRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
     {
         EnsurePayloadLength(payload, ManagementProtocolConstants.PutFileBeginPayloadSize, header.FrameType);
@@ -243,7 +257,8 @@ internal sealed class ManagementProtocolReader
             ParseFileClass(BinaryPrimitives.ReadUInt16LittleEndian(payload[0..2])),
             BinaryPrimitives.ReadInt32LittleEndian(payload[4..8]),
             BinaryPrimitives.ReadUInt64LittleEndian(payload[8..16]),
-            ParseAsciiName(payload[16..28]));
+            BinaryPrimitives.ReadUInt32LittleEndian(payload[16..20]),
+            ParseAsciiName(payload[20..32]));
     }
 
     private static ManagementActionResultFrame ParseActionResult(ManagementFrameHeader header, ReadOnlySpan<byte> payload)

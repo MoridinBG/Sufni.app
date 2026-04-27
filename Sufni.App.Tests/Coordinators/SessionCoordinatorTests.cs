@@ -343,12 +343,33 @@ public class SessionCoordinatorTests
     {
         var sessionId = Guid.NewGuid();
         var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
+        var telemetry = TestTelemetryData.Create();
         database.GetSessionCacheAsync(sessionId).Returns(cache);
+        database.GetSessionPsstAsync(sessionId).Returns(telemetry);
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
 
         var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
         Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
+        Assert.Same(telemetry, loaded.Telemetry);
+        await database.Received(1).GetSessionPsstAsync(sessionId);
+        await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_ReturnsCacheHit_WithNullTelemetry_WhenLocalTelemetryMissing()
+    {
+        var sessionId = Guid.NewGuid();
+        var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
+        database.GetSessionCacheAsync(sessionId).Returns(cache);
+        database.GetSessionPsstAsync(sessionId).Returns(Task.FromResult<TelemetryData?>(null));
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
+
+        var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
+        Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
+        Assert.Null(loaded.Telemetry);
+        await database.Received(1).GetSessionPsstAsync(sessionId);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
 
@@ -379,6 +400,7 @@ public class SessionCoordinatorTests
 
         var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
         Assert.Equal("front-travel", built.Data.FrontTravelHistogram);
+        Assert.Same(telemetry, built.Telemetry);
         await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
             cache.SessionId == snapshot.Id && cache.FrontTravelHistogram == "front-travel"));
     }

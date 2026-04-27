@@ -1,14 +1,15 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.SessionPages.SpringPageView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
-    d:DesignHeight="600"
-    d:DesignWidth="500"
-    x:DataType="vm:SpringPageViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.SessionPages.SpringPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:SpringPageViewModel"
+mc:Ignorable="d">
 
     <Design.DataContext>
         <vm:SpringPageViewModel />
@@ -16,8 +17,23 @@
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical">
-            <Svg Name="FrontHistogramSvg" IsVisible="{Binding FrontTravelHistogram, Converter={x:Static ObjectConverters.IsNotNull}}" Source="{Binding FrontTravelHistogram}" />
-            <Svg Name="RearHistogramSvg" IsVisible="{Binding RearTravelHistogram, Converter={x:Static ObjectConverters.IsNotNull}}" Source="{Binding RearTravelHistogram}" />
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontHistogramState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Svg Name="FrontHistogramSvg" Source="{Binding FrontTravelHistogram}" />
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Margin="0,0,0,12" Title="Front travel" MinCardHeight="220" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding RearHistogramState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Svg Name="RearHistogramSvg" Source="{Binding RearTravelHistogram}" />
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Rear travel" MinCardHeight="220" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
         </StackPanel>
     </ScrollViewer>
 

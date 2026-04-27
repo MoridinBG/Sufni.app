@@ -211,6 +211,44 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task TravelFrames_SkipIntermediateStatisticsRevisions_WhenRecomputeAlreadyRunning()
+    {
+        var blockingRunner = new BlockingOnceBackgroundTaskRunner();
+        var service = CreateService(blockingRunner);
+        var skippedRecomputesReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
+        {
+            if (snapshot.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0)
+            {
+                skippedRecomputesReady.TrySetResult();
+            }
+        });
+
+        try
+        {
+            await service.EnsureAttachedAsync();
+
+            frames.OnNext(CreateTravelBatchFrame());
+            await blockingRunner.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            frames.OnNext(CreateTravelBatchFrame());
+            frames.OnNext(CreateTravelBatchFrame());
+
+            blockingRunner.Release();
+
+            await skippedRecomputesReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.True(service.Current.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0);
+        }
+        finally
+        {
+            blockingRunner.Release();
+            await service.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task ResetCaptureAsync_RebasesSubsequentGraphTimes_AndClearsCaptureDuration()
     {
         var service = CreateService();
@@ -300,15 +338,148 @@ public class LiveSessionServiceTests
         await service.DisposeAsync();
     }
 
-    private ILiveSessionService CreateService()
+    [Fact]
+    public async Task TravelFrames_WhenDisplayPipelineStalls_CaptureContinuesAndDisplayDropsAreCounted()
     {
-        var pipeline = new LiveGraphPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
+        var graphPipeline = new BlockingGraphPipeline();
+        var service = CreateService(graphPipeline: graphPipeline);
+        var displayDropsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
+        {
+            if (snapshot.Controls.ClientDropCounters.GraphBatchesCoalesced > 0
+                && snapshot.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0)
+            {
+                displayDropsReady.TrySetResult();
+            }
+        });
+
+        try
+        {
+            await service.EnsureAttachedAsync();
+
+            frames.OnNext(CreateTravelBatchFrame());
+            await graphPipeline.AppendStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            for (var index = 0; index < 20; index++)
+            {
+                frames.OnNext(CreateTravelBatchFrame(
+                    firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + (ulong)(index + 1) * 1_000_000));
+            }
+
+            await displayDropsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.True(service.Current.Controls.CanSave);
+            Assert.True(service.Current.Controls.ClientDropCounters.GraphBatchesCoalesced > 0);
+            Assert.True(service.Current.Controls.ClientDropCounters.GraphSamplesDiscarded > 0);
+            Assert.True(service.Current.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0);
+
+            var capture = await service.PrepareCaptureForSaveAsync();
+            Assert.Equal(105, capture.TelemetryCapture.FrontMeasurements.Length);
+        }
+        finally
+        {
+            graphPipeline.Release();
+            await service.DisposeAsync();
+        }
+    }
+
+    private ILiveSessionService CreateService(IBackgroundTaskRunner? runner = null, ILiveGraphPipeline? graphPipeline = null)
+    {
+        var pipeline = graphPipeline ?? new LiveGraphPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
         return new LiveSessionService(
             CreateSessionContext(),
             sharedStream,
             sessionPresentationService,
-            backgroundTaskRunner,
+            runner ?? backgroundTaskRunner,
             pipeline);
+    }
+
+    private sealed class BlockingGraphPipeline : ILiveGraphPipeline
+    {
+        private readonly Subject<LiveGraphBatch> graphBatches = new();
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int shouldBlock = 1;
+
+        public TaskCompletionSource AppendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IObservable<LiveGraphBatch> GraphBatches => graphBatches.AsObservable();
+
+        public void Start()
+        {
+        }
+
+        public void AppendTravelSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> frontTravel, ReadOnlySpan<double> rearTravel)
+        {
+            if (Interlocked.Exchange(ref shouldBlock, 0) == 1)
+            {
+                AppendStarted.TrySetResult();
+                release.Task.Wait(TimeSpan.FromSeconds(5));
+            }
+        }
+
+        public void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> magnitudes)
+        {
+        }
+
+        public void Reset()
+        {
+        }
+
+        public void Release()
+        {
+            release.TrySetResult();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Release();
+            graphBatches.OnCompleted();
+            graphBatches.Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingOnceBackgroundTaskRunner : IBackgroundTaskRunner
+    {
+        private int shouldBlock = 1;
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default)
+        {
+            await WaitBeforeFirstWorkAsync(cancellationToken);
+            await work();
+        }
+
+        public async Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
+        {
+            await WaitBeforeFirstWorkAsync(cancellationToken);
+            return work();
+        }
+
+        public async Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
+        {
+            await WaitBeforeFirstWorkAsync(cancellationToken);
+            return await work();
+        }
+
+        public void Release()
+        {
+            release.TrySetResult();
+        }
+
+        private async Task WaitBeforeFirstWorkAsync(CancellationToken cancellationToken)
+        {
+            if (Interlocked.Exchange(ref shouldBlock, 0) == 0)
+            {
+                return;
+            }
+
+            Started.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+        }
     }
 
     private static Task<LiveGraphBatch> WaitForGraphBatchAsync(

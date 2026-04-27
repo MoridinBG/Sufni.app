@@ -25,6 +25,8 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
     private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
+    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
+    private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
@@ -60,6 +62,8 @@ public class LiveDaqCoordinatorTests
             sharedStreamRegistry,
             liveSessionServiceFactory,
             sessionCoordinator,
+            sessionPresentationService,
+            backgroundTaskRunner,
             tileLayerService,
             daqManagementService,
             filesService,
@@ -323,6 +327,8 @@ public class LiveDaqCoordinatorTests
             CreateSessionContext("board-2", "Board 2"),
             liveSessionService,
             sessionCoordinator,
+            sessionPresentationService,
+            backgroundTaskRunner,
             tileLayerService,
             shell,
             dialogService);

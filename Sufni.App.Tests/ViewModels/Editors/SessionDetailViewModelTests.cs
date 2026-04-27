@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -68,6 +69,26 @@ public class SessionDetailViewModelTests
         Assert.NotNull(editor.Timestamp);
         Assert.True(editor.IsComplete);
         Assert.Equal(9, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public void Construction_WhenProcessedDataExists_InitializesLoadingSurfaceStates()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true) with
+        {
+            FullTrackId = Guid.NewGuid(),
+        };
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(SurfaceStateKind.Loading, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.ReboundBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.MapState.Kind);
+        Assert.True(editor.ScreenState.IsReady);
     }
 
     // ----- Dirtiness -----
@@ -246,6 +267,11 @@ public class SessionDetailViewModelTests
         Assert.Equal(400.0, editor.MapVideoWidth);
         Assert.Equal(1, editor.DamperPage.FrontHscPercentage);
         Assert.True(editor.IsComplete);
+        Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
+        Assert.True(editor.HasMediaContent);
+        Assert.True(editor.ScreenState.IsReady);
     }
 
     [AvaloniaFact]
@@ -260,7 +286,8 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
-            false));
+            false),
+            TestTelemetryData.Create());
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
@@ -269,14 +296,24 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
 
+        Assert.NotNull(editor.TelemetryData);
         Assert.Equal("front-travel", springPage.FrontTravelHistogram);
         Assert.Equal("front-velocity", editor.DamperPage.FrontVelocityHistogram);
         Assert.True(editor.IsComplete);
+        Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, springPage.FrontHistogramState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, springPage.RearHistogramState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
+        Assert.False(editor.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
     }
 
     [AvaloniaFact]
-    public async Task Loaded_WhenTelemetryPending_LeavesIncompleteWithoutError()
+    public async Task Loaded_WhenTelemetryPending_EntersWaitingStatesWithoutError()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
@@ -287,11 +324,17 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.False(editor.IsComplete);
+        Assert.True(editor.ScreenState.IsReady);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.MapState.Kind);
         Assert.Empty(editor.ErrorMessages);
     }
 
     [AvaloniaFact]
-    public async Task Loaded_WhenCoordinatorFails_AppendsError()
+    public async Task Loaded_WhenCoordinatorFails_SetsScreenError()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
@@ -301,7 +344,9 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Single(editor.ErrorMessages);
+        Assert.True(editor.ScreenState.IsError);
+        Assert.Contains("boom", editor.ScreenState.Message);
+        Assert.Empty(editor.ErrorMessages);
     }
 
     [AvaloniaFact]
@@ -361,7 +406,8 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
-            false)));
+            false),
+            TestTelemetryData.Create()));
 
         await loadTask;
 
@@ -369,6 +415,37 @@ public class SessionDetailViewModelTests
         Assert.Null(springPage.FrontTravelHistogram);
         Assert.Null(editor.DamperPage.FrontVelocityHistogram);
         Assert.False(editor.IsComplete);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveAfter_LoadedFromCacheWithNullTelemetry_PreservesHasProcessedData()
+    {
+        var snapshot = TestSnapshots.Session(updated: 5, hasProcessedData: true);
+        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+            "front-travel",
+            null,
+            "front-velocity",
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            false),
+            null);
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
+            .Returns(new SessionSaveResult.Saved(11));
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+        editor.Name = "renamed";
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await sessionCoordinator.Received(1).SaveAsync(
+            Arg.Is<Session>(session => session.Id == snapshot.Id && session.HasProcessedData),
+            5);
     }
 
     [AvaloniaFact]

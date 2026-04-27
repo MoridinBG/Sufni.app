@@ -6,9 +6,11 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
 xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="800"
 d:DesignWidth="800"
+x:Name="Root"
 x:DataType="vm:SessionDetailViewModel"
 Background="{StaticResource SufniRegion}"
 Focusable="True"
@@ -58,22 +60,37 @@ mc:Ignorable="d">
         </Style>
     </UserControl.Styles>
 
-    <editors:SessionShellDesktopView>
-        <editors:SessionShellDesktopView.GraphContent>
-            <items:RecordedSessionGraphDesktopView DataContext="{Binding}" />
-        </editors:SessionShellDesktopView.GraphContent>
+    <Grid>
+        <editors:SessionShellDesktopView HasMediaContent="{Binding HasMediaContent}" IsVisible="{Binding ScreenState.IsReady}">
 
-        <editors:SessionShellDesktopView.MediaContent>
-            <items:SessionMediaDesktopView DataContext="{Binding}" />
-        </editors:SessionShellDesktopView.MediaContent>
+            <editors:SessionShellDesktopView.GraphContent>
+                <items:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.GraphContent>
 
-        <editors:SessionShellDesktopView.StatisticsContent>
-            <items:SessionStatisticsDesktopView DataContext="{Binding}" />
-        </editors:SessionShellDesktopView.StatisticsContent>
+            <editors:SessionShellDesktopView.MediaContent>
+                <items:SessionMediaDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.MediaContent>
 
-        <editors:SessionShellDesktopView.SidebarContent>
-            <items:SessionSidebarDesktopView DataContext="{Binding}" />
-        </editors:SessionShellDesktopView.SidebarContent>
-    </editors:SessionShellDesktopView>
+            <editors:SessionShellDesktopView.StatisticsContent>
+                <items:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.StatisticsContent>
+
+            <editors:SessionShellDesktopView.SidebarContent>
+                <items:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.SidebarContent>
+        </editors:SessionShellDesktopView>
+
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" IsVisible="{Binding ScreenState.IsLoading}">
+            <progRing:ProgressRing Width="40" Height="40" Foreground="{StaticResource SufniAccentColor}" IsActive="True" />
+            <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
+        </StackPanel>
+
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{StaticResource SufniBackground}" BorderBrush="{StaticResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
+            <StackPanel Spacing="12">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
+                <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
 
 </UserControl>

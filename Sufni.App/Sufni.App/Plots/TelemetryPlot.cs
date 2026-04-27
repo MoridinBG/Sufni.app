@@ -51,6 +51,8 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     public static readonly Color FrontColor = Color.FromHex("#3288bd");
     public static readonly Color RearColor = Color.FromHex("#66c2a5");
 
+    public int? MaximumDisplayHz { get; set; }
+
     protected void ConfigureRightAxisStyle()
     {
         Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
@@ -83,6 +85,11 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     }
 
     public virtual void SetCursorPosition(double position) { }
+
+    protected (double[] Samples, double Step) PrepareDisplaySignal(double[] samples, int sampleRate)
+    {
+        return TelemetryDisplayDownsampling.Prepare(samples, sampleRate, MaximumDisplayHz);
+    }
 
     public virtual void LoadTelemetryData(TelemetryData telemetryData) { }
 }

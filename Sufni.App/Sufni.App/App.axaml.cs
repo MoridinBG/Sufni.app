@@ -129,7 +129,7 @@ public partial class App : Application
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
-            ApplicationLifetime is IClassicDesktopStyleApplicationLifetime ? sp.GetRequiredService<LiveDaqListViewModel>() : null,
+            sp.GetRequiredService<LiveDaqListViewModel>(),
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
             sp.GetService<PairingClientViewModel>(),

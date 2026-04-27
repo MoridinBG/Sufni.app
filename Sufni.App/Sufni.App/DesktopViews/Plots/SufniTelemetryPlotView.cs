@@ -26,6 +26,15 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         set => SetValue(TelemetryProperty, value);
     }
 
+    public static readonly StyledProperty<int?> MaximumDisplayHzProperty =
+        AvaloniaProperty.Register<SufniTelemetryPlotView, int?>(nameof(MaximumDisplayHz));
+
+    public int? MaximumDisplayHz
+    {
+        get => GetValue(MaximumDisplayHzProperty);
+        set => SetValue(MaximumDisplayHzProperty, value);
+    }
+
     public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
         AvaloniaProperty.Register<SufniTelemetryPlotView, SessionTimelineLinkViewModel?>(nameof(Timeline));
 
@@ -40,18 +49,35 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         // Populate the ScottPlot plot when the Telemetry property is set.
         PropertyChanged += (_, e) =>
         {
-            if (e.NewValue is null || plot is null || !HasPlotControl) return;
-
             switch (e.Property.Name)
             {
                 case nameof(Telemetry):
-                    if (!IsEffectivelyVisible)
+                    if (e.NewValue is not TelemetryData telemetryData)
+                    {
+                        hasPendingTelemetryLoad = false;
+                        return;
+                    }
+
+                    if (!CanLoadTelemetryNow())
                     {
                         hasPendingTelemetryLoad = true;
                         return;
                     }
 
-                    LoadTelemetryIntoPlot((TelemetryData)e.NewValue);
+                    hasPendingTelemetryLoad = false;
+                    LoadTelemetryIntoPlot(telemetryData);
+                    break;
+
+                case nameof(IsVisible):
+                    TryApplyPendingTelemetryLoad();
+                    break;
+
+                case nameof(MaximumDisplayHz):
+                    if (Telemetry is not null)
+                    {
+                        hasPendingTelemetryLoad = true;
+                        TryApplyPendingTelemetryLoad();
+                    }
                     break;
             }
 
@@ -63,16 +89,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         // including when a parent's IsVisible is toggled.
         EffectiveViewportChanged += (_, _) =>
         {
-            if (!IsEffectivelyVisible || !hasPendingTelemetryLoad)
-            {
-                return;
-            }
-
-            if (Telemetry is { } data && plot is not null && HasPlotControl)
-            {
-                hasPendingTelemetryLoad = false;
-                LoadTelemetryIntoPlot(data);
-            }
+            TryApplyPendingTelemetryLoad();
         };
 
         // Subscribe to shared timeline range changes for media → plot linking.
@@ -95,6 +112,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     protected void SetPlotModel(TelemetryPlot plotModel)
     {
         plot = plotModel;
+        TryApplyPendingTelemetryLoad();
     }
 
     public void SetCursorPosition(double position)
@@ -129,10 +147,29 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
             return;
         }
 
+        plot.MaximumDisplayHz = MaximumDisplayHz;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
         RefreshPlot();
     }
+
+    private bool CanLoadTelemetryNow()
+    {
+        return plot is not null && HasPlotControl && IsEffectivelyVisible;
+    }
+
+    private void TryApplyPendingTelemetryLoad()
+    {
+        if (!hasPendingTelemetryLoad || !CanLoadTelemetryNow() || Telemetry is not { } data)
+        {
+            return;
+        }
+
+        hasPendingTelemetryLoad = false;
+        LoadTelemetryIntoPlot(data);
+    }
+
+    protected override void OnViewportChanged() => UpdateTimelineRange();
 
     protected void UpdateTimelineRange()
     {

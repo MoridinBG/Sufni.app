@@ -5,6 +5,9 @@ namespace Sufni.App.DesktopViews.Editors;
 
 public partial class SessionShellDesktopView : UserControl
 {
+    public static readonly StyledProperty<bool> HasMediaContentProperty =
+        AvaloniaProperty.Register<SessionShellDesktopView, bool>(nameof(HasMediaContent));
+
     public static readonly StyledProperty<Control?> GraphContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(GraphContent));
 
@@ -24,6 +27,12 @@ public partial class SessionShellDesktopView : UserControl
     {
         get => GetValue(GraphContentProperty);
         set => SetValue(GraphContentProperty, value);
+    }
+
+    public bool HasMediaContent
+    {
+        get => GetValue(HasMediaContentProperty);
+        set => SetValue(HasMediaContentProperty, value);
     }
 
     public Control? MediaContent

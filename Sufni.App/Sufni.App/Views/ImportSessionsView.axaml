@@ -129,7 +129,7 @@ mc:Ignorable="d">
                                     IsThreeState="True">
                                         <ToggleButton.IsEnabled>
                                             <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                                <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="MalformedMessage" />
+                                                <Binding Path="CanImport" />
                                                 <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
                                             </MultiBinding>
                                         </ToggleButton.IsEnabled>
@@ -148,11 +148,21 @@ mc:Ignorable="d">
                                         FontWeight="Black"
                                         Text="{Binding FileName}" />
                                         <TextBlock
+                                        x:Name="MalformedLabel"
                                         Margin="4,2,2,2"
                                         FontWeight="Black"
                                         Foreground="Orange"
                                         IsVisible="{Binding MalformedMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                        Text="(Malformed)" />
+                                        Text="(Malformed)"
+                                        ToolTip.Tip="{Binding MalformedMessage}">
+                                            <Interaction.Behaviors>
+                                                <EventTriggerBehavior EventName="Tapped">
+                                                    <InvokeCommandAction
+                                                    Command="{Binding $parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ShowMalformedMessageCommand}"
+                                                    CommandParameter="{Binding}" />
+                                                </EventTriggerBehavior>
+                                            </Interaction.Behaviors>
+                                        </TextBlock>
                                     </StackPanel>
 
                                     <!--  Date  -->

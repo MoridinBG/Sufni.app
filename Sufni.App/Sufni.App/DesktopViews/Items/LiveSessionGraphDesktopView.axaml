@@ -2,7 +2,9 @@
 x:Class="Sufni.App.DesktopViews.Items.LiveSessionGraphDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
@@ -11,33 +13,73 @@ d:DesignWidth="800"
 x:DataType="vm:ILiveSessionGraphWorkspace"
 mc:Ignorable="d">
 
-    <Grid RowDefinitions="3* auto 2* auto 2*">
-        <plots:LiveTravelPlotDesktopView
-        x:Name="TravelPlot"
-        Grid.Row="0"
-        GraphBatches="{Binding GraphBatches}"
-        MaximumY="{Binding PlotRanges.TravelMaximum}"
-        Timeline="{Binding Timeline}" />
+    <Grid x:Name="GraphGrid">
+        <Grid.Resources>
+            <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+        </Grid.Resources>
 
-        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{Binding TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=5*}" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{Binding ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=2*}" />
+        </Grid.RowDefinitions>
 
-        <plots:LiveVelocityPlotDesktopView
-        x:Name="VelocityPlot"
-        Grid.Row="2"
-        Margin="0,4,0,4"
-        GraphBatches="{Binding GraphBatches}"
-        MinimumY="{Binding PlotRanges.VelocityMinimum}"
-        MaximumY="{Binding PlotRanges.VelocityMaximum}"
-        Timeline="{Binding Timeline}" />
+        <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding TravelGraphState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <Grid RowDefinitions="3* Auto 2*">
+                    <plots:LiveTravelPlotDesktopView
+                    x:Name="TravelPlot"
+                    Grid.Row="0"
+                    GraphBatches="{Binding GraphBatches}"
+                    MaximumY="{Binding PlotRanges.TravelMaximum}"
+                    Timeline="{Binding Timeline}" />
 
-        <GridSplitter Grid.Row="3" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-        <plots:LiveImuPlotDesktopView
-        x:Name="ImuPlot"
-        Grid.Row="4"
-        Margin="0,4,0,0"
-        GraphBatches="{Binding GraphBatches}"
-        MaximumY="{Binding PlotRanges.ImuMaximum}"
-        Timeline="{Binding Timeline}" />
+                    <plots:LiveVelocityPlotDesktopView
+                    x:Name="VelocityPlot"
+                    Grid.Row="2"
+                    Margin="0,4,0,4"
+                    GraphBatches="{Binding GraphBatches}"
+                    MinimumY="{Binding PlotRanges.VelocityMinimum}"
+                    MaximumY="{Binding PlotRanges.VelocityMaximum}"
+                    Timeline="{Binding Timeline}" />
+                </Grid>
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <Grid RowDefinitions="3* Auto 2*">
+                    <controls:SurfacePlaceholderCard Grid.Row="0" Title="Travel" />
+
+                    <Border Grid.Row="1" Background="{StaticResource SufniGridSplitter}" Height="3" />
+
+                    <controls:SurfacePlaceholderCard Grid.Row="2" Title="Velocity" />
+                </Grid>
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
+
+        <GridSplitter Grid.Row="1" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext">
+            <GridSplitter.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="TravelGraphState.ReservesLayout" />
+                    <Binding Path="ImuGraphState.ReservesLayout" />
+                </MultiBinding>
+            </GridSplitter.IsVisible>
+        </GridSplitter>
+
+        <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding ImuGraphState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <plots:LiveImuPlotDesktopView
+                x:Name="ImuPlot"
+                Margin="0,4,0,0"
+                GraphBatches="{Binding GraphBatches}"
+                MaximumY="{Binding PlotRanges.ImuMaximum}"
+                Timeline="{Binding Timeline}" />
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <controls:SurfacePlaceholderCard Title="IMU" />
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
     </Grid>
 </UserControl>

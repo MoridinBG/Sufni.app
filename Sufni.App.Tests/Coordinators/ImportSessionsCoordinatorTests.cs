@@ -347,6 +347,26 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportAsync_ImportableMalformedFile_IsImported()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var file = CreateTelemetryFile(
+            name: "trimmed",
+            shouldBeImported: true,
+            malformedMessage: "trailing chunk was trimmed",
+            canImport: true);
+        file.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(CreatePsst()));
+
+        var coordinator = CreateCoordinator();
+        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+
+        Assert.Single(result.Imported);
+        Assert.Empty(result.Failures);
+        await file.Received(1).GeneratePsstAsync(Arg.Any<BikeData>());
+        await file.Received(1).OnImported();
+    }
+
+    [Fact]
     public async Task ImportAsync_RoutesWorkflowThroughBackgroundTaskRunner()
     {
         var (setup, _) = SeedSetupAndBike();
