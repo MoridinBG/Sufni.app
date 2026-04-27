@@ -23,7 +23,7 @@ mc:Ignorable="d">
         Margin="0,2,2,2"
         Increment="1"
         Maximum="500"
-        Minimum="100"
+        Minimum="10"
         Value="{Binding Length}" />
 
         <!--  Resolution  -->
