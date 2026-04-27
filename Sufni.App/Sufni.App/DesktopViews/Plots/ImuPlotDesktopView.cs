@@ -49,7 +49,7 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
             TravelPlotView.Loaded += (_, _) => LinkTravel();
         }
 
-        PlotControl.PointerMoved += (_, args) =>
+        void UpdateCursor(Avalonia.Input.PointerEventArgs args)
         {
             var point = args.GetPosition(PlotControl);
             var coords = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
@@ -61,7 +61,10 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
             SetCursorPosition(coords.X);
             VelocityPlotView?.SetCursorPosition(coords.X);
             TravelPlotView?.SetCursorPosition(coords.X);
-        };
+        }
+
+        PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
+        PlotControl.PointerMoved += (_, args) => UpdateCursor(args);
     }
 
     private void LinkVelocity()
