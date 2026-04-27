@@ -1,17 +1,17 @@
 <UserControl
-    x:Class="Sufni.App.Views.Editors.LiveDaqDetailView"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
-    d:DesignHeight="800"
-    d:DesignWidth="420"
-    x:DataType="vm:LiveDaqDetailViewModel"
-    Background="{StaticResource SufniRegion}"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.Editors.LiveDaqDetailView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="420"
+x:DataType="vm:LiveDaqDetailViewModel"
+Background="{StaticResource SufniRegion}"
+mc:Ignorable="d">
 
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
@@ -23,222 +23,104 @@
     </Interaction.Behaviors>
 
     <Grid RowDefinitions="* auto">
-    <ScrollViewer Grid.Row="0" Name="DiagnosticsScrollViewer">
-        <StackPanel Margin="14" Spacing="14">
+        <ScrollViewer Grid.Row="0" Name="DiagnosticsScrollViewer">
+            <StackPanel Margin="14" Spacing="14">
 
-            <!--  1. Travel  -->
-            <Border
-                Name="TravelCard"
+                <!--  1. Setup  -->
+                <Border
+                Name="SetupCard"
                 Padding="14"
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
-                <StackPanel Spacing="8">
-                    <TextBlock
-                        FontSize="18"
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                        FontSize="16"
                         FontWeight="SemiBold"
-                        Text="Travel"
-                        ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
-                    <TextBlock
-                        Name="TravelStatusTextBlock"
-                        Opacity="0.7"
-                        Text="{Binding Snapshot.Travel.SampleDelayText}" />
-                    <Border
-                        Padding="10"
-                        Background="{StaticResource SufniRegion}"
-                        CornerRadius="6">
-                        <TextBlock Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
-                    </Border>
-                    <Border
-                        Padding="10"
-                        Background="{StaticResource SufniRegion}"
-                        CornerRadius="6">
-                        <TextBlock Name="RearTravelTextBlock" Text="{Binding RearTravelText}" />
-                    </Border>
-                </StackPanel>
-            </Border>
-
-            <!--  2. IMU  -->
-            <Border
-                Name="ImuCard"
-                Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
-                CornerRadius="8">
-                <StackPanel Spacing="8">
-                    <TextBlock
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="IMU" />
-                    <TextBlock
-                        Name="ImuSummaryTextBlock"
-                        Opacity="0.7"
-                        Text="{Binding Snapshot.Imus.Count, StringFormat='IMUs: {0}'}" />
-                    <TextBlock
-                        Name="ImuEmptyStateTextBlock"
-                        IsVisible="{Binding !Snapshot.HasImuData}"
-                        Opacity="0.7"
-                        Text="No active IMU samples yet." />
-                    <ItemsControl Name="ImuItemsControl" ItemsSource="{Binding Snapshot.Imus}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="live:LiveImuUiSnapshot">
-                                <Border
-                                    Margin="0,0,0,8"
-                                    Padding="10"
-                                    Background="{StaticResource SufniRegion}"
-                                    CornerRadius="6">
-                                    <StackPanel Spacing="4">
-                                        <TextBlock
-                                            FontWeight="SemiBold"
-                                            Text="{Binding Location}"
-                                            ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
-                                        <Grid
-                                            ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto"
-                                            ColumnSpacing="4"
-                                            RowDefinitions="Auto, Auto"
-                                            RowSpacing="2">
-                                            <Grid.Styles>
-                                                <Style Selector="TextBlock">
-                                                    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono" />
-                                                </Style>
-                                            </Grid.Styles>
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Acc" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="x:" />
-                                            <TextBlock Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" Text="{Binding Ax}" />
-                                            <TextBlock Grid.Row="0" Grid.Column="3" Text="y:" />
-                                            <TextBlock Grid.Row="0" Grid.Column="4" HorizontalAlignment="Right" Text="{Binding Ay}" />
-                                            <TextBlock Grid.Row="0" Grid.Column="5" Text="z:" />
-                                            <TextBlock Grid.Row="0" Grid.Column="6" HorizontalAlignment="Right" Text="{Binding Az}" />
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Gyro" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="x:" />
-                                            <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Right" Text="{Binding Gx}" />
-                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="y:" />
-                                            <TextBlock Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right" Text="{Binding Gy}" />
-                                            <TextBlock Grid.Row="1" Grid.Column="5" Text="z:" />
-                                            <TextBlock Grid.Row="1" Grid.Column="6" HorizontalAlignment="Right" Text="{Binding Gz}" />
-                                        </Grid>
-                                        <TextBlock Opacity="0.7" Text="{Binding SampleDelayText}" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <!--  3. GPS  -->
-            <Border
-                Name="GpsCard"
-                Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
-                CornerRadius="8">
-                <StackPanel Spacing="8">
-                    <TextBlock
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="GPS"
-                        ToolTip.Tip="{Binding Snapshot.Gps.QueueDepth, StringFormat='Queue depth: {0}'}" />
-                    <TextBlock Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />
-                    <TextBlock Name="GpsCoordinatesTextBlock" Text="{Binding Snapshot.Gps.Latitude, StringFormat='Lat: {0:F4}'}" />
-                    <TextBlock Name="GpsLongitudeTextBlock" Text="{Binding Snapshot.Gps.Longitude, StringFormat='Lon: {0:F4}'}" />
-                    <TextBlock
-                        Name="GpsFixTimestampTextBlock"
-                        Opacity="0.7"
-                        Text="{Binding Snapshot.Gps.FixTimestampUtc, StringFormat='Fix time: {0:HH:mm:ss}'}" />
-                </StackPanel>
-            </Border>
-
-            <!--  4. Identity Summary  -->
-            <Border
-                Name="IdentityCard"
-                Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
-                CornerRadius="8">
-                <StackPanel Spacing="4">
-                    <TextBlock
-                        Name="IdentityNameTextBlock"
-                        FontSize="20"
-                        FontWeight="SemiBold"
-                        Text="{Binding Name}" />
-                    <TextBlock
-                        Name="IdentityBoardIdTextBlock"
-                        Opacity="0.7"
-                        Text="{Binding BoardId}" />
-                    <TextBlock
-                        Name="IdentityEndpointTextBlock"
-                        Opacity="0.7"
-                        Text="{Binding Endpoint}" />
-                    <TextBlock
+                        Text="Setup" />
+                        <TextBlock
                         Name="IdentitySetupTextBlock"
-                        Opacity="0.7"
                         Text="{Binding SetupName, StringFormat='Setup: {0}'}" />
-                    <TextBlock
+                        <TextBlock
                         Name="IdentityBikeTextBlock"
                         Opacity="0.7"
                         Text="{Binding BikeName, StringFormat='Bike: {0}'}" />
-                </StackPanel>
-            </Border>
+                        <TextBlock
+                        Name="IdentityNameTextBlock"
+                        Opacity="0.7"
+                        Text="{Binding Name, StringFormat='Board: {0}'}" />
+                        <TextBlock
+                        Name="IdentityBoardIdTextBlock"
+                        Opacity="0.7"
+                        Text="{Binding BoardId, StringFormat='Board ID: {0}'}" />
+                    </StackPanel>
+                </Border>
 
-            <!--  5. Connection  -->
-            <Border
+                <!--  2. Connection  -->
+                <Border
                 Name="ConnectionCard"
                 Padding="14"
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
-                <StackPanel Spacing="8">
-                    <TextBlock
+                    <StackPanel Spacing="8">
+                        <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"
                         Text="Connection" />
-                    <TextBlock Name="ConnectionStateTextBlock" Text="{Binding Snapshot.ConnectionStateText}" />
-                    <TextBlock
+                        <TextBlock Name="ConnectionStateTextBlock" Text="{Binding Snapshot.ConnectionStateText}" />
+                        <TextBlock
+                        Name="IdentityEndpointTextBlock"
+                        Opacity="0.7"
+                        Text="{Binding Endpoint}" />
+                        <TextBlock
                         Name="LastErrorTextBlock"
                         Foreground="{StaticResource SufniDangerColor}"
                         IsVisible="{Binding Snapshot.HasLastError}"
                         Text="{Binding Snapshot.LastError}" />
-                    <TextBlock
+                        <TextBlock
                         Name="SessionLengthTextBlock"
                         Opacity="0.7"
                         Text="{Binding Snapshot.SessionLengthText}" />
-                    <Grid ColumnDefinitions="* *" ColumnSpacing="8">
-                        <Button
+                        <Grid ColumnDefinitions="* *" ColumnSpacing="8">
+                            <Button
                             Name="ConnectButton"
                             Grid.Column="0"
                             HorizontalAlignment="Stretch"
                             Command="{Binding ConnectCommand}"
                             Content="Connect"
                             IsEnabled="{Binding CanConnect}" />
-                        <Button
+                            <Button
                             Name="DisconnectButton"
                             Grid.Column="1"
                             HorizontalAlignment="Stretch"
                             Command="{Binding DisconnectCommand}"
                             Content="Disconnect"
                             IsEnabled="{Binding CanDisconnect}" />
-                    </Grid>
-                </StackPanel>
-            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
-            <!--  6. Requested Rates  -->
-            <Border
+                <!--  3. Requested Rates  -->
+                <Border
                 Name="RequestedRatesCard"
                 Padding="14"
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
-                <StackPanel Spacing="10">
-                    <TextBlock
+                    <StackPanel Spacing="10">
+                        <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"
                         Text="Requested Rates" />
-                    <Grid
+                        <Grid
                         ColumnDefinitions="auto *"
                         ColumnSpacing="12"
                         RowDefinitions="auto auto auto"
                         RowSpacing="8">
-                        <TextBlock
+                            <TextBlock
                             Grid.Row="0"
                             Grid.Column="0"
                             VerticalAlignment="Center"
                             Text="Travel Hz" />
-                        <NumericUpDown
+                            <NumericUpDown
                             Name="RequestedTravelHzUpDown"
                             Grid.Row="0"
                             Grid.Column="1"
@@ -246,12 +128,12 @@
                             Minimum="0"
                             Value="{Binding RequestedTravelHz}" />
 
-                        <TextBlock
+                            <TextBlock
                             Grid.Row="1"
                             Grid.Column="0"
                             VerticalAlignment="Center"
                             Text="IMU Hz" />
-                        <NumericUpDown
+                            <NumericUpDown
                             Name="RequestedImuHzUpDown"
                             Grid.Row="1"
                             Grid.Column="1"
@@ -259,120 +141,253 @@
                             Minimum="0"
                             Value="{Binding RequestedImuHz}" />
 
-                        <TextBlock
+                            <TextBlock
                             Grid.Row="2"
                             Grid.Column="0"
                             VerticalAlignment="Center"
                             Text="GPS Hz" />
-                        <NumericUpDown
+                            <NumericUpDown
                             Name="RequestedGpsFixHzUpDown"
                             Grid.Row="2"
                             Grid.Column="1"
                             IsEnabled="{Binding AreRequestedRatesEnabled}"
                             Minimum="0"
                             Value="{Binding RequestedGpsFixHz}" />
-                    </Grid>
-                </StackPanel>
-            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
-            <!--  7. Accepted Session  -->
-            <Border
+                <!--  4. Accepted Session  -->
+                <Border
                 Name="AcceptedSessionCard"
                 Padding="14"
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
-                <StackPanel Spacing="6">
-                    <TextBlock
+                    <StackPanel Spacing="6">
+                        <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"
                         Text="Accepted Session" />
-                    <TextBlock Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
-                    <TextBlock Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuHz, StringFormat='IMU: {0} Hz'}" />
-                    <TextBlock Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
+                        <TextBlock Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
+                        <TextBlock Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuHz, StringFormat='IMU: {0} Hz'}" />
+                        <TextBlock Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  5. Readings  -->
+                <StackPanel Name="ReadingsSection" Spacing="10">
+                    <TextBlock
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Text="Readings" />
+
+                    <!--  5a. Travel  -->
+                    <Border
+                    Name="TravelCard"
+                    Padding="14"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="Travel"
+                            ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                            <TextBlock
+                            Name="TravelStatusTextBlock"
+                            Opacity="0.7"
+                            Text="{Binding Snapshot.Travel.SampleDelayText}" />
+                            <Border
+                            Padding="10"
+                            Background="{StaticResource SufniRegion}"
+                            CornerRadius="6">
+                                <TextBlock Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
+                            </Border>
+                            <Border
+                            Padding="10"
+                            Background="{StaticResource SufniRegion}"
+                            CornerRadius="6">
+                                <TextBlock Name="RearTravelTextBlock" Text="{Binding RearTravelText}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  5b. IMU  -->
+                    <Border
+                    Name="ImuCard"
+                    Padding="14"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="IMU" />
+                            <TextBlock
+                            Name="ImuSummaryTextBlock"
+                            Opacity="0.7"
+                            Text="{Binding Snapshot.Imus.Count, StringFormat='IMUs: {0}'}" />
+                            <TextBlock
+                            Name="ImuEmptyStateTextBlock"
+                            IsVisible="{Binding !Snapshot.HasImuData}"
+                            Opacity="0.7"
+                            Text="No active IMU samples yet." />
+                            <ItemsControl Name="ImuItemsControl" ItemsSource="{Binding Snapshot.Imus}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="live:LiveImuUiSnapshot">
+                                        <Border
+                                        Margin="0,0,0,8"
+                                        Padding="10"
+                                        Background="{StaticResource SufniRegion}"
+                                        CornerRadius="6">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Location}"
+                                                ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
+                                                <Grid
+                                                ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                                                ColumnSpacing="4"
+                                                RowDefinitions="Auto, Auto"
+                                                RowSpacing="2">
+                                                    <Grid.Styles>
+                                                        <Style Selector="TextBlock">
+                                                            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono" />
+                                                        </Style>
+                                                    </Grid.Styles>
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Acc" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="x:" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" Text="{Binding Ax}" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="3" Text="y:" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="4" HorizontalAlignment="Right" Text="{Binding Ay}" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="5" Text="z:" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="6" HorizontalAlignment="Right" Text="{Binding Az}" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Gyro" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="x:" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Right" Text="{Binding Gx}" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="y:" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right" Text="{Binding Gy}" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="5" Text="z:" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="6" HorizontalAlignment="Right" Text="{Binding Gz}" />
+                                                </Grid>
+                                                <TextBlock Opacity="0.7" Text="{Binding SampleDelayText}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  5c. GPS  -->
+                    <Border
+                    Name="GpsCard"
+                    Padding="14"
+                    Background="{StaticResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="GPS"
+                            ToolTip.Tip="{Binding Snapshot.Gps.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                            <TextBlock Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />
+                            <TextBlock Name="GpsCoordinatesTextBlock" Text="{Binding Snapshot.Gps.Latitude, StringFormat='Lat: {0:F4}'}" />
+                            <TextBlock Name="GpsLongitudeTextBlock" Text="{Binding Snapshot.Gps.Longitude, StringFormat='Lon: {0:F4}'}" />
+                            <TextBlock
+                            Name="GpsFixTimestampTextBlock"
+                            Opacity="0.7"
+                            Text="{Binding Snapshot.Gps.FixTimestampUtc, StringFormat='Fix time: {0:HH:mm:ss}'}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
 
-            <Button
-                Name="StartSessionButton"
-                Padding="0,12"
-                HorizontalAlignment="Stretch"
-                Classes="accent"
-                Command="{Binding StartSessionCommand}"
-                Content="Start Session"
-                FontSize="16"
-                FontWeight="SemiBold"
-                IsEnabled="{Binding CanStartSession}" />
-
-            <!--  8. Device Management  -->
-            <Border
+                <!--  6. Device Management  -->
+                <Border
                 Name="DeviceManagementCard"
                 Padding="14"
                 Background="{StaticResource SufniBackgroundDisabled}"
                 CornerRadius="8">
-                <StackPanel Spacing="10">
-                    <TextBlock
+                    <StackPanel Spacing="10">
+                        <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"
                         Text="Device Management" />
 
-                    <Border Name="SetTimeButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                        <Button
+                        <Border Name="SetTimeButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                            <Button
                             Name="SetTimeButton"
                             HorizontalAlignment="Stretch"
                             Command="{Binding SetTimeCommand}"
                             Content="Set Time"
                             IsEnabled="{Binding CanManage}" />
-                    </Border>
+                        </Border>
 
-                    <Border Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                        <Button
+                        <Border Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                            <Button
                             Name="SelectConfigButton"
                             HorizontalAlignment="Stretch"
                             Command="{Binding SelectConfigFileCommand}"
                             Content="Replace Config"
                             IsEnabled="{Binding CanManage}" />
-                    </Border>
+                        </Border>
 
-                    <TextBlock
+                        <TextBlock
                         Name="PendingConfigTextBlock"
                         IsVisible="{Binding HasPendingConfig}"
                         Opacity="0.7"
                         Text="{Binding PendingConfigFileName, StringFormat='Staged: {0}'}" />
 
-                    <Border Name="UploadConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                        <Button
+                        <Border Name="UploadConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                            <Button
                             Name="UploadConfigButton"
                             HorizontalAlignment="Stretch"
                             Command="{Binding UploadConfigCommand}"
                             Content="Upload CONFIG"
                             IsEnabled="{Binding CanUploadConfig}" />
-                    </Border>
-                </StackPanel>
-            </Border>
+                        </Border>
+                    </StackPanel>
+                </Border>
 
-            <!--  9. Notifications  -->
-            <controls:NotificationsBar Name="ManagementNotificationsBar" />
+                <!--  9. Notifications  -->
+                <controls:NotificationsBar Name="ManagementNotificationsBar" />
 
-            <!--  10. Errors  -->
-            <controls:ErrorMessagesBar Name="ManagementErrorMessagesBar" />
+                <!--  10. Errors  -->
+                <controls:ErrorMessagesBar Name="ManagementErrorMessagesBar" />
 
-        </StackPanel>
-    </ScrollViewer>
+            </StackPanel>
+        </ScrollViewer>
 
-        <Button
-            Grid.Row="1"
+        <Grid
+        Grid.Row="1"
+        Margin="14,0,14,14"
+        ColumnDefinitions="auto *"
+        ColumnSpacing="10">
+            <Button
             Name="BackButton"
+            Grid.Column="0"
             Width="39"
             Height="39"
-            Margin="14,0,14,14"
-            HorizontalAlignment="Left"
             HorizontalContentAlignment="Center"
             VerticalContentAlignment="Center"
             Command="{Binding OpenPreviousPageCommand}">
-            <Image
+                <Image
                 Width="16"
                 Height="16"
                 Source="{SvgImage /Assets/fa-arrow-left.svg}" />
-        </Button>
+            </Button>
+
+            <Button
+            Name="StartSessionButton"
+            Grid.Column="1"
+            Padding="14,12"
+            HorizontalAlignment="Stretch"
+            Classes="accent"
+            Command="{Binding StartSessionCommand}"
+            Content="Start Session"
+            FontSize="16"
+            FontWeight="SemiBold"
+            IsEnabled="{Binding CanStartSession}" />
+        </Grid>
     </Grid>
 </UserControl>

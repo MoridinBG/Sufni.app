@@ -140,7 +140,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task Loaded()
+    private Task Loaded()
     {
         logger.Debug(
             "Live DAQ detail loaded for {IdentityKey} {Endpoint}",
@@ -154,7 +154,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
         hasLoaded = true;
         StartForegroundUpdates();
-        await ConnectImplementationAsync(userInitiated: false);
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -466,11 +466,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         sessionState.ApplyFrame(frame);
     }
 
-    private LiveDaqStreamConfiguration CreateRequestedConfiguration() => new(
-        SensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu,
-        TravelHz: RequestedTravelHz ?? 0,
-        ImuHz: RequestedImuHz ?? 0,
-        GpsFixHz: RequestedGpsFixHz ?? 0);
+    private LiveDaqStreamConfiguration CreateRequestedConfiguration() => LiveDaqStreamConfiguration.FromRequestedRates(
+        RequestedTravelHz ?? 0,
+        RequestedImuHz ?? 0,
+        RequestedGpsFixHz ?? 0);
 
     private void RefreshSnapshot()
     {

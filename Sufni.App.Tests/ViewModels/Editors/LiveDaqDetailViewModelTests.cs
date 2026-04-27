@@ -135,6 +135,7 @@ public class LiveDaqDetailViewModelTests
         var editor = CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
         Assert.True(editor.StartSessionCommand.CanExecute(null));
 
@@ -162,20 +163,62 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_AutoConnects_AndAppliesAcceptedSessionState()
+    public async Task Loaded_DoesNotConnectAutomatically()
+    {
+        var editor = CreateEditor();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        sharedStream.Received(1).AcquireLease();
+        _ = sharedStream.DidNotReceive().ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
+        _ = sharedStream.DidNotReceive().EnsureStartedAsync(Arg.Any<CancellationToken>());
+        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+    }
+
+    [AvaloniaFact]
+    public async Task ConnectCommand_AppliesAcceptedSessionState()
     {
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
         var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu));
 
         await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
-        sharedStream.Received(1).AcquireLease();
         await sharedStream.Received(1).ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
         Assert.Equal((uint)808, editor.Snapshot.Session.SessionId);
         Assert.Equal("Board 1", editor.Name);
         Assert.Equal("192.168.0.50:1557", editor.Endpoint);
+    }
+
+    [AvaloniaFact]
+    public void CreateEditor_PrefillsDefaultRequestedRates()
+    {
+        var editor = CreateEditor();
+
+        Assert.Equal((uint)200, editor.RequestedTravelHz);
+        Assert.Equal((uint)200, editor.RequestedImuHz);
+        Assert.Equal((uint)0, editor.RequestedGpsFixHz);
+    }
+
+    [AvaloniaFact]
+    public async Task ConnectCommand_RequestsOnlyNonzeroRateSensors()
+    {
+        var editor = CreateEditor();
+        editor.RequestedTravelHz = 0;
+        editor.RequestedImuHz = 200;
+        editor.RequestedGpsFixHz = 0;
+
+        await editor.ConnectCommand.ExecuteAsync(null);
+
+        await sharedStream.Received(1).ApplyConfigurationAsync(
+            Arg.Is<LiveDaqStreamConfiguration>(configuration =>
+                configuration.SensorMask == LiveSensorMask.Imu
+                && configuration.TravelHz == 0
+                && configuration.ImuHz == 200
+                && configuration.GpsFixHz == 0),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -200,11 +243,11 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_ShowsDialogAndClosesTab_WhenStartIsRejected()
+    public async Task ConnectCommand_ShowsDialogAndClosesTab_WhenStartIsRejected()
     {
         var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
         await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.Received(1).Close(editor);
@@ -212,12 +255,12 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_DoesNotCloseTab_WhenRejectedDialogIsCancelled()
+    public async Task ConnectCommand_DoesNotCloseTab_WhenRejectedDialogIsCancelled()
     {
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(false));
         var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
         await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.DidNotReceive().Close(editor);
@@ -343,6 +386,8 @@ public class LiveDaqDetailViewModelTests
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
+        await editor1.ConnectCommand.ExecuteAsync(null);
+        await editor2.ConnectCommand.ExecuteAsync(null);
 
         await editor1.UnloadedCommand.ExecuteAsync(null);
 

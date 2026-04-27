@@ -29,9 +29,27 @@ public class LiveDaqDetailViewTests
 
         var stack = mounted.View.GetVisualDescendants()
             .OfType<StackPanel>()
-            .First(p => p.Children.OfType<Border>().Any(b => b.Name == "TravelCard"));
+            .First(p => p.Children.OfType<Border>().Any(b => b.Name == "SetupCard"));
 
         var orderedNames = stack.Children
+            .Select(c => c.Name)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .ToArray();
+
+        Assert.Equal(new[]
+        {
+            "SetupCard",
+            "ConnectionCard",
+            "RequestedRatesCard",
+            "AcceptedSessionCard",
+            "ReadingsSection",
+            "DeviceManagementCard",
+            "ManagementNotificationsBar",
+            "ManagementErrorMessagesBar",
+        }, orderedNames);
+
+        var readings = mounted.View.FindControl<StackPanel>("ReadingsSection")!;
+        var readingNames = readings.Children
             .Select(c => c.Name)
             .Where(n => !string.IsNullOrEmpty(n))
             .ToArray();
@@ -41,15 +59,21 @@ public class LiveDaqDetailViewTests
             "TravelCard",
             "ImuCard",
             "GpsCard",
-            "IdentityCard",
-            "ConnectionCard",
-            "RequestedRatesCard",
-            "AcceptedSessionCard",
-            "StartSessionButton",
-            "DeviceManagementCard",
-            "ManagementNotificationsBar",
-            "ManagementErrorMessagesBar",
-        }, orderedNames);
+        }, readingNames);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailView_BackAndStartSessionButtons_ShareBottomActionRow()
+    {
+        var editor = CreateEditor();
+        await using var mounted = await MountAsync(editor);
+
+        var backButton = mounted.View.FindControl<Button>("BackButton")!;
+        var startSessionButton = mounted.View.FindControl<Button>("StartSessionButton")!;
+
+        Assert.Same(backButton.Parent, startSessionButton.Parent);
+        Assert.Equal(0, Grid.GetColumn(backButton));
+        Assert.Equal(1, Grid.GetColumn(startSessionButton));
     }
 
     [AvaloniaFact]
