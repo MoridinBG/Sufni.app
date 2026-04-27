@@ -96,8 +96,8 @@ public abstract record SessionMobileLoadResult
 {
     private SessionMobileLoadResult() { }
 
-    public sealed record LoadedFromCache(SessionCachePresentationData Data, TelemetryData? Telemetry) : SessionMobileLoadResult;
-    public sealed record BuiltCache(SessionCachePresentationData Data, TelemetryData Telemetry) : SessionMobileLoadResult;
+    public sealed record LoadedFromCache(SessionCachePresentationData Data, TelemetryData? Telemetry, SessionTrackPresentationData? TrackData) : SessionMobileLoadResult;
+    public sealed record BuiltCache(SessionCachePresentationData Data, TelemetryData Telemetry, SessionTrackPresentationData TrackData) : SessionMobileLoadResult;
     public sealed record TelemetryPending : SessionMobileLoadResult;
     public sealed record Failed(string ErrorMessage) : SessionMobileLoadResult;
 }

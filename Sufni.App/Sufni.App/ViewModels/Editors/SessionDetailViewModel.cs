@@ -394,6 +394,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 ImuGraphState = HasImuTelemetry(TelemetryData)
                     ? SurfacePresentationState.Ready
                     : SurfacePresentationState.Hidden;
+                ApplyMobileTrackPresentation(loadedFromCache.TrackData);
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 lastObservedHasProcessedData = true;
@@ -408,6 +409,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 ImuGraphState = HasImuTelemetry(TelemetryData)
                     ? SurfacePresentationState.Ready
                     : SurfacePresentationState.Hidden;
+                ApplyMobileTrackPresentation(builtCache.TrackData);
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 lastObservedHasProcessedData = true;
@@ -422,6 +424,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
+    }
+
+    private void ApplyMobileTrackPresentation(SessionTrackPresentationData? trackData)
+    {
+        session.FullTrack = trackData?.FullTrackId;
+        FullTrackPoints = trackData?.FullTrackPoints;
+        TrackPoints = trackData?.TrackPoints;
+        MapVideoWidth = trackData?.MapVideoWidth;
+        MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
     }
 
     private async Task RequestLoadAsync()
@@ -484,7 +495,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BaselineUpdated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
-        GraphPage = new RecordedGraphPageViewModel(this);
+        GraphPage = new RecordedGraphPageViewModel(this, this);
         Pages = [GraphPage, SpringPage, DamperPage, BalancePage, NotesPage];
         MapViewModel = new MapViewModel(tileLayerService, dialogService);
         _ = MapViewModel.InitializeAsync();

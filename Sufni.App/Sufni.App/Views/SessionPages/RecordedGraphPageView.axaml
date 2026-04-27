@@ -7,84 +7,108 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:sessionGraphs="clr-namespace:Sufni.App.SessionGraphs"
+xmlns:v="clr-namespace:Sufni.App.Views"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:RecordedGraphPageViewModel"
 mc:Ignorable="d">
 
-    <Grid Width="{Binding $parent[ScrollViewer].Bounds.Width}">
-        <Grid x:Name="GraphGrid">
-            <Grid.Resources>
-                <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
-            </Grid.Resources>
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    IsScrollChainingEnabled="False">
+        <StackPanel Spacing="10">
+            <Grid MinHeight="420" Height="{Binding #PageScrollViewer.Bounds.Height}">
+                <Grid x:Name="GraphGrid">
+                    <Grid.Resources>
+                        <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+                    </Grid.Resources>
 
-            <Grid.RowDefinitions>
-                <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=5*}" />
-                <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=2*}" />
-            </Grid.RowDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=5*}" />
+                        <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=2*}" />
+                    </Grid.RowDefinitions>
 
-            <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
+                    <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="3* 2*">
+                                <plots:TravelPlotDesktopView
+                                Name="Travel"
+                                Grid.Row="0"
+                                MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
+                                Telemetry="{Binding Workspace.TelemetryData}"
+                                Timeline="{Binding Workspace.Timeline}"
+                                VelocityPlotView="{Binding #Velocity}"
+                                ImuPlotView="{Binding #Imu}" />
+
+                                <plots:VelocityPlotDesktopView
+                                Name="Velocity"
+                                Grid.Row="1"
+                                Margin="0,4,0,0"
+                                MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
+                                Telemetry="{Binding Workspace.TelemetryData}"
+                                Timeline="{Binding Workspace.Timeline}"
+                                TravelPlotView="{Binding #Travel}"
+                                ImuPlotView="{Binding #Imu}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <Grid RowDefinitions="3* 2*">
+                                <controls:SurfacePlaceholderCard Grid.Row="0" Title="Travel" />
+                                <controls:SurfacePlaceholderCard Grid.Row="1" Margin="0,4,0,0" Title="Velocity" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Row="1" PresentationState="{Binding Workspace.ImuGraphState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <plots:ImuPlotDesktopView
+                            Name="Imu"
+                            Margin="0,4,0,0"
+                            MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Timeline="{Binding Workspace.Timeline}"
+                            TravelPlotView="{Binding #Travel}"
+                            VelocityPlotView="{Binding #Velocity}" />
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="IMU" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+                </Grid>
+
+                <controls:SurfacePlaceholderCard
+                Name="NoGraphDataPlaceholder"
+                MinCardHeight="280"
+                Title="No graph data for this session.">
+                    <controls:SurfacePlaceholderCard.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!Workspace.TravelGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.ImuGraphState.ReservesLayout" />
+                        </MultiBinding>
+                    </controls:SurfacePlaceholderCard.IsVisible>
+                </controls:SurfacePlaceholderCard>
+            </Grid>
+
+            <controls:PlaceholderOverlayContainer
+            Name="MapHost"
+            Height="320"
+            IsVisible="{Binding MediaWorkspace.MapState.ReservesLayout}"
+            PresentationState="{Binding MediaWorkspace.MapState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>
-                    <Grid RowDefinitions="3* 2*">
-                        <plots:TravelPlotDesktopView
-                        Name="Travel"
-                        Grid.Row="0"
-                            MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
-                        Telemetry="{Binding Workspace.TelemetryData}"
-                        Timeline="{Binding Workspace.Timeline}"
-                        VelocityPlotView="{Binding #Velocity}"
-                        ImuPlotView="{Binding #Imu}" />
-
-                        <plots:VelocityPlotDesktopView
-                        Name="Velocity"
-                        Grid.Row="1"
-                        Margin="0,4,0,0"
-                            MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
-                        Telemetry="{Binding Workspace.TelemetryData}"
-                        Timeline="{Binding Workspace.Timeline}"
-                        TravelPlotView="{Binding #Travel}"
-                        ImuPlotView="{Binding #Imu}" />
-                    </Grid>
+                    <v:MapView
+                    Name="MobileMapView"
+                    DataContext="{Binding MediaWorkspace.MapViewModel}"
+                    Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.Timeline}" />
                 </controls:PlaceholderOverlayContainer.ReadyContent>
-
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    <Grid RowDefinitions="3* 2*">
-                        <controls:SurfacePlaceholderCard Grid.Row="0" Title="Travel" />
-                        <controls:SurfacePlaceholderCard Grid.Row="1" Margin="0,4,0,0" Title="Velocity" />
-                    </Grid>
+                    <controls:SurfacePlaceholderCard Title="Map" />
                 </controls:PlaceholderOverlayContainer.PlaceholderContent>
             </controls:PlaceholderOverlayContainer>
-
-            <controls:PlaceholderOverlayContainer Grid.Row="1" PresentationState="{Binding Workspace.ImuGraphState}">
-                <controls:PlaceholderOverlayContainer.ReadyContent>
-                    <plots:ImuPlotDesktopView
-                    Name="Imu"
-                    Margin="0,4,0,0"
-                        MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
-                    Telemetry="{Binding Workspace.TelemetryData}"
-                    Timeline="{Binding Workspace.Timeline}"
-                    TravelPlotView="{Binding #Travel}"
-                    VelocityPlotView="{Binding #Velocity}" />
-                </controls:PlaceholderOverlayContainer.ReadyContent>
-
-                <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="IMU" />
-                </controls:PlaceholderOverlayContainer.PlaceholderContent>
-            </controls:PlaceholderOverlayContainer>
-        </Grid>
-
-        <controls:SurfacePlaceholderCard
-        Name="NoGraphDataPlaceholder"
-        MinCardHeight="280"
-        Title="No graph data for this session.">
-            <controls:SurfacePlaceholderCard.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="!Workspace.TravelGraphState.ReservesLayout" />
-                    <Binding Path="!Workspace.ImuGraphState.ReservesLayout" />
-                </MultiBinding>
-            </controls:SurfacePlaceholderCard.IsVisible>
-        </controls:SurfacePlaceholderCard>
-    </Grid>
+        </StackPanel>
+    </ScrollViewer>
 
 </UserControl>
