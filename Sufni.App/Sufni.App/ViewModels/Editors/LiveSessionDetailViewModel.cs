@@ -124,7 +124,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline);
         uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
-        LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace);
+        LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
         Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage];
         WireNotesPageForwarding();
 

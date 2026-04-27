@@ -160,15 +160,27 @@ public class SessionCoordinator
             {
                 logger.Verbose("Mobile session cache hit for {SessionId}", sessionId);
                 var cachedTelemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
+                SessionTrackPresentationData? cachedTrackData = null;
                 if (cachedTelemetryData is null)
                 {
                     logger.Warning("Mobile session cache is present but local telemetry could not be read for {SessionId}", sessionId);
+                }
+                else
+                {
+                    var cachedFullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
+                    logger.Verbose("Resolving cached mobile track data for session {SessionId}", sessionId);
+                    cachedTrackData = await trackCoordinator.LoadSessionTrackAsync(
+                        sessionId,
+                        cachedFullTrackId,
+                        cachedTelemetryData,
+                        cancellationToken);
                 }
 
                 logger.Information("Mobile session load completed from cache for {SessionId}", sessionId);
                 return new SessionMobileLoadResult.LoadedFromCache(
                     SessionCachePresentationData.FromCache(cached),
-                    cachedTelemetryData);
+                    cachedTelemetryData,
+                    cachedTrackData);
             }
 
             logger.Verbose("Mobile session cache miss for {SessionId}", sessionId);
@@ -181,11 +193,11 @@ public class SessionCoordinator
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
+            var mobileFullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
             logger.Verbose("Resolving track data for mobile session {SessionId}", sessionId);
-            _ = await trackCoordinator.LoadSessionTrackAsync(
+            var trackData = await trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
-                fullTrackId,
+                mobileFullTrackId,
                 telemetryData,
                 cancellationToken);
 
@@ -204,7 +216,7 @@ public class SessionCoordinator
                 cancellationToken);
 
             logger.Information("Mobile session load completed for {SessionId}", sessionId);
-            return new SessionMobileLoadResult.BuiltCache(presentation, telemetryData);
+            return new SessionMobileLoadResult.BuiltCache(presentation, telemetryData, trackData);
         }
         catch (OperationCanceledException)
         {

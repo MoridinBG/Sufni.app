@@ -287,7 +287,8 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
             false),
-            TestTelemetryData.Create());
+            TestTelemetryData.Create(),
+            null);
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
@@ -310,6 +311,46 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
         Assert.False(editor.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnMobile_AppliesTrackPresentationToMapState()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var fullTrackPoints = new List<TrackPoint>
+        {
+            new(0, 0, 0, null),
+            new(1, 100, 100, null),
+        };
+        var trackPoints = new List<TrackPoint>
+        {
+            new(0, 0, 0, null),
+            new(1, 100, 100, null),
+        };
+        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+            "front-travel",
+            null,
+            "front-velocity",
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            false),
+            TestTelemetryData.Create(),
+            new SessionTrackPresentationData(Guid.NewGuid(), fullTrackPoints, trackPoints, 400));
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+
+        Assert.Same(trackPoints, editor.TrackPoints);
+        Assert.Same(fullTrackPoints, editor.FullTrackPoints);
+        Assert.Equal(400, editor.MapVideoWidth);
+        Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
+        Assert.True(editor.HasMediaContent);
+        Assert.Same(trackPoints, editor.MapViewModel!.SessionTrackPoints);
     }
 
     [AvaloniaFact]
@@ -407,7 +448,8 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
             false),
-            TestTelemetryData.Create()));
+            TestTelemetryData.Create(),
+            new SessionTrackPresentationData(null, null, null, null)));
 
         await loadTask;
 
@@ -430,6 +472,7 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
             false),
+            null,
             null);
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);

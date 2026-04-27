@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using BruTile.Predefined;
 using BruTile.Web;
@@ -83,14 +84,8 @@ public partial class MapView : UserControl
             mapControl.Map.Layers.Add(positionMarkerLayer);
 
             mapControl.Map.Navigator.ViewportChanged += OnNavigatorViewportChanged;
-            mapControl.PointerPressed += (_, _) => mapPointerInteractionActive = true;
-            mapControl.PointerMoved += (_, _) =>
-            {
-                if (mapPointerInteractionActive)
-                {
-                    QueueViewportChangedNotification();
-                }
-            };
+            mapControl.PointerPressed += OnMapPointerPressed;
+            mapControl.PointerMoved += OnMapPointerMoved;
             mapControl.PointerReleased += (_, _) =>
             {
                 QueueViewportChangedNotification();
@@ -192,6 +187,21 @@ public partial class MapView : UserControl
         }
 
         mapControl.Refresh();
+    }
+
+    private void OnMapPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        e.PreventGestureRecognition();
+        mapPointerInteractionActive = true;
+    }
+
+    private void OnMapPointerMoved(object? sender, PointerEventArgs e)
+    {
+        e.PreventGestureRecognition();
+        if (mapPointerInteractionActive)
+        {
+            QueueViewportChangedNotification();
+        }
     }
 
     private void UpdateTileLayer(TileLayerConfig config)
