@@ -8,6 +8,7 @@ namespace Sufni.App.Services;
 public interface IDialogService
 {
     public void SetOwner(Window owner);
+    public void SetOverlayHost(Control host);
     public Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true);
     public Task<TileLayerConfig?> ShowAddTileLayerDialogAsync();
     public Task<bool> ShowConfirmationAsync(string title, string message);

@@ -16,6 +16,7 @@ internal static class MainPagesViewModelTestFactory
 {
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
+        TrackCoordinator? trackCoordinator = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
         var bikeStore = Substitute.For<IBikeStore>();
@@ -23,7 +24,7 @@ internal static class MainPagesViewModelTestFactory
         var sessionStore = Substitute.For<ISessionStore>();
         var pairedDeviceStore = Substitute.For<IPairedDeviceStore>();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
-        var trackCoordinator = TestCoordinatorSubstitutes.Track();
+        trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         var syncCoordinator = TestCoordinatorSubstitutes.Sync();
         var shell = Substitute.For<IShellCoordinator>();
 

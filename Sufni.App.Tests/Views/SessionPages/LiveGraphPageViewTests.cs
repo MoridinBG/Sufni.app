@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -6,11 +8,15 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
+using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.SessionPages;
 
@@ -28,11 +34,14 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
 
-        var page = new LiveGraphPageViewModel(workspace);
+        var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
         await using var mounted = await MountAsync(page);
 
-        var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
+        var hosts = mounted.View.GetVisualDescendants()
+            .OfType<PlaceholderOverlayContainer>()
+            .Where(host => host.Name != "MapHost")
+            .ToArray();
         Assert.Equal(2, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
         Assert.Equal(SurfacePresentationState.Hidden, hosts[1].PresentationState);
@@ -48,12 +57,42 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
 
-        var page = new LiveGraphPageViewModel(workspace);
+        var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
         await using var mounted = await MountAsync(page);
 
         Assert.Same(workspace, page.Workspace);
         Assert.Same(page, mounted.View.DataContext);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveGraphPageView_RendersMapBelowGraphs_WhenMapReady()
+    {
+        var graphWorkspace = Substitute.For<ILiveSessionGraphWorkspace>();
+        graphWorkspace.GraphBatches.Returns(new Subject<LiveGraphBatch>());
+        graphWorkspace.PlotRanges.Returns(new LiveSessionPlotRanges(TravelMaximum: 180, VelocityMaximum: 5, ImuMaximum: 5));
+        graphWorkspace.Timeline.Returns(new SessionTimelineLinkViewModel());
+        graphWorkspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
+        graphWorkspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        var mediaWorkspace = CreateMediaWorkspace(
+        [
+            new TrackPoint(0, 0, 0, null),
+            new TrackPoint(1, 100, 100, null),
+        ]);
+
+        var page = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
+
+        await using var mounted = await MountAsync(page);
+
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
+        var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().Single();
+
+        Assert.NotNull(mapHost);
+        Assert.True(mapHost!.IsVisible);
+        Assert.True(mapView.IsVisible);
+        Assert.Same(mediaWorkspace.MapViewModel, mapView.DataContext);
+        Assert.Same(mediaWorkspace.Timeline, mapView.Timeline);
+        Assert.NotNull(mapView.FindControl<ComboBox>("TileProviderComboBox"));
     }
 
     private static async Task<MountedLiveGraphPageView> MountAsync(LiveGraphPageViewModel page)
@@ -68,6 +107,40 @@ public class LiveGraphPageViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(new ScrollViewer { Content = view });
         return new MountedLiveGraphPageView(host, view);
+    }
+
+    private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
+    {
+        var tileLayerService = Substitute.For<ITileLayerService>();
+        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+
+        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        {
+            FullTrackPoints = [],
+            SessionTrackPoints = trackPoints.ToList(),
+        };
+
+        return new SessionMediaWorkspaceStub(mapViewModel);
+    }
+
+    private sealed class SessionMediaWorkspaceStub : ISessionMediaWorkspace
+    {
+        private readonly MapViewModel mapViewModel;
+
+        public SessionMediaWorkspaceStub(MapViewModel mapViewModel)
+        {
+            this.mapViewModel = mapViewModel;
+        }
+
+        public bool HasMediaContent => MapState.ReservesLayout;
+        public MapViewModel? MapViewModel => mapViewModel;
+        public SurfacePresentationState MapState => mapViewModel.SessionTrackPoints?.Count > 0
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState VideoState => SurfacePresentationState.Hidden;
+        public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public double? MapVideoWidth => 400;
+        public string? VideoUrl => null;
     }
 }
 

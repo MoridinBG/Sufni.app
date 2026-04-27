@@ -82,11 +82,13 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                     if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
                     {
                         oldTimeline.PropertyChanged -= OnTimelineChanged;
+                        oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
                     }
 
                     if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
                     {
                         newTimeline.PropertyChanged += OnTimelineChanged;
+                        newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
                         ApplyTimelineRange();
                     }
                     break;
@@ -121,7 +123,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
         var plotControl = PlotControl;
 
-        plotControl.PointerMoved += (_, args) =>
+        void UpdateCursor(Avalonia.Input.PointerEventArgs args)
         {
             if (Plot is null)
             {
@@ -139,7 +141,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             Timeline?.SetCursorPosition(normalizedTime);
             Plot.SetCursorFromNormalized(normalizedTime);
             RefreshPlot();
-        };
+        }
+
+        plotControl.PointerPressed += (_, args) => UpdateCursor(args);
+        plotControl.PointerMoved += (_, args) => UpdateCursor(args);
 
         plotControl.PointerReleased += (_, _) => UpdateTimelineRange();
         plotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();
@@ -290,12 +295,17 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                 Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
                 RefreshPlot();
                 break;
-
-            case nameof(SessionTimelineLinkViewModel.VisibleRangeStart):
-            case nameof(SessionTimelineLinkViewModel.VisibleRangeEnd):
-                ApplyTimelineRange();
-                break;
         }
+    }
+
+    private void OnTimelineVisibleRangeChanged(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(Timeline?.VisibleRangeChangeSource, this))
+        {
+            return;
+        }
+
+        ApplyTimelineRange();
     }
 
     protected override void OnViewportChanged() => UpdateTimelineRange();
@@ -308,7 +318,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         }
 
         var (start, end) = Plot.GetNormalizedVisibleRange();
-        Timeline.SetVisibleRange(start, end);
+        Timeline.SetVisibleRange(start, end, this);
     }
 
     private void ApplyTimelineRange()
