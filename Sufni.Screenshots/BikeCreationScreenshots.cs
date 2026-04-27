@@ -45,6 +45,7 @@ public class BikeCreationScreenshots
             HeadAngle: 0,
             ForkStroke: null,
             ShockStroke: null,
+            RearSuspensionKind: RearSuspensionKind.None,
             Chainstay: null,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: null,
@@ -54,8 +55,9 @@ public class BikeCreationScreenshots
             RearWheelRimSize: null,
             RearWheelTireWidth: null,
             ImageRotationDegrees: 0,
+            LeverageRatio: null,
             Linkage: null,
-            Image: null,
+            ImageBytes: [],
             Updated: 1);
 
         var vm = CreateViewModel(snapshot, isNew: true);
@@ -71,6 +73,7 @@ public class BikeCreationScreenshots
             HeadAngle: 64.5,
             ForkStroke: 170,
             ShockStroke: null,
+            RearSuspensionKind: RearSuspensionKind.None,
             Chainstay: null,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: null,
@@ -80,8 +83,9 @@ public class BikeCreationScreenshots
             RearWheelRimSize: null,
             RearWheelTireWidth: null,
             ImageRotationDegrees: 0,
+            LeverageRatio: null,
             Linkage: null,
-            Image: null,
+            ImageBytes: [],
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
@@ -97,6 +101,7 @@ public class BikeCreationScreenshots
             HeadAngle: 64.5,
             ForkStroke: 170,
             ShockStroke: 57.5,
+            RearSuspensionKind: RearSuspensionKind.None,
             Chainstay: 440,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: null,
@@ -106,8 +111,9 @@ public class BikeCreationScreenshots
             RearWheelRimSize: null,
             RearWheelTireWidth: null,
             ImageRotationDegrees: 0,
+            LeverageRatio: null,
             Linkage: null,
-            Image: SmallTestImage(),
+            ImageBytes: SmallTestImageBytes(),
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
@@ -123,6 +129,7 @@ public class BikeCreationScreenshots
             HeadAngle: 64.5,
             ForkStroke: 170,
             ShockStroke: 57.5,
+            RearSuspensionKind: RearSuspensionKind.None,
             Chainstay: 440,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
@@ -132,8 +139,9 @@ public class BikeCreationScreenshots
             RearWheelRimSize: EtrtoRimSize.Inch275,
             RearWheelTireWidth: 2.5,
             ImageRotationDegrees: 0,
+            LeverageRatio: null,
             Linkage: null,
-            Image: SmallTestImage(),
+            ImageBytes: SmallTestImageBytes(),
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
@@ -169,15 +177,7 @@ public class BikeCreationScreenshots
 
     private static BikeEditorViewModel CreateViewModel(BikeSnapshot snapshot, bool isNew = false)
     {
-        var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
-        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
-        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
-        bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
+        var bikeCoordinator = CreateBikeCoordinator();
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
@@ -192,17 +192,33 @@ public class BikeCreationScreenshots
             Substitute.For<IDialogService>());
     }
 
+    private static BikeCoordinator CreateBikeCoordinator()
+    {
+        var bikeCoordinator = Substitute.For<BikeCoordinator>(
+            Substitute.For<IBikeStoreWriter>(),
+            Substitute.For<IDatabaseService>(),
+            Substitute.For<IBikeDependencyQuery>(),
+            Substitute.For<IShellCoordinator>(),
+            Substitute.For<IBikeEditorService>(),
+            Substitute.For<IDialogService>());
+
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
+        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
+        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
+        bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
+
+        return bikeCoordinator;
+    }
+
     private static async Task FlushAsync() =>
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-    private static WriteableBitmap SmallTestImage()
-    {
-        return new WriteableBitmap(
-            new PixelSize(100, 60),
-            new Vector(96, 96),
-            PixelFormat.Bgra8888,
-            AlphaFormat.Premul);
-    }
+    private static byte[] SmallTestImageBytes() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lX+SQwAAAABJRU5ErkJggg==");
 
     private static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
         Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);

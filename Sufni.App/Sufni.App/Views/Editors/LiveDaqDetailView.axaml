@@ -13,10 +13,6 @@
     Background="{StaticResource SufniRegion}"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:LiveDaqDetailViewModel />
-    </Design.DataContext>
-
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />

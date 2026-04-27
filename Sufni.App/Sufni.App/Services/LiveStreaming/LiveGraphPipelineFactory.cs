@@ -4,7 +4,7 @@ using Serilog;
 
 namespace Sufni.App.Services.LiveStreaming;
 
-internal sealed class LiveGraphPipelineFactory : ILiveGraphPipelineFactory
+internal sealed class LiveGraphPipelineFactory
 {
     public ILiveGraphPipeline Create()
     {

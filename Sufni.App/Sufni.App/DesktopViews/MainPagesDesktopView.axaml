@@ -11,10 +11,6 @@ d:DesignWidth="500"
 x:DataType="vm:MainPagesViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:MainPagesViewModel />
-    </Design.DataContext>
-
     <UserControl.Resources>
         <v:ProgressToArcConverter x:Key="ProgressToArcConverter" />
     </UserControl.Resources>

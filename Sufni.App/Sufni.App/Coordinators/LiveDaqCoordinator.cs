@@ -15,7 +15,7 @@ namespace Sufni.App.Coordinators;
 
 // Reconciles discovery entries with known-board app data and routes row selection to
 // identity-keyed live preview tabs.
-public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
+public class LiveDaqCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
 
@@ -24,7 +24,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
-    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly SessionCoordinator sessionCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITileLayerService tileLayerService;
@@ -44,7 +44,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqCatalogService liveDaqCatalogService,
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
         ILiveSessionServiceFactory liveSessionServiceFactory,
-        ISessionCoordinator sessionCoordinator,
+        SessionCoordinator sessionCoordinator,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,
@@ -68,7 +68,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         this.dialogService = dialogService;
     }
 
-    public void Activate()
+    public virtual void Activate()
     {
         if (activeSubscriptions is not null)
         {
@@ -101,7 +101,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         }));
     }
 
-    public void Deactivate()
+    public virtual void Deactivate()
     {
         var wasActive = activeSubscriptions is not null;
         activeSubscriptions?.Dispose();
@@ -119,7 +119,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         }
     }
 
-    public Task SelectAsync(string identityKey)
+    public virtual Task SelectAsync(string identityKey)
     {
         var snapshot = liveDaqStore.Get(identityKey);
         if (snapshot is null)
@@ -152,7 +152,7 @@ public sealed class LiveDaqCoordinator : ILiveDaqCoordinator
         return Task.CompletedTask;
     }
 
-    public Task OpenSessionAsync(string identityKey)
+    public virtual Task OpenSessionAsync(string identityKey)
     {
         var snapshot = liveDaqStore.Get(identityKey);
         if (snapshot is null)

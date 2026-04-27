@@ -9,27 +9,21 @@ namespace Sufni.App.ViewModels.Rows;
 /// Presentation wrapper around a <see cref="SessionSnapshot"/> for use
 /// inside the session list. Refreshes itself via <see cref="Update"/>
 /// when the underlying snapshot changes. <see cref="OpenPage"/> routes
-/// through <see cref="ISessionCoordinator"/>;
+/// through <see cref="SessionCoordinator"/>;
 /// <see cref="UndoableDelete"/> hands the row back to the owning list
 /// view model via the <c>requestDelete</c> callback so the list can run
 /// its pending-delete undo window before finalizing.
 /// </summary>
 public sealed class SessionRowViewModel : ListItemRowViewModelBase
 {
-    private readonly ISessionCoordinator? sessionCoordinator;
-    private readonly Action<SessionRowViewModel>? requestDelete;
+    private readonly SessionCoordinator sessionCoordinator;
+    private readonly Action<SessionRowViewModel> requestDelete;
 
     public Guid Id { get; private set; }
 
-    public SessionRowViewModel()
-    {
-        sessionCoordinator = null;
-        requestDelete = null;
-    }
-
     public SessionRowViewModel(
         SessionSnapshot snapshot,
-        ISessionCoordinator sessionCoordinator,
+        SessionCoordinator sessionCoordinator,
         Action<SessionRowViewModel> requestDelete)
     {
         this.sessionCoordinator = sessionCoordinator;
@@ -49,12 +43,11 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
 
     protected override async Task OpenPageAsync()
     {
-        if (sessionCoordinator is null) return;
         await sessionCoordinator.OpenEditAsync(Id);
     }
 
     protected override void UndoableDelete()
     {
-        requestDelete?.Invoke(this);
+        requestDelete(this);
     }
 }

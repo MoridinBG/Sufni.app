@@ -20,10 +20,8 @@ public class MainPagesDesktopViewTests
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
 
-        var viewModel = new MainPagesViewModel
-        {
-            PairingServerViewModel = new PairingServerViewModel(pairingCoordinator)
-        };
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator));
 
         var view = new MainPagesDesktopView
         {
@@ -73,10 +71,7 @@ public class MainPagesDesktopViewTests
 
         var view = new MainPagesDesktopView
         {
-            DataContext = new MainPagesViewModel
-            {
-                PairingServerViewModel = pairingViewModel,
-            }
+            DataContext = MainPagesViewModelTestFactory.Create(pairingServerViewModel: pairingViewModel)
         };
 
         await using var mounted = await MountAsync(view);

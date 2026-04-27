@@ -15,8 +15,13 @@ public partial class PairingServerViewModel : ViewModelBase
     #region Observable properties
 
     [ObservableProperty] private string? pairingPin;
-    [ObservableProperty] private string? requestingId;
-    [ObservableProperty] private string? requestingDisplayName;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RequestingName))]
+    private string? requestingId;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RequestingName))]
+    private string? requestingDisplayName;
     [ObservableProperty] private double remaining;
 
     /// <summary>
@@ -28,17 +33,9 @@ public partial class PairingServerViewModel : ViewModelBase
     public string? RequestingName =>
         string.IsNullOrWhiteSpace(RequestingDisplayName) ? RequestingId : RequestingDisplayName;
 
-    partial void OnRequestingIdChanged(string? value) => OnPropertyChanged(nameof(RequestingName));
-    partial void OnRequestingDisplayNameChanged(string? value) => OnPropertyChanged(nameof(RequestingName));
-
     #endregion
 
     #region Constructors
-
-    public PairingServerViewModel()
-    {
-        coordinator = null!;
-    }
 
     public PairingServerViewModel(IPairingServerCoordinator coordinator)
     {

@@ -17,7 +17,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStream>();
 
-    private readonly ILiveDaqClientFactory liveDaqClientFactory;
+    private readonly Func<ILiveDaqClient> createLiveDaqClient;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly BufferedFrameStream frames;
@@ -39,11 +39,11 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public LiveDaqSharedStream(
         LiveDaqSnapshot snapshot,
-        ILiveDaqClientFactory liveDaqClientFactory,
+        Func<ILiveDaqClient> createLiveDaqClient,
         Func<LiveDaqSharedStream, Task> evictAsync)
     {
         this.snapshot = snapshot;
-        this.liveDaqClientFactory = liveDaqClientFactory;
+        this.createLiveDaqClient = createLiveDaqClient;
         this.evictAsync = evictAsync;
         frames = new BufferedFrameStream(FrameBufferCapacity);
     }
@@ -544,7 +544,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             return liveDaqClient;
         }
 
-        liveDaqClient = liveDaqClientFactory.CreateClient();
+        liveDaqClient = createLiveDaqClient();
         liveDaqClientSubscription = liveDaqClient.Events
             .ObserveOn(clientEventScheduler)
             .Subscribe(clientEvent => _ = HandleClientEventAsync(clientEvent));

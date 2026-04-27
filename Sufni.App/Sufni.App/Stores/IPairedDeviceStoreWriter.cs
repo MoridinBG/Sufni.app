@@ -3,7 +3,7 @@ namespace Sufni.App.Stores;
 /// <summary>
 /// Write surface for the paired-device store. Convention: only the
 /// composition root and the
-/// <see cref="Coordinators.IPairedDeviceCoordinator"/> take a
+/// <see cref="Coordinators.PairedDeviceCoordinator"/> takes a
 /// dependency on this interface. The list view model takes
 /// <see cref="IPairedDeviceStore"/> instead.
 /// </summary>

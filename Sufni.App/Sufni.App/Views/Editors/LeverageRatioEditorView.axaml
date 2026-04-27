@@ -10,10 +10,6 @@ d:DesignWidth="600"
 x:DataType="vm:LeverageRatioEditorViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:LeverageRatioEditorViewModel />
-    </Design.DataContext>
-
     <StackPanel Spacing="8">
         <Grid
         Name="SummaryGrid"

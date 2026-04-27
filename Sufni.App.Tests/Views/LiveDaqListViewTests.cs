@@ -17,7 +17,7 @@ public class LiveDaqListViewTests
     [AvaloniaFact]
     public async Task LiveDaqListView_RendersRowsWithBoundFields()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -47,7 +47,7 @@ public class LiveDaqListViewTests
     [AvaloniaFact]
     public async Task LiveDaqListView_HidesBoardIdAndEndpoint_WhenSameAsDisplayName()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -70,7 +70,7 @@ public class LiveDaqListViewTests
     [AvaloniaFact]
     public async Task LiveDaqListView_OfflineRow_IsDisabled_AndShowsOfflineBadgeAndFade()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -95,7 +95,7 @@ public class LiveDaqListViewTests
     [AvaloniaFact]
     public async Task LiveDaqListView_RowTap_InvokesRowSelectedCommand_WithRow()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -120,7 +120,7 @@ public class LiveDaqListViewTests
     [AvaloniaFact]
     public async Task LiveDaqListView_OfflineRowTap_DoesNotInvokeCoordinator()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -145,7 +145,7 @@ public class LiveDaqListViewTests
     [AvaloniaFact]
     public async Task LiveDaqListView_SearchTextFilter_HidesNonMatchingRows()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "alpha",

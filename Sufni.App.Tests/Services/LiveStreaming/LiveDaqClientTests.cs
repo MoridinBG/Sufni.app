@@ -5,7 +5,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reactive.Linq;
 using System.Threading;
-using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.Telemetry;
 
@@ -38,7 +37,7 @@ public class LiveDaqClientTests
             await stream.FlushAsync();
         });
 
-        await using var client = new LiveDaqClientFactory(new BackgroundTaskRunner()).CreateClient();
+        await using var client = new LiveDaqClient();
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
         var result = await client.StartPreviewAsync(
@@ -71,7 +70,7 @@ public class LiveDaqClientTests
             await stream.FlushAsync();
         });
 
-        await using var client = new LiveDaqClientFactory(new BackgroundTaskRunner()).CreateClient();
+        await using var client = new LiveDaqClient();
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
         var result = await client.StartPreviewAsync(
@@ -154,7 +153,7 @@ public class LiveDaqClientTests
             await stream.FlushAsync();
         });
 
-        await using var client = new LiveDaqClientFactory(new BackgroundTaskRunner()).CreateClient();
+        await using var client = new LiveDaqClient();
         var observedFrames = new List<LiveProtocolFrame>();
         var framesObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = client.Events.Subscribe(clientEvent =>
@@ -339,7 +338,7 @@ public class LiveDaqClientTests
             await stream.FlushAsync();
         });
 
-        await using var client = new LiveDaqClientFactory(new BackgroundTaskRunner()).CreateClient();
+        await using var client = new LiveDaqClient();
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
         var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0));
@@ -459,17 +458,6 @@ public class LiveDaqClientTests
         var trackingClient = Assert.Single(createdClients);
         Assert.True(trackingClient.WasDisposed);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
-    }
-
-    [Fact]
-    public async Task CreateClient_ReturnsDistinctInstances()
-    {
-        var factory = new LiveDaqClientFactory(new BackgroundTaskRunner());
-
-        await using var first = factory.CreateClient();
-        await using var second = factory.CreateClient();
-
-        Assert.NotSame(first, second);
     }
 
     private static async Task<byte[]> ReadExactAsync(Stream stream, int length)

@@ -24,7 +24,7 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
-    private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
+    private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
@@ -273,7 +273,7 @@ public class LiveDaqCoordinatorTests
         var other = new LiveDaqDetailViewModel(
             snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
             sharedStream,
-            Substitute.For<ILiveDaqCoordinator>(),
+            TestCoordinatorSubstitutes.LiveDaq(),
             daqManagementService,
             filesService,
             shell,

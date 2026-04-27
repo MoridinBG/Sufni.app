@@ -58,8 +58,8 @@ public class ImportSessionsViewTests
         var filesService = Substitute.For<IFilesService>();
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = Substitute.For<ISetupCoordinator>();
-        var importSessionsCoordinator = Substitute.For<IImportSessionsCoordinator>();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var setupStore = Substitute.For<ISetupStore>();
 
         var dataStores = new ObservableCollection<ITelemetryDataStore>();
@@ -147,8 +147,8 @@ public class ImportSessionsViewTests
         var filesService = Substitute.For<IFilesService>();
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = Substitute.For<ISetupCoordinator>();
-        var importSessionsCoordinator = Substitute.For<IImportSessionsCoordinator>();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var setupStore = Substitute.For<ISetupStore>();
 
         var dataStores = new ObservableCollection<ITelemetryDataStore>();

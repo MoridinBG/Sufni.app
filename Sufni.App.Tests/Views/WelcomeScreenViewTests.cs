@@ -34,14 +34,11 @@ public class WelcomeScreenViewTests
 
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
-        var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-        var setupCoordinator = Substitute.For<ISetupCoordinator>();
-        var importSessionsCoordinator = Substitute.For<IImportSessionsCoordinator>();
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var filesService = Substitute.For<IFilesService>();
 
-        bikeCoordinator.OpenCreateAsync().Returns(Task.CompletedTask);
-        setupCoordinator.OpenCreateForDetectedBoardAsync().Returns(Task.CompletedTask);
-        importSessionsCoordinator.OpenAsync().Returns(Task.CompletedTask);
         filesService.OpenLogsFolderAsync().Returns(Task.CompletedTask);
 
         var viewModel = new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService);
@@ -74,13 +71,10 @@ public class WelcomeScreenViewTests
     {
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
-        var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-        var setupCoordinator = Substitute.For<ISetupCoordinator>();
-        var importSessionsCoordinator = Substitute.For<IImportSessionsCoordinator>();
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var filesService = Substitute.For<IFilesService>();
-        bikeCoordinator.OpenCreateAsync().Returns(Task.CompletedTask);
-        setupCoordinator.OpenCreateForDetectedBoardAsync().Returns(Task.CompletedTask);
-        importSessionsCoordinator.OpenAsync().Returns(Task.CompletedTask);
         filesService.OpenLogsFolderAsync().Returns(Task.CompletedTask);
         return new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService);
     }

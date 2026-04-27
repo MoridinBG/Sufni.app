@@ -1,3 +1,4 @@
+using Sufni.App.Tests.Views;
 using Sufni.App.ViewModels;
 
 namespace Sufni.App.Tests.ViewModels;
@@ -7,8 +8,8 @@ public class MainWindowViewModelTests
     [Fact]
     public void OpenView_SwitchesTabActivity()
     {
-        var welcome = new WelcomeScreenViewModel();
-        var mainWindow = new MainWindowViewModel(new MainPagesViewModel(), welcome);
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome);
         var secondTab = new TestTabPage();
 
         Assert.True(welcome.IsTabActive);

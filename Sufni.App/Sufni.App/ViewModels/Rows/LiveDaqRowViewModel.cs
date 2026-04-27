@@ -25,8 +25,6 @@ public partial class LiveDaqRowViewModel : ObservableObject
     // Show Endpoint only when it differs from the display name.
     [ObservableProperty] private bool showEndpoint;
 
-    public LiveDaqRowViewModel() { }
-
     public LiveDaqRowViewModel(LiveDaqSnapshot snapshot)
     {
         Update(snapshot);

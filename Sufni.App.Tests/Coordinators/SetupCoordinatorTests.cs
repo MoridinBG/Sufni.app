@@ -14,7 +14,7 @@ public class SetupCoordinatorTests
 {
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
-    private readonly IBikeCoordinator bikeCoordinator = Substitute.For<IBikeCoordinator>();
+    private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ITelemetryDataStoreService telemetry = Substitute.For<ITelemetryDataStoreService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();

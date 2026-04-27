@@ -11,7 +11,7 @@ namespace Sufni.App.ViewModels.Rows;
 /// inside a list. Row view models are cheap, non-editable and refresh
 /// themselves via <see cref="Update"/> when the underlying snapshot
 /// changes. <see cref="OpenPage"/> routes through
-/// <see cref="IBikeCoordinator"/>; <see cref="UndoableDelete"/> hands
+/// <see cref="BikeCoordinator"/>; <see cref="UndoableDelete"/> hands
 /// the row back to the owning list view model via the
 /// <c>requestDelete</c> callback so the list can run its pending-delete
 /// undo window before finalizing.
@@ -22,24 +22,16 @@ namespace Sufni.App.ViewModels.Rows;
 /// </summary>
 public sealed class BikeRowViewModel : ListItemRowViewModelBase, IDisposable
 {
-    private readonly IBikeCoordinator? bikeCoordinator;
-    private readonly Action<BikeRowViewModel>? requestDelete;
-    private readonly IBikeDependencyQuery? dependencyQuery;
-    private readonly IDisposable? changesSubscription;
+    private readonly BikeCoordinator bikeCoordinator;
+    private readonly Action<BikeRowViewModel> requestDelete;
+    private readonly IBikeDependencyQuery dependencyQuery;
+    private readonly IDisposable changesSubscription;
 
     public Guid Id { get; private set; }
 
-    public BikeRowViewModel()
-    {
-        bikeCoordinator = null;
-        requestDelete = null;
-        dependencyQuery = null;
-        changesSubscription = null;
-    }
-
     public BikeRowViewModel(
         BikeSnapshot snapshot,
-        IBikeCoordinator bikeCoordinator,
+        BikeCoordinator bikeCoordinator,
         Action<BikeRowViewModel> requestDelete,
         IBikeDependencyQuery dependencyQuery)
     {
@@ -68,20 +60,19 @@ public sealed class BikeRowViewModel : ListItemRowViewModelBase, IDisposable
 
     public void Dispose()
     {
-        changesSubscription?.Dispose();
+        changesSubscription.Dispose();
     }
 
     protected override async Task OpenPageAsync()
     {
-        if (bikeCoordinator is null) return;
         await bikeCoordinator.OpenEditAsync(Id);
     }
 
     protected override void UndoableDelete()
     {
-        requestDelete?.Invoke(this);
+        requestDelete(this);
     }
 
     protected override bool CanDelete() =>
-        dependencyQuery is null || !dependencyQuery.IsBikeInUse(Id);
+        !dependencyQuery.IsBikeInUse(Id);
 }

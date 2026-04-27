@@ -16,11 +16,6 @@ Background="{StaticResource SufniRegion}"
 Focusable="True"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:SessionDetailViewModel />
-    </Design.DataContext>
-
-    <!--  Ensure that the SufniTelemetryPlotViews' Telemetry property is set  -->
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />

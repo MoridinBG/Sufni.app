@@ -48,8 +48,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Private fields
 
-    private readonly IBikeCoordinator? bikeCoordinator;
-    private readonly IBikeDependencyQuery? dependencyQuery;
+    private readonly BikeCoordinator bikeCoordinator;
+    private readonly IBikeDependencyQuery dependencyQuery;
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeSnapshot acceptedSnapshot;
     private BikeRearSuspensionEditorState acceptedRearSuspensionState = new BikeRearSuspensionEditorState.Hardtail();
@@ -185,25 +185,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Constructors
 
-    public BikeEditorViewModel()
-    {
-        bikeCoordinator = null;
-        dependencyQuery = null;
-        acceptedSnapshot = BikeSnapshot.From(new BikeModel(Guid.Empty, string.Empty));
-        IsInDatabase = false;
-        LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
-        LeverageRatioEditor.ImportCommand = ImportLeverageRatioCommand;
-        LinkageEditor.PreviewChanged += OnLinkageEditorPreviewChanged;
-        LinkageEditor.StateChanged += OnLinkageEditorStateChanged;
-        LeverageRatioEditor.Changed += OnLeverageRatioEditorChanged;
-        WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
-        ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
-    }
-
     public BikeEditorViewModel(
         BikeSnapshot snapshot,
         bool isNew,
-        IBikeCoordinator bikeCoordinator,
+        BikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
         IDialogService dialogService)
@@ -535,8 +520,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     private async Task RefreshAnalysisAsync(bool showPlotBusyOverlay = false)
     {
-        if (bikeCoordinator is null) return;
-
         var token = analysisOperation.Start();
         IsPlotBusy = showPlotBusyOverlay;
         try
@@ -985,8 +968,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        if (bikeCoordinator is null) return;
-
         if (IsLinkageMode)
         {
             RecalculateGroundRotation();
@@ -1036,12 +1017,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     }
 
     protected override bool CanDelete() =>
-        !IsInDatabase || dependencyQuery is null || !dependencyQuery.IsBikeInUse(Id);
+        !IsInDatabase || !dependencyQuery.IsBikeInUse(Id);
 
     protected override async Task DeleteImplementation(bool navigateBack)
     {
-        if (bikeCoordinator is null) return;
-
         if (!IsInDatabase)
         {
             if (navigateBack) OpenPreviousPage();
@@ -1071,8 +1050,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override async Task ExportImplementation()
     {
-        if (bikeCoordinator is null) return;
-
         var result = await bikeCoordinator.ExportBikeAsync(BikeModel.FromSnapshot(ToSnapshot(BaselineUpdated)));
         if (result is BikeExportResult.Failed failed)
         {
@@ -1098,8 +1075,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task OpenImage()
     {
-        if (bikeCoordinator is null) return;
-
         var token = imageOperation.Start();
         try
         {
@@ -1122,15 +1097,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     }
 
     private bool CanImportLeverageRatio() =>
-        bikeCoordinator is not null &&
         LeverageRatioEditor.CanEdit &&
         IsLeverageRatioMode;
 
     [RelayCommand(CanExecute = nameof(CanImportLeverageRatio))]
     private async Task ImportLeverageRatio()
     {
-        if (bikeCoordinator is null) return;
-
         var token = leverageRatioImportOperation.Start();
         try
         {
@@ -1147,8 +1119,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task Import()
     {
-        if (bikeCoordinator is null) return;
-
         analysisOperation.Cancel();
         var token = importOperation.Start();
         try
@@ -1178,13 +1148,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     private async Task Loaded()
     {
         // Refresh Delete CanExecute when "in use" status changes.
-        if (dependencyQuery is not null)
+        EnsureScopedSubscription(s => s.Add(dependencyQuery.Changes.Subscribe(_ =>
         {
-            EnsureScopedSubscription(s => s.Add(dependencyQuery.Changes.Subscribe(_ =>
-            {
-                NotifyDeleteCommandStateChanged();
-            })));
-        }
+            NotifyDeleteCommandStateChanged();
+        })));
 
         await RefreshAnalysisAsync();
     }

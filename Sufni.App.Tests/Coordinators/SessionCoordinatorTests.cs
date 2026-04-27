@@ -21,7 +21,7 @@ public class SessionCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
-    private readonly ITrackCoordinator trackCoordinator = Substitute.For<ITrackCoordinator>();
+    private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();

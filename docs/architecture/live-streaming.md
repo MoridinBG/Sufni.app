@@ -6,7 +6,7 @@
 
 The live feature lets a desktop user inspect a connected DAQ in a diagnostics tab and optionally open a separate live session tab that accumulates graphable data and can persist it as a normal recorded session. It exists as a dedicated desktop feature slice: a primary page lists known and discovered DAQs, selection opens a diagnostics tab, and `Start Session` opens a second tab that subscribes to the same underlying transport.
 
-The feature is intentionally separate from the import pipeline. It does not reuse `ITelemetryDataStoreService.DataStores` for list state and does not share browse stop/start behavior with the import page. The diagnostics and live-session tabs share a per-identity transport through the live-streaming service layer, and the live session save path persists through `ISessionCoordinator` rather than through the live DAQ coordinator. The diagnostics tab also exposes desktop-only management actions (Set Time and Replace Config) that run through a separate management service and only while the live client is disconnected.
+The feature is intentionally separate from the import pipeline. It does not reuse `ITelemetryDataStoreService.DataStores` for list state and does not share browse stop/start behavior with the import page. The diagnostics and live-session tabs share a per-identity transport through the live-streaming service layer, and the live session save path persists through `SessionCoordinator` rather than through the live DAQ coordinator. The diagnostics tab also exposes desktop-only management actions (Set Time and Replace Config) that run through a separate management service and only while the live client is disconnected.
 
 ```mermaid
 graph LR
@@ -91,7 +91,7 @@ Live session tab loads
 
 User saves live capture
   -> LiveSessionService.PrepareCaptureForSaveAsync
-    -> ISessionCoordinator.SaveLiveCaptureAsync
+    -> SessionCoordinator.SaveLiveCaptureAsync
       -> TelemetryData.FromLiveCapture
         -> optional Track.FromGpsRecords + databaseService.PutAsync(track)
         -> databaseService.PutSessionAsync(session)
@@ -267,5 +267,5 @@ The management endpoint is resolved from the latest `ILiveDaqStore` snapshot on 
 5. **Throttled UI updates** — sensor data arrives at packet rate but UI binding updates are snapshot-based and throttled by `DispatcherTimer`, not by raw frame arrival.
 6. **Lease-based browse** — browse ownership uses reference counting so import and live can browse concurrently without interfering.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
-8. **Create-only live save** — live sessions persist through `ISessionCoordinator.SaveLiveCaptureAsync(...)`, which always inserts a brand-new recorded session row rather than mutating the live tab in place.
+8. **Create-only live save** — live sessions persist through `SessionCoordinator.SaveLiveCaptureAsync(...)`, which always inserts a brand-new recorded session row rather than mutating the live tab in place.
 9. **Disconnected-only management** — the detail tab disables management actions while its live client is connected instead of trying to arbitrate concurrent LIVE and MGMT workflows on the DAQ's single-client port.

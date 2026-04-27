@@ -19,7 +19,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly ISetupStore setupStore;
-    private readonly ISetupCoordinator setupCoordinator;
+    private readonly SetupCoordinator setupCoordinator;
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
     private (Guid Id, string Name)? pendingDelete;
@@ -34,16 +34,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     #region Constructors
 
-    public SetupListViewModel()
-    {
-        setupStore = null!;
-        setupCoordinator = null!;
-        setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>([]);
-    }
-
     public SetupListViewModel(
         ISetupStore setupStore,
-        ISetupCoordinator setupCoordinator)
+        SetupCoordinator setupCoordinator)
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;
