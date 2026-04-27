@@ -12,7 +12,7 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStreamRegistry>();
 
-    private readonly ILiveDaqClientFactory liveDaqClientFactory;
+    private readonly Func<ILiveDaqClient> createLiveDaqClient;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly object gate = new();
     private readonly IDisposable catalogSubscription;
@@ -21,10 +21,10 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
     private IDisposable? browseLease;
 
     public LiveDaqSharedStreamRegistry(
-        ILiveDaqClientFactory liveDaqClientFactory,
+        Func<ILiveDaqClient> createLiveDaqClient,
         ILiveDaqCatalogService liveDaqCatalogService)
     {
-        this.liveDaqClientFactory = liveDaqClientFactory;
+        this.createLiveDaqClient = createLiveDaqClient;
         this.liveDaqCatalogService = liveDaqCatalogService;
         catalogSubscription = liveDaqCatalogService.Observe().Subscribe(entries => _ = HandleCatalogEntriesAsync(entries));
     }
@@ -45,7 +45,7 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
             }
 
             EnsureBrowseLeaseLocked();
-            var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, EvictAsync);
+            var stream = new LiveDaqSharedStream(snapshot, createLiveDaqClient, EvictAsync);
             streams.Add(snapshot.IdentityKey, stream);
             return stream;
         }

@@ -21,7 +21,7 @@ graph LR
     Import -->|"StartBrowse / StopBrowse"| DSS
     Import -->|"LoadFilesAsync / TryAddStorageProviderAsync"| DSS
     Import -->|"FindByBoardId"| SetupStore["ISetupStore"]
-    Import -->|"ImportAsync(progress)"| Coord["IImportSessionsCoordinator"]
+    Import -->|"ImportAsync(progress)"| Coord["ImportSessionsCoordinator"]
     Coord --> Runner["IBackgroundTaskRunner"]
     Coord --> DB["IDatabaseService"]
     Coord --> SessionStore["ISessionStoreWriter"]
@@ -39,7 +39,7 @@ graph LR
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file, send TCP delete command, etc.)
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
-**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `ISetupCoordinator`; neither screen constructs concrete datastore implementations itself.
+**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `SetupCoordinator`; neither screen constructs concrete datastore implementations itself.
 
 ### Import Screen Boundaries
 
@@ -49,7 +49,7 @@ The import-sessions feature is the canonical worked example of the current bound
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads `IDatabaseService` directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for the welcome-screen create-setup flow.
-- `IImportSessionsCoordinator` owns the full per-file import / trash workflow, session persistence, session-store upserts, background execution, and per-file progress reporting.
+- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, session persistence, session-store upserts, background execution, and per-file progress reporting.
 
 ### Mass Storage
 

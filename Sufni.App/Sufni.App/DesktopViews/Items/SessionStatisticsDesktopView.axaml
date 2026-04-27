@@ -13,10 +13,6 @@ d:DesignWidth="800"
 x:DataType="vm:ISessionStatisticsWorkspace"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:SessionDetailViewModel />
-    </Design.DataContext>
-
     <Grid RowDefinitions="auto *">
         <Grid.Resources>
             <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />

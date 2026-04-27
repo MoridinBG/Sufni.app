@@ -8,18 +8,18 @@ using Serilog;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class SetupCoordinator(
+public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStore bikeStore,
-    IBikeCoordinator bikeCoordinator,
+    BikeCoordinator bikeCoordinator,
     IDatabaseService databaseService,
     ITelemetryDataStoreService telemetryDataStoreService,
     IShellCoordinator shell,
-    IDialogService dialogService) : ISetupCoordinator
+    IDialogService dialogService)
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
-    public Task OpenCreateAsync(Guid? suggestedBoardId = null)
+    public virtual Task OpenCreateAsync(Guid? suggestedBoardId = null)
     {
         // Honour the suggested board ID only if no other setup claims it.
         Guid? actualBoardId = null;
@@ -45,7 +45,7 @@ public sealed class SetupCoordinator(
         return Task.CompletedTask;
     }
 
-    public async Task OpenCreateForDetectedBoardAsync()
+    public virtual async Task OpenCreateForDetectedBoardAsync()
     {
         logger.Information("Starting setup create for detected board");
         var detected = await telemetryDataStoreService.DetectConnectedBoardIdAsync();
@@ -53,7 +53,7 @@ public sealed class SetupCoordinator(
         await OpenCreateAsync(detected);
     }
 
-    public Task OpenEditAsync(Guid setupId)
+    public virtual Task OpenEditAsync(Guid setupId)
     {
         var snapshot = setupStore.Get(setupId);
         if (snapshot is null) return Task.CompletedTask;
@@ -71,7 +71,7 @@ public sealed class SetupCoordinator(
         return Task.CompletedTask;
     }
 
-    public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
+    public virtual async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
     {
         logger.Information("Starting setup save for {SetupId}", setup.Id);
 
@@ -111,7 +111,7 @@ public sealed class SetupCoordinator(
         }
     }
 
-    public async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
+    public virtual async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
     {
         logger.Information("Starting setup delete for {SetupId}", setupId);
 
@@ -154,4 +154,21 @@ public sealed class SetupCoordinator(
             await databaseService.PutAsync(new Board(newBoardId.Value, setupId));
         }
     }
+}
+
+public abstract record SetupSaveResult
+{
+    private SetupSaveResult() { }
+
+    public sealed record Saved(long NewBaselineUpdated) : SetupSaveResult;
+    public sealed record Conflict(SetupSnapshot CurrentSnapshot) : SetupSaveResult;
+    public sealed record Failed(string ErrorMessage) : SetupSaveResult;
+}
+
+public sealed record SetupDeleteResult(SetupDeleteOutcome Outcome, string? ErrorMessage = null);
+
+public enum SetupDeleteOutcome
+{
+    Deleted,
+    Failed
 }

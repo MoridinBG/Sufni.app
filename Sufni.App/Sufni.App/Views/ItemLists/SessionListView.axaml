@@ -16,10 +16,6 @@
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vml:SessionListViewModel />
-    </Design.DataContext>
-
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
 
         <!--  List of Sessions  -->

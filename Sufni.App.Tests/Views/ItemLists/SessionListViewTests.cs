@@ -19,7 +19,7 @@ public class SessionListViewTests
 
         var snapshot = TestSnapshots.Session(name: "Morning Ride", timestamp: 1_700_000_000, hasProcessedData: false);
         var store = new SessionStoreStub(snapshot);
-        var coordinator = Substitute.For<ISessionCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
         var viewModel = new SessionListViewModel(store, coordinator);

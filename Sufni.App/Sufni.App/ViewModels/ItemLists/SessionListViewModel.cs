@@ -21,7 +21,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly ISessionStore sessionStore;
-    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly SessionCoordinator sessionCoordinator;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<SessionSnapshot, bool>> filterSubject = new(_ => true);
     private (Guid Id, string Name)? pendingDelete;
@@ -36,14 +36,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #region Constructors
 
-    public SessionListViewModel()
-    {
-        sessionStore = null!;
-        sessionCoordinator = null!;
-        sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>([]);
-    }
-
-    public SessionListViewModel(ISessionStore sessionStore, ISessionCoordinator sessionCoordinator)
+    public SessionListViewModel(ISessionStore sessionStore, SessionCoordinator sessionCoordinator)
     {
         this.sessionStore = sessionStore;
         this.sessionCoordinator = sessionCoordinator;

@@ -14,10 +14,6 @@ d:DesignWidth="800"
 x:DataType="vm:BikeEditorViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:BikeEditorViewModel />
-    </Design.DataContext>
-
     <UserControl.Styles>
         <StyleInclude Source="avares://Xaml.Behaviors.Interactions.Draggable/Styles.axaml" />
         <Style Selector="SelectingItemsControl">

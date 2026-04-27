@@ -16,10 +16,6 @@
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vml:SetupListViewModel />
-    </Design.DataContext>
-
     <Grid ColumnDefinitions="*" RowDefinitions="* auto auto">
 
         <!--  List of Setups  -->

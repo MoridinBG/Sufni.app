@@ -7,7 +7,7 @@ using Serilog;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class SyncCoordinator : ISyncCoordinator
+public class SyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
 
@@ -67,7 +67,7 @@ public sealed class SyncCoordinator : ISyncCoordinator
         }
     }
 
-    public async Task SyncAllAsync()
+    public virtual async Task SyncAllAsync()
     {
         if (!CanSync)
         {
@@ -125,3 +125,6 @@ public sealed class SyncCoordinator : ISyncCoordinator
         await pairedDeviceStore.RefreshAsync();
     }
 }
+
+public sealed record SyncCompletedEventArgs(string Message);
+public sealed record SyncFailedEventArgs(string ErrorMessage);

@@ -11,10 +11,6 @@ d:DesignWidth="500"
 x:DataType="vm:BalancePageViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:BalancePageViewModel />
-    </Design.DataContext>
-
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical">
             <controls:PlaceholderOverlayContainer PresentationState="{Binding CompressionBalanceState}">

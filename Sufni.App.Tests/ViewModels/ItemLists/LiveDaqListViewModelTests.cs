@@ -11,7 +11,7 @@ public class LiveDaqListViewModelTests
     [Fact]
     public void Activate_DelegatesToCoordinator()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
 
         viewModel.Activate();
@@ -22,7 +22,7 @@ public class LiveDaqListViewModelTests
     [Fact]
     public void Deactivate_DelegatesToCoordinator()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
 
         viewModel.Deactivate();
@@ -34,7 +34,7 @@ public class LiveDaqListViewModelTests
     public void SearchText_FiltersItems_AcrossLiveDaqPresentationFields()
     {
         var store = new LiveDaqStore();
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(store, coordinator);
 
         store.Upsert(new LiveDaqSnapshot(
@@ -74,7 +74,7 @@ public class LiveDaqListViewModelTests
     [Fact]
     public async Task RowSelectedCommand_SelectsIdentityKey_WhenRowProvided()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
         var row = new LiveDaqRowViewModel(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -94,7 +94,7 @@ public class LiveDaqListViewModelTests
     [Fact]
     public async Task RowSelectedCommand_DoesNothing_WhenRowIsNull()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
 
         await viewModel.RowSelectedCommand.ExecuteAsync(null);
@@ -105,7 +105,7 @@ public class LiveDaqListViewModelTests
     [Fact]
     public async Task RowSelectedCommand_IgnoresOfflineRow()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
         var offlineRow = new LiveDaqRowViewModel(new LiveDaqSnapshot(
             IdentityKey: "board-offline",

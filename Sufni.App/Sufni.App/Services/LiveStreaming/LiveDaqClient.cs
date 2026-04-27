@@ -6,7 +6,6 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Sufni.App.Services;
 using Serilog;
 
 namespace Sufni.App.Services.LiveStreaming;
@@ -899,18 +898,4 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     {
         ObjectDisposedException.ThrowIf(isDisposed, this);
     }
-}
-
-public sealed class LiveDaqClientFactory : ILiveDaqClientFactory
-{
-    public LiveDaqClientFactory()
-    {
-    }
-
-    public LiveDaqClientFactory(IBackgroundTaskRunner _)
-    {
-    }
-
-    // Returns a new transport client for one live preview tab.
-    public ILiveDaqClient CreateClient() => new LiveDaqClient();
 }

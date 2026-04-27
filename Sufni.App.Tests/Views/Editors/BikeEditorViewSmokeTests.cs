@@ -256,16 +256,7 @@ public class BikeEditorViewSmokeTests
 
     private static BikeEditorViewModel CreateViewModel(BikeSnapshot? snapshot = null, IDialogService? dialogService = null)
     {
-        var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
-        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
-        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
-        bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
-
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
         dependencyQuery.IsBikeInUse(Arg.Any<Guid>()).Returns(false);

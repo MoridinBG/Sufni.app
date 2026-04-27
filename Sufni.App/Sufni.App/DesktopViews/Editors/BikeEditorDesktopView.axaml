@@ -12,11 +12,6 @@ d:DesignWidth="800"
 x:DataType="vm:BikeEditorViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:BikeEditorViewModel />
-    </Design.DataContext>
-
-    <!--  Ensure that the LeverageRatioPlotViews' LeverageRatioData property is set  -->
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />

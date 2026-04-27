@@ -12,10 +12,6 @@ d:DesignWidth="500"
 x:DataType="vm:DamperPageViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:DamperPageViewModel />
-    </Design.DataContext>
-
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical">
             <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontHistogramState}">

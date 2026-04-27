@@ -16,10 +16,6 @@
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vml:LiveDaqListViewModel />
-    </Design.DataContext>
-
     <UserControl.Styles>
         <Style Selector="Button.liveDaqRow.offline">
             <Setter Property="Opacity" Value="0.5" />

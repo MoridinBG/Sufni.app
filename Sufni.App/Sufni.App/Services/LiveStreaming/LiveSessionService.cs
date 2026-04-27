@@ -18,7 +18,7 @@ namespace Sufni.App.Services.LiveStreaming;
 internal sealed class LiveSessionServiceFactory(
     ISessionPresentationService sessionPresentationService,
     IBackgroundTaskRunner backgroundTaskRunner,
-    ILiveGraphPipelineFactory liveGraphPipelineFactory) : ILiveSessionServiceFactory
+    LiveGraphPipelineFactory liveGraphPipelineFactory) : ILiveSessionServiceFactory
 {
     public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStream sharedStream)
     {

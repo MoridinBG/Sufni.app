@@ -16,9 +16,9 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly ISetupStore setupStore;
     private readonly ISessionStore sessionStore;
     private readonly IPairedDeviceStore pairedDeviceStore;
-    private readonly IImportSessionsCoordinator importSessionsCoordinator;
-    private readonly ITrackCoordinator trackCoordinator;
-    private readonly ISyncCoordinator syncCoordinator;
+    private readonly ImportSessionsCoordinator importSessionsCoordinator;
+    private readonly TrackCoordinator trackCoordinator;
+    private readonly SyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly ItemListViewModelBase[] primaryPages;
     private ItemListViewModelBase? activePrimaryPage;
@@ -45,34 +45,14 @@ public partial class MainPagesViewModel : ViewModelBase
 
     #region Constructors
 
-    public MainPagesViewModel()
-    {
-        bikeStore = null!;
-        setupStore = null!;
-        sessionStore = null!;
-        pairedDeviceStore = null!;
-        importSessionsCoordinator = null!;
-        trackCoordinator = null!;
-        syncCoordinator = null!;
-        shell = null!;
-        ImportSessionsPage = new();
-        BikesPage = new();
-        SetupsPage = new();
-        SessionsPage = new();
-        LiveDaqsPage = new();
-        PairedDevicesPage = new();
-        primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
-        activePrimaryPage = SessionsPage;
-    }
-
     public MainPagesViewModel(
         IBikeStore bikeStore,
         ISetupStore setupStore,
         ISessionStore sessionStore,
         IPairedDeviceStore pairedDeviceStore,
-        IImportSessionsCoordinator importSessionsCoordinator,
-        ITrackCoordinator trackCoordinator,
-        ISyncCoordinator syncCoordinator,
+        ImportSessionsCoordinator importSessionsCoordinator,
+        TrackCoordinator trackCoordinator,
+        SyncCoordinator syncCoordinator,
         IShellCoordinator shell,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,

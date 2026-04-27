@@ -29,12 +29,6 @@ public partial class PairingClientViewModel : ViewModelBase
 
     #region Constructors
 
-    public PairingClientViewModel()
-    {
-        coordinator = null!;
-        shell = null!;
-    }
-
     public PairingClientViewModel(
         IPairingClientCoordinator coordinator,
         IShellCoordinator shell)

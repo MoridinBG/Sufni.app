@@ -20,7 +20,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IBikeStore bikeStore;
-    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly BikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
     private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
@@ -36,17 +36,9 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     #region Constructors
 
-    public BikeListViewModel()
-    {
-        bikeStore = null!;
-        bikeCoordinator = null!;
-        dependencyQuery = null!;
-        bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>([]);
-    }
-
     public BikeListViewModel(
         IBikeStore bikeStore,
-        IBikeCoordinator bikeCoordinator,
+        BikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery)
     {
         this.bikeStore = bikeStore;

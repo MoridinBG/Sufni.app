@@ -28,10 +28,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 {
     private readonly LiveSessionGraphWorkspaceViewModel graphWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
-    private readonly ILiveSessionService? liveSessionService;
-    private readonly ISessionCoordinator? sessionCoordinator;
-    private readonly ISessionPresentationService? sessionPresentationService;
-    private readonly IBackgroundTaskRunner? backgroundTaskRunner;
+    private readonly ILiveSessionService liveSessionService;
+    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionPresentationService sessionPresentationService;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly DispatcherTimer uiRefreshTimer;
     private readonly object presentationGate = new();
     private readonly object graphBatchRefreshGate = new();
@@ -72,12 +72,20 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]
+    [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
+    [NotifyPropertyChangedFor(nameof(CompressionBalanceState))]
+    [NotifyPropertyChangedFor(nameof(ReboundBalanceState))]
     private TelemetryData? telemetryData;
 
     [ObservableProperty]
     private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]
+    [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
+    [NotifyPropertyChangedFor(nameof(CompressionBalanceState))]
+    [NotifyPropertyChangedFor(nameof(ReboundBalanceState))]
     private LiveSessionControlState controlState = LiveSessionControlState.Empty;
 
     [ObservableProperty]
@@ -88,22 +96,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public SurfacePresentationState CompressionBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Compression);
     public SurfacePresentationState ReboundBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Rebound);
 
-    public LiveSessionDetailViewModel()
-    {
-        IdentityKey = string.Empty;
-        graphWorkspace = new LiveSessionGraphWorkspaceViewModel();
-        mediaWorkspace = new LiveSessionMediaWorkspaceViewModel();
-        uiRefreshTimer = CreateUiRefreshTimer();
-        Name = CreateDefaultName(DateTimeOffset.Now);
-        LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace);
-        Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage];
-        WireNotesPageForwarding();
-    }
-
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
         ILiveSessionService liveSessionService,
-        ISessionCoordinator sessionCoordinator,
+        SessionCoordinator sessionCoordinator,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,
@@ -150,22 +146,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         };
     }
 
-    partial void OnTelemetryDataChanged(TelemetryData? value)
-    {
-        OnPropertyChanged(nameof(FrontStatisticsState));
-        OnPropertyChanged(nameof(RearStatisticsState));
-        OnPropertyChanged(nameof(CompressionBalanceState));
-        OnPropertyChanged(nameof(ReboundBalanceState));
-    }
-
-    partial void OnControlStateChanged(LiveSessionControlState value)
-    {
-        OnPropertyChanged(nameof(FrontStatisticsState));
-        OnPropertyChanged(nameof(RearStatisticsState));
-        OnPropertyChanged(nameof(CompressionBalanceState));
-        OnPropertyChanged(nameof(ReboundBalanceState));
-    }
-
     [RelayCommand]
     private async Task Loaded(Rect? bounds = null)
     {
@@ -178,14 +158,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         uiRefreshTimer.Start();
         RefreshUi();
 
-        if (liveSessionService is not null)
+        EnsureScopedSubscription(disposables =>
         {
-            EnsureScopedSubscription(disposables =>
-            {
-                disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh));
-                disposables.Add(liveSessionService.GraphBatches.Subscribe(QueueGraphBatchRefresh));
-            });
-        }
+            disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh));
+            disposables.Add(liveSessionService.GraphBatches.Subscribe(QueueGraphBatchRefresh));
+        });
 
         if (hasLoaded)
         {
@@ -194,11 +171,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         hasLoaded = true;
         await mediaWorkspace.InitializeAsync();
-
-        if (liveSessionService is null)
-        {
-            return;
-        }
 
         await liveSessionService.EnsureAttachedAsync();
         ApplyPresentation(liveSessionService.Current);
@@ -228,10 +200,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         uiRefreshTimer.Stop();
         CancelBake();
 
-        if (liveSessionService is not null)
-        {
-            await liveSessionService.DisposeAsync();
-        }
+        await liveSessionService.DisposeAsync();
     }
 
     protected override void EvaluateDirtiness()
@@ -251,22 +220,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     protected override async Task ResetImplementation()
     {
-        if (liveSessionService is null)
-        {
-            return;
-        }
-
         await liveSessionService.ResetCaptureAsync();
         ResetCapturePresentation();
     }
 
     protected override async Task SaveImplementation()
     {
-        if (liveSessionService is null || sessionCoordinator is null)
-        {
-            return;
-        }
-
         var shouldRefreshAutoName = string.IsNullOrWhiteSpace(Name) || IsAutoGeneratedName(Name);
 
         try
@@ -562,8 +521,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private void MaybeQueueBake(TelemetryData? telemetryData)
     {
         if (telemetryData is null ||
-            sessionPresentationService is null ||
-            backgroundTaskRunner is null ||
             lastPresentationDimensions is not { } dimensions)
         {
             return;
@@ -748,7 +705,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         lastBakedTelemetryData = null;
         ClearStatisticsPages();
         graphWorkspace.Timeline.Reset();
-        ApplyPresentation(liveSessionService!.Current);
+        ApplyPresentation(liveSessionService.Current);
     }
 
     private void ClearStatisticsPages()

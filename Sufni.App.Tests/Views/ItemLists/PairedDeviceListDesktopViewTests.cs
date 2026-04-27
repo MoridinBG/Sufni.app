@@ -6,6 +6,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Controls;
 using Sufni.App.DesktopViews.ItemLists;
+using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
@@ -24,8 +25,7 @@ public class PairedDeviceListDesktopViewTests
             DisplayName: "Phone",
             Expires: new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc));
         var store = new PairedDeviceStoreStub(snapshot);
-        var coordinator = Substitute.For<IPairedDeviceCoordinator>();
-        var viewModel = new PairedDeviceListViewModel(store, coordinator);
+        var viewModel = new PairedDeviceListViewModel(store, CreateCoordinator());
         var view = new PairedDeviceListDesktopView
         {
             DataContext = viewModel,
@@ -52,7 +52,7 @@ public class PairedDeviceListDesktopViewTests
 
         var view = new PairedDeviceListDesktopView
         {
-            DataContext = new PairedDeviceListViewModel(new PairedDeviceStoreStub(), Substitute.For<IPairedDeviceCoordinator>()),
+            DataContext = new PairedDeviceListViewModel(new PairedDeviceStoreStub(), CreateCoordinator()),
         };
 
         await using var mounted = await MountAsync(view);
@@ -68,6 +68,9 @@ public class PairedDeviceListDesktopViewTests
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedPairedDeviceListDesktopView(host, view);
     }
+
+    private static PairedDeviceCoordinator CreateCoordinator() =>
+        new(Substitute.For<IPairedDeviceStoreWriter>(), Substitute.For<IDatabaseService>());
 }
 
 internal sealed class MountedPairedDeviceListDesktopView(Window host, PairedDeviceListDesktopView view) : IAsyncDisposable

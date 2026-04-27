@@ -8,7 +8,7 @@ namespace Sufni.App.Stores;
 /// Read-only view of the paired-device collection. Injected into the
 /// list view model. Mutations flow through
 /// <see cref="IPairedDeviceStoreWriter"/> and are reserved for the
-/// <see cref="Coordinators.IPairedDeviceCoordinator"/> and the
+/// <see cref="Coordinators.PairedDeviceCoordinator"/> and the
 /// composition root.
 /// </summary>
 public interface IPairedDeviceStore

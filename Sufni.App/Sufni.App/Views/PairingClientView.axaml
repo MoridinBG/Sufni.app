@@ -13,10 +13,6 @@ x:DataType="vm:PairingClientViewModel"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:PairingClientViewModel />
-    </Design.DataContext>
-
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="AttachedToVisualTree">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />

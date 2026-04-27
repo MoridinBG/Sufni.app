@@ -27,7 +27,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class LiveSessionDetailViewModelTests
 {
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
-    private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
+    private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();

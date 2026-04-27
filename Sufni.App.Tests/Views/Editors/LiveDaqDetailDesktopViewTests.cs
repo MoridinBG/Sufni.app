@@ -214,15 +214,14 @@ public class LiveDaqDetailDesktopViewTests
 
     private static LiveDaqDetailViewModel CreateEditor()
     {
-        return new LiveDaqDetailViewModel
-        {
-            Name = "Board 1",
-            CanConnect = true,
-            CanDisconnect = false,
-            CanStartSession = false,
-            AreRequestedRatesEnabled = true,
-            Snapshot = LiveDaqUiSnapshot.Empty
-        };
+        var editor = CreateEditorWithManagement();
+        editor.Name = "Board 1";
+        editor.CanConnect = true;
+        editor.CanDisconnect = false;
+        editor.CanStartSession = false;
+        editor.AreRequestedRatesEnabled = true;
+        editor.Snapshot = LiveDaqUiSnapshot.Empty;
+        return editor;
     }
 
     private static LiveDaqDetailViewModel CreateEditorWithManagement()
@@ -247,7 +246,7 @@ public class LiveDaqDetailDesktopViewTests
                 SetupName: "race",
                 BikeName: "demo"),
             sharedStream,
-            Substitute.For<ILiveDaqCoordinator>(),
+            TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),
             Substitute.For<IShellCoordinator>(),

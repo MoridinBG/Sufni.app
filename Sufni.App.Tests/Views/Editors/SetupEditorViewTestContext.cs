@@ -17,8 +17,8 @@ namespace Sufni.App.Tests.Views.Editors;
 internal sealed class SetupEditorViewTestContext : IDisposable
 {
     private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
-    private readonly IBikeCoordinator bikeCoordinator = Substitute.For<IBikeCoordinator>();
-    private readonly ISetupCoordinator setupCoordinator = Substitute.For<ISetupCoordinator>();
+    private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+    private readonly SetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly SourceCache<BikeSnapshot, Guid> bikesCache = new(snapshot => snapshot.Id);
@@ -28,7 +28,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         bikeStore.Connect().Returns(bikesCache.Connect());
     }
 
-    public IBikeCoordinator BikeCoordinator => bikeCoordinator;
+    public BikeCoordinator BikeCoordinator => bikeCoordinator;
 
     public BikeSnapshot AddBike(string name = "test bike")
     {

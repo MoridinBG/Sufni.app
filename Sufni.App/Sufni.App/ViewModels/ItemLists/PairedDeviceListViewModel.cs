@@ -18,7 +18,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IPairedDeviceStore pairedDeviceStore;
-    private readonly IPairedDeviceCoordinator pairedDeviceCoordinator;
+    private readonly PairedDeviceCoordinator pairedDeviceCoordinator;
     private readonly ReadOnlyObservableCollection<PairedDeviceRowViewModel> pairedDeviceRows;
     private readonly BehaviorSubject<Func<PairedDeviceSnapshot, bool>> filterSubject = new(_ => true);
     private (string DeviceId, string Name)? pendingDelete;
@@ -33,16 +33,9 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     #region Constructors
 
-    public PairedDeviceListViewModel()
-    {
-        pairedDeviceStore = null!;
-        pairedDeviceCoordinator = null!;
-        pairedDeviceRows = new ReadOnlyObservableCollection<PairedDeviceRowViewModel>([]);
-    }
-
     public PairedDeviceListViewModel(
         IPairedDeviceStore pairedDeviceStore,
-        IPairedDeviceCoordinator pairedDeviceCoordinator)
+        PairedDeviceCoordinator pairedDeviceCoordinator)
     {
         this.pairedDeviceStore = pairedDeviceStore;
         this.pairedDeviceCoordinator = pairedDeviceCoordinator;

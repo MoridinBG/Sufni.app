@@ -74,10 +74,10 @@ locations inside `Sufni.App/Sufni.App/`:
     level. Base classes are `ViewModelBase`, `ItemListViewModelBase`,
     and `TabPageViewModelBase` — look at them before adding new view
     models.
-- `Coordinators/` — feature workflow owners (`IBikeCoordinator`,
-  `ISetupCoordinator`, `ISessionCoordinator`,
-  `IPairedDeviceCoordinator`, `IImportSessionsCoordinator`,
-  `ISyncCoordinator`, `ILiveDaqCoordinator`, the `IShellCoordinator`
+- `Coordinators/` — feature workflow owners (`BikeCoordinator`,
+  `SetupCoordinator`, `SessionCoordinator`,
+  `PairedDeviceCoordinator`, `ImportSessionsCoordinator`,
+  `SyncCoordinator`, `LiveDaqCoordinator`, the `IShellCoordinator`
   desktop/mobile pair, plus the desktop-only
   `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the
   mobile-only `IPairingClientCoordinator`). Coordinators are the only

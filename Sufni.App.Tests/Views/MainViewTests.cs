@@ -31,7 +31,7 @@ public class MainViewTests
         Assert.Same(mainPages, host!.Content);
         Assert.Single(mounted.View.GetVisualDescendants().OfType<MainPagesView>());
 
-        viewModel.OpenView(new WelcomeScreenViewModel());
+        viewModel.OpenView(MainPagesViewModelTestFactory.CreateWelcomeScreen());
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.IsType<WelcomeScreenViewModel>(host.Content);
