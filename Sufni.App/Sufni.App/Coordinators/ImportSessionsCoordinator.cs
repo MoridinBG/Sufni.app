@@ -81,9 +81,11 @@ public sealed class ImportSessionsCoordinator(
             {
                 try
                 {
-                    if (!string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage))
+                    if (!telemetryFile.CanImport)
                     {
-                        var malformedMessage = telemetryFile.MalformedMessage;
+                        var malformedMessage = string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage)
+                            ? "The telemetry file cannot be imported."
+                            : telemetryFile.MalformedMessage;
                         logger.Warning(
                             "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
                             telemetryFile.Name,

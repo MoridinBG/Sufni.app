@@ -110,6 +110,17 @@ mc:Ignorable="d">
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
+                        <TabItem Name="LiveDaqsTabItem" Content="{Binding LiveDaqsPage}">
+                            <TabItem.Header>
+                                <StackPanel>
+                                    <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+                                    <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="9"
+                                    Text="Live" />
+                                </StackPanel>
+                            </TabItem.Header>
+                        </TabItem>
                     </TabControl>
                 </Grid>
             </Panel>

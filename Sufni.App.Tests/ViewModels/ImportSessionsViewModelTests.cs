@@ -312,7 +312,7 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void SelectingMalformedFileSource_AddsSingleNotificationAcrossReloads()
+    public void SelectingMalformedFileSource_DoesNotNotifyBeforeUserOpensReason()
     {
         using var _ = new TestSynchronizationContextScope();
         var dataStore = CreateDataStore();
@@ -327,13 +327,30 @@ public class ImportSessionsViewModelTests
         var viewModel = CreateViewModel();
 
         viewModel.SelectedDataStore = dataStore;
-        Assert.Single(viewModel.Notifications);
+
+        Assert.Empty(viewModel.Notifications);
 
         viewModel.SelectedDataStore = null;
         viewModel.SelectedDataStore = dataStore;
 
-        Assert.Single(viewModel.Notifications);
+        Assert.Empty(viewModel.Notifications);
         Assert.Single(viewModel.TelemetryFiles);
+    }
+
+    [Fact]
+    public void ShowMalformedMessage_AddsSingleNotification()
+    {
+        using var _ = new TestSynchronizationContextScope();
+        var file = CreateTelemetryFile(
+            name: "trimmed",
+            malformedMessage: "trailing chunk was trimmed",
+            canImport: true);
+        var viewModel = CreateViewModel();
+
+        viewModel.ShowMalformedMessageCommand.Execute(file);
+        viewModel.ShowMalformedMessageCommand.Execute(file);
+
+        Assert.Single(viewModel.Notifications);
     }
 
     [Fact]

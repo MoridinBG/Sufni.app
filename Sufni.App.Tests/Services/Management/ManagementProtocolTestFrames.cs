@@ -42,6 +42,7 @@ internal static class ManagementProtocolTestFrames
         DaqFileClass fileClass = DaqFileClass.RootSst,
         int recordId = 1,
         ulong fileSizeBytes = 4,
+        uint maxChunkPayload = 4096,
         string name = "00001.SST")
     {
         var payload = new byte[ManagementProtocolConstants.FileBeginPayloadSize];
@@ -49,7 +50,8 @@ internal static class ManagementProtocolTestFrames
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2, 2), 0);
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(4, 4), recordId);
         BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), fileSizeBytes);
-        WriteName(payload.AsSpan(16, 12), name);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16, 4), maxChunkPayload);
+        WriteName(payload.AsSpan(20, 12), name);
         return ManagementProtocolReader.CreateFrame(ManagementFrameType.FileBegin, requestId, payload);
     }
 

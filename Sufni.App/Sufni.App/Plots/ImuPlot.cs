@@ -74,29 +74,28 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             double mag = Math.Sqrt(ax * ax + ay * ay + az * az);
             signals[locId].Add(mag);
         }
-
-        var step = 1.0 / imuData.SampleRate;
-
         double minVal = 0.0;
         double maxVal = 0.0;
         bool hasData = false;
 
         foreach (var locId in signals.Keys.OrderBy(k => k))
         {
-            var data = signals[locId].ToArray();
-            if (data.Length == 0) continue;
+            var fullData = signals[locId].ToArray();
+            if (fullData.Length == 0) continue;
 
             if (!hasData)
             {
-                minVal = data.Min();
-                maxVal = data.Max();
+                minVal = fullData.Min();
+                maxVal = fullData.Max();
                 hasData = true;
             }
             else
             {
-                minVal = Math.Min(minVal, data.Min());
-                maxVal = Math.Max(maxVal, data.Max());
+                minVal = Math.Min(minVal, fullData.Min());
+                maxVal = Math.Max(maxVal, fullData.Max());
             }
+
+            var (data, step) = PrepareDisplaySignal(fullData, imuData.SampleRate);
 
             // 0=Frame, 1=Fork (Front), 2=Shock (Rear)
             Color color = locId switch

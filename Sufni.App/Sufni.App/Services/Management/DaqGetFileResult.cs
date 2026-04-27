@@ -6,7 +6,7 @@ public abstract record DaqGetFileResult
     {
     }
 
-    public sealed record Loaded(string Name, byte[] Bytes) : DaqGetFileResult;
+    public sealed record Downloaded(string Name, ulong FileSizeBytes) : DaqGetFileResult;
 
     public sealed record Error(DaqManagementErrorCode ErrorCode, string Message) : DaqGetFileResult;
 }

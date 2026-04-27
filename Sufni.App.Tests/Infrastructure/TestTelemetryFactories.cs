@@ -22,6 +22,7 @@ public static class TestTelemetryFactories
         bool? shouldBeImported = true,
         byte version = 4,
         string? malformedMessage = null,
+        bool? canImport = null,
         bool hasUnknown = false)
     {
         var telemetryFile = Substitute.For<ITelemetryFile>();
@@ -33,6 +34,7 @@ public static class TestTelemetryFactories
         telemetryFile.Duration.Returns(duration);
         telemetryFile.ShouldBeImported.Returns(shouldBeImported);
         telemetryFile.MalformedMessage.Returns(malformedMessage);
+        telemetryFile.CanImport.Returns(canImport ?? string.IsNullOrWhiteSpace(malformedMessage));
         telemetryFile.HasUnknown.Returns(hasUnknown);
         return telemetryFile;
     }

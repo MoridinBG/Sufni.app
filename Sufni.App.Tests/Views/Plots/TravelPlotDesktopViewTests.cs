@@ -13,6 +13,8 @@ public class TravelPlotDesktopViewTests
     {
         var view = new TravelPlotDesktopView();
 
+        Assert.Null(view.MaximumDisplayHz);
+
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);

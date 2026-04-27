@@ -132,19 +132,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         foreach (var file in files)
         {
             TelemetryFiles.Add(file);
-            NotifyIfMalformed(file);
-        }
-    }
-
-    private void NotifyIfMalformed(ITelemetryFile file)
-    {
-        if (string.IsNullOrWhiteSpace(file.MalformedMessage))
-            return;
-
-        var message = $"{file.FileName} is malformed: {file.MalformedMessage}";
-        if (!Notifications.Contains(message))
-        {
-            Notifications.Add(message);
         }
     }
 
@@ -268,6 +255,19 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     }
 
     private bool CanImportSessions() => SelectedSetup != null;
+
+    [RelayCommand]
+    private void ShowMalformedMessage(ITelemetryFile? file)
+    {
+        if (file is null || string.IsNullOrWhiteSpace(file.MalformedMessage))
+            return;
+
+        var message = $"{file.FileName} is malformed: {file.MalformedMessage}";
+        if (!Notifications.Contains(message))
+        {
+            Notifications.Add(message);
+        }
+    }
 
     #endregion Private methods
 

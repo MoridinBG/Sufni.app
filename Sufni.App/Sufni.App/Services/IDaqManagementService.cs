@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Services.Management;
@@ -16,6 +17,13 @@ public interface IDaqManagementService
         string host,
         int port,
         DaqFileClass fileClass,
+        int recordId,
+        Stream destination,
+        CancellationToken cancellationToken = default);
+
+    Task<DaqManagementResult> MarkSstUploadedAsync(
+        string host,
+        int port,
         int recordId,
         CancellationToken cancellationToken = default);
 

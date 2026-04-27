@@ -25,11 +25,10 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
         ConfigureRightAxisStyle();
 
-        var step = 1.0 / telemetryData.Metadata.SampleRate;
-
         if (telemetryData.Front.Present)
         {
-            var frontSignal = Plot.Add.Signal(telemetryData.Front.Travel, step, FrontColor);
+            var (frontTravel, frontStep) = PrepareDisplaySignal(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate);
+            var frontSignal = Plot.Add.Signal(frontTravel, frontStep, FrontColor);
             frontSignal.Axes.XAxis = Plot.Axes.Bottom;
             frontSignal.Axes.YAxis = Plot.Axes.Left;
             frontSignal.LineWidth = 2.0f;
@@ -42,7 +41,8 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 
         if (telemetryData.Rear.Present)
         {
-            var rearSignal = Plot.Add.Signal(telemetryData.Rear.Travel, step, RearColor);
+            var (rearTravel, rearStep) = PrepareDisplaySignal(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate);
+            var rearSignal = Plot.Add.Signal(rearTravel, rearStep, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
             rearSignal.Axes.YAxis = Plot.Axes.Right;
             rearSignal.LineWidth = 2.0f;

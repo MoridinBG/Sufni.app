@@ -10,6 +10,11 @@ namespace Sufni.App.Services.Management;
 
 internal sealed class ManagementClient : IDisposable
 {
+    private static readonly long MinUnixTimeSeconds = DateTimeOffset.MinValue.ToUnixTimeSeconds();
+    private static readonly long MaxUnixTimeSeconds = DateTimeOffset.MaxValue.ToUnixTimeSeconds();
+    private const int SocketReceiveBufferSize = 128 * 1024;
+    private const int ReadBufferSize = 64 * 1024;
+
     private readonly ManagementProtocolReader reader = new();
     private readonly TimeSpan connectTimeout;
     private readonly TimeSpan ioTimeout;
@@ -36,7 +41,7 @@ internal sealed class ManagementClient : IDisposable
             throw new InvalidOperationException("Management client is already connected.");
         }
 
-        tcpClient = new TcpClient();
+        tcpClient = new TcpClient { ReceiveBufferSize = SocketReceiveBufferSize };
         try
         {
             await ExecuteWithTimeoutAsync(
@@ -115,8 +120,16 @@ internal sealed class ManagementClient : IDisposable
     public async Task<DaqGetFileResult> GetFileAsync(
         DaqFileClass fileClass,
         int recordId,
+        Stream destination,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        if (!destination.CanWrite)
+        {
+            throw new ArgumentException("The GET_FILE destination stream must be writable.", nameof(destination));
+        }
+
         if (fileClass == DaqFileClass.Config && recordId != 0)
         {
             throw new ArgumentOutOfRangeException(nameof(recordId), "CONFIG reads must use record id 0.");
@@ -128,9 +141,11 @@ internal sealed class ManagementClient : IDisposable
             ioTimeout,
             cancellationToken);
 
-        MemoryStream? buffer = null;
+        var fileStarted = false;
         string? fileName = null;
         ulong declaredSize = 0;
+        ulong receivedSize = 0;
+        uint maxChunkPayload = 0;
         while (true)
         {
             var response = await ReadFrameAsync(ioTimeout, cancellationToken);
@@ -138,7 +153,7 @@ internal sealed class ManagementClient : IDisposable
 
             switch (response)
             {
-                case ManagementErrorFrame error when buffer is null:
+                case ManagementErrorFrame error when !fileStarted:
                     return new DaqGetFileResult.Error(
                         MapKnownErrorCode(error.ErrorCode),
                         CreateErrorMessage(error.ErrorCode));
@@ -147,39 +162,47 @@ internal sealed class ManagementClient : IDisposable
                     throw new DaqManagementException(
                         $"GET_FILE returned an ERROR frame after FILE_BEGIN was already received (error {error.ErrorCode}).");
 
-                case ManagementFileBeginFrame begin when buffer is null:
+                case ManagementFileBeginFrame begin when !fileStarted:
                     ValidateFileBegin(begin, fileClass, recordId);
-                    if (begin.FileSizeBytes > int.MaxValue)
+
+                    if (begin.FileSizeBytes > 0 && begin.MaxChunkPayload == 0)
                     {
                         throw new DaqManagementException(
-                            $"GET_FILE declared file size {begin.FileSizeBytes} which exceeds the supported limit of {int.MaxValue} bytes.",
-                            begin.FileSizeBytes,
-                            (ulong)int.MaxValue);
+                            "GET_FILE declared a non-empty file with a zero max chunk payload.");
                     }
 
+                    fileStarted = true;
                     declaredSize = begin.FileSizeBytes;
+                    maxChunkPayload = begin.MaxChunkPayload;
                     fileName = begin.Name;
-                    buffer = new MemoryStream((int)declaredSize);
                     break;
 
-                case ManagementFileChunkFrame chunk when buffer is not null:
-                    if ((ulong)buffer.Length + (ulong)chunk.Bytes.Length > declaredSize)
+                case ManagementFileChunkFrame chunk when fileStarted:
+                    if ((uint)chunk.Bytes.Length > maxChunkPayload)
+                    {
+                        throw new DaqManagementException(
+                            $"GET_FILE delivered a chunk of {chunk.Bytes.Length} bytes, exceeding the advertised limit of {maxChunkPayload} bytes.");
+                    }
+
+                    if (receivedSize + (ulong)chunk.Bytes.Length > declaredSize)
                     {
                         throw new DaqManagementException(
                             $"GET_FILE delivered more bytes than the declared file size {declaredSize}.");
                     }
 
-                    await buffer.WriteAsync(chunk.Bytes, cancellationToken);
+                    await destination.WriteAsync(chunk.Bytes, cancellationToken);
+                    receivedSize += (ulong)chunk.Bytes.Length;
                     break;
 
-                case ManagementFileEndFrame when buffer is not null:
-                    if ((ulong)buffer.Length != declaredSize)
+                case ManagementFileEndFrame when fileStarted:
+                    if (receivedSize != declaredSize)
                     {
                         throw new DaqManagementException(
-                            $"GET_FILE ended after {buffer.Length} bytes but declared {declaredSize} bytes.");
+                            $"GET_FILE ended after {receivedSize} bytes but declared {declaredSize} bytes.");
                     }
 
-                    return new DaqGetFileResult.Loaded(fileName ?? string.Empty, buffer.ToArray());
+                    await destination.FlushAsync(cancellationToken);
+                    return new DaqGetFileResult.Downloaded(fileName ?? string.Empty, declaredSize);
 
                 default:
                     throw UnexpectedFrame("GET_FILE", response, "FILE_BEGIN, FILE_CHUNK, FILE_END, or ERROR");
@@ -205,6 +228,27 @@ internal sealed class ManagementClient : IDisposable
             ManagementErrorFrame error => throw new DaqManagementException(
                 $"TRASH_FILE returned an unexpected ERROR frame with code {error.ErrorCode}."),
             _ => throw UnexpectedFrame("TRASH_FILE", response, "ACTION_RESULT")
+        };
+    }
+
+    public async Task<DaqManagementResult> MarkSstUploadedAsync(
+        int recordId,
+        CancellationToken cancellationToken = default)
+    {
+        var requestId = GetNextRequestId();
+        await SendFrameAsync(
+            ManagementProtocolReader.CreateMarkSstUploadedRequest(requestId, recordId),
+            ioTimeout,
+            cancellationToken);
+
+        var response = await ReadFrameAsync(ioTimeout, cancellationToken);
+        EnsureRequestId(response, requestId);
+        return response switch
+        {
+            ManagementActionResultFrame result => MapActionResult(result.ResultCode),
+            ManagementErrorFrame error => throw new DaqManagementException(
+                $"MARK_SST_UPLOADED returned an unexpected ERROR frame with code {error.ErrorCode}."),
+            _ => throw UnexpectedFrame("MARK_SST_UPLOADED", response, "ACTION_RESULT")
         };
     }
 
@@ -258,14 +302,14 @@ internal sealed class ManagementClient : IDisposable
     {
         ArgumentNullException.ThrowIfNull(configBytes);
 
-        var beginRequestId = GetNextRequestId();
+        var requestId = GetNextRequestId();
         await SendFrameAsync(
-            ManagementProtocolReader.CreatePutFileBeginRequest(beginRequestId, DaqFileClass.Config, (ulong)configBytes.Length),
+            ManagementProtocolReader.CreatePutFileBeginRequest(requestId, DaqFileClass.Config, (ulong)configBytes.Length),
             ioTimeout,
             cancellationToken);
 
         var beginResponse = await ReadFrameAsync(ioTimeout, cancellationToken);
-        EnsureRequestId(beginResponse, beginRequestId);
+        EnsureRequestId(beginResponse, requestId);
         var beginResult = beginResponse switch
         {
             ManagementActionResultFrame result => MapActionResult(result.ResultCode),
@@ -282,23 +326,21 @@ internal sealed class ManagementClient : IDisposable
         for (var offset = 0; offset < configBytes.Length; offset += ManagementProtocolConstants.MaxPutFileChunkPayloadSize)
         {
             var chunkLength = Math.Min(ManagementProtocolConstants.MaxPutFileChunkPayloadSize, configBytes.Length - offset);
-            var chunkRequestId = GetNextRequestId();
             await SendFrameAsync(
                 ManagementProtocolReader.CreatePutFileChunkFrame(
-                    chunkRequestId,
+                    requestId,
                     configBytes.AsSpan(offset, chunkLength)),
                 ioTimeout,
                 cancellationToken);
         }
 
-        var commitRequestId = GetNextRequestId();
         await SendFrameAsync(
-            ManagementProtocolReader.CreatePutFileCommitRequest(commitRequestId),
+            ManagementProtocolReader.CreatePutFileCommitRequest(requestId),
             ioTimeout,
             cancellationToken);
 
         var commitResponse = await ReadFrameAsync(commitTimeout, cancellationToken);
-        EnsureRequestId(commitResponse, commitRequestId);
+        EnsureRequestId(commitResponse, requestId);
         return commitResponse switch
         {
             ManagementActionResultFrame result => MapActionResult(result.ResultCode),
@@ -347,7 +389,7 @@ internal sealed class ManagementClient : IDisposable
         }
 
         var activeStream = GetStream();
-        var buffer = new byte[4096];
+        var buffer = new byte[ReadBufferSize];
         while (true)
         {
             var read = await ExecuteWithTimeoutAsync(
@@ -406,14 +448,39 @@ internal sealed class ManagementClient : IDisposable
                 $"Directory {directoryId} returned file class {entry.FileClass}, expected {expectedFileClass}.");
         }
 
+        if (!TryCreateTimestamp(entry.TimestampUtcSeconds, out var timestampUtc))
+        {
+            return new DaqMalformedSstFileRecord(
+                entry.FileClass,
+                entry.Name,
+                entry.FileSizeBytes,
+                entry.RecordId,
+                TimestampUtc: null,
+                Duration: TimeSpan.FromMilliseconds(entry.DurationMilliseconds),
+                entry.SstVersion,
+                $"The device reported an invalid SST timestamp ({entry.TimestampUtcSeconds}).");
+        }
+
         return new DaqSstFileRecord(
             entry.FileClass,
             entry.Name,
             entry.FileSizeBytes,
             entry.RecordId,
-            DateTimeOffset.FromUnixTimeSeconds(entry.TimestampUtcSeconds),
+            timestampUtc,
             TimeSpan.FromMilliseconds(entry.DurationMilliseconds),
             entry.SstVersion);
+    }
+
+    private static bool TryCreateTimestamp(long timestampUtcSeconds, out DateTimeOffset timestampUtc)
+    {
+        if (timestampUtcSeconds < MinUnixTimeSeconds || timestampUtcSeconds > MaxUnixTimeSeconds)
+        {
+            timestampUtc = default;
+            return false;
+        }
+
+        timestampUtc = DateTimeOffset.FromUnixTimeSeconds(timestampUtcSeconds);
+        return true;
     }
 
     private static void ValidateFileBegin(ManagementFileBeginFrame begin, DaqFileClass requestedClass, int requestedRecordId)

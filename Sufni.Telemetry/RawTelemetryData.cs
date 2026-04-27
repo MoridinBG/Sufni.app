@@ -21,6 +21,7 @@ public class RawTelemetryData
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
     public bool Malformed { get; set; }
+    public string? MalformedMessage { get; set; }
 
     #endregion Public properties
 

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,12 +57,26 @@ internal sealed class DaqManagementService : IDaqManagementService
         int port,
         DaqFileClass fileClass,
         int recordId,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        ValidateEndpoint(host, port);
+        using var client = CreateClient();
+        await client.ConnectAsync(host, port, cancellationToken);
+        return await client.GetFileAsync(fileClass, recordId, destination, cancellationToken);
+    }
+
+    public async Task<DaqManagementResult> MarkSstUploadedAsync(
+        string host,
+        int port,
+        int recordId,
         CancellationToken cancellationToken = default)
     {
         ValidateEndpoint(host, port);
         using var client = CreateClient();
         await client.ConnectAsync(host, port, cancellationToken);
-        return await client.GetFileAsync(fileClass, recordId, cancellationToken);
+        return await client.MarkSstUploadedAsync(recordId, cancellationToken);
     }
 
     public async Task<DaqManagementResult> TrashFileAsync(

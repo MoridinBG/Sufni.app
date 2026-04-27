@@ -7,7 +7,8 @@ public sealed record ValidSstFileInspection(
     DateTime StartTime,
     TimeSpan Duration,
     ushort TelemetrySampleRate,
-    bool HasUnknown) : SstFileInspection();
+    bool HasUnknown,
+    string? MalformedMessage = null) : SstFileInspection();
 
 public sealed record MalformedSstFileInspection(
     byte? Version,

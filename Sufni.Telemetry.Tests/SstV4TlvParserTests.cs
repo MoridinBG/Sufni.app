@@ -276,4 +276,65 @@ public class SstV4TlvParserTests
 
         Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
     }
+
+    [Fact]
+    public void Inspect_TelemetryChunkExtendingPastEnd_ReturnsImportableMalformedInspection()
+    {
+        using var ms = CreateV4WithTelemetryChunkExtendingPastEnd(actualTelemetryPayloadBytes: 10, declaredTelemetryPayloadBytes: 16);
+
+        var result = RawTelemetryData.InspectStream(ms);
+
+        var inspection = Assert.IsType<ValidSstFileInspection>(result);
+        Assert.Equal((byte)4, inspection.Version);
+        Assert.Equal(1000, inspection.TelemetrySampleRate);
+        Assert.Equal(TimeSpan.FromSeconds(2.0 / 1000.0), inspection.Duration);
+        Assert.Contains("extends past end", inspection.MalformedMessage);
+    }
+
+    [Fact]
+    public void Parse_TelemetryChunkExtendingPastEnd_TrimsPartialRecordAndMarksMalformed()
+    {
+        using var ms = CreateV4WithTelemetryChunkExtendingPastEnd(actualTelemetryPayloadBytes: 10, declaredTelemetryPayloadBytes: 16);
+
+        var result = RawTelemetryData.FromStream(ms);
+
+        Assert.True(result.Malformed);
+        Assert.Contains("extends past end", result.MalformedMessage);
+        Assert.Equal(2, result.Front.Length);
+        Assert.Equal(2, result.Rear.Length);
+    }
+
+    private static MemoryStream CreateV4WithTelemetryChunkExtendingPastEnd(
+        int actualTelemetryPayloadBytes,
+        int declaredTelemetryPayloadBytes)
+    {
+        var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)declaredTelemetryPayloadBytes);
+
+        var payload = new byte[actualTelemetryPayloadBytes];
+        using (var payloadWriter = new BinaryWriter(new MemoryStream(payload)))
+        {
+            payloadWriter.Write((ushort)500);
+            payloadWriter.Write((ushort)600);
+            payloadWriter.Write((ushort)501);
+            payloadWriter.Write((ushort)601);
+        }
+
+        writer.Write(payload);
+        ms.Position = 0;
+        return ms;
+    }
 }

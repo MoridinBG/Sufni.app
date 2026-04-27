@@ -1,0 +1,141 @@
+<UserControl
+    x:Class="Sufni.App.Views.ItemLists.LiveDaqListView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="clr-namespace:Sufni.App.Behaviors"
+    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.Views.ItemLists"
+    xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+    xmlns:vmr="clr-namespace:Sufni.App.ViewModels.Rows"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:LiveDaqListViewModel"
+    Background="{StaticResource SufniRegion}"
+    behaviors:HapticFeedbackBehavior.IsEnabled="True"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vml:LiveDaqListViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <Style Selector="Button.liveDaqRow.offline">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+
+        <controls:SearchBar Grid.Row="0" />
+
+        <ScrollViewer Grid.Row="1" Name="LiveDaqScrollViewer">
+            <ItemsRepeater Name="LiveDaqItemsRepeater" ItemsSource="{Binding Items}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Orientation="Vertical" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate DataType="vmr:LiveDaqRowViewModel">
+                        <StackPanel>
+                            <Button
+                                Name="OpenButton"
+                                Padding="14,10"
+                                HorizontalAlignment="Stretch"
+                                Classes="item liveDaqRow"
+                                Classes.offline="{Binding !IsOnline}"
+                                Command="{Binding $parent[v:LiveDaqListView].((vml:LiveDaqListViewModel)DataContext).RowSelectedCommand}"
+                                CommandParameter="{Binding}"
+                                CornerRadius="0"
+                                IsEnabled="{Binding IsOnline}">
+                                <Grid ColumnDefinitions="* auto">
+                                    <StackPanel Grid.Column="0" Spacing="3">
+                                        <TextBlock
+                                            Name="DisplayNameTextBlock"
+                                            FontSize="15"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding DisplayName}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock
+                                            Name="SetupNameTextBlock"
+                                            IsVisible="{Binding SetupName, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                            Opacity="0.7"
+                                            Text="{Binding SetupName}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock
+                                            Name="BikeNameTextBlock"
+                                            IsVisible="{Binding BikeName, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                            Opacity="0.7"
+                                            Text="{Binding BikeName}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock
+                                            Name="BoardIdTextBlock"
+                                            IsVisible="{Binding ShowBoardId}"
+                                            Opacity="0.6"
+                                            Text="{Binding BoardId}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock
+                                            Name="EndpointTextBlock"
+                                            IsVisible="{Binding ShowEndpoint}"
+                                            Opacity="0.6"
+                                            Text="{Binding Endpoint}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Margin="8,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top">
+                                        <Border
+                                            Name="OnlineBadge"
+                                            Padding="8,3"
+                                            Background="#1f6b3f"
+                                            CornerRadius="999"
+                                            IsVisible="{Binding IsOnline}">
+                                            <TextBlock
+                                                FontSize="11"
+                                                Foreground="White"
+                                                Text="online" />
+                                        </Border>
+
+                                        <Border
+                                            Name="OfflineBadge"
+                                            Padding="8,3"
+                                            Background="#6d6d6d"
+                                            CornerRadius="999"
+                                            IsVisible="{Binding !IsOnline}">
+                                            <TextBlock
+                                                FontSize="11"
+                                                Foreground="White"
+                                                Text="offline" />
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Separator
+                                Height="1"
+                                Margin="0"
+                                Background="{StaticResource SufniBackgroundDisabled}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <controls:NotificationsBar
+            Grid.Row="2"
+            Margin="5,0"
+            ZIndex="10" />
+
+        <controls:ErrorMessagesBar
+            Grid.Row="3"
+            Margin="5,0"
+            ZIndex="10" />
+    </Grid>
+</UserControl>
