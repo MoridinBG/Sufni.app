@@ -13,7 +13,7 @@ namespace Sufni.App.ViewModels.Rows;
 /// </summary>
 public sealed class PairedDeviceRowViewModel : ListItemRowViewModelBase
 {
-    private readonly Action<PairedDeviceRowViewModel>? requestDelete;
+    private readonly Action<PairedDeviceRowViewModel> requestDelete;
     private DateTime expires;
 
     public string DeviceId { get; private set; }
@@ -23,21 +23,6 @@ public sealed class PairedDeviceRowViewModel : ListItemRowViewModelBase
     {
         get => expires;
         private set => SetProperty(ref expires, value);
-    }
-
-    /// <summary>
-    /// The control template binds <c>Text="{Binding Name}"</c>. Prefer
-    /// the human-readable <see cref="DisplayName"/> when present, fall
-    /// back to the opaque <see cref="DeviceId"/> when it is null,
-    /// empty, or whitespace (older rows stored before the
-    /// <c>display_name</c> column existed have a NULL display name).
-    /// </summary>
-    public PairedDeviceRowViewModel()
-    {
-        DeviceId = string.Empty;
-        requestDelete = null;
-        Name = DeviceId;
-        Timestamp = Expires;
     }
 
     public PairedDeviceRowViewModel(
@@ -65,7 +50,7 @@ public sealed class PairedDeviceRowViewModel : ListItemRowViewModelBase
 
     protected override void UndoableDelete()
     {
-        requestDelete?.Invoke(this);
+        requestDelete(this);
     }
 
     private string GetName() =>

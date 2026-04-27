@@ -8,7 +8,7 @@ namespace Sufni.App.Stores;
 /// <summary>
 /// Single source of truth for "what paired devices exist". Loaded from
 /// the database via <see cref="RefreshAsync"/> and updated by the
-/// <see cref="Coordinators.IPairedDeviceCoordinator"/> via
+/// <see cref="Coordinators.PairedDeviceCoordinator"/> via
 /// <see cref="IPairedDeviceStoreWriter"/>. Registered as a singleton
 /// behind both <see cref="IPairedDeviceStore"/> and
 /// <see cref="IPairedDeviceStoreWriter"/>.

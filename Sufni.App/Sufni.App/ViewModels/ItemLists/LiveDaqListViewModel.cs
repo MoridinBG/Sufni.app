@@ -16,21 +16,14 @@ namespace Sufni.App.ViewModels.ItemLists;
 public partial class LiveDaqListViewModel : ItemListViewModelBase
 {
     private readonly ILiveDaqStore liveDaqStore;
-    private readonly ILiveDaqCoordinator liveDaqCoordinator;
+    private readonly LiveDaqCoordinator liveDaqCoordinator;
     private readonly ReadOnlyObservableCollection<LiveDaqRowViewModel> liveDaqRows;
     private readonly BehaviorSubject<Func<LiveDaqSnapshot, bool>> filterSubject = new(_ => true);
 
     // Read-only row projection used by the desktop live DAQ list surface.
     public ReadOnlyObservableCollection<LiveDaqRowViewModel> Items => liveDaqRows;
 
-    public LiveDaqListViewModel()
-    {
-        liveDaqStore = null!;
-        liveDaqCoordinator = null!;
-        liveDaqRows = new ReadOnlyObservableCollection<LiveDaqRowViewModel>([]);
-    }
-
-    public LiveDaqListViewModel(ILiveDaqStore liveDaqStore, ILiveDaqCoordinator liveDaqCoordinator)
+    public LiveDaqListViewModel(ILiveDaqStore liveDaqStore, LiveDaqCoordinator liveDaqCoordinator)
     {
         this.liveDaqStore = liveDaqStore;
         this.liveDaqCoordinator = liveDaqCoordinator;

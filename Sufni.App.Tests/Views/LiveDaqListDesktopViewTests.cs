@@ -18,7 +18,7 @@ public class LiveDaqListDesktopViewTests
     [AvaloniaFact]
     public async Task LiveDaqListDesktopView_RendersBoundLiveRows()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -47,7 +47,7 @@ public class LiveDaqListDesktopViewTests
     [AvaloniaFact]
     public async Task LiveDaqListDesktopView_RowButtonCommand_SelectsIdentityKey()
     {
-        var coordinator = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-1",

@@ -13,10 +13,6 @@
     Focusable="True"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:SessionDetailViewModel />
-    </Design.DataContext>
-
     <v:SessionShellMobileView
         LoadedCommand="{Binding LoadedCommand}"
         UnloadedCommand="{Binding UnloadedCommand}" />

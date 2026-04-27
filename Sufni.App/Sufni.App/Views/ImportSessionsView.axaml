@@ -13,10 +13,6 @@ x:DataType="vm:ImportSessionsViewModel"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:ImportSessionsViewModel />
-    </Design.DataContext>
-
     <UserControl.Styles>
         <Style Selector="ToggleButton.importchoice:indeterminate /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />

@@ -284,8 +284,8 @@ public async Task Step_ShowsLoadingState()
 {
     var tcs = new TaskCompletionSource<BikeEditorAnalysisResult>();
 
-    var coordinator = Substitute.For<IBikeCoordinator>();
-    coordinator.LoadAnalysisAsync(Arg.Any<Linkage?>(), Arg.Any<CancellationToken>())
+    var coordinator = TestCoordinatorSubstitutes.Bike();
+    coordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
         .Returns(tcs.Task); // never completes during the test
 
     var vm = new BikeEditorViewModel(snapshot, isNew: false, coordinator, /* ... */);

@@ -10,10 +10,6 @@
     x:DataType="vm:PairedDeviceRowViewModel"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:PairedDeviceRowViewModel />
-    </Design.DataContext>
-
     <StackPanel>
         <Button
             Name="Button"

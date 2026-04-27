@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Sufni.App.Services.LiveStreaming;
 
-// Per-tab transport client for the framed live preview protocol.
+// Transport client for one framed live preview connection, typically owned by a shared stream.
 public interface ILiveDaqClient : IAsyncDisposable
 {
     bool IsConnected { get; }

@@ -35,9 +35,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #region Private fields
 
-    private readonly ISetupCoordinator? setupCoordinator;
-    private readonly IBikeCoordinator bikeCoordinator;
-    private readonly IBikeStore? bikeStore;
+    private readonly SetupCoordinator setupCoordinator;
+    private readonly BikeCoordinator bikeCoordinator;
+    private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
     private Setup setup;
     private Guid? originalBoardId;
@@ -106,18 +106,15 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     partial void OnForkSensorConfigurationChanged(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
     {
-        if (oldValue is not null)
-        {
-            oldValue.PropertyChanged -= OnSensorConfigurationPropertyChanged;
-        }
-
-        if (newValue is not null)
-        {
-            newValue.PropertyChanged += OnSensorConfigurationPropertyChanged;
-        }
+        UpdateSensorConfigurationSubscription(oldValue, newValue);
     }
 
     partial void OnShockSensorConfigurationChanged(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
+    {
+        UpdateSensorConfigurationSubscription(oldValue, newValue);
+    }
+
+    private void UpdateSensorConfigurationSubscription(SensorConfigurationViewModel? oldValue, SensorConfigurationViewModel? newValue)
     {
         if (oldValue is not null)
         {
@@ -134,23 +131,12 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #region Constructors
 
-    public SetupEditorViewModel()
-    {
-        setupCoordinator = null;
-        bikeCoordinator = null!;
-        bikeStore = null;
-        Bikes = new ReadOnlyObservableCollection<BikeSnapshot>(bikesSource);
-        setup = new Setup();
-        Id = setup.Id;
-        IsInDatabase = false;
-    }
-
     public SetupEditorViewModel(
         SetupSnapshot snapshot,
         bool isNew,
         IBikeStore bikeStore,
-        IBikeCoordinator bikeCoordinator,
-        ISetupCoordinator setupCoordinator,
+        BikeCoordinator bikeCoordinator,
+        SetupCoordinator setupCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService)
         : base(shell, dialogService)
@@ -305,8 +291,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        if (setupCoordinator is null) return;
-
         ForkSensorConfiguration?.Save();
         ShockSensorConfiguration?.Save();
 
@@ -381,8 +365,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     protected override async Task DeleteImplementation(bool navigateBack)
     {
-        if (setupCoordinator is null) return;
-
         if (!IsInDatabase)
         {
             if (navigateBack) OpenPreviousPage();
@@ -404,8 +386,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     [RelayCommand]
     private void Loaded()
     {
-        if (bikeStore is null) return;
-
         EnsureScopedSubscription(s => s.Add(
             bikeStore.Connect()
                 .Bind(bikesSource)

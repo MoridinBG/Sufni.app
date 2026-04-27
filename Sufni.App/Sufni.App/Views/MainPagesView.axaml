@@ -13,10 +13,6 @@ d:DesignWidth="500"
 x:DataType="vm:MainPagesViewModel"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
-    <Design.DataContext>
-        <vm:MainPagesViewModel />
-    </Design.DataContext>
-
     <UserControl.Styles>
         <!--  Tabs  -->
         <Style Selector="TabControl">

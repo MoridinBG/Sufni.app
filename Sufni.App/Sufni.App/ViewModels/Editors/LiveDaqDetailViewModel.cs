@@ -35,12 +35,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [ObservableProperty]
     private string? bikeName;
 
-    private readonly ILiveDaqSharedStream? sharedStream;
-    private readonly ILiveDaqCoordinator? liveDaqCoordinator;
-    private readonly IDaqManagementService? daqManagementService;
-    private readonly IFilesService? filesService;
-    private readonly ILiveDaqKnownBoardsQuery? knownBoardsQuery;
-    private readonly ILiveDaqStore? liveDaqStore;
+    private readonly ILiveDaqSharedStream sharedStream;
+    private readonly LiveDaqCoordinator liveDaqCoordinator;
+    private readonly IDaqManagementService daqManagementService;
+    private readonly IFilesService filesService;
+    private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
+    private readonly ILiveDaqStore liveDaqStore;
 
     private readonly LiveDaqSessionState sessionState = new();
     private readonly DispatcherTimer uiRefreshTimer;
@@ -63,6 +63,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private uint? requestedGpsFixHz;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FrontTravelText))]
+    [NotifyPropertyChangedFor(nameof(RearTravelText))]
     private LiveDaqUiSnapshot snapshot = LiveDaqUiSnapshot.Empty;
 
     [ObservableProperty]
@@ -92,8 +94,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public string RearTravelText => FormatTravelText("Rear", Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
 
     public bool CanManage => Snapshot.ConnectionState is LiveConnectionState.Disconnected
-        && daqManagementService is not null
-        && filesService is not null
         && !string.IsNullOrWhiteSpace(managementHost)
         && managementPort is > 0
         && !IsManagementBusy;
@@ -106,16 +106,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             ? "Disconnect live session first"
             : null;
 
-    public LiveDaqDetailViewModel()
-    {
-        IdentityKey = string.Empty;
-        uiRefreshTimer = CreateUiRefreshTimer();
-    }
-
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
         ILiveDaqSharedStream sharedStream,
-        ILiveDaqCoordinator liveDaqCoordinator,
+        LiveDaqCoordinator liveDaqCoordinator,
         IDaqManagementService daqManagementService,
         IFilesService filesService,
         IShellCoordinator shell,
@@ -153,7 +147,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             IdentityKey,
             Endpoint);
 
-        if (sharedStream is not null && streamLease is null)
+        if (streamLease is null)
         {
             streamLease = sharedStream.AcquireLease();
         }
@@ -170,7 +164,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             "Live DAQ detail unloaded for {IdentityKey} {Endpoint}; disconnect already in progress: {DisconnectInProgress}",
             IdentityKey,
             Endpoint,
-            sharedStream?.CurrentState.ConnectionState == LiveConnectionState.Disconnecting);
+            sharedStream.CurrentState.ConnectionState == LiveConnectionState.Disconnecting);
 
         await DeactivateAsync();
     }
@@ -217,18 +211,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanStartSession))]
     private async Task StartSession()
     {
-        if (liveDaqCoordinator is null)
-        {
-            return;
-        }
-
         await liveDaqCoordinator.OpenSessionAsync(IdentityKey);
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task SetTime(CancellationToken cancellationToken)
     {
-        if (daqManagementService is null || !TryGetManagementEndpoint(out var host, out var port))
+        if (!TryGetManagementEndpoint(out var host, out var port))
         {
             return;
         }
@@ -272,11 +261,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task SelectConfigFile(CancellationToken cancellationToken)
     {
-        if (filesService is null)
-        {
-            return;
-        }
-
         using var linkedCts = BeginManagementOperation(cancellationToken);
         try
         {
@@ -316,8 +300,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanUploadConfig))]
     private async Task UploadConfig(CancellationToken cancellationToken)
     {
-        if (daqManagementService is null
-            || pendingConfigBytes is not { Length: > 0 } configBytes
+        if (pendingConfigBytes is not { Length: > 0 } configBytes
             || !TryGetManagementEndpoint(out var host, out var port))
         {
             return;
@@ -368,11 +351,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private async Task ConnectImplementationAsync(bool userInitiated)
     {
-        if (sharedStream is null)
-        {
-            return;
-        }
-
         var streamState = sharedStream.CurrentState;
         if (streamState.IsClosed || streamState.ConnectionState is LiveConnectionState.Connecting or LiveConnectionState.Connected)
         {
@@ -449,11 +427,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private async Task DisconnectImplementationAsync(bool userInitiated)
     {
-        if (sharedStream is null)
-        {
-            return;
-        }
-
         var currentState = sharedStream.CurrentState;
         if (currentState.IsClosed || currentState.ConnectionState is LiveConnectionState.Disconnected)
         {
@@ -501,15 +474,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RefreshSnapshot()
     {
-        var state = sharedStream?.CurrentState ?? LiveDaqSharedStreamState.Empty;
+        var state = sharedStream.CurrentState;
         sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
         Snapshot = sessionState.CreateSnapshot(state.ConnectionState, state.LastError);
     }
 
     partial void OnSnapshotChanged(LiveDaqUiSnapshot value)
     {
-        OnPropertyChanged(nameof(FrontTravelText));
-        OnPropertyChanged(nameof(RearTravelText));
         RefreshManagementAvailability();
     }
 
@@ -530,7 +501,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RefreshSharedStreamState()
     {
-        var state = sharedStream?.CurrentState ?? LiveDaqSharedStreamState.Empty;
+        var state = sharedStream.CurrentState;
         sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
         CanConnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Disconnected;
         CanDisconnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Connected;
@@ -554,18 +525,18 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            RefreshSessionAvailability(sharedStream?.CurrentState.ConnectionState ?? LiveConnectionState.Disconnected);
+            RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState);
             return;
         }
 
         Dispatcher.UIThread.Post(
-            () => RefreshSessionAvailability(sharedStream?.CurrentState.ConnectionState ?? LiveConnectionState.Disconnected),
+            () => RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState),
             DispatcherPriority.Background);
     }
 
     private void RefreshTravelCalibration()
     {
-        travelCalibration = knownBoardsQuery?.GetTravelCalibration(IdentityKey);
+        travelCalibration = knownBoardsQuery.GetTravelCalibration(IdentityKey);
         OnPropertyChanged(nameof(FrontTravelText));
         OnPropertyChanged(nameof(RearTravelText));
     }
@@ -583,7 +554,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RefreshHeaderFromStore()
     {
-        var latest = liveDaqStore?.Get(IdentityKey);
+        var latest = liveDaqStore.Get(IdentityKey);
         if (latest is not null)
         {
             Name = latest.DisplayName;
@@ -615,7 +586,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             return true;
         }
 
-        if (sharedStream?.CurrentState.IsClosed == false
+        if (!sharedStream.CurrentState.IsClosed
             && sharedStream.CatalogSnapshot is { Host: not null, Port: not null } sharedSnapshot)
         {
             endpointSnapshot = sharedSnapshot;
@@ -629,7 +600,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshSessionAvailability(LiveConnectionState connectionState)
     {
         CanStartSession = connectionState == LiveConnectionState.Connected
-            && knownBoardsQuery?.GetSessionContext(IdentityKey) is not null;
+            && knownBoardsQuery.GetSessionContext(IdentityKey) is not null;
     }
 
     private CancellationTokenSource BeginManagementOperation(CancellationToken cancellationToken)
@@ -737,26 +708,14 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         uiRefreshTimer.Start();
         EnsureScopedSubscription(disposables =>
         {
-            if (sharedStream is null)
-            {
-                return;
-            }
-
             disposables.Add(sharedStream.Frames.Subscribe(frame => HandleFrame(frame)));
             disposables.Add(sharedStream.States.Subscribe(_ => RequestSharedStreamRefresh()));
-            if (knownBoardsQuery is not null)
+            disposables.Add(knownBoardsQuery.Changes.Subscribe(_ =>
             {
-                disposables.Add(knownBoardsQuery.Changes.Subscribe(_ =>
-                {
-                    RequestTravelProjectionRefresh();
-                    RequestSessionAvailabilityRefresh();
-                }));
-            }
-
-            if (liveDaqStore is not null)
-            {
-                disposables.Add(liveDaqStore.Connect().Subscribe(_ => RequestHeaderRefresh()));
-            }
+                RequestTravelProjectionRefresh();
+                RequestSessionAvailabilityRefresh();
+            }));
+            disposables.Add(liveDaqStore.Connect().Subscribe(_ => RequestHeaderRefresh()));
         });
 
         RefreshSharedStreamState();

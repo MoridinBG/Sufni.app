@@ -12,10 +12,6 @@ d:DesignWidth="800"
 x:DataType="vmr:LiveDaqRowViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vmr:LiveDaqRowViewModel />
-    </Design.DataContext>
-
     <StackPanel>
         <Button
         x:Name="OpenButton"

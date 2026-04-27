@@ -85,7 +85,7 @@ public class LiveSessionDetailViewTests
     private static LiveSessionDetailViewModel CreateEditor()
     {
         var liveSessionService = Substitute.For<ILiveSessionService>();
-        var sessionCoordinator = Substitute.For<ISessionCoordinator>();
+        var sessionCoordinator = TestCoordinatorSubstitutes.Session();
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
         var tileLayerService = Substitute.For<ITileLayerService>();

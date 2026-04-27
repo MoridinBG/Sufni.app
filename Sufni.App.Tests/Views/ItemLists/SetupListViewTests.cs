@@ -19,7 +19,7 @@ public class SetupListViewTests
 
         var snapshot = TestSnapshots.Setup(name: "Race Setup");
         var store = new SetupStoreStub(snapshot);
-        var coordinator = Substitute.For<ISetupCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.Setup();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
         var viewModel = new SetupListViewModel(store, coordinator);

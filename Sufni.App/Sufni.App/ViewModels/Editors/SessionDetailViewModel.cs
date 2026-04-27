@@ -44,8 +44,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     #region Private fields
 
-    private readonly ISessionCoordinator? sessionCoordinator;
-    private readonly ISessionStore? sessionStore;
+    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionStore sessionStore;
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
     private SpringPageViewModel SpringPage { get; } = new();
@@ -83,8 +83,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMediaContent))]
+    private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMediaContent))]
+    private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
@@ -115,21 +120,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         MapViewModel.SessionTrackPoints = value;
     }
 
-    partial void OnMapStateChanged(SurfacePresentationState value)
-    {
-        OnPropertyChanged(nameof(HasMediaContent));
-    }
-
     partial void OnVideoUrlChanged(string? value)
     {
         VideoState = string.IsNullOrWhiteSpace(value)
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
-    }
-
-    partial void OnVideoStateChanged(SurfacePresentationState value)
-    {
-        OnPropertyChanged(nameof(HasMediaContent));
     }
 
     #region Private methods
@@ -431,13 +426,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private async Task RequestLoadAsync()
     {
-        if (sessionCoordinator is null || !viewLoaded)
+        if (!viewLoaded)
         {
             return;
         }
 
         var token = loadOperation.Start();
-        var currentSnapshot = sessionStore?.Get(Id);
+        var currentSnapshot = sessionStore.Get(Id);
         if (currentSnapshot?.HasProcessedData == true)
         {
             ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
@@ -473,19 +468,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     #region Constructors
 
-    public SessionDetailViewModel()
-    {
-        sessionCoordinator = null;
-        sessionStore = null;
-        session = new Session();
-        GraphPage = new RecordedGraphPageViewModel(this);
-        Pages = [GraphPage, SpringPage, DamperPage, BalancePage, NotesPage];
-        MapViewModel = null;
-    }
-
     internal SessionDetailViewModel(
         SessionSnapshot snapshot,
-        ISessionCoordinator sessionCoordinator,
+        SessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
@@ -563,8 +548,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     protected override async Task SaveImplementation()
     {
-        if (sessionCoordinator is null) return;
-
         var newSession = new Session(
             id: session.Id,
             name: Name ?? $"session #{session.Id}",
@@ -652,8 +635,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     protected override async Task DeleteImplementation(bool navigateBack)
     {
-        if (sessionCoordinator is null) return;
-
         var result = await sessionCoordinator.DeleteAsync(Id);
         switch (result.Outcome)
         {
@@ -687,21 +668,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return;
         }
 
-        if (sessionStore is not null)
+        var watch = sessionStore.Watch(Id);
+        if (SynchronizationContext.Current is { } synchronizationContext)
         {
-            var watch = sessionStore.Watch(Id);
-            if (SynchronizationContext.Current is { } synchronizationContext)
-            {
-                watch = watch.ObserveOn(synchronizationContext);
-            }
+            watch = watch.ObserveOn(synchronizationContext);
+        }
 
-            EnsureScopedSubscription(s => s.Add(watch.Subscribe(OnSnapshotChanged)));
+        EnsureScopedSubscription(s => s.Add(watch.Subscribe(OnSnapshotChanged)));
 
-            var current = sessionStore.Get(Id);
-            if (current is not null && current.HasProcessedData != lastObservedHasProcessedData)
-            {
-                _ = RequestLoadAsync();
-            }
+        var current = sessionStore.Get(Id);
+        if (current is not null && current.HasProcessedData != lastObservedHasProcessedData)
+        {
+            _ = RequestLoadAsync();
         }
     }
 
