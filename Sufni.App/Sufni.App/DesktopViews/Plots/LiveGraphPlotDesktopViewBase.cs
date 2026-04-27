@@ -123,7 +123,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
         var plotControl = PlotControl;
 
-        plotControl.PointerMoved += (_, args) =>
+        void UpdateCursor(Avalonia.Input.PointerEventArgs args)
         {
             if (Plot is null)
             {
@@ -141,7 +141,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             Timeline?.SetCursorPosition(normalizedTime);
             Plot.SetCursorFromNormalized(normalizedTime);
             RefreshPlot();
-        };
+        }
+
+        plotControl.PointerPressed += (_, args) => UpdateCursor(args);
+        plotControl.PointerMoved += (_, args) => UpdateCursor(args);
 
         plotControl.PointerReleased += (_, _) => UpdateTimelineRange();
         plotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();

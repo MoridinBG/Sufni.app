@@ -29,7 +29,7 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
     {
         SetPlotModel(new TravelPlot(PlotControl.Plot));
 
-        PlotControl.PointerMoved += (_, args) =>
+        void UpdateCursor(Avalonia.Input.PointerEventArgs args)
         {
             var point = args.GetPosition(PlotControl);
             var coords = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
@@ -41,7 +41,10 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
             SetCursorPosition(coords.X);
             VelocityPlotView?.SetCursorPosition(coords.X);
             ImuPlotView?.SetCursorPosition(coords.X);
-        };
+        }
+
+        PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
+        PlotControl.PointerMoved += (_, args) => UpdateCursor(args);
 
         PlotControl.PointerReleased += (_, _) => UpdateTimelineRange();
         PlotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();
