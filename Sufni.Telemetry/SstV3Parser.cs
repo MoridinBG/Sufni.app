@@ -5,8 +5,6 @@ public class SstV3Parser : ISstParser
     private const int HeaderPayloadSize = 12;
     private const int HeaderSize = 16;
     private const int TelemetryRecordSize = 4;
-    private const int SignedEncoderThreshold = 2048;
-    private const int SignedEncoderRange = 4096;
 
     public SstFileInspection Inspect(BinaryReader reader, byte version)
     {
@@ -86,19 +84,8 @@ public class SstV3Parser : ISstParser
                 rearPresent = rawRear != ushort.MaxValue;
             }
 
-            if (frontPresent)
-            {
-                var f = (int)rawFront;
-                if (f >= SignedEncoderThreshold) f -= SignedEncoderRange;
-                front[i] = f;
-            }
-
-            if (rearPresent)
-            {
-                var r = (int)rawRear;
-                if (r >= SignedEncoderThreshold) r -= SignedEncoderRange;
-                rear[i] = r;
-            }
+            if (frontPresent) front[i] = rawFront;
+            if (rearPresent) rear[i] = rawRear;
         }
 
         var rtd = new RawTelemetryData
