@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.Views;
+using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views;
 
@@ -78,6 +79,29 @@ public class MainPagesViewTests
 
         Assert.Equal(3, viewModel.SelectedIndex);
         Assert.Same(liveDaqsTab, tabControl.SelectedItem);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesView_SidePanelBindsGpxImportCommand()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var viewModel = MainPagesViewModelTestFactory.Create();
+        var view = new MainPagesView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel");
+        var importGpxMenuItem = menuPanel?.FindControl<MenuItem>("ImportGpxMenuItem");
+
+        Assert.NotNull(menuPanel);
+        Assert.NotNull(importGpxMenuItem);
+        Assert.Equal("GPX import", importGpxMenuItem!.Header);
+        Assert.Same(viewModel.OpenGpsTracksCommand, importGpxMenuItem.Command);
     }
 
     private static async Task<MountedMainPagesView> MountAsync(MainPagesView view)
