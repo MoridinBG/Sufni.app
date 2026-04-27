@@ -16,7 +16,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class LiveDaqDetailViewModelTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
-    private readonly ILiveDaqCoordinator liveDaqCoordinator = Substitute.For<ILiveDaqCoordinator>();
+    private readonly LiveDaqCoordinator liveDaqCoordinator = TestCoordinatorSubstitutes.LiveDaq();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
@@ -336,8 +336,8 @@ public class LiveDaqDetailViewModelTests
             SetupName: "park",
             BikeName: "demo");
 
-        var coordinator1 = Substitute.For<ILiveDaqCoordinator>();
-        var coordinator2 = Substitute.For<ILiveDaqCoordinator>();
+        var coordinator1 = TestCoordinatorSubstitutes.LiveDaq();
+        var coordinator2 = TestCoordinatorSubstitutes.LiveDaq();
         var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
         var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
 

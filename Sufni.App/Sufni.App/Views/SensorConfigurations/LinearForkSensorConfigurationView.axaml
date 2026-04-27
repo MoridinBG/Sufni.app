@@ -10,12 +10,7 @@ d:DesignWidth="800"
 x:DataType="vm:LinearForkSensorConfigurationViewModel"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:LinearForkSensorConfigurationViewModel />
-    </Design.DataContext>
-
     <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto">
-        <!--  Length  -->
         <Label
         Grid.Row="0"
         Grid.Column="0"

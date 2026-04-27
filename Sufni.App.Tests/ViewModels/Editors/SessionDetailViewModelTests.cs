@@ -17,7 +17,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SessionDetailViewModelTests
 {
-    private readonly ISessionCoordinator sessionCoordinator = Substitute.For<ISessionCoordinator>();
+    private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();

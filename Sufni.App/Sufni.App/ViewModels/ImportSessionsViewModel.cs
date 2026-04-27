@@ -35,32 +35,21 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
     private readonly IFilesService filesService;
-    private readonly ISetupCoordinator setupCoordinator;
-    private readonly IImportSessionsCoordinator importSessionsCoordinator;
+    private readonly SetupCoordinator setupCoordinator;
+    private readonly ImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupStore setupStore;
 
     #endregion Private members
 
     #region Constructors
 
-    public ImportSessionsViewModel()
-    {
-        Name = "Import Sessions";
-        TelemetryDataStores = [];
-        telemetryDataStoreService = null!;
-        filesService = null!;
-        setupCoordinator = null!;
-        importSessionsCoordinator = null!;
-        setupStore = null!;
-    }
-
     public ImportSessionsViewModel(
         ITelemetryDataStoreService telemetryDataStoreService,
         IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        ISetupCoordinator setupCoordinator,
-        IImportSessionsCoordinator importSessionsCoordinator,
+        SetupCoordinator setupCoordinator,
+        ImportSessionsCoordinator importSessionsCoordinator,
         ISetupStore setupStore)
         : base(shell, dialogService)
     {
@@ -161,12 +150,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private void ResolveSelectedSetup()
     {
-        if (setupStore is null)
-        {
-            SelectedSetup = null;
-            return;
-        }
-
         var boardId = SelectedDataStore?.BoardId;
         SelectedSetup = boardId.HasValue
             ? setupStore.FindByBoardId(boardId.Value)?.Id
@@ -306,11 +289,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         SelectedSetup = null;
         NewDataStoresAvailable = false;
         TelemetryFiles.Clear();
-        if (telemetryDataStoreService is not null)
-        {
-            telemetryDataStoreService.ErrorOccurred -= OnDataStoreServiceError;
-            telemetryDataStoreService.StopBrowse();
-        }
+        telemetryDataStoreService.ErrorOccurred -= OnDataStoreServiceError;
+        telemetryDataStoreService.StopBrowse();
     }
 
     private void OnDataStoreServiceError(object? sender, string message)

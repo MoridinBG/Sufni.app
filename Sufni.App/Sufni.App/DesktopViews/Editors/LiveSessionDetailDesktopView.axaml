@@ -16,10 +16,6 @@ Background="{StaticResource SufniRegion}"
 Focusable="True"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:LiveSessionDetailViewModel />
-    </Design.DataContext>
-
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
             <InvokeCommandAction Command="{Binding LoadedCommand}" />

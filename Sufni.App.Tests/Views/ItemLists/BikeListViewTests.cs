@@ -22,7 +22,7 @@ public class BikeListViewTests
 
         var snapshot = TestSnapshots.Bike(name: "Trail Bike");
         var store = new BikeStoreStub(snapshot);
-        var coordinator = Substitute.For<IBikeCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.Bike();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
         dependencyQuery.IsBikeInUse(snapshot.Id).Returns(false);
@@ -53,7 +53,7 @@ public class BikeListViewTests
         ViewTestHelpers.EnsureViewTestResources();
 
         var store = new BikeStoreStub();
-        var coordinator = Substitute.For<IBikeCoordinator>();
+        var coordinator = TestCoordinatorSubstitutes.Bike();
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
         dependencyQuery.Changes.Returns(Observable.Return(Unit.Default));
 

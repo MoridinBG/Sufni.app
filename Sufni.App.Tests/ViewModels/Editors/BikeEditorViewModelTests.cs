@@ -19,23 +19,13 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class BikeEditorViewModelTests
 {
-    private readonly IBikeCoordinator bikeCoordinator = Substitute.For<IBikeCoordinator>();
+    private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
 
     public BikeEditorViewModelTests()
     {
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
-        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
-        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
-        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
-        bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
     }
 

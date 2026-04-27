@@ -13,10 +13,6 @@ d:DesignWidth="800"
 x:DataType="vml:ItemListViewModelBase"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vml:ItemListViewModelBase />
-    </Design.DataContext>
-
     <!--  Filter  -->
     <Grid
     Margin="20,0,0,20"

@@ -10,8 +10,8 @@ namespace Sufni.App.Coordinators;
 /// <summary>
 /// Desktop-only singleton owning the bike+setup branch of the
 /// synchronization server's <c>SynchronizationDataArrived</c> event.
-/// Sessions are owned by <see cref="ISessionCoordinator"/>; paired
-/// devices by <see cref="IPairedDeviceCoordinator"/>. Each entity
+/// Sessions are owned by <see cref="SessionCoordinator"/>; paired
+/// devices by <see cref="PairedDeviceCoordinator"/>. Each entity
 /// family has exactly one inbound owner.
 /// </summary>
 public sealed class InboundSyncCoordinator : IInboundSyncCoordinator

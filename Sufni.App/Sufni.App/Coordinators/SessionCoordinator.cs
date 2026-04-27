@@ -21,7 +21,7 @@ namespace Sufni.App.Coordinators;
 /// server's session events in its constructor and keeps the
 /// <see cref="ISessionStore"/> in sync.
 /// </summary>
-public sealed class SessionCoordinator : ISessionCoordinator
+public class SessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
 
@@ -29,7 +29,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
     private readonly IDatabaseService databaseService;
     private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly ITrackCoordinator trackCoordinator;
+    private readonly TrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ITileLayerService tileLayerService;
     private readonly IShellCoordinator shell;
@@ -40,7 +40,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         IDatabaseService databaseService,
         IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ITrackCoordinator trackCoordinator,
+        TrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
@@ -64,7 +64,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public Task OpenEditAsync(Guid sessionId)
+    public virtual Task OpenEditAsync(Guid sessionId)
     {
         var snapshot = sessionStore.Get(sessionId);
         if (snapshot is null) return Task.CompletedTask;
@@ -81,7 +81,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         return Task.CompletedTask;
     }
 
-    public async Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
+    public virtual async Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
@@ -143,7 +143,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<SessionMobileLoadResult> LoadMobileDetailAsync(
+    public virtual async Task<SessionMobileLoadResult> LoadMobileDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
         CancellationToken cancellationToken = default)
@@ -217,7 +217,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
+    public virtual async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
     {
         logger.Information("Starting session save for {SessionId}", session.Id);
 
@@ -254,7 +254,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
+    public virtual async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
         Session session,
         LiveSessionCapturePackage capture,
         CancellationToken cancellationToken = default)
@@ -313,7 +313,7 @@ public sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
+    public virtual async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {
         logger.Information("Starting session delete for {SessionId}", sessionId);
 
@@ -485,4 +485,29 @@ public sealed class SessionCoordinator : ISessionCoordinator
             sessionStore.Upsert(snapshot);
         });
     }
+}
+
+public abstract record SessionSaveResult
+{
+    private SessionSaveResult() { }
+
+    public sealed record Saved(long NewBaselineUpdated) : SessionSaveResult;
+    public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionSaveResult;
+    public sealed record Failed(string ErrorMessage) : SessionSaveResult;
+}
+
+public abstract record LiveSessionSaveResult
+{
+    private LiveSessionSaveResult() { }
+
+    public sealed record Saved(Guid SessionId, long Updated) : LiveSessionSaveResult;
+    public sealed record Failed(string ErrorMessage) : LiveSessionSaveResult;
+}
+
+public sealed record SessionDeleteResult(SessionDeleteOutcome Outcome, string? ErrorMessage = null);
+
+public enum SessionDeleteOutcome
+{
+    Deleted,
+    Failed
 }

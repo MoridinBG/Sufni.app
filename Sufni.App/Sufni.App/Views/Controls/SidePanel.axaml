@@ -10,10 +10,6 @@
     x:DataType="vm:MainPagesViewModel"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:MainPagesViewModel />
-    </Design.DataContext>
-
     <UserControl.Styles>
         <Style Selector="MenuItem">
             <Setter Property="Margin" Value="5,10,0,10" />

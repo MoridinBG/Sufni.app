@@ -15,7 +15,7 @@ namespace Sufni.App.Coordinators;
 /// eagerly resolved at app startup so the constructor's event
 /// subscriptions wire up before any pairing arrives.
 /// </summary>
-public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
+public sealed class PairedDeviceCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
 
@@ -73,4 +73,12 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
             pairedDeviceStore.Remove(e.Device.DeviceId);
         });
     }
+}
+
+public abstract record PairedDeviceUnpairResult
+{
+    private PairedDeviceUnpairResult() { }
+
+    public sealed record Unpaired : PairedDeviceUnpairResult;
+    public sealed record Failed(string ErrorMessage) : PairedDeviceUnpairResult;
 }

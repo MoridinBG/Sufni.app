@@ -7,30 +7,21 @@ namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
-    private readonly IBikeCoordinator bikeCoordinator;
-    private readonly ISetupCoordinator setupCoordinator;
-    private readonly IImportSessionsCoordinator importSessionsCoordinator;
+    private readonly BikeCoordinator bikeCoordinator;
+    private readonly SetupCoordinator setupCoordinator;
+    private readonly ImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
 
     public bool IsDesktop => App.Current?.IsDesktop == true;
 
     #region Constructors
 
-    public WelcomeScreenViewModel()
-    {
-        bikeCoordinator = null!;
-        setupCoordinator = null!;
-        importSessionsCoordinator = null!;
-        filesService = null!;
-        Name = "Welcome";
-    }
-
     public WelcomeScreenViewModel(
         IShellCoordinator shell,
         IDialogService dialogService,
-        IBikeCoordinator bikeCoordinator,
-        ISetupCoordinator setupCoordinator,
-        IImportSessionsCoordinator importSessionsCoordinator,
+        BikeCoordinator bikeCoordinator,
+        SetupCoordinator setupCoordinator,
+        ImportSessionsCoordinator importSessionsCoordinator,
         IFilesService filesService)
         : base(shell, dialogService)
     {

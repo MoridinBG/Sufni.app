@@ -78,33 +78,33 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
         ServiceCollection.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
-        ServiceCollection.AddSingleton<IBikeCoordinator, BikeCoordinator>();
+        ServiceCollection.AddSingleton<BikeCoordinator>();
         ServiceCollection.AddSingleton<SetupStore>();
         ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
         ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
-        ServiceCollection.AddSingleton<ISetupCoordinator, SetupCoordinator>();
+        ServiceCollection.AddSingleton<SetupCoordinator>();
         ServiceCollection.AddSingleton<SessionStore>();
         ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
-        ServiceCollection.AddSingleton<ITrackCoordinator, TrackCoordinator>();
-        ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<TrackCoordinator>();
+        ServiceCollection.AddSingleton<SessionCoordinator>();
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqBrowseOwner, LiveDaqBrowseOwner>();
         ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
-        ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
+        ServiceCollection.AddSingleton<Func<ILiveDaqClient>>(_ => static () => new LiveDaqClient());
         ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
-        ServiceCollection.AddSingleton<ILiveGraphPipelineFactory, LiveGraphPipelineFactory>();
+        ServiceCollection.AddSingleton<LiveGraphPipelineFactory>();
         ServiceCollection.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
-        ServiceCollection.AddSingleton<ILiveDaqCoordinator, LiveDaqCoordinator>();
+        ServiceCollection.AddSingleton<LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
-        ServiceCollection.AddSingleton<IPairedDeviceCoordinator, PairedDeviceCoordinator>();
-        ServiceCollection.AddSingleton<ISyncCoordinator, SyncCoordinator>();
-        ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
+        ServiceCollection.AddSingleton<PairedDeviceCoordinator>();
+        ServiceCollection.AddSingleton<SyncCoordinator>();
+        ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
                 sp.GetRequiredService<IDatabaseService>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),
@@ -122,9 +122,9 @@ public partial class App : Application
             sp.GetRequiredService<ISetupStore>(),
             sp.GetRequiredService<ISessionStore>(),
             sp.GetRequiredService<IPairedDeviceStore>(),
-            sp.GetRequiredService<IImportSessionsCoordinator>(),
-            sp.GetRequiredService<ITrackCoordinator>(),
-            sp.GetRequiredService<ISyncCoordinator>(),
+            sp.GetRequiredService<ImportSessionsCoordinator>(),
+            sp.GetRequiredService<TrackCoordinator>(),
+            sp.GetRequiredService<SyncCoordinator>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
@@ -149,9 +149,9 @@ public partial class App : Application
         // Coordinators with constructor-time event subscriptions are
         // eagerly resolved here so the subscriptions are wired before any
         // sync, pairing, or telemetry arrival can happen.
-        _ = Services.GetRequiredService<ISessionCoordinator>();
-        _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
-        _ = Services.GetRequiredService<ISyncCoordinator>();
+        _ = Services.GetRequiredService<SessionCoordinator>();
+        _ = Services.GetRequiredService<PairedDeviceCoordinator>();
+        _ = Services.GetRequiredService<SyncCoordinator>();
 
         // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
         // before the pairing screen is opened.

@@ -86,15 +86,11 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
 
     partial void OnFrontWheelDiameterChanged(double? value)
     {
-        if (suppressWheelStateCallbacks) return;
-
-        WithWheelStateCallbacksSuspended(() =>
+        HandleWheelDiameterChanged(() =>
         {
             FrontWheelRimSize = null;
             FrontWheelTireWidth = null;
-        });
-
-        NotifyFrontWheelPropertiesChanged();
+        }, NotifyFrontWheelPropertiesChanged);
     }
 
     partial void OnRearWheelRimSizeChanged(EtrtoRimSize? value)
@@ -111,15 +107,11 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
 
     partial void OnRearWheelDiameterChanged(double? value)
     {
-        if (suppressWheelStateCallbacks) return;
-
-        WithWheelStateCallbacksSuspended(() =>
+        HandleWheelDiameterChanged(() =>
         {
             RearWheelRimSize = null;
             RearWheelTireWidth = null;
-        });
-
-        NotifyRearWheelPropertiesChanged();
+        }, NotifyRearWheelPropertiesChanged);
     }
 
     public void ApplySnapshot(BikeSnapshot snapshot)
@@ -277,6 +269,14 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
         }
 
         return $"{diameter:0.0} mm";
+    }
+
+    private void HandleWheelDiameterChanged(Action clearWheelParts, Action notifyWheelProperties)
+    {
+        if (suppressWheelStateCallbacks) return;
+
+        WithWheelStateCallbacksSuspended(clearWheelParts);
+        notifyWheelProperties();
     }
 
     private void RecalculateFrontWheelDiameter()

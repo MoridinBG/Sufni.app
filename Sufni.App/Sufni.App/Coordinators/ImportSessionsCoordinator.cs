@@ -10,16 +10,16 @@ using Serilog;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class ImportSessionsCoordinator(
+public class ImportSessionsCoordinator(
     IDatabaseService databaseService,
     ISessionStoreWriter sessionStore,
     IShellCoordinator shell,
     IBackgroundTaskRunner backgroundTaskRunner,
-    Func<ImportSessionsViewModel> importSessionsResolver) : IImportSessionsCoordinator
+    Func<ImportSessionsViewModel> importSessionsResolver)
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
 
-    public Task OpenAsync()
+    public virtual Task OpenAsync()
     {
         shell.OpenOrFocus<ImportSessionsViewModel>(
             _ => true,
@@ -27,7 +27,7 @@ public sealed class ImportSessionsCoordinator(
         return Task.CompletedTask;
     }
 
-    public async Task<SessionImportResult> ImportAsync(
+    public virtual async Task<SessionImportResult> ImportAsync(
         IReadOnlyList<ITelemetryFile> files,
         Guid setupId,
         IProgress<SessionImportEvent>? progress = null)
@@ -155,4 +155,16 @@ public sealed class ImportSessionsCoordinator(
 
         return new SessionImportResult(imported, failures);
     }
+}
+
+public sealed record SessionImportResult(
+    IReadOnlyList<SessionSnapshot> Imported,
+    IReadOnlyList<(string FileName, string ErrorMessage)> Failures);
+
+public abstract record SessionImportEvent
+{
+    private SessionImportEvent() { }
+
+    public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
+    public sealed record Failed(string FileName, string ErrorMessage) : SessionImportEvent;
 }

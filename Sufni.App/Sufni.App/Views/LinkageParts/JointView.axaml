@@ -13,12 +13,7 @@ x:DataType="vm:JointViewModel"
 ClipToBounds="False"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:JointViewModel />
-    </Design.DataContext>
-
     <Canvas Name="PointCanvas">
-
         <!--  Context flyout with name and type  -->
         <Canvas.ContextFlyout>
             <Flyout>

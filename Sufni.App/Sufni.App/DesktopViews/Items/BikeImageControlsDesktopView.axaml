@@ -19,10 +19,6 @@ x:DataType="vm:BikeEditorViewModel"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vm:BikeEditorViewModel />
-    </Design.DataContext>
-
     <UserControl.Styles>
         <Style Selector="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />

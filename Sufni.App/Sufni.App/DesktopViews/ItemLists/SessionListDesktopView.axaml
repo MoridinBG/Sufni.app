@@ -15,10 +15,6 @@
     Background="{StaticResource SufniRegion}"
     mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vml:SessionListViewModel />
-    </Design.DataContext>
-
     <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
 
         <!--  Search bar  -->

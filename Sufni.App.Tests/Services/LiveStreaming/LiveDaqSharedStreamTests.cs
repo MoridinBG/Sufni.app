@@ -405,7 +405,7 @@ public class LiveDaqSharedStreamTests
     }
 
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
-        new(clientFactory, catalogService);
+        new(clientFactory.CreateClient, catalogService);
 
     private static LiveDaqSnapshot CreateSnapshot(string identityKey, string host, int port) =>
         new(
@@ -442,7 +442,7 @@ public class LiveDaqSharedStreamTests
         }
     }
 
-    private sealed class FakeLiveDaqClientFactory : ILiveDaqClientFactory
+    private sealed class FakeLiveDaqClientFactory
     {
         public List<FakeLiveDaqClient> CreatedClients { get; } = [];
 

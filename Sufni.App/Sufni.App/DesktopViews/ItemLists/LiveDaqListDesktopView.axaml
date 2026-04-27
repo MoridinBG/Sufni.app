@@ -13,10 +13,6 @@ x:DataType="vml:LiveDaqListViewModel"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
 
-    <Design.DataContext>
-        <vml:LiveDaqListViewModel />
-    </Design.DataContext>
-
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
 
         <controls:SearchBar

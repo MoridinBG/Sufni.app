@@ -13,7 +13,7 @@ public class SetupListViewModelTests
     {
         var setupStore = Substitute.For<ISetupStore>();
         using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
-        var setupCoordinator = Substitute.For<ISetupCoordinator>();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
 
         setupStore.Connect().Returns(setupCache.Connect());
 

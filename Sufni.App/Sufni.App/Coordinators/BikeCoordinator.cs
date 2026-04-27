@@ -11,17 +11,17 @@ using Serilog;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class BikeCoordinator(
+public class BikeCoordinator(
     IBikeStoreWriter bikeStore,
     IDatabaseService databaseService,
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
-    IDialogService dialogService) : IBikeCoordinator
+    IDialogService dialogService)
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 
-    public Task OpenCreateAsync()
+    public virtual Task OpenCreateAsync()
     {
         var seed = new Bike(Guid.NewGuid(), "new bike");
         var snapshot = BikeSnapshot.From(seed);
@@ -39,7 +39,7 @@ public sealed class BikeCoordinator(
         return Task.CompletedTask;
     }
 
-    public Task OpenEditAsync(Guid bikeId)
+    public virtual Task OpenEditAsync(Guid bikeId)
     {
         var snapshot = bikeStore.Get(bikeId);
         if (snapshot is null) return Task.CompletedTask;
@@ -56,15 +56,15 @@ public sealed class BikeCoordinator(
         return Task.CompletedTask;
     }
 
-    public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
+    public virtual Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
         RearSuspension? rearSuspension,
         CancellationToken cancellationToken = default) =>
         bikeEditorService.LoadAnalysisAsync(rearSuspension, cancellationToken);
 
-    public Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default) =>
+    public virtual Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default) =>
         bikeEditorService.LoadImageAsync(cancellationToken);
 
-    public async Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
+    public virtual async Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
     {
         logger.Information("Starting bike import");
 
@@ -95,10 +95,10 @@ public sealed class BikeCoordinator(
         }
     }
 
-    public Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
+    public virtual Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
         bikeEditorService.ImportLeverageRatioAsync(cancellationToken);
 
-    public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
+    public virtual async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
     {
         logger.Information("Starting bike export for {BikeId}", bike.Id);
 
@@ -125,7 +125,7 @@ public sealed class BikeCoordinator(
         return result;
     }
 
-    public async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
+    public virtual async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
     {
         logger.Information("Starting bike save for {BikeId}", bike.Id);
 
@@ -218,7 +218,7 @@ public sealed class BikeCoordinator(
         }
     }
 
-    public async Task<BikeDeleteResult> DeleteAsync(Guid bikeId)
+    public virtual async Task<BikeDeleteResult> DeleteAsync(Guid bikeId)
     {
         logger.Information("Starting bike delete for {BikeId}", bikeId);
 
@@ -282,4 +282,24 @@ public sealed class BikeCoordinator(
 
         return new BikeImportResult.Imported(new ImportedBikeEditorData(normalizedBike, analysis));
     }
+}
+
+public abstract record BikeSaveResult
+{
+    private BikeSaveResult() { }
+
+    public sealed record Saved(long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
+    public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
+    public sealed record InvalidLinkage : BikeSaveResult;
+    public sealed record InvalidRearSuspension(string ErrorMessage) : BikeSaveResult;
+    public sealed record Failed(string ErrorMessage) : BikeSaveResult;
+}
+
+public sealed record BikeDeleteResult(BikeDeleteOutcome Outcome, string? ErrorMessage = null);
+
+public enum BikeDeleteOutcome
+{
+    Deleted,
+    InUse,
+    Failed
 }

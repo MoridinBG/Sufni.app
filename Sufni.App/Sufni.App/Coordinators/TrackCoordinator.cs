@@ -10,14 +10,14 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class TrackCoordinator(
+public class TrackCoordinator(
     IDatabaseService databaseService,
     IFilesService filesService,
-    IBackgroundTaskRunner backgroundTaskRunner) : ITrackCoordinator
+    IBackgroundTaskRunner backgroundTaskRunner)
 {
     private const double DefaultMapVideoWidth = 400.0;
 
-    public async Task ImportGpxAsync(CancellationToken cancellationToken = default)
+    public virtual async Task ImportGpxAsync(CancellationToken cancellationToken = default)
     {
         var files = await filesService.OpenGpxFilesAsync();
         if (files.Count == 0)
@@ -30,7 +30,7 @@ public sealed class TrackCoordinator(
             cancellationToken);
     }
 
-    public Task<SessionTrackPresentationData> LoadSessionTrackAsync(
+    public virtual Task<SessionTrackPresentationData> LoadSessionTrackAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,
