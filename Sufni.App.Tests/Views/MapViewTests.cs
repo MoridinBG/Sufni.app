@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
+using Mapsui.UI.Avalonia;
 using NSubstitute;
 using Sufni.App.Models;
 using Sufni.App.Services;
@@ -150,6 +151,78 @@ public class MapViewTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task TimelineRangeUpdate_FromExternalSource_ZoomsToTrackSegment()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var viewModel = CreateViewModelWithTrack();
+        var timeline = new SessionTimelineLinkViewModel();
+        var view = new MapView
+        {
+            DataContext = viewModel,
+            Timeline = timeline,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+
+            var before = mapControl!.Map.Navigator.Viewport;
+            timeline.SetVisibleRange(0.25, 0.5, new object());
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var after = mapControl.Map.Navigator.Viewport;
+
+            Assert.True(after.Resolution < before.Resolution);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TimelineRangeUpdate_FromMapSource_DoesNotReapplyToMap()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var viewModel = CreateViewModelWithTrack();
+        var timeline = new SessionTimelineLinkViewModel();
+        var view = new MapView
+        {
+            DataContext = viewModel,
+            Timeline = timeline,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+
+            var before = mapControl!.Map.Navigator.Viewport;
+            timeline.SetVisibleRange(0.25, 0.5, view);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var after = mapControl.Map.Navigator.Viewport;
+
+            Assert.Equal(before.CenterX, after.CenterX, 6);
+            Assert.Equal(before.CenterY, after.CenterY, 6);
+            Assert.Equal(before.Resolution, after.Resolution, 6);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     private static TileLayerConfig CreateLayer(string name) => new()
     {
         Name = name,
@@ -158,4 +231,23 @@ public class MapViewTests
         AttributionUrl = "https://example.com",
         MaxZoom = 18,
     };
+
+    private static MapViewModel CreateViewModelWithTrack()
+    {
+        var tileLayerService = Substitute.For<ITileLayerService>();
+        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+
+        return new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        {
+            SessionTrackPoints =
+            [
+                new TrackPoint(0, 0, 0, null),
+                new TrackPoint(1, 100, 100, null),
+                new TrackPoint(2, 200, 200, null),
+                new TrackPoint(3, 300, 300, null),
+                new TrackPoint(4, 400, 400, null),
+            ],
+            FullTrackPoints = [],
+        };
+    }
 }

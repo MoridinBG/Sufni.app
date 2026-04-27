@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel;
 using Avalonia;
 using Sufni.App.Plots;
 using Sufni.App.Views.Plots;
@@ -98,12 +97,12 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
             if (e.Property.Name != nameof(Timeline)) return;
             if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
             {
-                oldTimeline.PropertyChanged -= OnTimelineChanged;
+                oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
             }
 
             if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
             {
-                newTimeline.PropertyChanged += OnTimelineChanged;
+                newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
                 ApplyTimelineRange();
             }
         };
@@ -132,12 +131,14 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         other.PlotControl.Plot.Axes.Link(PlotControl, x: true, y: false);
     }
 
-    private void OnTimelineChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnTimelineVisibleRangeChanged(object? sender, EventArgs e)
     {
-        if (e.PropertyName is nameof(SessionTimelineLinkViewModel.VisibleRangeStart) or nameof(SessionTimelineLinkViewModel.VisibleRangeEnd))
+        if (ReferenceEquals(Timeline?.VisibleRangeChangeSource, this))
         {
-            ApplyTimelineRange();
+            return;
         }
+
+        ApplyTimelineRange();
     }
 
     private void LoadTelemetryIntoPlot(TelemetryData telemetryData)
@@ -182,7 +183,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         var startNormalized = Math.Clamp(limits.Left / duration, 0.0, 1.0);
         var endNormalized = Math.Clamp(limits.Right / duration, 0.0, 1.0);
 
-        Timeline.SetVisibleRange(startNormalized, endNormalized);
+        Timeline.SetVisibleRange(startNormalized, endNormalized, this);
     }
 
     private void ApplyTimelineRange()

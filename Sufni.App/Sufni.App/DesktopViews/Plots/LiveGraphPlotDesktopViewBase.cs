@@ -82,11 +82,13 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                     if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
                     {
                         oldTimeline.PropertyChanged -= OnTimelineChanged;
+                        oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
                     }
 
                     if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
                     {
                         newTimeline.PropertyChanged += OnTimelineChanged;
+                        newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
                         ApplyTimelineRange();
                     }
                     break;
@@ -290,12 +292,17 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                 Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
                 RefreshPlot();
                 break;
-
-            case nameof(SessionTimelineLinkViewModel.VisibleRangeStart):
-            case nameof(SessionTimelineLinkViewModel.VisibleRangeEnd):
-                ApplyTimelineRange();
-                break;
         }
+    }
+
+    private void OnTimelineVisibleRangeChanged(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(Timeline?.VisibleRangeChangeSource, this))
+        {
+            return;
+        }
+
+        ApplyTimelineRange();
     }
 
     protected override void OnViewportChanged() => UpdateTimelineRange();
@@ -308,7 +315,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         }
 
         var (start, end) = Plot.GetNormalizedVisibleRange();
-        Timeline.SetVisibleRange(start, end);
+        Timeline.SetVisibleRange(start, end, this);
     }
 
     private void ApplyTimelineRange()
