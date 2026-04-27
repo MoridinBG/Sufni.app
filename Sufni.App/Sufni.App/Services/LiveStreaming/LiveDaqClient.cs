@@ -158,7 +158,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 .Unwrap();
             receiveParseTask = Task.Factory
                 .StartNew(
-                    () => ParseLoopAsync(receiveLoopCts.Token),
+                    ParseLoopAsync,
                     receiveLoopCts.Token,
                     TaskCreationOptions.LongRunning,
                     TaskScheduler.Default)
@@ -518,7 +518,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
         }
     }
 
-    private async Task ParseLoopAsync(CancellationToken cancellationToken)
+    private async Task ParseLoopAsync()
     {
         var readerChannel = rawTelemetryFrames?.Reader;
         var writer = parsedTelemetryFrames?.Writer;
@@ -529,7 +529,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
 
         try
         {
-            await foreach (var rawFrame in readerChannel.ReadAllAsync(cancellationToken))
+            await foreach (var rawFrame in readerChannel.ReadAllAsync())
             {
                 ReleaseRawTelemetryFrame();
                 var frame = LiveProtocolReader.ParseFrame(rawFrame.FrameBytes);
@@ -546,7 +546,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 }
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
@@ -572,7 +572,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
 
         try
         {
-            await foreach (var frame in readerChannel.ReadAllAsync(cancellationToken))
+            await foreach (var frame in readerChannel.ReadAllAsync())
             {
                 ReleaseParsedTelemetryFrame();
                 await HandleFrameAsync(frame);
@@ -583,7 +583,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 await HandleDisconnectAsync(null);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
