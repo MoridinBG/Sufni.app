@@ -30,4 +30,15 @@ public class MainPagesViewModelTests
 
         Assert.Same(livePage, viewModel.LiveDaqsPage);
     }
+
+    [Fact]
+    public async Task OpenGpsTracksCommand_ImportsGpxThroughTrackCoordinator()
+    {
+        var trackCoordinator = TestCoordinatorSubstitutes.Track();
+        var viewModel = MainPagesViewModelTestFactory.Create(trackCoordinator: trackCoordinator);
+
+        await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
+
+        await trackCoordinator.Received(1).ImportGpxAsync();
+    }
 }

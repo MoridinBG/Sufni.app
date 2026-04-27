@@ -1,14 +1,14 @@
 ﻿<UserControl
-    x:Class="Sufni.App.Views.Controls.SidePanel"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
-    d:DesignHeight="450"
-    d:DesignWidth="200"
-    x:DataType="vm:MainPagesViewModel"
-    mc:Ignorable="d">
+x:Class="Sufni.App.Views.Controls.SidePanel"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+d:DesignHeight="450"
+d:DesignWidth="200"
+x:DataType="vm:MainPagesViewModel"
+mc:Ignorable="d">
 
     <UserControl.Styles>
         <Style Selector="MenuItem">
@@ -36,55 +36,63 @@
 
     <StackPanel>
         <MenuItem
-            Command="{Binding OpenImportCommand}"
-            Header="import">
+        Command="{Binding OpenImportCommand}"
+        Header="import">
             <MenuItem.Icon>
                 <Image Width="12" Source="{SvgImage /Assets/fa-file-import.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
+        Name="ImportGpxMenuItem"
+        Command="{Binding OpenGpsTracksCommand}"
+        Header="GPX import">
+            <MenuItem.Icon>
+                <Image Width="12" Source="{SvgImage /Assets/fa-map.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <Separator />
         <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike">
             <MenuItem.Icon>
                 <Image
-                    Width="12"
-                    Margin="0,1,0,0"
-                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+                Width="12"
+                Margin="0,1,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem Command="{Binding SetupsPage.AddCommand}" Header="setup">
             <MenuItem.Icon>
                 <Image
-                    Width="12"
-                    Margin="0,1,0,0"
-                    Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+                Width="12"
+                Margin="0,1,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <Separator />
         <MenuItem
-            Command="{Binding SyncCommand}"
-            Header="synchronize"
-            IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
+        Command="{Binding SyncCommand}"
+        Header="synchronize"
+        IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
                 <Image
-                    Width="12"
-                    Margin="0,3,0,0"
-                    Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+                Width="12"
+                Margin="0,3,0,0"
+                Source="{SvgImage /Assets/fa-sync-alt.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
-            Command="{Binding OpenPageCommand}"
-            CommandParameter="{Binding PairingClientPage}"
-            Header="pair"
-            IsVisible="{Binding !IsPaired}">
+        Command="{Binding OpenPageCommand}"
+        CommandParameter="{Binding PairingClientPage}"
+        Header="pair"
+        IsVisible="{Binding !IsPaired}">
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
-            Command="{Binding OpenPageCommand}"
-            CommandParameter="{Binding PairingClientPage}"
-            Header="unpair"
-            IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
+        Command="{Binding OpenPageCommand}"
+        CommandParameter="{Binding PairingClientPage}"
+        Header="unpair"
+        IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
             </MenuItem.Icon>

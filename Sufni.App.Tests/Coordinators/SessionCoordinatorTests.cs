@@ -344,14 +344,18 @@ public class SessionCoordinatorTests
         var sessionId = Guid.NewGuid();
         var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
         var telemetry = TestTelemetryData.Create();
+        var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
         database.GetSessionCacheAsync(sessionId).Returns(cache);
         database.GetSessionPsstAsync(sessionId).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(sessionId, null, telemetry, Arg.Any<CancellationToken>())
+            .Returns(trackData);
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
 
         var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
         Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
         Assert.Same(telemetry, loaded.Telemetry);
+        Assert.Same(trackData, loaded.TrackData);
         await database.Received(1).GetSessionPsstAsync(sessionId);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
@@ -369,6 +373,7 @@ public class SessionCoordinatorTests
         var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
         Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
         Assert.Null(loaded.Telemetry);
+        Assert.Null(loaded.TrackData);
         await database.Received(1).GetSessionPsstAsync(sessionId);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
@@ -378,6 +383,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.Create();
+        var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
         var cacheData = new SessionCachePresentationData(
             "front-travel",
             null,
@@ -392,7 +398,7 @@ public class SessionCoordinatorTests
         database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
+            .Returns(trackData);
         sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
             .Returns(cacheData);
 
@@ -401,6 +407,7 @@ public class SessionCoordinatorTests
         var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
         Assert.Equal("front-travel", built.Data.FrontTravelHistogram);
         Assert.Same(telemetry, built.Telemetry);
+        Assert.Same(trackData, built.TrackData);
         await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
             cache.SessionId == snapshot.Id && cache.FrontTravelHistogram == "front-travel"));
     }

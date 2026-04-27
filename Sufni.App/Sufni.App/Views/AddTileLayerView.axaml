@@ -6,12 +6,12 @@
              x:Class="Sufni.App.Views.AddTileLayerView">
     <StackPanel Spacing="10" Margin="20">
         <TextBlock Text="Add Custom Tile Layer" FontSize="18" FontWeight="Bold" Margin="0,0,0,10"/>
-        
+
         <TextBox Name="NameBox" Watermark="Layer Name" />
         <TextBox Name="UrlTemplateBox" Watermark="URL (e.g., https://tile.openstreetmap.org/{z}/{x}/{y}.png)" />
         <TextBox Name="AttributionBox" Watermark="Attribution Text" />
         <TextBox Name="AttributionUrlBox" Watermark="Attribution URL" />
-        
+
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Name="CancelButton" Content="Cancel" />
             <Button Name="OkButton" Content="Add Layer" Classes="accent" />

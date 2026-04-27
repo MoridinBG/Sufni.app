@@ -180,6 +180,7 @@ public partial class App : Application
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
+                dialogService.SetOverlayHost(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
@@ -188,6 +189,10 @@ public partial class App : Application
                 {
                     DataContext = mainViewModel
                 };
+                if (singleViewPlatform.MainView is Control mainView)
+                {
+                    dialogService.SetOverlayHost(mainView);
+                }
                 singleViewPlatform.MainView.Loaded += (_, _) =>
                 {
                     var topLevel = TopLevel.GetTopLevel(singleViewPlatform.MainView);
