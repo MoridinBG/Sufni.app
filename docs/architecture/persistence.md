@@ -9,7 +9,7 @@ erDiagram
     session ||--o| setup : "setup_id"
     session ||--o| track : "full_track_id"
     session ||--o| session_cache : "session_id"
-    setup ||--o| bike : "bike_id"
+    setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
     session {
@@ -43,7 +43,9 @@ erDiagram
         real head_angle
         real fork_stroke
         real shock_stroke
+        int rear_suspension_kind
         text linkage
+        text leverage_ratio
         blob image
         real pixels_to_millimeters
         real front_wheel_diameter
@@ -119,7 +121,7 @@ erDiagram
         text device_id PK
         text display_name
         text token
-        datetime expires
+        int expires
     }
 ```
 
@@ -131,26 +133,36 @@ Generic operations on any `Synchronizable` subclass:
 
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
 - `GetChangedAsync<T>(long since)` — returns records where `Updated > since` OR (`Deleted != null` AND `Deleted > since`)
-- `PutAsync<T>(item)` — upsert with `Updated = DateTimeOffset.Now`
-- `DeleteAsync<T>(id)` — sets `Deleted` timestamp (soft delete)
+- `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
+- `DeleteAsync<T>(id)` — sets `Deleted` timestamp (soft delete); idempotent — leaves the existing tombstone in place if the row is already deleted.
 
 Session-specific operations split metadata from blob handling:
 
-- `PutSessionAsync()` — updates metadata columns only, never touches the `data` blob
-- `PatchSessionPsstAsync(id, bytes)` — updates only the `data` column
+- `PutSessionAsync()` — updates metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. The `data` blob and `has_data` flag are written via `COALESCE(?, data)`: if `session.ProcessedData` is non-null the blob is overwritten, otherwise the existing blob is preserved.
+- `PatchSessionPsstAsync(id, bytes)` — updates only the `data` column (and sets `has_data = 1`)
 - `GetSessionPsstAsync(id)` — deserializes MessagePack blob to `TelemetryData`
 
 ## Soft Delete
 
-All `Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). On database initialization, records with `Deleted` older than 1 day and expired paired devices are permanently removed.
+`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `app_setting`, and `sync` are not `Synchronizable` and have their own lifecycles.
+
+On database initialization, the `Cleanup()` pass permanently removes:
+
+- `Synchronizable` rows with `Deleted` older than 1 day
+- Orphaned `session_cache` rows whose parent session is past that 1-day grace window
+- `paired_device` rows where `Expires < DateTime.UtcNow`
 
 ## Conflict Resolution
 
-`MergeAsync<T>()` handles incoming sync data:
+`MergeAsync<T>()` is invoked per entity inside the `MergeAllAsync(SynchronizationData)` transaction. It compares against a derived "content version" — `existing.ClientUpdated` if set, otherwise `existing.Updated` — so locally-authored rows that have not yet round-tripped through a sync still compare correctly.
 
-1. **New entity** (not in local DB): set `ClientUpdated = entity.Updated`, set `Updated = now`, insert
-2. **Remote delete** (`entity.Deleted` set): set local `Deleted` and `Updated` to remote values, update
-3. **Local wins** (`existing.ClientUpdated > entity.Updated`): keep local content, set `Updated = now`
-4. **Remote wins** (otherwise): set `ClientUpdated = entity.Updated`, set `Updated = now`, replace local
+The merge cases, in evaluation order:
 
-This gives local client changes precedence in conflicts while accepting remote deletes.
+1. **New entity** (not in local DB): persist with `ClientUpdated = entity.Updated`, `Updated = now`. Insert.
+2. **Existing already locally deleted**: keep the local tombstone; if the remote tombstone is later (`entity.Deleted > existing.Deleted`), advance `existing.Deleted` to the remote value. Always bump `existing.Updated = now`. (No content is ever revived once locally deleted.)
+3. **Remote delete with `entity.Deleted > existingContentVersion`**: accept the delete — set `existing.Deleted = entity.Deleted`, `existing.Updated = now`. (Note: `Updated` is set to *now*, not to the remote's `Updated`.)
+4. **Stale remote delete** (`entity.Deleted <= existingContentVersion`): ignore the delete; only bump `existing.Updated = now`.
+5. **Local wins** (`existingContentVersion > entity.Updated`): keep local content; bump `existing.Updated = now`.
+6. **Remote wins** (otherwise): persist remote content with `ClientUpdated = entity.Updated`, `Updated = now`. Update.
+
+This gives local client changes precedence in conflicts while accepting remote deletes that are newer than the local content.

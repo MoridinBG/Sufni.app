@@ -145,7 +145,10 @@ own read model, not a cross-domain business query.
 `LiveDaqStore` is a runtime-only store that does not persist to the
 database. It has no `RefreshAsync()`, its snapshots carry no `Updated`
 timestamp, and it is populated entirely by `LiveDaqCoordinator` from
-discovery and known-board query results. See
+discovery and known-board query results. Its writer interface adds
+`Clear()` and `ReplaceAll(IEnumerable<LiveDaqSnapshot>)` on top of
+`Upsert` / `Remove`; `LiveDaqCoordinator.ReconcileLocked` uses
+`ReplaceAll` to publish a fresh reconciled set in one update. See
 [Live DAQ Streaming](live-streaming.md) for the full feature
 architecture.
 
@@ -159,10 +162,10 @@ and are registered as singletons.
 
 | Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                                                                                                                                                        |
+| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `CloseIfOpen<T>` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                                                                                                                                     |
 | `BikeCoordinator`                                                         | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                                                                                                                                                            |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                                                                                                                                                             |
-| `SessionCoordinator`                                                      | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)`, plus `EnsureTelemetryDataAvailableAsync` for the mobile telemetry-fetch path; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                                                                                                                                                        |
+| `SessionCoordinator`                                                      | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)`, plus the mobile `LoadMobileDetailAsync` path which transparently fetches missing telemetry from the server before returning; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                                                                                                         |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
 | `ImportSessionsCoordinator`                                               | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                                                                                                                                                                                                                                           |
 | `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                                                                                                                                                                                                                                                       |
@@ -189,16 +192,19 @@ service contracts when the caller's next step differs by outcome.
 
 `SaveAsync` on the entity coordinators follows this pattern with
 `Saved(NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
-`Failed(ErrorMessage)`. Editors pattern-match on the result and, on
-conflict, prompt the user via `IDialogService` before reloading the
-snapshot. The coordinator detects conflicts by comparing the baseline
-`Updated` value the editor opened on against the store's current
-snapshot — so a sync arrival or another tab's save during an edit
-cannot silently overwrite the user's changes. The live session path is
-deliberately separate: `SaveLiveCaptureAsync(...)` is create-only and
-returns `Saved(SessionId, Updated)` or `Failed(ErrorMessage)` because
-there is no optimistic-concurrency baseline for an in-memory live
-capture.
+`Failed(ErrorMessage)`. `BikeSaveResult.Saved` additionally carries
+a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
+to leverage-ratio recomputation without a second round-trip; the
+other `Saved` variants are payload-only. Editors pattern-match on
+the result and, on conflict, prompt the user via `IDialogService`
+before reloading the snapshot. The coordinator detects conflicts by
+comparing the baseline `Updated` value the editor opened on against
+the store's current snapshot — so a sync arrival or another tab's
+save during an edit cannot silently overwrite the user's changes.
+The live session path is deliberately separate:
+`SaveLiveCaptureAsync(...)` is create-only and returns
+`Saved(SessionId, Updated)` or `Failed(ErrorMessage)` because there
+is no optimistic-concurrency baseline for an in-memory live capture.
 
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
@@ -310,13 +316,19 @@ There are five kinds of view model in the presentation layer:
       .Subscribe();
   ```
 
-  The list owns its own `Items` collection (it `new`-shadows the
-  empty default on `ItemListViewModelBase`) and pushes a fresh
-  predicate to a `BehaviorSubject` whenever filter state changes.
-  The base class only contributes the cross-cutting search /
-  date-filter / menu-item state and the `AddCommand` plumbing —
-  individual lists override `AddImplementation()` to delegate to
-  their coordinator.
+  `BikeListViewModel` deliberately reorders this pipeline to
+  `Transform → DisposeMany → Filter → Bind` so `DisposeMany` only
+  fires when a row leaves the source store, not when the filter
+  merely hides it — the trade-off is that the predicate sees the
+  row VM rather than the raw snapshot.
+
+  Each list owns its own `Items` `ReadOnlyObservableCollection`
+  and pushes a fresh predicate to a `BehaviorSubject` whenever
+  filter state changes. `ItemListViewModelBase` itself contributes
+  only the cross-cutting search / date-filter / menu-item state
+  and the `AddCommand` plumbing (it does not declare an `Items`
+  property — there is nothing to shadow). Individual lists
+  override `AddImplementation()` to delegate to their coordinator.
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,
