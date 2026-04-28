@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -24,7 +25,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly SessionCoordinator sessionCoordinator;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<SessionSnapshot, bool>> filterSubject = new(_ => true);
-    private (Guid Id, string Name)? pendingDelete;
+    private readonly HashSet<Guid> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -71,11 +72,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
         var search = SearchText;
         var fromDate = DateFilterFrom;
         var toDate = DateFilterTo;
-        var pendingId = pendingDelete?.Id;
+        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
 
         filterSubject.OnNext(snapshot =>
         {
-            if (pendingId is not null && snapshot.Id == pendingId) return false;
+            if (pendingIds is not null && pendingIds.Contains(snapshot.Id)) return false;
 
             // Search matches name OR description.
             var textMatch =
@@ -94,37 +95,35 @@ public partial class SessionListViewModel : ItemListViewModelBase
         });
     }
 
-    protected override void OnPendingDeleteUndone()
-    {
-        pendingDelete = null;
-        RebuildFilter();
-    }
-
     #endregion ItemListViewModelBase overrides
 
     #region Private methods
 
     private void RequestRowDelete(SessionRowViewModel row)
     {
-        _ = RunActionSwallowExceptionToErrorMessages(async () =>
-        {
-            var snapshot = sessionStore.Get(row.Id);
-            if (snapshot is null) return;
+        var snapshot = sessionStore.Get(row.Id);
+        if (snapshot is null) return;
 
-            await FlushPendingDeleteAsync();
+        pendingDeleteIds.Add(snapshot.Id);
+        RebuildFilter();
 
-            pendingDelete = (snapshot.Id, snapshot.Name);
-            RebuildFilter();
+        StartUndoWindow(
+            snapshot.Name,
+            finalize: () => FinalizeSessionDeleteAsync(snapshot.Id),
+            onUndone: () => OnSessionDeleteUndone(snapshot.Id));
+    }
 
-            StartUndoWindow(snapshot.Name, () => FinalizeSessionDeleteAsync(snapshot.Id));
-        });
+    private void OnSessionDeleteUndone(Guid sessionId)
+    {
+        pendingDeleteIds.Remove(sessionId);
+        RebuildFilter();
     }
 
     private async Task FinalizeSessionDeleteAsync(Guid sessionId)
     {
         var result = await sessionCoordinator.DeleteAsync(sessionId);
 
-        pendingDelete = null;
+        pendingDeleteIds.Remove(sessionId);
         RebuildFilter();
 
         if (result.Outcome == SessionDeleteOutcome.Failed)

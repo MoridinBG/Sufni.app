@@ -32,7 +32,8 @@ public class BikeListViewModelTests
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
         Assert.Empty(viewModel.Items);
 
-        var finalizeTask = viewModel.FinalizeDeleteCommand.ExecuteAsync(null);
+        var entry = viewModel.PendingDeletes[0];
+        var finalizeTask = entry.FinalizeDeleteCommand.ExecuteAsync(null);
         Assert.Empty(viewModel.Items);
 
         bikeCache.Remove(snapshot.Id);
@@ -63,7 +64,8 @@ public class BikeListViewModelTests
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
-        await viewModel.FinalizeDeleteCommand.ExecuteAsync(null);
+        var entry = viewModel.PendingDeletes[0];
+        await entry.FinalizeDeleteCommand.ExecuteAsync(null);
 
         Assert.Single(viewModel.Items);
         Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
