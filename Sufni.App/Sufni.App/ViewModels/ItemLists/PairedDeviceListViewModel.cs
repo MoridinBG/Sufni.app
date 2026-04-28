@@ -90,10 +90,11 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     private async Task FinalizeUnpairAsync(string deviceId)
     {
+        var result = await pairedDeviceCoordinator.UnpairAsync(deviceId);
+
         pendingDelete = null;
         RebuildFilter();
 
-        var result = await pairedDeviceCoordinator.UnpairAsync(deviceId);
         if (result is PairedDeviceUnpairResult.Failed failed)
         {
             ErrorMessages.Add(failed.ErrorMessage);

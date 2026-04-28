@@ -104,10 +104,11 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private async Task FinalizeSetupDeleteAsync(Guid setupId)
     {
+        var result = await setupCoordinator.DeleteAsync(setupId);
+
         pendingDelete = null;
         RebuildFilter();
 
-        var result = await setupCoordinator.DeleteAsync(setupId);
         if (result.Outcome == SetupDeleteOutcome.Failed)
         {
             ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");

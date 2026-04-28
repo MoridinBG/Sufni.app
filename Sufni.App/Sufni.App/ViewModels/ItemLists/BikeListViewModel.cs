@@ -117,10 +117,11 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     private async Task FinalizeBikeDeleteAsync(Guid bikeId)
     {
+        var result = await bikeCoordinator.DeleteAsync(bikeId);
+
         pendingDelete = null;
         RebuildFilter();
 
-        var result = await bikeCoordinator.DeleteAsync(bikeId);
         switch (result.Outcome)
         {
             case BikeDeleteOutcome.InUse:
