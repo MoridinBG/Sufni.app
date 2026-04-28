@@ -11,11 +11,12 @@ graph TD
     Velocity --> Strokes["Stroke Detection<br/>Sign changes + top-out concatenation"]
     Strokes --> Cat["Stroke Categorization<br/>Compression / Rebound / Idling"]
     Cat --> Air["Airtime Detection<br/>Both suspensions at top-out"]
-    Air --> Hist["Histogram Generation<br/>Travel, velocity, frequency (FFT)"]
-    Hist --> Stats["Statistics<br/>Max, averages, bottomouts, velocity bands"]
+    Air --> Hist["Histogram bin definitions<br/>Travel + velocity bins, digitized indexes"]
 ```
 
-`TelemetryData.FromRecording(RawTelemetryData, Metadata, BikeData)` (`Sufni.Telemetry/TelemetryData.cs`) orchestrates the entire pipeline. `BikeData` is a record carrying `HeadAngle`, `FrontMaxTravel`, `RearMaxTravel`, and two calibration functions (`Func<ushort, double>`) from the sensor configurations.
+`TelemetryData.FromRecording(RawTelemetryData, Metadata, BikeData)` (`Sufni.Telemetry/TelemetryData.cs`) orchestrates the entire pipeline. `BikeData` is a record carrying `HeadAngle` (`double`) plus nullable `FrontMaxTravel` / `RearMaxTravel` (`double?`) and nullable calibration functions `FrontMeasurementToTravel` / `RearMeasurementToTravel` (`Func<ushort, double>?`); the nullables are populated only for the suspensions actually present on the bike.
+
+The pipeline produces histogram **bin definitions** and per-stroke digitized indexes, but does not compute the histogram tallies, statistics, FFT frequency histogram, balance, or velocity-band breakdown — those are computed lazily on demand by `Calculate*` methods on `TelemetryData` (e.g., `CalculateTravelHistogram`, `CalculateVelocityHistogram`, `CalculateTravelFrequencyHistogram`, `CalculateBalance`, `CalculateVelocityBands`).
 
 ### Travel Calculation
 
@@ -23,7 +24,7 @@ Each raw encoder count is passed through the sensor's `MeasurementToTravel` func
 
 ### Velocity Calculation
 
-A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal. Parameters: 51-point window, polynomial order 3, 1st derivative. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries with asymmetric windows that shrink toward edges. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
+A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal. Parameters: window size up to 51 points (clamped down to fit short recordings, decremented if even, with a hard minimum of 5 — suspensions with fewer than 5 samples are flagged not-present), polynomial order 3, 1st derivative. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries with asymmetric windows that shrink toward edges. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
 
 ### Stroke Detection
 
@@ -115,19 +116,20 @@ For each of the 200 steps (0% to 100% shock compression):
 1. Set the shock's target length: `maxLength - (shockStroke * step / (steps-1))`
 2. Run 1000 iterations of `EnforceLength()` on every link
 
-`EnforceLength()` computes a half-correction per endpoint along the link axis. When both endpoints are free, each moves by half the error. When one is fixed, only the free endpoint moves by the half-correction (so each iteration applies half the full error for that link).
+`EnforceLength()` corrects each link toward its target along the link axis. When both endpoints are free (`movableEndpointCount == 2`), each moves by half the error so the link length matches in a single pass. When only one endpoint is free, that endpoint receives the *full* correction (`correctionScale = 1.0`). Multiple iterations are still required for the system to converge because every move perturbs the neighboring links sharing those joints.
 
 Output: `Dictionary<string, CoordinateList>` mapping each joint name to its X,Y positions across all 200 steps.
 
 ### Bike Characteristics
 
-`BikeCharacteristics` (`Sufni.Kinematics/BikeCharacteristics.cs`) derives properties from the solved motion:
+`BikeCharacteristics` (`Sufni.Kinematics/BikeCharacteristics.cs`) derives datasets from the solved motion:
 
-- **MaxFrontTravel** = `sin(headAngle) * forkStroke` — projects fork stroke onto the vertical travel axis
-- **MaxRearTravel** = Euclidean distance between rear wheel's initial and final positions
-- **Leverage ratio** = `delta(wheelTravel) / delta(shockCompression)` at each step — computed lazily and cached
+- **`LeverageRatioData`** = lazily computed and cached. For each step `i`, the ratio is `(wheelTravel[i] - wheelTravel[i-1]) / (shockStroke[i] - shockStroke[i-1])`, where wheel travel is the per-step Euclidean distance from the rear wheel's initial position and shock stroke is the per-step reduction of the shock-eye-to-shock-eye distance from its initial value.
+- **`AngleToTravelDataset(centralJoint, adjacentJoint1, adjacentJoint2)`** — angle at a specified joint vs. rear wheel travel across the full range, used for visualizing pivot behavior.
+- **`AngleToShockStrokeDataset(...)`** — the same angle paired with shock stroke instead of wheel travel.
+- **`ShockStrokeToWheelTravelDataset()`** — used by `RearTravelCalibrationBuilder` to derive rear max travel from a linkage solve.
 
-`AngleToTravelDataset()` calculates the angle at a specified joint (formed by two adjacent joints) across the full travel range, used for visualizing pivot behavior.
+Front and rear max travel for the processing pipeline do **not** live on `BikeCharacteristics`. Front max travel is computed inside the front sensor configuration itself (e.g., `LinearForkSensorConfiguration.MaxTravel = bike.ForkStroke * sin(headAngle)` — see [Sensor Calibration](#sensor-calibration)). Rear max travel is produced by `RearTravelCalibrationBuilder` from either the linkage solve (`ShockStrokeToWheelTravelDataset.Y[^1]`) or the leverage-ratio curve (`LeverageRatio.WheelTravelAt(maxShockStroke)`).
 
 ### Utilities
 
@@ -144,7 +146,7 @@ Four sensor types convert raw ADC counts to millimeters of travel through the `I
 
 `ISensorConfiguration` (`Sufni.App/Sufni.App/Models/SensorConfigurations/SensorConfiguration.cs`) defines the front-suspension calibration surface used directly by the telemetry pipeline:
 
-- `Type` — `SensorType` enum discriminator (`LinearFork`, `RotationalFork`, `LinearShock`, `RotationalShock`)
+- `Type` — `SensorType` enum discriminator (`LinearFork`, `RotationalFork`, `LinearShock`, `LinearShockStroke`, `RotationalShock`)
 - `MeasurementToTravel` — `Func<ushort, double>` calibration closure
 - `MaxTravel` — physical suspension limit in mm
 
@@ -172,7 +174,7 @@ The bike context (head angle, fork stroke, shock stroke) is injected at deserial
 | ------------------------------------ | -------------------------------------------- | ---------------------------------------------------------------------- |
 | `LinearForkSensorConfiguration`      | Length, Resolution                           | Linear potentiometer on fork, projected by head angle                  |
 | `RotationalForkSensorConfiguration`  | MaxLength, ArmLength                         | Rotary encoder on fork, cosine-based rigid-arm geometric projection    |
-| `LinearShockSensorConfiguration`     | Length, Resolution                           | Rear shock payload consumed by `RearTravelCalibrationBuilder`; maps shock stroke to wheel travel via linkage interpolation or `LeverageRatio.WheelTravelAt(...)` |
+| `LinearShockSensorConfiguration`     | Length, Resolution                           | Rear shock payload (`SensorType.LinearShock` for linkage bikes, `SensorType.LinearShockStroke` for leverage-ratio bikes) consumed by `RearTravelCalibrationBuilder`; maps shock stroke to wheel travel via linkage interpolation or `LeverageRatio.WheelTravelAt(...)` |
 | `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2 | Rear shock payload consumed by `RearTravelCalibrationBuilder`; resolves angle-to-shock-stroke from linkage motion, then converts to wheel travel |
 
 For leverage-ratio bikes, `RearTravelCalibrationBuilder` validates that the bike's configured shock stroke matches the leverage-ratio curve's `MaxShockStroke` (within a small tolerance) before it accepts the calibration. The resulting rear max travel is the wheel travel at that validated max shock stroke, not a separately configured number.
