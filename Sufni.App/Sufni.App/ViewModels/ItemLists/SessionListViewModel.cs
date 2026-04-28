@@ -122,10 +122,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private async Task FinalizeSessionDeleteAsync(Guid sessionId)
     {
+        var result = await sessionCoordinator.DeleteAsync(sessionId);
+
         pendingDelete = null;
         RebuildFilter();
 
-        var result = await sessionCoordinator.DeleteAsync(sessionId);
         if (result.Outcome == SessionDeleteOutcome.Failed)
         {
             ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
