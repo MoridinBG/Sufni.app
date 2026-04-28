@@ -29,7 +29,8 @@ public class SessionListViewModelTests
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
         Assert.Empty(viewModel.Items);
 
-        var finalizeTask = viewModel.FinalizeDeleteCommand.ExecuteAsync(null);
+        var entry = viewModel.PendingDeletes[0];
+        var finalizeTask = entry.FinalizeDeleteCommand.ExecuteAsync(null);
         Assert.Empty(viewModel.Items);
 
         sessionCache.Remove(snapshot.Id);
@@ -58,9 +59,44 @@ public class SessionListViewModelTests
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
-        await viewModel.FinalizeDeleteCommand.ExecuteAsync(null);
+        var entry = viewModel.PendingDeletes[0];
+        await entry.FinalizeDeleteCommand.ExecuteAsync(null);
 
         Assert.Single(viewModel.Items);
         Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RequestRowDelete_StacksMultipleEntries_WithoutForcingPriorFinalize()
+    {
+        var sessionStore = Substitute.For<ISessionStore>();
+        using var sessionCache = new SourceCache<SessionSnapshot, Guid>(snapshot => snapshot.Id);
+        sessionStore.Connect().Returns(sessionCache.Connect());
+
+        var first = TestSnapshots.Session(name: "first");
+        var second = TestSnapshots.Session(name: "second");
+        sessionCache.AddOrUpdate(first);
+        sessionCache.AddOrUpdate(second);
+        sessionStore.Get(first.Id).Returns(first);
+        sessionStore.Get(second.Id).Returns(second);
+
+        var sessionCoordinator = TestCoordinatorSubstitutes.Session();
+        var firstTcs = new TaskCompletionSource<SessionDeleteResult>();
+        var secondTcs = new TaskCompletionSource<SessionDeleteResult>();
+        sessionCoordinator.DeleteAsync(first.Id).Returns(firstTcs.Task);
+        sessionCoordinator.DeleteAsync(second.Id).Returns(secondTcs.Task);
+
+        var viewModel = new SessionListViewModel(sessionStore, sessionCoordinator);
+        Assert.Equal(2, viewModel.Items.Count);
+
+        // Delete both rows back to back. The second delete must not
+        // force the first one to finalize early.
+        viewModel.Items[0].UndoableDeleteCommand.Execute(null);
+        viewModel.Items[0].UndoableDeleteCommand.Execute(null);
+
+        Assert.Empty(viewModel.Items);
+        Assert.Equal(2, viewModel.PendingDeletes.Count);
+
+        await sessionCoordinator.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
     }
 }

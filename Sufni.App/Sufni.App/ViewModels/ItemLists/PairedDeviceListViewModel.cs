@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
     private readonly PairedDeviceCoordinator pairedDeviceCoordinator;
     private readonly ReadOnlyObservableCollection<PairedDeviceRowViewModel> pairedDeviceRows;
     private readonly BehaviorSubject<Func<PairedDeviceSnapshot, bool>> filterSubject = new(_ => true);
-    private (string DeviceId, string Name)? pendingDelete;
+    private readonly HashSet<string> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -55,15 +56,9 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     protected override void RebuildFilter()
     {
-        var pendingId = pendingDelete?.DeviceId;
+        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<string>(pendingDeleteIds);
         filterSubject.OnNext(snapshot =>
-            pendingId is null || snapshot.DeviceId != pendingId);
-    }
-
-    protected override void OnPendingDeleteUndone()
-    {
-        pendingDelete = null;
-        RebuildFilter();
+            pendingIds is null || !pendingIds.Contains(snapshot.DeviceId));
     }
 
     #endregion ItemListViewModelBase overrides
@@ -72,27 +67,31 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(PairedDeviceRowViewModel row)
     {
-        _ = RunActionSwallowExceptionToErrorMessages(async () =>
-        {
-            var snapshot = pairedDeviceStore.Get(row.DeviceId);
-            if (snapshot is null) return;
+        var snapshot = pairedDeviceStore.Get(row.DeviceId);
+        if (snapshot is null) return;
 
-            await FlushPendingDeleteAsync();
+        var displayName =
+            string.IsNullOrWhiteSpace(snapshot.DisplayName) ? snapshot.DeviceId : snapshot.DisplayName!;
+        pendingDeleteIds.Add(snapshot.DeviceId);
+        RebuildFilter();
 
-            var displayName =
-                string.IsNullOrWhiteSpace(snapshot.DisplayName) ? snapshot.DeviceId : snapshot.DisplayName!;
-            pendingDelete = (snapshot.DeviceId, displayName);
-            RebuildFilter();
+        StartUndoWindow(
+            displayName,
+            finalize: () => FinalizeUnpairAsync(snapshot.DeviceId),
+            onUndone: () => OnUnpairUndone(snapshot.DeviceId));
+    }
 
-            StartUndoWindow(displayName, () => FinalizeUnpairAsync(snapshot.DeviceId));
-        });
+    private void OnUnpairUndone(string deviceId)
+    {
+        pendingDeleteIds.Remove(deviceId);
+        RebuildFilter();
     }
 
     private async Task FinalizeUnpairAsync(string deviceId)
     {
         var result = await pairedDeviceCoordinator.UnpairAsync(deviceId);
 
-        pendingDelete = null;
+        pendingDeleteIds.Remove(deviceId);
         RebuildFilter();
 
         if (result is PairedDeviceUnpairResult.Failed failed)
