@@ -283,13 +283,15 @@ public class LiveDaqDetailDesktopViewTests
             Session: new LiveSessionContractSnapshot(
                 SessionId: 42,
                 SelectedSensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
+                RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
+                AcceptedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
                 AcceptedTravelHz: 200,
                 AcceptedImuHz: 100,
                 AcceptedGpsFixHz: 10,
                 SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
                 Flags: LiveSessionFlags.CalibratedOnly,
                 ActiveImuLocations: [LiveImuLocation.Frame, LiveImuLocation.Rear]),
-            Travel: new LiveTravelUiSnapshot(true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
+            Travel: new LiveTravelUiSnapshot(true, true, true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
             Imus:
             [
                 new LiveImuUiSnapshot(LiveImuLocation.Frame, true, 10, 11, 12, 13, 14, 15, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(38), 4, 2),

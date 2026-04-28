@@ -37,8 +37,12 @@ public class LiveDaqSessionStateTests
 
         Assert.Equal(LiveConnectionState.Connected, snapshot.ConnectionState);
         Assert.Equal((uint)700, snapshot.Session.SessionId);
+        Assert.Equal(sessionHeader.RequestedSensorMask, snapshot.Session.RequestedSensorMask);
+        Assert.Equal(sessionHeader.AcceptedSensorMask, snapshot.Session.AcceptedSensorMask);
         Assert.Equal((uint)200, snapshot.Session.AcceptedTravelHz);
         Assert.True(snapshot.Travel.IsActive);
+        Assert.True(snapshot.Travel.FrontIsActive);
+        Assert.True(snapshot.Travel.RearIsActive);
         Assert.True(snapshot.Travel.HasData);
         Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
         Assert.Equal((ushort)222, snapshot.Travel.RearMeasurement);
@@ -61,6 +65,32 @@ public class LiveDaqSessionStateTests
         Assert.Equal(16.3, snapshot.Gps.Longitude);
         Assert.Equal((byte)9, snapshot.Gps.Satellites);
         Assert.Equal((uint)1, snapshot.Gps.QueueDepth);
+    }
+
+    [Fact]
+    public void CreateSnapshot_HidesInactiveTravelChannel_WhenOnlyOneTravelSensorStarted()
+    {
+        var state = new LiveDaqSessionState();
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: 702,
+            requestedSensorMask: LiveSensorInstanceMask.Travel,
+            acceptedSensorMask: LiveSensorInstanceMask.ForkTravel);
+
+        state.ApplySharedSessionState(sessionHeader, LiveSensorMask.Travel);
+        state.ApplyFrame(new LiveTravelBatchFrame(
+            CreateHeader(LiveFrameType.TravelBatch, 2),
+            new LiveBatchHeader(702, 0, 10, 123456789, 1),
+            [new LiveTravelRecord(111, 0)]));
+
+        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
+
+        Assert.True(snapshot.Travel.IsActive);
+        Assert.True(snapshot.Travel.FrontIsActive);
+        Assert.False(snapshot.Travel.RearIsActive);
+        Assert.True(snapshot.Travel.HasData);
+        Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
+        Assert.Null(snapshot.Travel.RearMeasurement);
+        Assert.Equal(LiveSensorInstanceMask.ShockTravel, snapshot.Session.MissingSensorMask);
     }
 
     [Fact]

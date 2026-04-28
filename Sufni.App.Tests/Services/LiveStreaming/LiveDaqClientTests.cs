@@ -18,7 +18,10 @@ public class LiveDaqClientTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var expectedHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 501);
+        var expectedHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: 501,
+            requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
+            acceptedSensorMask: LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu);
         var expectedMask = LiveSensorMask.Travel | LiveSensorMask.Imu;
 
         var serverTask = Task.Run(async () =>
@@ -28,7 +31,7 @@ public class LiveDaqClientTests
 
             var requestBytes = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
             var request = Assert.IsType<LiveStartRequestFrame>(LiveProtocolReader.ParseFrame(requestBytes));
-            Assert.Equal(LiveSensorMask.Travel | LiveSensorMask.Imu, request.Payload.SensorMask);
+            Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, request.Payload.RequestedSensorMask);
             Assert.Equal((uint)200, request.Payload.TravelHz);
             Assert.Equal((uint)100, request.Payload.ImuHz);
 
@@ -41,13 +44,47 @@ public class LiveDaqClientTests
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
         var result = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorMask.Travel | LiveSensorMask.Imu, 200, 100, 0))
+            new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, 200, 100, 0))
             .WaitAsync(TimeSpan.FromSeconds(2));
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(result);
         Assert.Equal(expectedHeader.SessionId, started.Header.SessionId);
         Assert.Equal(expectedHeader.AcceptedTravelHz, started.Header.AcceptedTravelHz);
         Assert.Equal(expectedHeader.ActiveImuMask, started.Header.ActiveImuMask);
+        Assert.Equal(expectedHeader.AcceptedSensorMask, started.Header.AcceptedSensorMask);
+        Assert.Equal(LiveSensorInstanceMask.ShockTravel | LiveSensorInstanceMask.ForkImu, started.Header.MissingSensorMask);
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task StartPreviewAsync_ReturnsRejected_WhenNoRequestedSensorsStarted()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize + LiveProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.NoSensorsStarted, sessionId: 0, selectedSensorMask: LiveSensorMask.None));
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqClient();
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+
+        var result = await client.StartPreviewAsync(
+            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0))
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
+        Assert.Equal(LiveStartErrorCode.NoSensorsStarted, rejected.ErrorCode);
+        Assert.False(string.IsNullOrWhiteSpace(rejected.UserMessage));
 
         await client.DisconnectAsync();
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
@@ -74,7 +111,7 @@ public class LiveDaqClientTests
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
         var result = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0))
+            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0))
             .WaitAsync(TimeSpan.FromSeconds(2));
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
@@ -120,12 +157,12 @@ public class LiveDaqClientTests
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
         var failed = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0));
+            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0));
 
         Assert.IsType<LivePreviewStartResult.Failed>(failed);
 
         var retried = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0))
+            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0))
             .WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<LivePreviewStartResult.Started>(retried);
@@ -174,7 +211,7 @@ public class LiveDaqClientTests
         });
 
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Travel | LiveSensorMask.Imu, 200, 100, 0));
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, 200, 100, 0));
         Assert.IsType<LivePreviewStartResult.Started>(result);
 
         await framesObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -237,7 +274,7 @@ public class LiveDaqClientTests
         });
 
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Gps, 0, 0, 10));
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Gps, 0, 0, 10));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
         var counters = await dropObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -300,7 +337,7 @@ public class LiveDaqClientTests
         });
 
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Gps, 0, 0, 10));
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Gps, 0, 0, 10));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
         var counters = await dropObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -341,7 +378,7 @@ public class LiveDaqClientTests
         await using var client = new LiveDaqClient();
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
-        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0));
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
         await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));
@@ -394,7 +431,7 @@ public class LiveDaqClientTests
         await using var client = new LiveDaqClient(TimeSpan.FromMilliseconds(150));
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
 
-        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorMask.Travel, 100, 0, 0));
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
         await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));

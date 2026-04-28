@@ -76,7 +76,9 @@ mc:Ignorable="d">
                             </Grid>
 
                             <Grid ColumnDefinitions="* *" ColumnSpacing="8">
-                                <Button x:Name="ConnectButton" Grid.Column="0" Command="{Binding ConnectCommand}" Content="Connect" IsEnabled="{Binding CanConnect}" />
+                                <Border Grid.Column="0" ToolTip.Tip="{Binding ConnectDisabledTooltip}">
+                                    <Button x:Name="ConnectButton" Command="{Binding ConnectCommand}" Content="Connect" IsEnabled="{Binding CanConnect}" />
+                                </Border>
                                 <Button x:Name="DisconnectButton" Grid.Column="1" Command="{Binding DisconnectCommand}" Content="Disconnect" IsEnabled="{Binding CanDisconnect}" />
                             </Grid>
 

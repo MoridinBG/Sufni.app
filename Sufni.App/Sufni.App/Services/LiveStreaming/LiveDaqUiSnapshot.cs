@@ -14,6 +14,8 @@ public enum LiveConnectionState
 public sealed record LiveSessionContractSnapshot(
     uint? SessionId,
     LiveSensorMask SelectedSensorMask,
+    LiveSensorInstanceMask RequestedSensorMask,
+    LiveSensorInstanceMask AcceptedSensorMask,
     uint? AcceptedTravelHz,
     uint? AcceptedImuHz,
     uint? AcceptedGpsFixHz,
@@ -24,16 +26,22 @@ public sealed record LiveSessionContractSnapshot(
     public static readonly LiveSessionContractSnapshot Empty = new(
         SessionId: null,
         SelectedSensorMask: LiveSensorMask.None,
+        RequestedSensorMask: LiveSensorInstanceMask.None,
+        AcceptedSensorMask: LiveSensorInstanceMask.None,
         AcceptedTravelHz: null,
         AcceptedImuHz: null,
         AcceptedGpsFixHz: null,
         SessionStartUtc: null,
         Flags: LiveSessionFlags.None,
         ActiveImuLocations: []);
+
+    public LiveSensorInstanceMask MissingSensorMask => RequestedSensorMask & ~AcceptedSensorMask;
 }
 
 public sealed record LiveTravelUiSnapshot(
     bool IsActive,
+    bool FrontIsActive,
+    bool RearIsActive,
     bool HasData,
     ushort? FrontMeasurement,
     ushort? RearMeasurement,
@@ -48,6 +56,8 @@ public sealed record LiveTravelUiSnapshot(
 
     public static readonly LiveTravelUiSnapshot Empty = new(
         IsActive: false,
+        FrontIsActive: false,
+        RearIsActive: false,
         HasData: false,
         FrontMeasurement: null,
         RearMeasurement: null,

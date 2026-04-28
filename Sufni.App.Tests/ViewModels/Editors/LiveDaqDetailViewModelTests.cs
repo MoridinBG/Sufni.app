@@ -69,8 +69,7 @@ public class LiveDaqDetailViewModelTests
     private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
     {
         var result = startResult ?? new LivePreviewStartResult.Started(
-            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808),
-            LiveSensorMask.Travel | LiveSensorMask.Imu);
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808));
 
         sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -82,7 +81,7 @@ public class LiveDaqDetailViewModelTests
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.SelectedSensorMask,
+                        SelectedSensorMask = started.Header.AcceptedSensorMask.ToStreamMask(),
                     };
                     streamStates.OnNext(currentStreamState);
                 }
@@ -179,7 +178,7 @@ public class LiveDaqDetailViewModelTests
     public async Task ConnectCommand_AppliesAcceptedSessionState()
     {
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
-        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu));
+        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader));
 
         await editor.LoadedCommand.ExecuteAsync(null);
         await editor.ConnectCommand.ExecuteAsync(null);
@@ -203,6 +202,33 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void Connect_IsDisabled_WhenAllRequestedRatesAreZero()
+    {
+        var editor = CreateEditor();
+
+        editor.RequestedTravelHz = 0;
+        editor.RequestedImuHz = 0;
+        editor.RequestedGpsFixHz = 0;
+
+        Assert.False(editor.CanConnect);
+        Assert.Equal("Set at least one live preview rate above 0 Hz.", editor.ConnectDisabledTooltip);
+    }
+
+    [AvaloniaFact]
+    public void Connect_IsReEnabled_WhenAnyRequestedRateBecomesNonzero()
+    {
+        var editor = CreateEditor();
+
+        editor.RequestedTravelHz = 0;
+        editor.RequestedImuHz = 0;
+        editor.RequestedGpsFixHz = 0;
+        editor.RequestedImuHz = 200;
+
+        Assert.True(editor.CanConnect);
+        Assert.Null(editor.ConnectDisabledTooltip);
+    }
+
+    [AvaloniaFact]
     public async Task ConnectCommand_RequestsOnlyNonzeroRateSensors()
     {
         var editor = CreateEditor();
@@ -214,7 +240,7 @@ public class LiveDaqDetailViewModelTests
 
         await sharedStream.Received(1).ApplyConfigurationAsync(
             Arg.Is<LiveDaqStreamConfiguration>(configuration =>
-                configuration.SensorMask == LiveSensorMask.Imu
+                configuration.RequestedSensorMask == LiveSensorInstanceMask.Imu
                 && configuration.TravelHz == 0
                 && configuration.ImuHz == 200
                 && configuration.GpsFixHz == 0),
@@ -227,6 +253,7 @@ public class LiveDaqDetailViewModelTests
         var editor = CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
         editor.SetTabActive(true);
         editor.SetTabActive(false);
@@ -253,6 +280,22 @@ public class LiveDaqDetailViewModelTests
         await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.DidNotReceive().Close(editor);
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+    }
+
+    [AvaloniaFact]
+    public async Task ConnectCommand_AddsNotification_WhenSomeRequestedSensorsDidNotStart()
+    {
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: 809,
+            requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
+            acceptedSensorMask: LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu);
+        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader));
+
+        await editor.ConnectCommand.ExecuteAsync(null);
+
+        Assert.Single(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+        Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
     }
 
     [AvaloniaFact]
@@ -297,11 +340,9 @@ public class LiveDaqDetailViewModelTests
         var query = Substitute.For<ILiveDaqKnownBoardsQuery>();
         query.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
         var result1 = new LivePreviewStartResult.Started(
-            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101),
-            LiveSensorMask.Travel | LiveSensorMask.Imu);
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101));
         var result2 = new LivePreviewStartResult.Started(
-            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202),
-            LiveSensorMask.Travel | LiveSensorMask.Imu);
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202));
         var state1 = LiveDaqSharedStreamState.Empty;
         var state2 = LiveDaqSharedStreamState.Empty;
         var frames1 = new Subject<LiveProtocolFrame>();
@@ -330,7 +371,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result1).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).SelectedSensorMask,
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).Header.AcceptedSensorMask.ToStreamMask(),
                 };
                 states1.OnNext(state1);
                 return Task.FromResult<LivePreviewStartResult?>(result1);
@@ -342,7 +383,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result2).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).SelectedSensorMask,
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).Header.AcceptedSensorMask.ToStreamMask(),
                 };
                 states2.OnNext(state2);
                 return Task.FromResult<LivePreviewStartResult?>(result2);
@@ -398,8 +439,21 @@ public class LiveDaqDetailViewModelTests
 
         editor.Snapshot = LiveDaqUiSnapshot.Empty with
         {
+            Session = new LiveSessionContractSnapshot(
+                SessionId: 808,
+                SelectedSensorMask: LiveSensorMask.Travel,
+                RequestedSensorMask: LiveSensorInstanceMask.Travel,
+                AcceptedSensorMask: LiveSensorInstanceMask.Travel,
+                AcceptedTravelHz: 200,
+                AcceptedImuHz: 0,
+                AcceptedGpsFixHz: 0,
+                SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
+                Flags: LiveSessionFlags.CalibratedOnly,
+                ActiveImuLocations: []),
             Travel = new LiveTravelUiSnapshot(
                 IsActive: true,
+                FrontIsActive: true,
+                RearIsActive: true,
                 HasData: true,
                 FrontMeasurement: 120,
                 RearMeasurement: 222,

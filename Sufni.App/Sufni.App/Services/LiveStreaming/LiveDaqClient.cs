@@ -200,7 +200,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             startAckAwaitingHeader = null;
             logger.Debug(
                 "Sending live DAQ preview start request with sensors {SensorMask}, travel {TravelHz}, imu {ImuHz}, gps {GpsFixHz}",
-                request.SensorMask,
+                request.RequestedSensorMask,
                 request.TravelHz,
                 request.ImuHz,
                 request.GpsFixHz);
@@ -776,9 +776,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                     activeSessionId = sessionHeaderFrame.Payload.SessionId;
                     if (pendingStartResult is not null && startAckAwaitingHeader is not null)
                     {
-                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(
-                            sessionHeaderFrame.Payload,
-                            startAckAwaitingHeader.Value.SelectedSensorMask));
+                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(sessionHeaderFrame.Payload));
                         pendingStartResult = null;
                         startAckAwaitingHeader = null;
                     }
