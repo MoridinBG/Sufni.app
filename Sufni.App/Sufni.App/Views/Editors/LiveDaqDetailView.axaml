@@ -81,13 +81,14 @@ mc:Ignorable="d">
                         Opacity="0.7"
                         Text="{Binding Snapshot.SessionLengthText}" />
                         <Grid ColumnDefinitions="* *" ColumnSpacing="8">
-                            <Button
-                            Name="ConnectButton"
-                            Grid.Column="0"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding ConnectCommand}"
-                            Content="Connect"
-                            IsEnabled="{Binding CanConnect}" />
+                            <Border Grid.Column="0" ToolTip.Tip="{Binding ConnectDisabledTooltip}">
+                                <Button
+                                Name="ConnectButton"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding ConnectCommand}"
+                                Content="Connect"
+                                IsEnabled="{Binding CanConnect}" />
+                            </Border>
                             <Button
                             Name="DisconnectButton"
                             Grid.Column="1"

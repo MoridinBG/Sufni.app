@@ -84,16 +84,39 @@ public class LiveProtocolReaderTests
     [Fact]
     public void ParseFrame_ReturnsSessionHeaderFrame_WithCalibrationAndImuLocations()
     {
-        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel();
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
+            acceptedSensorMask: LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu);
         var frameBytes = LiveProtocolTestFrames.CreateSessionHeaderFrame(7, sessionHeader);
 
         var frame = Assert.IsType<LiveSessionHeaderFrame>(LiveProtocolReader.ParseFrame(frameBytes));
 
         Assert.Equal(sessionHeader.SessionId, frame.Payload.SessionId);
         Assert.Equal(sessionHeader.ActiveImuMask, frame.Payload.ActiveImuMask);
+        Assert.Equal(sessionHeader.RequestedSensorMask, frame.Payload.RequestedSensorMask);
+        Assert.Equal(sessionHeader.AcceptedSensorMask, frame.Payload.AcceptedSensorMask);
+        Assert.Equal(LiveSensorInstanceMask.ShockTravel | LiveSensorInstanceMask.ForkImu, frame.Payload.MissingSensorMask);
         Assert.Equal(sessionHeader.ImuCalibrationScales.FrameAccelLsbPerG, frame.Payload.ImuCalibrationScales.FrameAccelLsbPerG);
         Assert.Equal(sessionHeader.ImuCalibrationScales.RearGyroLsbPerDps, frame.Payload.ImuCalibrationScales.RearGyroLsbPerDps);
         Assert.Equal(new[] { LiveImuLocation.Frame, LiveImuLocation.Rear }, frame.Payload.GetActiveImuLocations());
+    }
+
+    [Fact]
+    public void CreateStartLiveFrame_WritesRequestedSensorInstanceMask()
+    {
+        var request = new LiveStartRequest(
+            LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
+            TravelHz: 100,
+            ImuHz: 200,
+            GpsFixHz: 10);
+
+        var frameBytes = LiveProtocolReader.CreateStartLiveFrame(12, request);
+
+        Assert.Equal((ushort)2, BinaryPrimitives.ReadUInt16LittleEndian(frameBytes.AsSpan(4, 2)));
+        Assert.Equal((uint)LiveSensorInstanceMask.ForkTravel | (uint)LiveSensorInstanceMask.RearImu | (uint)LiveSensorInstanceMask.Gps, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(16, 4)));
+        Assert.Equal((uint)100, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(20, 4)));
+        Assert.Equal((uint)200, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(24, 4)));
+        Assert.Equal((uint)10, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(28, 4)));
     }
 
     [Fact]

@@ -158,6 +158,8 @@ public sealed class LiveDaqSessionState
         return new LiveSessionContractSnapshot(
             SessionId: sessionHeader.SessionId,
             SelectedSensorMask: selectedSensorMask,
+            RequestedSensorMask: sessionHeader.RequestedSensorMask,
+            AcceptedSensorMask: sessionHeader.AcceptedSensorMask,
             AcceptedTravelHz: sessionHeader.AcceptedTravelHz,
             AcceptedImuHz: sessionHeader.AcceptedImuHz,
             AcceptedGpsFixHz: sessionHeader.AcceptedGpsFixHz,
@@ -168,23 +170,32 @@ public sealed class LiveDaqSessionState
 
     private LiveTravelUiSnapshot CreateTravelSnapshot(LiveSessionContractSnapshot session)
     {
-        var isActive = session.SelectedSensorMask.HasFlag(LiveSensorMask.Travel);
+        var acceptedTravelMask = session.AcceptedSensorMask & LiveSensorInstanceMask.Travel;
+        var isActive = acceptedTravelMask != LiveSensorInstanceMask.None;
+        var frontIsActive = acceptedTravelMask.HasFlag(LiveSensorInstanceMask.ForkTravel);
+        var rearIsActive = acceptedTravelMask.HasFlag(LiveSensorInstanceMask.ShockTravel);
         if (latestTravel is not LiveTravelRecord travel)
         {
             return LiveTravelUiSnapshot.Empty with
             {
                 IsActive = isActive,
+                FrontIsActive = frontIsActive,
+                RearIsActive = rearIsActive,
                 QueueDepth = travelQueueDepth,
                 DroppedBatches = travelDroppedBatches,
             };
         }
 
         var sampleOffset = CreateSampleOffset(latestTravelMonotonicUs);
+        var frontMeasurement = frontIsActive ? travel.ForkAngle : (ushort?)null;
+        var rearMeasurement = rearIsActive ? travel.ShockAngle : (ushort?)null;
         return new LiveTravelUiSnapshot(
             IsActive: isActive,
-            HasData: true,
-            FrontMeasurement: travel.ForkAngle,
-            RearMeasurement: travel.ShockAngle,
+            FrontIsActive: frontIsActive,
+            RearIsActive: rearIsActive,
+            HasData: frontMeasurement is not null || rearMeasurement is not null,
+            FrontMeasurement: frontMeasurement,
+            RearMeasurement: rearMeasurement,
             SampleOffset: sampleOffset,
             SampleDelay: ComputeSampleDelay(sampleOffset, session.SessionStartUtc),
             QueueDepth: travelQueueDepth,
@@ -240,7 +251,7 @@ public sealed class LiveDaqSessionState
 
     private LiveGpsUiSnapshot CreateGpsSnapshot(LiveSessionContractSnapshot session)
     {
-        var isActive = session.SelectedSensorMask.HasFlag(LiveSensorMask.Gps);
+        var isActive = session.AcceptedSensorMask.HasFlag(LiveSensorInstanceMask.Gps);
         if (latestGps is null)
         {
             return LiveGpsUiSnapshot.Empty with

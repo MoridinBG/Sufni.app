@@ -7,7 +7,7 @@ namespace Sufni.App.Services.LiveStreaming;
 public static class LiveProtocolConstants
 {
     public const uint Magic = 0x4556494C;
-    public const ushort Version = 1;
+    public const ushort Version = 2;
     public const int DefaultPort = 1557;
 
     public const int FrameHeaderSize = 16;
@@ -17,7 +17,7 @@ public static class LiveProtocolConstants
     public const int MaxPayloadLength = 4 * 1024 * 1024;
     public const int StartRequestPayloadSize = 16;
     public const int StartAckPayloadSize = 12;
-    public const int SessionHeaderPayloadSize = 64;
+    public const int SessionHeaderPayloadSize = 72;
     public const int StopAckPayloadSize = 4;
     public const int ErrorPayloadSize = 4;
     public const int BatchHeaderSize = 28;
@@ -56,6 +56,21 @@ public enum LiveSensorMask : uint
 }
 
 [Flags]
+public enum LiveSensorInstanceMask : uint
+{
+    None = 0,
+    ForkTravel = 0x00000001,
+    ShockTravel = 0x00000002,
+    FrameImu = 0x00000004,
+    ForkImu = 0x00000008,
+    RearImu = 0x00000010,
+    Gps = 0x00000020,
+    Travel = ForkTravel | ShockTravel,
+    Imu = FrameImu | ForkImu | RearImu,
+    All = Travel | Imu | Gps,
+}
+
+[Flags]
 public enum LiveSessionFlags : uint
 {
     None = 0,
@@ -84,8 +99,7 @@ public enum LiveStartErrorCode : int
     Ok = 0,
     InvalidRequest = -1,
     Busy = -2,
-    Unavailable = -3,
-    InternalError = -4,
+    NoSensorsStarted = -5,
 }
 
 public readonly record struct LiveFrameHeader(
@@ -103,7 +117,7 @@ public readonly record struct LiveFrameHeader(
 // Client-to-DAQ request. The Hz fields cap each stream's rate — the DAQ may
 // accept a lower rate. Zero means no preference (use the device default).
 public readonly record struct LiveStartRequest(
-    LiveSensorMask SensorMask,
+    LiveSensorInstanceMask RequestedSensorMask,
     uint TravelHz,
     uint ImuHz,
     uint GpsFixHz);
@@ -138,6 +152,7 @@ public sealed record LiveImuCalibrationScales(
     };
 }
 
+
 // Sent by the DAQ after START_LIVE_ACK to describe the accepted session parameters.
 // Contains the actual sampling rates the firmware chose (which may differ from requested),
 // timing bases for monotonic-to-wall-clock conversion, active IMU sensor topology,
@@ -151,11 +166,14 @@ public sealed record LiveSessionHeader(
     ulong SessionStartMonotonicUs,   // firmware monotonic clock at session start
     LiveImuLocationMask ActiveImuMask,
     LiveImuCalibrationScales ImuCalibrationScales,
-    LiveSessionFlags Flags)
+    LiveSessionFlags Flags,
+    LiveSensorInstanceMask RequestedSensorMask,
+    LiveSensorInstanceMask AcceptedSensorMask)
 {
     public uint TravelPeriodUs => AcceptedTravelHz == 0 ? 0 : 1_000_000 / AcceptedTravelHz;
     public uint ImuPeriodUs => AcceptedImuHz == 0 ? 0 : 1_000_000 / AcceptedImuHz;
     public uint GpsFixIntervalMs => AcceptedGpsFixHz == 0 ? 0 : 1_000 / AcceptedGpsFixHz;
+    public LiveSensorInstanceMask MissingSensorMask => RequestedSensorMask & ~AcceptedSensorMask;
     public IReadOnlyList<LiveImuLocation> GetActiveImuLocations() => LiveProtocolHelpers.GetActiveImuLocations(ActiveImuMask);
 }
 
@@ -213,7 +231,7 @@ public sealed record LiveSessionStatsFrame(LiveFrameHeader Header, LiveSessionSt
 
 public abstract record LivePreviewStartResult
 {
-    public sealed record Started(LiveSessionHeader Header, LiveSensorMask SelectedSensorMask) : LivePreviewStartResult;
+    public sealed record Started(LiveSessionHeader Header) : LivePreviewStartResult;
     public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : LivePreviewStartResult;
     public sealed record Failed(string ErrorMessage) : LivePreviewStartResult;
 }
@@ -245,13 +263,44 @@ public static class LiveProtocolHelpers
         _ => location.ToString(),
     };
 
+    public static string ToDisplayName(this LiveSensorInstanceMask sensor) => sensor switch
+    {
+        LiveSensorInstanceMask.ForkTravel => "fork travel",
+        LiveSensorInstanceMask.ShockTravel => "shock travel",
+        LiveSensorInstanceMask.FrameImu => "frame IMU",
+        LiveSensorInstanceMask.ForkImu => "fork IMU",
+        LiveSensorInstanceMask.RearImu => "rear IMU",
+        LiveSensorInstanceMask.Gps => "GPS",
+        _ => sensor.ToString(),
+    };
+
+    public static IReadOnlyList<string> GetSensorInstanceDisplayNames(LiveSensorInstanceMask mask)
+    {
+        var names = new List<string>(6);
+        if (mask.HasFlag(LiveSensorInstanceMask.ForkTravel)) names.Add(LiveSensorInstanceMask.ForkTravel.ToDisplayName());
+        if (mask.HasFlag(LiveSensorInstanceMask.ShockTravel)) names.Add(LiveSensorInstanceMask.ShockTravel.ToDisplayName());
+        if (mask.HasFlag(LiveSensorInstanceMask.FrameImu)) names.Add(LiveSensorInstanceMask.FrameImu.ToDisplayName());
+        if (mask.HasFlag(LiveSensorInstanceMask.ForkImu)) names.Add(LiveSensorInstanceMask.ForkImu.ToDisplayName());
+        if (mask.HasFlag(LiveSensorInstanceMask.RearImu)) names.Add(LiveSensorInstanceMask.RearImu.ToDisplayName());
+        if (mask.HasFlag(LiveSensorInstanceMask.Gps)) names.Add(LiveSensorInstanceMask.Gps.ToDisplayName());
+        return names;
+    }
+
+    public static LiveSensorMask ToStreamMask(this LiveSensorInstanceMask mask)
+    {
+        var streamMask = LiveSensorMask.None;
+        if ((mask & LiveSensorInstanceMask.Travel) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Travel;
+        if ((mask & LiveSensorInstanceMask.Imu) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Imu;
+        if ((mask & LiveSensorInstanceMask.Gps) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Gps;
+        return streamMask;
+    }
+
     public static string ToUserMessage(this LiveStartErrorCode errorCode) => errorCode switch
     {
         LiveStartErrorCode.Ok => "Live preview started.",
         LiveStartErrorCode.InvalidRequest => "Live preview request was invalid.",
         LiveStartErrorCode.Busy => "Live preview is busy. Recording or another live session may already be active.",
-        LiveStartErrorCode.Unavailable => "Live preview is unavailable on the device right now.",
-        LiveStartErrorCode.InternalError => "The device reported an internal error while starting live preview.",
+        LiveStartErrorCode.NoSensorsStarted => "None of the requested sensors could start.",
         _ => $"The device rejected live preview with error code {(int)errorCode}.",
     };
 }

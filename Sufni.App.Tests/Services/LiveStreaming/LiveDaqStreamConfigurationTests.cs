@@ -9,7 +9,7 @@ public class LiveDaqStreamConfigurationTests
     {
         var configuration = LiveDaqStreamConfiguration.Default;
 
-        Assert.Equal(LiveSensorMask.Travel | LiveSensorMask.Imu, configuration.SensorMask);
+        Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, configuration.RequestedSensorMask);
         Assert.Equal((uint)200, configuration.TravelHz);
         Assert.Equal((uint)200, configuration.ImuHz);
         Assert.Equal((uint)0, configuration.GpsFixHz);
@@ -19,16 +19,28 @@ public class LiveDaqStreamConfigurationTests
     public void ToStartRequest_OmitsStreamsWithZeroRates()
     {
         var configuration = new LiveDaqStreamConfiguration(
-            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
+            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu | LiveSensorInstanceMask.Gps,
             TravelHz: 0,
             ImuHz: 200,
             GpsFixHz: 0);
 
         var request = configuration.ToStartRequest();
 
-        Assert.Equal(LiveSensorMask.Imu, request.SensorMask);
+        Assert.Equal(LiveSensorInstanceMask.Imu, request.RequestedSensorMask);
         Assert.Equal((uint)0, request.TravelHz);
         Assert.Equal((uint)200, request.ImuHz);
         Assert.Equal((uint)0, request.GpsFixHz);
+    }
+
+    [Fact]
+    public void FromRequestedRates_DerivesIndividualMaskFromNonzeroRates()
+    {
+        var travelOnly = LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 0);
+        var imuOnly = LiveDaqStreamConfiguration.FromRequestedRates(0, 200, 0);
+        var gpsOnly = LiveDaqStreamConfiguration.FromRequestedRates(0, 0, 10);
+
+        Assert.Equal(LiveSensorInstanceMask.Travel, travelOnly.RequestedSensorMask);
+        Assert.Equal(LiveSensorInstanceMask.Imu, imuOnly.RequestedSensorMask);
+        Assert.Equal(LiveSensorInstanceMask.Gps, gpsOnly.RequestedSensorMask);
     }
 }
