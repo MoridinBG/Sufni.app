@@ -95,12 +95,17 @@ public class ImportSessionsCoordinator(
                 networkFile.AttachSession(session);
             }
 
+            var totalToProcess = files.Count(f => f.ShouldBeImported is not false);
+            var processedCount = 0;
+
             foreach (var telemetryFile in files)
             {
                 // Legacy semantics: only HasValue && Value is "import";
                 // !HasValue is "trash"; HasValue && !Value is "leave alone".
                 if (telemetryFile.ShouldBeImported is true)
                 {
+                    processedCount++;
+                    progress?.Report(new SessionImportEvent.Progress(processedCount, totalToProcess));
                     try
                     {
                         if (!telemetryFile.CanImport)
@@ -161,6 +166,8 @@ public class ImportSessionsCoordinator(
                 }
                 else if (telemetryFile.ShouldBeImported is null)
                 {
+                    processedCount++;
+                    progress?.Report(new SessionImportEvent.Progress(processedCount, totalToProcess));
                     try
                     {
                         logger.Verbose("Trashing telemetry file {FileName}", telemetryFile.Name);
@@ -197,4 +204,5 @@ public abstract record SessionImportEvent
 
     public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
     public sealed record Failed(string FileName, string ErrorMessage) : SessionImportEvent;
+    public sealed record Progress(int Current, int Total) : SessionImportEvent;
 }
