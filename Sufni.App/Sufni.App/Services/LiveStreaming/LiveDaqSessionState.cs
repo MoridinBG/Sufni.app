@@ -17,6 +17,8 @@ public sealed class LiveDaqSessionState
     private ulong? latestTravelMonotonicUs;
     private GpsRecord? latestGps;
     private DateTimeOffset? lastFrameReceivedUtc;
+    private DateTimeOffset? lastTravelBatchReceivedUtc;
+    private DateTimeOffset? lastImuBatchReceivedUtc;
     private uint travelQueueDepth;
     private uint imuQueueDepth;
     private uint gpsQueueDepth;
@@ -35,6 +37,8 @@ public sealed class LiveDaqSessionState
             latestTravelMonotonicUs = null;
             latestGps = null;
             lastFrameReceivedUtc = null;
+            lastTravelBatchReceivedUtc = null;
+            lastImuBatchReceivedUtc = null;
             travelQueueDepth = 0;
             imuQueueDepth = 0;
             gpsQueueDepth = 0;
@@ -93,6 +97,7 @@ public sealed class LiveDaqSessionState
     {
         lock (gate)
         {
+            var now = DateTimeOffset.UtcNow;
             var session = CreateSessionSnapshot();
             return new LiveDaqUiSnapshot(
                 ConnectionState: connectionState,
@@ -100,8 +105,8 @@ public sealed class LiveDaqSessionState
                 LastError: lastError,
                 LastFrameReceivedUtc: lastFrameReceivedUtc,
                 Session: session,
-                Travel: CreateTravelSnapshot(session),
-                Imus: CreateImuSnapshots(),
+                Travel: CreateTravelSnapshot(session, now),
+                Imus: CreateImuSnapshots(now),
                 Gps: CreateGpsSnapshot(session));
         }
     }
@@ -115,6 +120,7 @@ public sealed class LiveDaqSessionState
 
         latestTravel = frame.Records[^1];
         latestTravelMonotonicUs = GetLastSampleMonotonicUs(frame.Batch.FirstMonotonicUs, frame.Batch.SampleCount, sessionHeader?.TravelPeriodUs);
+        lastTravelBatchReceivedUtc = lastFrameReceivedUtc;
     }
 
     private void ApplyImuBatch(LiveImuBatchFrame frame)
@@ -136,6 +142,7 @@ public sealed class LiveDaqSessionState
         {
             latestImuReadings[activeLocations[index]] = new LiveImuReading(frame.Records[lastTickOffset + index], sampleMonotonicUs);
         }
+        lastImuBatchReceivedUtc = lastFrameReceivedUtc;
     }
 
     private void ApplyGpsBatch(LiveGpsBatchFrame frame)
@@ -168,7 +175,7 @@ public sealed class LiveDaqSessionState
             ActiveImuLocations: sessionHeader.GetActiveImuLocations());
     }
 
-    private LiveTravelUiSnapshot CreateTravelSnapshot(LiveSessionContractSnapshot session)
+    private LiveTravelUiSnapshot CreateTravelSnapshot(LiveSessionContractSnapshot session, DateTimeOffset now)
     {
         var acceptedTravelMask = session.AcceptedSensorMask & LiveSensorInstanceMask.Travel;
         var isActive = acceptedTravelMask != LiveSensorInstanceMask.None;
@@ -197,12 +204,12 @@ public sealed class LiveDaqSessionState
             FrontMeasurement: frontMeasurement,
             RearMeasurement: rearMeasurement,
             SampleOffset: sampleOffset,
-            SampleDelay: ComputeSampleDelay(sampleOffset, session.SessionStartUtc),
+            SampleDelay: ComputeBatchFreshness(now, lastTravelBatchReceivedUtc),
             QueueDepth: travelQueueDepth,
             DroppedBatches: travelDroppedBatches);
     }
 
-    private IReadOnlyList<LiveImuUiSnapshot> CreateImuSnapshots()
+    private IReadOnlyList<LiveImuUiSnapshot> CreateImuSnapshots(DateTimeOffset now)
     {
         if (sessionHeader is null)
         {
@@ -241,7 +248,7 @@ public sealed class LiveDaqSessionState
                 Gy: reading.Record.Gy,
                 Gz: reading.Record.Gz,
                 SampleOffset: sampleOffset,
-                SampleDelay: ComputeSampleDelay(sampleOffset, sessionHeader?.SessionStartUtc),
+                SampleDelay: ComputeBatchFreshness(now, lastImuBatchReceivedUtc),
                 QueueDepth: imuQueueDepth,
                 DroppedBatches: imuDroppedBatches));
         }
@@ -280,14 +287,14 @@ public sealed class LiveDaqSessionState
             DroppedBatches: gpsDroppedBatches);
     }
 
-    private TimeSpan? ComputeSampleDelay(TimeSpan? sampleOffset, DateTimeOffset? sessionStartUtc)
+    private static TimeSpan? ComputeBatchFreshness(DateTimeOffset now, DateTimeOffset? lastBatchReceivedUtc)
     {
-        if (sampleOffset is null || sessionStartUtc is not { } start || lastFrameReceivedUtc is not { } lastFrame)
+        if (lastBatchReceivedUtc is not { } batchUtc)
         {
             return null;
         }
 
-        return lastFrame - (start + sampleOffset.Value);
+        return now - batchUtc;
     }
 
     private TimeSpan? CreateSampleOffset(ulong? monotonicUs)
