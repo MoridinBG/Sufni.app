@@ -98,6 +98,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
         ServiceCollection.AddSingleton<LiveGraphPipelineFactory>();
         ServiceCollection.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
+        ServiceCollection.AddSingleton<LiveProfilingLaunchService>();
         ServiceCollection.AddSingleton<LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
@@ -110,6 +111,7 @@ public partial class App : Application
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IShellCoordinator>(),
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
+                sp.GetRequiredService<IDaqManagementService>(),
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();
@@ -182,6 +184,20 @@ public partial class App : Application
                 dialogService.SetOwner(desktop.MainWindow);
                 dialogService.SetOverlayHost(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
+                if (LiveProfilingLaunchService.IsEnabled)
+                {
+                    desktop.MainWindow.Opened += async (_, _) =>
+                    {
+                        try
+                        {
+                            await Services!.GetRequiredService<LiveProfilingLaunchService>().LaunchFromEnvironmentAsync();
+                        }
+                        catch
+                        {
+                            // The profiling service already logs and writes a console marker.
+                        }
+                    };
+                }
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
