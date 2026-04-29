@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using NSubstitute;
@@ -152,8 +153,10 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Failures);
 
         // Progress reported.
-        var imported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var imported = Assert.Single(nonProgressEvents);
         Assert.IsType<SessionImportEvent.Imported>(imported);
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
     }
 
     [Fact]
@@ -242,7 +245,8 @@ public class ImportSessionsCoordinatorTests
         await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
 
-        var reported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var reported = Assert.Single(nonProgressEvents);
         var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
         Assert.Equal("broken", failed.FileName);
     }
@@ -298,7 +302,8 @@ public class ImportSessionsCoordinatorTests
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal("trash-fail", failure.FileName);
-        var reported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var reported = Assert.Single(nonProgressEvents);
         var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
         Assert.Equal("trash-fail", failed.FileName);
     }
@@ -346,7 +351,8 @@ public class ImportSessionsCoordinatorTests
         await file.DidNotReceive().GeneratePsstAsync(Arg.Any<BikeData>());
         await file.DidNotReceive().OnImported();
 
-        var reported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var reported = Assert.Single(nonProgressEvents);
         var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
         Assert.Equal("bad", failed.FileName);
     }
@@ -369,6 +375,34 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Failures);
         await file.Received(1).GeneratePsstAsync(Arg.Any<BikeData>());
         await file.Received(1).OnImported();
+    }
+
+    [Fact]
+    public async Task ImportAsync_ReportsProgressForEachProcessedFile_IgnoringSkipped()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var psst = CreatePsst();
+
+        var importedFile = CreateTelemetryFile(name: "import-me", shouldBeImported: true);
+        importedFile.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(psst));
+
+        var trashedFile = CreateTelemetryFile(name: "trash-me", shouldBeImported: null);
+        var ignoredFile = CreateTelemetryFile(name: "leave-me", shouldBeImported: false);
+
+        var progressEvents = new List<SessionImportEvent>();
+        var progress = new ProgressCapture(progressEvents);
+
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportAsync(
+            new[] { importedFile, ignoredFile, trashedFile },
+            setup.Id,
+            progress);
+
+        var progressUpdates = progressEvents.OfType<SessionImportEvent.Progress>().ToList();
+        Assert.Equal(2, progressUpdates.Count);
+        Assert.All(progressUpdates, p => Assert.Equal(2, p.Total));
+        Assert.Equal(1, progressUpdates[0].Current);
+        Assert.Equal(2, progressUpdates[1].Current);
     }
 
     [Fact]
