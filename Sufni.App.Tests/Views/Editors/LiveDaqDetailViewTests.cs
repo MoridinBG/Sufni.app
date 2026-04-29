@@ -155,6 +155,7 @@ public class LiveDaqDetailViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
         Assert.False(mounted.View.FindControl<Button>("SelectConfigButton")!.IsEnabled);
         Assert.False(mounted.View.FindControl<Button>("UploadConfigButton")!.IsEnabled);
     }
@@ -169,6 +170,7 @@ public class LiveDaqDetailViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+        Assert.True(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
         Assert.True(mounted.View.FindControl<Button>("SelectConfigButton")!.IsEnabled);
         // Upload requires staged config, so remains disabled here.
         Assert.False(mounted.View.FindControl<Button>("UploadConfigButton")!.IsEnabled);
