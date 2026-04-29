@@ -1,4 +1,5 @@
 using System.Reactive.Subjects;
+using System.Text;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
@@ -48,6 +49,20 @@ public class LiveDaqDetailViewModelTests
             .Returns(Task.FromResult<DaqSetTimeResult>(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(30))));
         daqManagementService.ReplaceConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        daqManagementService.GetFileAsync(
+                Arg.Any<string>(),
+                Arg.Any<int>(),
+                Arg.Any<DaqFileClass>(),
+                Arg.Any<int>(),
+                Arg.Any<Stream>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var bytes = Encoding.UTF8.GetBytes("STA_SSID=trail\n");
+                callInfo.ArgAt<Stream>(4).Write(bytes);
+                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("CONFIG", (ulong)bytes.Length));
+            });
+        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>()).Returns(Task.CompletedTask);
         filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SelectedDeviceConfigFile?>(null));
         sharedStream.Frames.Returns(frames);
@@ -69,8 +84,7 @@ public class LiveDaqDetailViewModelTests
     private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
     {
         var result = startResult ?? new LivePreviewStartResult.Started(
-            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808),
-            LiveSensorMask.Travel | LiveSensorMask.Imu);
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808));
 
         sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -82,7 +96,7 @@ public class LiveDaqDetailViewModelTests
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.SelectedSensorMask,
+                        SelectedSensorMask = started.Header.AcceptedSensorMask.ToStreamMask(),
                     };
                     streamStates.OnNext(currentStreamState);
                 }
@@ -135,6 +149,7 @@ public class LiveDaqDetailViewModelTests
         var editor = CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
         Assert.True(editor.StartSessionCommand.CanExecute(null));
 
@@ -162,14 +177,27 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_AutoConnects_AndAppliesAcceptedSessionState()
+    public async Task Loaded_DoesNotConnectAutomatically()
     {
-        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
-        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu));
+        var editor = CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
         sharedStream.Received(1).AcquireLease();
+        _ = sharedStream.DidNotReceive().ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
+        _ = sharedStream.DidNotReceive().EnsureStartedAsync(Arg.Any<CancellationToken>());
+        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+    }
+
+    [AvaloniaFact]
+    public async Task ConnectCommand_AppliesAcceptedSessionState()
+    {
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
+        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader));
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
+
         await sharedStream.Received(1).ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>());
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
         Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
@@ -179,11 +207,68 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void CreateEditor_PrefillsDefaultRequestedRates()
+    {
+        var editor = CreateEditor();
+
+        Assert.Equal((uint)200, editor.RequestedTravelHz);
+        Assert.Equal((uint)200, editor.RequestedImuHz);
+        Assert.Equal((uint)0, editor.RequestedGpsFixHz);
+    }
+
+    [AvaloniaFact]
+    public void Connect_IsDisabled_WhenAllRequestedRatesAreZero()
+    {
+        var editor = CreateEditor();
+
+        editor.RequestedTravelHz = 0;
+        editor.RequestedImuHz = 0;
+        editor.RequestedGpsFixHz = 0;
+
+        Assert.False(editor.CanConnect);
+        Assert.Equal("Set at least one live preview rate above 0 Hz.", editor.ConnectDisabledTooltip);
+    }
+
+    [AvaloniaFact]
+    public void Connect_IsReEnabled_WhenAnyRequestedRateBecomesNonzero()
+    {
+        var editor = CreateEditor();
+
+        editor.RequestedTravelHz = 0;
+        editor.RequestedImuHz = 0;
+        editor.RequestedGpsFixHz = 0;
+        editor.RequestedImuHz = 200;
+
+        Assert.True(editor.CanConnect);
+        Assert.Null(editor.ConnectDisabledTooltip);
+    }
+
+    [AvaloniaFact]
+    public async Task ConnectCommand_RequestsOnlyNonzeroRateSensors()
+    {
+        var editor = CreateEditor();
+        editor.RequestedTravelHz = 0;
+        editor.RequestedImuHz = 200;
+        editor.RequestedGpsFixHz = 0;
+
+        await editor.ConnectCommand.ExecuteAsync(null);
+
+        await sharedStream.Received(1).ApplyConfigurationAsync(
+            Arg.Is<LiveDaqStreamConfiguration>(configuration =>
+                configuration.RequestedSensorMask == LiveSensorInstanceMask.Imu
+                && configuration.TravelHz == 0
+                && configuration.ImuHz == 200
+                && configuration.GpsFixHz == 0),
+            Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task InactiveTab_DoesNotRefreshSnapshotUntilReactivated()
     {
         var editor = CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
         editor.SetTabActive(true);
         editor.SetTabActive(false);
@@ -200,28 +285,32 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_ShowsDialogAndClosesTab_WhenStartIsRejected()
+    public async Task ConnectCommand_PushesErrorMessage_WhenStartIsRejected()
     {
         var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
-        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
-        shell.Received(1).Close(editor);
+        Assert.Contains("busy", editor.ErrorMessages);
+        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        shell.DidNotReceive().Close(editor);
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
     }
 
     [AvaloniaFact]
-    public async Task Loaded_DoesNotCloseTab_WhenRejectedDialogIsCancelled()
+    public async Task ConnectCommand_AddsNotification_WhenSomeRequestedSensorsDidNotStart()
     {
-        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.FromResult(false));
-        var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: 809,
+            requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
+            acceptedSensorMask: LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu);
+        var editor = CreateEditor(new LivePreviewStartResult.Started(sessionHeader));
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        await editor.ConnectCommand.ExecuteAsync(null);
 
-        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
-        shell.DidNotReceive().Close(editor);
-        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+        Assert.Single(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+        Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
     }
 
     [AvaloniaFact]
@@ -266,11 +355,9 @@ public class LiveDaqDetailViewModelTests
         var query = Substitute.For<ILiveDaqKnownBoardsQuery>();
         query.Changes.Returns(new BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>>([]));
         var result1 = new LivePreviewStartResult.Started(
-            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101),
-            LiveSensorMask.Travel | LiveSensorMask.Imu);
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 101));
         var result2 = new LivePreviewStartResult.Started(
-            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202),
-            LiveSensorMask.Travel | LiveSensorMask.Imu);
+            LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 202));
         var state1 = LiveDaqSharedStreamState.Empty;
         var state2 = LiveDaqSharedStreamState.Empty;
         var frames1 = new Subject<LiveProtocolFrame>();
@@ -299,7 +386,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result1).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).SelectedSensorMask,
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).Header.AcceptedSensorMask.ToStreamMask(),
                 };
                 states1.OnNext(state1);
                 return Task.FromResult<LivePreviewStartResult?>(result1);
@@ -311,7 +398,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result2).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).SelectedSensorMask,
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).Header.AcceptedSensorMask.ToStreamMask(),
                 };
                 states2.OnNext(state2);
                 return Task.FromResult<LivePreviewStartResult?>(result2);
@@ -343,6 +430,8 @@ public class LiveDaqDetailViewModelTests
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
+        await editor1.ConnectCommand.ExecuteAsync(null);
+        await editor2.ConnectCommand.ExecuteAsync(null);
 
         await editor1.UnloadedCommand.ExecuteAsync(null);
 
@@ -365,8 +454,21 @@ public class LiveDaqDetailViewModelTests
 
         editor.Snapshot = LiveDaqUiSnapshot.Empty with
         {
+            Session = new LiveSessionContractSnapshot(
+                SessionId: 808,
+                SelectedSensorMask: LiveSensorMask.Travel,
+                RequestedSensorMask: LiveSensorInstanceMask.Travel,
+                AcceptedSensorMask: LiveSensorInstanceMask.Travel,
+                AcceptedTravelHz: 200,
+                AcceptedImuHz: 0,
+                AcceptedGpsFixHz: 0,
+                SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
+                Flags: LiveSessionFlags.CalibratedOnly,
+                ActiveImuLocations: []),
             Travel = new LiveTravelUiSnapshot(
                 IsActive: true,
+                FrontIsActive: true,
+                RearIsActive: true,
                 HasData: true,
                 FrontMeasurement: 120,
                 RearMeasurement: 222,
@@ -386,6 +488,7 @@ public class LiveDaqDetailViewModelTests
         var editor = CreateEditor();
 
         Assert.True(editor.CanManage);
+        Assert.True(editor.EditConfigCommand.CanExecute(null));
         Assert.Null(editor.ManagementDisabledTooltip);
 
         editor.Snapshot = LiveDaqUiSnapshot.Empty with
@@ -395,7 +498,103 @@ public class LiveDaqDetailViewModelTests
         };
 
         Assert.False(editor.CanManage);
+        Assert.False(editor.EditConfigCommand.CanExecute(null));
         Assert.Equal("Disconnect live session first", editor.ManagementDisabledTooltip);
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigCommand_DownloadsConfigAndOpensEditor()
+    {
+        LiveDaqConfigEditorViewModel? shownEditor = null;
+        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Do<LiveDaqConfigEditorViewModel>(editor => shownEditor = editor))
+            .Returns(Task.CompletedTask);
+        var editor = CreateEditor();
+
+        await editor.EditConfigCommand.ExecuteAsync(null);
+
+        await daqManagementService.Received(1).GetFileAsync(
+            "192.168.0.50",
+            1557,
+            DaqFileClass.Config,
+            0,
+            Arg.Any<Stream>(),
+            Arg.Any<CancellationToken>());
+        await dialogService.Received(1).ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        Assert.NotNull(shownEditor);
+        Assert.Equal("trail", shownEditor.Fields.Single(row => row.Key == "STA_SSID").Value);
+        Assert.False(editor.IsManagementBusy);
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigCommand_ReportsTypedDownloadErrorWithoutOpeningEditor()
+    {
+        daqManagementService.GetFileAsync(
+                Arg.Any<string>(),
+                Arg.Any<int>(),
+                Arg.Any<DaqFileClass>(),
+                Arg.Any<int>(),
+                Arg.Any<Stream>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "busy")));
+        var editor = CreateEditor();
+
+        await editor.EditConfigCommand.ExecuteAsync(null);
+
+        Assert.Contains("busy", editor.ErrorMessages);
+        await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigEditorSave_UploadsConfigAndAddsNotification()
+    {
+        LiveDaqConfigEditorViewModel? shownEditor = null;
+        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Do<LiveDaqConfigEditorViewModel>(editor => shownEditor = editor))
+            .Returns(Task.CompletedTask);
+        var editor = CreateEditor();
+
+        await editor.EditConfigCommand.ExecuteAsync(null);
+        Assert.NotNull(shownEditor);
+        shownEditor.Fields.Single(row => row.Key == "STA_SSID").Value = "edited";
+        await shownEditor.SaveCommand.ExecuteAsync(null);
+
+        await daqManagementService.Received(1).ReplaceConfigAsync(
+            "192.168.0.50",
+            1557,
+            Arg.Is<byte[]>(bytes => Encoding.UTF8.GetString(bytes).Contains("STA_SSID=edited", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+        Assert.Contains("CONFIG uploaded.", editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigCommand_CancelsInFlightDownloadOnUnload()
+    {
+        var serviceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var serviceResult = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        daqManagementService.GetFileAsync(
+                Arg.Any<string>(),
+                Arg.Any<int>(),
+                Arg.Any<DaqFileClass>(),
+                Arg.Any<int>(),
+                Arg.Any<Stream>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo => WaitForConfigDownloadAsync(
+                callInfo.ArgAt<CancellationToken>(5),
+                callInfo.ArgAt<Stream>(4),
+                serviceStarted,
+                serviceResult.Task));
+        var editor = CreateEditor();
+
+        var editTask = editor.EditConfigCommand.ExecuteAsync(null);
+        await serviceStarted.Task;
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+        serviceResult.TrySetResult(Encoding.UTF8.GetBytes("STA_SSID=late\n"));
+        await editTask;
+
+        await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        Assert.Empty(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+        Assert.False(editor.IsManagementBusy);
     }
 
     [AvaloniaFact]
@@ -672,6 +871,18 @@ public class LiveDaqDetailViewModelTests
     {
         started.TrySetResult();
         return await resultTask.WaitAsync(cancellationToken);
+    }
+
+    private static async Task<DaqGetFileResult> WaitForConfigDownloadAsync(
+        CancellationToken cancellationToken,
+        Stream destination,
+        TaskCompletionSource started,
+        Task<byte[]> resultTask)
+    {
+        started.TrySetResult();
+        var bytes = await resultTask.WaitAsync(cancellationToken);
+        await destination.WriteAsync(bytes, cancellationToken);
+        return new DaqGetFileResult.Downloaded("CONFIG", (ulong)bytes.Length);
     }
 
     private static LiveDaqSessionContext CreateSessionContext(string identityKey)

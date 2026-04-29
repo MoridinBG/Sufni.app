@@ -5,12 +5,13 @@ namespace Sufni.App.Tests.ViewModels.ItemLists;
 public class ItemListViewModelBaseTests
 {
     [Fact]
-    public async Task FlushPendingDeleteAsync_AddsError_WhenFinalizeThrows()
+    public async Task PendingDeleteEntry_AddsError_WhenFinalizeThrows()
     {
         var viewModel = new TestItemListViewModel();
         viewModel.BeginPendingDelete(() => throw new InvalidOperationException("flush failure"));
 
-        await viewModel.FlushPendingDeleteForTestAsync();
+        var entry = Assert.Single(viewModel.PendingDeletes);
+        await entry.FinalizeDeleteCommand.ExecuteAsync(null);
 
         Assert.Contains(viewModel.ErrorMessages, message => message.Contains("flush failure", StringComparison.Ordinal));
     }
@@ -29,12 +30,7 @@ public class ItemListViewModelBaseTests
     {
         public void BeginPendingDelete(Func<Task> finalize)
         {
-            StartUndoWindow("test", finalize);
-        }
-
-        public Task FlushPendingDeleteForTestAsync()
-        {
-            return FlushPendingDeleteAsync();
+            StartUndoWindow("test", finalize, () => { });
         }
 
         public Task RunPendingDeleteInteractionForTestAsync(Func<Task> action)

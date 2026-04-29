@@ -37,8 +37,12 @@ public class LiveDaqSessionStateTests
 
         Assert.Equal(LiveConnectionState.Connected, snapshot.ConnectionState);
         Assert.Equal((uint)700, snapshot.Session.SessionId);
+        Assert.Equal(sessionHeader.RequestedSensorMask, snapshot.Session.RequestedSensorMask);
+        Assert.Equal(sessionHeader.AcceptedSensorMask, snapshot.Session.AcceptedSensorMask);
         Assert.Equal((uint)200, snapshot.Session.AcceptedTravelHz);
         Assert.True(snapshot.Travel.IsActive);
+        Assert.True(snapshot.Travel.FrontIsActive);
+        Assert.True(snapshot.Travel.RearIsActive);
         Assert.True(snapshot.Travel.HasData);
         Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
         Assert.Equal((ushort)222, snapshot.Travel.RearMeasurement);
@@ -61,6 +65,99 @@ public class LiveDaqSessionStateTests
         Assert.Equal(16.3, snapshot.Gps.Longitude);
         Assert.Equal((byte)9, snapshot.Gps.Satellites);
         Assert.Equal((uint)1, snapshot.Gps.QueueDepth);
+    }
+
+    [Fact]
+    public void CreateSnapshot_HidesInactiveTravelChannel_WhenOnlyOneTravelSensorStarted()
+    {
+        var state = new LiveDaqSessionState();
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: 702,
+            requestedSensorMask: LiveSensorInstanceMask.Travel,
+            acceptedSensorMask: LiveSensorInstanceMask.ForkTravel);
+
+        state.ApplySharedSessionState(sessionHeader, LiveSensorMask.Travel);
+        state.ApplyFrame(new LiveTravelBatchFrame(
+            CreateHeader(LiveFrameType.TravelBatch, 2),
+            new LiveBatchHeader(702, 0, 10, 123456789, 1),
+            [new LiveTravelRecord(111, 0)]));
+
+        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
+
+        Assert.True(snapshot.Travel.IsActive);
+        Assert.True(snapshot.Travel.FrontIsActive);
+        Assert.False(snapshot.Travel.RearIsActive);
+        Assert.True(snapshot.Travel.HasData);
+        Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
+        Assert.Null(snapshot.Travel.RearMeasurement);
+        Assert.Equal(LiveSensorInstanceMask.ShockTravel, snapshot.Session.MissingSensorMask);
+    }
+
+    [Fact]
+    public void CreateSnapshot_TravelSampleDelay_IsNull_UntilTravelBatchArrives()
+    {
+        var state = new LiveDaqSessionState();
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 800);
+        state.ApplySharedSessionState(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu);
+
+        var snapshotInitial = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        Assert.Null(snapshotInitial.Travel.SampleDelay);
+
+        state.ApplyFrame(new LiveImuBatchFrame(
+            CreateHeader(LiveFrameType.ImuBatch, 2),
+            new LiveBatchHeader(800, 0, 10, 123456789, 1),
+            [
+                new ImuRecord(1, 2, 3, 4, 5, 6),
+                new ImuRecord(7, 8, 9, 10, 11, 12)
+            ]));
+        state.ApplyFrame(new LiveSessionStatsFrame(
+            CreateHeader(LiveFrameType.SessionStats, 3),
+            new LiveSessionStats(800, 5, 4, 1, 3, 2, 0)));
+
+        var snapshotWithoutTravel = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        Assert.Null(snapshotWithoutTravel.Travel.SampleDelay);
+
+        state.ApplyFrame(new LiveTravelBatchFrame(
+            CreateHeader(LiveFrameType.TravelBatch, 4),
+            new LiveBatchHeader(800, 0, 20, 123456789, 1),
+            [new LiveTravelRecord(100, 200)]));
+
+        var snapshotWithTravel = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        Assert.NotNull(snapshotWithTravel.Travel.SampleDelay);
+        Assert.True(snapshotWithTravel.Travel.SampleDelay >= TimeSpan.Zero);
+        Assert.True(snapshotWithTravel.Travel.SampleDelay < TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void CreateSnapshot_ImuSampleDelay_IsNull_UntilImuBatchArrives()
+    {
+        var state = new LiveDaqSessionState();
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 801);
+        state.ApplySharedSessionState(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu);
+
+        state.ApplyFrame(new LiveTravelBatchFrame(
+            CreateHeader(LiveFrameType.TravelBatch, 2),
+            new LiveBatchHeader(801, 0, 10, 123456789, 1),
+            [new LiveTravelRecord(100, 200)]));
+
+        var snapshotWithoutImu = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        Assert.All(snapshotWithoutImu.Imus, imu => Assert.Null(imu.SampleDelay));
+
+        state.ApplyFrame(new LiveImuBatchFrame(
+            CreateHeader(LiveFrameType.ImuBatch, 3),
+            new LiveBatchHeader(801, 0, 20, 123456789, 1),
+            [
+                new ImuRecord(1, 2, 3, 4, 5, 6),
+                new ImuRecord(7, 8, 9, 10, 11, 12)
+            ]));
+
+        var snapshotWithImu = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        Assert.All(snapshotWithImu.Imus, imu =>
+        {
+            Assert.NotNull(imu.SampleDelay);
+            Assert.True(imu.SampleDelay >= TimeSpan.Zero);
+            Assert.True(imu.SampleDelay < TimeSpan.FromSeconds(5));
+        });
     }
 
     [Fact]

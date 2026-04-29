@@ -116,45 +116,46 @@ The live protocol uses a framed TCP stream separate from the framed management p
 | Offset | Size | Field         | Description                                    |
 | ------ | ---- | ------------- | ---------------------------------------------- |
 | 0      | 4    | Magic         | `0x4556494C` (`"LIVE"` little-endian)          |
-| 4      | 2    | Version       | Protocol version (currently `1`)               |
+| 4      | 2    | Version       | Protocol version (currently `2`)               |
 | 6      | 2    | FrameType     | Identifies the payload layout                  |
 | 8      | 4    | PayloadLength | Byte count of the payload following the header |
 | 12     | 4    | Sequence      | Monotonically increasing frame counter         |
 
 ### Frame Types
 
-| Type            | Value | Direction     | Payload size | Description                                               |
-| --------------- | ----- | ------------- | ------------ | --------------------------------------------------------- |
-| `StartLive`     | `1`   | client -> DAQ | 16           | Request to begin streaming with sensor mask and rate caps |
-| `StopLive`      | `2`   | client -> DAQ | 0            | Request to stop the active session                        |
-| `Ping`          | `3`   | client -> DAQ | 0            | Keep-alive ping                                           |
-| `StartLiveAck`  | `16`  | DAQ -> client | 12           | Result code, session ID, accepted sensor mask             |
-| `StopLiveAck`   | `17`  | DAQ -> client | 4            | Confirms session stopped                                  |
-| `Error`         | `18`  | DAQ -> client | 4            | Error code for rejected or failed operations              |
-| `Pong`          | `19`  | DAQ -> client | 0            | Keep-alive pong                                           |
-| `SessionHeader` | `20`  | DAQ -> client | 64           | Accepted rates, calibration, IMU locations, capacities    |
-| `TravelBatch`   | `32`  | DAQ -> client | variable     | Suspension encoder data batch                             |
-| `ImuBatch`      | `33`  | DAQ -> client | variable     | IMU sensor data batch                                     |
-| `GpsBatch`      | `34`  | DAQ -> client | variable     | GPS fix records                                           |
-| `SessionStats`  | `48`  | DAQ -> client | 28           | Running session statistics (duration, sample counts)      |
+| Type            | Value | Direction     | Payload size | Description                                                                |
+| --------------- | ----- | ------------- | ------------ | -------------------------------------------------------------------------- |
+| `StartLive`     | `1`   | client -> DAQ | 16           | Request to begin streaming with individual sensor mask and rate caps       |
+| `StopLive`      | `2`   | client -> DAQ | 0            | Request to stop the active session                                         |
+| `Ping`          | `3`   | client -> DAQ | 0            | Keep-alive ping                                                            |
+| `StartLiveAck`  | `16`  | DAQ -> client | 12           | Result code, session ID, accepted sensor mask                              |
+| `StopLiveAck`   | `17`  | DAQ -> client | 4            | Confirms session stopped                                                   |
+| `Error`         | `18`  | DAQ -> client | 4            | Error code for rejected or failed operations                               |
+| `Pong`          | `19`  | DAQ -> client | 0            | Keep-alive pong                                                            |
+| `SessionHeader` | `20`  | DAQ -> client | 72           | Accepted rates, calibration, IMU locations, requested and accepted sensors |
+| `TravelBatch`   | `32`  | DAQ -> client | variable     | Suspension encoder data batch                                              |
+| `ImuBatch`      | `33`  | DAQ -> client | variable     | IMU sensor data batch                                                      |
+| `GpsBatch`      | `34`  | DAQ -> client | variable     | GPS fix records                                                            |
+| `SessionStats`  | `48`  | DAQ -> client | 28           | Running session statistics (duration, sample counts)                       |
 
 ### Start Request
 
-`START_LIVE` carries a 16-byte payload of four `uint32` fields: `SensorMask`, `TravelHz`, `ImuHz`, `GpsFixHz`. The Hz fields cap each stream's rate; zero means use the device default. The sensor mask selects which streams to activate (travel, IMU, GPS).
+`START_LIVE` carries a 16-byte payload of four `uint32` fields: `RequestedSensorMask`, `TravelHz`, `ImuHz`, `GpsFixHz`. The Hz fields cap each stream's rate; zero means use the device default. `RequestedSensorMask` is an individual sensor-instance mask: fork travel, shock travel, frame IMU, fork IMU, rear IMU, and GPS each have their own bit. The app derives the mask from the requested rate controls: nonzero travel requests both travel channels, nonzero IMU requests all IMU locations, and nonzero GPS requests GPS.
 
 ### Start Handshake
 
-A successful start produces two frames in sequence: `START_LIVE_ACK` (result `Ok`, session ID, accepted sensor mask) followed by `SESSION_HEADER` (full session parameters including accepted rates, calibration scales, IMU locations, and queue capacities). A rejected start produces either a `START_LIVE_ACK` with a non-Ok result or an `ERROR` frame.
+A successful start produces two frames in sequence: `START_LIVE_ACK` (result `Ok`, session ID, accepted stream-family mask) followed by `SESSION_HEADER` (full session parameters including accepted rates, calibration scales, IMU locations, and requested/accepted individual sensor masks). A rejected start produces either a `START_LIVE_ACK` with a non-Ok result or an `ERROR` frame.
+
+The DAQ may partially accept a start request. If at least one requested sensor instance can stream, the start succeeds and `SESSION_HEADER.AcceptedSensorMask` identifies the accepted subset. The app computes missing sensors as `RequestedSensorMask & ~AcceptedSensorMask`. Missing sensors are surfaced in the diagnostics tab as a notification while the shared stream remains connected. If no requested sensor can start, the DAQ rejects the request with `NoSensorsStarted`.
 
 ### Result Codes
 
-| Code | Name           | Meaning                             |
-| ---- | -------------- | ----------------------------------- |
-| 0    | Ok             | Request accepted                    |
-| -1   | InvalidRequest | Malformed or unsupported request    |
-| -2   | Busy           | Another client is already streaming |
-| -3   | Unavailable    | Device cannot stream right now      |
-| -4   | InternalError  | Unexpected device-side failure      |
+| Code | Name             | Meaning                                   |
+| ---- | ---------------- | ----------------------------------------- |
+| 0    | Ok               | Request accepted                          |
+| -1   | InvalidRequest   | Malformed or unsupported request          |
+| -2   | Busy             | Another client is already streaming       |
+| -5   | NoSensorsStarted | None of the requested sensors could start |
 
 ### Result Shape
 
@@ -191,7 +192,7 @@ When the last observer releases its lease, the registry disconnects and evicts t
 
 ### Session State
 
-`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values. It holds latest travel, per-location IMU, GPS, and stats frames behind a single lock. `ApplyFrame()` updates internal state from any `LiveProtocolFrame`; `CreateSnapshot()` produces an immutable `LiveDaqUiSnapshot` for UI binding. The snapshot captures connection state, accepted session parameters, and latest raw protocol values at a single point in time. Travel remains raw measurement data here; calibration and `mm (percent)` formatting are applied later in the detail view model.
+`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values. It holds latest travel, per-location IMU, GPS, and stats frames behind a single lock. `ApplyFrame()` updates internal state from any `LiveProtocolFrame`; `CreateSnapshot()` produces an immutable `LiveDaqUiSnapshot` for UI binding. The snapshot captures connection state, accepted session parameters, requested/accepted individual sensor masks, and latest raw protocol values at a single point in time. Travel remains raw measurement data here; calibration and `mm (percent)` formatting are applied later in the detail view model. `LiveTravelUiSnapshot` carries front/rear active flags; when only one travel channel is accepted, the inactive channel is left empty so firmware neutral values are not presented as real measurements.
 
 ### GPS Preview State
 
@@ -239,7 +240,7 @@ When the last observer releases its lease, the registry disconnects and evicts t
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It no longer owns a `LiveDaqClient` directly. Instead it acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. It also hosts the desktop management actions, each driven by its own `CancellableOperation` scoped to the tab lifecycle.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It no longer owns a `LiveDaqClient` directly. Instead it acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the desktop management actions, each driven by its own `CancellableOperation` scoped to the tab lifecycle.
 
 Management actions stay in the detail view model rather than the transport layer or coordinator:
 

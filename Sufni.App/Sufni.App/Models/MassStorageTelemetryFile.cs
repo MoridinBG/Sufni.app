@@ -70,7 +70,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
         switch (inspection)
         {
             case ValidSstFileInspection valid:
-                ShouldBeImported = valid.Duration.TotalSeconds >= 5 ? true : null;
+                ShouldBeImported = false;
                 Version = valid.Version;
                 StartTime = valid.StartTime;
                 Duration = valid.Duration.ToString(@"hh\:mm\:ss");

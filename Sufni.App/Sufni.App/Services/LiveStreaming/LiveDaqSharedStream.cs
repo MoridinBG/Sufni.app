@@ -128,7 +128,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.SelectedSensorMask,
+                        SelectedSensorMask = started.Header.AcceptedSensorMask.ToStreamMask(),
                         ClientDropCounters = LiveDaqClientDropCounters.Empty,
                     });
                     break;
@@ -347,7 +347,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.SelectedSensorMask,
+                        SelectedSensorMask = started.Header.AcceptedSensorMask.ToStreamMask(),
                         ClientDropCounters = LiveDaqClientDropCounters.Empty,
                     });
                     break;

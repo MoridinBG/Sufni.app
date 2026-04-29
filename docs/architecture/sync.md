@@ -38,8 +38,8 @@ sequenceDiagram
 | --------------------- | ------ | ---- | ------------------------------------------------- |
 | `/pair/request`       | POST   | No   | Start pairing, generates 6-digit PIN with 30s TTL |
 | `/pair/confirm`       | POST   | No   | Confirm PIN, returns access + refresh tokens      |
-| `/pair/refresh`       | POST   | No   | Refresh expired access token                      |
-| `/pair/unpair`        | POST   | No   | Revoke pairing                                    |
+| `/pair/refresh`       | POST   | No   | Rotate both access and refresh tokens             |
+| `/pair/unpair`        | POST   | No   | Revoke pairing (validates `deviceId` + refresh token in body) |
 | `/sync/push`          | PUT    | JWT  | Receive `SynchronizationData` from mobile         |
 | `/sync/pull`          | GET    | JWT  | Return changes since `?since=` timestamp          |
 | `/session/incomplete` | GET    | JWT  | List session IDs missing telemetry blobs          |
@@ -57,7 +57,9 @@ sequenceDiagram
 
 `SyncCoordinator` (`Sufni.App/Sufni.App/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, and refreshes every store after a successful round-trip. On mobile it subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Inbound sync arrival is split by entity family — see [Coordinators](ui.md#coordinators) — so that each store has exactly one writer.
 
-`HttpApiService` (`Sufni.App/Sufni.App/Services/HttpApiService.cs`) handles JWT auto-refresh: when the access token is within 30 seconds of expiry, it calls `/pair/refresh`. On 401, it clears stored credentials. The client enables TLS 1.2 and TLS 1.3 to match the desktop server. TLS validation checks CN and expiry but not the certificate chain (suitable for LAN self-signed certs).
+`HttpApiService` (`Sufni.App/Sufni.App/Services/HttpApiService.cs`) handles JWT auto-refresh: when the access token is within 30 seconds of expiry, it calls `/pair/refresh` (which rotates both the access and refresh tokens). On 401, it clears stored credentials. The client enables TLS 1.2 and TLS 1.3 to match the desktop server.
+
+TLS validation is performed by `SynchronizationCertificateValidator.TryValidate(...)` and is stricter than a generic CN check: it rejects expired certificates, requires an exact subject match against the constant `SynchronizationProtocol.CertificateSubjectName` (`cn=com.sghctoma.sst-api`), and pins the **certificate thumbprint** captured at pairing time against `SecureStorage`. The certificate chain itself is not validated — that's what makes LAN self-signed certs viable, but the thumbprint pin replaces the missing chain trust with TOFU.
 
 `SynchronizationData` (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) is the sync payload:
 

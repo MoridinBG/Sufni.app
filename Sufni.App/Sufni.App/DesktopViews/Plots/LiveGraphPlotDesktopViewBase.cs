@@ -245,7 +245,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     private DispatcherTimer CreateUiRefreshTimer()
     {
-        var timer = new DispatcherTimer(DispatcherPriority.Background)
+        var timer = new DispatcherTimer(DispatcherPriority.Normal)
         {
             Interval = TimeSpan.FromMilliseconds(SessionGraphSettings.LiveGraphRefreshIntervalMs)
         };

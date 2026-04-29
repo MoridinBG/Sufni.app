@@ -15,6 +15,7 @@ using Sufni.App.Services.Management;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
 
 namespace Sufni.App.Tests.Views.Editors;
@@ -29,9 +30,26 @@ public class LiveDaqDetailViewTests
 
         var stack = mounted.View.GetVisualDescendants()
             .OfType<StackPanel>()
-            .First(p => p.Children.OfType<Border>().Any(b => b.Name == "TravelCard"));
+            .First(p => p.Children.OfType<Border>().Any(b => b.Name == "SetupCard"));
 
         var orderedNames = stack.Children
+            .Select(c => c.Name)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .ToArray();
+
+        Assert.Equal(new[]
+        {
+            "SetupCard",
+            "ConnectionCard",
+            "RequestedRatesCard",
+            "AcceptedSessionCard",
+            "ReadingsSection",
+            "DeviceManagementCard",
+            "ManagementNotificationsBar",
+        }, orderedNames);
+
+        var readings = mounted.View.FindControl<StackPanel>("ReadingsSection")!;
+        var readingNames = readings.Children
             .Select(c => c.Name)
             .Where(n => !string.IsNullOrEmpty(n))
             .ToArray();
@@ -41,15 +59,34 @@ public class LiveDaqDetailViewTests
             "TravelCard",
             "ImuCard",
             "GpsCard",
-            "IdentityCard",
-            "ConnectionCard",
-            "RequestedRatesCard",
-            "AcceptedSessionCard",
-            "StartSessionButton",
-            "DeviceManagementCard",
-            "ManagementNotificationsBar",
-            "ManagementErrorMessagesBar",
-        }, orderedNames);
+        }, readingNames);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailView_BackAndStartSessionButtons_ShareBottomActionRow()
+    {
+        var editor = CreateEditor();
+        await using var mounted = await MountAsync(editor);
+
+        var backButton = mounted.View.FindControl<Button>("BackButton")!;
+        var startSessionButton = mounted.View.FindControl<Button>("StartSessionButton")!;
+
+        Assert.Same(backButton.Parent, startSessionButton.Parent);
+        Assert.Equal(0, Grid.GetColumn(backButton));
+        Assert.Equal(1, Grid.GetColumn(startSessionButton));
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailView_ErrorMessagesBar_IsFixedAboveBottomActions()
+    {
+        var editor = CreateEditor();
+        await using var mounted = await MountAsync(editor);
+
+        var errorBar = mounted.View.FindControl<ErrorMessagesBar>("ManagementErrorMessagesBar")!;
+        var scrollViewer = mounted.View.FindControl<ScrollViewer>("DiagnosticsScrollViewer")!;
+
+        Assert.NotSame(scrollViewer, errorBar.Parent);
+        Assert.Equal(1, Grid.GetRow(errorBar));
     }
 
     [AvaloniaFact]
@@ -118,6 +155,7 @@ public class LiveDaqDetailViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
         Assert.False(mounted.View.FindControl<Button>("SelectConfigButton")!.IsEnabled);
         Assert.False(mounted.View.FindControl<Button>("UploadConfigButton")!.IsEnabled);
     }
@@ -132,6 +170,7 @@ public class LiveDaqDetailViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+        Assert.True(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
         Assert.True(mounted.View.FindControl<Button>("SelectConfigButton")!.IsEnabled);
         // Upload requires staged config, so remains disabled here.
         Assert.False(mounted.View.FindControl<Button>("UploadConfigButton")!.IsEnabled);
@@ -241,13 +280,15 @@ public class LiveDaqDetailViewTests
             Session: new LiveSessionContractSnapshot(
                 SessionId: 42,
                 SelectedSensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
+                RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
+                AcceptedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
                 AcceptedTravelHz: 200,
                 AcceptedImuHz: 100,
                 AcceptedGpsFixHz: 10,
                 SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
                 Flags: LiveSessionFlags.CalibratedOnly,
                 ActiveImuLocations: [LiveImuLocation.Frame, LiveImuLocation.Rear]),
-            Travel: new LiveTravelUiSnapshot(true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
+            Travel: new LiveTravelUiSnapshot(true, true, true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
             Imus:
             [
                 new LiveImuUiSnapshot(LiveImuLocation.Frame, true, 10, 11, 12, 13, 14, 15, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(38), 4, 2),

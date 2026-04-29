@@ -83,7 +83,7 @@ public sealed class LiveProtocolReader
     public static byte[] CreateStartLiveFrame(uint sequence, LiveStartRequest request)
     {
         var payload = new byte[LiveProtocolConstants.StartRequestPayloadSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), (uint)request.SensorMask);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), (uint)request.RequestedSensorMask);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), request.TravelHz);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), request.ImuHz);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12, 4), request.GpsFixHz);
@@ -176,7 +176,7 @@ public sealed class LiveProtocolReader
     {
         EnsurePayloadLength(payload, LiveProtocolConstants.StartRequestPayloadSize, LiveFrameType.StartLive);
         return new LiveStartRequest(
-            SensorMask: (LiveSensorMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
+            RequestedSensorMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
             TravelHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]),
             ImuHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]),
             GpsFixHz: BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]));
@@ -216,7 +216,9 @@ public sealed class LiveProtocolReader
                 FrameGyroLsbPerDps: ReadSingleLittleEndian(payload[48..52]),
                 ForkGyroLsbPerDps: ReadSingleLittleEndian(payload[52..56]),
                 RearGyroLsbPerDps: ReadSingleLittleEndian(payload[56..60])),
-            Flags: (LiveSessionFlags)BinaryPrimitives.ReadUInt32LittleEndian(payload[60..64]));
+            Flags: (LiveSessionFlags)BinaryPrimitives.ReadUInt32LittleEndian(payload[60..64]),
+            RequestedSensorMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[64..68]),
+            AcceptedSensorMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[68..72]));
     }
 
     private static LiveStopAck ParseStopAck(ReadOnlySpan<byte> payload)

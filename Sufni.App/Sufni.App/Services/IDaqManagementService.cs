@@ -43,4 +43,9 @@ public interface IDaqManagementService
         int port,
         byte[] configBytes,
         CancellationToken cancellationToken = default);
+
+    Task<IDaqManagementSession> OpenSessionAsync(
+        string host,
+        int port,
+        CancellationToken cancellationToken = default);
 }

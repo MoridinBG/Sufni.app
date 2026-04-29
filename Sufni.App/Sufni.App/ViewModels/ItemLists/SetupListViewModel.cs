@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -22,7 +23,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
     private readonly SetupCoordinator setupCoordinator;
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
-    private (Guid Id, string Name)? pendingDelete;
+    private readonly HashSet<Guid> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -64,17 +65,11 @@ public partial class SetupListViewModel : ItemListViewModelBase
     protected override void RebuildFilter()
     {
         var current = SearchText;
-        var pendingId = pendingDelete?.Id;
+        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
         filterSubject.OnNext(snapshot =>
-            (pendingId is null || snapshot.Id != pendingId) &&
+            (pendingIds is null || !pendingIds.Contains(snapshot.Id)) &&
             (string.IsNullOrEmpty(current) ||
              snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
-    }
-
-    protected override void OnPendingDeleteUndone()
-    {
-        pendingDelete = null;
-        RebuildFilter();
     }
 
     protected override void AddImplementation()
@@ -88,26 +83,31 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SetupRowViewModel row)
     {
-        _ = RunActionSwallowExceptionToErrorMessages(async () =>
-        {
-            var snapshot = setupStore.Get(row.Id);
-            if (snapshot is null) return;
+        var snapshot = setupStore.Get(row.Id);
+        if (snapshot is null) return;
 
-            await FlushPendingDeleteAsync();
+        pendingDeleteIds.Add(snapshot.Id);
+        RebuildFilter();
 
-            pendingDelete = (snapshot.Id, snapshot.Name);
-            RebuildFilter();
+        StartUndoWindow(
+            snapshot.Name,
+            finalize: () => FinalizeSetupDeleteAsync(snapshot.Id),
+            onUndone: () => OnSetupDeleteUndone(snapshot.Id));
+    }
 
-            StartUndoWindow(snapshot.Name, () => FinalizeSetupDeleteAsync(snapshot.Id));
-        });
+    private void OnSetupDeleteUndone(Guid setupId)
+    {
+        pendingDeleteIds.Remove(setupId);
+        RebuildFilter();
     }
 
     private async Task FinalizeSetupDeleteAsync(Guid setupId)
     {
-        pendingDelete = null;
+        var result = await setupCoordinator.DeleteAsync(setupId);
+
+        pendingDeleteIds.Remove(setupId);
         RebuildFilter();
 
-        var result = await setupCoordinator.DeleteAsync(setupId);
         if (result.Outcome == SetupDeleteOutcome.Failed)
         {
             ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");

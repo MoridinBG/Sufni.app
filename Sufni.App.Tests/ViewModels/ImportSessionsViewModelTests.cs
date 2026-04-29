@@ -282,6 +282,48 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
+    public async Task ImportProgress_UpdatesProgressTextDuringImport_AndResetsAfter()
+    {
+        using var _ = new TestSynchronizationContextScope();
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(boardId: boardId);
+        setupCache.AddOrUpdate(setup);
+
+        var dataStore = CreateDataStore(boardId: boardId);
+        var file = CreateTelemetryFile("lap");
+        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+
+        var viewModel = CreateViewModel();
+        var capturedTexts = new List<string>();
+
+        importSessionsCoordinator.ImportAsync(
+                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
+                setup.Id,
+                Arg.Any<IProgress<SessionImportEvent>?>())
+            .Returns(callInfo =>
+            {
+                var progress = callInfo.ArgAt<IProgress<SessionImportEvent>?>(2);
+                progress?.Report(new SessionImportEvent.Progress(1, 3));
+                capturedTexts.Add(viewModel.ImportProgressText);
+                progress?.Report(new SessionImportEvent.Progress(2, 3));
+                capturedTexts.Add(viewModel.ImportProgressText);
+                return Task.FromResult(new SessionImportResult(
+                    Array.Empty<SessionSnapshot>(),
+                    Array.Empty<(string FileName, string ErrorMessage)>()));
+            });
+
+        viewModel.SelectedDataStore = dataStore;
+
+        await viewModel.ImportSessionsCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { "File 1/3", "File 2/3" }, capturedTexts);
+        Assert.Equal(0, viewModel.CurrentFileIndex);
+        Assert.Equal(0, viewModel.TotalFiles);
+        Assert.Equal(string.Empty, viewModel.ImportProgressText);
+    }
+
+    [Fact]
     public async Task ImportSessions_AddsFinalSummaryNotification_FromCoordinatorResult()
     {
         using var _ = new TestSynchronizationContextScope();

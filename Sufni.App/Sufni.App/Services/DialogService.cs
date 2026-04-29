@@ -4,9 +4,12 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Sufni.App.Models;
+using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
+using Sufni.App.Views.Editors;
 using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Services;
@@ -48,6 +51,13 @@ public class DialogService : IDialogService
         return App.Current?.IsDesktop == true
             ? ShowAddTileLayerWindowAsync()
             : ShowAddTileLayerOverlayAsync();
+    }
+
+    public Task ShowLiveDaqConfigEditorDialogAsync(LiveDaqConfigEditorViewModel editor)
+    {
+        return App.Current?.IsDesktop == true
+            ? ShowLiveDaqConfigEditorWindowAsync(editor)
+            : ShowLiveDaqConfigEditorOverlayAsync(editor);
     }
 
     private Task<TileLayerConfig?> ShowAddTileLayerWindowAsync()
@@ -110,6 +120,74 @@ public class DialogService : IDialogService
         return tcs.Task;
     }
 
+    private Task ShowLiveDaqConfigEditorWindowAsync(LiveDaqConfigEditorViewModel editor)
+    {
+        Debug.Assert(owner != null, nameof(owner) + " != null");
+
+        var dialogOwner = owner ?? throw new InvalidOperationException("Dialog owner has not been set.");
+        var tcs = new TaskCompletionSource<object?>();
+        var window = new Window
+        {
+            Title = "Edit CONFIG",
+            Width = 640,
+            Height = 720,
+            MinWidth = 420,
+            MinHeight = 520,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = true
+        };
+
+        window.Content = CreateLiveDaqConfigEditorContent(editor);
+
+        editor.Completed += EditorCompleted;
+        window.Closed += (_, _) =>
+        {
+            editor.Completed -= EditorCompleted;
+            tcs.TrySetResult(null);
+        };
+
+        window.ShowDialog(dialogOwner);
+        return tcs.Task;
+
+        void EditorCompleted(object? sender, EventArgs args)
+        {
+            editor.Completed -= EditorCompleted;
+            tcs.TrySetResult(null);
+            window.Close();
+        }
+    }
+
+    private Task ShowLiveDaqConfigEditorOverlayAsync(LiveDaqConfigEditorViewModel editor)
+    {
+        var host = overlayHost ?? TryGetSingleViewOverlayHost();
+        Debug.Assert(host != null, nameof(overlayHost) + " != null");
+
+        if (host is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host has not been set.");
+        }
+
+        var panel = TryGetOverlayPanel(host);
+        if (panel is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
+        }
+
+        var tcs = new TaskCompletionSource<object?>();
+        var overlay = CreateLiveDaqConfigEditorOverlay(CreateLiveDaqConfigEditorContent(editor));
+
+        editor.Completed += EditorCompleted;
+        panel.Children.Add(overlay);
+        return tcs.Task;
+
+        void EditorCompleted(object? sender, EventArgs args)
+        {
+            editor.Completed -= EditorCompleted;
+            panel.Children.Remove(overlay);
+            tcs.TrySetResult(null);
+        }
+    }
+
     private static Control? TryGetSingleViewOverlayHost()
     {
         return (Application.Current?.ApplicationLifetime as ISingleViewApplicationLifetime)?.MainView as Control;
@@ -138,6 +216,41 @@ public class DialogService : IDialogService
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                     Margin = new Thickness(16),
                     MaxWidth = 420,
+                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    CornerRadius = new CornerRadius(6),
+                    Child = content
+                }
+            }
+        };
+    }
+
+    private static Control CreateLiveDaqConfigEditorContent(LiveDaqConfigEditorViewModel editor)
+    {
+        return new LiveDaqConfigEditorView
+        {
+            DataContext = editor
+        };
+    }
+
+    private static Control CreateLiveDaqConfigEditorOverlay(Control content)
+    {
+        return new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Children =
+            {
+                new Border
+                {
+                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                },
+                new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(12),
+                    MaxWidth = 680,
+                    MaxHeight = 760,
                     Background = new SolidColorBrush(Color.Parse("#15191c")),
                     CornerRadius = new CornerRadius(6),
                     Child = content

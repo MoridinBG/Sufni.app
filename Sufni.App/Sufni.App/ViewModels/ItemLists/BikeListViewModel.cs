@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -24,7 +25,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     private readonly IBikeDependencyQuery dependencyQuery;
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
     private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
-    private (Guid Id, string Name)? pendingDelete;
+    private readonly HashSet<Guid> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -76,17 +77,11 @@ public partial class BikeListViewModel : ItemListViewModelBase
     protected override void RebuildFilter()
     {
         var current = SearchText;
-        var pendingId = pendingDelete?.Id;
+        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
         filterSubject.OnNext(row =>
-            (pendingId is null || row.Id != pendingId) &&
+            (pendingIds is null || !pendingIds.Contains(row.Id)) &&
             (string.IsNullOrEmpty(current) ||
              (row.Name?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false)));
-    }
-
-    protected override void OnPendingDeleteUndone()
-    {
-        pendingDelete = null;
-        RebuildFilter();
     }
 
     protected override void AddImplementation()
@@ -100,27 +95,31 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(BikeRowViewModel row)
     {
-        _ = RunActionSwallowExceptionToErrorMessages(async () =>
-        {
-            var snapshot = bikeStore.Get(row.Id);
-            if (snapshot is null) return;
+        var snapshot = bikeStore.Get(row.Id);
+        if (snapshot is null) return;
 
-            // Commit any in-flight pending delete first.
-            await FlushPendingDeleteAsync();
+        pendingDeleteIds.Add(snapshot.Id);
+        RebuildFilter();
 
-            pendingDelete = (snapshot.Id, snapshot.Name);
-            RebuildFilter();
+        StartUndoWindow(
+            snapshot.Name,
+            finalize: () => FinalizeBikeDeleteAsync(snapshot.Id),
+            onUndone: () => OnBikeDeleteUndone(snapshot.Id));
+    }
 
-            StartUndoWindow(snapshot.Name, () => FinalizeBikeDeleteAsync(snapshot.Id));
-        });
+    private void OnBikeDeleteUndone(Guid bikeId)
+    {
+        pendingDeleteIds.Remove(bikeId);
+        RebuildFilter();
     }
 
     private async Task FinalizeBikeDeleteAsync(Guid bikeId)
     {
-        pendingDelete = null;
+        var result = await bikeCoordinator.DeleteAsync(bikeId);
+
+        pendingDeleteIds.Remove(bikeId);
         RebuildFilter();
 
-        var result = await bikeCoordinator.DeleteAsync(bikeId);
         switch (result.Outcome)
         {
             case BikeDeleteOutcome.InUse:

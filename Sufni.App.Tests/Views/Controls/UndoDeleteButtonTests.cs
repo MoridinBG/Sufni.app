@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -10,7 +11,7 @@ namespace Sufni.App.Tests.Views.Controls;
 public class UndoDeleteButtonTests
 {
     [AvaloniaFact]
-    public async Task UndoDeleteButton_ShowsPendingName_AndDismissButtonFinalizesDelete()
+    public async Task UndoDeleteButton_RendersBar_AndDismissButtonFinalizesDelete()
     {
         ViewTestHelpers.EnsureViewTestResources();
 
@@ -22,22 +23,19 @@ public class UndoDeleteButtonTests
             DataContext = viewModel
         };
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var host = await ViewTestHelpers.ShowViewAsync(view);
 
         try
         {
-            var dismissButton = view.FindControl<Button>("DismissButton");
-            Assert.NotNull(dismissButton);
-            Assert.True(view.IsVisible);
-            Assert.Equal("Morning Ride", viewModel.PendingName);
+            var dismissButton = Assert.Single(view.FindAllVisual<Button>(), b => b.Name == "DismissButton");
+            Assert.Equal("Morning Ride", Assert.Single(viewModel.PendingDeletes).Name);
 
-            dismissButton!.Command!.Execute(dismissButton.CommandParameter);
+            dismissButton.Command!.Execute(dismissButton.CommandParameter);
             await ViewTestHelpers.FlushDispatcherAsync();
 
             Assert.Equal(1, viewModel.FinalizeCount);
             Assert.Equal(0, viewModel.UndoCount);
-            Assert.False(view.IsVisible);
+            Assert.Empty(viewModel.PendingDeletes);
         }
         finally
         {
@@ -59,20 +57,47 @@ public class UndoDeleteButtonTests
             DataContext = viewModel
         };
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var host = await ViewTestHelpers.ShowViewAsync(view);
 
         try
         {
-            var undoButton = view.FindControl<Button>("UndoButton");
-            Assert.NotNull(undoButton);
+            var undoButton = Assert.Single(view.FindAllVisual<Button>(), b => b.Name == "UndoButton");
 
-            undoButton!.Command!.Execute(undoButton.CommandParameter);
+            undoButton.Command!.Execute(undoButton.CommandParameter);
             await ViewTestHelpers.FlushDispatcherAsync();
 
             Assert.Equal(0, viewModel.FinalizeCount);
             Assert.Equal(1, viewModel.UndoCount);
-            Assert.False(view.IsVisible);
+            Assert.Empty(viewModel.PendingDeletes);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task UndoDeleteButton_StacksMultipleEntries()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var viewModel = new TestUndoItemListViewModel();
+        viewModel.BeginPendingDelete("First");
+        viewModel.BeginPendingDelete("Second");
+
+        var view = new UndoDeleteButton
+        {
+            DataContext = viewModel
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var dismissButtons = view.FindAllVisual<Button>().Where(b => b.Name == "DismissButton").ToArray();
+            Assert.Equal(2, dismissButtons.Length);
+            Assert.Equal(2, viewModel.PendingDeletes.Count);
         }
         finally
         {
@@ -89,15 +114,13 @@ internal sealed class TestUndoItemListViewModel : ItemListViewModelBase
 
     public void BeginPendingDelete(string name)
     {
-        StartUndoWindow(name, () =>
-        {
-            FinalizeCount++;
-            return Task.CompletedTask;
-        });
-    }
-
-    protected override void OnPendingDeleteUndone()
-    {
-        UndoCount++;
+        StartUndoWindow(
+            name,
+            () =>
+            {
+                FinalizeCount++;
+                return Task.CompletedTask;
+            },
+            () => UndoCount++);
     }
 }

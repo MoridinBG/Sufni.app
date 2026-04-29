@@ -1,0 +1,109 @@
+<UserControl
+x:Class="Sufni.App.Views.Editors.LiveDaqConfigEditorView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+d:DesignHeight="720"
+d:DesignWidth="640"
+x:DataType="vm:LiveDaqConfigEditorViewModel"
+Background="{StaticResource SufniBackgroundDisabled}"
+mc:Ignorable="d">
+
+    <Grid RowDefinitions="auto * auto">
+        <TextBlock
+        Grid.Row="0"
+        Margin="16,16,16,10"
+        FontSize="20"
+        FontWeight="SemiBold"
+        Text="Edit CONFIG" />
+
+        <ScrollViewer Grid.Row="1" Margin="16,0">
+            <ItemsControl Name="ConfigFieldsItemsControl" ItemsSource="{Binding Fields}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LiveDaqConfigFieldRowViewModel">
+                        <Border
+                        Margin="0,0,0,10"
+                        Padding="10"
+                        Background="{StaticResource SufniRegion}"
+                        CornerRadius="6">
+                            <Grid
+                            ColumnDefinitions="150,*"
+                            ColumnSpacing="12"
+                            RowDefinitions="auto auto">
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                    <TextBlock
+                                    FontWeight="SemiBold"
+                                    Text="{Binding Label}"
+                                    TextWrapping="Wrap" />
+                                    <TextBlock
+                                    FontFamily="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono"
+                                    FontSize="12"
+                                    Opacity="0.7"
+                                    Text="{Binding Key}"
+                                    TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="* auto" ColumnSpacing="8">
+                                    <TextBox
+                                    Name="FieldValueTextBox"
+                                    Grid.Column="0"
+                                    PasswordChar="{Binding PasswordChar}"
+                                    Text="{Binding Value, Mode=TwoWay}" />
+                                    <ToggleButton
+                                    Name="RevealSecretButton"
+                                    Grid.Column="1"
+                                    MinWidth="58"
+                                    Content="{Binding RevealText}"
+                                    IsChecked="{Binding IsSecretRevealed, Mode=TwoWay}"
+                                    IsVisible="{Binding IsSecret}" />
+                                </Grid>
+
+                                <TextBlock
+                                Name="FieldValidationTextBlock"
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Margin="0,4,0,0"
+                                Foreground="{StaticResource SufniDangerColor}"
+                                IsVisible="{Binding HasValidationMessage}"
+                                Text="{Binding ValidationMessage}"
+                                TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Border
+        Grid.Row="2"
+        Padding="16,12"
+        Background="{StaticResource SufniBackgroundDisabled}">
+            <Grid RowDefinitions="auto auto" RowSpacing="10">
+                <TextBlock
+                Name="SaveErrorTextBlock"
+                Grid.Row="0"
+                Foreground="{StaticResource SufniDangerColor}"
+                IsVisible="{Binding HasSaveError}"
+                Text="{Binding SaveErrorMessage}"
+                TextWrapping="Wrap" />
+                <StackPanel
+                Grid.Row="1"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal"
+                Spacing="10">
+                    <Button
+                    Name="CancelButton"
+                    Command="{Binding CancelCommand}"
+                    Content="Cancel" />
+                    <Button
+                    Name="SaveButton"
+                    Classes="accent"
+                    Command="{Binding SaveCommand}"
+                    Content="Save" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -23,7 +23,7 @@ public class TelemetryFileInspectionMappingTests
             Assert.True(file.HasUnknown);
             Assert.Null(file.MalformedMessage);
             Assert.True(file.CanImport);
-            Assert.True(file.ShouldBeImported);
+            Assert.False(file.ShouldBeImported);
             Assert.Equal("00:00:05", file.Duration);
         }
         finally
@@ -68,7 +68,7 @@ public class TelemetryFileInspectionMappingTests
         Assert.True(file.HasUnknown);
         Assert.Null(file.MalformedMessage);
         Assert.True(file.CanImport);
-        Assert.True(file.ShouldBeImported);
+        Assert.False(file.ShouldBeImported);
         Assert.Equal("00:00:05", file.Duration);
     }
 
@@ -100,7 +100,7 @@ public class TelemetryFileInspectionMappingTests
             var file = new MassStorageTelemetryFile(new FileInfo(path));
 
             Assert.True(file.CanImport);
-            Assert.True(file.ShouldBeImported);
+            Assert.False(file.ShouldBeImported);
             Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
             Assert.Equal("00:00:05", file.Duration);
         }
@@ -120,7 +120,7 @@ public class TelemetryFileInspectionMappingTests
         var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
 
         Assert.True(file.CanImport);
-        Assert.True(file.ShouldBeImported);
+        Assert.False(file.ShouldBeImported);
         Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
         Assert.Equal("00:00:05", file.Duration);
     }

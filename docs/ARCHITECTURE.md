@@ -69,12 +69,12 @@ The presentation layer holds only UI state and binds against the application lay
 
 ## Document Index
 
-- [Data Acquisition & File Format](docs/architecture/acquisition.md) — how SST files reach the app, the wire/file formats, spike elimination.
-- [Signal Processing & Suspension Kinematics](docs/architecture/processing.md) — the pipeline from raw samples to histograms, the linkage solver, sensor calibration.
-- [UI Architecture](docs/architecture/ui.md) — invariants, layering, threading, stores, coordinators, queries, view models, DI, navigation, controls, plots.
-- [Live DAQ Streaming](docs/architecture/live-streaming.md) — real-time telemetry preview: wire protocol, transport, discovery catalog, runtime store, detail tab lifecycle.
-- [Persistence & Serialization](docs/architecture/persistence.md) — SQLite schema, the database service, soft delete, conflict resolution.
-- [Cross-Device Synchronization](docs/architecture/sync.md) — pairing flow, server, client, and sync payloads.
+- [Data Acquisition & File Format](architecture/acquisition.md) — how SST files reach the app, the wire/file formats, spike elimination.
+- [Signal Processing & Suspension Kinematics](architecture/processing.md) — the pipeline from raw samples to histograms, the linkage solver, sensor calibration.
+- [UI Architecture](architecture/ui.md) — invariants, layering, threading, stores, coordinators, queries, view models, DI, navigation, controls, plots.
+- [Live DAQ Streaming](architecture/live-streaming.md) — real-time telemetry preview: wire protocol, transport, discovery catalog, runtime store, detail tab lifecycle.
+- [Persistence & Serialization](architecture/persistence.md) — SQLite schema, the database service, soft delete, conflict resolution.
+- [Cross-Device Synchronization](architecture/sync.md) — pairing flow, server, client, and sync payloads.
 
 ---
 
@@ -91,7 +91,7 @@ The presentation layer holds only UI state and binds against the application lay
 | **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                                             |
 | **Sufni.App.Linux**       | `Sufni.App/Sufni.App.Linux/`   | Linux entry point (`Program.cs`)                                                                             |
 | **Sufni.App.Android**     | `Sufni.App/Sufni.App.Android/` | Android entry point (`MainActivity.cs`)                                                                      |
-| **Sufni.App.iOS**         | `Sufni.App/Sufni.App.iOS/`     | iOS entry point (`AppDelegate.cs`)                                                                           |
+| **Sufni.App.iOS**         | `Sufni.App/Sufni.App.iOS/`     | iOS entry point (`Main.cs`) and application delegate (`AppDelegate.cs`)                                      |
 
 Scenario-specific solutions live at the repository root:
 
@@ -191,8 +191,8 @@ The live preview feature streams real-time telemetry from a connected DAQ device
 ```
 mDNS announcement
   -> LiveDaqCatalogService (probe board ID)
-    -> LiveDaqCoordinator.Reconcile (merge with known boards)
-      -> LiveDaqStore.Upsert
+    -> LiveDaqCoordinator.ReconcileLocked (merge with known boards)
+      -> LiveDaqStore.Upsert / ReplaceAll
         -> DynamicData -> LiveDaqListViewModel -> UI
 
 User selects row
@@ -211,17 +211,17 @@ Last lease released
   -> shared stream disconnects and registry evicts it
 ```
 
-Topics in [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md):
+Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
-- [Overview](docs/architecture/live-streaming.md#overview) — feature scope, architecture diagram, data flow
-- [Live Wire Protocol](docs/architecture/live-streaming.md#live-wire-protocol) — 16-byte frame header, frame types, start handshake, result codes
-- [Transport Layer](docs/architecture/live-streaming.md#transport-layer) — protocol reader, client lifecycle, session state accumulator
-- [Discovery & Catalog](docs/architecture/live-streaming.md#discovery--catalog) — browse ownership, board-ID inspector, catalog service
-- [Known-Board Query](docs/architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
-- [Runtime Store](docs/architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
-- [Coordinator](docs/architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
-- [View Models](docs/architecture/live-streaming.md#view-models) — list, row, diagnostics tab, live-session tab lifecycle
-- [Design Decisions](docs/architecture/live-streaming.md#design-decisions) — separation from import, per-identity shared stream, throttled UI, lease-based browse
+- [Overview](architecture/live-streaming.md#overview) — feature scope, architecture diagram, data flow
+- [Live Wire Protocol](architecture/live-streaming.md#live-wire-protocol) — 16-byte frame header, frame types, start handshake, result codes
+- [Transport Layer](architecture/live-streaming.md#transport-layer) — protocol reader, client lifecycle, session state accumulator
+- [Discovery & Catalog](architecture/live-streaming.md#discovery--catalog) — browse ownership, board-ID inspector, catalog service
+- [Known-Board Query](architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
+- [Runtime Store](architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
+- [Coordinator](architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
+- [View Models](architecture/live-streaming.md#view-models) — list, row, diagnostics tab, live-session tab lifecycle
+- [Design Decisions](architecture/live-streaming.md#design-decisions) — separation from import, per-identity shared stream, throttled UI, lease-based browse
 
 ---
 
