@@ -133,6 +133,26 @@ internal sealed class DaqManagementService : IDaqManagementService
         };
     }
 
+    public async Task<IDaqManagementSession> OpenSessionAsync(
+        string host,
+        int port,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateEndpoint(host, port);
+        var client = CreateClient();
+        try
+        {
+            await client.ConnectAsync(host, port, cancellationToken);
+        }
+        catch
+        {
+            client.Dispose();
+            throw;
+        }
+
+        return new DaqManagementSession(client);
+    }
+
     public async Task<DaqManagementResult> ReplaceConfigAsync(
         string host,
         int port,

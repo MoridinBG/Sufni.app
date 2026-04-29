@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
@@ -15,6 +18,7 @@ public class ImportSessionsCoordinator(
     ISessionStoreWriter sessionStore,
     IShellCoordinator shell,
     IBackgroundTaskRunner backgroundTaskRunner,
+    IDaqManagementService daqManagementService,
     Func<ImportSessionsViewModel> importSessionsResolver)
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
@@ -73,83 +77,109 @@ public class ImportSessionsCoordinator(
 
         var bikeData = TelemetryBikeData.Create(setup, bike);
 
-        foreach (var telemetryFile in files)
+        var sessions = new Dictionary<IPEndPoint, IDaqManagementSession>();
+        try
         {
-            // Legacy semantics: only HasValue && Value is "import";
-            // !HasValue is "trash"; HasValue && !Value is "leave alone".
-            if (telemetryFile.ShouldBeImported is true)
+            foreach (var networkFile in files.OfType<NetworkTelemetryFile>())
             {
-                try
+                if (sessions.ContainsKey(networkFile.EndPoint))
                 {
-                    if (!telemetryFile.CanImport)
-                    {
-                        var malformedMessage = string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage)
-                            ? "The telemetry file cannot be imported."
-                            : telemetryFile.MalformedMessage;
-                        logger.Warning(
-                            "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
-                            telemetryFile.Name,
-                            malformedMessage);
-                        failures.Add((telemetryFile.Name, malformedMessage));
-                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, malformedMessage));
-                        continue;
-                    }
-
-                    logger.Verbose("Generating processed session data for {FileName}", telemetryFile.Name);
-                    var psst = await telemetryFile.GeneratePsstAsync(bikeData);
-
-                    Guid? fullTrackId = null;
-                    var telemetryData = TelemetryData.FromBinary(psst);
-                    if (telemetryData.GpsData is { Length: > 0 })
-                    {
-                        var track = Track.FromGpsRecords(telemetryData.GpsData);
-                        if (track is not null)
-                        {
-                            await databaseService.PutAsync(track);
-                            fullTrackId = track.Id;
-                        }
-                    }
-
-                    var session = new Session(
-                        id: Guid.NewGuid(),
-                        name: telemetryFile.Name,
-                        description: telemetryFile.Description,
-                        setup: setupId,
-                        timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
-                    {
-                        ProcessedData = psst,
-                        FullTrack = fullTrackId
-                    };
-
-                    logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
-                    await databaseService.PutSessionAsync(session);
-                    await telemetryFile.OnImported();
-
-                    var snapshot = SessionSnapshot.From(session);
-                    sessionStore.Upsert(snapshot);
-                    imported.Add(snapshot);
-                    progress?.Report(new SessionImportEvent.Imported(snapshot));
+                    networkFile.AttachSession(sessions[networkFile.EndPoint]);
+                    continue;
                 }
-                catch (Exception e)
+
+                var session = await daqManagementService.OpenSessionAsync(
+                    networkFile.EndPoint.Address.ToString(),
+                    networkFile.EndPoint.Port);
+                sessions[networkFile.EndPoint] = session;
+                networkFile.AttachSession(session);
+            }
+
+            foreach (var telemetryFile in files)
+            {
+                // Legacy semantics: only HasValue && Value is "import";
+                // !HasValue is "trash"; HasValue && !Value is "leave alone".
+                if (telemetryFile.ShouldBeImported is true)
                 {
-                    logger.Warning(e, "Failed to import telemetry file {FileName}", telemetryFile.Name);
-                    failures.Add((telemetryFile.Name, e.Message));
-                    progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
+                    try
+                    {
+                        if (!telemetryFile.CanImport)
+                        {
+                            var malformedMessage = string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage)
+                                ? "The telemetry file cannot be imported."
+                                : telemetryFile.MalformedMessage;
+                            logger.Warning(
+                                "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
+                                telemetryFile.Name,
+                                malformedMessage);
+                            failures.Add((telemetryFile.Name, malformedMessage));
+                            progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, malformedMessage));
+                            continue;
+                        }
+
+                        logger.Verbose("Generating processed session data for {FileName}", telemetryFile.Name);
+                        var psst = await telemetryFile.GeneratePsstAsync(bikeData);
+
+                        Guid? fullTrackId = null;
+                        var telemetryData = TelemetryData.FromBinary(psst);
+                        if (telemetryData.GpsData is { Length: > 0 })
+                        {
+                            var track = Track.FromGpsRecords(telemetryData.GpsData);
+                            if (track is not null)
+                            {
+                                await databaseService.PutAsync(track);
+                                fullTrackId = track.Id;
+                            }
+                        }
+
+                        var session = new Session(
+                            id: Guid.NewGuid(),
+                            name: telemetryFile.Name,
+                            description: telemetryFile.Description,
+                            setup: setupId,
+                            timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
+                        {
+                            ProcessedData = psst,
+                            FullTrack = fullTrackId
+                        };
+
+                        logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
+                        await databaseService.PutSessionAsync(session);
+                        await telemetryFile.OnImported();
+
+                        var snapshot = SessionSnapshot.From(session);
+                        sessionStore.Upsert(snapshot);
+                        imported.Add(snapshot);
+                        progress?.Report(new SessionImportEvent.Imported(snapshot));
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Warning(e, "Failed to import telemetry file {FileName}", telemetryFile.Name);
+                        failures.Add((telemetryFile.Name, e.Message));
+                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
+                    }
+                }
+                else if (telemetryFile.ShouldBeImported is null)
+                {
+                    try
+                    {
+                        logger.Verbose("Trashing telemetry file {FileName}", telemetryFile.Name);
+                        await telemetryFile.OnTrashed();
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Warning(e, "Failed to trash telemetry file {FileName}", telemetryFile.Name);
+                        failures.Add((telemetryFile.Name, e.Message));
+                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
+                    }
                 }
             }
-            else if (telemetryFile.ShouldBeImported is null)
+        }
+        finally
+        {
+            foreach (var session in sessions.Values)
             {
-                try
-                {
-                    logger.Verbose("Trashing telemetry file {FileName}", telemetryFile.Name);
-                    await telemetryFile.OnTrashed();
-                }
-                catch (Exception e)
-                {
-                    logger.Warning(e, "Failed to trash telemetry file {FileName}", telemetryFile.Name);
-                    failures.Add((telemetryFile.Name, e.Message));
-                    progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
-                }
+                await session.DisposeAsync();
             }
         }
 
