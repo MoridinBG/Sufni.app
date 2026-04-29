@@ -124,6 +124,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ISessionStoreWriter>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBackgroundTaskRunner>(),
+            Substitute.For<IDaqManagementService>(),
             new Func<ImportSessionsViewModel>(() => null!));
 
         coordinator.OpenAsync().Returns(Task.CompletedTask);

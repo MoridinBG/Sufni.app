@@ -71,7 +71,7 @@ public class NetworkTelemetryDataStoreTests
             first =>
             {
                 Assert.Equal("RIDE-NEW.SST", first.FileName);
-                Assert.True(first.ShouldBeImported);
+                Assert.False(first.ShouldBeImported);
                 Assert.Equal((byte)4, first.Version);
                 Assert.Equal("00:00:06", first.Duration);
                 Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(222).LocalDateTime, first.StartTime);
@@ -79,7 +79,7 @@ public class NetworkTelemetryDataStoreTests
             second =>
             {
                 Assert.Equal("RIDE-OLD.SST", second.FileName);
-                Assert.Null(second.ShouldBeImported);
+                Assert.False(second.ShouldBeImported);
                 Assert.Equal((byte)3, second.Version);
                 Assert.Equal("00:00:03", second.Duration);
                 Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(111).LocalDateTime, second.StartTime);
@@ -143,7 +143,7 @@ public class NetworkTelemetryDataStoreTests
             first =>
             {
                 Assert.Equal("RIDE-NEW.SST", first.FileName);
-                Assert.True(first.ShouldBeImported);
+                Assert.False(first.ShouldBeImported);
                 Assert.Null(first.MalformedMessage);
             },
             second =>

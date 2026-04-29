@@ -149,7 +149,7 @@ public class LiveDaqSharedStreamTests
         client.FailNextStartPreview = true;
 
         await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Gps,
+            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Gps,
             TravelHz: 100,
             ImuHz: 0,
             GpsFixHz: 5));
@@ -191,7 +191,7 @@ public class LiveDaqSharedStreamTests
         });
 
         await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Gps,
+            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Gps,
             TravelHz: 100,
             ImuHz: 0,
             GpsFixHz: 5));
@@ -262,13 +262,64 @@ public class LiveDaqSharedStreamTests
         client.ThrowCanceledOnDisconnect = true;
 
         await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            SensorMask: LiveSensorMask.Travel | LiveSensorMask.Gps,
+            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Gps,
             TravelHz: 100,
             ImuHz: 0,
             GpsFixHz: 5));
 
         Assert.Null(stream.CurrentState.LastError);
         Assert.False(stream.CurrentState.IsClosed);
+    }
+
+    [Fact]
+    public async Task EnsureStartedAsync_PartialSuccessPublishesConnectedStateWithoutError()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        clientFactory.ConfigureBeforeReturn = c =>
+        {
+            c.AcceptedSensorMask = LiveSensorInstanceMask.ForkTravel;
+        };
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
+            RequestedSensorMask: LiveSensorInstanceMask.Travel,
+            TravelHz: 100,
+            ImuHz: 0,
+            GpsFixHz: 0));
+
+        var result = await stream.EnsureStartedAsync();
+
+        var started = Assert.IsType<LivePreviewStartResult.Started>(result);
+        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+        Assert.Null(stream.CurrentState.LastError);
+        Assert.Equal(LiveSensorInstanceMask.ForkTravel, stream.CurrentState.SessionHeader?.AcceptedSensorMask);
+        Assert.Equal(LiveSensorInstanceMask.ShockTravel, started.Header.MissingSensorMask);
+    }
+
+    [Fact]
+    public async Task EnsureStartedAsync_NoSensorsStartedPublishesError()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        clientFactory.ConfigureBeforeReturn = c =>
+        {
+            c.RejectNextStartPreview = true;
+            c.RejectErrorCode = LiveStartErrorCode.NoSensorsStarted;
+        };
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+
+        var result = await stream.EnsureStartedAsync();
+
+        var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
+        Assert.Equal(LiveStartErrorCode.NoSensorsStarted, rejected.ErrorCode);
+        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+        Assert.NotNull(stream.CurrentState.LastError);
     }
 
     [Fact]
@@ -470,6 +521,10 @@ public class LiveDaqSharedStreamTests
 
         public bool RejectNextStartPreview { get; set; }
 
+        public LiveStartErrorCode RejectErrorCode { get; set; } = LiveStartErrorCode.Busy;
+
+        public LiveSensorInstanceMask? AcceptedSensorMask { get; set; }
+
         public bool DelayDisconnectEvents { get; set; }
 
         public bool BlockDisposeAsync { get; set; }
@@ -523,20 +578,24 @@ public class LiveDaqSharedStreamTests
             {
                 RejectNextStartPreview = false;
                 return Task.FromResult<LivePreviewStartResult>(
-                    new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, LiveStartErrorCode.Busy.ToUserMessage()));
+                    new LivePreviewStartResult.Rejected(RejectErrorCode, RejectErrorCode.ToUserMessage()));
             }
 
-            var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: (uint)(900 + ConnectCalls));
+            var acceptedSensorMask = AcceptedSensorMask ?? request.RequestedSensorMask;
+            var header = LiveProtocolTestFrames.CreateSessionHeaderModel(
+                sessionId: (uint)(900 + ConnectCalls),
+                requestedSensorMask: request.RequestedSensorMask,
+                acceptedSensorMask: acceptedSensorMask);
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
                     new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0),
-                    new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, request.SensorMask))));
+                    new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, acceptedSensorMask.ToStreamMask()))));
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveSessionHeaderFrame(
                     new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.SessionHeader, 0, 0),
                     header)));
 
-            return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Started(header, request.SensorMask));
+            return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Started(header));
         }
 
         public Task StopPreviewAsync(CancellationToken cancellationToken = default)

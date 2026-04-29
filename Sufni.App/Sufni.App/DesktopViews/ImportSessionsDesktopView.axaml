@@ -13,25 +13,33 @@ x:DataType="vm:ImportSessionsViewModel"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <v:ImportActionConverter x:Key="ImportActionConverter" />
+        <v:ImportActionMatchConverter x:Key="ImportActionMatchConverter" />
+    </UserControl.Resources>
+
     <UserControl.Styles>
-        <Style Selector="ToggleButton.importchoice:indeterminate /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="ComboBox.importchoice">
+            <Setter Property="Width" Value="100" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ComboBox.importchoice.import">
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+        <Style Selector="ComboBox.importchoice.import:pointerover /template/ Border#Background">
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+        <Style Selector="ComboBox.importchoice.import:pressed /template/ Border#Background">
+            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+        </Style>
+        <Style Selector="ComboBox.importchoice.trash">
             <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />
         </Style>
-        <Style Selector="ToggleButton.importchoice:indeterminate:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{StaticResource SufniDangerColorDark}" />
+        <Style Selector="ComboBox.importchoice.trash:pointerover /template/ Border#Background">
+            <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />
         </Style>
-
-        <Style Selector="ToggleButton.importchoice">
-            <Setter Property="Content" Value="Ignore" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="ToggleButton.importchoice:checked">
-            <Setter Property="Content" Value="Import" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="ToggleButton.importchoice:indeterminate">
-            <Setter Property="Content" Value="Trash" />
-            <Setter Property="BorderThickness" Value="0" />
+        <Style Selector="ComboBox.importchoice.trash:pressed /template/ Border#Background">
+            <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />
         </Style>
     </UserControl.Styles>
 
@@ -112,24 +120,26 @@ mc:Ignorable="d">
                                 ColumnDefinitions="auto * auto"
                                 RowDefinitions="* *">
 
-                                    <!--  Import/Trash/Ignore button  -->
-                                    <ToggleButton
+                                    <!--  Import/Trash/Ignore selector  -->
+                                    <ComboBox
                                     Grid.Row="0"
                                     Grid.RowSpan="2"
                                     Grid.Column="0"
-                                    Width="60"
                                     HorizontalAlignment="Left"
-                                    HorizontalContentAlignment="Center"
                                     Classes="importchoice"
-                                    IsChecked="{Binding ShouldBeImported}"
-                                    IsThreeState="True">
-                                        <ToggleButton.IsEnabled>
+                                    Classes.import="{Binding $self.SelectedIndex, Converter={StaticResource ImportActionMatchConverter}, ConverterParameter=Import}"
+                                    Classes.trash="{Binding $self.SelectedIndex, Converter={StaticResource ImportActionMatchConverter}, ConverterParameter=Trash}"
+                                    SelectedIndex="{Binding ShouldBeImported, Converter={StaticResource ImportActionConverter}, Mode=TwoWay}">
+                                        <ComboBox.IsEnabled>
                                             <MultiBinding Converter="{x:Static BoolConverters.And}">
                                                 <Binding Path="CanImport" />
                                                 <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
                                             </MultiBinding>
-                                        </ToggleButton.IsEnabled>
-                                    </ToggleButton>
+                                        </ComboBox.IsEnabled>
+                                        <ComboBoxItem Content="Ignore" />
+                                        <ComboBoxItem Content="Import" />
+                                        <ComboBoxItem Content="Trash" />
+                                    </ComboBox>
 
                                     <!--  Name  -->
                                     <StackPanel
@@ -278,8 +288,14 @@ mc:Ignorable="d">
         Grid.ColumnSpan="3"
         Background="#0d0d0d"
         IsHitTestVisible="False"
-        IsVisible="{Binding ImportSessionsCommand.IsRunning}"
-        Opacity="0.7" />
+        Opacity="0.7">
+            <Panel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="ImportSessionsCommand.IsRunning" />
+                    <Binding Path="IsLoadingFiles" />
+                </MultiBinding>
+            </Panel.IsVisible>
+        </Panel>
         <progRing:ProgressRing
         Grid.Row="0"
         Grid.RowSpan="5"
@@ -295,9 +311,38 @@ mc:Ignorable="d">
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="!TelemetryDataStores.Count" />
                     <Binding Path="ImportSessionsCommand.IsRunning" />
+                    <Binding Path="IsLoadingFiles" />
                 </MultiBinding>
             </progRing:ProgressRing.IsActive>
         </progRing:ProgressRing>
+
+        <TextBlock
+        Grid.Row="0"
+        Grid.RowSpan="5"
+        Grid.Column="0"
+        Grid.ColumnSpan="3"
+        Margin="0,60,0,0"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        FontWeight="Bold"
+        Foreground="{StaticResource SufniAccentColor}"
+        IsHitTestVisible="False"
+        IsVisible="{Binding ImportSessionsCommand.IsRunning}"
+        Text="{Binding ImportProgressText}" />
+
+        <TextBlock
+        Grid.Row="0"
+        Grid.RowSpan="5"
+        Grid.Column="0"
+        Grid.ColumnSpan="3"
+        Margin="0,60,0,0"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        FontWeight="Bold"
+        Foreground="{StaticResource SufniAccentColor}"
+        IsHitTestVisible="False"
+        IsVisible="{Binding IsLoadingFiles}"
+        Text="Fetching sessions list" />
 
     </Grid>
 </UserControl>

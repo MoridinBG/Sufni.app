@@ -66,8 +66,8 @@ On import, files move to an `uploaded/` subdirectory. On trash, files move to `t
 `NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import now goes through `IDaqManagementService` rather than a model-owned TCP utility: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
 
 - `Initialization` no longer lists files. It performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore.
-- `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, and maps only `DaqSstFileRecord` values into `NetworkTelemetryFile` instances sorted by descending `StartTime`.
-- `NetworkTelemetryFile` now carries the DAQ `recordId` from the management directory listing. `GeneratePsstAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temp file before SST validation and processing. `OnImported()` sends `MARK_SST_UPLOADED_REQ` after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
+- `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, maps `DaqSstFileRecord` values into importable `NetworkTelemetryFile` instances, and maps `DaqMalformedSstFileRecord` values into non-importable `NetworkTelemetryFile` instances (`canImport: false`) carrying the malformed message. The combined list is returned sorted by descending `StartTime`.
+- `NetworkTelemetryFile` now carries the DAQ `recordId` from the management directory listing. `GeneratePsstAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temp file before SST validation and processing. `OnImported()` calls `IDaqManagementService.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
 - Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
 
 Import still shares the DAQ's single-client TCP port with live preview. If another live or management connection is already active, the resulting connection failure is surfaced through `TelemetryDataStoreService.ErrorOccurred` just as before.
@@ -111,7 +111,7 @@ graph TD
 | 8      | 8    | Timestamp (int64, Unix seconds)                |
 | 16     | N×4  | Records: uint16 front + uint16 rear per sample |
 
-Values use 12-bit two's complement: if `value >= 2048`, subtract 4096. A sentinel of `0xFFFF` for the first sample indicates no data on that channel.
+Samples are unsigned 12-bit ADC counts (range `0..4095`) read as `uint16`. A sentinel of `0xFFFF` (`ushort.MaxValue`) on the first sample of a channel indicates no data on that channel.
 
 ### SST V4 TLV Format
 
@@ -136,7 +136,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
-The `Inspect()` path scans only the header and rate/telemetry chunk metadata to compute duration and version without fully parsing all data — used for UI display before import. It also detects unknown TLV chunk types and malformed headers, returning a `MalformedSstFileInspection` with a diagnostic message when the file cannot be imported. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the file with a malformed warning, and still allows import.
+The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. This is enough to compute duration, version, the `HasUnknown` flag, and any malformed-warning message — used for UI display before import. It detects unknown TLV chunk types and malformed headers, returning a `MalformedSstFileInspection` with a diagnostic message when the file cannot be imported. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the file with a malformed warning, and still allows import.
 
 ### Spike Elimination
 
@@ -148,7 +148,7 @@ The `Inspect()` path scans only the header and rate/telemetry chunk metadata to 
 
 3. **Handle early baseline shift** — if the first detected change occurs within the first 100 samples (~100ms at 1kHz), the entire signal after the change is shifted by the change magnitude. This corrects for sensor initialization drift.
 
-4. **Handle temporary dips** — pairs of negative-then-positive changes are treated as sensor glitches. The dip region between them is shifted back to undo the anomaly.
+4. **Handle temporary dips and unrecovered tails** — walks the remaining changes in order, tracking a cumulative negative offset (`activeFaultDelta`). Each segment between changes is shifted by the active offset. Negative changes accumulate into the offset; subsequent positive changes partially undo it (clamped to zero). Any leftover offset at the final change is also applied to the trailing samples through end of capture, so a dip that never recovers is corrected as a sensor fault rather than left in the signal.
 
 Output is clamped to valid 12-bit ADC range `[0, 4095]`. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
 

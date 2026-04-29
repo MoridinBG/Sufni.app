@@ -157,6 +157,7 @@ public class LiveDaqDetailDesktopViewTests
         await using var mounted = await MountAsync(editor);
 
         Assert.NotNull(mounted.View.FindControl<Button>("SetTimeButton"));
+        Assert.NotNull(mounted.View.FindControl<Button>("EditConfigButton"));
         Assert.NotNull(mounted.View.FindControl<Button>("SelectConfigButton"));
         Assert.NotNull(mounted.View.FindControl<Button>("UploadConfigButton"));
         Assert.NotNull(mounted.View.FindControl<Control>("ManagementNotificationsBar"));
@@ -173,6 +174,19 @@ public class LiveDaqDetailDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_EditConfigButton_EnabledWhenDisconnected()
+    {
+        var editor = CreateEditorWithManagement();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
     }
 
     [AvaloniaFact]
@@ -283,13 +297,15 @@ public class LiveDaqDetailDesktopViewTests
             Session: new LiveSessionContractSnapshot(
                 SessionId: 42,
                 SelectedSensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
+                RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
+                AcceptedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
                 AcceptedTravelHz: 200,
                 AcceptedImuHz: 100,
                 AcceptedGpsFixHz: 10,
                 SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
                 Flags: LiveSessionFlags.CalibratedOnly,
                 ActiveImuLocations: [LiveImuLocation.Frame, LiveImuLocation.Rear]),
-            Travel: new LiveTravelUiSnapshot(true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
+            Travel: new LiveTravelUiSnapshot(true, true, true, true, 112, 205, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(42), 3, 1),
             Imus:
             [
                 new LiveImuUiSnapshot(LiveImuLocation.Frame, true, 10, 11, 12, 13, 14, 15, TimeSpan.FromSeconds(1.25), TimeSpan.FromMilliseconds(38), 4, 2),

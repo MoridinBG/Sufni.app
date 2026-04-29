@@ -1,8 +1,13 @@
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Services.Management;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
@@ -17,6 +22,7 @@ public class ImportSessionsCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
+    private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
 
     /// <summary>
     /// Resolver for `ImportSessionsViewModel` is a `Func<T>` — the tests
@@ -29,7 +35,7 @@ public class ImportSessionsCoordinatorTests
             "The resolver should not be invoked directly from tests.");
 
     private ImportSessionsCoordinator CreateCoordinator() => new(
-        database, sessionStore, shell, backgroundTaskRunner, importSessionsResolver);
+        database, sessionStore, shell, backgroundTaskRunner, daqManagementService, importSessionsResolver);
 
     // ----- OpenAsync -----
 
@@ -147,8 +153,10 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Failures);
 
         // Progress reported.
-        var imported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var imported = Assert.Single(nonProgressEvents);
         Assert.IsType<SessionImportEvent.Imported>(imported);
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
     }
 
     [Fact]
@@ -237,7 +245,8 @@ public class ImportSessionsCoordinatorTests
         await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
 
-        var reported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var reported = Assert.Single(nonProgressEvents);
         var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
         Assert.Equal("broken", failed.FileName);
     }
@@ -293,7 +302,8 @@ public class ImportSessionsCoordinatorTests
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal("trash-fail", failure.FileName);
-        var reported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var reported = Assert.Single(nonProgressEvents);
         var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
         Assert.Equal("trash-fail", failed.FileName);
     }
@@ -341,7 +351,8 @@ public class ImportSessionsCoordinatorTests
         await file.DidNotReceive().GeneratePsstAsync(Arg.Any<BikeData>());
         await file.DidNotReceive().OnImported();
 
-        var reported = Assert.Single(progressEvents);
+        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
+        var reported = Assert.Single(nonProgressEvents);
         var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
         Assert.Equal("bad", failed.FileName);
     }
@@ -367,6 +378,34 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportAsync_ReportsProgressForEachProcessedFile_IgnoringSkipped()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var psst = CreatePsst();
+
+        var importedFile = CreateTelemetryFile(name: "import-me", shouldBeImported: true);
+        importedFile.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(psst));
+
+        var trashedFile = CreateTelemetryFile(name: "trash-me", shouldBeImported: null);
+        var ignoredFile = CreateTelemetryFile(name: "leave-me", shouldBeImported: false);
+
+        var progressEvents = new List<SessionImportEvent>();
+        var progress = new ProgressCapture(progressEvents);
+
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportAsync(
+            new[] { importedFile, ignoredFile, trashedFile },
+            setup.Id,
+            progress);
+
+        var progressUpdates = progressEvents.OfType<SessionImportEvent.Progress>().ToList();
+        Assert.Equal(2, progressUpdates.Count);
+        Assert.All(progressUpdates, p => Assert.Equal(2, p.Total));
+        Assert.Equal(1, progressUpdates[0].Current);
+        Assert.Equal(2, progressUpdates[1].Current);
+    }
+
+    [Fact]
     public async Task ImportAsync_RoutesWorkflowThroughBackgroundTaskRunner()
     {
         var (setup, _) = SeedSetupAndBike();
@@ -375,6 +414,112 @@ public class ImportSessionsCoordinatorTests
         await coordinator.ImportAsync(Array.Empty<ITelemetryFile>(), setup.Id);
 
         Assert.Equal(1, backgroundTaskRunner.InvocationCount);
+    }
+
+    // ----- ImportAsync NetworkTelemetryFile session lifecycle -----
+
+    [Fact]
+    public async Task ImportAsync_OpensOneSessionPerNetworkEndpoint_RoutesTrashThroughSession_AndDisposes()
+    {
+        var (setup, _) = SeedSetupAndBike();
+
+        var endpointA = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
+        var endpointB = new IPEndPoint(IPAddress.Parse("10.0.0.2"), 1557);
+
+        var sessionA = Substitute.For<IDaqManagementSession>();
+        var sessionB = Substitute.For<IDaqManagementSession>();
+
+        daqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(sessionA));
+        daqManagementService.OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(sessionB));
+
+        sessionA.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        sessionB.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+
+        var fileA1 = new NetworkTelemetryFile(endpointA, daqManagementService, 1, "00001.SST", 3,
+            DateTimeOffset.FromUnixTimeSeconds(111), TimeSpan.FromSeconds(6))
+        { ShouldBeImported = null };
+        var fileA2 = new NetworkTelemetryFile(endpointA, daqManagementService, 2, "00002.SST", 3,
+            DateTimeOffset.FromUnixTimeSeconds(222), TimeSpan.FromSeconds(6))
+        { ShouldBeImported = null };
+        var fileB = new NetworkTelemetryFile(endpointB, daqManagementService, 3, "00003.SST", 3,
+            DateTimeOffset.FromUnixTimeSeconds(333), TimeSpan.FromSeconds(6))
+        { ShouldBeImported = null };
+
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportAsync(new ITelemetryFile[] { fileA1, fileA2, fileB }, setup.Id);
+
+        await daqManagementService.Received(1)
+            .OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>());
+        await daqManagementService.Received(1)
+            .OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>());
+
+        await sessionA.Received(1).TrashFileAsync(1, Arg.Any<CancellationToken>());
+        await sessionA.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
+        await sessionB.Received(1).TrashFileAsync(3, Arg.Any<CancellationToken>());
+
+        await daqManagementService.DidNotReceiveWithAnyArgs()
+            .TrashFileAsync(default!, default, default, default);
+
+        await sessionA.Received(1).DisposeAsync();
+        await sessionB.Received(1).DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ImportAsync_RoutesGetFileThroughSession_AndDisposes_WhenGetFileReturnsError()
+    {
+        var (setup, _) = SeedSetupAndBike();
+
+        var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
+        var session = Substitute.For<IDaqManagementSession>();
+
+        daqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(session));
+        session.GetFileAsync(Arg.Any<DaqFileClass>(), Arg.Any<int>(), Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqGetFileResult>(
+                new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
+
+        var file = new NetworkTelemetryFile(endpoint, daqManagementService, 1, "00001.SST", 3,
+            DateTimeOffset.FromUnixTimeSeconds(111), TimeSpan.FromSeconds(6))
+        { ShouldBeImported = true };
+
+        var coordinator = CreateCoordinator();
+        var result = await coordinator.ImportAsync(new ITelemetryFile[] { file }, setup.Id);
+
+        await session.Received(1)
+            .GetFileAsync(DaqFileClass.RootSst, 1, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+        await daqManagementService.DidNotReceiveWithAnyArgs()
+            .GetFileAsync(default!, default, default!, default, default!, default);
+        await session.Received(1).DisposeAsync();
+
+        Assert.Single(result.Failures);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DisposesSessions_EvenWhenSessionThrows()
+    {
+        var (setup, _) = SeedSetupAndBike();
+
+        var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
+        var session = Substitute.For<IDaqManagementSession>();
+
+        daqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(session));
+        session.GetFileAsync(Arg.Any<DaqFileClass>(), Arg.Any<int>(), Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new IOException("boom"));
+
+        var file = new NetworkTelemetryFile(endpoint, daqManagementService, 1, "00001.SST", 3,
+            DateTimeOffset.FromUnixTimeSeconds(111), TimeSpan.FromSeconds(6))
+        { ShouldBeImported = true };
+
+        var coordinator = CreateCoordinator();
+        var result = await coordinator.ImportAsync(new ITelemetryFile[] { file }, setup.Id);
+
+        Assert.Single(result.Failures);
+        await session.Received(1).DisposeAsync();
     }
 
     // ----- helpers -----

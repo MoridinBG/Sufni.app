@@ -24,10 +24,22 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     [ObservableProperty] private ITelemetryDataStore? selectedDataStore;
     [ObservableProperty] private bool newDataStoresAvailable;
+    [ObservableProperty] private bool isLoadingFiles;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
     private Guid? selectedSetup;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ImportProgressText))]
+    private int currentFileIndex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ImportProgressText))]
+    private int totalFiles;
+
+    public string ImportProgressText =>
+        TotalFiles > 0 ? $"File {CurrentFileIndex}/{TotalFiles}" : string.Empty;
 
     #endregion Observable properties
 
@@ -93,6 +105,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         ClearNewDataStoresAvailable();
         ResolveSelectedSetup();
 
+        IsLoadingFiles = true;
         try
         {
             await LoadTelemetryFilesAsync(value);
@@ -103,6 +116,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
             {
                 ErrorMessages.Add($"Error while changing data store: {e.Message}");
             }
+        }
+        finally
+        {
+            if (IsCurrentTelemetryFilesLoad(value))
+                IsLoadingFiles = false;
         }
     }
 
@@ -137,6 +155,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                     break;
                 case SessionImportEvent.Failed failed:
                     ErrorMessages.Add($"Could not import {failed.FileName}: {failed.ErrorMessage}");
+                    break;
+                case SessionImportEvent.Progress progressEvent:
+                    CurrentFileIndex = progressEvent.Current;
+                    TotalFiles = progressEvent.Total;
                     break;
             }
         });
@@ -220,6 +242,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
         var files = TelemetryFiles.ToList();
 
+        CurrentFileIndex = 0;
+        TotalFiles = 0;
+
         try
         {
             var progress = CreateImportProgress();
@@ -234,6 +259,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         catch (Exception e)
         {
             ErrorMessages.Add($"Import failed: {e.Message}");
+        }
+        finally
+        {
+            CurrentFileIndex = 0;
+            TotalFiles = 0;
         }
     }
 

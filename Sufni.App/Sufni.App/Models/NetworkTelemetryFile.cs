@@ -27,6 +27,14 @@ public class NetworkTelemetryFile : ITelemetryFile
     private readonly IPEndPoint ipEndPoint;
     private readonly IDaqManagementService daqManagementService;
     private readonly int recordId;
+    private IDaqManagementSession? activeSession;
+
+    public IPEndPoint EndPoint => ipEndPoint;
+
+    public void AttachSession(IDaqManagementSession? session)
+    {
+        activeSession = session;
+    }
 
     public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
     {
@@ -42,12 +50,17 @@ public class NetworkTelemetryFile : ITelemetryFile
                 bufferSize: 64 * 1024,
                 FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                downloadedFile = await daqManagementService.GetFileAsync(
-                    ipEndPoint.Address.ToString(),
-                    ipEndPoint.Port,
-                    DaqFileClass.RootSst,
-                    recordId,
-                    destination);
+                downloadedFile = activeSession is not null
+                    ? await activeSession.GetFileAsync(
+                        DaqFileClass.RootSst,
+                        recordId,
+                        destination)
+                    : await daqManagementService.GetFileAsync(
+                        ipEndPoint.Address.ToString(),
+                        ipEndPoint.Port,
+                        DaqFileClass.RootSst,
+                        recordId,
+                        destination);
             }
 
             var loadedFile = downloadedFile switch
@@ -89,10 +102,12 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task OnImported()
     {
-        var result = await daqManagementService.MarkSstUploadedAsync(
-            ipEndPoint.Address.ToString(),
-            ipEndPoint.Port,
-            recordId);
+        var result = activeSession is not null
+            ? await activeSession.MarkSstUploadedAsync(recordId)
+            : await daqManagementService.MarkSstUploadedAsync(
+                ipEndPoint.Address.ToString(),
+                ipEndPoint.Port,
+                recordId);
 
         if (result is DaqManagementResult.Error error)
         {
@@ -104,10 +119,12 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task OnTrashed()
     {
-        var result = await daqManagementService.TrashFileAsync(
-            ipEndPoint.Address.ToString(),
-            ipEndPoint.Port,
-            recordId);
+        var result = activeSession is not null
+            ? await activeSession.TrashFileAsync(recordId)
+            : await daqManagementService.TrashFileAsync(
+                ipEndPoint.Address.ToString(),
+                ipEndPoint.Port,
+                recordId);
 
         if (result is DaqManagementResult.Error error)
         {
@@ -131,9 +148,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 
         var effectiveDuration = duration;
         CanImport = canImport;
-        ShouldBeImported = canImport
-            ? effectiveDuration?.TotalSeconds >= 5 ? true : null
-            : false;
+        ShouldBeImported = false;
         Version = version;
         StartTime = (timestampUtc ?? FallbackStartTimeUtc).LocalDateTime;
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";

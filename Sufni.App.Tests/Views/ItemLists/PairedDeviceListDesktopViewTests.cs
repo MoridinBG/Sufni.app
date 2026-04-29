@@ -41,8 +41,8 @@ public class PairedDeviceListDesktopViewTests
         deleteButton!.Command!.Execute(deleteButton.CommandParameter);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.True(viewModel.IsUndoVisible);
-        Assert.Equal("Phone", viewModel.PendingName);
+        var entry = Assert.Single(viewModel.PendingDeletes);
+        Assert.Equal("Phone", entry.Name);
     }
 
     [AvaloniaFact]

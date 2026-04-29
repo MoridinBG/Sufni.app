@@ -49,7 +49,7 @@ public class LiveSessionServiceTests
                 IsClosed: false);
             states.OnNext(currentState);
             return Task.FromResult<LivePreviewStartResult?>(
-                new LivePreviewStartResult.Started(sessionHeader, LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps));
+                new LivePreviewStartResult.Started(sessionHeader));
         });
         sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>())
             .Returns(new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8));

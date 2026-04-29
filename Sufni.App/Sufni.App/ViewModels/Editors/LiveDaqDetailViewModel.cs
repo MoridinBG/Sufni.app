@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -89,9 +90,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [ObservableProperty]
     private string? pendingConfigFileName;
 
-    public string FrontTravelText => FormatTravelText("Front", Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
+    public string FrontTravelText => FormatTravelText("Front", Snapshot.HasAcceptedSession, Snapshot.Travel.FrontIsActive, Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
 
-    public string RearTravelText => FormatTravelText("Rear", Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
+    public string RearTravelText => FormatTravelText("Rear", Snapshot.HasAcceptedSession, Snapshot.Travel.RearIsActive, Snapshot.Travel.RearMeasurement, travelCalibration?.Rear);
 
     public bool CanManage => Snapshot.ConnectionState is LiveConnectionState.Disconnected
         && !string.IsNullOrWhiteSpace(managementHost)
@@ -104,6 +105,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         && managementPort is > 0
         && Snapshot.ConnectionState is not LiveConnectionState.Disconnected
             ? "Disconnect live session first"
+            : null;
+
+    public string? ConnectDisabledTooltip => sharedStream.CurrentState.ConnectionState == LiveConnectionState.Disconnected
+        && !HasRequestedSensors
+            ? "Set at least one live preview rate above 0 Hz."
             : null;
 
     public LiveDaqDetailViewModel(
@@ -140,7 +146,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task Loaded()
+    private Task Loaded()
     {
         logger.Debug(
             "Live DAQ detail loaded for {IdentityKey} {Endpoint}",
@@ -154,7 +160,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
         hasLoaded = true;
         StartForegroundUpdates();
-        await ConnectImplementationAsync(userInitiated: false);
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -184,6 +190,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         SetTimeCommand.Cancel();
         SelectConfigFileCommand.Cancel();
         UploadConfigCommand.Cancel();
+        EditConfigCommand.Cancel();
         managementOperation.Cancel();
         IsManagementBusy = false;
         hasLoaded = false;
@@ -349,6 +356,105 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task EditConfig(CancellationToken cancellationToken)
+    {
+        if (!TryGetManagementEndpoint(out var host, out var port))
+        {
+            return;
+        }
+
+        DaqConfigDocument? document = null;
+        using (var linkedCts = BeginManagementOperation(cancellationToken))
+        {
+            try
+            {
+                using var destination = new MemoryStream();
+                var result = await daqManagementService.GetFileAsync(
+                    host,
+                    port,
+                    DaqFileClass.Config,
+                    0,
+                    destination,
+                    linkedCts.Token);
+                if (linkedCts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                switch (result)
+                {
+                    case DaqGetFileResult.Downloaded:
+                        document = DaqConfigDocument.Parse(destination.ToArray());
+                        break;
+                    case DaqGetFileResult.Error error:
+                        ErrorMessages.Add(error.Message);
+                        return;
+                }
+            }
+            catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (!linkedCts.IsCancellationRequested)
+                {
+                    logger.Error(ex, "Editing CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                    ErrorMessages.Add(ex.Message);
+                }
+
+                return;
+            }
+            finally
+            {
+                EndManagementOperation();
+            }
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        var editor = new LiveDaqConfigEditorViewModel(
+            document,
+            (bytes, uploadToken) => UploadEditedConfigAsync(host, port, bytes, uploadToken));
+        await dialogService.ShowLiveDaqConfigEditorDialogAsync(editor);
+    }
+
+    private async Task<DaqManagementResult> UploadEditedConfigAsync(
+        string host,
+        int port,
+        byte[] configBytes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await daqManagementService.ReplaceConfigAsync(host, port, configBytes, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return result;
+            }
+
+            if (result is DaqManagementResult.Ok)
+            {
+                Notifications.Add("CONFIG uploaded.");
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Uploading edited CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+            return new DaqManagementResult.Error(DaqManagementErrorCode.InternalError, ex.Message);
+        }
+    }
+
     private async Task ConnectImplementationAsync(bool userInitiated)
     {
         var streamState = sharedStream.CurrentState;
@@ -383,16 +489,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             var updatedState = sharedStream.CurrentState;
             if (result is LivePreviewStartResult.Rejected rejected)
             {
-                var shouldClose = await dialogService.ShowConfirmationAsync("Live Preview Unavailable", rejected.UserMessage);
-                if (!cancellationToken.IsCancellationRequested && shouldClose)
-                {
-                    shell.Close(this);
-                }
-
+                ErrorMessages.Add(rejected.UserMessage);
                 return;
             }
-            else if (updatedState.ConnectionState == LiveConnectionState.Connected)
+            else if (result is LivePreviewStartResult.Started started && updatedState.ConnectionState == LiveConnectionState.Connected)
             {
+                AddMissingSensorNotification(started.Header.MissingSensorMask);
                 logger.Information(
                     "Live DAQ preview connected for {IdentityKey} {BoardId} {Endpoint}",
                     IdentityKey,
@@ -466,11 +568,21 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         sessionState.ApplyFrame(frame);
     }
 
-    private LiveDaqStreamConfiguration CreateRequestedConfiguration() => new(
-        SensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu,
-        TravelHz: RequestedTravelHz ?? 0,
-        ImuHz: RequestedImuHz ?? 0,
-        GpsFixHz: RequestedGpsFixHz ?? 0);
+    private LiveDaqStreamConfiguration CreateRequestedConfiguration() => LiveDaqStreamConfiguration.FromRequestedRates(
+        RequestedTravelHz ?? 0,
+        RequestedImuHz ?? 0,
+        RequestedGpsFixHz ?? 0);
+
+    private void AddMissingSensorNotification(LiveSensorInstanceMask missingSensorMask)
+    {
+        var missingSensors = LiveProtocolHelpers.GetSensorInstanceDisplayNames(missingSensorMask);
+        if (missingSensors.Count == 0)
+        {
+            return;
+        }
+
+        Notifications.Add($"Some requested sensors did not start: {string.Join(", ", missingSensors)}.");
+    }
 
     private void RefreshSnapshot()
     {
@@ -503,10 +615,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         var state = sharedStream.CurrentState;
         sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
-        CanConnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Disconnected;
+        CanConnect = !state.IsClosed
+            && state.ConnectionState == LiveConnectionState.Disconnected
+            && HasRequestedSensors;
         CanDisconnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Connected;
         AreRequestedRatesEnabled = !state.IsClosed && !state.IsConfigurationLocked;
         RefreshSessionAvailability(state.ConnectionState);
+        OnPropertyChanged(nameof(ConnectDisabledTooltip));
         RefreshSnapshot();
     }
 
@@ -631,6 +746,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         SetTimeCommand.NotifyCanExecuteChanged();
         SelectConfigFileCommand.NotifyCanExecuteChanged();
         UploadConfigCommand.NotifyCanExecuteChanged();
+        EditConfigCommand.NotifyCanExecuteChanged();
     }
 
     private bool TryGetManagementEndpoint(out string host, out int port)
@@ -667,8 +783,35 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         RequestedGpsFixHz = configuration.GpsFixHz;
     }
 
-    private static string FormatTravelText(string label, ushort? measurement, LiveDaqTravelChannelCalibration? calibration)
+    partial void OnRequestedTravelHzChanged(uint? value) => RefreshConnectAvailability();
+
+    partial void OnRequestedImuHzChanged(uint? value) => RefreshConnectAvailability();
+
+    partial void OnRequestedGpsFixHzChanged(uint? value) => RefreshConnectAvailability();
+
+    private bool HasRequestedSensors => CreateRequestedConfiguration().RequestedSensorMask != LiveSensorInstanceMask.None;
+
+    private void RefreshConnectAvailability()
     {
+        var state = sharedStream.CurrentState;
+        CanConnect = !state.IsClosed
+            && state.ConnectionState == LiveConnectionState.Disconnected
+            && HasRequestedSensors;
+        OnPropertyChanged(nameof(ConnectDisabledTooltip));
+    }
+
+    private static string FormatTravelText(string label, bool hasAcceptedSession, bool isActive, ushort? measurement, LiveDaqTravelChannelCalibration? calibration)
+    {
+        if (!hasAcceptedSession)
+        {
+            return $"{label}: -";
+        }
+
+        if (!isActive)
+        {
+            return $"{label}: inactive";
+        }
+
         if (measurement is not ushort rawMeasurement)
         {
             return $"{label}: -";
