@@ -114,6 +114,10 @@ mc:Ignorable="d">
                                 <Button x:Name="SetTimeButton" Command="{Binding SetTimeCommand}" Content="Set Time" IsEnabled="{Binding CanManage}" />
                             </Border>
 
+                            <Border x:Name="EditConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                                <Button x:Name="EditConfigButton" Command="{Binding EditConfigCommand}" Content="Edit CONFIG" IsEnabled="{Binding CanManage}" />
+                            </Border>
+
                             <Border x:Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
                                 <Button x:Name="SelectConfigButton" Command="{Binding SelectConfigFileCommand}" Content="Replace Config" IsEnabled="{Binding CanManage}" />
                             </Border>

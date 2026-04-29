@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -189,6 +190,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         SetTimeCommand.Cancel();
         SelectConfigFileCommand.Cancel();
         UploadConfigCommand.Cancel();
+        EditConfigCommand.Cancel();
         managementOperation.Cancel();
         IsManagementBusy = false;
         hasLoaded = false;
@@ -351,6 +353,105 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             }
 
             EndManagementOperation();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task EditConfig(CancellationToken cancellationToken)
+    {
+        if (!TryGetManagementEndpoint(out var host, out var port))
+        {
+            return;
+        }
+
+        DaqConfigDocument? document = null;
+        using (var linkedCts = BeginManagementOperation(cancellationToken))
+        {
+            try
+            {
+                using var destination = new MemoryStream();
+                var result = await daqManagementService.GetFileAsync(
+                    host,
+                    port,
+                    DaqFileClass.Config,
+                    0,
+                    destination,
+                    linkedCts.Token);
+                if (linkedCts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                switch (result)
+                {
+                    case DaqGetFileResult.Downloaded:
+                        document = DaqConfigDocument.Parse(destination.ToArray());
+                        break;
+                    case DaqGetFileResult.Error error:
+                        ErrorMessages.Add(error.Message);
+                        return;
+                }
+            }
+            catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (!linkedCts.IsCancellationRequested)
+                {
+                    logger.Error(ex, "Editing CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+                    ErrorMessages.Add(ex.Message);
+                }
+
+                return;
+            }
+            finally
+            {
+                EndManagementOperation();
+            }
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        var editor = new LiveDaqConfigEditorViewModel(
+            document,
+            (bytes, uploadToken) => UploadEditedConfigAsync(host, port, bytes, uploadToken));
+        await dialogService.ShowLiveDaqConfigEditorDialogAsync(editor);
+    }
+
+    private async Task<DaqManagementResult> UploadEditedConfigAsync(
+        string host,
+        int port,
+        byte[] configBytes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await daqManagementService.ReplaceConfigAsync(host, port, configBytes, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return result;
+            }
+
+            if (result is DaqManagementResult.Ok)
+            {
+                Notifications.Add("CONFIG uploaded.");
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Uploading edited CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
+            return new DaqManagementResult.Error(DaqManagementErrorCode.InternalError, ex.Message);
         }
     }
 
@@ -645,6 +746,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         SetTimeCommand.NotifyCanExecuteChanged();
         SelectConfigFileCommand.NotifyCanExecuteChanged();
         UploadConfigCommand.NotifyCanExecuteChanged();
+        EditConfigCommand.NotifyCanExecuteChanged();
     }
 
     private bool TryGetManagementEndpoint(out string host, out int port)

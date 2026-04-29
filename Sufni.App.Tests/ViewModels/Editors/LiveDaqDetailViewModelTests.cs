@@ -1,4 +1,5 @@
 using System.Reactive.Subjects;
+using System.Text;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
@@ -48,6 +49,20 @@ public class LiveDaqDetailViewModelTests
             .Returns(Task.FromResult<DaqSetTimeResult>(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(30))));
         daqManagementService.ReplaceConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        daqManagementService.GetFileAsync(
+                Arg.Any<string>(),
+                Arg.Any<int>(),
+                Arg.Any<DaqFileClass>(),
+                Arg.Any<int>(),
+                Arg.Any<Stream>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var bytes = Encoding.UTF8.GetBytes("STA_SSID=trail\n");
+                callInfo.ArgAt<Stream>(4).Write(bytes);
+                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("CONFIG", (ulong)bytes.Length));
+            });
+        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>()).Returns(Task.CompletedTask);
         filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SelectedDeviceConfigFile?>(null));
         sharedStream.Frames.Returns(frames);
@@ -473,6 +488,7 @@ public class LiveDaqDetailViewModelTests
         var editor = CreateEditor();
 
         Assert.True(editor.CanManage);
+        Assert.True(editor.EditConfigCommand.CanExecute(null));
         Assert.Null(editor.ManagementDisabledTooltip);
 
         editor.Snapshot = LiveDaqUiSnapshot.Empty with
@@ -482,7 +498,103 @@ public class LiveDaqDetailViewModelTests
         };
 
         Assert.False(editor.CanManage);
+        Assert.False(editor.EditConfigCommand.CanExecute(null));
         Assert.Equal("Disconnect live session first", editor.ManagementDisabledTooltip);
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigCommand_DownloadsConfigAndOpensEditor()
+    {
+        LiveDaqConfigEditorViewModel? shownEditor = null;
+        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Do<LiveDaqConfigEditorViewModel>(editor => shownEditor = editor))
+            .Returns(Task.CompletedTask);
+        var editor = CreateEditor();
+
+        await editor.EditConfigCommand.ExecuteAsync(null);
+
+        await daqManagementService.Received(1).GetFileAsync(
+            "192.168.0.50",
+            1557,
+            DaqFileClass.Config,
+            0,
+            Arg.Any<Stream>(),
+            Arg.Any<CancellationToken>());
+        await dialogService.Received(1).ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        Assert.NotNull(shownEditor);
+        Assert.Equal("trail", shownEditor.Fields.Single(row => row.Key == "STA_SSID").Value);
+        Assert.False(editor.IsManagementBusy);
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigCommand_ReportsTypedDownloadErrorWithoutOpeningEditor()
+    {
+        daqManagementService.GetFileAsync(
+                Arg.Any<string>(),
+                Arg.Any<int>(),
+                Arg.Any<DaqFileClass>(),
+                Arg.Any<int>(),
+                Arg.Any<Stream>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "busy")));
+        var editor = CreateEditor();
+
+        await editor.EditConfigCommand.ExecuteAsync(null);
+
+        Assert.Contains("busy", editor.ErrorMessages);
+        await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigEditorSave_UploadsConfigAndAddsNotification()
+    {
+        LiveDaqConfigEditorViewModel? shownEditor = null;
+        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Do<LiveDaqConfigEditorViewModel>(editor => shownEditor = editor))
+            .Returns(Task.CompletedTask);
+        var editor = CreateEditor();
+
+        await editor.EditConfigCommand.ExecuteAsync(null);
+        Assert.NotNull(shownEditor);
+        shownEditor.Fields.Single(row => row.Key == "STA_SSID").Value = "edited";
+        await shownEditor.SaveCommand.ExecuteAsync(null);
+
+        await daqManagementService.Received(1).ReplaceConfigAsync(
+            "192.168.0.50",
+            1557,
+            Arg.Is<byte[]>(bytes => Encoding.UTF8.GetString(bytes).Contains("STA_SSID=edited", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+        Assert.Contains("CONFIG uploaded.", editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task EditConfigCommand_CancelsInFlightDownloadOnUnload()
+    {
+        var serviceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var serviceResult = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        daqManagementService.GetFileAsync(
+                Arg.Any<string>(),
+                Arg.Any<int>(),
+                Arg.Any<DaqFileClass>(),
+                Arg.Any<int>(),
+                Arg.Any<Stream>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo => WaitForConfigDownloadAsync(
+                callInfo.ArgAt<CancellationToken>(5),
+                callInfo.ArgAt<Stream>(4),
+                serviceStarted,
+                serviceResult.Task));
+        var editor = CreateEditor();
+
+        var editTask = editor.EditConfigCommand.ExecuteAsync(null);
+        await serviceStarted.Task;
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+        serviceResult.TrySetResult(Encoding.UTF8.GetBytes("STA_SSID=late\n"));
+        await editTask;
+
+        await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        Assert.Empty(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+        Assert.False(editor.IsManagementBusy);
     }
 
     [AvaloniaFact]
@@ -759,6 +871,18 @@ public class LiveDaqDetailViewModelTests
     {
         started.TrySetResult();
         return await resultTask.WaitAsync(cancellationToken);
+    }
+
+    private static async Task<DaqGetFileResult> WaitForConfigDownloadAsync(
+        CancellationToken cancellationToken,
+        Stream destination,
+        TaskCompletionSource started,
+        Task<byte[]> resultTask)
+    {
+        started.TrySetResult();
+        var bytes = await resultTask.WaitAsync(cancellationToken);
+        await destination.WriteAsync(bytes, cancellationToken);
+        return new DaqGetFileResult.Downloaded("CONFIG", (ulong)bytes.Length);
     }
 
     private static LiveDaqSessionContext CreateSessionContext(string identityKey)

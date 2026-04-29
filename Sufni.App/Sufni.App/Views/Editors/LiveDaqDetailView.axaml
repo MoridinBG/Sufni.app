@@ -324,6 +324,15 @@ mc:Ignorable="d">
                             IsEnabled="{Binding CanManage}" />
                         </Border>
 
+                        <Border Name="EditConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
+                            <Button
+                            Name="EditConfigButton"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding EditConfigCommand}"
+                            Content="Edit CONFIG"
+                            IsEnabled="{Binding CanManage}" />
+                        </Border>
+
                         <Border Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
                             <Button
                             Name="SelectConfigButton"

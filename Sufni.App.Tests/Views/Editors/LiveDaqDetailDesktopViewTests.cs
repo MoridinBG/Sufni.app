@@ -157,6 +157,7 @@ public class LiveDaqDetailDesktopViewTests
         await using var mounted = await MountAsync(editor);
 
         Assert.NotNull(mounted.View.FindControl<Button>("SetTimeButton"));
+        Assert.NotNull(mounted.View.FindControl<Button>("EditConfigButton"));
         Assert.NotNull(mounted.View.FindControl<Button>("SelectConfigButton"));
         Assert.NotNull(mounted.View.FindControl<Button>("UploadConfigButton"));
         Assert.NotNull(mounted.View.FindControl<Control>("ManagementNotificationsBar"));
@@ -173,6 +174,19 @@ public class LiveDaqDetailDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.View.FindControl<Button>("SetTimeButton")!.IsEnabled);
+        Assert.False(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_EditConfigButton_EnabledWhenDisconnected()
+    {
+        var editor = CreateEditorWithManagement();
+
+        await using var mounted = await MountAsync(editor);
+        editor.Snapshot = CreateSnapshot(LiveConnectionState.Disconnected, null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(mounted.View.FindControl<Button>("EditConfigButton")!.IsEnabled);
     }
 
     [AvaloniaFact]
