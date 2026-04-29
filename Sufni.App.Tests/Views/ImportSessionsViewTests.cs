@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
@@ -121,11 +120,11 @@ public class ImportSessionsViewTests
         var importTask = viewModel.ImportSessionsCommand.ExecuteAsync(null);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        var toggle = view.GetLogicalDescendants().OfType<ToggleButton>()
-            .First(button => button.IsThreeState);
+        var importChoice = view.GetLogicalDescendants().OfType<ComboBox>()
+            .First(combo => combo.Classes.Contains("importchoice"));
         var textBoxes = view.GetLogicalDescendants().OfType<TextBox>().ToArray();
 
-        Assert.False(toggle.IsEnabled);
+        Assert.False(importChoice.IsEnabled);
         Assert.NotEmpty(textBoxes);
         Assert.All(textBoxes, textBox => Assert.False(textBox.IsEnabled));
 
