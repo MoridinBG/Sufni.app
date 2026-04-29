@@ -148,9 +148,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 
         var effectiveDuration = duration;
         CanImport = canImport;
-        ShouldBeImported = canImport
-            ? effectiveDuration?.TotalSeconds >= 5 ? true : null
-            : false;
+        ShouldBeImported = false;
         Version = version;
         StartTime = (timestampUtc ?? FallbackStartTimeUtc).LocalDateTime;
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
