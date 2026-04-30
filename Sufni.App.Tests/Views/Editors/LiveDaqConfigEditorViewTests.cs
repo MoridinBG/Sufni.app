@@ -31,7 +31,12 @@ public class LiveDaqConfigEditorViewTests
             Assert.Contains(field.Key, visibleText);
         }
 
-        Assert.Equal(DaqConfigFields.All.Count, mounted.View.GetVisualDescendants().OfType<TextBox>().Count());
+        Assert.Equal(
+            DaqConfigFields.All.Count - 1,
+            mounted.View.GetVisualDescendants().OfType<TextBox>().Count(textBox => textBox.Name == "FieldValueTextBox" && textBox.IsVisible));
+        Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<ComboBox>(),
+            comboBox => comboBox.Name == "WifiModeComboBox" && comboBox.IsVisible);
     }
 
     [AvaloniaFact]

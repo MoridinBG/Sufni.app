@@ -49,8 +49,16 @@ mc:Ignorable="d">
                                     <TextBox
                                     Name="FieldValueTextBox"
                                     Grid.Column="0"
+                                    IsVisible="{Binding !IsWifiMode}"
                                     PasswordChar="{Binding PasswordChar}"
                                     Text="{Binding Value, Mode=TwoWay}" />
+                                    <ComboBox
+                                    Name="WifiModeComboBox"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    IsVisible="{Binding IsWifiMode}"
+                                    ItemsSource="{x:Static vm:LiveDaqConfigFieldRowViewModel.WifiModes}"
+                                    SelectedItem="{Binding Value, Mode=TwoWay}" />
                                     <ToggleButton
                                     Name="RevealSecretButton"
                                     Grid.Column="1"
