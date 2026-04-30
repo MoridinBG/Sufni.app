@@ -13,15 +13,17 @@ namespace Sufni.App.Tests.Coordinators;
 public class SetupCoordinatorTests
 {
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
-    private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
+    private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ITelemetryDataStoreService telemetry = Substitute.For<ITelemetryDataStoreService>();
+    private readonly IFilesService filesService = Substitute.For<IFilesService>();
+    private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
 
     private SetupCoordinator CreateCoordinator() => new(
-        setupStore, bikeStore, bikeCoordinator, database, telemetry, shell, dialogService);
+        setupStore, bikeStore, bikeCoordinator, database, telemetry, filesService, backgroundTaskRunner, shell, dialogService);
 
     // ----- OpenCreateAsync -----
 
