@@ -156,6 +156,10 @@ public class TelemetryData
     private static int[] Digitize(double[] data, double[] bins)
     {
         var inds = new int[data.Length];
+        // Linspace-built bins[^1] can differ from the intended max by 1-2 ULPs,
+        // so a clamped sample equal to MaxTravel may digitize one slot past the
+        // last histogram bin. Clamping keeps the index inside the histogram.
+        var maxBinIndex = bins.Length - 2;
         for (var k = 0; k < data.Length; k++)
         {
             var i = Array.BinarySearch(bins, data[k]);
@@ -167,7 +171,7 @@ public class TelemetryData
             {
                 i -= 1;
             }
-            inds[k] = i;
+            inds[k] = Math.Clamp(i, 0, maxBinIndex);
         }
         return inds;
     }
