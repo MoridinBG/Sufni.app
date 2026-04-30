@@ -1,80 +1,21 @@
 # Architecture
 
-Sufni.App is a cross-platform application for analyzing mountain bike suspension telemetry. It acquires raw sensor data from a Pico-based DAQ device (via USB or WiFi), processes it through a signal analysis pipeline, and presents interactive plots for tuning suspension spring rates and damper settings. It also models bike linkage kinematics to compute leverage ratios and related characteristics. The app runs on Windows, macOS, Linux, Android, and iOS using Avalonia UI, and supports desktop-to-mobile synchronization.
+Sufni.App is a cross-platform application for analyzing mountain bike suspension telemetry. It acquires raw sensor data from a Pico-based DAQ device (via USB or WiFi), processes it through a signal analysis pipeline, and presents interactive plots for tuning suspension spring rates and damper settings. It also models bike linkage kinematics to compute leverage ratios and related characteristics. The app runs on Windows, macOS, Linux, Android, and iOS using Avalonia UI, and supports desktop <-> mobile synchronization.
 
 This document is the catalog. Each subsystem is summarized here and the deep details live in `architecture/`.
 
-```mermaid
-graph TB
-    subgraph Platform["Platform Layer"]
-        Win["Windows"]
-        Mac["macOS"]
-        Linux["Linux"]
-        Android["Android"]
-        iOS["iOS"]
-    end
-
-    subgraph UI["Presentation Layer (Avalonia MVVM)"]
-        Views["Views / DesktopViews"]
-        VMs["Shell / List / Editor / Row VMs"]
-        Plots["Plots (ScottPlot)"]
-        Maps["Maps (Mapsui)"]
-    end
-
-    subgraph Application["Application Layer"]
-        Coords["Coordinators (per entity + shell)"]
-        Stores["Stores (read snapshots + writer)"]
-        Queries["Queries (cross-entity reads)"]
-        LiveApp["LiveDaqCoordinator\nLiveDaqStore\nLiveDaqKnownBoardsQuery"]
-    end
-
-    subgraph Services["Service Layer"]
-        DB["SqLiteDatabaseService"]
-        DSS["TelemetryDataStoreService"]
-        Sync["Synchronization Server/Client"]
-        Tiles["TileLayerService"]
-        LiveSvc["LiveDaqCatalogService\nLiveDaqBrowseOwner\nLiveDaqClient"]
-    end
-
-    subgraph Domain["Domain Layer"]
-        Models["Session / Bike / Setup / Board / Track"]
-        DataStores["MassStorage / Network / StorageProvider"]
-        SensorCfg["Sensor Configurations"]
-    end
-
-    subgraph Libraries["Core Libraries"]
-        Telemetry["Sufni.Telemetry"]
-        Kinematics["Sufni.Kinematics"]
-    end
-
-    subgraph PlatformServices["Platform Services"]
-      SD["IServiceDiscovery\nshared abstraction +\nshared/head implementations"]
-      SS["ISecureStorage\nshared abstraction +\nhead implementations"]
-      HF["IHapticFeedback\nshared abstraction +\nmobile-head implementations"]
-      FNP["IFriendlyNameProvider\nshared abstraction +\nmobile-head implementations"]
-    end
-
-    Platform --> UI
-    UI --> Application
-    Application --> Services
-    Services --> Domain
-    Domain --> Libraries
-    Platform --> PlatformServices
-    Services --> PlatformServices
-```
-
-The presentation layer holds only UI state and binds against the application layer. Coordinators are the only writers to stores; queries are stateless cross-entity reads; services and factories own infrastructure creation and background execution; view models do not depend on other feature view models for business answers, do not construct concrete datastore implementations, and do not manage picker or thread lifetime — see [UI Architecture](#ui-architecture) for the rules.
-
 ---
 
-## Document Index
+## Table of Contents
 
-- [Data Acquisition & File Format](architecture/acquisition.md) — how SST files reach the app, the wire/file formats, spike elimination.
-- [Signal Processing & Suspension Kinematics](architecture/processing.md) — the pipeline from raw samples to histograms, the linkage solver, sensor calibration.
-- [UI Architecture](architecture/ui.md) — invariants, layering, threading, stores, coordinators, queries, view models, DI, navigation, controls, plots.
-- [Live DAQ Streaming](architecture/live-streaming.md) — real-time telemetry preview: wire protocol, transport, discovery catalog, runtime store, detail tab lifecycle.
-- [Persistence & Serialization](architecture/persistence.md) — SQLite schema, the database service, soft delete, conflict resolution.
-- [Cross-Device Synchronization](architecture/sync.md) — pairing flow, server, client, and sync payloads.
+- [Project Structure](#project-structure)
+- [Platform Abstractions](#platform-abstractions)
+- [Data Acquisition & File Format](#data-acquisition--file-format)
+- [Signal Processing & Suspension Kinematics](#signal-processing--suspension-kinematics)
+- [UI Architecture](#ui-architecture)
+- [Live DAQ Streaming](#live-daq-streaming)
+- [Persistence & Serialization](#persistence--serialization)
+- [Cross-Device Synchronization](#cross-device-synchronization)
 
 ---
 
@@ -137,7 +78,7 @@ Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
 ## Signal Processing & Suspension Kinematics
 
-`TelemetryData.FromRecording()` orchestrates the full pipeline: travel calibration → Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram + statistics. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration is a strategy-pattern bridge between raw ADC counts and millimeters of travel.
+`TelemetryData.FromRecording()` orchestrates the full pipeline: travel calibration → Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram + statistics. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel.
 
 Topics in [architecture/processing.md](architecture/processing.md):
 
