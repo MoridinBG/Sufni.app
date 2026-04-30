@@ -200,7 +200,7 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
     public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
     {
         logger.Verbose("Opening bike export file picker for {BikeId}", bike.Id);
-        var file = await filesService.SaveBikeFileAsync();
+        var file = await filesService.SaveBikeFileAsync(bike.Name);
         if (file is null)
         {
             logger.Verbose("Bike export canceled for {BikeId}", bike.Id);
