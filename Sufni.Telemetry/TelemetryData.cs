@@ -81,6 +81,13 @@ public enum BalanceType
     Rebound
 }
 
+public enum ImuLocation
+{
+    Frame = 0,
+    Fork = 1,
+    Shock = 2
+}
+
 public record BalanceData(
     List<double> FrontTravel,
     List<double> FrontVelocity,
@@ -90,12 +97,33 @@ public record BalanceData(
     List<double> RearTrend,
     double MeanSignedDeviation);
 
+public record StrokeThirds(double Lower, double Middle, double Upper);
+
+public record VibrationStats(
+    double CompressionPercent,
+    double ReboundPercent,
+    double OtherPercent,
+    double MagicCarpet,
+    double AverageGCompression,
+    double AverageGRebound,
+    double AverageGOverall,
+    StrokeThirds CompressionThirds,
+    StrokeThirds ReboundThirds,
+    StrokeThirds OverallThirds);
+
 [MessagePackObject(keyAsPropertyName: true)]
 public class TelemetryData
 {
     private static readonly ILogger logger = Log.ForContext<TelemetryData>();
 
     public const int TravelBinsForVelocityHistogram = 10;
+
+    private enum StrokeKind
+    {
+        Other,
+        Compression,
+        Rebound
+    }
 
     #region Public properties
 
@@ -174,6 +202,33 @@ public class TelemetryData
             inds[k] = Math.Clamp(i, 0, maxBinIndex);
         }
         return inds;
+    }
+
+    private static int DigitizeHistogramValue(double value, double[] bins)
+    {
+        if (bins.Length < 2)
+        {
+            return 0;
+        }
+
+        if (value <= bins[0])
+        {
+            return 0;
+        }
+
+        var maxBinIndex = bins.Length - 2;
+        if (value >= bins[^1])
+        {
+            return maxBinIndex;
+        }
+
+        var index = Array.BinarySearch(bins, value);
+        if (index >= 0)
+        {
+            return Math.Clamp(index - 1, 0, maxBinIndex);
+        }
+
+        return Math.Clamp(~index - 1, 0, maxBinIndex);
     }
 
     private void CalculateAirTimes()
@@ -521,6 +576,80 @@ public class TelemetryData
             suspension.TravelBins.ToList(), [.. hist]);
     }
 
+    public HistogramData CalculateStrokeLengthHistogram(SuspensionType type, BalanceType strokeKind)
+    {
+        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var strokes = strokeKind == BalanceType.Compression
+            ? suspension.Strokes.Compressions
+            : suspension.Strokes.Rebounds;
+
+        var hist = new double[suspension.TravelBins.Length - 1];
+        foreach (var stroke in strokes)
+        {
+            var length = Math.Abs(suspension.Travel[stroke.End] - suspension.Travel[stroke.Start]);
+            hist[DigitizeHistogramValue(length, suspension.TravelBins)] += 1;
+        }
+
+        if (strokes.Length > 0)
+        {
+            hist = hist.Select(value => value / strokes.Length * 100.0).ToArray();
+        }
+
+        return new HistogramData(suspension.TravelBins.ToList(), [.. hist]);
+    }
+
+    public HistogramData CalculateStrokeSpeedHistogram(SuspensionType type, BalanceType strokeKind)
+    {
+        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var strokes = strokeKind == BalanceType.Compression
+            ? suspension.Strokes.Compressions
+            : suspension.Strokes.Rebounds;
+
+        var maxSpeed = strokes.Length == 0
+            ? Parameters.VelocityHistStep
+            : strokes.Select(stroke => Math.Abs(stroke.Stat.MaxVelocity)).Max();
+        var maxBin = Math.Max(
+            Parameters.VelocityHistStep,
+            Math.Ceiling(maxSpeed / Parameters.VelocityHistStep) * Parameters.VelocityHistStep);
+        var bins = Linspace(0, maxBin, (int)(maxBin / Parameters.VelocityHistStep) + 1);
+        var hist = new double[bins.Length - 1];
+
+        foreach (var stroke in strokes)
+        {
+            var speed = Math.Abs(stroke.Stat.MaxVelocity);
+            hist[DigitizeHistogramValue(speed, bins)] += 1;
+        }
+
+        if (strokes.Length > 0)
+        {
+            hist = hist.Select(value => value / strokes.Length * 100.0).ToArray();
+        }
+
+        return new HistogramData(bins.ToList(), [.. hist]);
+    }
+
+    public HistogramData CalculateDeepTravelHistogram(SuspensionType type)
+    {
+        var suspension = type == SuspensionType.Front ? Front : Rear;
+        Debug.Assert(suspension.MaxTravel is not null);
+
+        var bins = suspension.TravelBins[^6..];
+        var hist = new double[bins.Length - 1];
+        var threshold = Parameters.DeepTravelThresholdRatio * suspension.MaxTravel.Value;
+
+        foreach (var stroke in suspension.Strokes.Compressions)
+        {
+            if (stroke.Stat.MaxTravel < threshold)
+            {
+                continue;
+            }
+
+            hist[DigitizeHistogramValue(stroke.Stat.MaxTravel, bins)] += 1;
+        }
+
+        return new HistogramData(bins.ToList(), [.. hist]);
+    }
+
     public StackedHistogramData CalculateVelocityHistogram(SuspensionType type)
     {
         var suspension = type == SuspensionType.Front ? Front : Rear;
@@ -758,6 +887,168 @@ public class TelemetryData
         }
 
         return suspension.Strokes.Compressions.Length > 0 || suspension.Strokes.Rebounds.Length > 0;
+    }
+
+    public bool HasVibrationData(ImuLocation location)
+    {
+        return ImuData is { Records.Count: > 0, ActiveLocations.Count: > 0 } &&
+            ImuData.ActiveLocations.Contains((byte)location);
+    }
+
+    public VibrationStats? CalculateVibration(ImuLocation location, SuspensionType pairedSuspension)
+    {
+        if (!HasVibrationData(location) || !HasStrokeData(pairedSuspension))
+        {
+            return null;
+        }
+
+        Debug.Assert(ImuData is not null);
+        var suspension = pairedSuspension == SuspensionType.Front ? Front : Rear;
+        if (suspension.MaxTravel is not > 0 ||
+            suspension.Travel.Length < 2 ||
+            Metadata.SampleRate <= 0 ||
+            ImuData.SampleRate <= 0)
+        {
+            return null;
+        }
+
+        var meta = ImuData.Meta.FirstOrDefault(entry => entry.LocationId == (byte)location);
+        if (meta is null || meta.AccelLsbPerG <= 0)
+        {
+            return null;
+        }
+
+        var accelUp = new List<double>();
+        var locationCount = ImuData.ActiveLocations.Count;
+        for (var i = 0; i < ImuData.Records.Count; i++)
+        {
+            var locationIndex = i % locationCount;
+            if (ImuData.ActiveLocations[locationIndex] != (byte)location)
+            {
+                continue;
+            }
+
+            var record = ImuData.Records[i];
+            accelUp.Add(Math.Abs(record.Az / (double)meta.AccelLsbPerG - 1.0));
+        }
+
+        if (accelUp.Count == 0)
+        {
+            return null;
+        }
+
+        var totalMovement = 0.0;
+        for (var i = 1; i < suspension.Travel.Length; i++)
+        {
+            totalMovement += Math.Abs(suspension.Travel[i] - suspension.Travel[i - 1]);
+        }
+
+        var strokeKinds = Enumerable.Repeat(StrokeKind.Other, suspension.Travel.Length).ToArray();
+        foreach (var stroke in suspension.Strokes.Compressions)
+        {
+            var start = Math.Clamp(stroke.Start, 0, strokeKinds.Length - 1);
+            var end = Math.Clamp(stroke.End, 0, strokeKinds.Length - 1);
+            for (var i = start; i <= end; i++)
+            {
+                strokeKinds[i] = StrokeKind.Compression;
+            }
+        }
+
+        foreach (var stroke in suspension.Strokes.Rebounds)
+        {
+            var start = Math.Clamp(stroke.Start, 0, strokeKinds.Length - 1);
+            var end = Math.Clamp(stroke.End, 0, strokeKinds.Length - 1);
+            for (var i = start; i <= end; i++)
+            {
+                strokeKinds[i] = StrokeKind.Rebound;
+            }
+        }
+
+        var compression = new VibrationAccumulator();
+        var rebound = new VibrationAccumulator();
+        var other = new VibrationAccumulator();
+        var overall = new VibrationAccumulator();
+
+        for (var i = 0; i < accelUp.Count; i++)
+        {
+            var suspensionIndex = Math.Clamp(
+                (int)(i * (double)Metadata.SampleRate / ImuData.SampleRate),
+                0,
+                suspension.Travel.Length - 1);
+            var positionRatio = suspension.Travel[suspensionIndex] / suspension.MaxTravel.Value;
+            var g = accelUp[i];
+            var kind = strokeKinds[suspensionIndex];
+
+            overall.Add(g, positionRatio);
+            switch (kind)
+            {
+                case StrokeKind.Compression:
+                    compression.Add(g, positionRatio);
+                    break;
+                case StrokeKind.Rebound:
+                    rebound.Add(g, positionRatio);
+                    break;
+                default:
+                    other.Add(g, positionRatio);
+                    break;
+            }
+        }
+
+        if (overall.SumG <= 0)
+        {
+            return null;
+        }
+
+        return new VibrationStats(
+            compression.SumG / overall.SumG * 100.0,
+            rebound.SumG / overall.SumG * 100.0,
+            other.SumG / overall.SumG * 100.0,
+            totalMovement / overall.SumG,
+            compression.AverageG,
+            rebound.AverageG,
+            overall.AverageG,
+            compression.Thirds,
+            rebound.Thirds,
+            overall.Thirds);
+    }
+
+    private sealed class VibrationAccumulator
+    {
+        private readonly double[] thirds = new double[3];
+
+        public int Count { get; private set; }
+        public double SumG { get; private set; }
+        public double AverageG => Count == 0 ? 0 : SumG / Count;
+
+        public StrokeThirds Thirds
+        {
+            get
+            {
+                if (SumG <= 0)
+                {
+                    return new StrokeThirds(0, 0, 0);
+                }
+
+                return new StrokeThirds(
+                    thirds[0] / SumG * 100.0,
+                    thirds[1] / SumG * 100.0,
+                    thirds[2] / SumG * 100.0);
+            }
+        }
+
+        public void Add(double g, double positionRatio)
+        {
+            Count++;
+            SumG += g;
+
+            var third = positionRatio switch
+            {
+                < 1.0 / 3.0 => 0,
+                < 2.0 / 3.0 => 1,
+                _ => 2
+            };
+            thirds[third] += g;
+        }
     }
 
     private (double[], double[]) TravelVelocity(SuspensionType suspensionType, BalanceType balanceType)
