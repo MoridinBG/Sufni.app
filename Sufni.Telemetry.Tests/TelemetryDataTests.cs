@@ -360,4 +360,57 @@ public class TelemetryDataTests
         Assert.Equal(0, velocityStatistics.AverageCompression);
         Assert.Equal(0, velocityStatistics.AverageRebound);
     }
+
+    [Fact]
+    public void FromRecording_WithBottomingOutAndIrrationalMaxTravel_ProducesValidHistograms()
+    {
+        // MaxTravel built like a real setup (ForkStroke * sin(headAngle)) is unlikely
+        // to divide cleanly by TravelHistBins, so Linspace can produce a last bin edge
+        // that differs from MaxTravel by 1-2 ULPs. Combined with Math.Clamp emitting
+        // exactly MaxTravel on bottom-outs, this caused Digitize to return an index
+        // one past the histogram array. 140 mm at 65° is a configuration where the
+        // computed bins[^1] sits 1 ULP below MaxTravel.
+        var maxTravel = 140.0 * Math.Sin(65.0 * Math.PI / 180.0);
+
+        var count = 200;
+        var front = new ushort[count];
+        var rear = new ushort[count];
+
+        // Compression that drives the suspension well past MaxTravel so Math.Clamp
+        // produces samples equal to MaxTravel.
+        for (int i = 0; i < 100; i++)
+        {
+            front[i] = (ushort)(i * 30);
+            rear[i] = (ushort)(i * 30);
+        }
+        for (int i = 100; i < 200; i++)
+        {
+            front[i] = (ushort)((200 - i) * 30);
+            rear[i] = (ushort)((200 - i) * 30);
+        }
+
+        var rawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = front,
+            Rear = rear,
+        };
+
+        var metadata = new Metadata { SampleRate = 1000 };
+        var bikeData = new BikeData(
+            65.0, maxTravel, maxTravel,
+            v => v / 10.0,
+            v => v / 10.0);
+
+        var result = TelemetryData.FromRecording(rawData, metadata, bikeData);
+
+        var frontHistogram = result.CalculateTravelHistogram(SuspensionType.Front);
+        var rearHistogram = result.CalculateTravelHistogram(SuspensionType.Rear);
+        var frontVelocityHistogram = result.CalculateVelocityHistogram(SuspensionType.Front);
+
+        Assert.Equal(Parameters.TravelHistBins, frontHistogram.Values.Count);
+        Assert.Equal(Parameters.TravelHistBins, rearHistogram.Values.Count);
+        Assert.NotEmpty(frontVelocityHistogram.Values);
+    }
 }
