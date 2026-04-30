@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,9 +15,11 @@ using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
+using Sufni.App.SetupEditing;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.App.ViewModels.SensorConfigurations;
+using BikeModel = Sufni.App.Models.Bike;
 
 namespace Sufni.App.ViewModels.Editors;
 
@@ -39,6 +42,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private readonly BikeCoordinator bikeCoordinator;
     private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
+    private readonly CancellableOperation importOperation = new();
     private Setup setup;
     private Guid? originalBoardId;
 
@@ -352,6 +356,23 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         return Task.CompletedTask;
     }
 
+    protected override async Task ExportImplementation()
+    {
+        var bikeSnapshot = bikeStore.Get(setup.BikeId);
+        if (bikeSnapshot is null)
+        {
+            ErrorMessages.Add("Setup could not be exported: associated bike not found.");
+            return;
+        }
+
+        var bike = BikeModel.FromSnapshot(bikeSnapshot);
+        var result = await setupCoordinator.ExportSetupAsync(setup, bike, originalBoardId);
+        if (result is SetupExportResult.Failed failed)
+        {
+            ErrorMessages.Add($"Setup could not be exported: {failed.ErrorMessage}");
+        }
+    }
+
     #endregion TabPageViewModelBase overrides
 
     #region Commands
@@ -384,6 +405,60 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
+    private async Task Import()
+    {
+        if (IsDirty)
+        {
+            var discard = await dialogService.ShowConfirmationAsync(
+                "Discard unsaved changes?",
+                "Importing will replace your unsaved changes. Continue?");
+            if (!discard) return;
+        }
+
+        var token = importOperation.Start();
+        try
+        {
+            var result = await setupCoordinator.ImportSetupAsync(token);
+            if (token.IsCancellationRequested) return;
+
+            switch (result)
+            {
+                case SetupImportResult.Imported imported:
+                    await ApplyImportedSetupAsync(imported.Data);
+                    break;
+                case SetupImportResult.InvalidFile invalid:
+                    ErrorMessages.Add(invalid.ErrorMessage);
+                    break;
+                case SetupImportResult.Failed failed:
+                    ErrorMessages.Add($"Setup could not be imported: {failed.ErrorMessage}");
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task ApplyImportedSetupAsync(ImportedSetupEditorData data)
+    {
+        Id = data.Setup.Id;
+        BaselineUpdated = data.Setup.Updated;
+        IsInDatabase = true;
+
+        setup = SetupFromSnapshot(data.Setup);
+        originalBoardId = data.Setup.BoardId;
+
+        await ResetImplementation();
+        EvaluateDirtiness();
+        NotifyEditorCommandStateChanged();
+
+        if (data.BoardIdWarning is not null)
+        {
+            ErrorMessages.Add(data.BoardIdWarning);
+        }
+    }
+
+    [RelayCommand]
     private void Loaded()
     {
         EnsureScopedSubscription(s => s.Add(
@@ -399,6 +474,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private void Unloaded()
     {
         DisposeScopedSubscriptions();
+        importOperation.Cancel();
 
         // Clear the source so a subsequent Loaded rebuilds from scratch.
         bikesSource.Clear();

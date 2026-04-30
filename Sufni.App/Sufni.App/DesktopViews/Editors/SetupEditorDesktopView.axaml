@@ -30,7 +30,7 @@ mc:Ignorable="d">
     HorizontalAlignment="Stretch"
     VerticalAlignment="Stretch"
     ColumnDefinitions="auto *"
-    RowDefinitions="auto auto auto auto auto auto auto * auto 40 39">
+    RowDefinitions="auto auto auto auto auto auto auto * auto 40 40 39">
         <!--  Name  -->
         <Label
         Grid.Row="0"
@@ -156,9 +156,35 @@ mc:Ignorable="d">
         Grid.ColumnSpan="2"
         Margin="0,5,0,0" />
 
+        <!--  Import  -->
+        <Button
+        Name="ImportButton"
+        Grid.Row="9"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        Margin="0,0,0,5"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center"
+        Command="{Binding ImportCommand}"
+        Content="Import from JSON" />
+
+        <!--  Export  -->
+        <Button
+        Name="ExportButton"
+        Grid.Row="10"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        Margin="0,0,0,5"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center"
+        Command="{Binding ExportCommand}"
+        Content="Export as JSON" />
+
         <!--  Save and Reset buttons  -->
         <Grid
-        Grid.Row="10"
+        Grid.Row="11"
         Grid.Column="0"
         Grid.ColumnSpan="2"
         ColumnDefinitions="* auto">

@@ -90,7 +90,7 @@ public class BikeEditorServiceTests
         var output = new MemoryStream();
         var file = Substitute.For<IStorageFile>();
         file.OpenWriteAsync().Returns(Task.FromResult<Stream>(output));
-        filesService.SaveBikeFileAsync().Returns(file);
+        filesService.SaveBikeFileAsync(Arg.Any<string>()).Returns(file);
 
         var bike = new Bike(Guid.NewGuid(), "exported bike")
         {

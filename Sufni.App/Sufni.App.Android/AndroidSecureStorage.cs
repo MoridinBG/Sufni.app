@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Android.App;
 using Android.Content;
 using Android.Runtime;
 using Android.Security.Keystore;

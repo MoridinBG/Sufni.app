@@ -1119,6 +1119,14 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task Import()
     {
+        if (IsDirty)
+        {
+            var discard = await dialogService.ShowConfirmationAsync(
+                "Discard unsaved changes?",
+                "Importing will replace your unsaved changes. Continue?");
+            if (!discard) return;
+        }
+
         analysisOperation.Cancel();
         var token = importOperation.Start();
         try

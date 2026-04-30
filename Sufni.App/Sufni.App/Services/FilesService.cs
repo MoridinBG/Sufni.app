@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -17,7 +18,8 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
     private readonly FilePickerFileType jsonType = new("JSON files")
     {
         Patterns = ["*.json"],
-        MimeTypes = ["application/json"]
+        MimeTypes = ["application/json"],
+        AppleUniformTypeIdentifiers = ["public.json"]
     };
     private readonly FilePickerFileType csvType = new("CSV files")
     {
@@ -69,13 +71,14 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         return files.Count == 1 ? files[0] : null;
     }
 
-    public async Task<IStorageFile?> SaveBikeFileAsync()
+    public async Task<IStorageFile?> SaveBikeFileAsync(string suggestedName)
     {
         Debug.Assert(target != null, nameof(target) + " != null");
 
         return await target.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions()
         {
             Title = "Save bike as JSON",
+            SuggestedFileName = SanitizeFileName(suggestedName),
             DefaultExtension = ".json",
             FileTypeChoices = [jsonType],
         });
@@ -88,6 +91,33 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
         {
             Title = "Open bike JSON",
+            FileTypeFilter = [jsonType],
+            AllowMultiple = false
+        });
+
+        return files.Count == 1 ? files[0] : null;
+    }
+
+    public async Task<IStorageFile?> SaveSetupFileAsync(string suggestedName)
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        return await target.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions()
+        {
+            Title = "Save setup as JSON",
+            SuggestedFileName = SanitizeFileName(suggestedName),
+            DefaultExtension = ".json",
+            FileTypeChoices = [jsonType],
+        });
+    }
+
+    public async Task<IStorageFile?> OpenSetupFileAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open setup JSON",
             FileTypeFilter = [jsonType],
             AllowMultiple = false
         });
@@ -128,6 +158,13 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         });
 
         return files.AsList();
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c)).Trim();
+        return string.IsNullOrEmpty(sanitized) ? "untitled" : sanitized;
     }
 
     public async Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default)

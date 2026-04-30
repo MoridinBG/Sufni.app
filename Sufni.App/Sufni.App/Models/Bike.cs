@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Serilog;
 using SQLite;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Stores;
@@ -17,6 +18,8 @@ namespace Sufni.App.Models;
 [Table("bike")]
 public class Bike : Synchronizable
 {
+    private static readonly ILogger logger = Log.ForContext<Bike>();
+
     private double? chainstay;
     private byte[] imageBytes = [];
     private double? shockStroke;
@@ -217,16 +220,9 @@ public class Bike : Synchronizable
             bike?.Linkage?.ResolveJoints();
             return bike;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or LeverageRatioValidationException)
         {
-            return null;
-        }
-        catch (NotSupportedException)
-        {
-            return null;
-        }
-        catch (LeverageRatioValidationException)
-        {
+            logger.Warning(ex, "Bike JSON deserialization failed");
             return null;
         }
     }
@@ -315,6 +311,30 @@ internal sealed class BikeExportModel
             ImageBytes = bike.ImageBytes
         };
     }
+
+    public Bike ToBike()
+    {
+        var bike = new Bike(Guid.NewGuid(), Name)
+        {
+            RearSuspensionKind = RearSuspensionKind,
+            HeadAngle = HeadAngle,
+            ForkStroke = ForkStroke,
+            ShockStroke = ShockStroke,
+            Linkage = Linkage,
+            LeverageRatio = LeverageRatio,
+            PixelsToMillimeters = PixelsToMillimeters,
+            FrontWheelDiameterMm = FrontWheelDiameterMm,
+            RearWheelDiameterMm = RearWheelDiameterMm,
+            FrontWheelRimSize = FrontWheelRimSize,
+            FrontWheelTireWidth = FrontWheelTireWidth,
+            RearWheelRimSize = RearWheelRimSize,
+            RearWheelTireWidth = RearWheelTireWidth,
+            ImageRotationDegrees = ImageRotationDegrees,
+            ImageBytes = ImageBytes
+        };
+        bike.Linkage?.ResolveJoints();
+        return bike;
+    }
 }
 
 internal static class AppJson
@@ -356,6 +376,7 @@ internal static class AppJson
 [JsonSerializable(typeof(BikeExportModel))]
 [JsonSerializable(typeof(Board))]
 [JsonSerializable(typeof(Setup))]
+[JsonSerializable(typeof(SetupExportModel))]
 [JsonSerializable(typeof(SynchronizationData))]
 [JsonSerializable(typeof(TrackPoint))]
 [JsonSerializable(typeof(List<Guid>))]
