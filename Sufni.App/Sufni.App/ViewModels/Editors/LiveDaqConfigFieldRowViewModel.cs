@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Services.Management;
 
@@ -6,6 +7,8 @@ namespace Sufni.App.ViewModels.Editors;
 
 public sealed partial class LiveDaqConfigFieldRowViewModel : ObservableObject
 {
+    public static IReadOnlyList<string> WifiModes { get; } = ["STA", "AP"];
+
     private readonly Action valueChanged;
 
     [ObservableProperty]
@@ -34,6 +37,8 @@ public sealed partial class LiveDaqConfigFieldRowViewModel : ObservableObject
     public string Label => Definition.Label;
 
     public bool IsSecret => Definition.IsSecret;
+
+    public bool IsWifiMode => Key == "WIFI_MODE";
 
     public char? PasswordChar => IsSecret && !IsSecretRevealed ? '*' : null;
 

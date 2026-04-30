@@ -4,39 +4,23 @@ using System.Linq;
 
 namespace Sufni.App.Services.Management;
 
-public sealed class DaqConfigFieldDefinition
+public sealed class DaqConfigFieldDefinition(
+    string key,
+    string label,
+    string defaultValue,
+    int? maxLength = null,
+    bool isSecret = false,
+    IReadOnlyList<string>? aliases = null)
 {
-    public DaqConfigFieldDefinition(
-        string key,
-        string label,
-        string defaultValue,
-        int? maxLength = null,
-        bool isSecret = false,
-        IReadOnlyList<string>? aliases = null)
-    {
-        Key = key;
-        Label = label;
-        DefaultValue = defaultValue;
-        MaxLength = maxLength;
-        IsSecret = isSecret;
-        Aliases = aliases ?? [];
-    }
+    public string Key { get; } = key;
+    public string Label { get; } = label;
+    public string DefaultValue { get; } = defaultValue;
+    public int? MaxLength { get; } = maxLength;
+    public bool IsSecret { get; } = isSecret;
+    public IReadOnlyList<string> Aliases { get; } = aliases ?? [];
 
-    public string Key { get; }
-
-    public string Label { get; }
-
-    public string DefaultValue { get; }
-
-    public int? MaxLength { get; }
-
-    public bool IsSecret { get; }
-
-    public IReadOnlyList<string> Aliases { get; }
-
-    public bool Matches(string key) =>
-        string.Equals(Key, key, StringComparison.Ordinal)
-        || Aliases.Any(alias => string.Equals(alias, key, StringComparison.Ordinal));
+    public bool Matches(string candidate) =>
+        Key == candidate || Aliases.Contains(candidate);
 }
 
 public sealed record DaqConfigFieldValue(DaqConfigFieldDefinition Definition, string Value);
