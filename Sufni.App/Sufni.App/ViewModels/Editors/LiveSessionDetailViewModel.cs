@@ -99,6 +99,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public SurfacePresentationState FrontFrameVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearFrameVibrationState => SurfacePresentationState.Hidden;
+    public TelemetryTimeRange? AnalysisRange => null;
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,

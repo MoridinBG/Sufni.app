@@ -10,7 +10,7 @@ public class DeepTravelHistogramPlot(Plot plot, SuspensionType type) : Telemetry
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type))
+        if (!telemetryData.HasStrokeData(type, AnalysisRange))
         {
             return;
         }
@@ -22,7 +22,7 @@ public class DeepTravelHistogramPlot(Plot plot, SuspensionType type) : Telemetry
             : "Rear deep travel (strokes / mm)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var data = telemetryData.CalculateDeepTravelHistogram(type);
+        var data = telemetryData.CalculateDeepTravelHistogram(type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Values.Select((value, index) => new Bar

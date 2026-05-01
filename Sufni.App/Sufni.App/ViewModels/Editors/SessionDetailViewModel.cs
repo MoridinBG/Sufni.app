@@ -46,6 +46,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private readonly SessionCoordinator sessionCoordinator;
     private readonly ISessionStore sessionStore;
+    private readonly ISessionPresentationService sessionPresentationService;
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
     private SpringPageViewModel SpringPage { get; } = new();
@@ -54,6 +55,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly CancellableOperation loadOperation = new();
     private bool lastObservedHasProcessedData;
     private SessionPresentationDimensions? lastPresentationDimensions;
+    private double? pendingAnalysisRangeBoundary;
     private bool suppressDirtinessEvaluation;
     private bool viewLoaded;
 
@@ -72,6 +74,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     [ObservableProperty] private TelemetryData? telemetryData;
+    [ObservableProperty] private TelemetryTimeRange? analysisRange;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private string? videoUrl;
@@ -102,6 +105,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         IsComplete = value != null;
+        pendingAnalysisRangeBoundary = null;
+        if (AnalysisRange is not null)
+        {
+            ClearAnalysisRange();
+        }
+    }
+
+    partial void OnAnalysisRangeChanged(TelemetryTimeRange? value)
+    {
+        RefreshAnalysisRangeStates();
+        RecomputeDamperPercentagesForAnalysisRange();
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -159,6 +173,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private void ClearDamperPercentages()
     {
         ApplyDamperPercentages(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+    }
+
+    private void RecomputeDamperPercentagesForAnalysisRange()
+    {
+        if (TelemetryData is null)
+        {
+            ClearDamperPercentages();
+            return;
+        }
+
+        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(TelemetryData, AnalysisRange));
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
@@ -251,7 +276,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                imuData.ActiveLocations.Count > 0;
     }
 
-    private static SurfacePresentationState CreateStatisticsState(TelemetryData? telemetry, SuspensionType suspensionType)
+    private static SurfacePresentationState CreateStatisticsState(
+        TelemetryData? telemetry,
+        SuspensionType suspensionType,
+        TelemetryTimeRange? range)
     {
         if (telemetry is null)
         {
@@ -264,19 +292,22 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.Hidden;
         }
 
-        return telemetry.HasStrokeData(suspensionType)
+        return telemetry.HasStrokeData(suspensionType, range)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for statistics.");
     }
 
-    private static SurfacePresentationState CreateBalanceState(TelemetryData? telemetry, BalanceType balanceType)
+    private static SurfacePresentationState CreateBalanceState(
+        TelemetryData? telemetry,
+        BalanceType balanceType,
+        TelemetryTimeRange? range)
     {
         if (telemetry is null || !telemetry.Front.Present || !telemetry.Rear.Present)
         {
             return SurfacePresentationState.Hidden;
         }
 
-        return telemetry.HasBalanceData(balanceType)
+        return telemetry.HasBalanceData(balanceType, range)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for balance data.");
     }
@@ -284,7 +315,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private static SurfacePresentationState CreateVibrationState(
         TelemetryData? telemetry,
         SuspensionType suspensionType,
-        ImuLocation location)
+        ImuLocation location,
+        TelemetryTimeRange? range)
     {
         if (telemetry is null)
         {
@@ -297,9 +329,29 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.Hidden;
         }
 
-        return telemetry.HasStrokeData(suspensionType)
+        return telemetry.HasStrokeData(suspensionType, range)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for vibration data.");
+    }
+
+    private void RefreshAnalysisRangeStates()
+    {
+        if (TelemetryData is { } telemetry)
+        {
+            ApplyAnalysisRangeStates(telemetry);
+        }
+    }
+
+    private void ApplyAnalysisRangeStates(TelemetryData telemetry)
+    {
+        FrontStatisticsState = CreateStatisticsState(telemetry, SuspensionType.Front, AnalysisRange);
+        RearStatisticsState = CreateStatisticsState(telemetry, SuspensionType.Rear, AnalysisRange);
+        CompressionBalanceState = CreateBalanceState(telemetry, BalanceType.Compression, AnalysisRange);
+        ReboundBalanceState = CreateBalanceState(telemetry, BalanceType.Rebound, AnalysisRange);
+        FrontForkVibrationState = CreateVibrationState(telemetry, SuspensionType.Front, ImuLocation.Fork, AnalysisRange);
+        FrontFrameVibrationState = CreateVibrationState(telemetry, SuspensionType.Front, ImuLocation.Frame, AnalysisRange);
+        RearForkVibrationState = CreateVibrationState(telemetry, SuspensionType.Rear, ImuLocation.Fork, AnalysisRange);
+        RearFrameVibrationState = CreateVibrationState(telemetry, SuspensionType.Rear, ImuLocation.Frame, AnalysisRange);
     }
 
     private void HideVibrationStates()
@@ -383,14 +435,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         ImuGraphState = HasImuTelemetry(data.TelemetryData)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        FrontStatisticsState = CreateStatisticsState(data.TelemetryData, SuspensionType.Front);
-        RearStatisticsState = CreateStatisticsState(data.TelemetryData, SuspensionType.Rear);
-        CompressionBalanceState = CreateBalanceState(data.TelemetryData, BalanceType.Compression);
-        ReboundBalanceState = CreateBalanceState(data.TelemetryData, BalanceType.Rebound);
-        FrontForkVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Front, ImuLocation.Fork);
-        FrontFrameVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Front, ImuLocation.Frame);
-        RearForkVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Rear, ImuLocation.Fork);
-        RearFrameVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Rear, ImuLocation.Frame);
+
+        if (data.TelemetryData is { } telemetry)
+        {
+            ApplyAnalysisRangeStates(telemetry);
+        }
+        else
+        {
+            FrontStatisticsState = SurfacePresentationState.Hidden;
+            RearStatisticsState = SurfacePresentationState.Hidden;
+            CompressionBalanceState = SurfacePresentationState.Hidden;
+            ReboundBalanceState = SurfacePresentationState.Hidden;
+            HideVibrationStates();
+        }
+
         MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
     }
 
@@ -524,6 +582,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SessionSnapshot snapshot,
         SessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
+        ISessionPresentationService sessionPresentationService,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
@@ -531,6 +590,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         this.sessionCoordinator = sessionCoordinator;
         this.sessionStore = sessionStore;
+        this.sessionPresentationService = sessionPresentationService;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
@@ -702,6 +762,67 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #endregion TabPageViewModelBase overrides
 
     #region Commands
+
+    public void SetAnalysisRange(double startSeconds, double endSeconds)
+    {
+        pendingAnalysisRangeBoundary = null;
+        if (TelemetryData is null ||
+            !TelemetryTimeRange.TryCreateClamped(
+                startSeconds,
+                endSeconds,
+                TelemetryData.Metadata.Duration,
+                out var range))
+        {
+            return;
+        }
+
+        AnalysisRange = range;
+    }
+
+    public void ClearAnalysisRange()
+    {
+        pendingAnalysisRangeBoundary = null;
+        if (AnalysisRange is null)
+        {
+            return;
+        }
+
+        AnalysisRange = null;
+    }
+
+    public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+    {
+        if (TelemetryData is null ||
+            double.IsNaN(markerSeconds) ||
+            double.IsInfinity(markerSeconds))
+        {
+            pendingAnalysisRangeBoundary = null;
+            return;
+        }
+
+        markerSeconds = Math.Clamp(markerSeconds, 0, TelemetryData.Metadata.Duration);
+        if (AnalysisRange is { } range)
+        {
+            if (Math.Abs(markerSeconds - range.StartSeconds) <= Math.Abs(markerSeconds - range.EndSeconds))
+            {
+                SetAnalysisRange(markerSeconds, range.EndSeconds);
+            }
+            else
+            {
+                SetAnalysisRange(range.StartSeconds, markerSeconds);
+            }
+
+            return;
+        }
+
+        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
+        {
+            pendingAnalysisRangeBoundary = markerSeconds;
+            return;
+        }
+
+        SetAnalysisRange(pendingBoundary, markerSeconds);
+    }
 
     [RelayCommand]
     private async Task Loaded(Rect? bounds = null)

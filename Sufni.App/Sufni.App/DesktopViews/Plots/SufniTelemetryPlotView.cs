@@ -34,6 +34,15 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         set => SetValue(MaximumDisplayHzProperty, value);
     }
 
+    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
+        AvaloniaProperty.Register<SufniTelemetryPlotView, TelemetryTimeRange?>(nameof(AnalysisRange));
+
+    public TelemetryTimeRange? AnalysisRange
+    {
+        get => GetValue(AnalysisRangeProperty);
+        set => SetValue(AnalysisRangeProperty, value);
+    }
+
     public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
         AvaloniaProperty.Register<SufniTelemetryPlotView, SessionTimelineLinkViewModel?>(nameof(Timeline));
 
@@ -77,6 +86,10 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
                         hasPendingTelemetryLoad = true;
                         TryApplyPendingTelemetryLoad();
                     }
+                    break;
+
+                case nameof(AnalysisRange):
+                    OnAnalysisRangeChanged();
                     break;
             }
 
@@ -149,9 +162,26 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         }
 
         plot.MaximumDisplayHz = MaximumDisplayHz;
+        plot.AnalysisRange = AnalysisRange;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
         RefreshPlot();
+    }
+
+    protected virtual void OnAnalysisRangeChanged()
+    {
+        if (Telemetry is null)
+        {
+            return;
+        }
+
+        if (!CanLoadTelemetryNow())
+        {
+            hasPendingTelemetryLoad = true;
+            return;
+        }
+
+        LoadTelemetryIntoPlot(Telemetry);
     }
 
     private bool CanLoadTelemetryNow()

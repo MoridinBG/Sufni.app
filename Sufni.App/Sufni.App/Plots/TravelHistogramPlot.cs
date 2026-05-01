@@ -10,7 +10,7 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 {
     private void AddStatistics(TelemetryData telemetryData)
     {
-        var statistics = telemetryData.CalculateTravelStatistics(type);
+        var statistics = telemetryData.CalculateTravelStatistics(type, AnalysisRange);
 
         var mx = type == SuspensionType.Front
             ? telemetryData.Front.MaxTravel
@@ -27,7 +27,7 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type))
+        if (!telemetryData.HasStrokeData(type, AnalysisRange))
         {
             return;
         }
@@ -39,7 +39,7 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
             : "Rear travel (time% / mm)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var data = telemetryData.CalculateTravelHistogram(type);
+        var data = telemetryData.CalculateTravelHistogram(type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Bins.Zip(data.Values)

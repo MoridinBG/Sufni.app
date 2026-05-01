@@ -11,7 +11,7 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type))
+        if (!telemetryData.HasStrokeData(type, AnalysisRange))
         {
             return;
         }
@@ -23,7 +23,13 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
             : "Rear frequencies (Power / Hz)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var data = telemetryData.CalculateTravelFrequencyHistogram(type);
+        var data = telemetryData.CalculateTravelFrequencyHistogram(type, AnalysisRange);
+        if (data.Bins.Count == 0 || data.Values.Count == 0)
+        {
+            Plot.Axes.SetLimits(0, 1, 0, 1);
+            AddLabel("No frequency data", 0.5, 0.5, 0, 0, Alignment.MiddleCenter);
+            return;
+        }
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Bins.Zip(data.Values)
             .Select(tuple => new Bar

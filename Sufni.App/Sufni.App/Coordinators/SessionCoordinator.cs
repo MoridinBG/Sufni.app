@@ -75,6 +75,7 @@ public class SessionCoordinator
                 snapshot,
                 this,
                 sessionStore,
+                sessionPresentationService,
                 tileLayerService,
                 shell,
                 dialogService));

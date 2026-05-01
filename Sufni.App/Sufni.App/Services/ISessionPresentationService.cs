@@ -7,7 +7,9 @@ namespace Sufni.App.Services;
 
 public interface ISessionPresentationService
 {
-    SessionDamperPercentages CalculateDamperPercentages(TelemetryData telemetryData);
+    SessionDamperPercentages CalculateDamperPercentages(
+        TelemetryData telemetryData,
+        TelemetryTimeRange? range = null);
 
     SessionCachePresentationData BuildCachePresentation(
         TelemetryData telemetryData,

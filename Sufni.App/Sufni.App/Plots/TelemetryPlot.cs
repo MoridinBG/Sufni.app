@@ -108,6 +108,7 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     public static readonly Color RearColor = Color.FromHex("#66c2a5");
 
     public int? MaximumDisplayHz { get; set; }
+    public TelemetryTimeRange? AnalysisRange { get; set; }
 
     protected void ConfigureRightAxisStyle()
     {

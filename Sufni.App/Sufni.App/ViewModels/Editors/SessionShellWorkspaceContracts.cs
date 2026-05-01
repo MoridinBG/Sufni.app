@@ -11,9 +11,13 @@ namespace Sufni.App.ViewModels.Editors;
 public interface IRecordedSessionGraphWorkspace
 {
     TelemetryData? TelemetryData { get; }
+    TelemetryTimeRange? AnalysisRange { get; }
     SurfacePresentationState TravelGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
+    void SetAnalysisRange(double startSeconds, double endSeconds);
+    void ClearAnalysisRange();
+    void SetAnalysisRangeBoundaryFromMarker(double markerSeconds);
 }
 
 public interface ISessionMediaWorkspace
@@ -30,6 +34,7 @@ public interface ISessionMediaWorkspace
 public interface ISessionStatisticsWorkspace
 {
     TelemetryData? TelemetryData { get; }
+    TelemetryTimeRange? AnalysisRange { get; }
     SurfacePresentationState FrontStatisticsState { get; }
     SurfacePresentationState RearStatisticsState { get; }
     SurfacePresentationState CompressionBalanceState { get; }

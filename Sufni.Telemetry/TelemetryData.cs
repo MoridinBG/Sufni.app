@@ -125,6 +125,16 @@ public class TelemetryData
         Rebound
     }
 
+    private readonly record struct SampleRange(int Start, int End)
+    {
+        public int Count => End - Start + 1;
+
+        public bool Contains(Stroke stroke)
+        {
+            return stroke.Start >= Start && stroke.End <= End;
+        }
+    }
+
     #region Public properties
 
     public Metadata Metadata { get; set; }
@@ -547,14 +557,104 @@ public class TelemetryData
 
     #region Data calculations
 
-    public HistogramData CalculateTravelHistogram(SuspensionType type)
+    private Suspension GetSuspension(SuspensionType type)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        return type == SuspensionType.Front ? Front : Rear;
+    }
+
+    private bool TryGetSampleRange(
+        Suspension suspension,
+        TelemetryTimeRange? range,
+        out SampleRange sampleRange)
+    {
+        sampleRange = default;
+        if (suspension.Travel.Length == 0 || Metadata.SampleRate <= 0)
+        {
+            return false;
+        }
+
+        if (range is null)
+        {
+            sampleRange = new SampleRange(0, suspension.Travel.Length - 1);
+            return true;
+        }
+
+        var startSeconds = Math.Clamp(range.Value.StartSeconds, 0, Metadata.Duration);
+        var endSeconds = Math.Clamp(range.Value.EndSeconds, 0, Metadata.Duration);
+        if (endSeconds - startSeconds < TelemetryTimeRange.MinimumDurationSeconds)
+        {
+            return false;
+        }
+
+        var startIndex = (int)Math.Floor(startSeconds * Metadata.SampleRate);
+        var endIndex = (int)Math.Ceiling(endSeconds * Metadata.SampleRate) - 1;
+        startIndex = Math.Clamp(startIndex, 0, suspension.Travel.Length - 1);
+        endIndex = Math.Clamp(endIndex, 0, suspension.Travel.Length - 1);
+        if (endIndex < startIndex)
+        {
+            return false;
+        }
+
+        sampleRange = new SampleRange(startIndex, endIndex);
+        return true;
+    }
+
+    private double[] GetTravelSamples(Suspension suspension, TelemetryTimeRange? range)
+    {
+        if (!TryGetSampleRange(suspension, range, out var sampleRange))
+        {
+            return [];
+        }
+
+        return range is null
+            ? suspension.Travel
+            : suspension.Travel[sampleRange.Start..(sampleRange.End + 1)];
+    }
+
+    private Stroke[] GetIncludedStrokes(
+        Suspension suspension,
+        Stroke[]? strokes,
+        TelemetryTimeRange? range)
+    {
+        if (strokes is null || strokes.Length == 0 ||
+            !TryGetSampleRange(suspension, range, out var sampleRange))
+        {
+            return [];
+        }
+
+        return range is null
+            ? strokes
+            : strokes.Where(sampleRange.Contains).ToArray();
+    }
+
+    private Stroke[] GetIncludedCompressions(Suspension suspension, TelemetryTimeRange? range)
+    {
+        return GetIncludedStrokes(suspension, suspension.Strokes?.Compressions, range);
+    }
+
+    private Stroke[] GetIncludedRebounds(Suspension suspension, TelemetryTimeRange? range)
+    {
+        return GetIncludedStrokes(suspension, suspension.Strokes?.Rebounds, range);
+    }
+
+    private Stroke[] GetIncludedStrokes(
+        Suspension suspension,
+        BalanceType strokeKind,
+        TelemetryTimeRange? range)
+    {
+        return strokeKind == BalanceType.Compression
+            ? GetIncludedCompressions(suspension, range)
+            : GetIncludedRebounds(suspension, range);
+    }
+
+    public HistogramData CalculateTravelHistogram(SuspensionType type, TelemetryTimeRange? range = null)
+    {
+        var suspension = GetSuspension(type);
 
         var hist = new double[suspension.TravelBins.Length - 1];
         var totalCount = 0;
 
-        foreach (var s in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
+        foreach (var s in GetIncludedCompressions(suspension, range).Concat(GetIncludedRebounds(suspension, range)))
         {
             totalCount += s.Stat.Count;
             foreach (var d in s.DigitizedTravel)
@@ -576,12 +676,13 @@ public class TelemetryData
             suspension.TravelBins.ToList(), [.. hist]);
     }
 
-    public HistogramData CalculateStrokeLengthHistogram(SuspensionType type, BalanceType strokeKind)
+    public HistogramData CalculateStrokeLengthHistogram(
+        SuspensionType type,
+        BalanceType strokeKind,
+        TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-        var strokes = strokeKind == BalanceType.Compression
-            ? suspension.Strokes.Compressions
-            : suspension.Strokes.Rebounds;
+        var suspension = GetSuspension(type);
+        var strokes = GetIncludedStrokes(suspension, strokeKind, range);
 
         var hist = new double[suspension.TravelBins.Length - 1];
         foreach (var stroke in strokes)
@@ -598,12 +699,13 @@ public class TelemetryData
         return new HistogramData(suspension.TravelBins.ToList(), [.. hist]);
     }
 
-    public HistogramData CalculateStrokeSpeedHistogram(SuspensionType type, BalanceType strokeKind)
+    public HistogramData CalculateStrokeSpeedHistogram(
+        SuspensionType type,
+        BalanceType strokeKind,
+        TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-        var strokes = strokeKind == BalanceType.Compression
-            ? suspension.Strokes.Compressions
-            : suspension.Strokes.Rebounds;
+        var suspension = GetSuspension(type);
+        var strokes = GetIncludedStrokes(suspension, strokeKind, range);
 
         var maxSpeed = strokes.Length == 0
             ? Parameters.VelocityHistStep
@@ -628,16 +730,16 @@ public class TelemetryData
         return new HistogramData(bins.ToList(), [.. hist]);
     }
 
-    public HistogramData CalculateDeepTravelHistogram(SuspensionType type)
+    public HistogramData CalculateDeepTravelHistogram(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
         Debug.Assert(suspension.MaxTravel is not null);
 
         var bins = suspension.TravelBins[^6..];
         var hist = new double[bins.Length - 1];
         var threshold = Parameters.DeepTravelThresholdRatio * suspension.MaxTravel.Value;
 
-        foreach (var stroke in suspension.Strokes.Compressions)
+        foreach (var stroke in GetIncludedCompressions(suspension, range))
         {
             if (stroke.Stat.MaxTravel < threshold)
             {
@@ -650,9 +752,9 @@ public class TelemetryData
         return new HistogramData(bins.ToList(), [.. hist]);
     }
 
-    public StackedHistogramData CalculateVelocityHistogram(SuspensionType type)
+    public StackedHistogramData CalculateVelocityHistogram(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
 
         var divider = (suspension.TravelBins.Length - 1) / TravelBinsForVelocityHistogram;
         var hist = new double[suspension.VelocityBins.Length - 1][];
@@ -662,7 +764,7 @@ public class TelemetryData
         }
 
         var totalCount = 0;
-        foreach (var s in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
+        foreach (var s in GetIncludedCompressions(suspension, range).Concat(GetIncludedRebounds(suspension, range)))
         {
             totalCount += s.Stat.Count;
             for (int i = 0; i < s.Stat.Count; ++i)
@@ -697,18 +799,18 @@ public class TelemetryData
             suspension.VelocityBins.ToList(), [.. hist]);
     }
 
-    public NormalDistributionData CalculateNormalDistribution(SuspensionType type)
+    public NormalDistributionData CalculateNormalDistribution(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
         var step = suspension.VelocityBins[1] - suspension.VelocityBins[0];
         var velocity = suspension.Velocity.ToList();
 
         var strokeVelocity = new List<double>();
-        foreach (var s in suspension.Strokes.Compressions)
+        foreach (var s in GetIncludedCompressions(suspension, range))
         {
             strokeVelocity.AddRange(velocity.GetRange(s.Start, s.End - s.Start + 1));
         }
-        foreach (var s in suspension.Strokes.Rebounds)
+        foreach (var s in GetIncludedRebounds(suspension, range))
         {
             strokeVelocity.AddRange(velocity.GetRange(s.Start, s.End - s.Start + 1));
         }
@@ -723,11 +825,11 @@ public class TelemetryData
 
         var min = strokeVelocity.Min();
         var max = strokeVelocity.Max();
-        var range = max - min;
+        var velocityRange = max - min;
         var ny = new double[100];
         for (int i = 0; i < 100; i++)
         {
-            ny[i] = min + i * range / 99;
+            ny[i] = min + i * velocityRange / 99;
         }
 
         var pdf = new List<double>(100);
@@ -739,16 +841,16 @@ public class TelemetryData
         return new NormalDistributionData([.. ny], pdf);
     }
 
-    public TravelStatistics CalculateTravelStatistics(SuspensionType type)
+    public TravelStatistics CalculateTravelStatistics(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
 
         var sum = 0.0;
         var count = 0.0;
         var mx = 0.0;
         var bo = 0;
 
-        foreach (var stroke in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
+        foreach (var stroke in GetIncludedCompressions(suspension, range).Concat(GetIncludedRebounds(suspension, range)))
         {
             sum += stroke.Stat.SumTravel;
             count += stroke.Stat.Count;
@@ -767,14 +869,14 @@ public class TelemetryData
         return new TravelStatistics(mx, sum / count, bo);
     }
 
-    public VelocityStatistics CalculateVelocityStatistics(SuspensionType type)
+    public VelocityStatistics CalculateVelocityStatistics(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
 
         var csum = 0.0;
         var ccount = 0.0;
         var maxc = 0.0;
-        foreach (var compression in suspension.Strokes.Compressions)
+        foreach (var compression in GetIncludedCompressions(suspension, range))
         {
             csum += compression.Stat.SumVelocity;
             ccount += compression.Stat.Count;
@@ -786,7 +888,7 @@ public class TelemetryData
         var rsum = 0.0;
         var rcount = 0.0;
         var maxr = 0.0;
-        foreach (var rebound in suspension.Strokes.Rebounds)
+        foreach (var rebound in GetIncludedRebounds(suspension, range))
         {
             rsum += rebound.Stat.SumVelocity;
             rcount += rebound.Stat.Count;
@@ -803,9 +905,12 @@ public class TelemetryData
             maxc);
     }
 
-    public VelocityBands CalculateVelocityBands(SuspensionType type, double highSpeedThreshold)
+    public VelocityBands CalculateVelocityBands(
+        SuspensionType type,
+        double highSpeedThreshold,
+        TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
         var velocity = suspension.Velocity;
 
         var totalCount = 0.0;
@@ -813,7 +918,7 @@ public class TelemetryData
         var hsc = 0.0;
 
         // Process compressions
-        foreach (var compression in suspension.Strokes.Compressions)
+        foreach (var compression in GetIncludedCompressions(suspension, range))
         {
             totalCount += compression.Stat.Count;
             for (int i = compression.Start; i <= compression.End; i++)
@@ -833,7 +938,7 @@ public class TelemetryData
         var hsr = 0.0;
 
         // Process rebounds
-        foreach (var rebound in suspension.Strokes.Rebounds)
+        foreach (var rebound in GetIncludedRebounds(suspension, range))
         {
             totalCount += rebound.Stat.Count;
             for (int i = rebound.Start; i <= rebound.End; i++)
@@ -878,15 +983,16 @@ public class TelemetryData
         return t => coefficients[1] * t + coefficients[0];
     }
 
-    public bool HasStrokeData(SuspensionType type)
+    public bool HasStrokeData(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
         if (!suspension.Present || suspension.Strokes is null)
         {
             return false;
         }
 
-        return suspension.Strokes.Compressions.Length > 0 || suspension.Strokes.Rebounds.Length > 0;
+        return GetIncludedCompressions(suspension, range).Length > 0 ||
+            GetIncludedRebounds(suspension, range).Length > 0;
     }
 
     public bool HasVibrationData(ImuLocation location)
@@ -895,15 +1001,18 @@ public class TelemetryData
             ImuData.ActiveLocations.Contains((byte)location);
     }
 
-    public VibrationStats? CalculateVibration(ImuLocation location, SuspensionType pairedSuspension)
+    public VibrationStats? CalculateVibration(
+        ImuLocation location,
+        SuspensionType pairedSuspension,
+        TelemetryTimeRange? range = null)
     {
-        if (!HasVibrationData(location) || !HasStrokeData(pairedSuspension))
+        if (!HasVibrationData(location) || !HasStrokeData(pairedSuspension, range))
         {
             return null;
         }
 
         Debug.Assert(ImuData is not null);
-        var suspension = pairedSuspension == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(pairedSuspension);
         if (suspension.MaxTravel is not > 0 ||
             suspension.Travel.Length < 2 ||
             Metadata.SampleRate <= 0 ||
@@ -917,6 +1026,16 @@ public class TelemetryData
         {
             return null;
         }
+
+        if (!TryGetSampleRange(suspension, range, out var sampleRange) || sampleRange.Count < 2)
+        {
+            return null;
+        }
+
+        var selectedStartSeconds = range is null ? 0.0 : sampleRange.Start / (double)Metadata.SampleRate;
+        var selectedEndSeconds = range is null
+            ? double.PositiveInfinity
+            : (sampleRange.End + 1) / (double)Metadata.SampleRate;
 
         var accelUp = new List<double>();
         var locationCount = ImuData.ActiveLocations.Count;
@@ -938,13 +1057,13 @@ public class TelemetryData
         }
 
         var totalMovement = 0.0;
-        for (var i = 1; i < suspension.Travel.Length; i++)
+        for (var i = sampleRange.Start + 1; i <= sampleRange.End; i++)
         {
             totalMovement += Math.Abs(suspension.Travel[i] - suspension.Travel[i - 1]);
         }
 
         var strokeKinds = Enumerable.Repeat(StrokeKind.Other, suspension.Travel.Length).ToArray();
-        foreach (var stroke in suspension.Strokes.Compressions)
+        foreach (var stroke in GetIncludedCompressions(suspension, range))
         {
             var start = Math.Clamp(stroke.Start, 0, strokeKinds.Length - 1);
             var end = Math.Clamp(stroke.End, 0, strokeKinds.Length - 1);
@@ -954,7 +1073,7 @@ public class TelemetryData
             }
         }
 
-        foreach (var stroke in suspension.Strokes.Rebounds)
+        foreach (var stroke in GetIncludedRebounds(suspension, range))
         {
             var start = Math.Clamp(stroke.Start, 0, strokeKinds.Length - 1);
             var end = Math.Clamp(stroke.End, 0, strokeKinds.Length - 1);
@@ -971,8 +1090,14 @@ public class TelemetryData
 
         for (var i = 0; i < accelUp.Count; i++)
         {
+            var sampleTime = i / (double)ImuData.SampleRate;
+            if (sampleTime < selectedStartSeconds || sampleTime >= selectedEndSeconds)
+            {
+                continue;
+            }
+
             var suspensionIndex = Math.Clamp(
-                (int)(i * (double)Metadata.SampleRate / ImuData.SampleRate),
+                (int)(sampleTime * Metadata.SampleRate),
                 0,
                 suspension.Travel.Length - 1);
             var positionRatio = suspension.Travel[suspensionIndex] / suspension.MaxTravel.Value;
@@ -999,11 +1124,14 @@ public class TelemetryData
             return null;
         }
 
+        // SumG scales with IMU sample count, so divide by the rate to get a g-second
+        // integral that depends on the physical signal duration, not the IMU sample rate.
+        var totalGSeconds = overall.SumG / ImuData.SampleRate;
         return new VibrationStats(
             compression.SumG / overall.SumG * 100.0,
             rebound.SumG / overall.SumG * 100.0,
             other.SumG / overall.SumG * 100.0,
-            totalMovement / overall.SumG,
+            totalMovement / totalGSeconds,
             compression.AverageG,
             rebound.AverageG,
             overall.AverageG,
@@ -1051,16 +1179,17 @@ public class TelemetryData
         }
     }
 
-    private (double[], double[]) TravelVelocity(SuspensionType suspensionType, BalanceType balanceType)
+    private (double[], double[]) TravelVelocity(
+        SuspensionType suspensionType,
+        BalanceType balanceType,
+        TelemetryTimeRange? range)
     {
         Debug.Assert(suspensionType != SuspensionType.Front || Front.MaxTravel is not null);
         Debug.Assert(suspensionType != SuspensionType.Rear || Rear.MaxTravel is not null);
 
-        var suspension = suspensionType == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(suspensionType);
         var travelMax = suspensionType == SuspensionType.Front ? Front.MaxTravel!.Value : Rear.MaxTravel!.Value;
-        var strokes = balanceType == BalanceType.Compression
-            ? suspension.Strokes.Compressions
-            : suspension.Strokes.Rebounds;
+        var strokes = GetIncludedStrokes(suspension, balanceType, range);
 
         var t = new List<double>();
         var v = new List<double>();
@@ -1081,23 +1210,23 @@ public class TelemetryData
         return (tArray, vArray);
     }
 
-    public bool HasBalanceData(BalanceType type)
+    public bool HasBalanceData(BalanceType type, TelemetryTimeRange? range = null)
     {
-        if (!HasStrokeData(SuspensionType.Front) || !HasStrokeData(SuspensionType.Rear))
+        if (!HasStrokeData(SuspensionType.Front, range) || !HasStrokeData(SuspensionType.Rear, range))
         {
             return false;
         }
 
-        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type);
-        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type);
+        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type, range);
+        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type, range);
 
         return frontTravelVelocity.Item1.Length >= 2 && rearTravelVelocity.Item1.Length >= 2;
     }
 
-    public BalanceData CalculateBalance(BalanceType type)
+    public BalanceData CalculateBalance(BalanceType type, TelemetryTimeRange? range = null)
     {
-        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type);
-        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type);
+        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type, range);
+        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type, range);
 
         if (frontTravelVelocity.Item1.Length == 0 || rearTravelVelocity.Item1.Length == 0)
         {
@@ -1124,29 +1253,34 @@ public class TelemetryData
             msd);
     }
 
-    public HistogramData CalculateTravelFrequencyHistogram(SuspensionType type)
+    public HistogramData CalculateTravelFrequencyHistogram(SuspensionType type, TelemetryTimeRange? range = null)
     {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
+        var suspension = GetSuspension(type);
+        var travelSamples = GetTravelSamples(suspension, range);
+        if (travelSamples.Length < 2 || Metadata.SampleRate <= 0)
+        {
+            return new HistogramData([], []);
+        }
 
         // Calculate mean
         double sum = 0;
-        foreach (var t in suspension.Travel)
+        foreach (var t in travelSamples)
         {
             sum += t;
         }
-        var mean = sum / suspension.Travel.Length;
+        var mean = sum / travelSamples.Length;
 
         // Determine final size (minimum 20000)
-        var n = Math.Max(20000, suspension.Travel.Length);
+        var n = Math.Max(20000, travelSamples.Length);
         var complexSignal = new Complex[n];
 
         // Center travel data and pad
-        for (var i = 0; i < suspension.Travel.Length; i++)
+        for (var i = 0; i < travelSamples.Length; i++)
         {
-            complexSignal[i] = new Complex(suspension.Travel[i] - mean, 0);
+            complexSignal[i] = new Complex(travelSamples[i] - mean, 0);
         }
 
-        for (var i = suspension.Travel.Length; i < n; i++)
+        for (var i = travelSamples.Length; i < n; i++)
         {
             complexSignal[i] = Complex.Zero;
         }

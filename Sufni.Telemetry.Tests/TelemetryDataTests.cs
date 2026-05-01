@@ -480,6 +480,51 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateTravelStatistics_WithRange_UsesOnlyWholeIncludedStrokes()
+    {
+        var telemetry = CreateTelemetry(
+            travel: Enumerable.Range(0, 10).Select(index => (double)index).ToArray(),
+            maxTravel: 100,
+            sampleRate: 10,
+            compressions:
+            [
+                CreateStroke(0, 1, maxTravel: 10),
+                CreateStroke(3, 4, maxTravel: 40),
+                CreateStroke(7, 8, maxTravel: 80),
+            ]);
+        var range = new TelemetryTimeRange(0.1, 0.65);
+
+        var fullStatistics = telemetry.CalculateTravelStatistics(SuspensionType.Front);
+        var rangeStatistics = telemetry.CalculateTravelStatistics(SuspensionType.Front, range);
+
+        Assert.True(telemetry.HasStrokeData(SuspensionType.Front, range));
+        Assert.Equal(80, fullStatistics.Max);
+        Assert.Equal(40, rangeStatistics.Max);
+    }
+
+    [Fact]
+    public void CalculateTravelStatistics_WithRangeExcludingWholeStrokes_ReturnsSafeDefaults()
+    {
+        var telemetry = CreateTelemetry(
+            travel: Enumerable.Range(0, 10).Select(index => (double)index).ToArray(),
+            maxTravel: 100,
+            sampleRate: 10,
+            compressions:
+            [
+                CreateStroke(0, 1, maxTravel: 10),
+                CreateStroke(3, 4, maxTravel: 40),
+            ]);
+        var range = new TelemetryTimeRange(0.15, 0.35);
+
+        var rangeStatistics = telemetry.CalculateTravelStatistics(SuspensionType.Front, range);
+
+        Assert.False(telemetry.HasStrokeData(SuspensionType.Front, range));
+        Assert.Equal(0, rangeStatistics.Max);
+        Assert.Equal(0, rangeStatistics.Average);
+        Assert.Equal(0, rangeStatistics.Bottomouts);
+    }
+
+    [Fact]
     public void CalculateVibration_SplitsVibrationByCompressionReboundAndOther()
     {
         var travel = Enumerable.Repeat(10.0, 400).ToArray();
@@ -518,6 +563,8 @@ public class TelemetryDataTests
     [Fact]
     public void CalculateVibration_MagicCarpetDoesNotInflateWithImuOversampling()
     {
+        // Both recordings cover the same 300 s of physical IMU data; the oversampled one
+        // just samples 5x more often, so sampleCount scales with sampleRate.
         var baseTelemetry = CreateTelemetry(
             travel: [0, 100, 0, 100, 0, 100, 0],
             maxTravel: 100,
@@ -529,7 +576,7 @@ public class TelemetryDataTests
             maxTravel: 100,
             sampleRate: 1,
             compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 5, sampleCount: 300, vibrationG: 1));
+            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 5, sampleCount: 1500, vibrationG: 1));
 
         var baseStats = baseTelemetry.CalculateVibration(ImuLocation.Fork, SuspensionType.Front);
         var oversampledStats = oversampledTelemetry.CalculateVibration(ImuLocation.Fork, SuspensionType.Front);

@@ -16,7 +16,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
     private void AddStatistics(TelemetryData telemetryData)
     {
-        var statistics = telemetryData.CalculateVelocityStatistics(type);
+        var statistics = telemetryData.CalculateVelocityStatistics(type, AnalysisRange);
 
         var maxReboundVelString = $"{statistics.MaxRebound:0.0} mm/s";
         var avgReboundVelString = $"{statistics.AverageRebound:0.0} mm/s";
@@ -39,7 +39,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type))
+        if (!telemetryData.HasStrokeData(type, AnalysisRange))
         {
             return;
         }
@@ -51,7 +51,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             : "Rear velocity (time% / mm/s)";
         Plot.Layout.Fixed(new PixelPadding(40, 5, 40, 40));
 
-        var data = telemetryData.CalculateVelocityHistogram(type);
+        var data = telemetryData.CalculateVelocityHistogram(type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];
 
         for (var i = 0; i < data.Values.Count; ++i)
@@ -87,7 +87,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
         // Y bounds must include the max-compression/-rebound stats labels, which can sit
         // outside the hardcoded ±VelocityLimit display window.
-        var velocityStats = telemetryData.CalculateVelocityStatistics(type);
+        var velocityStats = telemetryData.CalculateVelocityStatistics(type, AnalysisRange);
         var yLow = Math.Min(-VelocityLimit, velocityStats.MaxRebound);
         var yHigh = Math.Max(VelocityLimit, velocityStats.MaxCompression);
 
@@ -106,7 +106,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(500);
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
-        var normalData = telemetryData.CalculateNormalDistribution(type);
+        var normalData = telemetryData.CalculateNormalDistribution(type, AnalysisRange);
         if (normalData.Pdf.Count > 0 && normalData.Y.Count > 0)
         {
             var normal = Plot.Add.Scatter(

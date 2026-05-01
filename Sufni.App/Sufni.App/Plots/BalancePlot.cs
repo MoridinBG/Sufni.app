@@ -10,7 +10,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 {
     private void AddStatistics(TelemetryData telemetryData)
     {
-        var balance = telemetryData.CalculateBalance(type);
+        var balance = telemetryData.CalculateBalance(type, AnalysisRange);
 
         var maxVelocity = Math.Max(
             balance.FrontVelocity.Max(),
@@ -24,7 +24,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasBalanceData(type)) return;
+        if (!telemetryData.HasBalanceData(type, AnalysisRange)) return;
 
         base.LoadTelemetryData(telemetryData);
 
@@ -33,7 +33,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
            : "Rebound balance (mm/s / travel%)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var balance = telemetryData.CalculateBalance(type);
+        var balance = telemetryData.CalculateBalance(type, AnalysisRange);
 
         var maxVelocity = Math.Max(balance.FrontVelocity.Max(), balance.RearVelocity.Max());
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;

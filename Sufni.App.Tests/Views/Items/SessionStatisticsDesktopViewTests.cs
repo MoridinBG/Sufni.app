@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
@@ -85,6 +86,89 @@ public class SessionStatisticsDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_ShowsOnlyStrokesHosts_WhenStrokesTabSelected()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.Create(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: false,
+            hasReboundBalanceTelemetry: false);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
+        var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+        var damping = mounted.View.FindControl<Grid>("Damping");
+        var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
+
+        Assert.NotNull(tabControl);
+        Assert.NotNull(springRate);
+        Assert.NotNull(strokes);
+        Assert.NotNull(damping);
+        Assert.NotNull(balance);
+        Assert.NotNull(vibration);
+
+        tabControl!.SelectedIndex = 1;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(springRate!.IsVisible);
+        Assert.True(strokes!.IsVisible);
+        Assert.False(damping!.IsVisible);
+        Assert.False(balance!.IsVisible);
+        Assert.False(vibration!.IsVisible);
+
+        // Strokes is wrapped in a ScrollViewer whose visual children aren't realized
+        // off-screen, so traverse the logical tree to find the placeholder hosts.
+        var hosts = strokes.GetLogicalDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
+        Assert.Equal(2, hosts.Length);
+        Assert.Equal(2, hosts.Count(host => host.IsVisible));
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_ShowsOnlyAvailableVibrationHosts_WhenVibrationTabSelected()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.Create(),
+            hasFrontStatistics: false,
+            hasRearStatistics: false,
+            hasCompressionBalanceTelemetry: false,
+            hasReboundBalanceTelemetry: false,
+            hasFrontForkVibration: true,
+            hasFrontFrameVibration: false,
+            hasRearForkVibration: true,
+            hasRearFrameVibration: false);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
+        var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+        var damping = mounted.View.FindControl<Grid>("Damping");
+        var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
+
+        Assert.NotNull(tabControl);
+        Assert.NotNull(springRate);
+        Assert.NotNull(strokes);
+        Assert.NotNull(damping);
+        Assert.NotNull(balance);
+        Assert.NotNull(vibration);
+
+        tabControl!.SelectedIndex = 4;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(springRate!.IsVisible);
+        Assert.False(strokes!.IsVisible);
+        Assert.False(damping!.IsVisible);
+        Assert.False(balance!.IsVisible);
+        Assert.True(vibration!.IsVisible);
+        Assert.Equal(2, vibration.GetLogicalDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
+    }
+
+    [AvaloniaFact]
     public async Task SessionStatisticsDesktopView_ShowsOnlyAvailableBalanceHosts_WhenBalanceTabSelected()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
@@ -139,9 +223,14 @@ public class SessionStatisticsDesktopViewTests
         bool hasFrontStatistics,
         bool hasRearStatistics,
         bool hasCompressionBalanceTelemetry,
-        bool hasReboundBalanceTelemetry) : ISessionStatisticsWorkspace
+        bool hasReboundBalanceTelemetry,
+        bool hasFrontForkVibration = false,
+        bool hasFrontFrameVibration = false,
+        bool hasRearForkVibration = false,
+        bool hasRearFrameVibration = false) : ISessionStatisticsWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
+        public TelemetryTimeRange? AnalysisRange => null;
         public SurfacePresentationState FrontStatisticsState { get; } = hasFrontStatistics
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
@@ -154,10 +243,18 @@ public class SessionStatisticsDesktopViewTests
         public SurfacePresentationState ReboundBalanceState { get; } = hasReboundBalanceTelemetry
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        public SurfacePresentationState FrontForkVibrationState { get; } = SurfacePresentationState.Hidden;
-        public SurfacePresentationState FrontFrameVibrationState { get; } = SurfacePresentationState.Hidden;
-        public SurfacePresentationState RearForkVibrationState { get; } = SurfacePresentationState.Hidden;
-        public SurfacePresentationState RearFrameVibrationState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState FrontForkVibrationState { get; } = hasFrontForkVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState FrontFrameVibrationState { get; } = hasFrontFrameVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearForkVibrationState { get; } = hasRearForkVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearFrameVibrationState { get; } = hasRearFrameVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
     }
 }

@@ -15,6 +15,15 @@ public class VibrationSummaryView : TemplatedControl
         set => SetValue(TelemetryProperty, value);
     }
 
+    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
+        AvaloniaProperty.Register<VibrationSummaryView, TelemetryTimeRange?>(nameof(AnalysisRange));
+
+    public TelemetryTimeRange? AnalysisRange
+    {
+        get => GetValue(AnalysisRangeProperty);
+        set => SetValue(AnalysisRangeProperty, value);
+    }
+
     public static readonly StyledProperty<SuspensionType> SuspensionTypeProperty =
         AvaloniaProperty.Register<VibrationSummaryView, SuspensionType>(nameof(SuspensionType));
 
@@ -58,6 +67,7 @@ public class VibrationSummaryView : TemplatedControl
     static VibrationSummaryView()
     {
         TelemetryProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
+        AnalysisRangeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
         SuspensionTypeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
         ImuLocationProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
     }
@@ -65,6 +75,6 @@ public class VibrationSummaryView : TemplatedControl
     private void Recompute()
     {
         Title = $"{SuspensionType} {ImuLocation} vibration";
-        Stats = Telemetry?.CalculateVibration(ImuLocation, SuspensionType);
+        Stats = Telemetry?.CalculateVibration(ImuLocation, SuspensionType, AnalysisRange);
     }
 }

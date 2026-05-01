@@ -72,6 +72,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="3* Auto 2*">
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 PlotKind="TravelHistogram"
                                 SuspensionType="Front"
                                 Telemetry="{Binding TelemetryData}" />
@@ -79,6 +80,7 @@ mc:Ignorable="d">
                                 <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 Grid.Row="2"
                                 PlotKind="TravelFrequencyHistogram"
                                 SuspensionType="Front"
@@ -94,6 +96,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="3* Auto 2*">
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 PlotKind="TravelHistogram"
                                 SuspensionType="Rear"
                                 Telemetry="{Binding TelemetryData}" />
@@ -101,6 +104,7 @@ mc:Ignorable="d">
                                 <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 Grid.Row="2"
                                 PlotKind="TravelFrequencyHistogram"
                                 SuspensionType="Rear"
@@ -126,12 +130,14 @@ mc:Ignorable="d">
                                 <controls:PlaceholderOverlayContainer.ReadyContent>
                                     <Grid RowDefinitions="220,220,220,220,180" RowSpacing="8">
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         PlotKind="StrokeLengthHistogram"
                                         SuspensionType="Front"
                                         BalanceType="Compression"
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="1"
                                         PlotKind="StrokeSpeedHistogram"
                                         SuspensionType="Front"
@@ -139,6 +145,7 @@ mc:Ignorable="d">
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="2"
                                         PlotKind="StrokeLengthHistogram"
                                         SuspensionType="Front"
@@ -146,6 +153,7 @@ mc:Ignorable="d">
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="3"
                                         PlotKind="StrokeSpeedHistogram"
                                         SuspensionType="Front"
@@ -153,6 +161,7 @@ mc:Ignorable="d">
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="4"
                                         PlotKind="DeepTravelHistogram"
                                         SuspensionType="Front"
@@ -168,12 +177,14 @@ mc:Ignorable="d">
                                 <controls:PlaceholderOverlayContainer.ReadyContent>
                                     <Grid RowDefinitions="220,220,220,220,180" RowSpacing="8">
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         PlotKind="StrokeLengthHistogram"
                                         SuspensionType="Rear"
                                         BalanceType="Compression"
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="1"
                                         PlotKind="StrokeSpeedHistogram"
                                         SuspensionType="Rear"
@@ -181,6 +192,7 @@ mc:Ignorable="d">
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="2"
                                         PlotKind="StrokeLengthHistogram"
                                         SuspensionType="Rear"
@@ -188,6 +200,7 @@ mc:Ignorable="d">
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="3"
                                         PlotKind="StrokeSpeedHistogram"
                                         SuspensionType="Rear"
@@ -195,6 +208,7 @@ mc:Ignorable="d">
                                         Telemetry="{Binding TelemetryData}" />
 
                                         <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
                                         Grid.Row="4"
                                         PlotKind="DeepTravelHistogram"
                                         SuspensionType="Rear"
@@ -230,6 +244,7 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer Grid.Row="1" Grid.Column="0" PresentationState="{Binding FrontStatisticsState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding AnalysisRange}"
                             PlotKind="VelocityHistogram"
                             SuspensionType="Front"
                             Telemetry="{Binding TelemetryData}" />
@@ -259,6 +274,7 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer Grid.Row="1" Grid.Column="2" PresentationState="{Binding RearStatisticsState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding AnalysisRange}"
                             PlotKind="VelocityHistogram"
                             SuspensionType="Rear"
                             Telemetry="{Binding TelemetryData}" />
@@ -289,6 +305,7 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer Grid.Column="0" PresentationState="{Binding CompressionBalanceState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding AnalysisRange}"
                             BalanceType="Compression"
                             IsHitTestVisible="False"
                             PlotKind="Balance"
@@ -302,6 +319,7 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer Grid.Column="1" PresentationState="{Binding ReboundBalanceState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding AnalysisRange}"
                             BalanceType="Rebound"
                             IsHitTestVisible="False"
                             PlotKind="Balance"
@@ -326,11 +344,13 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Front"
                                 ImuLocation="Fork"
                                 Telemetry="{Binding TelemetryData}" />
 
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 Grid.Row="1"
                                 PlotKind="VibrationThirds"
                                 SuspensionType="Front"
@@ -347,11 +367,13 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Front"
                                 ImuLocation="Frame"
                                 Telemetry="{Binding TelemetryData}" />
 
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 Grid.Row="1"
                                 PlotKind="VibrationThirds"
                                 SuspensionType="Front"
@@ -368,11 +390,13 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Rear"
                                 ImuLocation="Fork"
                                 Telemetry="{Binding TelemetryData}" />
 
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 Grid.Row="1"
                                 PlotKind="VibrationThirds"
                                 SuspensionType="Rear"
@@ -389,11 +413,13 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Rear"
                                 ImuLocation="Frame"
                                 Telemetry="{Binding TelemetryData}" />
 
                                 <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
                                 Grid.Row="1"
                                 PlotKind="VibrationThirds"
                                 SuspensionType="Rear"

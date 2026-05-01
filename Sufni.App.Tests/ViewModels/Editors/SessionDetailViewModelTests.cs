@@ -20,6 +20,7 @@ public class SessionDetailViewModelTests
 {
     private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
+    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
@@ -28,6 +29,8 @@ public class SessionDetailViewModelTests
     {
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
+        sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
+            .Returns(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
     }
 
     private SessionDetailViewModel CreateEditor(
@@ -42,7 +45,14 @@ public class SessionDetailViewModelTests
 
         sessionStore.Watch(snapshot.Id).Returns(watch ?? Observable.Empty<SessionSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        return new SessionDetailViewModel(snapshot, sessionCoordinator, sessionStore, tileLayerService, shell, dialogService);
+        return new SessionDetailViewModel(
+            snapshot,
+            sessionCoordinator,
+            sessionStore,
+            sessionPresentationService,
+            tileLayerService,
+            shell,
+            dialogService);
     }
 
     private void SetDesktop(bool isDesktop)
@@ -303,6 +313,87 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Ready, editor.RearStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.CompressionBalanceState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.ReboundBalanceState.Kind);
+    }
+
+    [AvaloniaFact]
+    public void SetAnalysisRange_RecomputesDamperPercentagesWithoutMarkingDirty()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = CreateVibrationTelemetry();
+        var rangePercentages = new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80);
+        sessionPresentationService
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Is<TelemetryTimeRange?>(range =>
+                    range.HasValue &&
+                    range.Value.StartSeconds == 0.02 &&
+                    range.Value.EndSeconds == 0.16))
+            .Returns(rangePercentages);
+
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = telemetry;
+
+        editor.SetAnalysisRange(0.02, 0.16);
+
+        Assert.Equal(0.02, editor.AnalysisRange?.StartSeconds);
+        Assert.Equal(0.16, editor.AnalysisRange?.EndSeconds);
+        Assert.Equal(10, editor.DamperPage.FrontHscPercentage);
+        Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void ClearAnalysisRange_RecomputesDamperPercentagesForFullSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = CreateVibrationTelemetry();
+        var rangePercentages = new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80);
+        var fullSessionPercentages = new SessionDamperPercentages(11, 21, 31, 41, 51, 61, 71, 81);
+        sessionPresentationService
+            .CalculateDamperPercentages(telemetry, Arg.Is<TelemetryTimeRange?>(range => range.HasValue))
+            .Returns(rangePercentages);
+        sessionPresentationService
+            .CalculateDamperPercentages(telemetry, Arg.Is<TelemetryTimeRange?>(range => !range.HasValue))
+            .Returns(fullSessionPercentages);
+
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = telemetry;
+        editor.SetAnalysisRange(0.02, 0.16);
+
+        editor.ClearAnalysisRange();
+
+        Assert.Null(editor.AnalysisRange);
+        Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
+        Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void SetAnalysisRangeBoundaryFromMarker_UsesFirstAndSecondMarkerAsRangeBoundaries()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = CreateVibrationTelemetry();
+
+        editor.SetAnalysisRangeBoundaryFromMarker(0.02);
+        Assert.Null(editor.AnalysisRange);
+
+        editor.SetAnalysisRangeBoundaryFromMarker(0.16);
+
+        Assert.Equal(0.02, editor.AnalysisRange?.StartSeconds);
+        Assert.Equal(0.16, editor.AnalysisRange?.EndSeconds);
+    }
+
+    [AvaloniaFact]
+    public void SetAnalysisRangeBoundaryFromMarker_ReplacesNearestBoundaryForExistingRange()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = CreateVibrationTelemetry();
+        editor.SetAnalysisRange(0.02, 0.18);
+
+        editor.SetAnalysisRangeBoundaryFromMarker(0.05);
+
+        Assert.Equal(0.05, editor.AnalysisRange?.StartSeconds);
+        Assert.Equal(0.18, editor.AnalysisRange?.EndSeconds);
     }
 
     [AvaloniaFact]

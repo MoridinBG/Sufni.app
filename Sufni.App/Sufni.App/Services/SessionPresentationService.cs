@@ -11,7 +11,9 @@ public sealed class SessionPresentationService : ISessionPresentationService
 {
     private const double HighSpeedThreshold = 200.0;
 
-    public SessionDamperPercentages CalculateDamperPercentages(TelemetryData telemetryData)
+    public SessionDamperPercentages CalculateDamperPercentages(
+        TelemetryData telemetryData,
+        TelemetryTimeRange? range = null)
     {
         double? frontHsc = null;
         double? rearHsc = null;
@@ -22,18 +24,18 @@ public sealed class SessionPresentationService : ISessionPresentationService
         double? frontHsr = null;
         double? rearHsr = null;
 
-        if (telemetryData.HasStrokeData(SuspensionType.Front))
+        if (telemetryData.HasStrokeData(SuspensionType.Front, range))
         {
-            var frontBands = telemetryData.CalculateVelocityBands(SuspensionType.Front, HighSpeedThreshold);
+            var frontBands = telemetryData.CalculateVelocityBands(SuspensionType.Front, HighSpeedThreshold, range);
             frontHsc = frontBands.HighSpeedCompression;
             frontLsc = frontBands.LowSpeedCompression;
             frontLsr = frontBands.LowSpeedRebound;
             frontHsr = frontBands.HighSpeedRebound;
         }
 
-        if (telemetryData.HasStrokeData(SuspensionType.Rear))
+        if (telemetryData.HasStrokeData(SuspensionType.Rear, range))
         {
-            var rearBands = telemetryData.CalculateVelocityBands(SuspensionType.Rear, HighSpeedThreshold);
+            var rearBands = telemetryData.CalculateVelocityBands(SuspensionType.Rear, HighSpeedThreshold, range);
             rearHsc = rearBands.HighSpeedCompression;
             rearLsc = rearBands.LowSpeedCompression;
             rearLsr = rearBands.LowSpeedRebound;

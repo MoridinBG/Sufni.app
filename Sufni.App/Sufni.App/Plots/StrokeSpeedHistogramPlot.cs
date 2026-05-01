@@ -10,7 +10,7 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type))
+        if (!telemetryData.HasStrokeData(type, AnalysisRange))
         {
             return;
         }
@@ -22,29 +22,25 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
         Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} speed (% / mm/s)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var suspension = type == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
-        var strokes = strokeKind == BalanceType.Compression
-            ? suspension.Strokes.Compressions
-            : suspension.Strokes.Rebounds;
-        if (strokes.Length == 0)
+        var data = telemetryData.CalculateStrokeSpeedHistogram(type, strokeKind, AnalysisRange);
+        if (data.Values.Sum() <= 0)
         {
             ShowEmptyState(strokeName);
             return;
         }
 
-        var data = telemetryData.CalculateStrokeSpeedHistogram(type, strokeKind);
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Values.Select((value, index) => new Bar
-            {
-                Position = data.Bins[index],
-                Value = value,
-                FillColor = color.WithOpacity(),
-                LineColor = color,
-                LineWidth = 1.5f,
-                Orientation = Orientation.Vertical,
-                Size = step * 0.65f,
-            })
+        {
+            Position = data.Bins[index],
+            Value = value,
+            FillColor = color.WithOpacity(),
+            LineColor = color,
+            LineWidth = 1.5f,
+            Orientation = Orientation.Vertical,
+            Size = step * 0.65f,
+        })
             .ToList();
 
         Plot.Add.Bars(bars);
