@@ -198,8 +198,8 @@ public class SstV4TlvParser : ISstParser
         _ = reader.ReadUInt32(); // Padding
         var timestamp = reader.ReadInt64();
 
-        var frontList = new List<int>();
-        var rearList = new List<int>();
+        var frontList = new List<ushort>();
+        var rearList = new List<ushort>();
         var markers = new List<MarkerData>();
         RawImuData? imuData = null;
         var gpsRecords = new List<GpsRecord>();
@@ -387,16 +387,12 @@ public class SstV4TlvParser : ISstParser
 
         if (front.Length > 0)
         {
-            var (fixedFront, frontAnomalyCount) = SpikeElimination.EliminateSpikes(front);
-            rtd.Front = fixedFront;
-            rtd.FrontAnomalyRate = (double)frontAnomalyCount / rtd.Front.Length * rtd.SampleRate;
+            rtd.Front = front;
         }
 
         if (rear.Length > 0)
         {
-            var (fixedRear, rearAnomalyCount) = SpikeElimination.EliminateSpikes(rear);
-            rtd.Rear = fixedRear;
-            rtd.RearAnomalyRate = (double)rearAnomalyCount / rtd.Rear.Length * rtd.SampleRate;
+            rtd.Rear = rear;
         }
 
         return rtd;

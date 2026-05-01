@@ -113,7 +113,7 @@ public class RawTelemetryDataTests
     }
 
     [Fact]
-    public void SpikeElimination_AppliedDuringParsing()
+    public void FromStream_V3File_PreservesSamplesForProcessingStage()
     {
         // Arrange
         using var ms = new MemoryStream();
@@ -147,9 +147,7 @@ public class RawTelemetryDataTests
         // Act
         var result = RawTelemetryData.FromStream(ms);
 
-        // Assert
-        // If spike elimination worked, the 2000 should be smoothed out or identified as anomaly
-        Assert.True(result.FrontAnomalyRate > 0);
-        // Note: SpikeElimination behavior depends on thresholds, but here we just verify it was CALLED.
+        Assert.Contains((ushort)2000, result.Front);
+        Assert.Equal(0, result.FrontAnomalyRate);
     }
 }

@@ -47,7 +47,9 @@ public record BikeData(
     double? FrontMaxTravel,
     double? RearMaxTravel,
     Func<ushort, double>? FrontMeasurementToTravel,
-    Func<ushort, double>? RearMeasurementToTravel);
+    Func<ushort, double>? RearMeasurementToTravel,
+    bool FrontMeasurementWraps = false,
+    bool RearMeasurementWraps = false);
 public record HistogramData(List<double> Bins, List<double> Values);
 public record StackedHistogramData(List<double> Bins, List<double[]> Values);
 
@@ -125,6 +127,8 @@ public class TelemetryData
     private static readonly ILogger logger = Log.ForContext<TelemetryData>();
 
     public const int TravelBinsForVelocityHistogram = 10;
+    private const int AdcCircularRange = 4096;
+    private const int AdcCircularHalfRange = AdcCircularRange / 2;
 
     private enum StrokeKind
     {
@@ -410,6 +414,70 @@ public class TelemetryData
             : (double)anomalyCount / sampleCount * sampleRate;
     }
 
+    private static ushort[] NormalizeMeasurementSamples(
+        ushort[] samples,
+        bool measurementWraps,
+        out int anomalyCount)
+    {
+        var signal = measurementWraps
+            ? UnwrapCircularSamples(samples)
+            : Array.ConvertAll(samples, value => (int)value);
+
+        var fixedSignal = SpikeElimination.EliminateSpikesAsInt(signal);
+        anomalyCount = fixedSignal.anomalyCount;
+
+        return measurementWraps
+            ? Array.ConvertAll(fixedSignal.fixedSignal, WrapCircularSample)
+            : Array.ConvertAll(fixedSignal.fixedSignal, ClampLinearSample);
+    }
+
+    private static int[] UnwrapCircularSamples(IReadOnlyList<ushort> samples)
+    {
+        if (samples.Count == 0)
+        {
+            return [];
+        }
+
+        var unwrapped = new int[samples.Count];
+        var offset = 0;
+        var previous = NormalizeCircularSample(samples[0]);
+        unwrapped[0] = previous;
+
+        for (var index = 1; index < samples.Count; index++)
+        {
+            var current = NormalizeCircularSample(samples[index]);
+            var delta = current - previous;
+            if (delta > AdcCircularHalfRange)
+            {
+                offset -= AdcCircularRange;
+            }
+            else if (delta < -AdcCircularHalfRange)
+            {
+                offset += AdcCircularRange;
+            }
+
+            unwrapped[index] = current + offset;
+            previous = current;
+        }
+
+        return unwrapped;
+    }
+
+    private static int NormalizeCircularSample(ushort sample) => sample % AdcCircularRange;
+
+    private static ushort WrapCircularSample(int sample)
+    {
+        var wrapped = sample % AdcCircularRange;
+        if (wrapped < 0)
+        {
+            wrapped += AdcCircularRange;
+        }
+
+        return (ushort)wrapped;
+    }
+
+    private static ushort ClampLinearSample(int sample) => (ushort)Math.Clamp(sample, 0, AdcCircularRange - 1);
+
     #endregion
 
     #region PSST conversion
@@ -482,26 +550,28 @@ public class TelemetryData
             Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
             if (filter is not null)
             {
-                CalculateSuspension(td.Front, rawData.Front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                var front = NormalizeMeasurementSamples(rawData.Front, bikeData.FrontMeasurementWraps, out var frontAnomalyCount);
+                CalculateSuspension(td.Front, front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                td.Front.AnomalyRate = CalculateAnomalyRate(frontAnomalyCount, front.Length, td.Metadata.SampleRate);
             }
             else
             {
                 td.Front.Present = false;
             }
-            td.Front.AnomalyRate = rawData.FrontAnomalyRate;
         }
         if (td.Rear.Present)
         {
             Debug.Assert(bikeData.RearMeasurementToTravel is not null);
             if (filter is not null)
             {
-                CalculateSuspension(td.Rear, rawData.Rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                var rear = NormalizeMeasurementSamples(rawData.Rear, bikeData.RearMeasurementWraps, out var rearAnomalyCount);
+                CalculateSuspension(td.Rear, rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                td.Rear.AnomalyRate = CalculateAnomalyRate(rearAnomalyCount, rear.Length, td.Metadata.SampleRate);
             }
             else
             {
                 td.Rear.Present = false;
             }
-            td.Rear.AnomalyRate = rawData.RearAnomalyRate;
         }
 
         td.CalculateAirTimes();
@@ -524,35 +594,13 @@ public class TelemetryData
 
     public static TelemetryData FromLiveCapture(LiveTelemetryCapture capture)
     {
-        var front = capture.FrontMeasurements.ToArray();
-        var rear = capture.RearMeasurements.ToArray();
-
-        var frontAnomalyCount = 0;
-        var rearAnomalyCount = 0;
-
-        if (front.Length > 0)
-        {
-            var fixedFront = SpikeElimination.EliminateSpikes(Array.ConvertAll(front, v => (int)v));
-            front = fixedFront.fixedSignal;
-            frontAnomalyCount = fixedFront.anomalyCount;
-        }
-
-        if (rear.Length > 0)
-        {
-            var fixedRear = SpikeElimination.EliminateSpikes(Array.ConvertAll(rear, v => (int)v));
-            rear = fixedRear.fixedSignal;
-            rearAnomalyCount = fixedRear.anomalyCount;
-        }
-
         var rawData = new RawTelemetryData
         {
             Version = 4,
             SampleRate = (ushort)Math.Clamp(capture.Metadata.SampleRate, 0, ushort.MaxValue),
             Timestamp = capture.Metadata.Timestamp,
-            Front = front,
-            Rear = rear,
-            FrontAnomalyRate = CalculateAnomalyRate(frontAnomalyCount, front.Length, capture.Metadata.SampleRate),
-            RearAnomalyRate = CalculateAnomalyRate(rearAnomalyCount, rear.Length, capture.Metadata.SampleRate),
+            Front = capture.FrontMeasurements.ToArray(),
+            Rear = capture.RearMeasurements.ToArray(),
             Markers = capture.Markers,
             ImuData = capture.ImuData,
             GpsData = capture.GpsData,

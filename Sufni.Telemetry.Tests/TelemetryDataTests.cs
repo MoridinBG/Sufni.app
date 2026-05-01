@@ -5,6 +5,66 @@ namespace Sufni.Telemetry.Tests;
 public class TelemetryDataTests
 {
     [Fact]
+    public void FromRecording_WithLinearHighAdcSamples_DoesNotWrapMeasurements()
+    {
+        var samples = new ushort[80];
+        for (var index = 0; index < samples.Length; index++)
+        {
+            samples[index] = (ushort)(2500 + index % 5);
+        }
+
+        var rawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = samples,
+            Rear = []
+        };
+        var metadata = new Metadata { SampleRate = 1000 };
+        var bikeData = new BikeData(
+            65.0,
+            4095.0,
+            null,
+            measurement => measurement,
+            null);
+
+        var result = TelemetryData.FromRecording(rawData, metadata, bikeData);
+
+        Assert.All(result.Front.Travel.Take(samples.Length), value => Assert.InRange(value, 2500.0, 2504.0));
+    }
+
+    [Fact]
+    public void FromRecording_WithRotationalWrapEdgeSamples_DoesNotShiftRecoveredTail()
+    {
+        var samples = new ushort[240];
+        Array.Fill(samples, (ushort)60);
+        for (var index = 120; index < 125; index++)
+        {
+            samples[index] = 4095;
+        }
+
+        var rawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = samples,
+            Rear = []
+        };
+        var metadata = new Metadata { SampleRate = 1000 };
+        var bikeData = new BikeData(
+            65.0,
+            4095.0,
+            null,
+            measurement => measurement,
+            null,
+            FrontMeasurementWraps: true);
+
+        var result = TelemetryData.FromRecording(rawData, metadata, bikeData);
+
+        Assert.All(result.Front.Travel.Skip(130), value => Assert.Equal(60.0, value));
+    }
+
+    [Fact]
     public void FromRecording_WithV4Data_TransfersMarkersAndImuDataCorrectly()
     {
         // Arrange
