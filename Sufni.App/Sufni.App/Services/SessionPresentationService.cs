@@ -119,7 +119,10 @@ public sealed class SessionPresentationService : ISessionPresentationService
         SuspensionType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new TravelHistogramPlot(new Plot(), type);
+        var plot = new TravelHistogramPlot(new Plot(), type)
+        {
+            HistogramMode = TravelHistogramMode.ActiveSuspension,
+        };
         plot.LoadTelemetryData(telemetryData);
         return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
     }
@@ -129,7 +132,10 @@ public sealed class SessionPresentationService : ISessionPresentationService
         SuspensionType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new VelocityHistogramPlot(new Plot(), type);
+        var plot = new VelocityHistogramPlot(new Plot(), type)
+        {
+            AverageMode = VelocityAverageMode.SampleAveraged,
+        };
         plot.LoadTelemetryData(telemetryData);
         return plot.GetSvgXml(dimensions.VelocityHistogramWidth, dimensions.VelocityHistogramHeight);
     }
@@ -139,7 +145,10 @@ public sealed class SessionPresentationService : ISessionPresentationService
         BalanceType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new BalancePlot(new Plot(), type);
+        var plot = new BalancePlot(new Plot(), type)
+        {
+            DisplacementMode = BalanceDisplacementMode.Zenith,
+        };
         plot.LoadTelemetryData(telemetryData);
         return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
     }

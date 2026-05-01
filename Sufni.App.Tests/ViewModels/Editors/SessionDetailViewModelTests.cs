@@ -106,6 +106,24 @@ public class SessionDetailViewModelTests
         Assert.True(editor.ScreenState.IsReady);
     }
 
+    [AvaloniaFact]
+    public void Construction_InitializesStatisticsModeDefaultsAndOptions()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Zenith, editor.SelectedBalanceDisplacementMode);
+        Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
+        Assert.Equal([TravelHistogramMode.ActiveSuspension, TravelHistogramMode.DynamicSag], editor.TravelHistogramModeOptions.Select(option => option.Value));
+        Assert.Equal([BalanceDisplacementMode.Zenith, BalanceDisplacementMode.Travel], editor.BalanceDisplacementModeOptions.Select(option => option.Value));
+        Assert.Equal([VelocityAverageMode.SampleAveraged, VelocityAverageMode.StrokePeakAveraged], editor.VelocityAverageModeOptions.Select(option => option.Value));
+        Assert.All(editor.TravelHistogramModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+        Assert.All(editor.BalanceDisplacementModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+        Assert.All(editor.VelocityAverageModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+    }
+
     // ----- Dirtiness -----
 
     [AvaloniaFact]

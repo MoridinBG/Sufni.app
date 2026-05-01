@@ -525,6 +525,146 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateTravelStatistics_WithDynamicSag_UsesSelectedTravelSamples()
+    {
+        var travel = new[] { 0.0, 38.0, 39.0, 0.0, 38.5 };
+        var telemetry = CreateTelemetry(travel, maxTravel: 40, sampleRate: 10);
+        var options = new TravelStatisticsOptions(HistogramMode: TravelHistogramMode.DynamicSag);
+
+        var histogram = telemetry.CalculateTravelHistogram(SuspensionType.Front, options);
+        var statistics = telemetry.CalculateTravelStatistics(SuspensionType.Front, options);
+
+        Assert.Equal(100, histogram.Values.Sum(), 3);
+        Assert.Equal(39, statistics.Max);
+        Assert.Equal(travel.Average(), statistics.Average, 6);
+        Assert.Equal(2, statistics.Bottomouts);
+    }
+
+    [Fact]
+    public void CalculateBalance_WithTravelMode_UsesStrokeLengthInsteadOfZenith()
+    {
+        var telemetry = CreateBalanceTelemetry(
+            frontTravel: [0, 20, 0, 60],
+            rearTravel: [0, 30, 0, 80],
+            frontCompressions:
+            [
+                CreateStroke(0, 1, maxVelocity: 100, maxTravel: 50),
+                CreateStroke(2, 3, maxVelocity: 200, maxTravel: 70),
+            ],
+            rearCompressions:
+            [
+                CreateStroke(0, 1, maxVelocity: 100, maxTravel: 40),
+                CreateStroke(2, 3, maxVelocity: 200, maxTravel: 90),
+            ]);
+
+        var zenith = telemetry.CalculateBalance(BalanceType.Compression);
+        var travel = telemetry.CalculateBalance(
+            BalanceType.Compression,
+            new BalanceStatisticsOptions(DisplacementMode: BalanceDisplacementMode.Travel));
+
+        Assert.Equal([50, 70], zenith.FrontTravel);
+        Assert.Equal([40, 90], zenith.RearTravel);
+        Assert.Equal([20, 60], travel.FrontTravel);
+        Assert.Equal([30, 80], travel.RearTravel);
+    }
+
+    [Fact]
+    public void CalculateBalance_ReturnsSlopeDeltaPercent()
+    {
+        var telemetry = CreateBalanceTelemetry(
+            frontTravel: [0, 10, 0, 20],
+            rearTravel: [0, 10, 0, 20],
+            frontCompressions:
+            [
+                CreateStroke(0, 1, maxVelocity: 100, maxTravel: 10),
+                CreateStroke(2, 3, maxVelocity: 200, maxTravel: 20),
+            ],
+            rearCompressions:
+            [
+                CreateStroke(0, 1, maxVelocity: 100, maxTravel: 10),
+                CreateStroke(2, 3, maxVelocity: 150, maxTravel: 20),
+            ]);
+
+        var balance = telemetry.CalculateBalance(BalanceType.Compression);
+
+        Assert.Equal(10, balance.FrontSlope, 6);
+        Assert.Equal(5, balance.RearSlope, 6);
+        Assert.Equal(50, balance.SignedSlopeDeltaPercent, 6);
+        Assert.Equal(50, balance.AbsoluteSlopeDeltaPercent, 6);
+    }
+
+    [Fact]
+    public void CalculateVelocityStatistics_WithStrokePeakAverageAndPercentile_UsesStrokePeaks()
+    {
+        var telemetry = CreateTelemetry(
+            travel: [0, 10, 20, 10, 0],
+            maxTravel: 100,
+            compressions:
+            [
+                CreateStroke(0, 2, maxVelocity: 100, sumVelocity: 300),
+                CreateStroke(3, 4, maxVelocity: 500, sumVelocity: 1000),
+            ],
+            rebounds:
+            [
+                CreateStroke(0, 2, maxVelocity: -200, sumVelocity: -600),
+                CreateStroke(3, 4, maxVelocity: -800, sumVelocity: -1600),
+            ]);
+
+        var sampleAverage = telemetry.CalculateVelocityStatistics(SuspensionType.Front);
+        var strokePeakAverage = telemetry.CalculateVelocityStatistics(
+            SuspensionType.Front,
+            new VelocityStatisticsOptions(VelocityAverageMode: VelocityAverageMode.StrokePeakAveraged));
+
+        Assert.Equal(260, sampleAverage.AverageCompression);
+        Assert.Equal(-440, sampleAverage.AverageRebound);
+        Assert.Equal(300, strokePeakAverage.AverageCompression);
+        Assert.Equal(-500, strokePeakAverage.AverageRebound);
+        Assert.Equal(500, strokePeakAverage.Percentile95Compression);
+        Assert.Equal(-800, strokePeakAverage.Percentile95Rebound);
+        Assert.Equal(2, strokePeakAverage.CompressionStrokeCount);
+        Assert.Equal(2, strokePeakAverage.ReboundStrokeCount);
+    }
+
+    [Fact]
+    public void CalculateVelocityHistogram_WithStrokePeakAverage_UsesOnePeakPerStroke()
+    {
+        var telemetry = CreateTelemetry(
+            travel: [0, 10, 20],
+            maxTravel: 100,
+            compressions:
+            [
+                CreateStroke(
+                    0,
+                    1,
+                    maxVelocity: 50,
+                    maxTravel: 20,
+                    digitizedTravel: [1, 1],
+                    digitizedVelocity: [1, 1]),
+            ],
+            rebounds:
+            [
+                CreateStroke(
+                    2,
+                    2,
+                    maxVelocity: -50,
+                    maxTravel: 80,
+                    digitizedTravel: [15],
+                    digitizedVelocity: [0]),
+            ]);
+
+        var sampleHistogram = telemetry.CalculateVelocityHistogram(SuspensionType.Front);
+        var strokePeakHistogram = telemetry.CalculateVelocityHistogram(
+            SuspensionType.Front,
+            new VelocityStatisticsOptions(VelocityAverageMode: VelocityAverageMode.StrokePeakAveraged));
+
+        Assert.Equal(100, sampleHistogram.Values.SelectMany(values => values).Sum(), 3);
+        Assert.Equal(100, strokePeakHistogram.Values.SelectMany(values => values).Sum(), 3);
+        Assert.True(sampleHistogram.Values[1][0] > 0);
+        Assert.Equal(0, strokePeakHistogram.Values[1][0]);
+        Assert.Equal(50, strokePeakHistogram.Values[1][1], 3);
+    }
+
+    [Fact]
     public void CalculateVibration_SplitsVibrationByCompressionReboundAndOther()
     {
         var travel = Enumerable.Repeat(10.0, 400).ToArray();
@@ -715,6 +855,23 @@ public class TelemetryDataTests
         };
     }
 
+    private static TelemetryData CreateBalanceTelemetry(
+        double[] frontTravel,
+        double[] rearTravel,
+        Stroke[] frontCompressions,
+        Stroke[] rearCompressions,
+        double maxTravel = 100)
+    {
+        return new TelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 1000, Duration = frontTravel.Length / 1000.0 },
+            Front = CreateSuspension(frontTravel, maxTravel, frontCompressions, []),
+            Rear = CreateSuspension(rearTravel, maxTravel, rearCompressions, []),
+            Airtimes = [],
+            Markers = [],
+        };
+    }
+
     private static Suspension CreateSuspension(
         double[] travel,
         double maxTravel,
@@ -745,7 +902,14 @@ public class TelemetryDataTests
             .ToArray();
     }
 
-    private static Stroke CreateStroke(int start, int end, double maxVelocity = 0, double? maxTravel = null)
+    private static Stroke CreateStroke(
+        int start,
+        int end,
+        double maxVelocity = 0,
+        double? maxTravel = null,
+        double sumVelocity = 0,
+        int[]? digitizedTravel = null,
+        int[]? digitizedVelocity = null)
     {
         return new Stroke
         {
@@ -753,12 +917,13 @@ public class TelemetryDataTests
             End = end,
             Stat = new StrokeStat
             {
+                SumVelocity = sumVelocity,
                 MaxVelocity = maxVelocity,
                 MaxTravel = maxTravel ?? 0,
                 Count = end - start + 1,
             },
-            DigitizedTravel = [],
-            DigitizedVelocity = [],
+            DigitizedTravel = digitizedTravel ?? [],
+            DigitizedVelocity = digitizedVelocity ?? [],
             FineDigitizedVelocity = [],
         };
     }

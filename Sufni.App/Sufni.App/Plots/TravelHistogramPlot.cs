@@ -8,9 +8,11 @@ namespace Sufni.App.Plots;
 
 public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot(plot)
 {
+    public TravelHistogramMode HistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
+
     private void AddStatistics(TelemetryData telemetryData)
     {
-        var statistics = telemetryData.CalculateTravelStatistics(type, AnalysisRange);
+        var statistics = telemetryData.CalculateTravelStatistics(type, CreateOptions());
 
         var mx = type == SuspensionType.Front
             ? telemetryData.Front.MaxTravel
@@ -19,7 +21,10 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
         var maxPercentage = statistics.Max / mx * 100.0;
 
         var avgString = $"{statistics.Average:F1} mm ({avgPercentage:F1}%)";
-        var maxString = $"{statistics.Max:F1} mm ({maxPercentage:F1}%) / {statistics.Bottomouts} bottom outs";
+        var bottomoutLabel = HistogramMode == TravelHistogramMode.DynamicSag
+            ? FormatCount(statistics.Bottomouts, "bottom-out region", "bottom-out regions")
+            : FormatCount(statistics.Bottomouts, "stroke bottom-out", "stroke bottom-outs");
+        var maxString = $"{statistics.Max:F1} mm ({maxPercentage:F1}%) / {bottomoutLabel}";
 
         AddLabelWithHorizontalLine(avgString, statistics.Average, LabelLinePosition.Above);
         AddLabelWithHorizontalLine(maxString, statistics.Max, LabelLinePosition.Below);
@@ -27,19 +32,25 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type, AnalysisRange))
+        if (HistogramMode == TravelHistogramMode.ActiveSuspension && !telemetryData.HasStrokeData(type, AnalysisRange))
+        {
+            return;
+        }
+
+        var data = telemetryData.CalculateTravelHistogram(type, CreateOptions());
+        if (data.Values.Sum() <= 0)
         {
             return;
         }
 
         base.LoadTelemetryData(telemetryData);
 
+        var modeLabel = HistogramMode == TravelHistogramMode.DynamicSag ? "dynamic sag" : "active suspension";
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? "Front travel (time% / mm)"
-            : "Rear travel (time% / mm)";
+            ? $"Front travel - {modeLabel} (time% / mm)"
+            : $"Rear travel - {modeLabel} (time% / mm)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var data = telemetryData.CalculateTravelHistogram(type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Bins.Zip(data.Values)
@@ -70,4 +81,9 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
         AddStatistics(telemetryData);
     }
+
+    private TravelStatisticsOptions CreateOptions() => new(AnalysisRange, HistogramMode);
+
+    private static string FormatCount(int count, string singular, string plural) =>
+        count == 1 ? $"{count} {singular}" : $"{count} {plural}";
 }

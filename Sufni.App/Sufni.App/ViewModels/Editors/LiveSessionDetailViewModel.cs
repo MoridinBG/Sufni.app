@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Threading;
@@ -80,6 +81,46 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     [ObservableProperty]
     private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
+
+    private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
+    private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
+    private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
+
+    public TravelHistogramMode SelectedTravelHistogramMode
+    {
+        get => selectedTravelHistogramMode;
+        set => SetProperty(ref selectedTravelHistogramMode, value);
+    }
+
+    public BalanceDisplacementMode SelectedBalanceDisplacementMode
+    {
+        get => selectedBalanceDisplacementMode;
+        set => SetProperty(ref selectedBalanceDisplacementMode, value);
+    }
+
+    public VelocityAverageMode SelectedVelocityAverageMode
+    {
+        get => selectedVelocityAverageMode;
+        set => SetProperty(ref selectedVelocityAverageMode, value);
+    }
+
+    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
+    [
+        new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
+        new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
+    ];
+
+    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
+    [
+        new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
+        new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+    ];
+
+    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
+    [
+        new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
+        new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
+    ];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]

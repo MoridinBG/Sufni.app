@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -205,6 +206,49 @@ public class SessionStatisticsDesktopViewTests
         Assert.Equal(1, balance.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
     }
 
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_BindsStatisticsModeSelectors()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.Create(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var travelMode = mounted.View.FindControl<ComboBox>("TravelHistogramModeComboBox");
+        var velocityAverageMode = mounted.View.FindControl<ComboBox>("VelocityAverageModeComboBox");
+        var balanceMode = mounted.View.FindControl<ComboBox>("BalanceDisplacementModeComboBox");
+
+        Assert.NotNull(travelMode);
+        Assert.NotNull(velocityAverageMode);
+        Assert.NotNull(balanceMode);
+
+        Assert.Equal(TravelHistogramMode.ActiveSuspension, travelMode!.SelectedValue);
+        Assert.Equal(VelocityAverageMode.SampleAveraged, velocityAverageMode!.SelectedValue);
+        Assert.Equal(BalanceDisplacementMode.Zenith, balanceMode!.SelectedValue);
+        Assert.Equal(
+            "Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.",
+            ToolTip.GetTip(travelMode));
+        Assert.Equal(
+            "Sample-averaged uses all stroke samples. Stroke-peak average uses one peak-speed event per stroke.",
+            ToolTip.GetTip(velocityAverageMode));
+        Assert.Equal(
+            "Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.",
+            ToolTip.GetTip(balanceMode));
+
+        travelMode.SelectedValue = TravelHistogramMode.DynamicSag;
+        velocityAverageMode.SelectedValue = VelocityAverageMode.StrokePeakAveraged;
+        balanceMode.SelectedValue = BalanceDisplacementMode.Travel;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, workspace.SelectedVelocityAverageMode);
+        Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+    }
+
     private static async Task<MountedSessionStatisticsDesktopView> MountAsync(SessionStatisticsWorkspaceStub workspace)
     {
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
@@ -231,6 +275,24 @@ public class SessionStatisticsDesktopViewTests
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange => null;
+        public TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
+        public BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
+        public VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
+        public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
+        [
+            new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
+            new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
+        ];
+        public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
+        [
+            new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
+            new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+        ];
+        public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
+        [
+            new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
+            new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
+        ];
         public SurfacePresentationState FrontStatisticsState { get; } = hasFrontStatistics
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;

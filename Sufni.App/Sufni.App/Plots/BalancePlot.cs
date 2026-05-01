@@ -8,32 +8,34 @@ namespace Sufni.App.Plots;
 
 public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 {
-    private void AddStatistics(TelemetryData telemetryData)
-    {
-        var balance = telemetryData.CalculateBalance(type, AnalysisRange);
+    public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
 
+    private void AddStatistics(BalanceData balance)
+    {
         var maxVelocity = Math.Max(
             balance.FrontVelocity.Max(),
             balance.RearVelocity.Max());
 
         var msd = balance.MeanSignedDeviation / maxVelocity * 100.0;
+        var slopeString = $"Slope Δ: {balance.SignedSlopeDeltaPercent:+0.0;-#.0} %";
         var msdString = $"MSD: {msd:+0.0;-#.0} %";
 
+        AddLabel(slopeString, 100, 0, -10, -23, Alignment.LowerRight);
         AddLabel(msdString, 100, 0, -10, -5, Alignment.LowerRight);
     }
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasBalanceData(type, AnalysisRange)) return;
+        var balance = telemetryData.CalculateBalance(type, CreateOptions());
+        if (!HasRenderableBalanceData(balance)) return;
 
         base.LoadTelemetryData(telemetryData);
 
+        var modeLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
         Plot.Axes.Title.Label.Text = type == BalanceType.Compression
-           ? "Compression balance (mm/s / travel%)"
-           : "Rebound balance (mm/s / travel%)";
+           ? $"Compression balance - {modeLabel} (mm/s / travel%)"
+           : $"Rebound balance - {modeLabel} (mm/s / travel%)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
-
-        var balance = telemetryData.CalculateBalance(type, AnalysisRange);
 
         var maxVelocity = Math.Max(balance.FrontVelocity.Max(), balance.RearVelocity.Max());
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;
@@ -67,6 +69,11 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
         rearTrend.LineStyle.Color = RearColor;
         rearTrend.LineStyle.Width = 2;
 
-        AddStatistics(telemetryData);
+        AddStatistics(balance);
     }
+
+    private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode);
+
+    private static bool HasRenderableBalanceData(BalanceData balance) =>
+        balance.FrontTravel.Count >= 2 && balance.RearTravel.Count >= 2;
 }

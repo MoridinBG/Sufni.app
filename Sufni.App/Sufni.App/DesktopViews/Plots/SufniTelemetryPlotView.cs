@@ -14,6 +14,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     private bool hasPendingTelemetryLoad;
 
     protected TelemetryPlot PlotModel => plot!;
+    protected bool HasPlotModel => plot is not null;
     public bool IsPlotReady => plot is not null && HasPlotControl;
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
@@ -125,6 +126,22 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     {
         plot = plotModel;
         TryApplyPendingTelemetryLoad();
+    }
+
+    protected void ReloadTelemetry()
+    {
+        if (Telemetry is null)
+        {
+            return;
+        }
+
+        if (!CanLoadTelemetryNow())
+        {
+            hasPendingTelemetryLoad = true;
+            return;
+        }
+
+        LoadTelemetryIntoPlot(Telemetry);
     }
 
     public void SetCursorPosition(double position)
