@@ -12,7 +12,7 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        var stats = telemetryData.CalculateVibration(location, type, AnalysisRange);
+        var stats = TelemetryStatistics.CalculateVibration(telemetryData, location, type, AnalysisRange);
         if (stats is null)
         {
             return;

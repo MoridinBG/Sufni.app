@@ -26,7 +26,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        var balance = telemetryData.CalculateBalance(type, CreateOptions());
+        var balance = TelemetryStatistics.CalculateBalance(telemetryData, type, CreateOptions());
         if (!HasRenderableBalanceData(balance)) return;
 
         base.LoadTelemetryData(telemetryData);

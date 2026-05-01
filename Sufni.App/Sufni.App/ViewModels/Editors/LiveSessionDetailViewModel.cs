@@ -513,7 +513,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.WaitingForData("Waiting for statistics.");
         }
 
-        return telemetryData.HasStrokeData(suspensionType)
+        return TelemetryStatistics.HasStrokeData(telemetryData, suspensionType)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for statistics.");
     }
@@ -535,7 +535,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.WaitingForData("Waiting for balance data.");
         }
 
-        return telemetryData.HasBalanceData(balanceType)
+        return TelemetryStatistics.HasBalanceData(telemetryData, balanceType)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for balance data.");
     }

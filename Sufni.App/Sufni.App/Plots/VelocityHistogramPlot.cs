@@ -33,7 +33,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             AddLabelWithHorizontalLine(percentileReboundString, statistics.Percentile95Rebound, LabelLinePosition.Above);
         }
 
-        // Average values should be between the hardcoded limits, it's safe to draw them 
+        // Average values should be between the hardcoded limits, it's safe to draw them
         // at their actual position.
         AddLabelWithHorizontalLine(avgReboundVelString, statistics.AverageRebound, LabelLinePosition.Below);
         AddLabelWithHorizontalLine(avgCompVelString, statistics.AverageCompression, LabelLinePosition.Above);
@@ -49,7 +49,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type, AnalysisRange))
+        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
         {
             return;
         }
@@ -64,7 +64,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
             : $"Rear velocity - {modeLabel} ({percentageLabel} / mm/s)";
         Plot.Layout.Fixed(new PixelPadding(40, 5, 40, 40));
 
-        var data = telemetryData.CalculateVelocityHistogram(type, CreateOptions());
+        var data = TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, CreateOptions());
         var step = data.Bins[1] - data.Bins[0];
 
         for (var i = 0; i < data.Values.Count; ++i)
@@ -100,7 +100,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
         // Y bounds must include the max-compression/-rebound stats labels, which can sit
         // outside the hardcoded ±VelocityLimit display window.
-        var velocityStats = telemetryData.CalculateVelocityStatistics(type, CreateOptions());
+        var velocityStats = TelemetryStatistics.CalculateVelocityStatistics(telemetryData, type, CreateOptions());
         var yLow = Math.Min(-VelocityLimit, velocityStats.MaxRebound);
         if (velocityStats.ReboundStrokeCount > 0)
         {
@@ -129,7 +129,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
         var normalData = AverageMode == VelocityAverageMode.SampleAveraged
-            ? telemetryData.CalculateNormalDistribution(type, AnalysisRange)
+            ? TelemetryStatistics.CalculateNormalDistribution(telemetryData, type, AnalysisRange)
             : new NormalDistributionData([], []);
         if (normalData.Pdf.Count > 0 && normalData.Y.Count > 0)
         {

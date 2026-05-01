@@ -403,7 +403,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.Hidden;
         }
 
-        return telemetry.HasStrokeData(suspensionType, range)
+        return TelemetryStatistics.HasStrokeData(telemetry, suspensionType, range)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for statistics.");
     }
@@ -418,7 +418,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.Hidden;
         }
 
-        return telemetry.HasBalanceData(balanceType, range)
+        return TelemetryStatistics.HasBalanceData(telemetry, balanceType, range)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for balance data.");
     }
@@ -435,12 +435,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
 
         var suspension = suspensionType == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
-        if (!suspension.Present || !telemetry.HasVibrationData(location))
+        if (!suspension.Present || !TelemetryStatistics.HasVibrationData(telemetry, location))
         {
             return SurfacePresentationState.Hidden;
         }
 
-        return telemetry.HasStrokeData(suspensionType, range)
+        return TelemetryStatistics.HasStrokeData(telemetry, suspensionType, range)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for vibration data.");
     }

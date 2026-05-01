@@ -10,7 +10,7 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type, AnalysisRange))
+        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
         {
             return;
         }
@@ -22,7 +22,7 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
         Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} speed (% / mm/s)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var data = telemetryData.CalculateStrokeSpeedHistogram(type, strokeKind, AnalysisRange);
+        var data = TelemetryStatistics.CalculateStrokeSpeedHistogram(telemetryData, type, strokeKind, AnalysisRange);
         if (data.Values.Sum() <= 0)
         {
             ShowEmptyState(strokeName);

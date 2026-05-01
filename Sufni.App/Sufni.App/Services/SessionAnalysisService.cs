@@ -104,8 +104,8 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                 [CreateEvidence("Range duration", FormatNumber(context.Request.AnalysisRange.Value.DurationSeconds, 1), "s", null, "Selected range")]));
         }
 
-        var frontHasStrokeData = telemetryData.HasStrokeData(SuspensionType.Front, context.Request.AnalysisRange);
-        var rearHasStrokeData = telemetryData.HasStrokeData(SuspensionType.Rear, context.Request.AnalysisRange);
+        var frontHasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front, context.Request.AnalysisRange);
+        var rearHasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear, context.Request.AnalysisRange);
         if (!frontHasStrokeData && !rearHasStrokeData)
         {
             findings.Add(new SessionAnalysisFinding(
@@ -132,8 +132,8 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                 []));
         }
 
-        if (!telemetryData.HasBalanceData(BalanceType.Compression, context.BalanceOptions) &&
-            !telemetryData.HasBalanceData(BalanceType.Rebound, context.BalanceOptions))
+        if (!TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Compression, context.BalanceOptions) &&
+            !TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Rebound, context.BalanceOptions))
         {
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.DataQuality,
@@ -157,9 +157,9 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
             return null;
         }
 
-        var hasStrokeData = telemetryData.HasStrokeData(side, context.Request.AnalysisRange);
-        var travelStatistics = telemetryData.CalculateTravelStatistics(side, context.TravelOptions);
-        var velocityStatistics = telemetryData.CalculateVelocityStatistics(side, context.VelocityOptions);
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, side, context.Request.AnalysisRange);
+        var travelStatistics = TelemetryStatistics.CalculateTravelStatistics(telemetryData, side, context.TravelOptions);
+        var velocityStatistics = TelemetryStatistics.CalculateVelocityStatistics(telemetryData, side, context.VelocityOptions);
         var maxTravel = suspension.MaxTravel;
         var maxPercent = ToPercent(travelStatistics.Max, maxTravel);
         var averagePercent = ToPercent(travelStatistics.Average, maxTravel);
@@ -442,12 +442,12 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         AnalysisContext context,
         List<SessionAnalysisFinding> findings)
     {
-        if (!telemetryData.HasBalanceData(balanceType, context.BalanceOptions))
+        if (!TelemetryStatistics.HasBalanceData(telemetryData, balanceType, context.BalanceOptions))
         {
             return false;
         }
 
-        var balance = telemetryData.CalculateBalance(balanceType, context.BalanceOptions);
+        var balance = TelemetryStatistics.CalculateBalance(telemetryData, balanceType, context.BalanceOptions);
         if (balance.AbsoluteSlopeDeltaPercent < thresholdPercent)
         {
             return false;
@@ -479,8 +479,8 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
     private static bool HasAnyBalanceData(TelemetryData telemetryData, AnalysisContext context)
     {
-        return telemetryData.HasBalanceData(BalanceType.Rebound, context.BalanceOptions) ||
-               telemetryData.HasBalanceData(BalanceType.Compression, context.BalanceOptions);
+        return TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Rebound, context.BalanceOptions) ||
+               TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Compression, context.BalanceOptions);
     }
 
     private static bool HasLimitedBalanceContext(SideSnapshot front, SideSnapshot rear, AnalysisContext context)
@@ -517,9 +517,9 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         List<SessionAnalysisFinding> findings)
     {
         var addedComparableVibration = false;
-        if (front?.HasStrokeData == true && telemetryData.HasVibrationData(ImuLocation.Fork))
+        if (front?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, ImuLocation.Fork))
         {
-            var vibration = telemetryData.CalculateVibration(ImuLocation.Fork, SuspensionType.Front, context.Request.AnalysisRange);
+            var vibration = TelemetryStatistics.CalculateVibration(telemetryData, ImuLocation.Fork, SuspensionType.Front, context.Request.AnalysisRange);
             if (vibration is not null)
             {
                 addedComparableVibration = true;
@@ -527,9 +527,9 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
             }
         }
 
-        if (rear?.HasStrokeData == true && telemetryData.HasVibrationData(ImuLocation.Shock))
+        if (rear?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, ImuLocation.Shock))
         {
-            var vibration = telemetryData.CalculateVibration(ImuLocation.Shock, SuspensionType.Rear, context.Request.AnalysisRange);
+            var vibration = TelemetryStatistics.CalculateVibration(telemetryData, ImuLocation.Shock, SuspensionType.Rear, context.Request.AnalysisRange);
             if (vibration is not null)
             {
                 addedComparableVibration = true;

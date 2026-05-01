@@ -10,7 +10,7 @@ public class StrokeLengthHistogramPlot(Plot plot, SuspensionType type, BalanceTy
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type, AnalysisRange))
+        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
         {
             return;
         }
@@ -22,7 +22,7 @@ public class StrokeLengthHistogramPlot(Plot plot, SuspensionType type, BalanceTy
         Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} length (% / mm)";
         Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
 
-        var data = telemetryData.CalculateStrokeLengthHistogram(type, strokeKind, AnalysisRange);
+        var data = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetryData, type, strokeKind, AnalysisRange);
         if (data.Values.Sum() <= 0)
         {
             ShowEmptyState(strokeName);

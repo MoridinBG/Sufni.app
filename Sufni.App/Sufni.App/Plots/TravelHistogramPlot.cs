@@ -12,7 +12,7 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
     private void AddStatistics(TelemetryData telemetryData)
     {
-        var statistics = telemetryData.CalculateTravelStatistics(type, CreateOptions());
+        var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetryData, type, CreateOptions());
 
         var mx = type == SuspensionType.Front
             ? telemetryData.Front.MaxTravel
@@ -32,12 +32,12 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (HistogramMode == TravelHistogramMode.ActiveSuspension && !telemetryData.HasStrokeData(type, AnalysisRange))
+        if (HistogramMode == TravelHistogramMode.ActiveSuspension && !TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
         {
             return;
         }
 
-        var data = telemetryData.CalculateTravelHistogram(type, CreateOptions());
+        var data = TelemetryStatistics.CalculateTravelHistogram(telemetryData, type, CreateOptions());
         if (data.Values.Sum() <= 0)
         {
             return;

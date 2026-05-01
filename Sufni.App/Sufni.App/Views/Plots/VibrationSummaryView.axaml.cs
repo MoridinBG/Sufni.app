@@ -75,6 +75,8 @@ public class VibrationSummaryView : TemplatedControl
     private void Recompute()
     {
         Title = $"{SuspensionType} {ImuLocation} vibration";
-        Stats = Telemetry?.CalculateVibration(ImuLocation, SuspensionType, AnalysisRange);
+        Stats = Telemetry is null
+            ? null
+            : TelemetryStatistics.CalculateVibration(Telemetry, ImuLocation, SuspensionType, AnalysisRange);
     }
 }
