@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
@@ -17,10 +18,10 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
     {
         var statistics = telemetryData.CalculateVelocityStatistics(type);
 
-        var maxReboundVelString = $"{statistics.MaxRebound:0.00} mm/s";
-        var avgReboundVelString = $"{statistics.AverageRebound:0.00} mm/s";
-        var avgCompVelString = $"{statistics.AverageCompression:0.00} mm/s";
-        var maxCompVelString = $"{statistics.MaxCompression:0.00} mm/s";
+        var maxReboundVelString = $"{statistics.MaxRebound:0.0} mm/s";
+        var avgReboundVelString = $"{statistics.AverageRebound:0.0} mm/s";
+        var avgCompVelString = $"{statistics.AverageCompression:0.0} mm/s";
+        var maxCompVelString = $"{statistics.MaxCompression:0.0} mm/s";
 
         // TODO: Restore original behaviour: label at bottom when not in range, but moves to its proper
         // place when it is scrolled into view.
@@ -84,8 +85,16 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         var limits = Plot.Axes.GetDataLimits();
         Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.1, minY: 2000, maxY: -2000);
 
+        // Y bounds must include the max-compression/-rebound stats labels, which can sit
+        // outside the hardcoded ±VelocityLimit display window.
+        var velocityStats = telemetryData.CalculateVelocityStatistics(type);
+        var yLow = Math.Min(-VelocityLimit, velocityStats.MaxRebound);
+        var yHigh = Math.Max(VelocityLimit, velocityStats.MaxCompression);
+
         // Lock axes
         Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.1, limits.Right / 0.9));
+        Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
+            0.1, limits.Right / 0.9, yLow, yHigh, ZoomFractions.Statistics));
 
         // Set left axis limit to 0.1 to hide the border line at 0 values. Otherwise
         // it would seem that there are actual measure travel data there too.

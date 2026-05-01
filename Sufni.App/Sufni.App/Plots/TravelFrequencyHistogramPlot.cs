@@ -45,7 +45,7 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         var max = data.Values.Max();
         Plot.Axes.SetLimits(left: 0.0, right: 800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0.0, 10.0, min, max));
+            0.0, 10.0, min, max, ZoomFractions.Statistics));
 
         // Add autoscaler that restores the original ranges
         Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / data.Bins.Count * 3.0);

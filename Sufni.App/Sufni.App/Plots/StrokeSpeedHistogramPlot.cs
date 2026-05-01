@@ -50,7 +50,10 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
         Plot.Add.Bars(bars);
 
         var maxValue = Math.Max(1, data.Values.Max());
-        Plot.Axes.SetLimits(left: data.Bins[0], right: data.Bins[^1], bottom: 0, top: maxValue / 0.9);
+        var top = maxValue / 0.9;
+        Plot.Axes.SetLimits(left: data.Bins[0], right: data.Bins[^1], bottom: 0, top: top);
+        Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
+            data.Bins[0], data.Bins[^1], 0, top, ZoomFractions.Statistics));
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(500);
     }
 

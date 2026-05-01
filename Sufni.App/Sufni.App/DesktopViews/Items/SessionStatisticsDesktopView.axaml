@@ -35,11 +35,19 @@ mc:Ignorable="d">
                 <TabItem
                 HorizontalAlignment="Center"
                 FontSize="16"
+                Header="Strokes" />
+                <TabItem
+                HorizontalAlignment="Center"
+                FontSize="16"
                 Header="Damping" />
                 <TabItem
                 HorizontalAlignment="Center"
                 FontSize="16"
                 Header="Balance" />
+                <TabItem
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Vibration" />
             </TabStrip.Items>
         </TabStrip>
 
@@ -103,6 +111,102 @@ mc:Ignorable="d">
                             <controls:SurfacePlaceholderCard Title="Rear spring" />
                         </controls:PlaceholderOverlayContainer.PlaceholderContent>
                     </controls:PlaceholderOverlayContainer>
+                </Grid>
+
+                <!--  Strokes  -->
+                <Grid Name="Strokes">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                                <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                            </Grid.ColumnDefinitions>
+
+                            <controls:PlaceholderOverlayContainer Grid.Column="0" Margin="0,0,8,0" PresentationState="{Binding FrontStatisticsState}">
+                                <controls:PlaceholderOverlayContainer.ReadyContent>
+                                    <Grid RowDefinitions="220,220,220,220,180" RowSpacing="8">
+                                        <plots:SessionStatisticsPlotView
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="1"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="2"
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="3"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="4"
+                                        PlotKind="DeepTravelHistogram"
+                                        SuspensionType="Front"
+                                        Telemetry="{Binding TelemetryData}" />
+                                    </Grid>
+                                </controls:PlaceholderOverlayContainer.ReadyContent>
+                                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                    <controls:SurfacePlaceholderCard Title="Front strokes" />
+                                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            </controls:PlaceholderOverlayContainer>
+
+                            <controls:PlaceholderOverlayContainer Grid.Column="1" Margin="8,0,0,0" PresentationState="{Binding RearStatisticsState}">
+                                <controls:PlaceholderOverlayContainer.ReadyContent>
+                                    <Grid RowDefinitions="220,220,220,220,180" RowSpacing="8">
+                                        <plots:SessionStatisticsPlotView
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="1"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="2"
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="3"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        Grid.Row="4"
+                                        PlotKind="DeepTravelHistogram"
+                                        SuspensionType="Rear"
+                                        Telemetry="{Binding TelemetryData}" />
+                                    </Grid>
+                                </controls:PlaceholderOverlayContainer.ReadyContent>
+                                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                    <controls:SurfacePlaceholderCard Title="Rear strokes" />
+                                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            </controls:PlaceholderOverlayContainer>
+                        </Grid>
+                    </ScrollViewer>
                 </Grid>
 
                 <!--  Damping  -->
@@ -205,6 +309,100 @@ mc:Ignorable="d">
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Title="Rebound balance" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+                </Grid>
+
+                <!--  Vibration  -->
+                <Grid Name="Vibration">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding FrontForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding FrontFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding RearForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding RearFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                    </Grid.ColumnDefinitions>
+
+                    <controls:PlaceholderOverlayContainer Grid.Column="0" Margin="0,0,4,0" PresentationState="{Binding FrontForkVibrationState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                SuspensionType="Front"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Front"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Front (fork)" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Column="1" Margin="4,0,4,0" PresentationState="{Binding FrontFrameVibrationState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                SuspensionType="Front"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Front"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Front (frame)" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Column="2" Margin="4,0,4,0" PresentationState="{Binding RearForkVibrationState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                SuspensionType="Rear"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Rear"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Rear (fork)" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Column="3" Margin="4,0,0,0" PresentationState="{Binding RearFrameVibrationState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                SuspensionType="Rear"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Rear"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Rear (frame)" />
                         </controls:PlaceholderOverlayContainer.PlaceholderContent>
                     </controls:PlaceholderOverlayContainer>
                 </Grid>

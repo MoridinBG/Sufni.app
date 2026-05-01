@@ -18,8 +18,8 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
         var avgPercentage = statistics.Average / mx * 100.0;
         var maxPercentage = statistics.Max / mx * 100.0;
 
-        var avgString = $"{statistics.Average:F2} mm ({avgPercentage:F2}%)";
-        var maxString = $"{statistics.Max:F2} mm ({maxPercentage:F2}%) / {statistics.Bottomouts} bottom outs";
+        var avgString = $"{statistics.Average:F1} mm ({avgPercentage:F1}%)";
+        var maxString = $"{statistics.Max:F1} mm ({maxPercentage:F1}%) / {statistics.Bottomouts} bottom outs";
 
         AddLabelWithHorizontalLine(avgString, statistics.Average, LabelLinePosition.Above);
         AddLabelWithHorizontalLine(maxString, statistics.Max, LabelLinePosition.Below);
@@ -59,8 +59,10 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
         Plot.Axes.AutoScale(invertY: true);
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
-        // Lock horizontal axis
+        // Lock horizontal axis, bound vertical zoom (X is already locked, so X args here are inert).
         Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.05, data.Values.Max() / 0.9));
+        Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
+            0.05, data.Values.Max() / 0.9, data.Bins[0], data.Bins[^1], ZoomFractions.Statistics));
 
         // Set to 0.05 to hide the border line at 0 values. Otherwise it would
         // seem that there are actual measure travel data there too.

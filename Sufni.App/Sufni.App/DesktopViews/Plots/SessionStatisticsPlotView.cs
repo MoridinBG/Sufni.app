@@ -11,6 +11,10 @@ public enum PlotKind
     TravelFrequencyHistogram,
     VelocityHistogram,
     Balance,
+    StrokeLengthHistogram,
+    StrokeSpeedHistogram,
+    DeepTravelHistogram,
+    VibrationThirds,
 }
 
 public class SessionStatisticsPlotView : SufniTelemetryPlotView
@@ -23,6 +27,9 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
 
     public static readonly StyledProperty<BalanceType> BalanceTypeProperty =
         AvaloniaProperty.Register<SessionStatisticsPlotView, BalanceType>(nameof(BalanceType));
+
+    public static readonly StyledProperty<ImuLocation> ImuLocationProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, ImuLocation>(nameof(ImuLocation));
 
     public PlotKind PlotKind
     {
@@ -42,6 +49,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         set => SetValue(BalanceTypeProperty, value);
     }
 
+    public ImuLocation ImuLocation
+    {
+        get => GetValue(ImuLocationProperty);
+        set => SetValue(ImuLocationProperty, value);
+    }
+
     protected override void CreatePlot()
     {
         SetPlotModel(PlotKind switch
@@ -50,6 +63,10 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             PlotKind.TravelFrequencyHistogram => new TravelFrequencyHistogramPlot(PlotControl.Plot, SuspensionType),
             PlotKind.VelocityHistogram => new VelocityHistogramPlot(PlotControl.Plot, SuspensionType),
             PlotKind.Balance => new BalancePlot(PlotControl.Plot, BalanceType),
+            PlotKind.StrokeLengthHistogram => new StrokeLengthHistogramPlot(PlotControl.Plot, SuspensionType, BalanceType),
+            PlotKind.StrokeSpeedHistogram => new StrokeSpeedHistogramPlot(PlotControl.Plot, SuspensionType, BalanceType),
+            PlotKind.DeepTravelHistogram => new DeepTravelHistogramPlot(PlotControl.Plot, SuspensionType),
+            PlotKind.VibrationThirds => new VibrationThirdsPlot(PlotControl.Plot, SuspensionType, ImuLocation),
             _ => throw new ArgumentOutOfRangeException()
         });
     }

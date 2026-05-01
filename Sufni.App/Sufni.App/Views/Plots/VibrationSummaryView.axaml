@@ -1,0 +1,54 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sufni.App.Views.Plots">
+    <Design.PreviewWith>
+        <controls:VibrationSummaryView Width="240" Height="160" />
+    </Design.PreviewWith>
+
+    <Style Selector="controls|VibrationSummaryView">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border
+                    Padding="12,10,12,12"
+                    Background="#20262B"
+                    BorderBrush="#505558"
+                    BorderThickness="0">
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="#D0D0D0"
+                            Text="{Binding Title, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="3" ColumnSpacing="10">
+                            <Grid.Styles>
+                                <Style Selector="TextBlock">
+                                    <Setter Property="Foreground" Value="#D0D0D0" />
+                                    <Setter Property="FontSize" Value="13" />
+                                </Style>
+                            </Grid.Styles>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Compression" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Stats.CompressionPercent, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.0}%'}" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Stats.AverageGCompression, RelativeSource={RelativeSource TemplatedParent}, StringFormat='avg {0:0.0} g'}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Rebound" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Stats.ReboundPercent, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.0}%'}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Stats.AverageGRebound, RelativeSource={RelativeSource TemplatedParent}, StringFormat='avg {0:0.0} g'}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Other" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Stats.OtherPercent, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.0}%'}" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Overall avg" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Stats.AverageGOverall, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.000} g'}" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Magic carpet" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Stats.MagicCarpet, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.000}'}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

@@ -17,7 +17,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
             balance.RearVelocity.Max());
 
         var msd = balance.MeanSignedDeviation / maxVelocity * 100.0;
-        var msdString = $"MSD: {msd:+0.00;-#.00} %";
+        var msdString = $"MSD: {msd:+0.0;-#.0} %";
 
         AddLabel(msdString, 100, 0, -10, -5, Alignment.LowerRight);
     }
@@ -38,6 +38,8 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
         var maxVelocity = Math.Max(balance.FrontVelocity.Max(), balance.RearVelocity.Max());
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;
         Plot.Axes.SetLimits(0, 100, 0, roundedMaxVelocity);
+        Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
+            0, 100, 0, roundedMaxVelocity, ZoomFractions.Statistics));
 
         var tickInterval = (int)Math.Ceiling(maxVelocity / 5 / 100.0) * 100;
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(tickInterval);

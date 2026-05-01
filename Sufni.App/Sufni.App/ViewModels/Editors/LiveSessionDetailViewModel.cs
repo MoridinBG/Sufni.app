@@ -95,6 +95,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public SurfacePresentationState RearStatisticsState => CreateStatisticsState(ControlState.SessionHeader, TelemetryData, SuspensionType.Rear, hasRearTravelCalibration);
     public SurfacePresentationState CompressionBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Compression);
     public SurfacePresentationState ReboundBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Rebound);
+    public SurfacePresentationState FrontForkVibrationState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState FrontFrameVibrationState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState RearFrameVibrationState => SurfacePresentationState.Hidden;
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,

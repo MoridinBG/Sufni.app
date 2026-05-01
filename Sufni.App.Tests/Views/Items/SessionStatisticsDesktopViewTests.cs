@@ -59,20 +59,26 @@ public class SessionStatisticsDesktopViewTests
 
         var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
         var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
         var damping = mounted.View.FindControl<Grid>("Damping");
         var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
 
         Assert.NotNull(tabControl);
         Assert.NotNull(springRate);
+        Assert.NotNull(strokes);
         Assert.NotNull(damping);
         Assert.NotNull(balance);
+        Assert.NotNull(vibration);
 
-        tabControl!.SelectedIndex = 1;
+        tabControl!.SelectedIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(springRate!.IsVisible);
+        Assert.False(strokes!.IsVisible);
         Assert.True(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
+        Assert.False(vibration!.IsVisible);
         Assert.Equal(1, damping.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
         Assert.Equal(1, damping.GetVisualDescendants().OfType<TravelPercentageLegend>().Count(legend => legend.IsVisible));
         Assert.Equal(1, damping.GetVisualDescendants().OfType<VelocityBandView>().Count(view => view.IsVisible));
@@ -92,20 +98,26 @@ public class SessionStatisticsDesktopViewTests
 
         var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
         var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
         var damping = mounted.View.FindControl<Grid>("Damping");
         var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
 
         Assert.NotNull(tabControl);
         Assert.NotNull(springRate);
+        Assert.NotNull(strokes);
         Assert.NotNull(damping);
         Assert.NotNull(balance);
+        Assert.NotNull(vibration);
 
-        tabControl!.SelectedIndex = 2;
+        tabControl!.SelectedIndex = 3;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(springRate!.IsVisible);
+        Assert.False(strokes!.IsVisible);
         Assert.False(damping!.IsVisible);
         Assert.True(balance!.IsVisible);
+        Assert.False(vibration!.IsVisible);
         Assert.Equal(1, balance.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
     }
 
@@ -142,6 +154,10 @@ public class SessionStatisticsDesktopViewTests
         public SurfacePresentationState ReboundBalanceState { get; } = hasReboundBalanceTelemetry
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
+        public SurfacePresentationState FrontForkVibrationState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState FrontFrameVibrationState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearForkVibrationState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearFrameVibrationState { get; } = SurfacePresentationState.Hidden;
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
     }
 }

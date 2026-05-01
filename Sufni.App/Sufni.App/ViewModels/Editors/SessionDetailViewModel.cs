@@ -83,6 +83,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState frontForkVibrationState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMediaContent))]
     private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
@@ -231,6 +235,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             : SurfacePresentationState.Hidden;
         CompressionBalanceState = BalancePage.CompressionBalanceState;
         ReboundBalanceState = BalancePage.ReboundBalanceState;
+        HideVibrationStates();
         EnsureBalancePage(data.BalanceAvailable);
     }
 
@@ -276,6 +281,35 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             : SurfacePresentationState.WaitingForData("Waiting for balance data.");
     }
 
+    private static SurfacePresentationState CreateVibrationState(
+        TelemetryData? telemetry,
+        SuspensionType suspensionType,
+        ImuLocation location)
+    {
+        if (telemetry is null)
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        var suspension = suspensionType == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
+        if (!suspension.Present || !telemetry.HasVibrationData(location))
+        {
+            return SurfacePresentationState.Hidden;
+        }
+
+        return telemetry.HasStrokeData(suspensionType)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.WaitingForData("Waiting for vibration data.");
+    }
+
+    private void HideVibrationStates()
+    {
+        FrontForkVibrationState = SurfacePresentationState.Hidden;
+        FrontFrameVibrationState = SurfacePresentationState.Hidden;
+        RearForkVibrationState = SurfacePresentationState.Hidden;
+        RearFrameVibrationState = SurfacePresentationState.Hidden;
+    }
+
     private static SurfacePresentationState CreateMapState(IReadOnlyCollection<TrackPoint>? trackPoints, bool mapExpected)
     {
         if (trackPoints is { Count: > 0 })
@@ -295,6 +329,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         TrackPoints = null;
         MapVideoWidth = null;
         ClearDamperPercentages();
+        HideVibrationStates();
     }
 
     private void ApplyRecordedLoadingStates(bool mapExpected)
@@ -306,6 +341,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         RearStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
         CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
         ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
+        HideVibrationStates();
         MapState = mapExpected
             ? SurfacePresentationState.Loading("Loading map data.")
             : SurfacePresentationState.Hidden;
@@ -326,6 +362,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         RearStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
         CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
         ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        HideVibrationStates();
         MapState = mapExpected
             ? SurfacePresentationState.WaitingForData("Waiting for map data.")
             : SurfacePresentationState.Hidden;
@@ -350,6 +387,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         RearStatisticsState = CreateStatisticsState(data.TelemetryData, SuspensionType.Rear);
         CompressionBalanceState = CreateBalanceState(data.TelemetryData, BalanceType.Compression);
         ReboundBalanceState = CreateBalanceState(data.TelemetryData, BalanceType.Rebound);
+        FrontForkVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Front, ImuLocation.Fork);
+        FrontFrameVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Front, ImuLocation.Frame);
+        RearForkVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Rear, ImuLocation.Fork);
+        RearFrameVibrationState = CreateVibrationState(data.TelemetryData, SuspensionType.Rear, ImuLocation.Frame);
         MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
     }
 

@@ -34,6 +34,10 @@ public interface ISessionStatisticsWorkspace
     SurfacePresentationState RearStatisticsState { get; }
     SurfacePresentationState CompressionBalanceState { get; }
     SurfacePresentationState ReboundBalanceState { get; }
+    SurfacePresentationState FrontForkVibrationState { get; }
+    SurfacePresentationState FrontFrameVibrationState { get; }
+    SurfacePresentationState RearForkVibrationState { get; }
+    SurfacePresentationState RearFrameVibrationState { get; }
     SessionDamperPercentages DamperPercentages { get; }
 }
 

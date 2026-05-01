@@ -7,19 +7,18 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Threading;
 using ScottPlot;
-using ScottPlot.Avalonia;
 
 namespace Sufni.App.Views.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
 {
     private readonly HashSet<IPointer> pointersStartedInDataArea = [];
-    private AvaPlot? avaPlot;
+    private SufniAvaPlot? avaPlot;
     private AxisLimits? pinchStartLimits;
     private Coordinates? pinchOrigin;
     private bool viewportChangeQueued;
 
-    protected AvaPlot PlotControl => avaPlot!;
+    protected SufniAvaPlot PlotControl => avaPlot!;
     protected bool HasPlotControl => avaPlot is not null;
 
     public void RefreshPlot() => avaPlot?.Refresh();
@@ -28,7 +27,7 @@ public abstract class SufniPlotView : TemplatedControl
     {
         base.OnApplyTemplate(e);
 
-        avaPlot = e.NameScope.Find<AvaPlot>("Plot");
+        avaPlot = e.NameScope.Find<SufniAvaPlot>("Plot");
         Debug.Assert(avaPlot != null, nameof(avaPlot) + " != null");
         pointersStartedInDataArea.Clear();
 
@@ -85,23 +84,7 @@ public abstract class SufniPlotView : TemplatedControl
 
     private bool DidPointerStartInDataArea(PointerEventArgs e)
     {
-        return avaPlot is not null && IsPointInDataArea(e.GetPosition(avaPlot));
-    }
-
-    private bool IsPointInDataArea(Point point)
-    {
-        if (avaPlot is null)
-        {
-            return false;
-        }
-
-        var dataRect = avaPlot.Plot.LastRender.DataRect;
-        var left = Math.Min(dataRect.Left, dataRect.Right);
-        var right = Math.Max(dataRect.Left, dataRect.Right);
-        var top = Math.Min(dataRect.Top, dataRect.Bottom);
-        var bottom = Math.Max(dataRect.Top, dataRect.Bottom);
-
-        return point.X >= left && point.X <= right && point.Y >= top && point.Y <= bottom;
+        return avaPlot is not null && avaPlot.IsPointInDataArea(e.GetPosition(avaPlot));
     }
 
     private void OnPlotPinch(object? sender, PinchEventArgs e)
@@ -113,7 +96,7 @@ public abstract class SufniPlotView : TemplatedControl
 
         if (pinchStartLimits is null)
         {
-            if (!IsPointInDataArea(e.ScaleOrigin))
+            if (!avaPlot.IsPointInDataArea(e.ScaleOrigin))
             {
                 return;
             }

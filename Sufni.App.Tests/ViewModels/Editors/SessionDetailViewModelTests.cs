@@ -12,6 +12,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
@@ -87,6 +88,10 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Loading, editor.RearStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.CompressionBalanceState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.ReboundBalanceState.Kind);
+        Assert.True(editor.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearForkVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Loading, editor.MapState.Kind);
         Assert.True(editor.ScreenState.IsReady);
     }
@@ -270,8 +275,112 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
+        Assert.True(editor.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearForkVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
         Assert.True(editor.ScreenState.IsReady);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_WithForkAndFrameImu_SetsAllVibrationStatesReady()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var telemetry = CreateVibrationTelemetry();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.FrontForkVibrationState.IsReady);
+        Assert.True(editor.FrontFrameVibrationState.IsReady);
+        Assert.True(editor.RearForkVibrationState.IsReady);
+        Assert.True(editor.RearFrameVibrationState.IsReady);
+        Assert.Equal(SurfaceStateKind.Ready, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.ReboundBalanceState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_WithOnlyForkImu_HidesFrameVibrationStates()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var telemetry = CreateVibrationTelemetry(frameImu: false);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.FrontForkVibrationState.IsReady);
+        Assert.True(editor.RearForkVibrationState.IsReady);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_WithoutImu_HidesVibrationStates()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var telemetry = CreateVibrationTelemetry(forkImu: false, frameImu: false);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearForkVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_WithImuAndNoStrokes_WaitsForVibrationData()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var telemetry = CreateVibrationTelemetry(frontStrokes: false, rearStrokes: false);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontForkVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontFrameVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearForkVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearFrameVibrationState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_WhenTelemetryLaterPending_ClearsVibrationStates()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = CreateVibrationTelemetry();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(LoadedDesktopResult(telemetry)),
+                Task.FromResult<SessionDesktopLoadResult>(new SessionDesktopLoadResult.TelemetryPending()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.FrontForkVibrationState.IsReady);
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearForkVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
     }
 
     [AvaloniaFact]
@@ -309,6 +418,10 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Hidden, editor.RearStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.CompressionBalanceState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
+        Assert.True(editor.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearForkVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.False(editor.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
     }
@@ -370,6 +483,10 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
+        Assert.True(editor.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.RearForkVibrationState.IsHidden);
+        Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Hidden, editor.MapState.Kind);
         Assert.Empty(editor.ErrorMessages);
     }
@@ -634,6 +751,120 @@ public class SessionDetailViewModelTests
         await sessionCoordinator.Received(3).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         watch.Dispose();
     }
+
+    private static SessionDesktopLoadResult LoadedDesktopResult(TelemetryData telemetry)
+    {
+        return new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
+            telemetry,
+            null,
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8)));
+    }
+
+    private static TelemetryData CreateVibrationTelemetry(
+        bool frontPresent = true,
+        bool rearPresent = true,
+        bool frontStrokes = true,
+        bool rearStrokes = true,
+        bool forkImu = true,
+        bool frameImu = true)
+    {
+        return new TelemetryData
+        {
+            Metadata = new Metadata
+            {
+                SourceName = "v4-test.sst",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_700_000_000,
+                Duration = 0.2,
+            },
+            Front = CreateSuspension(frontPresent, frontStrokes),
+            Rear = CreateSuspension(rearPresent, rearStrokes),
+            Airtimes = [],
+            Markers = [],
+            ImuData = CreateImuData(forkImu, frameImu),
+        };
+    }
+
+    private static Suspension CreateSuspension(bool present, bool hasStrokes)
+    {
+        var travel = present
+            ? Enumerable.Range(0, 20).Select(index => index <= 10 ? index * 12.0 : (20 - index) * 12.0).ToArray()
+            : [];
+
+        return new Suspension
+        {
+            Present = present,
+            MaxTravel = present ? 200.0 : null,
+            Travel = travel,
+            Velocity = new double[travel.Length],
+            TravelBins = Enumerable.Range(0, 21).Select(index => index * 10.0).ToArray(),
+            VelocityBins = [],
+            FineVelocityBins = [],
+            Strokes = new Strokes
+            {
+                Compressions = present && hasStrokes
+                    ? [CreateStroke(0, 4, 60.0, 500.0), CreateStroke(5, 9, 120.0, 900.0)]
+                    : [],
+                Rebounds = present && hasStrokes
+                    ? [CreateStroke(10, 14, 110.0, -450.0), CreateStroke(15, 19, 50.0, -750.0)]
+                    : [],
+            },
+        };
+    }
+
+    private static Stroke CreateStroke(int start, int end, double maxTravel, double maxVelocity)
+    {
+        return new Stroke
+        {
+            Start = start,
+            End = end,
+            Stat = new StrokeStat
+            {
+                MaxTravel = maxTravel,
+                MaxVelocity = maxVelocity,
+                Count = end - start + 1,
+            },
+            DigitizedTravel = [],
+            DigitizedVelocity = [],
+            FineDigitizedVelocity = [],
+        };
+    }
+
+    private static RawImuData CreateImuData(bool forkImu, bool frameImu)
+    {
+        var activeLocations = new List<byte>();
+        if (frameImu)
+        {
+            activeLocations.Add((byte)ImuLocation.Frame);
+        }
+
+        if (forkImu)
+        {
+            activeLocations.Add((byte)ImuLocation.Fork);
+        }
+
+        var records = new List<ImuRecord>();
+        for (var sample = 0; sample < 20; sample++)
+        {
+            foreach (var _ in activeLocations)
+            {
+                records.Add(new ImuRecord(0, 0, 8192, 0, 0, 0));
+            }
+        }
+
+        return new RawImuData
+        {
+            SampleRate = 100,
+            ActiveLocations = activeLocations,
+            Meta = activeLocations.Select(location => new ImuMetaEntry(location, 8192, 16.4f)).ToList(),
+            Records = records,
+        };
+    }
+
     private static async Task<T> AwaitWithCancellation<T>(Task<T> task, CancellationToken cancellationToken)
     {
         return await task.WaitAsync(cancellationToken);
