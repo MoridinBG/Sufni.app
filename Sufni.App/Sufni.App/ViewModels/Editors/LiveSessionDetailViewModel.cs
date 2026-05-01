@@ -85,23 +85,48 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
     private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
+    private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
 
     public TravelHistogramMode SelectedTravelHistogramMode
     {
         get => selectedTravelHistogramMode;
-        set => SetProperty(ref selectedTravelHistogramMode, value);
+        set
+        {
+            if (SetProperty(ref selectedTravelHistogramMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
     }
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
         get => selectedBalanceDisplacementMode;
-        set => SetProperty(ref selectedBalanceDisplacementMode, value);
+        set
+        {
+            if (SetProperty(ref selectedBalanceDisplacementMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
     }
 
     public VelocityAverageMode SelectedVelocityAverageMode
     {
         get => selectedVelocityAverageMode;
-        set => SetProperty(ref selectedVelocityAverageMode, value);
+        set
+        {
+            if (SetProperty(ref selectedVelocityAverageMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
+    }
+
+    public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile
+    {
+        get => selectedSessionAnalysisTargetProfile;
+        set => SetProperty(ref selectedSessionAnalysisTargetProfile, value);
     }
 
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
@@ -120,6 +145,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [
         new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
         new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
+    ];
+
+    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
+    [
+        new(SessionAnalysisTargetProfile.Weekend, "Weekend", "Uses conservative speed context for recreational pace and mixed terrain."),
+        new(SessionAnalysisTargetProfile.Trail, "Trail", "Uses general trail-riding speed context."),
+        new(SessionAnalysisTargetProfile.Enduro, "Enduro", "Uses faster rough-descending speed context."),
+        new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
     ];
 
     [ObservableProperty]
@@ -141,6 +174,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearFrameVibrationState => SurfacePresentationState.Hidden;
     public TelemetryTimeRange? AnalysisRange => null;
+    public SessionAnalysisResult SessionAnalysis => SessionAnalysisResult.Hidden;
+    public string SessionAnalysisRangeText => "Live session";
+    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
@@ -419,6 +455,21 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out _);
+    }
+
+    private static string DisplayName(TravelHistogramMode mode)
+    {
+        return mode == TravelHistogramMode.DynamicSag ? "Dynamic sag" : "Active suspension";
+    }
+
+    private static string DisplayName(VelocityAverageMode mode)
+    {
+        return mode == VelocityAverageMode.StrokePeakAveraged ? "Stroke-peak average" : "Sample-averaged";
+    }
+
+    private static string DisplayName(BalanceDisplacementMode mode)
+    {
+        return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
     }
 
     private static LiveSessionPlotRanges CreatePlotRanges(LiveDaqSessionContext context)

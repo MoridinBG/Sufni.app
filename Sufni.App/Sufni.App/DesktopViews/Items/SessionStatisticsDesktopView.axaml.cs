@@ -14,6 +14,7 @@ public partial class SessionStatisticsDesktopView : UserControl
         Damping.IsVisible = true;
         Balance.IsVisible = true;
         Vibration.IsVisible = true;
+        Analysis.IsVisible = true;
 
         // When the control is loaded, leave only the selected Spring rate page visible.
         TabControl.Loaded += (_, _) =>
@@ -22,6 +23,7 @@ public partial class SessionStatisticsDesktopView : UserControl
             Damping.IsVisible = false;
             Balance.IsVisible = false;
             Vibration.IsVisible = false;
+            Analysis.IsVisible = false;
         };
 
         // Handle tab switches
@@ -35,6 +37,7 @@ public partial class SessionStatisticsDesktopView : UserControl
                     Damping.IsVisible = false;
                     Balance.IsVisible = false;
                     Vibration.IsVisible = false;
+                    Analysis.IsVisible = false;
                     break;
                 case 1:
                     SpringRate.IsVisible = false;
@@ -42,6 +45,7 @@ public partial class SessionStatisticsDesktopView : UserControl
                     Damping.IsVisible = false;
                     Balance.IsVisible = false;
                     Vibration.IsVisible = false;
+                    Analysis.IsVisible = false;
                     break;
                 case 2:
                     SpringRate.IsVisible = false;
@@ -49,6 +53,7 @@ public partial class SessionStatisticsDesktopView : UserControl
                     Damping.IsVisible = true;
                     Balance.IsVisible = false;
                     Vibration.IsVisible = false;
+                    Analysis.IsVisible = false;
                     break;
                 case 3:
                     SpringRate.IsVisible = false;
@@ -56,6 +61,7 @@ public partial class SessionStatisticsDesktopView : UserControl
                     Damping.IsVisible = false;
                     Balance.IsVisible = true;
                     Vibration.IsVisible = false;
+                    Analysis.IsVisible = false;
                     break;
                 case 4:
                     SpringRate.IsVisible = false;
@@ -63,6 +69,15 @@ public partial class SessionStatisticsDesktopView : UserControl
                     Damping.IsVisible = false;
                     Balance.IsVisible = false;
                     Vibration.IsVisible = true;
+                    Analysis.IsVisible = false;
+                    break;
+                case 5:
+                    SpringRate.IsVisible = false;
+                    Strokes.IsVisible = false;
+                    Damping.IsVisible = false;
+                    Balance.IsVisible = false;
+                    Vibration.IsVisible = false;
+                    Analysis.IsVisible = true;
                     break;
             }
         };

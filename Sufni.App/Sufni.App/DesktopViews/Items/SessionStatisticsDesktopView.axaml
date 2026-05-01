@@ -4,6 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:itemviews="clr-namespace:Sufni.App.Views.Items"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
@@ -48,6 +49,10 @@ mc:Ignorable="d">
                 HorizontalAlignment="Center"
                 FontSize="16"
                 Header="Vibration" />
+                <TabItem
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Analysis" />
             </TabStrip.Items>
         </TabStrip>
 
@@ -495,6 +500,11 @@ mc:Ignorable="d">
                             <controls:SurfacePlaceholderCard Title="Rear (frame)" />
                         </controls:PlaceholderOverlayContainer.PlaceholderContent>
                     </controls:PlaceholderOverlayContainer>
+                </Grid>
+
+                <!--  Analysis  -->
+                <Grid Name="Analysis">
+                    <itemviews:SessionAnalysisView />
                 </Grid>
             </ItemsControl.Items>
         </ItemsControl>

@@ -43,9 +43,13 @@ public interface ISessionStatisticsWorkspace
     TravelHistogramMode SelectedTravelHistogramMode { get; set; }
     BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
+    SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; }
     IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
     IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; }
+    IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; }
+    string SessionAnalysisRangeText { get; }
+    string SessionAnalysisModesText { get; }
     SurfacePresentationState FrontStatisticsState { get; }
     SurfacePresentationState RearStatisticsState { get; }
     SurfacePresentationState CompressionBalanceState { get; }
@@ -55,6 +59,7 @@ public interface ISessionStatisticsWorkspace
     SurfacePresentationState RearForkVibrationState { get; }
     SurfacePresentationState RearFrameVibrationState { get; }
     SessionDamperPercentages DamperPercentages { get; }
+    SessionAnalysisResult SessionAnalysis { get; }
 }
 
 public interface ISessionSidebarWorkspace

@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -21,6 +22,7 @@ public class SessionDetailViewModelTests
     private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
+    private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
@@ -31,6 +33,7 @@ public class SessionDetailViewModelTests
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
             .Returns(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+        sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
 
     private SessionDetailViewModel CreateEditor(
@@ -50,6 +53,7 @@ public class SessionDetailViewModelTests
             sessionCoordinator,
             sessionStore,
             sessionPresentationService,
+            sessionAnalysisService,
             tileLayerService,
             shell,
             dialogService);
@@ -116,12 +120,40 @@ public class SessionDetailViewModelTests
         Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.SelectedTravelHistogramMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, editor.SelectedBalanceDisplacementMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
+        Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
         Assert.Equal([TravelHistogramMode.ActiveSuspension, TravelHistogramMode.DynamicSag], editor.TravelHistogramModeOptions.Select(option => option.Value));
         Assert.Equal([BalanceDisplacementMode.Zenith, BalanceDisplacementMode.Travel], editor.BalanceDisplacementModeOptions.Select(option => option.Value));
         Assert.Equal([VelocityAverageMode.SampleAveraged, VelocityAverageMode.StrokePeakAveraged], editor.VelocityAverageModeOptions.Select(option => option.Value));
+        Assert.Equal([SessionAnalysisTargetProfile.Weekend, SessionAnalysisTargetProfile.Trail, SessionAnalysisTargetProfile.Enduro, SessionAnalysisTargetProfile.DH], editor.SessionAnalysisTargetProfileOptions.Select(option => option.Value));
         Assert.All(editor.TravelHistogramModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.BalanceDisplacementModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.VelocityAverageModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+        Assert.All(editor.SessionAnalysisTargetProfileOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith", editor.SessionAnalysisModesText);
+    }
+
+    [AvaloniaFact]
+    public void SessionAnalysisContextText_UsesDisplayNamesAndInvariantRangeFormatting()
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+        try
+        {
+            var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+            editor.TelemetryData = TestTelemetryData.Create();
+            editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
+            editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+            editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
+
+            editor.SetAnalysisRange(0.02, 0.16);
+
+            Assert.Equal("Selected range 0.0-0.2s", editor.SessionAnalysisRangeText);
+            Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel", editor.SessionAnalysisModesText);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 
     // ----- Dirtiness -----
@@ -277,7 +309,7 @@ public class SessionDetailViewModelTests
     [AvaloniaFact]
     public async Task Loaded_OnDesktop_AppliesCoordinatorResult()
     {
-        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.Create();
         var trackPoints = new List<TrackPoint> { new(1, 1, 1, 0) };
         var fullTrackPoints = new List<TrackPoint> { new(2, 2, 2, 0) };
@@ -309,6 +341,34 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
         Assert.True(editor.ScreenState.IsReady);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_AppliesFreshSessionAnalysis()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.Create();
+        var damperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var analysis = CreateAnalysisResult();
+        var result = new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
+            telemetry,
+            FullTrackId: null,
+            FullTrackPoints: null,
+            TrackPoints: null,
+            MapVideoWidth: null,
+            damperPercentages));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
+        sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(analysis);
+        sessionAnalysisService.ClearReceivedCalls();
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Same(analysis, editor.SessionAnalysis);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            ReferenceEquals(request.TelemetryData, telemetry) &&
+            request.DamperPercentages == damperPercentages));
     }
 
     [AvaloniaFact]
@@ -360,6 +420,27 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void SetAnalysisRange_RecomputesAnalysisWithFreshDamperPercentagesOnce()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = CreateVibrationTelemetry();
+        var rangePercentages = new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80);
+        sessionPresentationService
+            .CalculateDamperPercentages(telemetry, Arg.Is<TelemetryTimeRange?>(range => range.HasValue))
+            .Returns(rangePercentages);
+
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = telemetry;
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SetAnalysisRange(0.02, 0.16);
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.AnalysisRange.HasValue &&
+            request.DamperPercentages == rangePercentages));
+    }
+
+    [AvaloniaFact]
     public void ClearAnalysisRange_RecomputesDamperPercentagesForFullSession()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -382,6 +463,70 @@ public class SessionDetailViewModelTests
         Assert.Null(editor.AnalysisRange);
         Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void SelectedTravelHistogramMode_RecomputesAnalysis()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.TelemetryData = TestTelemetryData.Create();
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.TravelHistogramMode == TravelHistogramMode.DynamicSag));
+    }
+
+    [AvaloniaFact]
+    public void SelectedVelocityAverageMode_RecomputesAnalysis()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.TelemetryData = TestTelemetryData.Create();
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged));
+    }
+
+    [AvaloniaFact]
+    public void SelectedBalanceDisplacementMode_RecomputesAnalysis()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.TelemetryData = TestTelemetryData.Create();
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.BalanceDisplacementMode == BalanceDisplacementMode.Travel));
+    }
+
+    [AvaloniaFact]
+    public void SelectedSessionAnalysisTargetProfile_RecomputesAnalysis()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.TelemetryData = TestTelemetryData.Create();
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SelectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro;
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.TargetProfile == SessionAnalysisTargetProfile.Enduro));
+    }
+
+    [AvaloniaFact]
+    public void DamperPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.TelemetryData = TestTelemetryData.Create();
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.DamperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionAnalysisRequest>());
     }
 
     [AvaloniaFact]
@@ -870,6 +1015,20 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8)));
+    }
+
+    private static SessionAnalysisResult CreateAnalysisResult()
+    {
+        return new SessionAnalysisResult(
+            SurfacePresentationState.Ready,
+            [new SessionAnalysisFinding(
+                SessionAnalysisCategory.DataQuality,
+                SessionAnalysisSeverity.Info,
+                SessionAnalysisConfidence.Low,
+                "Analysis ready",
+                "Telemetry was analyzed.",
+                "Compare against the next run.",
+                [])]);
     }
 
     private static TelemetryData CreateVibrationTelemetry(

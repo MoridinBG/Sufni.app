@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
@@ -47,6 +48,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly SessionCoordinator sessionCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly ISessionPresentationService sessionPresentationService;
+    private readonly ISessionAnalysisService sessionAnalysisService;
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
     private SpringPageViewModel SpringPage { get; } = new();
@@ -57,6 +59,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private SessionPresentationDimensions? lastPresentationDimensions;
     private double? pendingAnalysisRangeBoundary;
     private bool suppressDirtinessEvaluation;
+    private bool suppressAnalysisRecompute;
     private bool viewLoaded;
 
     #endregion Private fields
@@ -93,6 +96,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
     [ObservableProperty] private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
+    [ObservableProperty] private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMediaContent))]
     private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
@@ -101,6 +105,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [NotifyPropertyChangedFor(nameof(HasMediaContent))]
     private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
+    [ObservableProperty] private SessionAnalysisResult sessionAnalysis = SessionAnalysisResult.Hidden;
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
     [
         new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
@@ -116,6 +121,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
         new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
     ];
+    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
+    [
+        new(SessionAnalysisTargetProfile.Weekend, "Weekend", "Uses conservative speed context for recreational pace and mixed terrain."),
+        new(SessionAnalysisTargetProfile.Trail, "Trail", "Uses general trail-riding speed context."),
+        new(SessionAnalysisTargetProfile.Enduro, "Enduro", "Uses faster rough-descending speed context."),
+        new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
+    ];
+    public string SessionAnalysisRangeText => AnalysisRange is { } range
+        ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
+        : "Full session";
+    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
     #endregion Observable properties
@@ -124,16 +140,51 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         IsComplete = value != null;
         pendingAnalysisRangeBoundary = null;
+        if (value is null)
+        {
+            SessionAnalysis = SessionAnalysisResult.Hidden;
+            return;
+        }
+
         if (AnalysisRange is not null)
         {
             ClearAnalysisRange();
+            return;
         }
+
+        RecomputeDamperPercentagesForAnalysisRange();
+        RecomputeSessionAnalysisIfAllowed();
     }
 
     partial void OnAnalysisRangeChanged(TelemetryTimeRange? value)
     {
+        OnPropertyChanged(nameof(SessionAnalysisRangeText));
         RefreshAnalysisRangeStates();
         RecomputeDamperPercentagesForAnalysisRange();
+        RecomputeSessionAnalysisIfAllowed();
+    }
+
+    partial void OnSelectedTravelHistogramModeChanged(TravelHistogramMode value)
+    {
+        OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeSessionAnalysis();
+    }
+
+    partial void OnSelectedBalanceDisplacementModeChanged(BalanceDisplacementMode value)
+    {
+        OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeSessionAnalysis();
+    }
+
+    partial void OnSelectedVelocityAverageModeChanged(VelocityAverageMode value)
+    {
+        OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeSessionAnalysis();
+    }
+
+    partial void OnSelectedSessionAnalysisTargetProfileChanged(SessionAnalysisTargetProfile value)
+    {
+        RecomputeSessionAnalysis();
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -202,6 +253,48 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
 
         ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(TelemetryData, AnalysisRange));
+    }
+
+    private void RecomputeSessionAnalysisIfAllowed()
+    {
+        if (suppressAnalysisRecompute)
+        {
+            return;
+        }
+
+        RecomputeSessionAnalysis();
+    }
+
+    private void RecomputeSessionAnalysis()
+    {
+        SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
+            TelemetryData,
+            AnalysisRange,
+            SelectedTravelHistogramMode,
+            SelectedVelocityAverageMode,
+            SelectedBalanceDisplacementMode,
+            DamperPercentages,
+            SelectedSessionAnalysisTargetProfile));
+    }
+
+    private static string FormatSeconds(double seconds)
+    {
+        return seconds.ToString("F1", CultureInfo.InvariantCulture);
+    }
+
+    private static string DisplayName(TravelHistogramMode mode)
+    {
+        return mode == TravelHistogramMode.DynamicSag ? "Dynamic sag" : "Active suspension";
+    }
+
+    private static string DisplayName(VelocityAverageMode mode)
+    {
+        return mode == VelocityAverageMode.StrokePeakAveraged ? "Stroke-peak average" : "Sample-averaged";
+    }
+
+    private static string DisplayName(BalanceDisplacementMode mode)
+    {
+        return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
@@ -475,13 +568,22 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         switch (result)
         {
             case SessionDesktopLoadResult.Loaded loaded:
-                TelemetryData = loaded.Data.TelemetryData;
+                suppressAnalysisRecompute = true;
+                try
+                {
+                    TelemetryData = loaded.Data.TelemetryData;
+                }
+                finally
+                {
+                    suppressAnalysisRecompute = false;
+                }
                 session.FullTrack = loaded.Data.FullTrackId;
                 FullTrackPoints = loaded.Data.FullTrackPoints;
                 TrackPoints = loaded.Data.TrackPoints;
                 MapVideoWidth = loaded.Data.MapVideoWidth;
                 ApplyDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
+                RecomputeSessionAnalysis();
                 lastObservedHasProcessedData = true;
                 break;
 
@@ -504,7 +606,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         {
             case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
                 ApplyCachePresentation(loadedFromCache.Data);
-                TelemetryData = loadedFromCache.Telemetry;
+                suppressAnalysisRecompute = true;
+                try
+                {
+                    TelemetryData = loadedFromCache.Telemetry;
+                }
+                finally
+                {
+                    suppressAnalysisRecompute = false;
+                }
                 TravelGraphState = HasTravelTelemetry(TelemetryData)
                     ? SurfacePresentationState.Ready
                     : SurfacePresentationState.Hidden;
@@ -514,12 +624,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 ApplyMobileTrackPresentation(loadedFromCache.TrackData);
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
+                RecomputeSessionAnalysis();
                 lastObservedHasProcessedData = true;
                 break;
 
             case SessionMobileLoadResult.BuiltCache builtCache:
                 ApplyCachePresentation(builtCache.Data);
-                TelemetryData = builtCache.Telemetry;
+                suppressAnalysisRecompute = true;
+                try
+                {
+                    TelemetryData = builtCache.Telemetry;
+                }
+                finally
+                {
+                    suppressAnalysisRecompute = false;
+                }
                 TravelGraphState = HasTravelTelemetry(TelemetryData)
                     ? SurfacePresentationState.Ready
                     : SurfacePresentationState.Hidden;
@@ -529,6 +648,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 ApplyMobileTrackPresentation(builtCache.TrackData);
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
+                RecomputeSessionAnalysis();
                 lastObservedHasProcessedData = true;
                 break;
 
@@ -601,6 +721,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
         ISessionPresentationService sessionPresentationService,
+        ISessionAnalysisService sessionAnalysisService,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService)
@@ -609,6 +730,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         this.sessionCoordinator = sessionCoordinator;
         this.sessionStore = sessionStore;
         this.sessionPresentationService = sessionPresentationService;
+        this.sessionAnalysisService = sessionAnalysisService;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;

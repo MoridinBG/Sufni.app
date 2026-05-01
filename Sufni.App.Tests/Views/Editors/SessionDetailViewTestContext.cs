@@ -24,6 +24,7 @@ internal sealed class SessionDetailViewTestContext
     private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
+    private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
@@ -34,6 +35,7 @@ internal sealed class SessionDetailViewTestContext
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
             .Returns(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+        sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
 
     public SessionSnapshot CreateTelemetryBearingSnapshot(
@@ -145,6 +147,7 @@ internal sealed class SessionDetailViewTestContext
             sessionCoordinator,
             sessionStore,
             sessionPresentationService,
+            sessionAnalysisService,
             tileLayerService,
             shell,
             dialogService);

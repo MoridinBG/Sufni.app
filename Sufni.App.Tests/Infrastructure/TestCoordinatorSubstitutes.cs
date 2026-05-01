@@ -91,6 +91,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IBackgroundTaskRunner>(),
             Track(),
             Substitute.For<ISessionPresentationService>(),
+            Substitute.For<ISessionAnalysisService>(),
             Substitute.For<ITileLayerService>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
