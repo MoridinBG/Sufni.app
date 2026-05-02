@@ -24,40 +24,42 @@ mc:Ignorable="d">
                 </Grid.Resources>
 
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=5*}" />
-                    <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=2*}" />
+                    <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                    <RowDefinition Height="{Binding Workspace.VelocityGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                    <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                 </Grid.RowDefinitions>
 
                 <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
-                        <Grid RowDefinitions="3* 2*">
-                            <plots:LiveTravelPlotDesktopView
-                            x:Name="TravelPlot"
-                            Grid.Row="0"
-                            GraphBatches="{Binding Workspace.GraphBatches}"
-                            MaximumY="{Binding Workspace.PlotRanges.TravelMaximum}"
-                            Timeline="{Binding Workspace.Timeline}" />
-
-                            <plots:LiveVelocityPlotDesktopView
-                            x:Name="VelocityPlot"
-                            Grid.Row="1"
-                            Margin="0,4,0,0"
-                            GraphBatches="{Binding Workspace.GraphBatches}"
-                            MaximumY="{Binding Workspace.PlotRanges.VelocityMaximum}"
-                            MinimumY="{Binding Workspace.PlotRanges.VelocityMinimum}"
-                            Timeline="{Binding Workspace.Timeline}" />
-                        </Grid>
+                        <plots:LiveTravelPlotDesktopView
+                        x:Name="TravelPlot"
+                        GraphBatches="{Binding Workspace.GraphBatches}"
+                        MaximumY="{Binding Workspace.PlotRanges.TravelMaximum}"
+                        Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
 
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                        <Grid RowDefinitions="3* 2*">
-                            <controls:SurfacePlaceholderCard Grid.Row="0" Title="Travel" />
-                            <controls:SurfacePlaceholderCard Grid.Row="1" Title="Velocity" Margin="0,4,0,0" />
-                        </Grid>
+                        <controls:SurfacePlaceholderCard Title="Travel" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
                 </controls:PlaceholderOverlayContainer>
 
-                <controls:PlaceholderOverlayContainer Grid.Row="1" PresentationState="{Binding Workspace.ImuGraphState}">
+                <controls:PlaceholderOverlayContainer Grid.Row="1" PresentationState="{Binding Workspace.VelocityGraphState}">
+                    <controls:PlaceholderOverlayContainer.ReadyContent>
+                        <plots:LiveVelocityPlotDesktopView
+                        x:Name="VelocityPlot"
+                        Margin="0,4,0,0"
+                        GraphBatches="{Binding Workspace.GraphBatches}"
+                        MaximumY="{Binding Workspace.PlotRanges.VelocityMaximum}"
+                        MinimumY="{Binding Workspace.PlotRanges.VelocityMinimum}"
+                        Timeline="{Binding Workspace.Timeline}" />
+                    </controls:PlaceholderOverlayContainer.ReadyContent>
+
+                    <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        <controls:SurfacePlaceholderCard Title="Velocity" Margin="0,4,0,0" />
+                    </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                </controls:PlaceholderOverlayContainer>
+
+                <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding Workspace.ImuGraphState}">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:LiveImuPlotDesktopView
                         x:Name="ImuPlot"

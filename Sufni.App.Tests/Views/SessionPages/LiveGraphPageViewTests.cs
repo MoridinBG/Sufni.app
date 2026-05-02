@@ -32,6 +32,7 @@ public class LiveGraphPageViewTests
         workspace.PlotRanges.Returns(new LiveSessionPlotRanges(TravelMaximum: 180, VelocityMaximum: 5, ImuMaximum: 5));
         workspace.Timeline.Returns(new SessionTimelineLinkViewModel());
         workspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
+        workspace.VelocityGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live velocity data."));
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
 
         var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
@@ -42,9 +43,17 @@ public class LiveGraphPageViewTests
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.Name != "MapHost")
             .ToArray();
-        Assert.Equal(2, hosts.Length);
+        var graphGrid = mounted.View.GetVisualDescendants()
+            .OfType<Grid>()
+            .Single(grid => grid.RowDefinitions.Count == 3 && grid.Children.OfType<PlaceholderOverlayContainer>().Count() == 3);
+        Assert.Equal(3, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
-        Assert.Equal(SurfacePresentationState.Hidden, hosts[1].PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, hosts[2].PresentationState);
+        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[0].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[1].Height.GridUnitType);
+        Assert.Equal(graphGrid.RowDefinitions[0].Height.Value, graphGrid.RowDefinitions[1].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
     }
 
     [AvaloniaFact]
@@ -55,6 +64,7 @@ public class LiveGraphPageViewTests
         workspace.PlotRanges.Returns(new LiveSessionPlotRanges(TravelMaximum: 180, VelocityMaximum: 5, ImuMaximum: 5));
         workspace.Timeline.Returns(new SessionTimelineLinkViewModel());
         workspace.TravelGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.VelocityGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
 
         var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
@@ -73,6 +83,7 @@ public class LiveGraphPageViewTests
         graphWorkspace.PlotRanges.Returns(new LiveSessionPlotRanges(TravelMaximum: 180, VelocityMaximum: 5, ImuMaximum: 5));
         graphWorkspace.Timeline.Returns(new SessionTimelineLinkViewModel());
         graphWorkspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
+        graphWorkspace.VelocityGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
         var mediaWorkspace = CreateMediaWorkspace(
         [
