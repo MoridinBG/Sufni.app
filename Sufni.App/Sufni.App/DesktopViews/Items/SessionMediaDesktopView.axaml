@@ -14,7 +14,7 @@ x:Name="Root"
 x:CompileBindings="False"
 mc:Ignorable="d">
 
-    <Grid x:Name="MediaGrid" Width="{Binding MapVideoWidth, TargetNullValue=400}" IsVisible="{Binding HasMediaContent}">
+    <Grid x:Name="MediaGrid" MinWidth="{Binding MapVideoWidth, TargetNullValue=400}" IsVisible="{Binding HasMediaContent}">
         <Grid.Resources>
             <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
         </Grid.Resources>
