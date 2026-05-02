@@ -1,8 +1,4 @@
 using System.Diagnostics;
-using System.Numerics;
-using MathNet.Numerics;
-using MathNet.Numerics.Distributions;
-using MathNet.Numerics.IntegralTransforms;
 using MathNet.Numerics.Statistics;
 using MessagePack;
 using Serilog;
@@ -10,85 +6,6 @@ using Serilog;
 #pragma warning disable CS8618
 
 namespace Sufni.Telemetry;
-
-[MessagePackObject(keyAsPropertyName: true)]
-public class Metadata
-{
-    public string SourceName { get; set; }
-    public int Version { get; set; }
-    public int SampleRate { get; set; }
-    public long Timestamp { get; set; }
-    public double Duration { get; set; }
-}
-
-[MessagePackObject(keyAsPropertyName: true)]
-public class Airtime
-{
-    public double Start { get; set; }
-    public double End { get; set; }
-};
-
-[MessagePackObject(keyAsPropertyName: true)]
-public class Suspension
-{
-    public bool Present { get; set; }
-    public double AnomalyRate { get; set; }
-    public double? MaxTravel { get; set; }
-    public double[] Travel { get; set; }
-    public double[] Velocity { get; set; }
-    public Strokes Strokes { get; set; }
-    public double[] TravelBins { get; set; }
-    public double[] VelocityBins { get; set; }
-    public double[] FineVelocityBins { get; set; }
-};
-
-public record BikeData(
-    double HeadAngle,
-    double? FrontMaxTravel,
-    double? RearMaxTravel,
-    Func<ushort, double>? FrontMeasurementToTravel,
-    Func<ushort, double>? RearMeasurementToTravel);
-public record HistogramData(List<double> Bins, List<double> Values);
-public record StackedHistogramData(List<double> Bins, List<double[]> Values);
-
-public record TravelStatistics(double Max, double Average, int Bottomouts);
-
-public record VelocityStatistics(
-    double AverageRebound,
-    double MaxRebound,
-    double AverageCompression,
-    double MaxCompression);
-
-public record NormalDistributionData(
-    List<double> Y,
-    List<double> Pdf);
-
-public record VelocityBands(
-    double LowSpeedCompression,
-    double HighSpeedCompression,
-    double LowSpeedRebound,
-    double HighSpeedRebound);
-
-public enum SuspensionType
-{
-    Front,
-    Rear
-}
-
-public enum BalanceType
-{
-    Compression,
-    Rebound
-}
-
-public record BalanceData(
-    List<double> FrontTravel,
-    List<double> FrontVelocity,
-    List<double> FrontTrend,
-    List<double> RearTravel,
-    List<double> RearVelocity,
-    List<double> RearTrend,
-    double MeanSignedDeviation);
 
 [MessagePackObject(keyAsPropertyName: true)]
 public class TelemetryData
@@ -139,42 +56,6 @@ public class TelemetryData
     #endregion
 
     #region Private helpers for ProcessRecording
-
-    private static double[] Linspace(double min, double max, int num)
-    {
-        var step = (max - min) / (num - 1);
-        var bins = new double[num];
-
-        for (var i = 0; i < num; i++)
-        {
-            bins[i] = min + step * i;
-        }
-
-        return bins;
-    }
-
-    private static int[] Digitize(double[] data, double[] bins)
-    {
-        var inds = new int[data.Length];
-        // Linspace-built bins[^1] can differ from the intended max by 1-2 ULPs,
-        // so a clamped sample equal to MaxTravel may digitize one slot past the
-        // last histogram bin. Clamping keeps the index inside the histogram.
-        var maxBinIndex = bins.Length - 2;
-        for (var k = 0; k < data.Length; k++)
-        {
-            var i = Array.BinarySearch(bins, data[k]);
-            if (i < 0) i = ~i;
-            // If current value is not exactly a bin boundary, we subtract 1 to make
-            // the digitized slice indexed from 0 instead of 1. We do the same if a
-            // value would exceed existing bins.
-            if (data[k] >= bins[^1] || Math.Abs(data[k] - bins[i]) > 0.0001)
-            {
-                i -= 1;
-            }
-            inds[k] = Math.Clamp(i, 0, maxBinIndex);
-        }
-        return inds;
-    }
 
     private void CalculateAirTimes()
     {
@@ -263,55 +144,15 @@ public class TelemetryData
         Airtimes = [.. airtimes];
     }
 
-    private static (double[], int[]) DigitizeVelocity(double[] v, double step)
+    private static void ApplySuspensionTrace(Suspension suspension, ProcessedSuspensionTrace trace)
     {
-        // Subtracting half bin ensures that 0 will be at the middle of one bin
-        var mn = (Math.Floor(v.Min() / step) - 0.5) * step;
-        // Adding 1.5 bins ensures that all values will fit in bins, and that the last bin fits the step boundary.
-        var mx = (Math.Floor(v.Max() / step) + 1.5) * step;
-        var bins = Linspace(mn, mx, (int)((mx - mn) / step) + 1);
-        var data = Digitize(v, bins);
-        return (bins, data);
-    }
-
-    private static void CalculateSuspension(Suspension suspension, ushort[] data, Func<ushort, double> measurementToTravel, int sampleRate, double[] time, SavitzkyGolay filter)
-    {
-        Debug.Assert(suspension.MaxTravel is not null);
-
-        suspension.Travel = new double[data.Length];
-        for (var i = 0; i < data.Length; i++)
-        {
-            // Travel might under/overshoot because of erroneous data acquisition or
-            // incorrect calibration. Errors might occur mid-ride (e.g. broken electrical
-            // connection due to vibration), so we don't error out, just cap travel.
-            // Errors like these will be obvious on the graphs, and the affected regions
-            // can be filtered by hand.
-            var travel = measurementToTravel(data[i]);
-            travel = Math.Clamp(travel, 0, suspension.MaxTravel.Value);
-            suspension.Travel[i] = travel;
-        }
-
-        var tbins = Linspace(0, suspension.MaxTravel.Value, Parameters.TravelHistBins + 1);
-        var dt = Digitize(suspension.Travel, tbins);
-        suspension.TravelBins = tbins;
-
-        var v = filter.Process(suspension.Travel, time);
-        suspension.Velocity = v;
-        var (vbins, dv) = DigitizeVelocity(v, Parameters.VelocityHistStep);
-        suspension.VelocityBins = vbins;
-        var (vbinsFine, dvFine) = DigitizeVelocity(v, Parameters.VelocityHistStepFine);
-        suspension.FineVelocityBins = vbinsFine;
-
-        var strokes = Strokes.FilterStrokes(v, suspension.Travel, suspension.MaxTravel.Value, sampleRate);
-        suspension.Strokes.Categorize(strokes);
-        if (suspension.Strokes.Compressions.Length == 0 && suspension.Strokes.Rebounds.Length == 0)
-        {
-            suspension.Present = false;
-        }
-        else
-        {
-            suspension.Strokes.Digitize(dt, dv, dvFine);
-        }
+        suspension.Present = trace.Present;
+        suspension.Travel = trace.Travel;
+        suspension.Velocity = trace.Velocity;
+        suspension.Strokes = trace.Strokes;
+        suspension.TravelBins = trace.TravelBins;
+        suspension.VelocityBins = trace.VelocityBins;
+        suspension.FineVelocityBins = trace.FineVelocityBins;
     }
 
     private static SavitzkyGolay? CreateVelocityFilter(int recordCount)
@@ -409,26 +250,30 @@ public class TelemetryData
             Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
             if (filter is not null)
             {
-                CalculateSuspension(td.Front, rawData.Front, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                var front = MeasurementPreprocessor.Process(rawData.Front, MeasurementPreprocessor.SensorTypeForWrapping(bikeData.FrontMeasurementWraps));
+                var frontTrace = SuspensionTraceProcessor.Process(front.Samples, td.Front.MaxTravel!.Value, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                ApplySuspensionTrace(td.Front, frontTrace);
+                td.Front.AnomalyRate = CalculateAnomalyRate(front.AnomalyCount, front.Samples.Length, td.Metadata.SampleRate);
             }
             else
             {
                 td.Front.Present = false;
             }
-            td.Front.AnomalyRate = rawData.FrontAnomalyRate;
         }
         if (td.Rear.Present)
         {
             Debug.Assert(bikeData.RearMeasurementToTravel is not null);
             if (filter is not null)
             {
-                CalculateSuspension(td.Rear, rawData.Rear, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                var rear = MeasurementPreprocessor.Process(rawData.Rear, MeasurementPreprocessor.SensorTypeForWrapping(bikeData.RearMeasurementWraps));
+                var rearTrace = SuspensionTraceProcessor.Process(rear.Samples, td.Rear.MaxTravel!.Value, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+                ApplySuspensionTrace(td.Rear, rearTrace);
+                td.Rear.AnomalyRate = CalculateAnomalyRate(rear.AnomalyCount, rear.Samples.Length, td.Metadata.SampleRate);
             }
             else
             {
                 td.Rear.Present = false;
             }
-            td.Rear.AnomalyRate = rawData.RearAnomalyRate;
         }
 
         td.CalculateAirTimes();
@@ -451,436 +296,19 @@ public class TelemetryData
 
     public static TelemetryData FromLiveCapture(LiveTelemetryCapture capture)
     {
-        var front = capture.FrontMeasurements.ToArray();
-        var rear = capture.RearMeasurements.ToArray();
-
-        var frontAnomalyCount = 0;
-        var rearAnomalyCount = 0;
-
-        if (front.Length > 0)
-        {
-            var fixedFront = SpikeElimination.EliminateSpikes(Array.ConvertAll(front, v => (int)v));
-            front = fixedFront.fixedSignal;
-            frontAnomalyCount = fixedFront.anomalyCount;
-        }
-
-        if (rear.Length > 0)
-        {
-            var fixedRear = SpikeElimination.EliminateSpikes(Array.ConvertAll(rear, v => (int)v));
-            rear = fixedRear.fixedSignal;
-            rearAnomalyCount = fixedRear.anomalyCount;
-        }
-
         var rawData = new RawTelemetryData
         {
             Version = 4,
             SampleRate = (ushort)Math.Clamp(capture.Metadata.SampleRate, 0, ushort.MaxValue),
             Timestamp = capture.Metadata.Timestamp,
-            Front = front,
-            Rear = rear,
-            FrontAnomalyRate = CalculateAnomalyRate(frontAnomalyCount, front.Length, capture.Metadata.SampleRate),
-            RearAnomalyRate = CalculateAnomalyRate(rearAnomalyCount, rear.Length, capture.Metadata.SampleRate),
+            Front = capture.FrontMeasurements.ToArray(),
+            Rear = capture.RearMeasurements.ToArray(),
             Markers = capture.Markers,
             ImuData = capture.ImuData,
             GpsData = capture.GpsData,
         };
 
         return FromRecording(rawData, capture.Metadata, capture.BikeData, logLifecycle: false);
-    }
-
-    #endregion
-
-    #region Data calculations
-
-    public HistogramData CalculateTravelHistogram(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-
-        var hist = new double[suspension.TravelBins.Length - 1];
-        var totalCount = 0;
-
-        foreach (var s in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
-        {
-            totalCount += s.Stat.Count;
-            foreach (var d in s.DigitizedTravel)
-            {
-                hist[d] += 1;
-            }
-        }
-
-        if (totalCount <= 0)
-        {
-            return new HistogramData(
-                suspension.TravelBins.ToList(),
-                [.. hist]);
-        }
-
-        hist = hist.Select(value => value / totalCount * 100.0).ToArray();
-
-        return new HistogramData(
-            suspension.TravelBins.ToList(), [.. hist]);
-    }
-
-    public StackedHistogramData CalculateVelocityHistogram(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-
-        var divider = (suspension.TravelBins.Length - 1) / TravelBinsForVelocityHistogram;
-        var hist = new double[suspension.VelocityBins.Length - 1][];
-        for (var i = 0; i < hist.Length; i++)
-        {
-            hist[i] = Generate.Repeat<double>(TravelBinsForVelocityHistogram, 0);
-        }
-
-        var totalCount = 0;
-        foreach (var s in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
-        {
-            totalCount += s.Stat.Count;
-            for (int i = 0; i < s.Stat.Count; ++i)
-            {
-                var vbin = s.DigitizedVelocity[i];
-                var tbin = s.DigitizedTravel[i] / divider;
-                hist[vbin][tbin] += 1;
-            }
-        }
-
-        if (totalCount <= 0)
-        {
-            return new StackedHistogramData(
-                suspension.VelocityBins.ToList(),
-                [.. hist]);
-        }
-
-        var largestBin = 0.0;
-        foreach (var travelHist in hist)
-        {
-            var travelSum = 0.0;
-            for (var j = 0; j < TravelBinsForVelocityHistogram; j++)
-            {
-                travelHist[j] = travelHist[j] / totalCount * 100.0;
-                travelSum += travelHist[j];
-            }
-
-            largestBin = Math.Max(travelSum, largestBin);
-        }
-
-        return new StackedHistogramData(
-            suspension.VelocityBins.ToList(), [.. hist]);
-    }
-
-    public NormalDistributionData CalculateNormalDistribution(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-        var step = suspension.VelocityBins[1] - suspension.VelocityBins[0];
-        var velocity = suspension.Velocity.ToList();
-
-        var strokeVelocity = new List<double>();
-        foreach (var s in suspension.Strokes.Compressions)
-        {
-            strokeVelocity.AddRange(velocity.GetRange(s.Start, s.End - s.Start + 1));
-        }
-        foreach (var s in suspension.Strokes.Rebounds)
-        {
-            strokeVelocity.AddRange(velocity.GetRange(s.Start, s.End - s.Start + 1));
-        }
-
-        if (strokeVelocity.Count < 2)
-        {
-            return new NormalDistributionData([], []);
-        }
-
-        var mu = strokeVelocity.Mean();
-        var std = strokeVelocity.StandardDeviation();
-
-        var min = strokeVelocity.Min();
-        var max = strokeVelocity.Max();
-        var range = max - min;
-        var ny = new double[100];
-        for (int i = 0; i < 100; i++)
-        {
-            ny[i] = min + i * range / 99;
-        }
-
-        var pdf = new List<double>(100);
-        for (int i = 0; i < 100; i++)
-        {
-            pdf.Add(Normal.PDF(mu, std, ny[i]) * step * 100);
-        }
-
-        return new NormalDistributionData([.. ny], pdf);
-    }
-
-    public TravelStatistics CalculateTravelStatistics(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-
-        var sum = 0.0;
-        var count = 0.0;
-        var mx = 0.0;
-        var bo = 0;
-
-        foreach (var stroke in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
-        {
-            sum += stroke.Stat.SumTravel;
-            count += stroke.Stat.Count;
-            bo += stroke.Stat.Bottomouts;
-            if (stroke.Stat.MaxTravel > mx)
-            {
-                mx = stroke.Stat.MaxTravel;
-            }
-        }
-
-        if (count <= 0)
-        {
-            return new TravelStatistics(0, 0, 0);
-        }
-
-        return new TravelStatistics(mx, sum / count, bo);
-    }
-
-    public VelocityStatistics CalculateVelocityStatistics(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-
-        var csum = 0.0;
-        var ccount = 0.0;
-        var maxc = 0.0;
-        foreach (var compression in suspension.Strokes.Compressions)
-        {
-            csum += compression.Stat.SumVelocity;
-            ccount += compression.Stat.Count;
-            if (compression.Stat.MaxVelocity > maxc)
-            {
-                maxc = compression.Stat.MaxVelocity;
-            }
-        }
-        var rsum = 0.0;
-        var rcount = 0.0;
-        var maxr = 0.0;
-        foreach (var rebound in suspension.Strokes.Rebounds)
-        {
-            rsum += rebound.Stat.SumVelocity;
-            rcount += rebound.Stat.Count;
-            if (rebound.Stat.MaxVelocity < maxr)
-            {
-                maxr = rebound.Stat.MaxVelocity;
-            }
-        }
-
-        return new VelocityStatistics(
-            rcount > 0 ? rsum / rcount : 0,
-            maxr,
-            ccount > 0 ? csum / ccount : 0,
-            maxc);
-    }
-
-    public VelocityBands CalculateVelocityBands(SuspensionType type, double highSpeedThreshold)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-        var velocity = suspension.Velocity;
-
-        var totalCount = 0.0;
-        var lsc = 0.0;
-        var hsc = 0.0;
-
-        // Process compressions
-        foreach (var compression in suspension.Strokes.Compressions)
-        {
-            totalCount += compression.Stat.Count;
-            for (int i = compression.Start; i <= compression.End; i++)
-            {
-                if (velocity[i] < highSpeedThreshold)
-                {
-                    lsc++;
-                }
-                else
-                {
-                    hsc++;
-                }
-            }
-        }
-
-        var lsr = 0.0;
-        var hsr = 0.0;
-
-        // Process rebounds
-        foreach (var rebound in suspension.Strokes.Rebounds)
-        {
-            totalCount += rebound.Stat.Count;
-            for (int i = rebound.Start; i <= rebound.End; i++)
-            {
-                if (velocity[i] > -highSpeedThreshold)
-                {
-                    lsr++;
-                }
-                else
-                {
-                    hsr++;
-                }
-            }
-        }
-
-        if (totalCount <= 0)
-        {
-            return new VelocityBands(0, 0, 0, 0);
-        }
-
-        var totalPercentage = 100.0 / totalCount;
-        return new VelocityBands(
-            lsc * totalPercentage,
-            hsc * totalPercentage,
-            lsr * totalPercentage,
-            hsr * totalPercentage);
-    }
-
-    private static Func<double, double> FitPolynomial(double[] x, double[] y)
-    {
-        if (x.Length == 0 || y.Length == 0)
-        {
-            return _ => 0;
-        }
-
-        if (x.Length == 1 || y.Length == 1)
-        {
-            return _ => y[0];
-        }
-
-        var coefficients = Fit.Polynomial(x, y, 1);
-        return t => coefficients[1] * t + coefficients[0];
-    }
-
-    public bool HasStrokeData(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-        if (!suspension.Present || suspension.Strokes is null)
-        {
-            return false;
-        }
-
-        return suspension.Strokes.Compressions.Length > 0 || suspension.Strokes.Rebounds.Length > 0;
-    }
-
-    private (double[], double[]) TravelVelocity(SuspensionType suspensionType, BalanceType balanceType)
-    {
-        Debug.Assert(suspensionType != SuspensionType.Front || Front.MaxTravel is not null);
-        Debug.Assert(suspensionType != SuspensionType.Rear || Rear.MaxTravel is not null);
-
-        var suspension = suspensionType == SuspensionType.Front ? Front : Rear;
-        var travelMax = suspensionType == SuspensionType.Front ? Front.MaxTravel!.Value : Rear.MaxTravel!.Value;
-        var strokes = balanceType == BalanceType.Compression
-            ? suspension.Strokes.Compressions
-            : suspension.Strokes.Rebounds;
-
-        var t = new List<double>();
-        var v = new List<double>();
-
-        foreach (var s in strokes)
-        {
-            t.Add(s.Stat.MaxTravel / travelMax * 100);
-
-            // Use positive values for rebound too, because ScottPlot can't invert axis easily. 
-            v.Add(balanceType == BalanceType.Rebound ? -s.Stat.MaxVelocity : s.Stat.MaxVelocity);
-        }
-
-        var tArray = t.ToArray();
-        var vArray = v.ToArray();
-
-        Array.Sort(tArray, vArray);
-
-        return (tArray, vArray);
-    }
-
-    public bool HasBalanceData(BalanceType type)
-    {
-        if (!HasStrokeData(SuspensionType.Front) || !HasStrokeData(SuspensionType.Rear))
-        {
-            return false;
-        }
-
-        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type);
-        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type);
-
-        return frontTravelVelocity.Item1.Length >= 2 && rearTravelVelocity.Item1.Length >= 2;
-    }
-
-    public BalanceData CalculateBalance(BalanceType type)
-    {
-        var frontTravelVelocity = TravelVelocity(SuspensionType.Front, type);
-        var rearTravelVelocity = TravelVelocity(SuspensionType.Rear, type);
-
-        if (frontTravelVelocity.Item1.Length == 0 || rearTravelVelocity.Item1.Length == 0)
-        {
-            return new BalanceData([], [], [], [], [], [], 0);
-        }
-
-        var frontPoly = FitPolynomial(frontTravelVelocity.Item1, frontTravelVelocity.Item2);
-        var rearPoly = FitPolynomial(rearTravelVelocity.Item1, rearTravelVelocity.Item2);
-
-        var frontTrend = frontTravelVelocity.Item1.Select(t => frontPoly(t)).ToList();
-        var rearTrend = rearTravelVelocity.Item1.Select(t => rearPoly(t)).ToList();
-
-        var pairedCount = Math.Min(frontTrend.Count, rearTrend.Count);
-        var sum = frontTrend.Zip(rearTrend, (fx, gx) => fx - gx).Sum();
-        var msd = pairedCount == 0 ? 0 : sum / pairedCount;
-
-        return new BalanceData(
-            [.. frontTravelVelocity.Item1],
-            [.. frontTravelVelocity.Item2],
-            frontTravelVelocity.Item1.Select(t => frontPoly(t)).ToList(),
-            [.. rearTravelVelocity.Item1],
-            [.. rearTravelVelocity.Item2],
-            rearTravelVelocity.Item1.Select(t => rearPoly(t)).ToList(),
-            msd);
-    }
-
-    public HistogramData CalculateTravelFrequencyHistogram(SuspensionType type)
-    {
-        var suspension = type == SuspensionType.Front ? Front : Rear;
-
-        // Calculate mean
-        double sum = 0;
-        foreach (var t in suspension.Travel)
-        {
-            sum += t;
-        }
-        var mean = sum / suspension.Travel.Length;
-
-        // Determine final size (minimum 20000)
-        var n = Math.Max(20000, suspension.Travel.Length);
-        var complexSignal = new Complex[n];
-
-        // Center travel data and pad
-        for (var i = 0; i < suspension.Travel.Length; i++)
-        {
-            complexSignal[i] = new Complex(suspension.Travel[i] - mean, 0);
-        }
-
-        for (var i = suspension.Travel.Length; i < n; i++)
-        {
-            complexSignal[i] = Complex.Zero;
-        }
-
-        // Perform FFT
-        Fourier.Forward(complexSignal, FourierOptions.Matlab);
-
-        // Prepare output arrays
-        var halfN = n / 2 + 1;
-        var frequencies = new List<double>(halfN);
-        var spectrum = new List<double>(halfN);
-
-        var tick = 1.0 / Metadata.SampleRate;
-
-        for (var i = 0; i < halfN; i++)
-        {
-            var freq = i / (n * tick);
-            if (freq > 10) break;
-
-            frequencies.Add(freq);
-            var c = complexSignal[i];
-            spectrum.Add(c.Magnitude * c.Magnitude);
-        }
-
-        return new HistogramData(frequencies, spectrum);
     }
 
     #endregion

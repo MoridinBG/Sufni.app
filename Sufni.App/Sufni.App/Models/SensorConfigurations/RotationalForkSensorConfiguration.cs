@@ -15,6 +15,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration, ISensorCon
     [JsonPropertyName("max_length")] public double MaxLength { get; init; }
     [JsonPropertyName("arm_length")] public double ArmLength { get; init; }
     [JsonPropertyName("type")] public override SensorType Type { get; set; } = SensorType.RotationalFork;
+    [JsonIgnore] public bool MeasurementWraps => true;
     [JsonIgnore]
     public Func<ushort, double> MeasurementToTravel
     {

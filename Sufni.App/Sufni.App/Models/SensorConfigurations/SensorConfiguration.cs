@@ -18,6 +18,7 @@ public interface ISensorConfiguration
 {
     public SensorType Type { get; set; }
     public Func<ushort, double> MeasurementToTravel { get; }
+    public bool MeasurementWraps { get; }
     [JsonIgnore] public double MaxTravel { get; }
 }
 

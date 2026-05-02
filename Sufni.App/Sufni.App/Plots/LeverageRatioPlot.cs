@@ -23,6 +23,8 @@ public class LeverageRatioPlot(Plot plot) : SufniPlot(plot)
         var leverageRatioMin = leverageRatioData.Y.Min() * 0.98;
         var leverageRatioMax = leverageRatioData.Y.Max() * 1.02;
         Plot.Axes.SetLimits(0, travelMax, leverageRatioMin, leverageRatioMax);
+        Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
+            0, travelMax, leverageRatioMin, leverageRatioMax));
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(20);
 
         var scatter = Plot.Add.Scatter(leverageRatioData.X, leverageRatioData.Y);

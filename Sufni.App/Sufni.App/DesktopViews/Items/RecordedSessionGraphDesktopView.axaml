@@ -30,6 +30,7 @@ mc:Ignorable="d">
                     <plots:TravelPlotDesktopView
                     Name="Travel"
                     Grid.Row="0"
+                    AnalysisRange="{Binding AnalysisRange}"
                     Telemetry="{Binding TelemetryData}"
                     Timeline="{Binding Timeline}"
                     VelocityPlotView="{Binding #Velocity}"

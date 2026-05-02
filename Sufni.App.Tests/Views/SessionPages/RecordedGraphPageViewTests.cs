@@ -161,9 +161,24 @@ public class RecordedGraphPageViewTests
         SurfacePresentationState imuGraphState) : IRecordedSessionGraphWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
+        public TelemetryTimeRange? AnalysisRange { get; private set; }
         public SurfacePresentationState TravelGraphState { get; } = travelGraphState;
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+
+        public void SetAnalysisRange(double startSeconds, double endSeconds)
+        {
+            AnalysisRange = TelemetryTimeRange.TryCreate(startSeconds, endSeconds, out var range)
+                ? range
+                : null;
+        }
+
+        public void ClearAnalysisRange()
+        {
+            AnalysisRange = null;
+        }
+
+        public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds) { }
     }
 
     private sealed class SessionMediaWorkspaceStub : ISessionMediaWorkspace

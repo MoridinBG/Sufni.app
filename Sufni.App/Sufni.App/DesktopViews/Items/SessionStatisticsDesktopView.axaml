@@ -4,6 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:itemviews="clr-namespace:Sufni.App.Views.Items"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
@@ -35,11 +36,23 @@ mc:Ignorable="d">
                 <TabItem
                 HorizontalAlignment="Center"
                 FontSize="16"
+                Header="Strokes" />
+                <TabItem
+                HorizontalAlignment="Center"
+                FontSize="16"
                 Header="Damping" />
                 <TabItem
                 HorizontalAlignment="Center"
                 FontSize="16"
                 Header="Balance" />
+                <TabItem
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Vibration" />
+                <TabItem
+                HorizontalAlignment="Center"
+                FontSize="16"
+                Header="Analysis" />
             </TabStrip.Items>
         </TabStrip>
 
@@ -54,61 +67,195 @@ mc:Ignorable="d">
 
                 <!--  Spring rate  -->
                 <Grid
-                Name="SpringRate">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    </Grid.ColumnDefinitions>
+                Name="SpringRate"
+                Margin="8"
+                RowDefinitions="Auto,*">
+                    <ComboBox
+                    Name="TravelHistogramModeComboBox"
+                    Grid.Row="0"
+                    Width="170"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,8"
+                    ItemsSource="{Binding TravelHistogramModeOptions}"
+                    SelectedValue="{Binding SelectedTravelHistogramMode, Mode=TwoWay}"
+                    SelectedValueBinding="{Binding Value, DataType=vm:TravelHistogramModeOption}"
+                    ToolTip.Tip="Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TravelHistogramModeOption">
+                                <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
 
-                    <controls:PlaceholderOverlayContainer Grid.Column="0" Margin="0,0,8,0" PresentationState="{Binding FrontStatisticsState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <Grid RowDefinitions="3* Auto 2*">
-                                <plots:SessionStatisticsPlotView
-                                PlotKind="TravelHistogram"
-                                SuspensionType="Front"
-                                Telemetry="{Binding TelemetryData}" />
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                            <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        </Grid.ColumnDefinitions>
 
-                                <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+                        <controls:PlaceholderOverlayContainer Grid.Column="0" Margin="0,0,8,0" PresentationState="{Binding FrontStatisticsState}">
+                            <controls:PlaceholderOverlayContainer.ReadyContent>
+                                <Grid RowDefinitions="3* Auto 2*">
+                                    <plots:SessionStatisticsPlotView
+                                    AnalysisRange="{Binding AnalysisRange}"
+                                    PlotKind="TravelHistogram"
+                                    SuspensionType="Front"
+                                    TravelHistogramMode="{Binding SelectedTravelHistogramMode}"
+                                    Telemetry="{Binding TelemetryData}" />
 
-                                <plots:SessionStatisticsPlotView
-                                Grid.Row="2"
-                                PlotKind="TravelFrequencyHistogram"
-                                SuspensionType="Front"
-                                Telemetry="{Binding TelemetryData}" />
-                            </Grid>
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Front spring" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
+                                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-                    <controls:PlaceholderOverlayContainer Grid.Column="1" Margin="8,0,0,0" PresentationState="{Binding RearStatisticsState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <Grid RowDefinitions="3* Auto 2*">
-                                <plots:SessionStatisticsPlotView
-                                PlotKind="TravelHistogram"
-                                SuspensionType="Rear"
-                                Telemetry="{Binding TelemetryData}" />
+                                    <plots:SessionStatisticsPlotView
+                                    AnalysisRange="{Binding AnalysisRange}"
+                                    Grid.Row="2"
+                                    PlotKind="TravelFrequencyHistogram"
+                                    SuspensionType="Front"
+                                    Telemetry="{Binding TelemetryData}" />
+                                </Grid>
+                            </controls:PlaceholderOverlayContainer.ReadyContent>
+                            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="Front spring" />
+                            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        </controls:PlaceholderOverlayContainer>
 
-                                <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+                        <controls:PlaceholderOverlayContainer Grid.Column="1" Margin="8,0,0,0" PresentationState="{Binding RearStatisticsState}">
+                            <controls:PlaceholderOverlayContainer.ReadyContent>
+                                <Grid RowDefinitions="3* Auto 2*">
+                                    <plots:SessionStatisticsPlotView
+                                    AnalysisRange="{Binding AnalysisRange}"
+                                    PlotKind="TravelHistogram"
+                                    SuspensionType="Rear"
+                                    TravelHistogramMode="{Binding SelectedTravelHistogramMode}"
+                                    Telemetry="{Binding TelemetryData}" />
 
-                                <plots:SessionStatisticsPlotView
-                                Grid.Row="2"
-                                PlotKind="TravelFrequencyHistogram"
-                                SuspensionType="Rear"
-                                Telemetry="{Binding TelemetryData}" />
-                            </Grid>
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Rear spring" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
+                                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+                                    <plots:SessionStatisticsPlotView
+                                    AnalysisRange="{Binding AnalysisRange}"
+                                    Grid.Row="2"
+                                    PlotKind="TravelFrequencyHistogram"
+                                    SuspensionType="Rear"
+                                    Telemetry="{Binding TelemetryData}" />
+                                </Grid>
+                            </controls:PlaceholderOverlayContainer.ReadyContent>
+                            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="Rear spring" />
+                            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        </controls:PlaceholderOverlayContainer>
+                    </Grid>
+                </Grid>
+
+                <!--  Strokes  -->
+                <Grid Name="Strokes">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                                <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                            </Grid.ColumnDefinitions>
+
+                            <controls:PlaceholderOverlayContainer Grid.Column="0" Margin="0,0,8,0" PresentationState="{Binding FrontStatisticsState}">
+                                <controls:PlaceholderOverlayContainer.ReadyContent>
+                                    <Grid RowDefinitions="220,220,220,220,180" RowSpacing="8">
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="1"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="2"
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="3"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Front"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="4"
+                                        PlotKind="DeepTravelHistogram"
+                                        SuspensionType="Front"
+                                        Telemetry="{Binding TelemetryData}" />
+                                    </Grid>
+                                </controls:PlaceholderOverlayContainer.ReadyContent>
+                                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                    <controls:SurfacePlaceholderCard Title="Front strokes" />
+                                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            </controls:PlaceholderOverlayContainer>
+
+                            <controls:PlaceholderOverlayContainer Grid.Column="1" Margin="8,0,0,0" PresentationState="{Binding RearStatisticsState}">
+                                <controls:PlaceholderOverlayContainer.ReadyContent>
+                                    <Grid RowDefinitions="220,220,220,220,180" RowSpacing="8">
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="1"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Compression"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="2"
+                                        PlotKind="StrokeLengthHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="3"
+                                        PlotKind="StrokeSpeedHistogram"
+                                        SuspensionType="Rear"
+                                        BalanceType="Rebound"
+                                        Telemetry="{Binding TelemetryData}" />
+
+                                        <plots:SessionStatisticsPlotView
+                                        AnalysisRange="{Binding AnalysisRange}"
+                                        Grid.Row="4"
+                                        PlotKind="DeepTravelHistogram"
+                                        SuspensionType="Rear"
+                                        Telemetry="{Binding TelemetryData}" />
+                                    </Grid>
+                                </controls:PlaceholderOverlayContainer.ReadyContent>
+                                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                    <controls:SurfacePlaceholderCard Title="Rear strokes" />
+                                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            </controls:PlaceholderOverlayContainer>
+                        </Grid>
+                    </ScrollViewer>
                 </Grid>
 
                 <!--  Damping  -->
                 <Grid
                 Name="Damping"
-                RowDefinitions="auto *">
+                Margin="8"
+                RowDefinitions="auto auto *">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=64}" />
@@ -118,16 +265,37 @@ mc:Ignorable="d">
 
                     <!--  Travel percentage legend  -->
                     <plots:TravelPercentageLegend
-                    Grid.Row="0"
+                    Grid.Row="1"
                     Grid.Column="0"
                     Margin="38,0,8,0"
                     IsVisible="{Binding FrontStatisticsState.IsReady}" />
 
-                    <controls:PlaceholderOverlayContainer Grid.Row="1" Grid.Column="0" PresentationState="{Binding FrontStatisticsState}">
+                    <ComboBox
+                    Name="VelocityAverageModeComboBox"
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="4"
+                    Width="190"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,8"
+                    ItemsSource="{Binding VelocityAverageModeOptions}"
+                    SelectedValue="{Binding SelectedVelocityAverageMode, Mode=TwoWay}"
+                    SelectedValueBinding="{Binding Value, DataType=vm:VelocityAverageModeOption}"
+                    ToolTip.Tip="Sample-averaged uses all stroke samples. Stroke-peak average uses one peak-speed event per stroke.">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VelocityAverageModeOption">
+                                <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <controls:PlaceholderOverlayContainer Grid.Row="2" Grid.Column="0" PresentationState="{Binding FrontStatisticsState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding AnalysisRange}"
                             PlotKind="VelocityHistogram"
                             SuspensionType="Front"
+                            VelocityAverageMode="{Binding SelectedVelocityAverageMode}"
                             Telemetry="{Binding TelemetryData}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -137,7 +305,7 @@ mc:Ignorable="d">
 
                     <!--  Front speed zones  -->
                     <commonplots:VelocityBandView
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Grid.Column="1"
                     HscPercentage="{Binding DamperPercentages.FrontHscPercentage}"
                     HsrPercentage="{Binding DamperPercentages.FrontHsrPercentage}"
@@ -147,16 +315,18 @@ mc:Ignorable="d">
 
                     <!--  Travel percentage legend  -->
                     <plots:TravelPercentageLegend
-                    Grid.Row="0"
+                    Grid.Row="1"
                     Grid.Column="2"
                     Margin="38,0,8,0"
                     IsVisible="{Binding RearStatisticsState.IsReady}" />
 
-                    <controls:PlaceholderOverlayContainer Grid.Row="1" Grid.Column="2" PresentationState="{Binding RearStatisticsState}">
+                    <controls:PlaceholderOverlayContainer Grid.Row="2" Grid.Column="2" PresentationState="{Binding RearStatisticsState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding AnalysisRange}"
                             PlotKind="VelocityHistogram"
                             SuspensionType="Rear"
+                            VelocityAverageMode="{Binding SelectedVelocityAverageMode}"
                             Telemetry="{Binding TelemetryData}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -166,7 +336,7 @@ mc:Ignorable="d">
 
                     <!--  Rear speed zones  -->
                     <commonplots:VelocityBandView
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Grid.Column="3"
                     HscPercentage="{Binding DamperPercentages.RearHscPercentage}"
                     HsrPercentage="{Binding DamperPercentages.RearHsrPercentage}"
@@ -176,37 +346,171 @@ mc:Ignorable="d">
                 </Grid>
 
                 <!--  Balance graphs  -->
-                <Grid Name="Balance">
+                <Grid Name="Balance" Margin="8" RowDefinitions="Auto,*">
+                    <ComboBox
+                    Name="BalanceDisplacementModeComboBox"
+                    Grid.Row="0"
+                    Width="150"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,8"
+                    ItemsSource="{Binding BalanceDisplacementModeOptions}"
+                    SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
+                    SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
+                    ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BalanceDisplacementModeOption">
+                                <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding CompressionBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                            <ColumnDefinition Width="{Binding ReboundBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        </Grid.ColumnDefinitions>
+
+                        <controls:PlaceholderOverlayContainer Grid.Column="0" PresentationState="{Binding CompressionBalanceState}">
+                            <controls:PlaceholderOverlayContainer.ReadyContent>
+                                <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
+                                BalanceType="Compression"
+                                BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
+                                IsHitTestVisible="False"
+                                PlotKind="Balance"
+                                Telemetry="{Binding TelemetryData}" />
+                            </controls:PlaceholderOverlayContainer.ReadyContent>
+                            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="Compression balance" />
+                            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        </controls:PlaceholderOverlayContainer>
+
+                        <controls:PlaceholderOverlayContainer Grid.Column="1" PresentationState="{Binding ReboundBalanceState}">
+                            <controls:PlaceholderOverlayContainer.ReadyContent>
+                                <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
+                                BalanceType="Rebound"
+                                BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
+                                IsHitTestVisible="False"
+                                PlotKind="Balance"
+                                Telemetry="{Binding TelemetryData}" />
+                            </controls:PlaceholderOverlayContainer.ReadyContent>
+                            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="Rebound balance" />
+                            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        </controls:PlaceholderOverlayContainer>
+                    </Grid>
+                </Grid>
+
+                <!--  Vibration  -->
+                <Grid Name="Vibration" Margin="8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="{Binding CompressionBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding ReboundBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding FrontForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding FrontFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding RearForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding RearFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                     </Grid.ColumnDefinitions>
 
-                    <controls:PlaceholderOverlayContainer Grid.Column="0" PresentationState="{Binding CompressionBalanceState}">
+                    <controls:PlaceholderOverlayContainer Grid.Column="0" Margin="0,0,4,0" PresentationState="{Binding FrontForkVibrationState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:SessionStatisticsPlotView
-                            BalanceType="Compression"
-                            IsHitTestVisible="False"
-                            PlotKind="Balance"
-                            Telemetry="{Binding TelemetryData}" />
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
+                                AnalysisRange="{Binding AnalysisRange}"
+                                SuspensionType="Front"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Front"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Compression balance" />
+                            <controls:SurfacePlaceholderCard Title="Front (fork)" />
                         </controls:PlaceholderOverlayContainer.PlaceholderContent>
                     </controls:PlaceholderOverlayContainer>
 
-                    <controls:PlaceholderOverlayContainer Grid.Column="1" PresentationState="{Binding ReboundBalanceState}">
+                    <controls:PlaceholderOverlayContainer Grid.Column="1" Margin="4,0,4,0" PresentationState="{Binding FrontFrameVibrationState}">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:SessionStatisticsPlotView
-                            BalanceType="Rebound"
-                            IsHitTestVisible="False"
-                            PlotKind="Balance"
-                            Telemetry="{Binding TelemetryData}" />
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
+                                AnalysisRange="{Binding AnalysisRange}"
+                                SuspensionType="Front"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Front"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Rebound balance" />
+                            <controls:SurfacePlaceholderCard Title="Front (frame)" />
                         </controls:PlaceholderOverlayContainer.PlaceholderContent>
                     </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Column="2" Margin="4,0,4,0" PresentationState="{Binding RearForkVibrationState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
+                                AnalysisRange="{Binding AnalysisRange}"
+                                SuspensionType="Rear"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Rear"
+                                ImuLocation="Fork"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Rear (fork)" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Column="3" Margin="4,0,0,0" PresentationState="{Binding RearFrameVibrationState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <Grid RowDefinitions="Auto,*">
+                                <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
+                                AnalysisRange="{Binding AnalysisRange}"
+                                SuspensionType="Rear"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+
+                                <plots:SessionStatisticsPlotView
+                                AnalysisRange="{Binding AnalysisRange}"
+                                Grid.Row="1"
+                                PlotKind="VibrationThirds"
+                                SuspensionType="Rear"
+                                ImuLocation="Frame"
+                                Telemetry="{Binding TelemetryData}" />
+                            </Grid>
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Rear (frame)" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+                </Grid>
+
+                <!--  Analysis  -->
+                <Grid Name="Analysis" Margin="8">
+                    <itemviews:SessionAnalysisView />
                 </Grid>
             </ItemsControl.Items>
         </ItemsControl>

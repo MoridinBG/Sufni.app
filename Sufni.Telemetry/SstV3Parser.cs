@@ -69,8 +69,8 @@ public class SstV3Parser : ISstParser
 
         var count = (int)(payloadLength / TelemetryRecordSize);
 
-        var front = new int[count];
-        var rear = new int[count];
+        var front = new ushort[count];
+        var rear = new ushort[count];
         var frontPresent = count > 0;
         var rearPresent = count > 0;
         for (var i = 0; i < count; i++)
@@ -99,16 +99,12 @@ public class SstV3Parser : ISstParser
 
         if (frontPresent)
         {
-            var (fixedFront, frontAnomalyCount) = SpikeElimination.EliminateSpikes(front);
-            rtd.Front = fixedFront;
-            rtd.FrontAnomalyRate = (double)frontAnomalyCount / rtd.Front.Length * rtd.SampleRate;
+            rtd.Front = front;
         }
 
         if (rearPresent)
         {
-            var (fixedRear, rearAnomalyCount) = SpikeElimination.EliminateSpikes(rear);
-            rtd.Rear = fixedRear;
-            rtd.RearAnomalyRate = (double)rearAnomalyCount / rtd.Rear.Length * rtd.SampleRate;
+            rtd.Rear = rear;
         }
 
         return rtd;

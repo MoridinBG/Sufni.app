@@ -17,7 +17,9 @@ public static class TelemetryBikeData
             frontSensorConfiguration?.MaxTravel,
             rearTravelCalibration?.MaxTravel,
             frontSensorConfiguration?.MeasurementToTravel,
-            rearTravelCalibration?.MeasurementToTravel);
+            rearTravelCalibration?.MeasurementToTravel,
+            frontSensorConfiguration?.MeasurementWraps ?? false,
+            rearTravelCalibration?.MeasurementWraps ?? false);
     }
 
     public static BikeData Create(Setup setup, Bike bike)

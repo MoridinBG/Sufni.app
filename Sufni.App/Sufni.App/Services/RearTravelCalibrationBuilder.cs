@@ -106,7 +106,7 @@ internal static class RearTravelCalibrationBuilder
             _ => bike.ShockStroke ?? configuration.Length,
         };
 
-        return BuildTravelCalibration(rearSuspension, maxShockStroke, measurement => measurement * measurementToStroke);
+        return BuildTravelCalibration(rearSuspension, maxShockStroke, measurement => measurement * measurementToStroke, measurementWraps: false);
     }
 
     private static RearTravelCalibration BuildRotationalCalibration(
@@ -146,20 +146,23 @@ internal static class RearTravelCalibrationBuilder
                 }
 
                 return polynomial.Evaluate(startAngle + measuredAngle);
-            });
+            },
+            measurementWraps: true);
     }
 
     private static RearTravelCalibration BuildTravelCalibration(
         RearSuspension rearSuspension,
         double maxShockStroke,
-        Func<ushort, double> measurementToShockStroke)
+        Func<ushort, double> measurementToShockStroke,
+        bool measurementWraps)
     {
         return rearSuspension switch
         {
-            LinkageRearSuspension linkageRearSuspension => BuildLinkageTravelCalibration(linkageRearSuspension.Linkage, maxShockStroke, measurementToShockStroke),
+            LinkageRearSuspension linkageRearSuspension => BuildLinkageTravelCalibration(linkageRearSuspension.Linkage, maxShockStroke, measurementToShockStroke, measurementWraps),
             LeverageRatioRearSuspension leverageRatioRearSuspension => new RearTravelCalibration(
                 leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(maxShockStroke),
-                measurement => leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(Math.Min(maxShockStroke, measurementToShockStroke(measurement)))),
+                measurement => leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(Math.Min(maxShockStroke, measurementToShockStroke(measurement))),
+                measurementWraps),
             _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension)),
         };
     }
@@ -167,13 +170,15 @@ internal static class RearTravelCalibrationBuilder
     private static RearTravelCalibration BuildLinkageTravelCalibration(
         Linkage linkage,
         double maxShockStroke,
-        Func<ushort, double> measurementToShockStroke)
+        Func<ushort, double> measurementToShockStroke,
+        bool measurementWraps)
     {
         var solution = new KinematicSolver(linkage).SolveSuspensionMotion();
         var dataset = new BikeCharacteristics(solution).ShockStrokeToWheelTravelDataset();
         return new RearTravelCalibration(
             dataset.Y[^1],
-            measurement => Interpolate(dataset.X, dataset.Y, Math.Min(maxShockStroke, measurementToShockStroke(measurement))));
+            measurement => Interpolate(dataset.X, dataset.Y, Math.Min(maxShockStroke, measurementToShockStroke(measurement))),
+            measurementWraps);
     }
 
     private static double Interpolate(IReadOnlyList<double> x, IReadOnlyList<double> y, double value)

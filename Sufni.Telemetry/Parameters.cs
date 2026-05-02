@@ -31,4 +31,7 @@ public static class Parameters
 
     // number of travel histogram bins
     public const int TravelHistBins = 20;
+
+    // ratio from which deep travel stroke counts start
+    public const double DeepTravelThresholdRatio = 0.75;
 }
