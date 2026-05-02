@@ -11,6 +11,7 @@ using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
@@ -249,6 +250,7 @@ public class RecordedSessionGraphDesktopViewTests
         public SurfacePresentationState TravelGraphState => travelGraphState ?? CreateTravelState(TelemetryData);
         public SurfacePresentationState VelocityGraphState => velocityGraphState ?? TravelGraphState;
         public SurfacePresentationState ImuGraphState => imuGraphState ?? CreateImuState(TelemetryData);
+        public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)

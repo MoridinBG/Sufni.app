@@ -22,6 +22,11 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     public IObservable<LiveGraphBatch> GraphBatches { get; }
     public LiveSessionPlotRanges PlotRanges { get; }
     public SessionTimelineLinkViewModel Timeline { get; }
+    public SessionPlotPreferences PlotPreferences
+    {
+        get => plotPreferences;
+        private set => SetProperty(ref plotPreferences, value);
+    }
     public SurfacePresentationState TravelGraphState
     {
         get => travelGraphState;
@@ -89,7 +94,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
 
     public void ApplyPlotPreferences(SessionPlotPreferences preferences)
     {
-        plotPreferences = preferences;
+        PlotPreferences = preferences;
         RefreshStates();
     }
 

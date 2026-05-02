@@ -32,6 +32,7 @@ mc:Ignorable="d">
                 x:Name="TravelPlot"
                 GraphBatches="{Binding GraphBatches}"
                 MaximumY="{Binding PlotRanges.TravelMaximum}"
+                SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
                 Timeline="{Binding Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 
@@ -60,6 +61,7 @@ mc:Ignorable="d">
                 GraphBatches="{Binding GraphBatches}"
                 MinimumY="{Binding PlotRanges.VelocityMinimum}"
                 MaximumY="{Binding PlotRanges.VelocityMaximum}"
+                SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
                 Timeline="{Binding Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 
@@ -87,6 +89,7 @@ mc:Ignorable="d">
                 x:Name="ImuPlot"
                 GraphBatches="{Binding GraphBatches}"
                 MaximumY="{Binding PlotRanges.ImuMaximum}"
+                SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
                 Timeline="{Binding Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 

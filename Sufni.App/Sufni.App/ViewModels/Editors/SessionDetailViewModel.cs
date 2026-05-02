@@ -65,6 +65,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
+    private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -76,6 +77,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public DamperPageViewModel DamperPage { get; } = new();
     public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
     public NotesPageViewModel NotesPage { get; } = new();
+    public SessionPlotPreferences PlotPreferences
+    {
+        get => plotPreferences;
+        private set => SetProperty(ref plotPreferences, value);
+    }
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
 
@@ -871,6 +877,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private void ApplyRecordedPreferences(SessionPreferences preferences)
     {
         recordedPreferences = preferences;
+        PlotPreferences = preferences.Plots;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);
         RefreshRecordedGraphStates();
@@ -894,12 +901,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void OnPlotPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(PlotPreferenceItemViewModel.Selected))
+        if (args.PropertyName is not (nameof(PlotPreferenceItemViewModel.Selected) or nameof(PlotPreferenceItemViewModel.SelectedSmoothing)))
         {
             return;
         }
 
         var plots = PreferencesPage.CreatePlotPreferences();
+        PlotPreferences = plots;
         recordedPreferences = recordedPreferences with { Plots = plots };
         RefreshRecordedGraphStates();
         PersistRecordedPreferenceChangeIfEnabled(current => current with { Plots = plots });

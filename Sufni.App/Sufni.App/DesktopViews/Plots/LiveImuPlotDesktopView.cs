@@ -10,6 +10,7 @@ public sealed class LiveImuPlotDesktopView : LiveGraphPlotDesktopViewBase
     {
         Debug.Assert(HasPlotControl);
         Plot = new LiveImuPlot(PlotControl.Plot, MaximumY ?? 5);
+        ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();
     }

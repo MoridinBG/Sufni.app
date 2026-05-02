@@ -233,13 +233,19 @@ public sealed class AppPreferences : IAppPreferences
         public bool? Travel { get; set; }
         public bool? Velocity { get; set; }
         public bool? Imu { get; set; }
+        public string? TravelSmoothing { get; set; }
+        public string? VelocitySmoothing { get; set; }
+        public string? ImuSmoothing { get; set; }
 
         public SessionPlotPreferences ToModel()
         {
             return new SessionPlotPreferences(
                 Travel ?? true,
                 Velocity ?? true,
-                Imu ?? true);
+                Imu ?? true,
+                ParseEnum(TravelSmoothing, PlotSmoothingLevel.Off),
+                ParseEnum(VelocitySmoothing, PlotSmoothingLevel.Off),
+                ParseEnum(ImuSmoothing, PlotSmoothingLevel.Off));
         }
 
         public static SessionPlotPreferencesDocument FromModel(SessionPlotPreferences preferences)
@@ -249,7 +255,18 @@ public sealed class AppPreferences : IAppPreferences
                 Travel = preferences.Travel,
                 Velocity = preferences.Velocity,
                 Imu = preferences.Imu,
+                TravelSmoothing = preferences.TravelSmoothing.ToString(),
+                VelocitySmoothing = preferences.VelocitySmoothing.ToString(),
+                ImuSmoothing = preferences.ImuSmoothing.ToString(),
             };
+        }
+
+        private static TEnum ParseEnum<TEnum>(string? value, TEnum fallback)
+            where TEnum : struct, Enum
+        {
+            return Enum.TryParse<TEnum>(value, ignoreCase: false, out var parsed)
+                ? parsed
+                : fallback;
         }
     }
 

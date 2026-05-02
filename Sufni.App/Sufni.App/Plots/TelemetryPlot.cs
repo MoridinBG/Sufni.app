@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -110,6 +111,7 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     private const float MarkerLineWidth = 2.0f;
 
     public int? MaximumDisplayHz { get; set; }
+    public PlotSmoothingLevel SmoothingLevel { get; set; }
     public TelemetryTimeRange? AnalysisRange { get; set; }
 
     protected void ConfigureRightAxisStyle()
@@ -165,7 +167,8 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 
     protected (double[] Samples, double Step) PrepareDisplaySignal(double[] samples, int sampleRate)
     {
-        return TelemetryDisplayDownsampling.Prepare(samples, sampleRate, MaximumDisplayHz);
+        var (displaySamples, step) = TelemetryDisplayDownsampling.Prepare(samples, sampleRate, MaximumDisplayHz);
+        return (TelemetryDisplaySmoothing.Apply(displaySamples, SmoothingLevel), step);
     }
 
     public virtual void LoadTelemetryData(TelemetryData telemetryData) { }

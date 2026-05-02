@@ -135,6 +135,49 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task SessionPreferences_UpdateRecorded_PersistsPlotSmoothingLevels()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+            {
+                Plots = current.Plots with
+                {
+                    TravelSmoothing = PlotSmoothingLevel.Light,
+                    VelocitySmoothing = PlotSmoothingLevel.Strong,
+                    ImuSmoothing = PlotSmoothingLevel.Off,
+                },
+            });
+
+            var reloaded = new AppPreferences(preferencesPath);
+            var stored = await reloaded.Session.GetRecordedAsync(sessionId);
+
+            Assert.Equal(PlotSmoothingLevel.Light, stored.Plots.TravelSmoothing);
+            Assert.Equal(PlotSmoothingLevel.Strong, stored.Plots.VelocitySmoothing);
+            Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ImuSmoothing);
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            var plots = json.RootElement
+                .GetProperty("session")
+                .GetProperty("sessions")
+                .GetProperty(sessionId.ToString("D"))
+                .GetProperty("plots");
+            Assert.Equal("Light", plots.GetProperty("travelSmoothing").GetString());
+            Assert.Equal("Strong", plots.GetProperty("velocitySmoothing").GetString());
+            Assert.Equal("Off", plots.GetProperty("imuSmoothing").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task SessionPreferences_UpdateRecorded_SerializesConcurrentUpdates()
     {
         var (tempDirectory, preferencesPath) = CreatePreferencesPath();
@@ -216,7 +259,10 @@ public class AppPreferencesTests
                         "plots": {
                           "travel": false,
                           "velocity": true,
-                          "imu": false
+                                                    "imu": false,
+                                                    "travelSmoothing": "MissingMode",
+                                                    "velocitySmoothing": "MissingMode",
+                                                    "imuSmoothing": "MissingMode"
                         },
                         "statistics": {
                           "travelHistogramMode": "MissingMode",
@@ -236,6 +282,9 @@ public class AppPreferencesTests
             Assert.False(stored.Plots.Travel);
             Assert.True(stored.Plots.Velocity);
             Assert.False(stored.Plots.Imu);
+            Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.TravelSmoothing);
+            Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.VelocitySmoothing);
+            Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ImuSmoothing);
             Assert.Equal(TravelHistogramMode.ActiveSuspension, stored.Statistics.TravelHistogramMode);
             Assert.Equal(VelocityAverageMode.SampleAveraged, stored.Statistics.VelocityAverageMode);
             Assert.Equal(BalanceDisplacementMode.Zenith, stored.Statistics.BalanceDisplacementMode);
@@ -252,6 +301,9 @@ public class AppPreferencesTests
         Assert.True(preferences.Plots.Travel);
         Assert.True(preferences.Plots.Velocity);
         Assert.True(preferences.Plots.Imu);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.TravelSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.VelocitySmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ImuSmoothing);
         Assert.Equal(TravelHistogramMode.ActiveSuspension, preferences.Statistics.TravelHistogramMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, preferences.Statistics.VelocityAverageMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, preferences.Statistics.BalanceDisplacementMode);
