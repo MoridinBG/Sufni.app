@@ -10,10 +10,15 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 
 - [Project Structure](#project-structure)
 - [Platform Abstractions](#platform-abstractions)
+- [Desktop vs Mobile](#desktop-vs-mobile)
 - [Data Acquisition & File Format](#data-acquisition--file-format)
+- [DAQ Management](#daq-management)
 - [Signal Processing & Suspension Kinematics](#signal-processing--suspension-kinematics)
 - [UI Architecture](#ui-architecture)
+- [Plot Rendering](#plot-rendering)
+- [Maps & GPS Tracks](#maps--gps-tracks)
 - [Live DAQ Streaming](#live-daq-streaming)
+- [Live Session Recording](#live-session-recording)
 - [Persistence & Serialization](#persistence--serialization)
 - [Cross-Device Synchronization](#cross-device-synchronization)
 
@@ -53,6 +58,25 @@ Scenario-specific solutions live at the repository root:
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Services/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
 
 Each platform entry point registers its implementations before the shared `App.axaml.cs` initialization runs.
+
+---
+
+## Desktop vs Mobile
+
+A cross-cutting reference for the divergence points between the desktop and mobile experiences: shell coordinators (tabs vs back stack), `Views/` vs `DesktopViews/` selection via `ViewLocator`, the `IsDesktop` runtime flag, desktop-only sync server / inbound coordinators, mobile-only pairing client and haptic / friendly-name services, DI composition order, solution scoping, and behavioral differences across feature workflows.
+
+Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md):
+
+- [Project Layout](architecture/desktop-vs-mobile.md#project-layout) — shared `Sufni.App` and desktop-only `Sufni.App.Desktop`
+- [View Selection](architecture/desktop-vs-mobile.md#view-selection) — `Views/` vs `DesktopViews/` and how `ViewLocator` picks
+- [The IsDesktop Flag](architecture/desktop-vs-mobile.md#the-isdesktop-flag) — where the boundary lives at runtime
+- [Navigation Shells](architecture/desktop-vs-mobile.md#navigation-shells) — `DesktopShellCoordinator` vs `MobileShellCoordinator`
+- [Desktop-Only Surface](architecture/desktop-vs-mobile.md#desktop-only-surface) — sync server, inbound sync, pairing server
+- [Mobile-Only Surface](architecture/desktop-vs-mobile.md#mobile-only-surface) — pairing client, haptics, friendly-name
+- [DI Composition](architecture/desktop-vs-mobile.md#di-composition) — platform-first then shared registrations
+- [Solution Scoping](architecture/desktop-vs-mobile.md#solution-scoping) — `Sufni.Desktop.sln` / `Android.sln` / `iOS.sln`
+- [Testing](architecture/desktop-vs-mobile.md#testing) — `TestApp.SetIsDesktop(...)`
+- [Behavioral Differences](architecture/desktop-vs-mobile.md#behavioral-differences) — workflow-level divergences
 
 ---
 
@@ -133,7 +157,7 @@ The live preview feature streams real-time telemetry from a connected DAQ device
 mDNS announcement
   -> LiveDaqCatalogService (probe board ID)
     -> LiveDaqCoordinator.ReconcileLocked (merge with known boards)
-      -> LiveDaqStore.Upsert / ReplaceAll
+      -> LiveDaqStore.ReplaceAll
         -> DynamicData -> LiveDaqListViewModel -> UI
 
 User selects row

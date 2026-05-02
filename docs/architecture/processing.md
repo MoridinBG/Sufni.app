@@ -6,7 +6,8 @@
 
 ```mermaid
 graph TD
-    Raw["RawTelemetryData<br/>ushort[] front/rear"] --> Travel["Travel Calculation<br/>Sensor calibration → mm"]
+    Raw["RawTelemetryData<br/>ushort[] front/rear"] --> Pre["MeasurementPreprocessor<br/>Circular unwrapping + spike elimination"]
+    Pre --> Travel["Travel Calculation<br/>Sensor calibration → mm"]
     Travel --> Velocity["Velocity Calculation<br/>Savitzky-Golay filter → mm/s"]
     Velocity --> Strokes["Stroke Detection<br/>Sign changes + top-out concatenation"]
     Strokes --> Cat["Stroke Categorization<br/>Compression / Rebound / Idling"]
@@ -14,17 +15,28 @@ graph TD
     Air --> Hist["Histogram bin definitions<br/>Travel + velocity bins, digitized indexes"]
 ```
 
-`TelemetryData.FromRecording(RawTelemetryData, Metadata, BikeData)` (`Sufni.Telemetry/TelemetryData.cs`) orchestrates the entire pipeline. `BikeData` is a record carrying `HeadAngle` (`double`) plus nullable `FrontMaxTravel` / `RearMaxTravel` (`double?`) and nullable calibration functions `FrontMeasurementToTravel` / `RearMeasurementToTravel` (`Func<ushort, double>?`); the nullables are populated only for the suspensions actually present on the bike.
+`TelemetryData.FromRecording(RawTelemetryData, Metadata, BikeData)` (`Sufni.Telemetry/TelemetryData.cs`) orchestrates the entire pipeline. `BikeData` is a record carrying `HeadAngle` (`double`) plus nullable `FrontMaxTravel` / `RearMaxTravel` (`double?`) and nullable calibration functions `FrontMeasurementToTravel` / `RearMeasurementToTravel` (`Func<ushort, double>?`), and `FrontMeasurementWraps` / `RearMeasurementWraps` flags that select the linear vs. circular preprocessing path; the nullables are populated only for the suspensions actually present on the bike.
 
-The pipeline produces histogram **bin definitions** and per-stroke digitized indexes, but does not compute the histogram tallies, statistics, FFT frequency histogram, balance, or velocity-band breakdown — those are computed lazily on demand by `Calculate*` methods on `TelemetryData` (e.g., `CalculateTravelHistogram`, `CalculateVelocityHistogram`, `CalculateTravelFrequencyHistogram`, `CalculateBalance`, `CalculateVelocityBands`).
+The pipeline produces histogram **bin definitions** and per-stroke digitized indexes, but does not compute the histogram tallies, statistics, FFT frequency histogram, balance, or velocity-band breakdown — those are computed lazily on demand by `Calculate*` methods on the `TelemetryStatistics` static partial class (e.g., `CalculateTravelHistogram`, `CalculateVelocityHistogram`, `CalculateTravelFrequencyHistogram`, `CalculateBalance`, `CalculateVelocityBands`).
+
+### Measurement Preprocessing
+
+`MeasurementPreprocessor.Process(ushort[], MeasurementSensorType)` (`Sufni.Telemetry/MeasurementPreprocessor.cs`) is the first stage of the pipeline, called for each present suspension before travel conversion. The selected path is `Linear` or `Rotational`, picked by `MeasurementPreprocessor.SensorTypeForWrapping(bool)` from `BikeData.FrontMeasurementWraps` / `BikeData.RearMeasurementWraps`. Those flags are sourced from each sensor configuration's `MeasurementWraps` property — only the rotational sensor types currently set them.
+
+- **Linear path** (`MeasurementWraps == false`, the default): convert each `ushort` straight to `int`, run `SpikeElimination.EliminateSpikesAsInt`, clamp every result back into `[0, 4095]` (the 12-bit ADC range).
+- **Rotational path** (`MeasurementWraps == true`, rotary sensors): unwrap the 12-bit (4096-step) circular ADC into a continuous `int` signal — each step's delta to the previous sample is examined, and a `±4096` offset is accumulated whenever the delta crosses the half-range (`±2048`) so wrap-arounds become continuous deltas. Run `SpikeElimination.EliminateSpikesAsInt` on the unwrapped integer signal, then re-wrap each result modulo 4096 back to `ushort`.
+
+`SpikeElimination.EliminateSpikesAsInt` (`Sufni.Telemetry/SpikeElimination.cs`) walks the signal three times: it first detects sudden changes (windows up to 5 samples where the cumulative change is >= 100 and every per-step change is >= 30) and flattens each window to its endpoint; it then corrects an early-recording baseline jump if the first detected change starts within the first 100 samples; finally it tracks negative excursions that never recover and shifts the trailing tail back to the pre-excursion baseline. The number of detected sudden changes is returned alongside the cleaned samples and surfaced as the per-suspension `AnomalyRate` (anomalies per second) on the `Suspension` record.
+
+The preprocessor return record `MeasurementPreprocessorResult(Samples, AnomalyCount)` feeds directly into `SuspensionTraceProcessor.Process` inside `TelemetryData.FromRecording(...)`.
 
 ### Travel Calculation
 
-Each raw encoder count is passed through the sensor's `MeasurementToTravel` function (see [Sensor Calibration](#sensor-calibration)) to produce travel in millimeters. Values are clamped to `[0, MaxTravel]`.
+Each preprocessed sample is then passed through the sensor's `MeasurementToTravel` function (see [Sensor Calibration](#sensor-calibration)) to produce travel in millimeters. Values are clamped to `[0, MaxTravel]`.
 
 ### Velocity Calculation
 
-A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal. Parameters: window size up to 51 points (clamped down to fit short recordings, decremented if even, with a hard minimum of 5 — suspensions with fewer than 5 samples are flagged not-present), polynomial order 3, 1st derivative. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries with asymmetric windows that shrink toward edges. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
+A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal. Parameters: window size up to 51 points (clamped down to fit short recordings, decremented if even, with a hard minimum of 5 — recordings with fewer than 5 samples skip processing and both suspensions are flagged not-present), polynomial order 3, 1st derivative. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries by precomputing one weight row per evaluation offset within the fixed-size window: edge samples reuse the same first/last `windowSize` data points but apply weights centred at the appropriate off-centre row instead of shrinking the window. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
 
 ### Stroke Detection
 
@@ -38,11 +50,11 @@ Each stroke records its start/end sample indices, length (travel delta in mm), d
 - **Rebound**: length <= -5mm
 - **Idling**: |length| < 5mm AND duration >= 0.1s
 
-Only compressions and rebounds are MessagePack-serialized. Idlings are reconstructed from gaps on deserialization.
+Only compressions and rebounds are MessagePack-serialized — `Strokes.Idlings` is `[IgnoreMember]`. Idlings are populated only during the same pipeline run that computes airtimes; after deserialization the `Idlings` array is not reconstructed, but the resolved `Airtimes[]` it produced is itself serialized.
 
 ### Airtime Detection
 
-An idling stroke is marked as an air candidate when: max travel <= 5mm, duration >= 0.2s, and the next stroke's max velocity >= 500 mm/s (landing impact). Airtimes are confirmed when front and rear air candidates overlap by >= 50%, or when the average of both suspensions' mean travel is <= 4% of the averaged max travel.
+An idling stroke is marked as an air candidate during stroke categorization when: max travel <= 5mm, duration >= 0.2s, and the next stroke's max velocity >= 500 mm/s (landing impact). The first and last strokes in the recording cannot be tagged as air candidates because the categorization rule requires both a previous and a next stroke. When both suspensions are present, airtimes are confirmed by pairing front and rear candidates whose sample ranges overlap by >= 50%; any remaining unpaired candidate from either side is still confirmed if the average of the two suspensions' mean travel during that idling is <= 4% of the averaged max travel. When only one suspension is present, every air candidate from that suspension becomes an airtime.
 
 ### Processing Parameters
 
@@ -60,6 +72,7 @@ All constants in `Sufni.Telemetry/Parameters.cs`:
 | `TravelHistBins`                  | 20       | Number of travel histogram bins                               |
 | `VelocityHistStep`                | 100 mm/s | Coarse velocity histogram bin width                           |
 | `VelocityHistStepFine`            | 15 mm/s  | Fine velocity histogram bin width                             |
+| `DeepTravelThresholdRatio`        | 0.75     | Travel ratio above which deep-travel stroke counts start      |
 
 ### Serialized Structure
 
@@ -133,7 +146,7 @@ Front and rear max travel for the processing pipeline do **not** live on `BikeCh
 
 ### Utilities
 
-- **`CoordinateRotation`** — 2D rotation matrix operations for bike image display
+- **`CoordinateRotation`** — 2D point rotation about an arbitrary centre, plus rotated-rectangle bounding-box computation, used by the bike image canvas and the linkage editor
 - **`GroundCalculator`** — computes rotation angle to level ground contact points given wheel positions and radii
 - **`EtrtoRimSize`** — ETRTO standard rim sizes (507/559/584/622mm) with tire diameter calculation
 - **`GeometryUtils`** — distance and angle calculations using dot product, with float clamping to avoid NaN from precision errors
@@ -150,9 +163,7 @@ Four sensor types convert raw ADC counts to millimeters of travel through the `I
 - `MeasurementToTravel` — `Func<ushort, double>` calibration closure
 - `MaxTravel` — physical suspension limit in mm
 
-Polymorphic JSON deserialization: `SensorConfiguration.FromJson(json, bike)` reads the `Type` field first, then dispatches to the concrete class's `FromJson()` which deserializes the type-specific parameters and computes calibration factors using bike geometry.
-
-Rear shock payloads are deserialized as data-only `SensorConfiguration` records, then `RearTravelCalibrationBuilder.TryBuild(setup, bike, ...)` combines that payload with the resolved rear-suspension model to produce the rear `MaxTravel` and `MeasurementToTravel` closure that `TelemetryBikeData.Create(setup, bike)` passes into `TelemetryData.FromRecording(...)`. This split keeps rear calibration rules in one place instead of spreading linkage and leverage-ratio logic across the sensor-configuration types.
+Polymorphic JSON deserialization: `SensorConfiguration.FromJson(json, bike)` reads the `Type` field first, then dispatches to the concrete class's `FromJson()` which deserializes the type-specific parameters and computes calibration factors using bike geometry. Front-suspension types build their `MeasurementToTravel` closure during this deserialization step. Rear shock payloads (`LinearShockSensorConfiguration`, `RotationalShockSensorConfiguration`) are deserialized as data-only records and the closure is built later by [`RearTravelCalibrationBuilder`](#rear-travel-calibration), which keeps the linkage and leverage-ratio rules out of the sensor-configuration types.
 
 For example, `LinearForkSensorConfiguration` stores `Length` (sensor physical range) and `Resolution` (ADC bit depth). Its calibration:
 
@@ -177,4 +188,37 @@ The bike context (head angle, fork stroke, shock stroke) is injected at deserial
 | `LinearShockSensorConfiguration`     | Length, Resolution                           | Rear shock payload (`SensorType.LinearShock` for linkage bikes, `SensorType.LinearShockStroke` for leverage-ratio bikes) consumed by `RearTravelCalibrationBuilder`; maps shock stroke to wheel travel via linkage interpolation or `LeverageRatio.WheelTravelAt(...)` |
 | `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2 | Rear shock payload consumed by `RearTravelCalibrationBuilder`; resolves angle-to-shock-stroke from linkage motion, then converts to wheel travel |
 
-For leverage-ratio bikes, `RearTravelCalibrationBuilder` validates that the bike's configured shock stroke matches the leverage-ratio curve's `MaxShockStroke` (within a small tolerance) before it accepts the calibration. The resulting rear max travel is the wheel travel at that validated max shock stroke, not a separately configured number.
+### Rear Travel Calibration
+
+`RearTravelCalibrationBuilder` (`Sufni.App/Sufni.App/Services/RearTravelCalibrationBuilder.cs`) extends the `ISensorConfiguration` strategy pattern for the rear shock, where shock-stroke ADC counts have to be converted to wheel travel through either a linkage solve or a leverage-ratio curve. Its single entry point — `TryBuild(Setup, Bike, out RearTravelCalibration?, out string?)` — returns a `RearTravelCalibration(MaxTravel, MeasurementToTravel, MeasurementWraps)` record that `TelemetryBikeData.Create(setup, bike)` (`Sufni.App/Sufni.App/TelemetryBikeData.cs`) feeds into `BikeData` for `TelemetryData.FromRecording(...)`. It is invoked at processing time (recorded session import, recompute, live capture launch) — never at sensor-configuration deserialization time, so the rear `LinearShockSensorConfiguration` / `RotationalShockSensorConfiguration` instances persisted on a `Setup` carry only their JSON parameters.
+
+The build flow:
+
+1. Resolve the rear suspension model via `RearSuspensionResolver` from `Bike.RearSuspensionKind` (`Hardtail`, `Linkage`, `LeverageRatio`). A hardtail returns success with no calibration; an `Invalid` resolution returns the resolver's error verbatim.
+2. Deserialize `Setup.RearSensorConfigurationJson` as a data-only `SensorConfiguration` payload and pattern-match it against the resolved suspension:
+   - `LinearShockSensorConfiguration` with `SensorType.LinearShock` + `Linkage`, or `SensorType.LinearShockStroke` + `LeverageRatio` — compatible.
+   - `RotationalShockSensorConfiguration` + `Linkage` — compatible.
+   - Any other combination — incompatible, returns a setup-level error.
+3. Compute the per-sample shock stroke from the payload (linear: `Length / (2^Resolution - 1)`; rotational: `2π / 4096` rad per ADC count, then a cubic polynomial fit of the linkage's angle-to-shock-stroke dataset).
+4. Convert shock stroke to wheel travel through the resolved suspension: linkage suspensions interpolate `BikeCharacteristics.ShockStrokeToWheelTravelDataset()`, leverage-ratio suspensions call `LeverageRatio.WheelTravelAt(...)`.
+5. For leverage-ratio bikes, `LeverageRatioShockStrokeRules.TryValidate` checks that the bike's configured shock stroke matches the curve's `MaxShockStroke` within tolerance before the calibration is accepted; the resulting `MaxTravel` is the wheel travel at that validated stroke, not a separately configured number.
+
+The `MeasurementWraps` flag on the produced `RearTravelCalibration` is `true` for the rotational-shock path (the rotary encoder reports modulo-4096 angles) and `false` for the linear-shock paths; `TelemetryBikeData.Create` copies it onto `BikeData.RearMeasurementWraps`, which selects the [Measurement Preprocessing](#measurement-preprocessing) path for the rear samples.
+
+### Leverage-Ratio CSV Import
+
+`LeverageRatioCsvParser` (`Sufni.App/Sufni.App/Services/LeverageRatioCsvParser.cs`) parses the leverage-ratio curve a user can attach to a leverage-ratio rear suspension when no full linkage is modelled. The expected CSV format:
+
+| Header / column   | Meaning                                       |
+| ----------------- | --------------------------------------------- |
+| `shock_travel_mm` | Shock stroke in mm (monotonically increasing) |
+| `wheel_travel_mm` | Wheel travel in mm at that shock stroke       |
+
+Other rules: header is required and matched case-insensitively, BOM is stripped, comma or semicolon delimiter (auto-detected from the header line), `.` decimal separator only (decimal commas are rejected), invariant-culture `double` parsing, blank lines skipped. Rows are validated through `LeverageRatioValidation.Validate(...)` after parsing so format and curve-shape errors surface together.
+
+`Parse(Stream)` and `Parse(string)` both return a `LeverageRatioParseResult` discriminated record:
+
+- `Parsed(LeverageRatio Value)` — the points were valid; the wrapped `LeverageRatio` (`Sufni.Kinematics/LeverageRatio/LeverageRatio.cs`) exposes `MaxShockStroke`, `MaxWheelTravel`, and `WheelTravelAt(shockStroke)` for downstream consumers.
+- `Invalid(IReadOnlyList<LeverageRatioParseError> Errors)` — one error per offending line; each error carries an optional 1-based line number plus a human-readable message.
+
+The parser is wired into the bike editor flow: `BikeEditorService.ImportLeverageRatioAsync(...)` (`Sufni.App/Sufni.App/Services/BikeEditorService.cs`) opens the CSV picker, runs `LeverageRatioCsvParser.Parse` on a background task, and surfaces the result to `LeverageRatioEditorViewModel.ApplyImportResult` as a `LeverageRatioImportResult` (`Imported` / `Invalid` / `Failed` / `Canceled`). The imported curve is what `RearTravelCalibrationBuilder` later reads off `Bike.LeverageRatio` when building the rear calibration closure.
