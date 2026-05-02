@@ -68,6 +68,7 @@ mc:Ignorable="d">
                 <!--  Spring rate  -->
                 <Grid
                 Name="SpringRate"
+                Margin="8"
                 RowDefinitions="Auto,*">
                     <ComboBox
                     Name="TravelHistogramModeComboBox"
@@ -253,6 +254,7 @@ mc:Ignorable="d">
                 <!--  Damping  -->
                 <Grid
                 Name="Damping"
+                Margin="8"
                 RowDefinitions="auto auto *">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
@@ -344,7 +346,7 @@ mc:Ignorable="d">
                 </Grid>
 
                 <!--  Balance graphs  -->
-                <Grid Name="Balance" RowDefinitions="Auto,*">
+                <Grid Name="Balance" Margin="8" RowDefinitions="Auto,*">
                     <ComboBox
                     Name="BalanceDisplacementModeComboBox"
                     Grid.Row="0"
@@ -401,7 +403,7 @@ mc:Ignorable="d">
                 </Grid>
 
                 <!--  Vibration  -->
-                <Grid Name="Vibration">
+                <Grid Name="Vibration" Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontForkVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                         <ColumnDefinition Width="{Binding FrontFrameVibrationState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
@@ -413,6 +415,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
                                 AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Front"
                                 ImuLocation="Fork"
@@ -436,6 +439,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
                                 AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Front"
                                 ImuLocation="Frame"
@@ -459,6 +463,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
                                 AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Rear"
                                 ImuLocation="Fork"
@@ -482,6 +487,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <Grid RowDefinitions="Auto,*">
                                 <commonplots:VibrationSummaryView
+                                Margin="0,0,0,8"
                                 AnalysisRange="{Binding AnalysisRange}"
                                 SuspensionType="Rear"
                                 ImuLocation="Frame"
@@ -503,7 +509,7 @@ mc:Ignorable="d">
                 </Grid>
 
                 <!--  Analysis  -->
-                <Grid Name="Analysis">
+                <Grid Name="Analysis" Margin="8">
                     <itemviews:SessionAnalysisView />
                 </Grid>
             </ItemsControl.Items>
