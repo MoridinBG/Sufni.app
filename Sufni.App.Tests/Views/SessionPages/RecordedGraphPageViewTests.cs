@@ -71,9 +71,10 @@ public class RecordedGraphPageViewTests
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.Name != "MapHost")
             .ToArray();
-        Assert.Equal(2, hosts.Length);
+        Assert.Equal(3, hosts.Length);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[0].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[2].PresentationState.Kind);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
@@ -97,6 +98,35 @@ public class RecordedGraphPageViewTests
         Assert.True(fallback!.IsVisible);
         Assert.Equal(0, graphGrid!.RowDefinitions[0].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[1].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
+    }
+
+    [AvaloniaFact]
+    public async Task RecordedGraphPageView_CollapsesVelocityRow_WhenVelocityStateHidden()
+    {
+        var telemetry = TestTelemetryData.Create();
+        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var workspace = new RecordedGraphPageWorkspaceStub(
+            telemetry,
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Ready,
+            velocityGraphState: SurfacePresentationState.Hidden);
+        var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
+
+        await using var mounted = await MountAsync(page);
+
+        var fallback = mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder");
+        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+
+        Assert.NotNull(fallback);
+        Assert.NotNull(graphGrid);
+        Assert.False(fallback!.IsVisible);
+        Assert.NotEqual(0, graphGrid!.RowDefinitions[0].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[1].Height.Value);
+        Assert.NotEqual(0, graphGrid.RowDefinitions[2].Height.Value);
+        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[0].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(graphGrid.RowDefinitions[0].Height.Value, graphGrid.RowDefinitions[2].Height.Value);
     }
 
     [AvaloniaFact]
@@ -158,12 +188,15 @@ public class RecordedGraphPageViewTests
     private sealed class RecordedGraphPageWorkspaceStub(
         TelemetryData? telemetryData,
         SurfacePresentationState travelGraphState,
-        SurfacePresentationState imuGraphState) : IRecordedSessionGraphWorkspace
+        SurfacePresentationState imuGraphState,
+        SurfacePresentationState? velocityGraphState = null) : IRecordedSessionGraphWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange { get; private set; }
         public SurfacePresentationState TravelGraphState { get; } = travelGraphState;
+        public SurfacePresentationState VelocityGraphState { get; } = velocityGraphState ?? travelGraphState;
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;
+        public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)

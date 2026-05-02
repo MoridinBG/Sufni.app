@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -57,6 +58,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public ILiveSessionGraphWorkspace GraphWorkspace => graphWorkspace;
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;
     public NotesPageViewModel NotesPage { get; } = new();
+    public PreferencesPageViewModel PreferencesPage { get; } = new();
     public SpringPageViewModel SpringPage { get; } = new();
     public DamperPageViewModel DamperPage { get; } = new();
     public BalancePageViewModel BalancePage { get; } = new();
@@ -207,8 +209,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
         LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
-        Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage];
+        Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage, PreferencesPage];
         WireNotesPageForwarding();
+        WireRuntimePreferenceForwarding();
 
         ApplyPresentation(liveSessionService.Current);
 
@@ -335,7 +338,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 RearHighSpeedRebound = ShockSettings.HighSpeedRebound,
             };
 
-            var result = await sessionCoordinator.SaveLiveCaptureAsync(session, capture);
+            var result = await sessionCoordinator.SaveLiveCaptureAsync(session, capture, CreateCurrentSessionPreferences());
             switch (result)
             {
                 case LiveSessionSaveResult.Saved saved:
@@ -435,6 +438,43 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             EvaluateDirtiness();
             RefreshCommandState();
         };
+    }
+
+    private void WireRuntimePreferenceForwarding()
+    {
+        PreferencesPage.TravelPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.VelocityPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
+    }
+
+    private void OnPlotPreferenceChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is not (nameof(PlotPreferenceItemViewModel.Selected) or nameof(PlotPreferenceItemViewModel.SelectedSmoothing)))
+        {
+            return;
+        }
+
+        graphWorkspace.ApplyPlotPreferences(PreferencesPage.CreatePlotPreferences());
+    }
+
+    private void ApplyPlotAvailability(LiveSessionHeader? sessionHeader)
+    {
+        var travelAvailable = sessionHeader is { AcceptedTravelHz: > 0 };
+        var imuAvailable = sessionHeader is { AcceptedImuHz: > 0 } &&
+                           sessionHeader.GetActiveImuLocations().Count > 0;
+
+        PreferencesPage.ApplyPlotAvailability(travelAvailable, travelAvailable, imuAvailable);
+    }
+
+    private SessionPreferences CreateCurrentSessionPreferences()
+    {
+        return new SessionPreferences(
+            PreferencesPage.CreatePlotPreferences(),
+            new SessionStatisticsPreferences(
+                SelectedTravelHistogramMode,
+                SelectedVelocityAverageMode,
+                SelectedBalanceDisplacementMode,
+                SelectedSessionAnalysisTargetProfile));
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)
@@ -598,6 +638,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
 
         graphWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
+        ApplyPlotAvailability(snapshot.Controls.SessionHeader);
         mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
         TelemetryData = snapshot.StatisticsTelemetry;
         DamperPercentages = snapshot.DamperPercentages;

@@ -29,6 +29,11 @@ public sealed record SurfacePresentationState(
     public bool ShowSpinner => Indicator == SurfaceIndicatorKind.Spinner;
     public bool ShowErrorIcon => Indicator == SurfaceIndicatorKind.ErrorIcon;
 
+    public SurfacePresentationState ApplyPlotSelection(bool selected)
+    {
+        return selected ? this : Hidden;
+    }
+
     public static SurfacePresentationState Hidden { get; } = new(SurfaceStateKind.Hidden, null, SurfaceIndicatorKind.None);
 
     public static SurfacePresentationState Ready { get; } = new(SurfaceStateKind.Ready, null, SurfaceIndicatorKind.None);

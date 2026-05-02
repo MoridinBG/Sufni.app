@@ -1,20 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Serilog;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
 public class TileLayerService : ITileLayerService
 {
-    private static readonly ILogger logger = Log.ForContext<TileLayerService>();
-    private readonly IDatabaseService databaseService;
-    private const string SelectedLayerIdKey = "Map.SelectedLayerId";
-    private const string CustomLayersKey = "Map.CustomLayers";
+    private readonly IMapPreferences mapPreferences;
     private Task? initializationTask;
 
     public ObservableCollection<TileLayerConfig> AvailableLayers { get; } = new();
@@ -27,13 +21,13 @@ public class TileLayerService : ITileLayerService
         {
             if (selectedLayer == value) return;
             selectedLayer = value;
-            _ = databaseService.PutAppSettingAsync(SelectedLayerIdKey, value.Id.ToString());
+            _ = mapPreferences.SetSelectedLayerIdAsync(value.Id);
         }
     }
 
-    public TileLayerService(IDatabaseService databaseService)
+    public TileLayerService(IMapPreferences mapPreferences)
     {
-        this.databaseService = databaseService;
+        this.mapPreferences = mapPreferences;
     }
 
     public Task InitializeAsync()
@@ -70,30 +64,17 @@ public class TileLayerService : ITileLayerService
         };
         AvailableLayers.Add(openCycleMap);
 
-        // Load custom layers
-        var customLayersJson = await databaseService.GetAppSettingAsync(CustomLayersKey);
-        if (!string.IsNullOrEmpty(customLayersJson))
+        var customLayers = await mapPreferences.GetCustomLayersAsync();
+        foreach (var layer in customLayers)
         {
-            try
-            {
-                var customLayers = JsonSerializer.Deserialize<List<TileLayerConfig>>(customLayersJson);
-                if (customLayers != null)
-                {
-                    foreach (var layer in customLayers)
-                    {
-                        layer.IsCustom = true;
-                        AvailableLayers.Add(layer);
-                    }
-                }
-            }
-            catch (Exception ex) { logger.Warning(ex, "Failed to deserialize custom tile layers"); }
+            layer.IsCustom = true;
+            AvailableLayers.Add(layer);
         }
 
-        // Load selection
-        var selectedIdStr = await databaseService.GetAppSettingAsync(SelectedLayerIdKey);
-        if (Guid.TryParse(selectedIdStr, out var selectedId))
+        var selectedId = await mapPreferences.GetSelectedLayerIdAsync();
+        if (selectedId is { } id)
         {
-            selectedLayer = AvailableLayers.FirstOrDefault(l => l.Id == selectedId) ?? AvailableLayers.First();
+            selectedLayer = AvailableLayers.FirstOrDefault(l => l.Id == id) ?? AvailableLayers.First();
         }
         else
         {
@@ -122,7 +103,6 @@ public class TileLayerService : ITileLayerService
     private async Task SaveCustomLayersAsync()
     {
         var customLayers = AvailableLayers.Where(l => l.IsCustom).ToList();
-        var json = JsonSerializer.Serialize(customLayers);
-        await databaseService.PutAppSettingAsync(CustomLayersKey, json);
+        await mapPreferences.SetCustomLayersAsync(customLayers);
     }
 }

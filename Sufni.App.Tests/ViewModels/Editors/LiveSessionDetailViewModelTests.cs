@@ -60,7 +60,11 @@ public class LiveSessionDetailViewModelTests
             return Task.CompletedTask;
         });
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
-        sessionCoordinator.SaveLiveCaptureAsync(Arg.Any<Session>(), Arg.Any<LiveSessionCapturePackage>(), Arg.Any<CancellationToken>())
+        sessionCoordinator.SaveLiveCaptureAsync(
+            Arg.Any<Session>(),
+            Arg.Any<LiveSessionCapturePackage>(),
+            Arg.Any<SessionPreferences>(),
+            Arg.Any<CancellationToken>())
             .Returns(new LiveSessionSaveResult.Saved(Guid.NewGuid(), 5));
     }
 
@@ -144,7 +148,11 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
 
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
+        Assert.True(editor.PreferencesPage.TravelPlot.Available);
+        Assert.True(editor.PreferencesPage.VelocityPlot.Available);
+        Assert.True(editor.PreferencesPage.ImuPlot.Available);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
@@ -167,12 +175,36 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
 
         Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
 
         graphBatches.OnNext(CreateImuOnlyBatch(revision: 2));
         await WaitForUiRefreshAsync();
 
         Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.ImuGraphState.Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task PlotPreferenceChange_UpdatesLiveGraphStateWithoutChangingDirtyState()
+    {
+        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        currentSnapshot = CreateSnapshot(canSave: false);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        graphBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
+        await WaitForUiRefreshAsync();
+
+        var wasDirty = editor.IsDirty;
+
+        editor.PreferencesPage.VelocityPlot.Selected = false;
+
+        Assert.Equal(wasDirty, editor.IsDirty);
+        Assert.True(editor.GraphWorkspace.TravelGraphState.IsReady);
+        Assert.True(editor.GraphWorkspace.VelocityGraphState.IsHidden);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
     }
 
     [AvaloniaFact]
@@ -230,6 +262,8 @@ public class LiveSessionDetailViewModelTests
         editor.Name = "Morning lap";
         editor.DescriptionText = "first lap";
         editor.ForkSettings.SpringRate = "550 lb/in";
+        editor.PreferencesPage.VelocityPlot.Selected = false;
+        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
 
         await editor.SaveCommand.ExecuteAsync(null);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -244,6 +278,11 @@ public class LiveSessionDetailViewModelTests
                 && session.Timestamp == capturePackage.TelemetryCapture.Metadata.Timestamp
                 && session.FrontSpringRate == "550 lb/in"),
             capturePackage,
+            Arg.Is<SessionPreferences>(preferences =>
+                preferences.Plots.Travel &&
+                !preferences.Plots.Velocity &&
+                preferences.Plots.Imu &&
+                preferences.Statistics.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged),
             Arg.Any<CancellationToken>());
         Assert.Equal("Morning lap", editor.Name);
         Assert.Null(editor.TelemetryData);
@@ -272,6 +311,7 @@ public class LiveSessionDetailViewModelTests
                 session.Name.StartsWith("Live Session ", StringComparison.Ordinal)
                 && session.Name != "Live Session 01-01-2000 00:00:00"),
             capturePackage,
+            Arg.Any<SessionPreferences>(),
             Arg.Any<CancellationToken>());
         Assert.StartsWith("Live Session ", editor.Name);
         Assert.NotEqual("Live Session 01-01-2000 00:00:00", editor.Name);
@@ -298,6 +338,7 @@ public class LiveSessionDetailViewModelTests
         await sessionCoordinator.DidNotReceive().SaveLiveCaptureAsync(
             Arg.Any<Session>(),
             Arg.Any<LiveSessionCapturePackage>(),
+            Arg.Any<SessionPreferences>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -321,6 +362,7 @@ public class LiveSessionDetailViewModelTests
         await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
             Arg.Any<Session>(),
             capturePackage,
+            Arg.Any<SessionPreferences>(),
             Arg.Any<CancellationToken>());
         Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.True(editor.ResetCommand.CanExecute(null));
@@ -385,17 +427,18 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void Pages_Initial_IsLiveGraphSpringDamperNotes()
+    public void Pages_Initial_IsLiveGraphSpringDamperNotesPreferences()
     {
         var editor = CreateEditor();
 
         Assert.Equal(
-            ["Graph", "Spring", "Damper", "Notes"],
+            ["Graph", "Spring", "Damper", "Notes", "Preferences"],
             editor.Pages.Select(page => page.DisplayName));
         Assert.IsType<LiveGraphPageViewModel>(editor.Pages[0]);
         Assert.IsType<SpringPageViewModel>(editor.Pages[1]);
         Assert.IsType<DamperPageViewModel>(editor.Pages[2]);
         Assert.IsType<NotesPageViewModel>(editor.Pages[3]);
+        Assert.IsType<PreferencesPageViewModel>(editor.Pages[4]);
         Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
     }
 
@@ -666,6 +709,7 @@ public class LiveSessionDetailViewModelTests
                 session.FrontSpringRate == "520" &&
                 session.RearHighSpeedCompression == 4),
             Arg.Any<LiveSessionCapturePackage>(),
+            Arg.Any<SessionPreferences>(),
             Arg.Any<CancellationToken>());
     }
 

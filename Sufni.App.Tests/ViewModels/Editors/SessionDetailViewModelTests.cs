@@ -39,7 +39,8 @@ public class SessionDetailViewModelTests
     private SessionDetailViewModel CreateEditor(
         SessionSnapshot snapshot,
         IObservable<SessionSnapshot>? watch = null,
-        bool? isDesktop = null)
+        bool? isDesktop = null,
+        ISessionPreferences? sessionPreferences = null)
     {
         if (isDesktop.HasValue)
         {
@@ -48,6 +49,7 @@ public class SessionDetailViewModelTests
 
         sessionStore.Watch(snapshot.Id).Returns(watch ?? Observable.Empty<SessionSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
+        var preferencesService = sessionPreferences ?? CreateSessionPreferences();
         return new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
@@ -56,7 +58,8 @@ public class SessionDetailViewModelTests
             sessionAnalysisService,
             tileLayerService,
             shell,
-            dialogService);
+            dialogService,
+            preferencesService);
     }
 
     private void SetDesktop(bool isDesktop)
@@ -97,6 +100,7 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
 
         Assert.Equal(SurfaceStateKind.Loading, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.FrontStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.RearStatisticsState.Kind);
@@ -333,6 +337,7 @@ public class SessionDetailViewModelTests
         Assert.Equal(1, editor.DamperPage.FrontHscPercentage);
         Assert.True(editor.IsComplete);
         Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
         Assert.True(editor.FrontForkVibrationState.IsHidden);
@@ -341,6 +346,148 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
         Assert.True(editor.ScreenState.IsReady);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_AppliesPersistedPlotPreferences()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = CreateVibrationTelemetry();
+        var preferences = Substitute.For<ISessionPreferences>();
+        ConfigureRecordedPreferences(
+            preferences,
+            snapshot.Id,
+            new SessionPreferences(
+                new SessionPlotPreferences(Travel: true, Velocity: false, Imu: true),
+                new SessionStatisticsPreferences()));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.PreferencesPage.TravelPlot.Selected);
+        Assert.False(editor.PreferencesPage.VelocityPlot.Selected);
+        Assert.True(editor.PreferencesPage.ImuPlot.Selected);
+        Assert.True(editor.PreferencesPage.TravelPlot.Available);
+        Assert.True(editor.PreferencesPage.VelocityPlot.Available);
+        Assert.True(editor.PreferencesPage.ImuPlot.Available);
+        Assert.True(editor.TravelGraphState.IsReady);
+        Assert.True(editor.VelocityGraphState.IsHidden);
+        Assert.True(editor.ImuGraphState.IsReady);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_DisablesAndHidesImuPreference_WhenTelemetryHasNoImu()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.PreferencesPage.TravelPlot.Available);
+        Assert.True(editor.PreferencesPage.VelocityPlot.Available);
+        Assert.False(editor.PreferencesPage.ImuPlot.Available);
+        Assert.True(editor.TravelGraphState.IsReady);
+        Assert.True(editor.VelocityGraphState.IsReady);
+        Assert.True(editor.ImuGraphState.IsHidden);
+    }
+
+    [AvaloniaFact]
+    public async Task PlotPreferenceChange_PersistsAndUpdatesGraphStatesWithoutDirtyingSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+
+        editor.PreferencesPage.VelocityPlot.Selected = false;
+
+        Assert.False(editor.IsDirty);
+        Assert.True(editor.TravelGraphState.IsReady);
+        Assert.True(editor.VelocityGraphState.IsHidden);
+        Assert.True(editor.ImuGraphState.IsReady);
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.False(update!(SessionPreferences.Default).Plots.Velocity);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnDesktop_AppliesPersistedStatisticsWithoutSavingDuringHydration()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>();
+        ConfigureRecordedPreferences(
+            preferences,
+            snapshot.Id,
+            new SessionPreferences(
+                new SessionPlotPreferences(),
+                new SessionStatisticsPreferences(
+                    TravelHistogramMode.DynamicSag,
+                    VelocityAverageMode.StrokePeakAveraged,
+                    BalanceDisplacementMode.Travel,
+                    SessionAnalysisTargetProfile.DH)));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SelectedVelocityAverageMode);
+        Assert.Equal(BalanceDisplacementMode.Travel, editor.SelectedBalanceDisplacementMode);
+        Assert.Equal(SessionAnalysisTargetProfile.DH, editor.SelectedSessionAnalysisTargetProfile);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+    }
+
+    [AvaloniaFact]
+    public async Task StatisticsPreferenceChange_RecomputesAnalysisAndPersistsAfterHydration()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged));
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(
+            VelocityAverageMode.StrokePeakAveraged,
+            update!(SessionPreferences.Default).Statistics.VelocityAverageMode);
     }
 
     [AvaloniaFact]
@@ -665,6 +812,7 @@ public class SessionDetailViewModelTests
         Assert.Equal("front-velocity", editor.DamperPage.FrontVelocityHistogram);
         Assert.True(editor.IsComplete);
         Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, springPage.FrontHistogramState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, springPage.RearHistogramState.Kind);
@@ -734,6 +882,7 @@ public class SessionDetailViewModelTests
         Assert.False(editor.IsComplete);
         Assert.True(editor.ScreenState.IsReady);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
@@ -1015,6 +1164,26 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8)));
+    }
+
+    private static void ConfigureRecordedPreferences(
+        ISessionPreferences preferences,
+        Guid sessionId,
+        SessionPreferences recordedPreferences)
+    {
+        preferences.GetRecordedAsync(sessionId).Returns(Task.FromResult(recordedPreferences));
+        preferences.UpdateRecordedAsync(sessionId, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .Returns(Task.CompletedTask);
+        preferences.ClearReceivedCalls();
+    }
+
+    private static ISessionPreferences CreateSessionPreferences()
+    {
+        var preferences = Substitute.For<ISessionPreferences>();
+        preferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(SessionPreferences.Default));
+        preferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .Returns(Task.CompletedTask);
+        return preferences;
     }
 
     private static SessionAnalysisResult CreateAnalysisResult()

@@ -18,7 +18,9 @@ public interface IRecordedSessionGraphWorkspace
     TelemetryData? TelemetryData { get; }
     TelemetryTimeRange? AnalysisRange { get; }
     SurfacePresentationState TravelGraphState { get; }
+    SurfacePresentationState VelocityGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }
+    SessionPlotPreferences PlotPreferences { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
@@ -68,6 +70,7 @@ public interface ISessionSidebarWorkspace
     string? DescriptionText { get; set; }
     SuspensionSettings ForkSettings { get; }
     SuspensionSettings ShockSettings { get; }
+    PreferencesPageViewModel PreferencesPage { get; }
     IAsyncRelayCommand SaveCommand { get; }
     IAsyncRelayCommand ResetCommand { get; }
 }
@@ -77,7 +80,9 @@ public interface ILiveSessionGraphWorkspace
     IObservable<LiveGraphBatch> GraphBatches { get; }
     LiveSessionPlotRanges PlotRanges { get; }
     SurfacePresentationState TravelGraphState { get; }
+    SurfacePresentationState VelocityGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }
+    SessionPlotPreferences PlotPreferences { get; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 

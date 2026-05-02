@@ -13,8 +13,12 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
 
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
+    private readonly TelemetryDisplayStreamingSmoother frontSmoother = new();
+    private readonly TelemetryDisplayStreamingSmoother rearSmoother = new();
     private double[] frontVelocityScratch = [];
     private double[] rearVelocityScratch = [];
+    private double[] frontSmoothingScratch = [];
+    private double[] rearSmoothingScratch = [];
     private double runningMaxAbs;
 
     public LiveVelocityPlot(Plot plot, double velocityMaximum)
@@ -34,18 +38,20 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         }
 
         UpdateTiming(batch.VelocityTimes);
+        frontSmoother.Level = SmoothingLevel;
+        rearSmoother.Level = SmoothingLevel;
 
         if (batch.FrontVelocity.Count > 0)
         {
             var frontVelocity = ConvertToMetersPerSecond(batch.FrontVelocity, ref frontVelocityScratch);
-            frontStreamer.AddRange(frontVelocity);
+            frontStreamer.AddRange(frontSmoother.Apply(frontVelocity, ref frontSmoothingScratch));
             UpdateRunningMaxAbs(frontVelocity);
         }
 
         if (batch.RearVelocity.Count > 0)
         {
             var rearVelocity = ConvertToMetersPerSecond(batch.RearVelocity, ref rearVelocityScratch);
-            rearStreamer.AddRange(rearVelocity);
+            rearStreamer.AddRange(rearSmoother.Apply(rearVelocity, ref rearSmoothingScratch));
             UpdateRunningMaxAbs(rearVelocity);
         }
 
@@ -55,6 +61,8 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
     public override void Reset()
     {
         runningMaxAbs = 0;
+        frontSmoother.Reset();
+        rearSmoother.Reset();
         ApplyAutoLimits();
         base.Reset();
     }

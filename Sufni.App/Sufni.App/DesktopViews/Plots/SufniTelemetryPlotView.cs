@@ -1,5 +1,6 @@
 using System;
 using Avalonia;
+using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Views.Plots;
 using Sufni.App.ViewModels.Editors;
@@ -33,6 +34,15 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     {
         get => GetValue(MaximumDisplayHzProperty);
         set => SetValue(MaximumDisplayHzProperty, value);
+    }
+
+    public static readonly StyledProperty<PlotSmoothingLevel> SmoothingLevelProperty =
+        AvaloniaProperty.Register<SufniTelemetryPlotView, PlotSmoothingLevel>(nameof(SmoothingLevel));
+
+    public PlotSmoothingLevel SmoothingLevel
+    {
+        get => GetValue(SmoothingLevelProperty);
+        set => SetValue(SmoothingLevelProperty, value);
     }
 
     public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
@@ -82,6 +92,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
                     break;
 
                 case nameof(MaximumDisplayHz):
+                case nameof(SmoothingLevel):
                     if (Telemetry is not null)
                     {
                         hasPendingTelemetryLoad = true;
@@ -179,6 +190,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         }
 
         plot.MaximumDisplayHz = MaximumDisplayHz;
+        plot.SmoothingLevel = SmoothingLevel;
         plot.AnalysisRange = AnalysisRange;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
