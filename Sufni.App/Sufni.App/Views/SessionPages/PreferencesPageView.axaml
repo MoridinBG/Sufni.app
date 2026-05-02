@@ -1,0 +1,37 @@
+<UserControl
+x:Class="Sufni.App.Views.SessionPages.PreferencesPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="220"
+d:DesignWidth="320"
+x:DataType="vm:PreferencesPageViewModel"
+mc:Ignorable="d">
+
+    <StackPanel Margin="15,10,15,10" Spacing="8">
+        <TextBlock
+        FontSize="14"
+        FontWeight="SemiBold"
+        Text="Plots" />
+
+        <CheckBox
+        Name="TravelPlotCheckBox"
+        Content="{Binding TravelPlot.DisplayName}"
+        IsChecked="{Binding TravelPlot.Selected, Mode=TwoWay}"
+        IsEnabled="{Binding TravelPlot.Available}" />
+
+        <CheckBox
+        Name="VelocityPlotCheckBox"
+        Content="{Binding VelocityPlot.DisplayName}"
+        IsChecked="{Binding VelocityPlot.Selected, Mode=TwoWay}"
+        IsEnabled="{Binding VelocityPlot.Available}" />
+
+        <CheckBox
+        Name="ImuPlotCheckBox"
+        Content="{Binding ImuPlot.DisplayName}"
+        IsChecked="{Binding ImuPlot.Selected, Mode=TwoWay}"
+        IsEnabled="{Binding ImuPlot.Available}" />
+    </StackPanel>
+</UserControl>
