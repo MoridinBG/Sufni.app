@@ -86,20 +86,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
                 0, 0, Alignment.LowerCenter);
         }
 
-        foreach (var marker in telemetryData.Markers)
-        {
-            if (double.IsNaN(marker.TimestampOffset) || double.IsInfinity(marker.TimestampOffset))
-            {
-                continue;
-            }
-
-            var markerSeconds = telemetryData.Metadata.Duration > 0
-                ? Math.Clamp(marker.TimestampOffset, 0, telemetryData.Metadata.Duration)
-                : marker.TimestampOffset;
-            var line = Plot.Add.VerticalLine(markerSeconds);
-            line.LineWidth = 1.5f;
-            line.LineColor = Colors.White.WithAlpha(0.65);
-        }
+        AddMarkerLines(telemetryData);
 
         ConfigureTimeTicks();
         ConfigureSymmetricValueTicks(20);

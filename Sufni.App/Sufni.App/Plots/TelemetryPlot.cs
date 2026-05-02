@@ -106,6 +106,8 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 {
     public static readonly Color FrontColor = Color.FromHex("#3288bd");
     public static readonly Color RearColor = Color.FromHex("#66c2a5");
+    private static readonly Color markerLineColor = Color.FromHex("#d53e4f").WithAlpha(0.9);
+    private const float MarkerLineWidth = 2.0f;
 
     public int? MaximumDisplayHz { get; set; }
     public TelemetryTimeRange? AnalysisRange { get; set; }
@@ -139,6 +141,24 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 
         Plot.Axes.Left.TickGenerator = tickGenerator;
         Plot.Axes.Right.TickGenerator = tickGenerator;
+    }
+
+    protected void AddMarkerLines(TelemetryData telemetryData)
+    {
+        foreach (var marker in telemetryData.Markers)
+        {
+            if (double.IsNaN(marker.TimestampOffset) || double.IsInfinity(marker.TimestampOffset))
+            {
+                continue;
+            }
+
+            var markerSeconds = telemetryData.Metadata.Duration > 0
+                ? Math.Clamp(marker.TimestampOffset, 0, telemetryData.Metadata.Duration)
+                : marker.TimestampOffset;
+            var line = Plot.Add.VerticalLine(markerSeconds);
+            line.LineWidth = MarkerLineWidth;
+            line.LineColor = markerLineColor;
+        }
     }
 
     public virtual void SetCursorPosition(double position) { }

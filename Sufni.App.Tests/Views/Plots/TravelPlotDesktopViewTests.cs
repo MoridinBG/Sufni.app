@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Tests.Infrastructure;
@@ -87,5 +88,10 @@ public class TravelPlotDesktopViewTests
         Assert.Equal(2, markerLines.Length);
         Assert.Contains(markerLines, line => line.Position == 0.5);
         Assert.Contains(markerLines, line => line.Position == 1.5);
+        Assert.All(markerLines, line =>
+        {
+            Assert.Equal(2.0f, line.LineWidth);
+            Assert.Equal(Color.FromHex("#d53e4f").WithAlpha(0.9), line.LineColor);
+        });
     }
 }
