@@ -107,11 +107,6 @@ erDiagram
         real rear_hsr_percentage
     }
 
-    app_setting {
-        text key PK
-        text value
-    }
-
     sync {
         text server_url PK
         int last_sync_time
@@ -144,7 +139,7 @@ Session-specific operations split metadata from blob handling:
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `app_setting`, and `sync` are not `Synchronizable` and have their own lifecycles.
+`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, and `sync` are not `Synchronizable` and have their own lifecycles.
 
 On database initialization, the `Cleanup()` pass permanently removes:
 
