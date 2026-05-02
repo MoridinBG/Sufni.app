@@ -165,7 +165,7 @@ and are registered as singletons.
 | `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `CloseIfOpen<T>` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                                                                                                                                     |
 | `BikeCoordinator`                                                         | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                                                                                                                                                            |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                                                                                                                                                             |
-| `SessionCoordinator`                                                      | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)`, plus the mobile `LoadMobileDetailAsync` path which transparently fetches missing telemetry from the server before returning; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                                                                                                                         |
+| `SessionCoordinator`                                                      | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)` which seeds `ISessionPreferences` for the new session, plus the mobile `LoadMobileDetailAsync` path which transparently fetches missing telemetry from the server before returning; clears the session's stored preferences on delete; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
 | `ImportSessionsCoordinator`                                               | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                                                                                                                                                                                                                                           |
 | `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                                                                                                                                                                                                                                                       |
@@ -370,6 +370,80 @@ There are five kinds of view model in the presentation layer:
   graph/media/statistics state from the live session service and
   persists through `SessionCoordinator.SaveLiveCaptureAsync(...)`.
 
+  `SessionDetailViewModel` and `LiveSessionDetailViewModel` both
+  compose session sub-pages from `ViewModels/SessionPages/` instead of
+  putting graph/spring/damper/balance/notes/preferences state directly
+  on the editor — see [Session Sub-Pages](#session-sub-pages) below.
+
+### Session Sub-Pages
+
+`Sufni.App/Sufni.App/ViewModels/SessionPages/` holds the per-page view
+models that `SessionDetailViewModel` (recorded sessions) and
+`LiveSessionDetailViewModel` (live captures) compose into a
+swipe/tab UI. They share a tiny base, `PageViewModelBase`, which
+extends `ViewModelBase` and adds two members: an immutable
+`DisplayName` used as the tab header, and an `[ObservableProperty]
+bool Selected` that the shell view (`SessionShellMobileView`) toggles
+when the user navigates between tabs. Pages do not own commands or
+shell navigation — the editor is still the `TabPageViewModelBase` and
+keeps the `Save` / `Reset` / `Close` surface.
+
+Each editor exposes an `ObservableCollection<PageViewModelBase>
+Pages` that the shell view binds against for both the tab header
+strip and the tab body. The two editors compose different sets:
+
+- Recorded sessions: graph, spring, damper, balance, notes, preferences.
+- Live captures: graph, spring, damper, notes, preferences (no balance
+  by default).
+
+Both editors add or remove `BalancePage` at runtime via an
+`EnsureBalancePage(bool)` helper based on whether the current
+telemetry produces a balance plot, so `Pages` is mutated rather than
+rebuilt. The graph page is the only page constructed by the editor
+(it takes the editor's graph and media workspaces as constructor
+arguments — `RecordedGraphPageViewModel` for the recorded editor,
+`LiveGraphPageViewModel` for the live editor); the rest are
+parameterless and own only their own state.
+
+Most pages are pure projection surfaces over data the editor pushes
+in: `SpringPageViewModel`, `DamperPageViewModel`, and
+`BalancePageViewModel` carry per-plot strings and
+`SurfacePresentationState` values that the editor sets after each
+analysis run; `NotesPageViewModel` carries the description plus
+fork/shock `SuspensionSettings` and exposes its own
+`IsDirty(Session)` so the editor can fold notes-page edits into its
+`IsDirty` evaluation. The editors do not subscribe to most of these —
+they write to the page from analysis result handlers.
+
+Two pages diverge from that pattern:
+
+- **Graph pages** wrap the editor's graph workspace and a shared
+  media workspace and forward bindings to plot rows. The recorded and
+  live graph pages each split into independent Travel, Velocity, and
+  IMU rows whose visibility is controlled by `TravelGraphState` /
+  `VelocityGraphState` / `ImuGraphState` on the workspace (recorded:
+  on the editor itself, projected onto the workspace; live: directly
+  on `LiveSessionGraphWorkspaceViewModel`).
+- **`PreferencesPageViewModel`** owns the per-plot `Selected` and
+  `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
+  exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
+  `ApplyPlotAvailability(...)` so the editor can round-trip through
+  `SessionPlotPreferences` without reaching into individual
+  `PlotPreferenceItemViewModel` instances. Both editors subscribe to
+  `PropertyChanged` on the three plot rows in their constructor and
+  react to toggle/smoothing changes by re-applying preferences to the
+  graph workspace — the recorded editor re-applies plot selection
+  over its base presentation states, while the live editor calls
+  `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences`. The
+  recorded editor also persists changes through `ISessionPreferences`
+  (loaded on `Loaded`, written via `UpdateRecordedAsync`) and folds
+  the statistics preferences (travel-histogram mode,
+  velocity-average mode, balance-displacement mode, target profile)
+  through the same persistence path; the live editor only seeds the
+  preferences for the new session through
+  `SessionCoordinator.SaveLiveCaptureAsync(...)` because there is no
+  persisted entity to write back to until the capture is saved.
+
 `TabPageViewModelBase` (`ViewModels/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
 view (editors, the import view, the welcome screen). It takes
@@ -419,7 +493,10 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IDaqManagementService`, `ITelemetryDataStoreService`,
   `IDatabaseService`, `IFilesService`,
-  `IDialogService`.
+  `IDialogService`, plus `IAppPreferences` and the two facets
+  it exposes — `IMapPreferences` and `ISessionPreferences` —
+  registered as singletons via factory delegates that resolve the
+  same `IAppPreferences` instance.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
   factory delegates that resolve the same instance.
