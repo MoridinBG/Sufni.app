@@ -11,6 +11,7 @@ using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
@@ -350,6 +351,7 @@ public class LiveGraphPlotDesktopViewTests
         public SurfacePresentationState ImuGraphState { get; } = hasImuSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
+        public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }
 }

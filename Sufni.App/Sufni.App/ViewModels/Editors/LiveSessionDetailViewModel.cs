@@ -449,7 +449,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void OnPlotPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(PlotPreferenceItemViewModel.Selected))
+        if (args.PropertyName is not (nameof(PlotPreferenceItemViewModel.Selected) or nameof(PlotPreferenceItemViewModel.SelectedSmoothing)))
         {
             return;
         }

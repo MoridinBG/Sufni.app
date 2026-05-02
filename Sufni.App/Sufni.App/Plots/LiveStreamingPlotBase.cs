@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.Models;
 
 namespace Sufni.App.Plots;
 
@@ -27,6 +28,7 @@ public abstract class LiveStreamingPlotBase : SufniPlot
 
     public bool HasTiming => hasTiming;
     public double LatestTimeSeconds => latestTimeSeconds;
+    public PlotSmoothingLevel SmoothingLevel { get; set; }
 
     protected void ConfigurePlot(string title, string yLabel)
     {

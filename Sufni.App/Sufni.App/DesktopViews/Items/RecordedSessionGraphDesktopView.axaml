@@ -31,6 +31,7 @@ mc:Ignorable="d">
                 <plots:TravelPlotDesktopView
                 Name="Travel"
                 AnalysisRange="{Binding AnalysisRange}"
+                SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
                 Telemetry="{Binding TelemetryData}"
                 Timeline="{Binding Timeline}"
                 VelocityPlotView="{Binding #Velocity}"
@@ -59,6 +60,7 @@ mc:Ignorable="d">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:VelocityPlotDesktopView
                 Name="Velocity"
+                SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
                 Telemetry="{Binding TelemetryData}"
                 Timeline="{Binding Timeline}"
                 TravelPlotView="{Binding #Travel}"
@@ -87,6 +89,7 @@ mc:Ignorable="d">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:ImuPlotDesktopView
                 Name="Imu"
+                SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
                 Telemetry="{Binding TelemetryData}"
                 Timeline="{Binding Timeline}"
                 TravelPlotView="{Binding #Travel}"

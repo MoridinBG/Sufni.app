@@ -35,6 +35,7 @@ mc:Ignorable="d">
                         x:Name="TravelPlot"
                         GraphBatches="{Binding Workspace.GraphBatches}"
                         MaximumY="{Binding Workspace.PlotRanges.TravelMaximum}"
+                        SmoothingLevel="{Binding Workspace.PlotPreferences.TravelSmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
 
@@ -51,6 +52,7 @@ mc:Ignorable="d">
                         GraphBatches="{Binding Workspace.GraphBatches}"
                         MaximumY="{Binding Workspace.PlotRanges.VelocityMaximum}"
                         MinimumY="{Binding Workspace.PlotRanges.VelocityMinimum}"
+                        SmoothingLevel="{Binding Workspace.PlotPreferences.VelocitySmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
 
@@ -66,6 +68,7 @@ mc:Ignorable="d">
                         Margin="0,4,0,0"
                         GraphBatches="{Binding Workspace.GraphBatches}"
                         MaximumY="{Binding Workspace.PlotRanges.ImuMaximum}"
+                        SmoothingLevel="{Binding Workspace.PlotPreferences.ImuSmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
 

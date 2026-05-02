@@ -10,6 +10,7 @@ public sealed class LiveTravelPlotDesktopView : LiveGraphPlotDesktopViewBase
     {
         Debug.Assert(HasPlotControl);
         Plot = new LiveTravelPlot(PlotControl.Plot, MaximumY ?? 1);
+        ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();
     }

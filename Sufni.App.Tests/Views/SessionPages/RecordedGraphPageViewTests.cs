@@ -196,6 +196,7 @@ public class RecordedGraphPageViewTests
         public SurfacePresentationState TravelGraphState { get; } = travelGraphState;
         public SurfacePresentationState VelocityGraphState { get; } = velocityGraphState ?? travelGraphState;
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;
+        public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)
