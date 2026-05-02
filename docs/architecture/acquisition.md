@@ -34,9 +34,11 @@ graph LR
 
 **`ITelemetryFile`** (`Sufni.App/Sufni.App/Models/ITelemetryFile.cs`) represents a single SST file. Key members:
 
-- `ShouldBeImported` — tri-state nullable bool: `null` if file duration < 5 seconds (too short to be useful), `true`/`false` for user decision
+- `ShouldBeImported` — tri-state nullable bool driving the per-row import action selector (legacy semantics): `false` (default) "Ignore" / leave alone, `true` "Import", `null` "Trash". `ImportSessionsCoordinator` only imports rows with `ShouldBeImported is true` and only trashes rows with `ShouldBeImported is null`.
+- `CanImport` — set from inspection; `false` for malformed files, which forces the action selector to stay disabled.
+- `MalformedMessage`, `HasUnknown` — diagnostic flags surfaced by inspection for the import row UI.
 - `GeneratePsstAsync(BikeData)` — the full pipeline in one call: reads raw bytes, parses SST, runs signal processing, returns MessagePack-serialized `TelemetryData`
-- `OnImported()` / `OnTrashed()` — post-action hooks (move file, send TCP delete command, etc.)
+- `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
 **`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `SetupCoordinator`; neither screen constructs concrete datastore implementations itself.
@@ -92,13 +94,13 @@ graph TD
     Magic --> Version["Read version byte"]
     Version -->|"3"| V3["SstV3Parser"]
     Version -->|"4"| V4["SstV4TlvParser"]
-    V3 --> RawTD["RawTelemetryData"]
+    V3 --> RawTD["RawTelemetryData<br/>(raw uint16 front/rear, markers, IMU/GPS, malformed flag)"]
     V4 --> RawTD
-    RawTD --> Spike["SpikeElimination.EliminateSpikes()"]
-    Spike --> Clean["Clean ushort[] front/rear + anomaly rates"]
 ```
 
 `RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the magic bytes and version, then dispatches to the appropriate `ISstParser` implementation. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import.
+
+Spike elimination is **not** part of the SST parser. The parsers populate the raw `Front` / `Rear` arrays directly; the [Spike Elimination](#spike-elimination) cleanup runs later in `TelemetryData.FromRecording()` via `MeasurementPreprocessor.Process(...)`, once the bike's sensor calibration is known.
 
 ### SST V3 Format
 
@@ -136,7 +138,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
-The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. This is enough to compute duration, version, the `HasUnknown` flag, and any malformed-warning message — used for UI display before import. It detects unknown TLV chunk types and malformed headers, returning a `MalformedSstFileInspection` with a diagnostic message when the file cannot be imported. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the file with a malformed warning, and still allows import.
+The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. This is enough to compute duration, version, the `HasUnknown` flag, and any malformed-warning message — used for UI display before import. Unknown TLV chunk types (or unknown rate-stream types inside a `Rates` chunk) do not block import: inspect skips past their payload and sets `HasUnknown = true` on the resulting `ValidSstFileInspection`. A `MalformedSstFileInspection` is returned only for header / framing failures that prevent a clean read — truncated header, invalid chunk lengths, incomplete trailing chunk header, or a missing/invalid telemetry sample rate. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the result with a malformed warning, and still allows import.
 
 ### Spike Elimination
 
