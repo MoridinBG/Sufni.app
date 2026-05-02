@@ -93,6 +93,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ISessionPresentationService>(),
             Substitute.For<ISessionAnalysisService>(),
             Substitute.For<ITileLayerService>(),
+            Substitute.For<ISessionPreferences>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
             null);

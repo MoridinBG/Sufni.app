@@ -25,6 +25,7 @@ public class SessionCoordinatorTests
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
+    private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
@@ -33,10 +34,13 @@ public class SessionCoordinatorTests
     {
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
+        sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+        sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .Returns(Task.CompletedTask);
     }
 
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
-        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, sessionAnalysisService, tileLayerService, shell, dialogService, sync);
+        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, sessionAnalysisService, tileLayerService, sessionPreferences, shell, dialogService, sync);
 
     // ----- OpenEditAsync -----
 
@@ -159,7 +163,7 @@ public class SessionCoordinatorTests
         database.PutAsync(Arg.Do<Track>(track => savedTrack = track))
             .Returns(callInfo => savedTrack!.Id);
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture);
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
 
         await database.Received(1).PutAsync(Arg.Is<Track>(track => track.Points.Count == 1));
         await database.Received(1).PutSessionAsync(Arg.Is<Session>(saved =>
@@ -176,13 +180,45 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task SaveLiveCaptureAsync_SeedsRecordedPreferences_WhenProvided()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
+        var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
+        {
+            Updated = 9,
+            HasProcessedData = true,
+        };
+        var preferences = new SessionPreferences(
+            new SessionPlotPreferences(Travel: true, Velocity: false, Imu: true),
+            new SessionStatisticsPreferences(
+                TravelHistogramMode.DynamicSag,
+                VelocityAverageMode.StrokePeakAveraged,
+                BalanceDisplacementMode.Travel,
+                SessionAnalysisTargetProfile.DH));
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        database.GetSessionAsync(session.Id).Returns(fresh);
+        sessionPreferences.UpdateRecordedAsync(
+                session.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, preferences);
+
+        Assert.IsType<LiveSessionSaveResult.Saved>(result);
+        await sessionPreferences.Received(1).UpdateRecordedAsync(session.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(preferences, update!(SessionPreferences.Default));
+    }
+
+    [Fact]
     public async Task SaveLiveCaptureAsync_ReturnsFailed_WhenRefetchReturnsNull()
     {
         var capture = CreateLiveCapturePackage(withGps: false);
         var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
         database.GetSessionAsync(session.Id).Returns((Session?)null);
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture);
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
@@ -206,6 +242,7 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Session>(id);
         await database.Received(1).DeleteAsync<Track>(trackId);
+        await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
         sessionStore.Received(1).Remove(id);
     }
@@ -262,6 +299,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
+        await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!);
     }
