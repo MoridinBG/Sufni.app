@@ -33,6 +33,7 @@ public class SessionCoordinator
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ISessionAnalysisService sessionAnalysisService;
     private readonly ITileLayerService tileLayerService;
+    private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
 
@@ -45,6 +46,7 @@ public class SessionCoordinator
         ISessionPresentationService sessionPresentationService,
         ISessionAnalysisService sessionAnalysisService,
         ITileLayerService tileLayerService,
+        ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         IDialogService dialogService,
         ISynchronizationServerService? synchronizationServer = null)
@@ -57,6 +59,7 @@ public class SessionCoordinator
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
         this.tileLayerService = tileLayerService;
+        this.sessionPreferences = sessionPreferences;
         this.shell = shell;
         this.dialogService = dialogService;
 
@@ -82,7 +85,8 @@ public class SessionCoordinator
                 sessionAnalysisService,
                 tileLayerService,
                 shell,
-                dialogService));
+                dialogService,
+                sessionPreferences));
         return Task.CompletedTask;
     }
 
@@ -274,8 +278,11 @@ public class SessionCoordinator
     public virtual async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
         Session session,
         LiveSessionCapturePackage capture,
+        SessionPreferences preferences,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(preferences);
+
         logger.Information("Starting live session save for {SessionId}", session.Id);
 
         try
@@ -314,6 +321,8 @@ public class SessionCoordinator
             }
 
             var snapshot = SessionSnapshot.From(fresh);
+            await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
+
             sessionStore.Upsert(snapshot);
 
             logger.Information("Live session save completed for {SessionId}", session.Id);
@@ -359,6 +368,8 @@ public class SessionCoordinator
                     logger.Warning(e, "Failed to delete orphaned track {TrackId} after deleting session {SessionId}", trackId.Value, sessionId);
                 }
             }
+
+            await sessionPreferences.RemoveRecordedAsync(sessionId);
         }
         catch (Exception e)
         {

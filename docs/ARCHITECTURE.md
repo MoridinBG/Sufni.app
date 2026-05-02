@@ -172,7 +172,7 @@ SQLite via `sqlite-net-pcl` with WAL mode. All sync-enabled entities inherit fro
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
-- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_cache`, `app_setting`, `sync`, `paired_device`
+- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_cache`, `sync`, `paired_device`
 - [Database Service](architecture/persistence.md#database-service) — generic `Synchronizable` operations and session-specific blob ops
 - [Soft Delete](architecture/persistence.md#soft-delete) — `Deleted` timestamp, 1-day purge window, expired-pair cleanup
 - [Conflict Resolution](architecture/persistence.md#conflict-resolution) — `MergeAsync<T>()` rules: new / remote-delete / local-wins / remote-wins

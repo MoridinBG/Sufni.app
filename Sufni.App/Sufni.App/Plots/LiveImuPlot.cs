@@ -14,6 +14,12 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private readonly DataStreamer frameStreamer;
     private readonly DataStreamer forkStreamer;
     private readonly DataStreamer rearStreamer;
+    private readonly TelemetryDisplayStreamingSmoother frameSmoother = new();
+    private readonly TelemetryDisplayStreamingSmoother forkSmoother = new();
+    private readonly TelemetryDisplayStreamingSmoother rearSmoother = new();
+    private double[] frameSmoothingScratch = [];
+    private double[] forkSmoothingScratch = [];
+    private double[] rearSmoothingScratch = [];
     private double runningMax;
 
     public LiveImuPlot(Plot plot, double imuMaximum)
@@ -46,21 +52,25 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
             UpdateTiming(rearTimes);
         }
 
+        frameSmoother.Level = SmoothingLevel;
+        forkSmoother.Level = SmoothingLevel;
+        rearSmoother.Level = SmoothingLevel;
+
         if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Frame, out var frameValues) && frameValues.Count > 0)
         {
-            frameStreamer.AddRange(frameValues);
+            frameStreamer.AddRange(frameSmoother.Apply(frameValues, ref frameSmoothingScratch));
             UpdateRunningMax(frameValues);
         }
 
         if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Fork, out var forkValues) && forkValues.Count > 0)
         {
-            forkStreamer.AddRange(forkValues);
+            forkStreamer.AddRange(forkSmoother.Apply(forkValues, ref forkSmoothingScratch));
             UpdateRunningMax(forkValues);
         }
 
         if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Rear, out var rearValues) && rearValues.Count > 0)
         {
-            rearStreamer.AddRange(rearValues);
+            rearStreamer.AddRange(rearSmoother.Apply(rearValues, ref rearSmoothingScratch));
             UpdateRunningMax(rearValues);
         }
 
@@ -70,6 +80,9 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     public override void Reset()
     {
         runningMax = 0;
+        frameSmoother.Reset();
+        forkSmoother.Reset();
+        rearSmoother.Reset();
         ApplyAutoLimits();
         base.Reset();
     }

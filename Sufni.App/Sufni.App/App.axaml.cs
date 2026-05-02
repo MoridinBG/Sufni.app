@@ -71,6 +71,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
+        ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
+        ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
+        ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
         ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
         ServiceCollection.AddSingleton<IFilesService, FilesService>();
         ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
@@ -97,6 +100,7 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPresentationService>(),
             sp.GetRequiredService<ISessionAnalysisService>(),
             sp.GetRequiredService<ITileLayerService>(),
+            sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<IDialogService>(),
             sp.GetService<ISynchronizationServerService>()));

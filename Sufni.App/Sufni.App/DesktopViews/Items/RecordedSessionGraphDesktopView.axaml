@@ -19,63 +19,77 @@ mc:Ignorable="d">
         </Grid.Resources>
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="{Binding TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=5*}" />
+            <RowDefinition Height="{Binding TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="{Binding ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=2*}" />
+            <RowDefinition Height="{Binding VelocityGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{Binding ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
         </Grid.RowDefinitions>
 
         <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding TravelGraphState}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
-                <Grid RowDefinitions="3* Auto 2*">
-                    <plots:TravelPlotDesktopView
-                    Name="Travel"
-                    Grid.Row="0"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    Telemetry="{Binding TelemetryData}"
-                    Timeline="{Binding Timeline}"
-                    VelocityPlotView="{Binding #Velocity}"
-                    ImuPlotView="{Binding #Imu}" />
-
-                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
-
-                    <plots:VelocityPlotDesktopView
-                    Name="Velocity"
-                    Grid.Row="2"
-                    Telemetry="{Binding TelemetryData}"
-                    Timeline="{Binding Timeline}"
-                    TravelPlotView="{Binding #Travel}"
-                    ImuPlotView="{Binding #Imu}" />
-                </Grid>
+                <plots:TravelPlotDesktopView
+                Name="Travel"
+                AnalysisRange="{Binding AnalysisRange}"
+                SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
+                Telemetry="{Binding TelemetryData}"
+                Timeline="{Binding Timeline}"
+                VelocityPlotView="{Binding #Velocity}"
+                ImuPlotView="{Binding #Imu}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                <Grid RowDefinitions="3* Auto 2*">
-                    <controls:SurfacePlaceholderCard Grid.Row="0" Title="Travel" />
-
-                    <Border Grid.Row="1" Background="{StaticResource SufniGridSplitter}" Height="3" />
-
-                    <controls:SurfacePlaceholderCard Grid.Row="2" Title="Velocity" />
-                </Grid>
+                <controls:SurfacePlaceholderCard Title="Travel" />
             </controls:PlaceholderOverlayContainer.PlaceholderContent>
         </controls:PlaceholderOverlayContainer>
 
         <GridSplitter
-        Name="ImuSplitter"
+        Name="TravelVelocitySplitter"
         Grid.Row="1"
         ResizeDirection="Rows"
         ResizeBehavior="PreviousAndNext">
             <GridSplitter.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="TravelGraphState.ReservesLayout" />
+                    <Binding Path="VelocityGraphState.ReservesLayout" />
+                </MultiBinding>
+            </GridSplitter.IsVisible>
+        </GridSplitter>
+
+        <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding VelocityGraphState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <plots:VelocityPlotDesktopView
+                Name="Velocity"
+                SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
+                Telemetry="{Binding TelemetryData}"
+                Timeline="{Binding Timeline}"
+                TravelPlotView="{Binding #Travel}"
+                ImuPlotView="{Binding #Imu}" />
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <controls:SurfacePlaceholderCard Title="Velocity" />
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
+
+        <GridSplitter
+        Name="ImuSplitter"
+        Grid.Row="3"
+        ResizeDirection="Rows"
+        ResizeBehavior="PreviousAndNext">
+            <GridSplitter.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="VelocityGraphState.ReservesLayout" />
                     <Binding Path="ImuGraphState.ReservesLayout" />
                 </MultiBinding>
             </GridSplitter.IsVisible>
         </GridSplitter>
 
-        <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding ImuGraphState}">
+        <controls:PlaceholderOverlayContainer Grid.Row="4" PresentationState="{Binding ImuGraphState}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:ImuPlotDesktopView
                 Name="Imu"
+                SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
                 Telemetry="{Binding TelemetryData}"
                 Timeline="{Binding Timeline}"
                 TravelPlotView="{Binding #Travel}"

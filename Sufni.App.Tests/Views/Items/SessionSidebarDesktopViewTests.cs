@@ -2,17 +2,55 @@ using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.DesktopViews.Items;
+using Sufni.App.Models;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.SessionPages;
 
 namespace Sufni.App.Tests.Views.Items;
 
 public class SessionSidebarDesktopViewTests
 {
+    [AvaloniaFact]
+    public async Task SessionSidebarDesktopView_RendersNotesAndPreferencesTabs()
+    {
+        var workspace = new SessionSidebarWorkspaceStub
+        {
+            Name = "Recorded Session 01",
+            DescriptionText = "Suspension notes",
+        };
+        workspace.PreferencesPage.ApplyPlotPreferences(new SessionPlotPreferences(Travel: false, Velocity: true, Imu: true));
+        workspace.PreferencesPage.ApplyPlotAvailability(travelAvailable: true, velocityAvailable: false, imuAvailable: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabControl>("SidebarTabControl");
+        var notesTab = mounted.View.FindControl<TabItem>("NotesTab");
+        var preferencesTab = mounted.View.FindControl<TabItem>("PreferencesTab");
+
+        Assert.NotNull(tabControl);
+        Assert.NotNull(notesTab);
+        Assert.NotNull(preferencesTab);
+        Assert.Equal("Notes", notesTab!.Header);
+        Assert.Equal("Preferences", preferencesTab!.Header);
+        Assert.NotNull(mounted.View.FindControl<TextBox>("NameTextBox"));
+        Assert.NotNull(mounted.View.FindControl<TextBox>("DescriptionTextBox"));
+
+        preferencesTab!.IsSelected = true;
+        tabControl!.SelectedItem = preferencesTab;
+        tabControl.SelectedIndex = 1;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var preferencesView = FindVisual<PreferencesPageView>(mounted.View, "PreferencesContent");
+        Assert.Same(workspace.PreferencesPage, preferencesView.DataContext);
+    }
+
     [AvaloniaFact]
     public async Task SessionSidebarDesktopView_BindsNameAndDescriptionFields()
     {
@@ -69,6 +107,34 @@ public class SessionSidebarDesktopViewTests
         Assert.True(workspace.ResetInvoked);
     }
 
+    [AvaloniaFact]
+    public async Task SessionSidebarDesktopView_ShowsSaveAndResetOnlyInNotesTab()
+    {
+        var workspace = new SessionSidebarWorkspaceStub
+        {
+            Name = "Recorded Session 01",
+            DescriptionText = "Suspension notes",
+        };
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabControl>("SidebarTabControl");
+        var saveButton = mounted.View.FindControl<Button>("SaveButton");
+        var resetButton = mounted.View.FindControl<Button>("ResetButton");
+
+        Assert.True(saveButton!.IsVisible);
+        Assert.True(resetButton!.IsVisible);
+
+        var preferencesTab = mounted.View.FindControl<TabItem>("PreferencesTab");
+        preferencesTab!.IsSelected = true;
+        tabControl!.SelectedItem = preferencesTab;
+        tabControl.SelectedIndex = 1;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(FindVisibleButtons(mounted.View, "SaveButton"));
+        Assert.Empty(FindVisibleButtons(mounted.View, "ResetButton"));
+    }
+
     private static async Task<MountedSessionSidebarDesktopView> MountAsync(SessionSidebarWorkspaceStub workspace)
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -80,6 +146,23 @@ public class SessionSidebarDesktopViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedSessionSidebarDesktopView(host, view);
+    }
+
+    private static T FindVisual<T>(Control root, string name)
+        where T : Control
+    {
+        return root.GetVisualDescendants()
+            .OfType<T>()
+            .Concat(root.GetLogicalDescendants().OfType<T>())
+            .Single(control => control.Name == name);
+    }
+
+    private static IEnumerable<Button> FindVisibleButtons(Control root, string name)
+    {
+        return root.GetVisualDescendants()
+            .OfType<Button>()
+            .Where(button => button.Name == name && button.IsVisible)
+            .ToArray();
     }
 
     private sealed class SessionSidebarWorkspaceStub : ObservableObject, ISessionSidebarWorkspace
@@ -115,6 +198,7 @@ public class SessionSidebarDesktopViewTests
 
         public SuspensionSettings ForkSettings { get; } = new();
         public SuspensionSettings ShockSettings { get; } = new();
+        public PreferencesPageViewModel PreferencesPage { get; } = new();
         public IAsyncRelayCommand SaveCommand { get; }
         public IAsyncRelayCommand ResetCommand { get; }
         public bool SaveInvoked { get; private set; }

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Threading;
+using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.SessionGraphs;
 using Sufni.App.Services.LiveStreaming;
@@ -63,6 +64,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         set => SetValue(MaximumYProperty, value);
     }
 
+    public static readonly StyledProperty<PlotSmoothingLevel> SmoothingLevelProperty =
+        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, PlotSmoothingLevel>(nameof(SmoothingLevel));
+
+    public PlotSmoothingLevel SmoothingLevel
+    {
+        get => GetValue(SmoothingLevelProperty);
+        set => SetValue(SmoothingLevelProperty, value);
+    }
+
     protected LiveGraphPlotDesktopViewBase()
     {
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -96,6 +106,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                 case nameof(MinimumY):
                 case nameof(MaximumY):
                     ApplyConfiguredVerticalLimits();
+                    break;
+
+                case nameof(SmoothingLevel):
+                    ApplySmoothingLevel(resetExistingSamples: true);
                     break;
             }
         };
@@ -165,6 +179,24 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         }
 
         Plot.SetVerticalLimits(MinimumY ?? 0, MaximumY ?? 1);
+    }
+
+    protected void ApplySmoothingLevel(bool resetExistingSamples = false)
+    {
+        if (Plot is null || Plot.SmoothingLevel == SmoothingLevel)
+        {
+            return;
+        }
+
+        Plot.SmoothingLevel = SmoothingLevel;
+        if (!resetExistingSamples)
+        {
+            return;
+        }
+
+        Plot.Reset();
+        RefreshPlot();
+        UpdateTimelineRange();
     }
 
     private void HandleGraphBatch(LiveGraphBatch batch)

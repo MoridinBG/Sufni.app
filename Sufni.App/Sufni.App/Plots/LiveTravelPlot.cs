@@ -13,6 +13,10 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
 
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
+    private readonly TelemetryDisplayStreamingSmoother frontSmoother = new();
+    private readonly TelemetryDisplayStreamingSmoother rearSmoother = new();
+    private double[] frontSmoothingScratch = [];
+    private double[] rearSmoothingScratch = [];
     private double runningMax;
 
     public LiveTravelPlot(Plot plot, double travelMaximum)
@@ -32,8 +36,19 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
         }
 
         UpdateTiming(batch.TravelTimes);
-        frontStreamer.AddRange(batch.FrontTravel);
-        rearStreamer.AddRange(batch.RearTravel);
+        frontSmoother.Level = SmoothingLevel;
+        rearSmoother.Level = SmoothingLevel;
+
+        if (batch.FrontTravel.Count > 0)
+        {
+            frontStreamer.AddRange(frontSmoother.Apply(batch.FrontTravel, ref frontSmoothingScratch));
+        }
+
+        if (batch.RearTravel.Count > 0)
+        {
+            rearStreamer.AddRange(rearSmoother.Apply(batch.RearTravel, ref rearSmoothingScratch));
+        }
+
         UpdateRunningMax(batch.FrontTravel);
         UpdateRunningMax(batch.RearTravel);
         ApplyAutoLimits();
@@ -42,6 +57,8 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
     public override void Reset()
     {
         runningMax = 0;
+        frontSmoother.Reset();
+        rearSmoother.Reset();
         ApplyAutoLimits();
         base.Reset();
     }

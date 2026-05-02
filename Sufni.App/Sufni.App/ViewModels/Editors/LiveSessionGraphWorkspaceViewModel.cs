@@ -1,5 +1,6 @@
 using System;
 using System.Reactive.Linq;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels;
@@ -9,16 +10,23 @@ namespace Sufni.App.ViewModels.Editors;
 public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSessionGraphWorkspace
 {
     private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
     private uint? sessionId;
     private bool travelExpected;
     private bool imuExpected;
     private bool hasTravelData;
     private bool hasImuData;
+    private SessionPlotPreferences plotPreferences = new();
 
     public IObservable<LiveGraphBatch> GraphBatches { get; }
     public LiveSessionPlotRanges PlotRanges { get; }
     public SessionTimelineLinkViewModel Timeline { get; }
+    public SessionPlotPreferences PlotPreferences
+    {
+        get => plotPreferences;
+        private set => SetProperty(ref plotPreferences, value);
+    }
     public SurfacePresentationState TravelGraphState
     {
         get => travelGraphState;
@@ -29,6 +37,12 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     {
         get => imuGraphState;
         private set => SetProperty(ref imuGraphState, value);
+    }
+
+    public SurfacePresentationState VelocityGraphState
+    {
+        get => velocityGraphState;
+        private set => SetProperty(ref velocityGraphState, value);
     }
 
     public LiveSessionGraphWorkspaceViewModel()
@@ -76,6 +90,12 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     public void ApplyGraphBatch(LiveGraphBatch batch)
     {
         ApplyGraphDataPresence(HasTravelData(batch), HasImuData(batch));
+    }
+
+    public void ApplyPlotPreferences(SessionPlotPreferences preferences)
+    {
+        PlotPreferences = preferences;
+        RefreshStates();
     }
 
     public void ApplyGraphDataPresence(bool hasTravelData, bool hasImuData)
@@ -126,16 +146,26 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
 
     private void RefreshStates()
     {
-        TravelGraphState = !travelExpected
+        var travelState = !travelExpected
             ? SurfacePresentationState.Hidden
             : hasTravelData
                 ? SurfacePresentationState.Ready
                 : SurfacePresentationState.WaitingForData("Waiting for live travel data.");
 
-        ImuGraphState = !imuExpected
+        var velocityState = !travelExpected
+            ? SurfacePresentationState.Hidden
+            : hasTravelData
+                ? SurfacePresentationState.Ready
+                : SurfacePresentationState.WaitingForData("Waiting for live velocity data.");
+
+        var imuState = !imuExpected
             ? SurfacePresentationState.Hidden
             : hasImuData
                 ? SurfacePresentationState.Ready
                 : SurfacePresentationState.WaitingForData("Waiting for live IMU data.");
+
+        TravelGraphState = travelState.ApplyPlotSelection(plotPreferences.Travel);
+        VelocityGraphState = velocityState.ApplyPlotSelection(plotPreferences.Velocity);
+        ImuGraphState = imuState.ApplyPlotSelection(plotPreferences.Imu);
     }
 }
