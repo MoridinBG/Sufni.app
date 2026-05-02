@@ -14,6 +14,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     private bool hasPendingTelemetryLoad;
 
     protected TelemetryPlot PlotModel => plot!;
+    protected bool HasPlotModel => plot is not null;
     public bool IsPlotReady => plot is not null && HasPlotControl;
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
@@ -32,6 +33,15 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     {
         get => GetValue(MaximumDisplayHzProperty);
         set => SetValue(MaximumDisplayHzProperty, value);
+    }
+
+    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
+        AvaloniaProperty.Register<SufniTelemetryPlotView, TelemetryTimeRange?>(nameof(AnalysisRange));
+
+    public TelemetryTimeRange? AnalysisRange
+    {
+        get => GetValue(AnalysisRangeProperty);
+        set => SetValue(AnalysisRangeProperty, value);
     }
 
     public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
@@ -78,6 +88,10 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
                         TryApplyPendingTelemetryLoad();
                     }
                     break;
+
+                case nameof(AnalysisRange):
+                    OnAnalysisRangeChanged();
+                    break;
             }
 
             RefreshPlot();
@@ -112,6 +126,22 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     {
         plot = plotModel;
         TryApplyPendingTelemetryLoad();
+    }
+
+    protected void ReloadTelemetry()
+    {
+        if (Telemetry is null)
+        {
+            return;
+        }
+
+        if (!CanLoadTelemetryNow())
+        {
+            hasPendingTelemetryLoad = true;
+            return;
+        }
+
+        LoadTelemetryIntoPlot(Telemetry);
     }
 
     public void SetCursorPosition(double position)
@@ -149,9 +179,26 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         }
 
         plot.MaximumDisplayHz = MaximumDisplayHz;
+        plot.AnalysisRange = AnalysisRange;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
         RefreshPlot();
+    }
+
+    protected virtual void OnAnalysisRangeChanged()
+    {
+        if (Telemetry is null)
+        {
+            return;
+        }
+
+        if (!CanLoadTelemetryNow())
+        {
+            hasPendingTelemetryLoad = true;
+            return;
+        }
+
+        LoadTelemetryIntoPlot(Telemetry);
     }
 
     private bool CanLoadTelemetryNow()

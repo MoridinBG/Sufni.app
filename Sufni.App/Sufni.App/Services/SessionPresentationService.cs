@@ -11,7 +11,9 @@ public sealed class SessionPresentationService : ISessionPresentationService
 {
     private const double HighSpeedThreshold = 200.0;
 
-    public SessionDamperPercentages CalculateDamperPercentages(TelemetryData telemetryData)
+    public SessionDamperPercentages CalculateDamperPercentages(
+        TelemetryData telemetryData,
+        TelemetryTimeRange? range = null)
     {
         double? frontHsc = null;
         double? rearHsc = null;
@@ -22,18 +24,18 @@ public sealed class SessionPresentationService : ISessionPresentationService
         double? frontHsr = null;
         double? rearHsr = null;
 
-        if (telemetryData.HasStrokeData(SuspensionType.Front))
+        if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front, range))
         {
-            var frontBands = telemetryData.CalculateVelocityBands(SuspensionType.Front, HighSpeedThreshold);
+            var frontBands = TelemetryStatistics.CalculateVelocityBands(telemetryData, SuspensionType.Front, HighSpeedThreshold, range);
             frontHsc = frontBands.HighSpeedCompression;
             frontLsc = frontBands.LowSpeedCompression;
             frontLsr = frontBands.LowSpeedRebound;
             frontHsr = frontBands.HighSpeedRebound;
         }
 
-        if (telemetryData.HasStrokeData(SuspensionType.Rear))
+        if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear, range))
         {
-            var rearBands = telemetryData.CalculateVelocityBands(SuspensionType.Rear, HighSpeedThreshold);
+            var rearBands = TelemetryStatistics.CalculateVelocityBands(telemetryData, SuspensionType.Rear, HighSpeedThreshold, range);
             rearHsc = rearBands.HighSpeedCompression;
             rearLsc = rearBands.LowSpeedCompression;
             rearLsr = rearBands.LowSpeedRebound;
@@ -67,7 +69,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
         string? compressionBalance = null;
         string? reboundBalance = null;
 
-        if (telemetryData.HasStrokeData(SuspensionType.Front))
+        if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front))
         {
             frontTravelHistogram = RenderTravelHistogram(telemetryData, SuspensionType.Front, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
@@ -76,7 +78,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        if (telemetryData.HasStrokeData(SuspensionType.Rear))
+        if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear))
         {
             rearTravelHistogram = RenderTravelHistogram(telemetryData, SuspensionType.Rear, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
@@ -85,8 +87,8 @@ public sealed class SessionPresentationService : ISessionPresentationService
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        var compressionBalanceAvailable = telemetryData.HasBalanceData(BalanceType.Compression);
-        var reboundBalanceAvailable = telemetryData.HasBalanceData(BalanceType.Rebound);
+        var compressionBalanceAvailable = TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Compression);
+        var reboundBalanceAvailable = TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Rebound);
         if (compressionBalanceAvailable)
         {
             compressionBalance = RenderBalance(telemetryData, BalanceType.Compression, dimensions);
@@ -117,7 +119,10 @@ public sealed class SessionPresentationService : ISessionPresentationService
         SuspensionType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new TravelHistogramPlot(new Plot(), type);
+        var plot = new TravelHistogramPlot(new Plot(), type)
+        {
+            HistogramMode = TravelHistogramMode.ActiveSuspension,
+        };
         plot.LoadTelemetryData(telemetryData);
         return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
     }
@@ -127,7 +132,10 @@ public sealed class SessionPresentationService : ISessionPresentationService
         SuspensionType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new VelocityHistogramPlot(new Plot(), type);
+        var plot = new VelocityHistogramPlot(new Plot(), type)
+        {
+            AverageMode = VelocityAverageMode.SampleAveraged,
+        };
         plot.LoadTelemetryData(telemetryData);
         return plot.GetSvgXml(dimensions.VelocityHistogramWidth, dimensions.VelocityHistogramHeight);
     }
@@ -137,7 +145,10 @@ public sealed class SessionPresentationService : ISessionPresentationService
         BalanceType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new BalancePlot(new Plot(), type);
+        var plot = new BalancePlot(new Plot(), type)
+        {
+            DisplacementMode = BalanceDisplacementMode.Zenith,
+        };
         plot.LoadTelemetryData(telemetryData);
         return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
     }

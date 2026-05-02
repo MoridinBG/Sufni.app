@@ -7,7 +7,21 @@ namespace Sufni.App.Plots;
 
 public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 {
+    private HorizontalSpan? selectedSpan;
+    private HorizontalSpan? previewSpan;
+
     public VerticalLine? CursorLine { get; set; }
+
+    public void SetAnalysisRange(TelemetryTimeRange? range)
+    {
+        selectedSpan = SetSpan(selectedSpan, range?.StartSeconds, range?.EndSeconds,
+            FrontColor.WithAlpha(0.16));
+    }
+
+    public void SetPreviewRange(double? startSeconds, double? endSeconds)
+    {
+        previewSpan = SetSpan(previewSpan, startSeconds, endSeconds, Colors.LightGray.WithAlpha(0.12));
+    }
 
     public override void SetCursorPosition(double position)
     {
@@ -20,6 +34,10 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
+
+        CursorLine = null;
+        selectedSpan = null;
+        previewSpan = null;
 
         Plot.Axes.Title.Label.Text = "Travel (mm / seconds)";
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
@@ -68,11 +86,48 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
                 0, 0, Alignment.LowerCenter);
         }
 
+        AddMarkerLines(telemetryData);
+
         ConfigureTimeTicks();
         ConfigureSymmetricValueTicks(20);
+
+        SetAnalysisRange(AnalysisRange);
+        SetPreviewRange(null, null);
 
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;
         CursorLine.LineColor = Colors.LightGray;
+    }
+
+    private HorizontalSpan? SetSpan(HorizontalSpan? span, double? startSeconds, double? endSeconds, Color color)
+    {
+        if (startSeconds is null || endSeconds is null)
+        {
+            if (span is not null)
+            {
+                span.IsVisible = false;
+            }
+
+            return span;
+        }
+
+        var start = Math.Min(startSeconds.Value, endSeconds.Value);
+        var end = Math.Max(startSeconds.Value, endSeconds.Value);
+        if (span is null)
+        {
+            span = Plot.Add.HorizontalSpan(start, end);
+            span.FillColor = color;
+            span.LineStyle.Width = 0;
+            span.EnableAutoscale = false;
+        }
+        else
+        {
+            span.X1 = start;
+            span.X2 = end;
+            span.FillColor = color;
+        }
+
+        span.IsVisible = true;
+        return span;
     }
 }

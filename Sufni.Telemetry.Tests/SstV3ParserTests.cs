@@ -42,7 +42,7 @@ public class SstV3ParserTests
         Assert.Empty(result.Markers);
         Assert.Null(result.ImuData);
     }
-    
+
     [Fact]
     public void Parse_V3FileWithEmptyData_ReturnsEmptyArrays()
     {
@@ -132,7 +132,7 @@ public class SstV3ParserTests
     public void Parse_PreservesHighAdcSamples_WithoutSignedWrap()
     {
         ushort[] front = [2500, 2510, 2520, 2530, 2540];
-        ushort[] rear  = [3000, 3010, 3020, 3030, 3040];
+        ushort[] rear = [3000, 3010, 3020, 3030, 3040];
 
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms);
@@ -159,15 +159,10 @@ public class SstV3ParserTests
     }
 
     [Fact]
-    public void Parse_CorruptedFileWithSignedNegativeBytes_ClampsToValidUshortRange()
+    public void Parse_PreservesOutOfRangePayloadSamples_ForProcessingStage()
     {
-        // A corrupted file may contain bytes that would read as negative int16 values
-        // (high-bit set: 0x8000..0xFFFE, where 0xFFFF is the channel-absent sentinel).
-        // The parser reads them as ushort, so they enter the pipeline as large positives;
-        // the despiker's final clamp keeps the stored samples in [0, 4095] without
-        // crashing.
         ushort[] front = [1500, 1500, 1500, 0xFFFE, 1500, 1500, 1500];
-        ushort[] rear  = [1600, 1600, 1600, 0x8000, 1600, 1600, 1600];
+        ushort[] rear = [1600, 1600, 1600, 0x8000, 1600, 1600, 1600];
 
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms);
@@ -189,11 +184,7 @@ public class SstV3ParserTests
 
         var result = new SstV3Parser().Parse(reader, 3);
 
-        Assert.Equal(front.Length, result.Front.Length);
-        Assert.Equal(rear.Length, result.Rear.Length);
-        Assert.All(result.Front, v => Assert.InRange(v, (ushort)0, (ushort)4095));
-        Assert.All(result.Rear,  v => Assert.InRange(v, (ushort)0, (ushort)4095));
-        Assert.True(result.FrontAnomalyRate > 0);
-        Assert.True(result.RearAnomalyRate > 0);
+        Assert.Equal(front, result.Front);
+        Assert.Equal(rear, result.Rear);
     }
 }

@@ -38,6 +38,23 @@ public class SpikeEliminationTests
     }
 
     [Fact]
+    public void EliminateSpikes_WithPositiveSpikeWindow_DoesNotShiftRecoveredTail()
+    {
+        var signal = new int[240];
+        Array.Fill(signal, 60);
+        for (var index = 120; index < 125; index++)
+        {
+            signal[index] = 4095;
+        }
+
+        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray());
+
+        Assert.True(anomalyCount > 0);
+        Assert.Equal((ushort)60, fixedSignal[130]);
+        Assert.Equal((ushort)60, fixedSignal[239]);
+    }
+
+    [Fact]
     public void EliminateSpikes_WithInitialJump_CorrectsBaseline()
     {
         // Arrange
@@ -59,7 +76,7 @@ public class SpikeEliminationTests
         // Arrange
         var signal = new int[200];
         Array.Fill(signal, 1000);
-        for (int i = 120; i < 170; i++) signal[i] = 200; 
+        for (int i = 120; i < 170; i++) signal[i] = 200;
 
         // Act
         var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray());

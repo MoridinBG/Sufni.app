@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Threading;
@@ -81,6 +82,79 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
 
+    private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
+    private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
+    private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
+    private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
+
+    public TravelHistogramMode SelectedTravelHistogramMode
+    {
+        get => selectedTravelHistogramMode;
+        set
+        {
+            if (SetProperty(ref selectedTravelHistogramMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
+    }
+
+    public BalanceDisplacementMode SelectedBalanceDisplacementMode
+    {
+        get => selectedBalanceDisplacementMode;
+        set
+        {
+            if (SetProperty(ref selectedBalanceDisplacementMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
+    }
+
+    public VelocityAverageMode SelectedVelocityAverageMode
+    {
+        get => selectedVelocityAverageMode;
+        set
+        {
+            if (SetProperty(ref selectedVelocityAverageMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
+    }
+
+    public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile
+    {
+        get => selectedSessionAnalysisTargetProfile;
+        set => SetProperty(ref selectedSessionAnalysisTargetProfile, value);
+    }
+
+    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
+    [
+        new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
+        new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
+    ];
+
+    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
+    [
+        new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
+        new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+    ];
+
+    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
+    [
+        new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
+        new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
+    ];
+
+    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
+    [
+        new(SessionAnalysisTargetProfile.Weekend, "Weekend", "Uses conservative speed context for recreational pace and mixed terrain."),
+        new(SessionAnalysisTargetProfile.Trail, "Trail", "Uses general trail-riding speed context."),
+        new(SessionAnalysisTargetProfile.Enduro, "Enduro", "Uses faster rough-descending speed context."),
+        new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
+    ];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]
     [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
@@ -95,6 +169,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public SurfacePresentationState RearStatisticsState => CreateStatisticsState(ControlState.SessionHeader, TelemetryData, SuspensionType.Rear, hasRearTravelCalibration);
     public SurfacePresentationState CompressionBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Compression);
     public SurfacePresentationState ReboundBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Rebound);
+    public SurfacePresentationState FrontForkVibrationState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState FrontFrameVibrationState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState RearFrameVibrationState => SurfacePresentationState.Hidden;
+    public TelemetryTimeRange? AnalysisRange => null;
+    public SessionAnalysisResult SessionAnalysis => SessionAnalysisResult.Hidden;
+    public string SessionAnalysisRangeText => "Live session";
+    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
@@ -375,6 +457,21 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             out _);
     }
 
+    private static string DisplayName(TravelHistogramMode mode)
+    {
+        return mode == TravelHistogramMode.DynamicSag ? "Dynamic sag" : "Active suspension";
+    }
+
+    private static string DisplayName(VelocityAverageMode mode)
+    {
+        return mode == VelocityAverageMode.StrokePeakAveraged ? "Stroke-peak average" : "Sample-averaged";
+    }
+
+    private static string DisplayName(BalanceDisplacementMode mode)
+    {
+        return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
+    }
+
     private static LiveSessionPlotRanges CreatePlotRanges(LiveDaqSessionContext context)
     {
         var travelMaximum = Math.Max(
@@ -416,7 +513,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.WaitingForData("Waiting for statistics.");
         }
 
-        return telemetryData.HasStrokeData(suspensionType)
+        return TelemetryStatistics.HasStrokeData(telemetryData, suspensionType)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for statistics.");
     }
@@ -438,7 +535,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             return SurfacePresentationState.WaitingForData("Waiting for balance data.");
         }
 
-        return telemetryData.HasBalanceData(balanceType)
+        return TelemetryStatistics.HasBalanceData(telemetryData, balanceType)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for balance data.");
     }

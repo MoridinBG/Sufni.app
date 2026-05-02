@@ -79,6 +79,7 @@
         <labs:ControlThemes />
         <StyleInclude Source="/Views/Plots/SufniPlotView.axaml" />
         <StyleInclude Source="/Views/Plots/VelocityBandView.axaml" />
+        <StyleInclude Source="/Views/Plots/VibrationSummaryView.axaml" />
         <StyleInclude Source="avares://AvaloniaProgressRing/Styles/ProgressRing.xaml" />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
 

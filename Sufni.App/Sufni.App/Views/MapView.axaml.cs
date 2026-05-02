@@ -14,6 +14,8 @@ using Mapsui.Nts.Extensions;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI.Avalonia;
+using Mapsui.Widgets;
+using Mapsui.Widgets.InfoWidgets;
 using NetTopologySuite.Geometries;
 using Sufni.App.Models;
 using Sufni.App.ViewModels;
@@ -47,6 +49,8 @@ public partial class MapView : UserControl
 
     public MapView()
     {
+        LoggingWidget.ShowLoggingInMap = ActiveMode.No;
+
         InitializeComponent();
 
         PropertyChanged += (_, e) =>

@@ -11,7 +11,7 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (!telemetryData.HasStrokeData(type))
+        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
         {
             return;
         }
@@ -19,11 +19,18 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? "Front frequencies (Power / Hz)"
-            : "Rear frequencies (Power / Hz)";
-        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+            ? "Front frequencies"
+            : "Rear frequencies";
+        SetAxisLabels("Frequency (Hz)", "Power (dB)");
+        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
 
-        var data = telemetryData.CalculateTravelFrequencyHistogram(type);
+        var data = TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetryData, type, AnalysisRange);
+        if (data.Bins.Count == 0 || data.Values.Count == 0)
+        {
+            Plot.Axes.SetLimits(0, 1, 0, 1);
+            AddLabel("No frequency data", 0.5, 0.5, 0, 0, Alignment.MiddleCenter);
+            return;
+        }
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
         var bars = data.Bins.Zip(data.Values)
             .Select(tuple => new Bar
@@ -45,7 +52,7 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         var max = data.Values.Max();
         Plot.Axes.SetLimits(left: 0.0, right: 800.0 / data.Bins.Count * 3.0, bottom: min, top: max);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0.0, 10.0, min, max));
+            0.0, 10.0, min, max, ZoomFractions.Statistics));
 
         // Add autoscaler that restores the original ranges
         Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / data.Bins.Count * 3.0);

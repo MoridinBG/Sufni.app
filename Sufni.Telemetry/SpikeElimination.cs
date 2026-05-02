@@ -4,13 +4,22 @@ public record SignalChange(int Start, int End, int Change);
 
 public static class SpikeElimination
 {
+    private const int SummaThreshold = 100;
+    private const int StepThreshold = 30;
+
     public static (ushort[] fixedSignal, int anomalyCount) EliminateSpikes(int[] signal)
     {
+        var (fixedSignal, anomalyCount) = EliminateSpikesAsInt(signal);
+        return (fixedSignal.Select(ClampAdcSample).ToArray(), anomalyCount);
+    }
+
+    public static (int[] fixedSignal, int anomalyCount) EliminateSpikesAsInt(int[] signal)
+    {
         // Detecting sudden, abnormal changes in signal.
-        var changes = DetectSuddenChanges(signal, 5, 100, 30);
+        var changes = DetectSuddenChanges(signal, 5, SummaThreshold, StepThreshold);
         changes.Sort((a, b) => a.Start.CompareTo(b.Start));
         var anomalyCount = changes.Count;
-        
+
         // If a sudden change occurs over a couple (maximum 5) measurements, we make it a
         // one-step change by flattening all except one points within the window.
         foreach (var change in changes)
@@ -31,7 +40,7 @@ public static class SpikeElimination
             changes.RemoveAt(0);
             for (var i = shiftStart; i < signal.Length; i++)
             {
-                signal[i] -=  shiftDelta;
+                signal[i] -= shiftDelta;
             }
         }
 
@@ -40,6 +49,7 @@ public static class SpikeElimination
         // and correct it through the end of the capture.
         var activeFaultDelta = 0;
         var segmentStart = 0;
+        SignalChange? previousChange = null;
         foreach (var change in changes)
         {
             for (var j = segmentStart; j <= change.Start; j++)
@@ -49,7 +59,10 @@ public static class SpikeElimination
 
             if (change.Change < 0)
             {
-                activeFaultDelta += change.Change;
+                if (previousChange is not { Change: > 0 } || Math.Abs(previousChange.Change + change.Change) >= SummaThreshold)
+                {
+                    activeFaultDelta += change.Change;
+                }
             }
             else if (activeFaultDelta < 0)
             {
@@ -57,16 +70,18 @@ public static class SpikeElimination
             }
 
             segmentStart = change.Start + 1;
+            previousChange = change;
         }
 
         for (var j = segmentStart; j < signal.Length; j++)
         {
             signal[j] -= activeFaultDelta;
         }
-        
-        var fixedSignal = signal.Select(v => (ushort)Math.Clamp(v, 0, 4095)).ToArray();
-        return (fixedSignal, anomalyCount);
+
+        return (signal, anomalyCount);
     }
+
+    private static ushort ClampAdcSample(int value) => (ushort)Math.Clamp(value, 0, 4095);
 
     private static List<SignalChange> DetectSuddenChanges(int[] signal, int maxWindow, int summaThreshold, int stepThreshold)
     {
@@ -93,7 +108,7 @@ public static class SpikeElimination
                 var end = signal[i + window];
                 var totalChange = end - start;
 
-                if (Math.Abs(totalChange) < summaThreshold) 
+                if (Math.Abs(totalChange) < summaThreshold)
                     continue;
 
                 var allStepsBigEnough = true;
@@ -106,7 +121,7 @@ public static class SpikeElimination
                 }
 
                 if (!allStepsBigEnough) continue;
-                
+
                 changes.Add(new SignalChange(i, i + window, totalChange));
 
                 // Mark this region as included to avoid overlapping detections

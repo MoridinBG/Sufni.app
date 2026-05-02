@@ -67,6 +67,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
+        ServiceCollection.AddSingleton<ISessionAnalysisService>(_ => new SessionAnalysisService());
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
@@ -87,7 +88,18 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<TrackCoordinator>();
-        ServiceCollection.AddSingleton<SessionCoordinator>();
+        ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
+            sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<IHttpApiService>(),
+            sp.GetRequiredService<IBackgroundTaskRunner>(),
+            sp.GetRequiredService<TrackCoordinator>(),
+            sp.GetRequiredService<ISessionPresentationService>(),
+            sp.GetRequiredService<ISessionAnalysisService>(),
+            sp.GetRequiredService<ITileLayerService>(),
+            sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<IDialogService>(),
+            sp.GetService<ISynchronizationServerService>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());

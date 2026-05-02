@@ -60,6 +60,24 @@ public class SessionMediaDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionMediaDesktopView_StretchesMap_ToAvailableWidth()
+    {
+        var workspace = CreateWorkspace(
+        [
+            new TrackPoint(1, 2, 3, 4),
+        ]);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var mediaGrid = mounted.View.FindControl<Grid>("MediaGrid");
+        var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().Single();
+
+        Assert.NotNull(mediaGrid);
+        Assert.True(mediaGrid!.Bounds.Width > workspace.MapVideoWidth);
+        Assert.Equal(mediaGrid.Bounds.Width, mapView.Bounds.Width);
+    }
+
+    [AvaloniaFact]
     public async Task SessionMediaDesktopView_CollapsesMapRow_WhenOnlyVideoIsPresent()
     {
         var workspace = CreateWorkspace([], videoUrl: "video.mp4");

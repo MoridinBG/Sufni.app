@@ -35,10 +35,6 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
         ConfigureRightAxisStyle();
 
-        CursorLine = Plot.Add.VerticalLine(double.NaN);
-        CursorLine.LineWidth = 1;
-        CursorLine.LineColor = Colors.LightGray;
-
         var imuData = telemetryData.ImuData;
         var activeLocations = imuData.ActiveLocations;
         var records = imuData.Records;
@@ -129,6 +125,12 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 
         ConfigureTimeTicks();
         ConfigureSymmetricValueTicks(0.1f);
+
+        AddMarkerLines(telemetryData);
+
+        CursorLine = Plot.Add.VerticalLine(double.NaN);
+        CursorLine.LineWidth = 1;
+        CursorLine.LineColor = Colors.LightGray;
     }
 
     private void ShowEmptyState()

@@ -31,6 +31,7 @@ public class SessionCoordinator
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly TrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
+    private readonly ISessionAnalysisService sessionAnalysisService;
     private readonly ITileLayerService tileLayerService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
@@ -42,6 +43,7 @@ public class SessionCoordinator
         IBackgroundTaskRunner backgroundTaskRunner,
         TrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
+        ISessionAnalysisService sessionAnalysisService,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService,
@@ -53,6 +55,7 @@ public class SessionCoordinator
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.trackCoordinator = trackCoordinator;
         this.sessionPresentationService = sessionPresentationService;
+        this.sessionAnalysisService = sessionAnalysisService;
         this.tileLayerService = tileLayerService;
         this.shell = shell;
         this.dialogService = dialogService;
@@ -75,6 +78,8 @@ public class SessionCoordinator
                 snapshot,
                 this,
                 sessionStore,
+                sessionPresentationService,
+                sessionAnalysisService,
                 tileLayerService,
                 shell,
                 dialogService));

@@ -63,6 +63,8 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         ConfigureTimeTicks();
         ConfigureSymmetricValueTicks(20);
 
+        AddMarkerLines(telemetryData);
+
         CursorLine = Plot.Add.VerticalLine(double.NaN);
         CursorLine.LineWidth = 1;
         CursorLine.LineColor = Colors.LightGray;

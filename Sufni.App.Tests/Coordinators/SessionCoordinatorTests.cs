@@ -23,6 +23,7 @@ public class SessionCoordinatorTests
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
+    private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
@@ -35,7 +36,7 @@ public class SessionCoordinatorTests
     }
 
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
-        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, tileLayerService, shell, dialogService, sync);
+        new(sessionStore, database, http, backgroundTaskRunner, trackCoordinator, sessionPresentationService, sessionAnalysisService, tileLayerService, shell, dialogService, sync);
 
     // ----- OpenEditAsync -----
 
