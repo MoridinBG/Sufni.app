@@ -19,8 +19,9 @@ public class StrokeLengthHistogramPlot(Plot plot, SuspensionType type, BalanceTy
 
         var suspensionName = type == SuspensionType.Front ? "Front" : "Rear";
         var strokeName = strokeKind == BalanceType.Compression ? "compression" : "rebound";
-        Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} length (% / mm)";
-        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+        Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} length";
+        SetAxisLabels("Stroke length (mm)", "Strokes (%)");
+        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
 
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetryData, type, strokeKind, AnalysisRange);
         if (data.Values.Sum() <= 0)

@@ -19,9 +19,10 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : Tele
         base.LoadTelemetryData(telemetryData);
 
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? "Front frequencies (Power / Hz)"
-            : "Rear frequencies (Power / Hz)";
-        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+            ? "Front frequencies"
+            : "Rear frequencies";
+        SetAxisLabels("Frequency (Hz)", "Power (dB)");
+        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
 
         var data = TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetryData, type, AnalysisRange);
         if (data.Bins.Count == 0 || data.Values.Count == 0)

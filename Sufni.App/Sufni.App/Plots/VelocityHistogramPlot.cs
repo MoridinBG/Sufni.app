@@ -60,9 +60,10 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         var modeLabel = isStrokePeakMode ? "stroke-peak stats" : "sample-averaged stats";
         var percentageLabel = isStrokePeakMode ? "stroke%" : "time%";
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? $"Front velocity - {modeLabel} ({percentageLabel} / mm/s)"
-            : $"Rear velocity - {modeLabel} ({percentageLabel} / mm/s)";
-        Plot.Layout.Fixed(new PixelPadding(40, 5, 40, 40));
+            ? $"Front velocity - {modeLabel}"
+            : $"Rear velocity - {modeLabel}";
+        SetAxisLabels(isStrokePeakMode ? "Strokes (%)" : "Time (%)", "Velocity (mm/s)");
+        Plot.Layout.Fixed(new PixelPadding(65, 5, 55, 40));
 
         var data = TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, CreateOptions());
         var step = data.Bins[1] - data.Bins[0];
@@ -122,6 +123,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
         // it would seem that there are actual measure travel data there too.
         // Also set a hardcoded limit for the velocity range.
         Plot.Axes.SetLimits(left: 0.1,
+            right: limits.Right / 0.9,
             bottom: VelocityLimit,
             top: -VelocityLimit);
 

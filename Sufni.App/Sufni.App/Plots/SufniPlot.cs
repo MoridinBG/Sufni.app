@@ -73,6 +73,12 @@ public class SufniPlot
 
     public string GetSvgXml(int width, int height) => Plot.GetSvgXml(width, height);
 
+    protected void SetAxisLabels(string bottom, string left)
+    {
+        Plot.Axes.Bottom.Label.Text = bottom;
+        Plot.Axes.Left.Label.Text = left;
+    }
+
     protected void AddLabel(string content, double x, double y, int xoffset, int yoffset, Alignment alignment = Alignment.LowerLeft)
     {
         var text = Plot.Add.Text(content, x, y);
@@ -92,7 +98,9 @@ public class SufniPlot
             _ => 0
         };
 
-        var text = Plot.Add.Text(content, Plot.Axes.GetLimits().Right, position);
+        var limits = Plot.Axes.GetLimits();
+        var xInset = Math.Abs(limits.Right - limits.Left) * 0.015;
+        var text = Plot.Add.Text(content, limits.Right - xInset, position);
         text.LabelFontColor = Color.FromHex("#fefefe");
         text.LabelFontSize = 13;
         text.LabelAlignment = linePosition == LabelLinePosition.Above ? Alignment.UpperRight : Alignment.LowerRight;

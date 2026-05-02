@@ -47,9 +47,10 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
         var modeLabel = HistogramMode == TravelHistogramMode.DynamicSag ? "dynamic sag" : "active suspension";
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? $"Front travel - {modeLabel} (time% / mm)"
-            : $"Rear travel - {modeLabel} (time% / mm)";
-        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+            ? $"Front travel - {modeLabel}"
+            : $"Rear travel - {modeLabel}";
+        SetAxisLabels("Time (%)", "Axle position (mm)");
+        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
 
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;

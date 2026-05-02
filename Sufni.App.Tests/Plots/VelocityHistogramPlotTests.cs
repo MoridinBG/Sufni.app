@@ -52,7 +52,7 @@ public class VelocityHistogramPlotTests
         sut.LoadTelemetryData(telemetry);
 
         Assert.Contains("stroke-peak stats", plot.Axes.Title.Label.Text);
-        Assert.Contains("stroke%", plot.Axes.Title.Label.Text);
+        Assert.DoesNotContain("(", plot.Axes.Title.Label.Text);
     }
 
     private static IEnumerable<string> ReadTextLabels(Text text)

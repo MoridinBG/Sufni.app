@@ -31,11 +31,13 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
         base.LoadTelemetryData(telemetryData);
 
-        var modeLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+          var modeLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+          var xAxisLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "Stroke travel (%)" : "Zenith (%)";
         Plot.Axes.Title.Label.Text = type == BalanceType.Compression
-           ? $"Compression balance - {modeLabel} (mm/s / travel%)"
-           : $"Rebound balance - {modeLabel} (mm/s / travel%)";
-        Plot.Layout.Fixed(new PixelPadding(40, 10, 40, 40));
+              ? $"Compression balance - {modeLabel}"
+              : $"Rebound balance - {modeLabel}";
+          SetAxisLabels(xAxisLabel, "Peak speed (mm/s)");
+        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
 
         var maxVelocity = Math.Max(balance.FrontVelocity.Max(), balance.RearVelocity.Max());
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;
