@@ -6,6 +6,7 @@ xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plotModels="clr-namespace:Sufni.App.Plots"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
@@ -19,14 +20,18 @@ mc:Ignorable="d">
         </Grid.Resources>
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="{Binding TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="{Binding GraphLayout.FirstState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="{Binding VelocityGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="{Binding GraphLayout.SecondState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="{Binding ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="{Binding GraphLayout.ThirdState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{Binding GraphLayout.FourthState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{Binding GraphLayout.FifthState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
         </Grid.RowDefinitions>
 
-        <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding TravelGraphState}">
+        <controls:PlaceholderOverlayContainer Grid.Row="{Binding GraphLayout.TravelRow}" PresentationState="{Binding TravelGraphState}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:LiveTravelPlotDesktopView
                 x:Name="TravelPlot"
@@ -42,19 +47,13 @@ mc:Ignorable="d">
         </controls:PlaceholderOverlayContainer>
 
         <GridSplitter
-        x:Name="TravelVelocitySplitter"
+        x:Name="FirstGraphSplitter"
         Grid.Row="1"
         ResizeDirection="Rows"
-        ResizeBehavior="PreviousAndNext">
-            <GridSplitter.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="TravelGraphState.ReservesLayout" />
-                    <Binding Path="VelocityGraphState.ReservesLayout" />
-                </MultiBinding>
-            </GridSplitter.IsVisible>
-        </GridSplitter>
+        ResizeBehavior="PreviousAndNext"
+        IsVisible="{Binding GraphLayout.FirstSplitterVisible}" />
 
-        <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding VelocityGraphState}">
+        <controls:PlaceholderOverlayContainer Grid.Row="{Binding GraphLayout.VelocityRow}" PresentationState="{Binding VelocityGraphState}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:LiveVelocityPlotDesktopView
                 x:Name="VelocityPlot"
@@ -71,19 +70,13 @@ mc:Ignorable="d">
         </controls:PlaceholderOverlayContainer>
 
         <GridSplitter
-        x:Name="ImuSplitter"
+        x:Name="SecondGraphSplitter"
         Grid.Row="3"
         ResizeDirection="Rows"
-        ResizeBehavior="PreviousAndNext">
-            <GridSplitter.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="VelocityGraphState.ReservesLayout" />
-                    <Binding Path="ImuGraphState.ReservesLayout" />
-                </MultiBinding>
-            </GridSplitter.IsVisible>
-        </GridSplitter>
+        ResizeBehavior="PreviousAndNext"
+        IsVisible="{Binding GraphLayout.SecondSplitterVisible}" />
 
-        <controls:PlaceholderOverlayContainer Grid.Row="4" PresentationState="{Binding ImuGraphState}">
+        <controls:PlaceholderOverlayContainer Grid.Row="{Binding GraphLayout.ImuRow}" PresentationState="{Binding ImuGraphState}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:LiveImuPlotDesktopView
                 x:Name="ImuPlot"
@@ -95,6 +88,52 @@ mc:Ignorable="d">
 
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
                 <controls:SurfacePlaceholderCard Title="IMU" />
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
+
+        <GridSplitter
+        x:Name="ThirdGraphSplitter"
+        Grid.Row="5"
+        ResizeDirection="Rows"
+        ResizeBehavior="PreviousAndNext"
+        IsVisible="{Binding GraphLayout.ThirdSplitterVisible}" />
+
+        <controls:PlaceholderOverlayContainer Grid.Row="{Binding GraphLayout.SpeedRow}" PresentationState="{Binding SpeedGraphState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <plots:TrackSignalPlotDesktopView
+                x:Name="SpeedPlot"
+                SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
+                SmoothingLevel="{Binding PlotPreferences.SpeedSmoothing}"
+                Timeline="{Binding Timeline}"
+                TimelineContext="{Binding TrackTimelineContext}"
+                TrackPoints="{Binding TrackPoints}" />
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <controls:SurfacePlaceholderCard Title="Speed" />
+            </controls:PlaceholderOverlayContainer.PlaceholderContent>
+        </controls:PlaceholderOverlayContainer>
+
+        <GridSplitter
+        x:Name="FourthGraphSplitter"
+        Grid.Row="7"
+        ResizeDirection="Rows"
+        ResizeBehavior="PreviousAndNext"
+        IsVisible="{Binding GraphLayout.FourthSplitterVisible}" />
+
+        <controls:PlaceholderOverlayContainer Grid.Row="{Binding GraphLayout.ElevationRow}" PresentationState="{Binding ElevationGraphState}">
+            <controls:PlaceholderOverlayContainer.ReadyContent>
+                <plots:TrackSignalPlotDesktopView
+                x:Name="ElevationPlot"
+                SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
+                SmoothingLevel="{Binding PlotPreferences.ElevationSmoothing}"
+                Timeline="{Binding Timeline}"
+                TimelineContext="{Binding TrackTimelineContext}"
+                TrackPoints="{Binding TrackPoints}" />
+            </controls:PlaceholderOverlayContainer.ReadyContent>
+
+            <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                <controls:SurfacePlaceholderCard Title="Elevation" />
             </controls:PlaceholderOverlayContainer.PlaceholderContent>
         </controls:PlaceholderOverlayContainer>
     </Grid>

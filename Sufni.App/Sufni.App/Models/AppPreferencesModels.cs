@@ -22,7 +22,11 @@ public sealed record SessionPlotPreferences(
     bool Imu = true,
     PlotSmoothingLevel TravelSmoothing = PlotSmoothingLevel.Off,
     PlotSmoothingLevel VelocitySmoothing = PlotSmoothingLevel.Off,
-    PlotSmoothingLevel ImuSmoothing = PlotSmoothingLevel.Off);
+    PlotSmoothingLevel ImuSmoothing = PlotSmoothingLevel.Off,
+    bool Speed = true,
+    bool Elevation = true,
+    PlotSmoothingLevel SpeedSmoothing = PlotSmoothingLevel.Off,
+    PlotSmoothingLevel ElevationSmoothing = PlotSmoothingLevel.Off);
 
 public sealed record SessionStatisticsPreferences(
     TravelHistogramMode TravelHistogramMode = TravelHistogramMode.ActiveSuspension,
