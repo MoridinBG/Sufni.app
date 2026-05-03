@@ -1,21 +1,19 @@
-using System;
 using Avalonia;
 using Sufni.App.Models;
 using Sufni.App.Plots;
-using Sufni.App.Views.Plots;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 
 namespace Sufni.App.DesktopViews.Plots;
 
-public abstract class SufniTelemetryPlotView : SufniPlotView
+public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
 {
     private TelemetryPlot? plot;
-    private bool applyingTimelineRange;
     private bool hasPendingTelemetryLoad;
 
     protected TelemetryPlot PlotModel => plot!;
     protected bool HasPlotModel => plot is not null;
+    protected override TelemetryPlot? TimelinePlot => plot;
+    protected override double? TimelineDurationSeconds => Telemetry?.Metadata.Duration;
     public bool IsPlotReady => plot is not null && HasPlotControl;
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
@@ -52,15 +50,6 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
     {
         get => GetValue(AnalysisRangeProperty);
         set => SetValue(AnalysisRangeProperty, value);
-    }
-
-    public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
-        AvaloniaProperty.Register<SufniTelemetryPlotView, SessionTimelineLinkViewModel?>(nameof(Timeline));
-
-    public SessionTimelineLinkViewModel? Timeline
-    {
-        get => GetValue(TimelineProperty);
-        set => SetValue(TimelineProperty, value);
     }
 
     protected SufniTelemetryPlotView()
@@ -115,22 +104,6 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         {
             TryApplyPendingTelemetryLoad();
         };
-
-        // Subscribe to shared timeline range changes for media → plot linking.
-        PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name != nameof(Timeline)) return;
-            if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
-            {
-                oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
-            }
-
-            if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
-            {
-                newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
-                ApplyTimelineRange();
-            }
-        };
     }
 
     protected void SetPlotModel(TelemetryPlot plotModel)
@@ -172,16 +145,6 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         other.PlotControl.Plot.Axes.Link(PlotControl, x: true, y: false);
     }
 
-    private void OnTimelineVisibleRangeChanged(object? sender, EventArgs e)
-    {
-        if (ReferenceEquals(Timeline?.VisibleRangeChangeSource, this))
-        {
-            return;
-        }
-
-        ApplyTimelineRange();
-    }
-
     private void LoadTelemetryIntoPlot(TelemetryData telemetryData)
     {
         if (plot is null || !HasPlotControl)
@@ -194,6 +157,7 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
         plot.AnalysisRange = AnalysisRange;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
+        ApplyTimelineCursor();
         RefreshPlot();
     }
 
@@ -227,46 +191,5 @@ public abstract class SufniTelemetryPlotView : SufniPlotView
 
         hasPendingTelemetryLoad = false;
         LoadTelemetryIntoPlot(data);
-    }
-
-    protected override void OnViewportChanged() => UpdateTimelineRange();
-
-    protected void UpdateTimelineRange()
-    {
-        if (applyingTimelineRange || !HasPlotControl || Telemetry is null || Timeline is null) return;
-
-        var limits = PlotControl.Plot.Axes.GetLimits();
-        var duration = Telemetry.Metadata.Duration;
-        if (duration <= 0) return;
-
-        var startNormalized = Math.Clamp(limits.Left / duration, 0.0, 1.0);
-        var endNormalized = Math.Clamp(limits.Right / duration, 0.0, 1.0);
-
-        Timeline.SetVisibleRange(startNormalized, endNormalized, this);
-    }
-
-    private void ApplyTimelineRange()
-    {
-        if (applyingTimelineRange || !HasPlotControl || Telemetry is null || Timeline is null)
-        {
-            return;
-        }
-
-        var duration = Telemetry.Metadata.Duration;
-        if (duration <= 0)
-        {
-            return;
-        }
-
-        applyingTimelineRange = true;
-        try
-        {
-            PlotControl.Plot.Axes.SetLimitsX(Timeline.VisibleRangeStart * duration, Timeline.VisibleRangeEnd * duration);
-            RefreshPlot();
-        }
-        finally
-        {
-            applyingTimelineRange = false;
-        }
     }
 }

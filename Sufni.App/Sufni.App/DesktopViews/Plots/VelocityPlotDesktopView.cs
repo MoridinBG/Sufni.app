@@ -42,8 +42,6 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
             Timeline?.SetCursorPosition(normalizedCursorPosition);
 
             SetCursorPosition(coords.X);
-            TravelPlotView.SetCursorPosition(coords.X);
-            ImuPlotView?.SetCursorPosition(coords.X);
         }
 
         PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
