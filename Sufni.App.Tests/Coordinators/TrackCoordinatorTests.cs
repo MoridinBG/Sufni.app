@@ -96,12 +96,12 @@ public class TrackCoordinatorTests
             Id = fullTrackId,
             Points =
             [
-                new TrackPoint(telemetry.Metadata.Timestamp - 1, 0, 0, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp, 1, 1, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp + 1, 2, 2, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp + 2, 3, 3, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp + 3, 4, 4, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp + 4, 5, 5, 0),
+                new TrackPoint(telemetry.Metadata.Timestamp - 1, 0, 0, 90, 5),
+                new TrackPoint(telemetry.Metadata.Timestamp, 1, 1, 100, 10),
+                new TrackPoint(telemetry.Metadata.Timestamp + 1, 2, 2, 110, 20),
+                new TrackPoint(telemetry.Metadata.Timestamp + 2, 3, 3, 120, 30),
+                new TrackPoint(telemetry.Metadata.Timestamp + 3, 4, 4, 130, 40),
+                new TrackPoint(telemetry.Metadata.Timestamp + 4, 5, 5, 140, 50),
             ]
         };
 
@@ -112,10 +112,16 @@ public class TrackCoordinatorTests
         var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, null, telemetry);
 
         await database.Received(1).AssociateSessionWithTrackAsync(sessionId);
-        await database.Received(1).PatchSessionTrackAsync(sessionId, Arg.Is<List<TrackPoint>>(points => points.Count > 0));
+        await database.Received(1).PatchSessionTrackAsync(
+            sessionId,
+            Arg.Is<List<TrackPoint>>(points => points.Count > 0
+                                               && points.All(point => point.Elevation.HasValue && point.Elevation.Value > 0)
+                                               && points.All(point => point.Speed.HasValue && point.Speed.Value > 0)));
         Assert.Equal(fullTrackId, result.FullTrackId);
         Assert.NotNull(result.TrackPoints);
         Assert.NotEmpty(result.TrackPoints!);
+        Assert.All(result.TrackPoints!, point => Assert.True(point.Elevation > 0));
+        Assert.All(result.TrackPoints!, point => Assert.True(point.Speed > 0));
     }
 
     private static string ValidGpx()
