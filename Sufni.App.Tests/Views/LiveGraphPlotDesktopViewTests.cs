@@ -335,6 +335,52 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
+    [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_ResetVisiblePlotRows_MakesVisibleRowsEqualHeight()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var workspace = new StubLiveSessionGraphWorkspace(
+            new Subject<LiveGraphBatch>(),
+            hasTravelSection: true,
+            hasVelocitySection: true,
+            hasImuSection: true,
+            hasSpeedSection: true);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var graphGrid = view.FindControl<Grid>("GraphGrid");
+        Assert.NotNull(graphGrid);
+
+        graphGrid!.RowDefinitions[0].Height = new GridLength(4, GridUnitType.Star);
+        graphGrid.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
+        graphGrid.RowDefinitions[4].Height = new GridLength(2, GridUnitType.Star);
+        graphGrid.RowDefinitions[6].Height = new GridLength(5, GridUnitType.Star);
+        graphGrid.RowDefinitions[8].Height = new GridLength(7, GridUnitType.Star);
+
+        SessionGraphGridSizing.ResetVisiblePlotRows(graphGrid);
+
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[0].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[2].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[4].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[6].Height);
+        Assert.Equal(new GridLength(0, GridUnitType.Pixel), graphGrid.RowDefinitions[8].Height);
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
 
@@ -399,7 +445,7 @@ public class LiveGraphPlotDesktopViewTests
             new TrackPoint(0, 0, 0, 100, 5),
             new TrackPoint(1, 1, 1, 101, 6),
         ];
-        public TrackTimelineContext? TrackTimelineContext { get; } = new(0, 1);
+        public TrackTimeRange? TrackTimelineContext { get; } = new(0, 1);
         public SurfacePresentationState TravelGraphState { get; } = hasTravelSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;

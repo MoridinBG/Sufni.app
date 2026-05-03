@@ -94,7 +94,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private TelemetryTimeRange? analysisRange;
-    [ObservableProperty] private TrackTimelineContext? trackTimelineContext;
+    [ObservableProperty] private TrackTimeRange? trackTimelineContext;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private string? videoUrl;
@@ -238,7 +238,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
     }
 
-    partial void OnTrackTimelineContextChanged(TrackTimelineContext? value)
+    partial void OnTrackTimelineContextChanged(TrackTimeRange? value)
     {
         if (MapViewModel is null)
         {

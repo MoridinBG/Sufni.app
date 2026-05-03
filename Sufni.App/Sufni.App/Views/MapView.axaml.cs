@@ -473,7 +473,7 @@ public partial class MapView : UserControl
 
     private static bool TryGetVisibleTrackRange(
         IReadOnlyList<TrackPoint> sessionTrackPoints,
-        TrackTimelineContext context,
+        TrackTimeRange context,
         double minX,
         double maxX,
         double minY,
@@ -523,7 +523,7 @@ public partial class MapView : UserControl
         return true;
     }
 
-    private TrackTimelineContext? GetTimelineContext(IReadOnlyList<TrackPoint> sessionTrackPoints)
+    private TrackTimeRange? GetTimelineContext(IReadOnlyList<TrackPoint> sessionTrackPoints)
     {
         return ViewModel?.TimelineContext
                ?? TrackPointSeries.BuildTimelineContext(sessionTrackPoints, originSeconds: null, durationSeconds: null);
@@ -598,7 +598,7 @@ public partial class MapView : UserControl
         return pointsInRange;
     }
 
-    private static double NormalizeTime(double timeSeconds, TrackTimelineContext context)
+    private static double NormalizeTime(double timeSeconds, TrackTimeRange context)
     {
         return Math.Clamp((timeSeconds - context.OriginSeconds) / context.DurationSeconds, 0, 1);
     }

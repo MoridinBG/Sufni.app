@@ -64,7 +64,7 @@ internal static class TrackPointSeries
                                       && double.IsFinite(elevation)) >= 2;
     }
 
-    public static TrackTimelineContext? BuildTimelineContext(
+    public static TrackTimeRange? BuildTimelineContext(
         IReadOnlyList<TrackPoint>? points,
         double? originSeconds,
         double? durationSeconds)
@@ -75,7 +75,7 @@ internal static class TrackPointSeries
             && double.IsFinite(duration)
             && duration > 0)
         {
-            return new TrackTimelineContext(origin, duration);
+            return new TrackTimeRange(origin, duration);
         }
 
         if (points is null || points.Count < 2)
@@ -92,7 +92,7 @@ internal static class TrackPointSeries
 
         var derivedDuration = last.Time - first.Time;
         return double.IsFinite(derivedDuration) && derivedDuration > 0
-            ? new TrackTimelineContext(first.Time, derivedDuration)
+            ? new TrackTimeRange(first.Time, derivedDuration)
             : null;
     }
 

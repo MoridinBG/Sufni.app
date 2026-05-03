@@ -18,7 +18,7 @@ public interface IRecordedSessionGraphWorkspace
     TelemetryData? TelemetryData { get; }
     TelemetryTimeRange? AnalysisRange { get; }
     IReadOnlyList<TrackPoint>? TrackPoints { get; }
-    TrackTimelineContext? TrackTimelineContext { get; }
+    TrackTimeRange? TrackTimelineContext { get; }
     SurfacePresentationState TravelGraphState { get; }
     SurfacePresentationState VelocityGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }
@@ -85,7 +85,7 @@ public interface ILiveSessionGraphWorkspace
     IObservable<LiveGraphBatch> GraphBatches { get; }
     LiveSessionPlotRanges PlotRanges { get; }
     IReadOnlyList<TrackPoint> TrackPoints { get; }
-    TrackTimelineContext? TrackTimelineContext { get; }
+    TrackTimeRange? TrackTimelineContext { get; }
     SurfacePresentationState TravelGraphState { get; }
     SurfacePresentationState VelocityGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }

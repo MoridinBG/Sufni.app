@@ -33,10 +33,10 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
         set => SetValue(TrackPointsProperty, value);
     }
 
-    public static readonly StyledProperty<TrackTimelineContext?> TimelineContextProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, TrackTimelineContext?>(nameof(TimelineContext));
+    public static readonly StyledProperty<TrackTimeRange?> TimelineContextProperty =
+        AvaloniaProperty.Register<TrackSignalPlotDesktopView, TrackTimeRange?>(nameof(TimelineContext));
 
-    public TrackTimelineContext? TimelineContext
+    public TrackTimeRange? TimelineContext
     {
         get => GetValue(TimelineContextProperty);
         set => SetValue(TimelineContextProperty, value);

@@ -214,7 +214,7 @@ public class RecordedGraphPageViewTests
             new TrackPoint(0, 0, 0, 100, 5),
             new TrackPoint(1, 100, 100, 101, 6),
         ];
-        public TrackTimelineContext? TrackTimelineContext { get; } = new(0, 1);
+        public TrackTimeRange? TrackTimelineContext { get; } = new(0, 1);
         public SurfacePresentationState TravelGraphState { get; } = travelGraphState;
         public SurfacePresentationState VelocityGraphState { get; } = velocityGraphState ?? travelGraphState;
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;

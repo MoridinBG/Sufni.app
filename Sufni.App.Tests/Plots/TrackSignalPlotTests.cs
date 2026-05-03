@@ -20,7 +20,7 @@ public class TrackSignalPlotTests
                 new TrackPoint(100, 0, 0, 500, 10),
                 new TrackPoint(101, 1, 1, 501, 20),
             ],
-            new TrackTimelineContext(100, 1),
+            new TrackTimeRange(100, 1),
             telemetryData: null,
             TrackSignalKind.Speed);
 
@@ -42,7 +42,7 @@ public class TrackSignalPlotTests
                 new TrackPoint(100, 0, 0, 500, 10),
                 new TrackPoint(101, 1, 1, 510, 20),
             ],
-            new TrackTimelineContext(100, 1),
+            new TrackTimeRange(100, 1),
             telemetryData: null,
             TrackSignalKind.Elevation);
 
@@ -65,7 +65,7 @@ public class TrackSignalPlotTests
                 new TrackPoint(100.5, 1, 1, 500, 10),
                 new TrackPoint(102, 2, 2, 510, 12),
             ],
-            new TrackTimelineContext(100, 1),
+            new TrackTimeRange(100, 1),
             telemetryData: null,
             TrackSignalKind.Elevation);
 
@@ -89,7 +89,7 @@ public class TrackSignalPlotTests
                 new TrackPoint(100, 0, 0, 500, 10),
                 new TrackPoint(101, 1, 1, 510, 20),
             ],
-            new TrackTimelineContext(100, 1),
+            new TrackTimeRange(100, 1),
             telemetry,
             TrackSignalKind.Speed);
 
