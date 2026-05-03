@@ -28,10 +28,22 @@ internal static class GpsTrackPointProjection
 
     public static List<TrackPoint> ProjectAll(IEnumerable<GpsRecord> records)
     {
-        return records
-            .OrderBy(record => record.Timestamp)
-            .Select(TryProject)
-            .OfType<TrackPoint>()
-            .ToList();
+        var points = new List<TrackPoint>();
+        var coordinates = new List<TrackPointGeoCoordinate>();
+
+        foreach (var record in records.OrderBy(record => record.Timestamp))
+        {
+            var point = TryProject(record);
+            if (point is null)
+            {
+                continue;
+            }
+
+            points.Add(point);
+            coordinates.Add(new TrackPointGeoCoordinate(record.Latitude, record.Longitude));
+        }
+
+        TrackPointSeries.CalculateSpeed(points, coordinates);
+        return points;
     }
 }
