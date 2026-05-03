@@ -33,7 +33,9 @@ public class RecordedGraphPageViewTests
         var workspace = new RecordedGraphPageWorkspaceStub(
             telemetry,
             SurfacePresentationState.Ready,
-            SurfacePresentationState.Ready);
+            SurfacePresentationState.Ready,
+            speedGraphState: SurfacePresentationState.Ready,
+            elevationGraphState: SurfacePresentationState.Ready);
 
         var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
@@ -42,13 +44,19 @@ public class RecordedGraphPageViewTests
         var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
         var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
         var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
+        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
 
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(speedView);
+        Assert.NotNull(elevationView);
         Assert.True(travelView!.IsVisible);
         Assert.True(velocityView!.IsVisible);
         Assert.True(imuView!.IsVisible);
+        Assert.True(speedView!.IsVisible);
+        Assert.True(elevationView!.IsVisible);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
@@ -61,7 +69,9 @@ public class RecordedGraphPageViewTests
         var workspace = new RecordedGraphPageWorkspaceStub(
             TestTelemetryData.Create(),
             SurfacePresentationState.WaitingForData("Waiting for travel data."),
-            SurfacePresentationState.WaitingForData("Waiting for IMU data."));
+            SurfacePresentationState.WaitingForData("Waiting for IMU data."),
+            speedGraphState: SurfacePresentationState.WaitingForData("Waiting for speed data."),
+            elevationGraphState: SurfacePresentationState.WaitingForData("Waiting for elevation data."));
 
         var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
@@ -71,10 +81,12 @@ public class RecordedGraphPageViewTests
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.Name != "MapHost")
             .ToArray();
-        Assert.Equal(3, hosts.Length);
+        Assert.Equal(5, hosts.Length);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[0].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[2].PresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[4].PresentationState.Kind);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
@@ -99,6 +111,8 @@ public class RecordedGraphPageViewTests
         Assert.Equal(0, graphGrid!.RowDefinitions[0].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[1].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[3].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
     }
 
     [AvaloniaFact]
@@ -189,13 +203,29 @@ public class RecordedGraphPageViewTests
         TelemetryData? telemetryData,
         SurfacePresentationState travelGraphState,
         SurfacePresentationState imuGraphState,
-        SurfacePresentationState? velocityGraphState = null) : IRecordedSessionGraphWorkspace
+        SurfacePresentationState? velocityGraphState = null,
+        SurfacePresentationState? speedGraphState = null,
+        SurfacePresentationState? elevationGraphState = null) : IRecordedSessionGraphWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange { get; private set; }
+        public IReadOnlyList<TrackPoint>? TrackPoints { get; } =
+        [
+            new TrackPoint(0, 0, 0, 100, 5),
+            new TrackPoint(1, 100, 100, 101, 6),
+        ];
+        public TrackTimelineContext? TrackTimelineContext { get; } = new(0, 1);
         public SurfacePresentationState TravelGraphState { get; } = travelGraphState;
         public SurfacePresentationState VelocityGraphState { get; } = velocityGraphState ?? travelGraphState;
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;
+        public SurfacePresentationState SpeedGraphState { get; } = speedGraphState ?? SurfacePresentationState.Hidden;
+        public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
+        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
+            TravelGraphState,
+            VelocityGraphState,
+            ImuGraphState,
+            SpeedGraphState,
+            ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 

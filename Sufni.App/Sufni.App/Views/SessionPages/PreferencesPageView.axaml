@@ -89,5 +89,49 @@ mc:Ignorable="d">
                 </ComboBox.ItemTemplate>
             </ComboBox>
         </Grid>
+
+        <Grid ColumnDefinitions="*,120">
+            <CheckBox
+            Name="SpeedPlotCheckBox"
+            Content="{Binding SpeedPlot.DisplayName}"
+            IsChecked="{Binding SpeedPlot.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding SpeedPlot.Available}" />
+
+            <ComboBox
+            Name="SpeedPlotSmoothingComboBox"
+            Grid.Column="1"
+            IsEnabled="{Binding SpeedPlot.Available}"
+            ItemsSource="{Binding SmoothingOptions}"
+            SelectedValue="{Binding SpeedPlot.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,120">
+            <CheckBox
+            Name="ElevationPlotCheckBox"
+            Content="{Binding ElevationPlot.DisplayName}"
+            IsChecked="{Binding ElevationPlot.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding ElevationPlot.Available}" />
+
+            <ComboBox
+            Name="ElevationPlotSmoothingComboBox"
+            Grid.Column="1"
+            IsEnabled="{Binding ElevationPlot.Available}"
+            ItemsSource="{Binding SmoothingOptions}"
+            SelectedValue="{Binding ElevationPlot.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
     </StackPanel>
 </UserControl>

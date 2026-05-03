@@ -69,6 +69,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState recordedSpeedGraphBaseState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState recordedElevationGraphBaseState = SurfacePresentationState.Hidden;
 
     #endregion Private fields
 
@@ -92,6 +94,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private TelemetryTimeRange? analysisRange;
+    [ObservableProperty] private TrackTimelineContext? trackTimelineContext;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private string? videoUrl;
@@ -100,6 +103,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SessionGraphLayout graphLayout = SessionGraphLayout.Empty;
     [ObservableProperty] private SurfacePresentationState frontStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
@@ -148,6 +154,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         : "Full session";
     public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
     public ObservableCollection<PageViewModelBase> Pages { get; }
+    IReadOnlyList<TrackPoint>? IRecordedSessionGraphWorkspace.TrackPoints => TrackPoints;
 
     #endregion Observable properties
 
@@ -155,6 +162,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         IsComplete = value != null;
         pendingAnalysisRangeBoundary = null;
+        RefreshTrackTimelineContext();
         if (value is null)
         {
             SessionAnalysis = SessionAnalysisResult.Hidden;
@@ -218,12 +226,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnTrackPointsChanged(List<TrackPoint>? value)
     {
+        if (MapViewModel is not null)
+        {
+            MapViewModel.SessionTrackPoints = value;
+        }
+
+        RefreshTrackTimelineContext();
+        if (TelemetryData is not null)
+        {
+            ApplyRecordedTrackGraphStates();
+        }
+    }
+
+    partial void OnTrackTimelineContextChanged(TrackTimelineContext? value)
+    {
         if (MapViewModel is null)
         {
             return;
         }
 
-        MapViewModel.SessionTrackPoints = value;
+        MapViewModel.TimelineContext = value;
     }
 
     partial void OnVideoUrlChanged(string? value)
@@ -504,6 +526,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             : SurfacePresentationState.Hidden;
     }
 
+    private void RefreshTrackTimelineContext()
+    {
+        TrackTimelineContext = TelemetryData is { } telemetry
+            ? TrackPointSeries.BuildTimelineContext(
+                TrackPoints,
+                telemetry.Metadata.Timestamp,
+                telemetry.Metadata.Duration)
+            : null;
+    }
+
     private void ClearRecordedPresentation()
     {
         TelemetryData = null;
@@ -516,6 +548,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SetRecordedGraphBaseStates(
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden);
     }
 
@@ -526,7 +560,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SetRecordedGraphBaseStates(
             SurfacePresentationState.Loading("Loading travel graphs."),
             SurfacePresentationState.Loading("Loading velocity graph."),
-            SurfacePresentationState.Loading("Loading IMU graph."));
+            SurfacePresentationState.Loading("Loading IMU graph."),
+            mapExpected ? SurfacePresentationState.Loading("Loading speed graph.") : SurfacePresentationState.Hidden,
+            mapExpected ? SurfacePresentationState.Loading("Loading elevation graph.") : SurfacePresentationState.Hidden);
         FrontStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
         RearStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
         CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
@@ -550,7 +586,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SetRecordedGraphBaseStates(
             SurfacePresentationState.WaitingForData("Waiting for travel data."),
             SurfacePresentationState.WaitingForData("Waiting for velocity data."),
-            SurfacePresentationState.WaitingForData("Waiting for IMU data."));
+            SurfacePresentationState.WaitingForData("Waiting for IMU data."),
+            mapExpected ? SurfacePresentationState.WaitingForData("Waiting for speed data.") : SurfacePresentationState.Hidden,
+            mapExpected ? SurfacePresentationState.WaitingForData("Waiting for elevation data.") : SurfacePresentationState.Hidden);
         FrontStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
         RearStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
         CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
@@ -770,6 +808,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         PreferencesPage.TravelPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.VelocityPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
 
         ResetImplementation();
     }
@@ -812,9 +852,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private void ApplyRecordedPlotAvailability(TelemetryData? telemetry)
     {
         var hasTravelTelemetry = HasTravelTelemetry(telemetry);
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(TrackPoints);
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(TrackPoints);
         PreferencesPage.ApplyPlotAvailability(
             hasTravelTelemetry,
             hasTravelTelemetry,
+            hasSpeedSeries,
+            hasElevationSeries,
             HasImuTelemetry(telemetry));
     }
 
@@ -822,10 +866,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         var hasTravelTelemetry = HasTravelTelemetry(telemetry);
         var hasImuTelemetry = HasImuTelemetry(telemetry);
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(TrackPoints);
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(TrackPoints);
 
         PreferencesPage.ApplyPlotAvailability(
             hasTravelTelemetry,
             hasTravelTelemetry,
+            hasSpeedSeries,
+            hasElevationSeries,
             hasImuTelemetry);
 
         var travelState = hasTravelTelemetry
@@ -834,18 +882,40 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         var imuState = hasImuTelemetry
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
+        var speedState = hasSpeedSeries
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        var elevationState = hasElevationSeries
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
 
-        SetRecordedGraphBaseStates(travelState, travelState, imuState);
+        SetRecordedGraphBaseStates(travelState, travelState, imuState, speedState, elevationState);
+    }
+
+    private void ApplyRecordedTrackGraphStates()
+    {
+        ApplyRecordedPlotAvailability(TelemetryData);
+        recordedSpeedGraphBaseState = TrackPointSeries.HasSpeedSeries(TrackPoints)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        recordedElevationGraphBaseState = TrackPointSeries.HasElevationSeries(TrackPoints)
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        RefreshRecordedGraphStates();
     }
 
     private void SetRecordedGraphBaseStates(
         SurfacePresentationState travelState,
         SurfacePresentationState velocityState,
-        SurfacePresentationState imuState)
+        SurfacePresentationState imuState,
+        SurfacePresentationState speedState,
+        SurfacePresentationState elevationState)
     {
         recordedTravelGraphBaseState = travelState;
         recordedVelocityGraphBaseState = velocityState;
         recordedImuGraphBaseState = imuState;
+        recordedSpeedGraphBaseState = speedState;
+        recordedElevationGraphBaseState = elevationState;
         RefreshRecordedGraphStates();
     }
 
@@ -854,6 +924,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         TravelGraphState = recordedTravelGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Travel);
         VelocityGraphState = recordedVelocityGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Velocity);
         ImuGraphState = recordedImuGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Imu);
+        SpeedGraphState = recordedSpeedGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Speed);
+        ElevationGraphState = recordedElevationGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Elevation);
+        GraphLayout = SessionGraphLayout.Create(
+            TravelGraphState,
+            VelocityGraphState,
+            ImuGraphState,
+            SpeedGraphState,
+            ElevationGraphState);
     }
 
     private async Task RestoreRecordedPreferencesAsync()

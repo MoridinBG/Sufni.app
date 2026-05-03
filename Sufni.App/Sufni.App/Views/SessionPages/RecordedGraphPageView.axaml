@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plotModels="clr-namespace:Sufni.App.Plots"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:sessionGraphs="clr-namespace:Sufni.App.SessionGraphs"
 xmlns:v="clr-namespace:Sufni.App.Views"
@@ -29,6 +30,8 @@ mc:Ignorable="d">
                         <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                         <RowDefinition Height="{Binding Workspace.VelocityGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                         <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <RowDefinition Height="{Binding Workspace.SpeedGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <RowDefinition Height="{Binding Workspace.ElevationGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                     </Grid.RowDefinitions>
 
                     <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
@@ -83,6 +86,42 @@ mc:Ignorable="d">
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="IMU" />
                         </controls:PlaceholderOverlayContainer.PlaceholderContent>
                     </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Row="3" PresentationState="{Binding Workspace.SpeedGraphState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <plots:TrackSignalPlotDesktopView
+                            Name="Speed"
+                            Margin="0,4,0,0"
+                            SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
+                            SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Timeline="{Binding Workspace.Timeline}"
+                            TimelineContext="{Binding Workspace.TrackTimelineContext}"
+                            TrackPoints="{Binding Workspace.TrackPoints}" />
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Speed" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
+
+                    <controls:PlaceholderOverlayContainer Grid.Row="4" PresentationState="{Binding Workspace.ElevationGraphState}">
+                        <controls:PlaceholderOverlayContainer.ReadyContent>
+                            <plots:TrackSignalPlotDesktopView
+                            Name="Elevation"
+                            Margin="0,4,0,0"
+                            SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
+                            SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
+                            Telemetry="{Binding Workspace.TelemetryData}"
+                            Timeline="{Binding Workspace.Timeline}"
+                            TimelineContext="{Binding Workspace.TrackTimelineContext}"
+                            TrackPoints="{Binding Workspace.TrackPoints}" />
+                        </controls:PlaceholderOverlayContainer.ReadyContent>
+
+                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Elevation" />
+                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    </controls:PlaceholderOverlayContainer>
                 </Grid>
 
                 <controls:SurfacePlaceholderCard
@@ -94,6 +133,8 @@ mc:Ignorable="d">
                             <Binding Path="!Workspace.TravelGraphState.ReservesLayout" />
                             <Binding Path="!Workspace.VelocityGraphState.ReservesLayout" />
                             <Binding Path="!Workspace.ImuGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.SpeedGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.ElevationGraphState.ReservesLayout" />
                         </MultiBinding>
                     </controls:SurfacePlaceholderCard.IsVisible>
                 </controls:SurfacePlaceholderCard>

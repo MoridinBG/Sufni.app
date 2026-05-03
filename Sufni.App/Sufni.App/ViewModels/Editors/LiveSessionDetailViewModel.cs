@@ -445,6 +445,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         PreferencesPage.TravelPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.VelocityPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
     }
 
     private void OnPlotPreferenceChanged(object? sender, PropertyChangedEventArgs args)
@@ -462,8 +464,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var travelAvailable = sessionHeader is { AcceptedTravelHz: > 0 };
         var imuAvailable = sessionHeader is { AcceptedImuHz: > 0 } &&
                            sessionHeader.GetActiveImuLocations().Count > 0;
+        var gpsAvailable = sessionHeader is { AcceptedGpsFixHz: > 0 };
 
-        PreferencesPage.ApplyPlotAvailability(travelAvailable, travelAvailable, imuAvailable);
+        PreferencesPage.ApplyPlotAvailability(travelAvailable, travelAvailable, gpsAvailable, gpsAvailable, imuAvailable);
     }
 
     private SessionPreferences CreateCurrentSessionPreferences()
@@ -642,7 +645,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
         TelemetryData = snapshot.StatisticsTelemetry;
         DamperPercentages = snapshot.DamperPercentages;
-        mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints);
+        var trackTimelineContext = CreateLiveTrackTimelineContext(snapshot.Controls);
+        graphWorkspace.ApplyTrackPresentation(snapshot.SessionTrackPoints, trackTimelineContext);
+        mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints, trackTimelineContext);
 
         if (snapshot.Controls.SessionHeader is { } header)
         {
@@ -709,6 +714,16 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     DispatcherPriority.Background);
             }
         });
+    }
+
+    private static TrackTimelineContext? CreateLiveTrackTimelineContext(LiveSessionControlState controls)
+    {
+        var durationSeconds = controls.CaptureDuration.TotalSeconds;
+        return controls.CaptureStartUtc is { } captureStartUtc
+               && double.IsFinite(durationSeconds)
+               && durationSeconds > 0
+            ? new TrackTimelineContext(captureStartUtc.ToUnixTimeSeconds(), durationSeconds)
+            : null;
     }
 
     private void CancelBake()
