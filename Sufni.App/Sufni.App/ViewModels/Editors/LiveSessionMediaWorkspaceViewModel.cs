@@ -68,7 +68,7 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
         OnPropertyChanged(nameof(HasMediaContent));
     }
 
-    public void SetTrackPoints(IReadOnlyList<TrackPoint>? trackPoints, TrackTimelineContext? timelineContext)
+    public void SetTrackPoints(IReadOnlyList<TrackPoint>? trackPoints, TrackTimeRange? timelineContext)
     {
         if (MapViewModel is null)
         {

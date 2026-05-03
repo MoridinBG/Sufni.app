@@ -41,7 +41,7 @@ public class LiveGraphPageViewTests
             new TrackPoint(0, 0, 0, 100, 5),
             new TrackPoint(1, 100, 100, 101, 6),
         ]);
-        workspace.TrackTimelineContext.Returns(new TrackTimelineContext(0, 1));
+        workspace.TrackTimelineContext.Returns(new TrackTimeRange(0, 1));
 
         var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 

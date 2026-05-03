@@ -716,13 +716,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         });
     }
 
-    private static TrackTimelineContext? CreateLiveTrackTimelineContext(LiveSessionControlState controls)
+    private static TrackTimeRange? CreateLiveTrackTimelineContext(LiveSessionControlState controls)
     {
         var durationSeconds = controls.CaptureDuration.TotalSeconds;
         return controls.CaptureStartUtc is { } captureStartUtc
                && double.IsFinite(durationSeconds)
                && durationSeconds > 0
-            ? new TrackTimelineContext(captureStartUtc.ToUnixTimeSeconds(), durationSeconds)
+            ? new TrackTimeRange(captureStartUtc.ToUnixTimeSeconds(), durationSeconds)
             : null;
     }
 

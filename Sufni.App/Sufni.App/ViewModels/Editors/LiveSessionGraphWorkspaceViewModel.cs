@@ -23,7 +23,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     private bool hasTravelData;
     private bool hasImuData;
     private IReadOnlyList<TrackPoint> trackPoints = [];
-    private TrackTimelineContext? trackTimelineContext;
+    private TrackTimeRange? trackTimelineContext;
     private SessionPlotPreferences plotPreferences = new();
 
     public IObservable<LiveGraphBatch> GraphBatches { get; }
@@ -35,7 +35,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         private set => SetProperty(ref trackPoints, value);
     }
 
-    public TrackTimelineContext? TrackTimelineContext
+    public TrackTimeRange? TrackTimelineContext
     {
         get => trackTimelineContext;
         private set => SetProperty(ref trackTimelineContext, value);
@@ -156,7 +156,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         RefreshStates();
     }
 
-    public void ApplyTrackPresentation(IReadOnlyList<TrackPoint> points, TrackTimelineContext? context)
+    public void ApplyTrackPresentation(IReadOnlyList<TrackPoint> points, TrackTimeRange? context)
     {
         TrackPoints = points;
         TrackTimelineContext = context;

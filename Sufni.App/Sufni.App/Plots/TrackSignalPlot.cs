@@ -28,7 +28,7 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
 
     public void LoadTrackData(
         IReadOnlyList<TrackPoint> points,
-        TrackTimelineContext context,
+        TrackTimeRange context,
         TelemetryData? telemetryData,
         TrackSignalKind kind)
     {

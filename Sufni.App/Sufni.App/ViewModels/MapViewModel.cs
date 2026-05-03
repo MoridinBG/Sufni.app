@@ -25,7 +25,7 @@ public partial class MapViewModel : ViewModelBase
     private List<TrackPoint>? sessionTrackPoints;
 
     [ObservableProperty]
-    private TrackTimelineContext? timelineContext;
+    private TrackTimeRange? timelineContext;
 
     public bool HasSessionTrackPoints => SessionTrackPoints?.Count > 0;
 

@@ -181,6 +181,35 @@ public class RecordedSessionGraphDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task RecordedSessionGraphDesktopView_ResetVisiblePlotRows_MakesVisibleRowsEqualHeight()
+    {
+        var telemetry = TestTelemetryData.Create();
+        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var workspace = new RecordedSessionGraphWorkspaceStub(
+            telemetry,
+            speedGraphState: SurfacePresentationState.Ready);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        Assert.NotNull(graphGrid);
+
+        graphGrid!.RowDefinitions[0].Height = new GridLength(4, GridUnitType.Star);
+        graphGrid.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
+        graphGrid.RowDefinitions[4].Height = new GridLength(2, GridUnitType.Star);
+        graphGrid.RowDefinitions[6].Height = new GridLength(5, GridUnitType.Star);
+        graphGrid.RowDefinitions[8].Height = new GridLength(7, GridUnitType.Star);
+
+        SessionGraphGridSizing.ResetVisiblePlotRows(graphGrid);
+
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[0].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[2].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[4].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[6].Height);
+        Assert.Equal(new GridLength(0, GridUnitType.Pixel), graphGrid.RowDefinitions[8].Height);
+    }
+
+    [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_AnalysisRangeBindingKeepsAndClearsOverlay()
     {
         var workspace = new RecordedSessionGraphWorkspaceStub(CreateTelemetryData());
@@ -287,7 +316,7 @@ public class RecordedSessionGraphDesktopViewTests
             new TrackPoint(0, 0, 0, 100, 5),
             new TrackPoint(1, 1, 1, 101, 6),
         ];
-        public TrackTimelineContext? TrackTimelineContext { get; } = new(0, 1);
+        public TrackTimeRange? TrackTimelineContext { get; } = new(0, 1);
         public SurfacePresentationState SpeedGraphState { get; } = speedGraphState ?? SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
         public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
