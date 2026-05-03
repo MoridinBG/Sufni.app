@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Sufni.App.Views.Controls;
 
 namespace Sufni.App.DesktopViews.Items;
@@ -18,11 +20,16 @@ public static class SessionGraphGridSizing
                 continue;
             }
 
-            splitter.DoubleTapped += (_, args) =>
-            {
-                ResetVisiblePlotRows(graphGrid);
-                args.Handled = true;
-            };
+            // GridSplitter can handle input during drag gestures, so listen even when the double-tap is already handled.
+            splitter.AddHandler<TappedEventArgs>(
+                InputElement.DoubleTappedEvent,
+                (_, args) =>
+                {
+                    ResetVisiblePlotRows(graphGrid);
+                    args.Handled = true;
+                },
+                RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+                handledEventsToo: true);
         }
     }
 

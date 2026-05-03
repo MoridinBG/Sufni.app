@@ -13,7 +13,7 @@ x:DataType="editors:SessionShellDesktopView"
 Background="{StaticResource SufniRegion}"
 mc:Ignorable="d">
 
-    <Grid RowDefinitions="* auto *">
+    <Grid x:Name="RootLayoutGrid" RowDefinitions="* auto *">
 
         <Grid x:Name="TopLayoutGrid" Grid.Row="0">
             <Grid.Resources>
@@ -42,12 +42,18 @@ mc:Ignorable="d">
             Content="{Binding #Root.MediaContent}" />
         </Grid>
 
-        <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+        <GridSplitter
+        x:Name="TelemetryStatisticsSplitter"
+        Grid.Row="1"
+        ResizeDirection="Rows" />
 
-        <Grid Grid.Row="2" ColumnDefinitions="* auto 400">
+        <Grid x:Name="BottomLayoutGrid" Grid.Row="2" ColumnDefinitions="* auto 400">
             <ContentControl Name="StatisticsHost" Grid.Column="0" Content="{Binding #Root.StatisticsContent}" />
 
-            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+            <GridSplitter
+            x:Name="StatisticsSidebarSplitter"
+            Grid.Column="1"
+            ResizeDirection="Columns" />
 
             <Grid Grid.Column="2" RowDefinitions="auto auto *">
                 <ContentControl Name="ControlHost" Grid.Row="0" Content="{Binding #Root.ControlContent}" />
