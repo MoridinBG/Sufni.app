@@ -100,6 +100,19 @@ Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
 ---
 
+## DAQ Management
+
+A side-channel framed TCP protocol for non-streaming DAQ operations: list and retrieve files, mark uploaded, trash remotely, set time, edit and replace CONFIG. Distinct from both the live preview protocol and the import file-transfer protocol, but shares the DAQ's single-client TCP port. Used by the network telemetry store, the import workflow, and the Live DAQ diagnostics tab.
+
+Topics in [architecture/daq-management.md](architecture/daq-management.md):
+
+- [Service Surface](architecture/daq-management.md#service-surface) — `IDaqManagementService`, `IDaqManagementSession`, `DaqManagementException`
+- [Wire Protocol](architecture/daq-management.md#wire-protocol) — frame header, frame types, result codes, per-operation choreography
+- [Callers](architecture/daq-management.md#callers) — `NetworkTelemetryDataStore`, `NetworkTelemetryFile`, `LiveDaqDetailViewModel`
+- [CONFIG Document](architecture/daq-management.md#config-document) — `DaqConfigDocument`, `DaqConfigFields`, `DaqConfigValidator`, `SelectedDeviceConfigFile`
+
+---
+
 ## Signal Processing & Suspension Kinematics
 
 `TelemetryData.FromRecording()` orchestrates the full pipeline: travel calibration → Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram + statistics. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel.
@@ -149,14 +162,45 @@ Topics in [architecture/ui.md](architecture/ui.md):
 
 ---
 
+## Plot Rendering
+
+ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded plots inherit from `TelemetryPlot` and load full sample arrays once; live plots inherit from `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time.
+
+Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
+
+- [Layering](architecture/plot-rendering.md#layering) — plot classes as adapters over ScottPlot, view ownership
+- [Class Hierarchy](architecture/plot-rendering.md#class-hierarchy) — `SufniPlot` / `TelemetryPlot` / `LiveStreamingPlotBase`
+- [Concrete Plots](architecture/plot-rendering.md#concrete-plots) — Travel / Velocity / Strokes / Balance / IMU / Leverage / Live families
+- [Display-Time Pipeline](architecture/plot-rendering.md#display-time-pipeline) — downsampling, smoothing windows, mobile `MaximumDisplayHz`
+- [Cross-Cutting Patterns](architecture/plot-rendering.md#cross-cutting-patterns) — axis rules, cursors, recorded vs live differences
+
+---
+
+## Maps & GPS Tracks
+
+GPS records from V4 SST files are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists the user's tile choice and view options.
+
+Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
+
+- [Overview](architecture/maps-and-tracks.md#overview) — data path from `GpsRecord` to `Track` to map display
+- [Track Model](architecture/maps-and-tracks.md#track-model) — `Track` entity and projection
+- [Track Coordinator](architecture/maps-and-tracks.md#track-coordinator) — track lifecycle alongside session save
+- [Tile Layer Service](architecture/maps-and-tracks.md#tile-layer-service) — provider integration
+- [Map View Model](architecture/maps-and-tracks.md#map-view-model) — bound state, projected points
+- [Mapsui Integration](architecture/maps-and-tracks.md#mapsui-integration) — view-side glue
+- [Map Preferences](architecture/maps-and-tracks.md#map-preferences) — `IMapPreferences` facet
+- [Where Maps Are Displayed](architecture/maps-and-tracks.md#where-maps-are-displayed) — recorded session and live-session media workspace
+
+---
+
 ## Live DAQ Streaming
 
-The live preview feature streams real-time telemetry from a connected DAQ device to the desktop app over a framed TCP protocol. It is intentionally separate from the import pipeline: it has its own discovery catalog, browse ownership, runtime-only store, and a per-identity shared stream. The feature activates only when the user selects the Live primary page, and diagnostics and live-session tabs for the same DAQ attach to that shared stream through leases.
+The live preview feature streams real-time telemetry from a connected DAQ over a framed TCP protocol. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, and the diagnostics tab. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a persisted session lives in [Live Session Recording](#live-session-recording).
 
 ```
 mDNS announcement
   -> LiveDaqCatalogService (probe board ID)
-    -> LiveDaqCoordinator.ReconcileLocked (merge with known boards)
+    -> LiveDaqCoordinator.Reconcile (merge with known boards)
       -> LiveDaqStore.ReplaceAll
         -> DynamicData -> LiveDaqListViewModel -> UI
 
@@ -166,7 +210,7 @@ User selects row
       -> LiveDaqSharedStreamRegistry.GetOrCreate
         -> LiveDaqSharedStream.AcquireLease
 
-Diagnostics or live-session tab attaches
+Diagnostics tab attaches
   -> shared stream ensures LiveDaqClient.ConnectAsync + StartPreviewAsync
   -> receive loop parses frames -> shared stream fan-out
     -> LiveDaqSessionState.ApplyFrame
@@ -178,15 +222,38 @@ Last lease released
 
 Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
-- [Overview](architecture/live-streaming.md#overview) — feature scope, architecture diagram, data flow
+- [Overview](architecture/live-streaming.md#overview) — feature scope, architecture diagram
+- [Data Flow](architecture/live-streaming.md#data-flow) — discovery → list → diagnostics tab attach
 - [Live Wire Protocol](architecture/live-streaming.md#live-wire-protocol) — 16-byte frame header, frame types, start handshake, result codes
 - [Transport Layer](architecture/live-streaming.md#transport-layer) — protocol reader, client lifecycle, session state accumulator
 - [Discovery & Catalog](architecture/live-streaming.md#discovery--catalog) — browse ownership, board-ID inspector, catalog service
 - [Known-Board Query](architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
 - [Runtime Store](architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
 - [Coordinator](architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
-- [View Models](architecture/live-streaming.md#view-models) — list, row, diagnostics tab, live-session tab lifecycle
+- [View Models](architecture/live-streaming.md#view-models) — list, row, diagnostics tab
+- [Views](architecture/live-streaming.md#views) — desktop and shared/mobile axaml pairs
 - [Design Decisions](architecture/live-streaming.md#design-decisions) — separation from import, per-identity shared stream, throttled UI, lease-based browse
+
+---
+
+## Live Session Recording
+
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save and a `SlidingWindowBuffer` for display, fans graph batches through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a `Session` row plus optional `Track` from the captured GPS.
+
+Topics in [architecture/live-session.md](architecture/live-session.md):
+
+- [Overview](architecture/live-session.md#overview) — recording slice, relationship to live preview
+- [Data Flow](architecture/live-session.md#data-flow) — attach → capture → save sequence
+- [Configuration Lock](architecture/live-session.md#configuration-lock) — exclusive control of stream parameters
+- [Capture Service](architecture/live-session.md#capture-service) — `LiveSessionService` lifecycle and frame handlers
+- [Buffers](architecture/live-session.md#buffers) — `AppendOnlyChunkBuffer` (save) and `SlidingWindowBuffer` (display)
+- [Live Graph Pipeline](architecture/live-session.md#live-graph-pipeline) — `ILiveGraphPipeline`, `LiveGraphPipelineFactory`, per-row batches
+- [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
+- [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentation`, `LiveSessionControlState`
+- [Live Session Detail View Model](architecture/live-session.md#live-session-detail-view-model) — tab lifecycle and preferences forwarding
+- [GPS Preview State](architecture/live-session.md#gps-preview-state) — fix-mode interpretation, dual consumer
+- [Save Flow](architecture/live-session.md#save-flow) — `SessionCoordinator.SaveLiveCaptureAsync` integration
+- [Design Decisions](architecture/live-session.md#design-decisions) — separation from streaming, lock model, throttling
 
 ---
 
