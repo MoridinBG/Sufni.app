@@ -62,5 +62,20 @@ public partial class SessionShellDesktopView : UserControl
     public SessionShellDesktopView()
     {
         InitializeComponent();
+        SessionSectionGridSizing.AttachColumnReset(
+            this.FindControl<GridSplitter>("MediaSplitter"),
+            this.FindControl<Grid>("TopLayoutGrid")!,
+            (0, new GridLength(1, GridUnitType.Star)),
+            (2, GridLength.Auto));
+        SessionSectionGridSizing.AttachRowReset(
+            this.FindControl<GridSplitter>("TelemetryStatisticsSplitter"),
+            this.FindControl<Grid>("RootLayoutGrid")!,
+            (0, new GridLength(1, GridUnitType.Star)),
+            (2, new GridLength(1, GridUnitType.Star)));
+        SessionSectionGridSizing.AttachColumnReset(
+            this.FindControl<GridSplitter>("StatisticsSidebarSplitter"),
+            this.FindControl<Grid>("BottomLayoutGrid")!,
+            (0, new GridLength(1, GridUnitType.Star)),
+            (2, new GridLength(400, GridUnitType.Pixel)));
     }
 }
