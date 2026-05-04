@@ -40,7 +40,7 @@ public class LiveSessionDetailViewTests
             .FirstOrDefault(c => c.Name == "TabHeaders");
         Assert.NotNull(tabHeaders);
         Assert.Equal(editor.Pages.Count, tabHeaders!.ItemCount);
-        Assert.Equal(["Graph", "Spring", "Damper", "Notes"], editor.Pages.Select(page => page.DisplayName));
+        Assert.Equal(["Graph", "Spring", "Damper", "Notes", "Preferences"], editor.Pages.Select(page => page.DisplayName));
 
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<EditableTitle>().FirstOrDefault());
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
