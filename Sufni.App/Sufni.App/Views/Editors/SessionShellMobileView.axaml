@@ -30,15 +30,19 @@
                 HorizontalAlignment="Stretch" />
 
             <!--  Tab headers  -->
+            <ScrollViewer
+                Grid.Row="1"
+                HorizontalScrollBarVisibility="Hidden"
+                IsScrollChainingEnabled="False"
+                VerticalScrollBarVisibility="Disabled">
             <ItemsControl
                 Name="TabHeaders"
-                Grid.Row="1"
-                HorizontalAlignment="Stretch"
+                HorizontalAlignment="Right"
                 ItemsSource="{Binding Pages}">
 
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <UniformGrid Rows="1" />
+                        <StackPanel Orientation="Horizontal" Spacing="24" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
 
@@ -46,7 +50,6 @@
                     <DataTemplate>
                         <Button
                             Name="{Binding DisplayName}"
-                            HorizontalAlignment="Center"
                             Classes="tabheader"
                             Click="OnTabHeaderClicked"
                             Content="{Binding DisplayName}"
@@ -85,6 +88,7 @@
                 </ItemsControl.Styles>
 
             </ItemsControl>
+            </ScrollViewer>
 
             <ScrollViewer
                 Name="TabScrollViewer"
@@ -104,6 +108,15 @@
                             <StackPanel Orientation="Horizontal" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ContentControl
+                                Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+                                ClipToBounds="True"
+                                Content="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
 
                     <Interaction.Behaviors>
                         <EventTriggerBehavior EventName="Loaded">

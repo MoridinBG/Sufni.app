@@ -59,9 +59,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;
     public NotesPageViewModel NotesPage { get; } = new();
     public PreferencesPageViewModel PreferencesPage { get; } = new();
-    public SpringPageViewModel SpringPage { get; } = new();
-    public DamperPageViewModel DamperPage { get; } = new();
-    public BalancePageViewModel BalancePage { get; } = new();
+    public SpringPageViewModel SpringPage { get; }
+    public DamperPageViewModel DamperPage { get; }
+    public BalancePageViewModel BalancePage { get; }
     public LiveGraphPageViewModel LiveGraphPage { get; }
     public ObservableCollection<PageViewModelBase> Pages { get; }
 
@@ -209,6 +209,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
         LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
+        SpringPage = new SpringPageViewModel(this);
+        DamperPage = new DamperPageViewModel(this);
+        BalancePage = new BalancePageViewModel(this);
         Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage, PreferencesPage];
         WireNotesPageForwarding();
         WireRuntimePreferenceForwarding();

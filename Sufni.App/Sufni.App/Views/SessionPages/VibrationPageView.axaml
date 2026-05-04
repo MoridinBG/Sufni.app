@@ -1,0 +1,121 @@
+<UserControl
+x:Class="Sufni.App.Views.SessionPages.VibrationPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:VibrationPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    IsScrollChainingEnabled="False">
+        <StackPanel Name="VibrationColumn" Spacing="10">
+            <controls:PlaceholderOverlayContainer
+            Name="FrontForkVibrationHost"
+            PresentationState="{Binding Workspace.FrontForkVibrationState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Grid RowDefinitions="Auto,260">
+                        <commonplots:VibrationSummaryView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        ImuLocation="Fork"
+                        SuspensionType="Front"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+
+                        <plots:SessionStatisticsPlotView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        Grid.Row="1"
+                        ImuLocation="Fork"
+                        PlotKind="VibrationThirds"
+                        SuspensionType="Front"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+                    </Grid>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Front fork vibration" MinCardHeight="320" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+
+            <controls:PlaceholderOverlayContainer
+            Name="FrontFrameVibrationHost"
+            PresentationState="{Binding Workspace.FrontFrameVibrationState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Grid RowDefinitions="Auto,260">
+                        <commonplots:VibrationSummaryView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        ImuLocation="Frame"
+                        SuspensionType="Front"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+
+                        <plots:SessionStatisticsPlotView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        Grid.Row="1"
+                        ImuLocation="Frame"
+                        PlotKind="VibrationThirds"
+                        SuspensionType="Front"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+                    </Grid>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Front frame vibration" MinCardHeight="320" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+
+            <controls:PlaceholderOverlayContainer
+            Name="RearForkVibrationHost"
+            PresentationState="{Binding Workspace.RearForkVibrationState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Grid RowDefinitions="Auto,260">
+                        <commonplots:VibrationSummaryView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        ImuLocation="Fork"
+                        SuspensionType="Rear"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+
+                        <plots:SessionStatisticsPlotView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        Grid.Row="1"
+                        ImuLocation="Fork"
+                        PlotKind="VibrationThirds"
+                        SuspensionType="Rear"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+                    </Grid>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Rear fork vibration" MinCardHeight="320" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+
+            <controls:PlaceholderOverlayContainer
+            Name="RearFrameVibrationHost"
+            PresentationState="{Binding Workspace.RearFrameVibrationState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <Grid RowDefinitions="Auto,260">
+                        <commonplots:VibrationSummaryView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        ImuLocation="Frame"
+                        SuspensionType="Rear"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+
+                        <plots:SessionStatisticsPlotView
+                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                        Grid.Row="1"
+                        ImuLocation="Frame"
+                        PlotKind="VibrationThirds"
+                        SuspensionType="Rear"
+                        Telemetry="{Binding Workspace.TelemetryData}" />
+                    </Grid>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Rear frame vibration" MinCardHeight="320" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
