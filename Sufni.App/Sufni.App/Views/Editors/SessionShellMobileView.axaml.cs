@@ -1,7 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Sufni.App.ViewModels.SessionPages;
 
 namespace Sufni.App.Views.Editors;
@@ -36,10 +40,16 @@ public partial class SessionShellMobileView : UserControl
     }
 
     private bool sizeChanging;
+    private bool dropDownOpen;
+    private Vector lockedOffset;
+    private readonly List<IDisposable> dropDownSubscriptions = new();
+    private readonly HashSet<ComboBox> trackedComboBoxes = new();
 
     public SessionShellMobileView()
     {
         InitializeComponent();
+        TabContainer.Loaded += (_, _) => SubscribeToComboBoxes();
+        DetachedFromVisualTree += (_, _) => UnsubscribeFromComboBoxes();
         TabHeaders.Items.CollectionChanged += (_, _) =>
         {
             if (TabHeaders.ItemCount == 0)
@@ -111,6 +121,12 @@ public partial class SessionShellMobileView : UserControl
     {
         if (e.Property.Name != nameof(TabScrollViewer.Offset) || sizeChanging) return;
 
+        if (dropDownOpen)
+        {
+            RestoreLockedOffset();
+            return;
+        }
+
         foreach (var header in TabHeaders.Items)
         {
             (header as PageViewModelBase)!.Selected = false;
@@ -135,6 +151,74 @@ public partial class SessionShellMobileView : UserControl
             }
         }
 
+        sizeChanging = false;
+    }
+
+    private void SubscribeToComboBoxes()
+    {
+        foreach (var combo in TabContainer.GetVisualDescendants().OfType<ComboBox>())
+        {
+            if (!trackedComboBoxes.Add(combo))
+            {
+                continue;
+            }
+
+            var subscription = combo.GetObservable(ComboBox.IsDropDownOpenProperty).Subscribe(isOpen =>
+            {
+                if (isOpen)
+                {
+                    dropDownOpen = true;
+                    lockedOffset = GetSelectedPageOffset();
+                    RestoreLockedOffset();
+                }
+                else
+                {
+                    dropDownOpen = false;
+                }
+            });
+            dropDownSubscriptions.Add(subscription);
+        }
+    }
+
+    private void UnsubscribeFromComboBoxes()
+    {
+        foreach (var subscription in dropDownSubscriptions)
+        {
+            subscription.Dispose();
+        }
+        dropDownSubscriptions.Clear();
+        trackedComboBoxes.Clear();
+        dropDownOpen = false;
+    }
+
+    private Vector GetSelectedPageOffset()
+    {
+        var width = TabScrollViewer.Viewport.Width;
+        if (width <= 0)
+        {
+            width = TabScrollViewer.Bounds.Width;
+        }
+
+        for (var i = 0; i < TabHeaders.ItemCount; i++)
+        {
+            if ((TabHeaders.Items[i] as PageViewModelBase)?.Selected == true)
+            {
+                return new Vector(i * width, 0);
+            }
+        }
+
+        return TabScrollViewer.Offset;
+    }
+
+    private void RestoreLockedOffset()
+    {
+        if (TabScrollViewer.Offset == lockedOffset)
+        {
+            return;
+        }
+
+        sizeChanging = true;
+        TabScrollViewer.Offset = lockedOffset;
         sizeChanging = false;
     }
 }
