@@ -133,6 +133,15 @@ or override it from the command line with `-r <rid>
 
 Bundle id: `com.moridinbg.Sufni.App`.
 
+For personal iOS device signing with a different Apple team or bundle id,
+run the setup helper before building:
+
+```sh
+scripts/setup-ios-personal-signing.sh \
+  --bundle-id com.example.Sufni.App \
+  --team-id ABCDE12345
+```
+
 ### Simulator
 
 ```sh
