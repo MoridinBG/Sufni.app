@@ -63,6 +63,33 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source)
     {
+        var persisted = ParsePersisted(session);
+        return Evaluate(session, setup, bike, source, persisted, current: null);
+    }
+
+    public ProcessingFingerprintEvaluation EvaluateState(
+        SessionSnapshot session,
+        SetupSnapshot? setup,
+        BikeSnapshot? bike,
+        RecordedSessionSourceSnapshot? source)
+    {
+        var persisted = ParsePersisted(session);
+        var current = setup is not null && bike is not null && source is not null
+            ? CreateCurrent(session, setup, bike, source)
+            : null;
+        var staleness = Evaluate(session, setup, bike, source, persisted, current);
+
+        return new ProcessingFingerprintEvaluation(current, persisted, staleness);
+    }
+
+    private SessionStaleness Evaluate(
+        SessionSnapshot session,
+        SetupSnapshot? setup,
+        BikeSnapshot? bike,
+        RecordedSessionSourceSnapshot? source,
+        ProcessingFingerprint? persisted,
+        ProcessingFingerprint? current)
+    {
         if (source is null)
         {
             return new SessionStaleness.MissingRawSource();
@@ -78,7 +105,6 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             return new SessionStaleness.MissingProcessedData();
         }
 
-        var persisted = ParsePersisted(session);
         if (persisted is null || persisted.SchemaVersion != SchemaVersion)
         {
             return new SessionStaleness.UnknownLegacyFingerprint();
@@ -91,7 +117,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                 TelemetryProcessingVersion.Current);
         }
 
-        var current = CreateCurrent(session, setup, bike, source);
+        current ??= CreateCurrent(session, setup, bike, source);
         return persisted.SetupId != current.SetupId ||
                persisted.BikeId != current.BikeId ||
                !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||

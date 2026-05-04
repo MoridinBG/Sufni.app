@@ -13,15 +13,15 @@ public class RecordedSessionGraphTests
     [Fact]
     public void ConnectSessions_PublishesCurrentSummary_WhenSessionIsFullyCurrent()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         using var subscription = graph.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
 
         stores.Add(context);
-        synchronization.Flush();
+        scheduler.Flush();
 
         var summary = Assert.Single(summaries);
         Assert.Equal(context.Session.Id, summary.Id);
@@ -33,17 +33,17 @@ public class RecordedSessionGraphTests
     [Fact]
     public void ConnectSessions_PublishesNoRawSummary_WhenSourceIsMissing()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         using var subscription = graph.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
 
         stores.Bikes.Add(context.Bike);
         stores.Setups.Add(context.Setup);
         stores.Sessions.Add(context.Session);
-        synchronization.Flush();
+        scheduler.Flush();
 
         var summary = Assert.Single(summaries);
         Assert.IsType<SessionStaleness.MissingRawSource>(summary.Staleness);
@@ -53,16 +53,16 @@ public class RecordedSessionGraphTests
     [Fact]
     public void WatchSession_EmitsInitialThenCombinedSessionChangeKind_WhenSessionChanges()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = graph.WatchSession(context.Session.Id).Subscribe(emissions.Add);
 
         stores.Add(context);
-        synchronization.Flush();
+        scheduler.Flush();
         var initial = Assert.Single(emissions);
         Assert.Equal(DerivedChangeKind.Initial, initial.ChangeKind);
 
@@ -72,7 +72,7 @@ public class RecordedSessionGraphTests
             HasProcessedData = false,
             ProcessingFingerprintJson = null
         });
-        synchronization.Flush();
+        scheduler.Flush();
 
         var latest = emissions.Last();
         Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.SessionMetadataChanged));
@@ -84,18 +84,18 @@ public class RecordedSessionGraphTests
     [Fact]
     public void WatchSession_EmitsSourceAvailabilityChanged_WhenSourceHashChanges()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = graph.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        synchronization.Flush();
+        scheduler.Flush();
 
         stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
-        synchronization.Flush();
+        scheduler.Flush();
 
         var latest = emissions.Last();
         Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, latest.ChangeKind);
@@ -106,18 +106,18 @@ public class RecordedSessionGraphTests
     [Fact]
     public void WatchSession_EmitsDependencyChanged_WhenBikeProcessingDependencyChanges()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = graph.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        synchronization.Flush();
+        scheduler.Flush();
 
         stores.Bikes.Add(context.Bike with { HeadAngle = context.Bike.HeadAngle + 0.5 });
-        synchronization.Flush();
+        scheduler.Flush();
 
         var latest = emissions.Last();
         Assert.Equal(DerivedChangeKind.DependencyChanged, latest.ChangeKind);
@@ -127,15 +127,15 @@ public class RecordedSessionGraphTests
     [Fact]
     public void WatchSession_CoalescesSameTurnStoreChangesIntoSingleMultiCauseEmission()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = graph.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        synchronization.Flush();
+        scheduler.Flush();
         Assert.Single(emissions);
         emissions.Clear();
 
@@ -144,7 +144,7 @@ public class RecordedSessionGraphTests
         stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
 
         Assert.Empty(emissions);
-        synchronization.Flush();
+        scheduler.Flush();
 
         var latest = Assert.Single(emissions);
         var expected =
@@ -158,19 +158,44 @@ public class RecordedSessionGraphTests
     [Fact]
     public void ConnectSessions_RemovesSummary_WhenSessionIsRemoved()
     {
-        using var synchronization = new QueuedSynchronizationContextScope();
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        using var graph = stores.CreateGraph(fingerprintService);
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
         using var subscription = graph.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
         stores.Add(context);
-        synchronization.Flush();
+        scheduler.Flush();
         Assert.Single(summaries);
 
         stores.Sessions.Remove(context.Session.Id);
 
         Assert.Empty(summaries);
+    }
+
+    [Fact]
+    public void WatchSession_CompletesAndStopsWatching_WhenSessionIsRemoved()
+    {
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
+        using var stores = new StoreFixtures();
+        var fingerprintService = new ProcessingFingerprintService();
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
+        var context = CreateCurrentContext(fingerprintService);
+        var completed = false;
+        var emissions = 0;
+        using var subscription = graph.WatchSession(context.Session.Id).Subscribe(
+            _ => emissions++,
+            () => completed = true);
+        stores.Add(context);
+        scheduler.Flush();
+        Assert.Equal(1, emissions);
+
+        stores.Sessions.Remove(context.Session.Id);
+
+        Assert.True(completed);
+        stores.Sources.Add(context.Source with { SourceHash = "changed-after-remove" });
+        scheduler.Flush();
+        Assert.Equal(1, emissions);
     }
 
     private static TestContext CreateCurrentContext(ProcessingFingerprintService fingerprintService)
@@ -217,12 +242,15 @@ public class RecordedSessionGraphTests
         public InMemoryBikeStore Bikes { get; } = new();
         public InMemoryRecordedSourceStore Sources { get; } = new();
 
-        public RecordedSessionGraph CreateGraph(IProcessingFingerprintService fingerprintService) => new(
+        public RecordedSessionGraph CreateGraph(
+            IProcessingFingerprintService fingerprintService,
+            IRecordedSessionGraphScheduler scheduler) => new(
             Sessions,
             Setups,
             Bikes,
             Sources,
-            fingerprintService);
+            fingerprintService,
+            scheduler);
 
         public void Add(TestContext context)
         {
@@ -327,41 +355,17 @@ public class RecordedSessionGraphTests
         public void Dispose() => cache.Dispose();
     }
 
-    private sealed class QueuedSynchronizationContextScope : IDisposable
+    private sealed class QueuedRecordedSessionGraphScheduler : IRecordedSessionGraphScheduler
     {
-        private readonly SynchronizationContext? previousContext;
+        private readonly Queue<Action> callbacks = new();
 
-        public QueuedSynchronizationContextScope()
-        {
-            previousContext = SynchronizationContext.Current;
-            Context = new QueuedSynchronizationContext();
-            SynchronizationContext.SetSynchronizationContext(Context);
-        }
-
-        public QueuedSynchronizationContext Context { get; }
-
-        public void Flush() => Context.Flush();
-
-        public void Dispose()
-        {
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-        }
-    }
-
-    private sealed class QueuedSynchronizationContext : SynchronizationContext
-    {
-        private readonly Queue<(SendOrPostCallback Callback, object? State)> callbacks = new();
-
-        public override void Post(SendOrPostCallback d, object? state) => callbacks.Enqueue((d, state));
-
-        public override void Send(SendOrPostCallback d, object? state) => d(state);
+        public void Post(Action action) => callbacks.Enqueue(action);
 
         public void Flush()
         {
             while (callbacks.Count > 0)
             {
-                var (callback, state) = callbacks.Dequeue();
-                callback(state);
+                callbacks.Dequeue()();
             }
         }
     }

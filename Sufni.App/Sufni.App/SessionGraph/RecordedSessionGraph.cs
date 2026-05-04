@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Threading;
 using Avalonia.Threading;
 using DynamicData;
 using Sufni.App.Stores;
@@ -15,6 +14,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 {
     private readonly IBikeStore bikeStore;
     private readonly IProcessingFingerprintService fingerprintService;
+    private readonly IRecordedSessionGraphScheduler scheduler;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, SessionSnapshot> sessions = [];
     private readonly Dictionary<Guid, SetupSnapshot> setups = [];
@@ -23,7 +23,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
     private readonly Dictionary<Guid, RecordedSessionDomainSnapshot> domains = [];
     private readonly Dictionary<Guid, ReplaySubject<RecordedSessionDomainSnapshot>> watches = [];
     private readonly CompositeDisposable subscriptions = [];
-    private readonly object pendingRecomputeGate = new();
+    private readonly object stateGate = new();
     private readonly HashSet<Guid> pendingRecomputeIds = [];
     private bool recomputeFlushScheduled;
     private bool disposed;
@@ -34,9 +34,27 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService)
+        : this(
+            sessionStore,
+            setupStore,
+            bikeStore,
+            sourceStore,
+            fingerprintService,
+            AvaloniaRecordedSessionGraphScheduler.Instance)
+    {
+    }
+
+    internal RecordedSessionGraph(
+        ISessionStore sessionStore,
+        ISetupStore setupStore,
+        IBikeStore bikeStore,
+        IRecordedSessionSourceStore sourceStore,
+        IProcessingFingerprintService fingerprintService,
+        IRecordedSessionGraphScheduler scheduler)
     {
         this.bikeStore = bikeStore;
         this.fingerprintService = fingerprintService;
+        this.scheduler = scheduler;
 
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
         subscriptions.Add(setupStore.Connect().Subscribe(ApplySetupChanges));
@@ -48,8 +66,24 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 
     public IObservable<RecordedSessionDomainSnapshot> WatchSession(Guid sessionId)
     {
-        var (watch, created) = GetWatch(sessionId);
-        if (created && domains.TryGetValue(sessionId, out var domain))
+        ReplaySubject<RecordedSessionDomainSnapshot> watch;
+        RecordedSessionDomainSnapshot? domain = null;
+        var created = false;
+        lock (stateGate)
+        {
+            if (disposed)
+            {
+                return Observable.Empty<RecordedSessionDomainSnapshot>();
+            }
+
+            (watch, created) = GetWatchLocked(sessionId);
+            if (created)
+            {
+                domains.TryGetValue(sessionId, out domain);
+            }
+        }
+
+        if (domain is not null)
         {
             watch.OnNext(domain);
         }
@@ -59,67 +93,88 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 
     public void Dispose()
     {
-        lock (pendingRecomputeGate)
+        ReplaySubject<RecordedSessionDomainSnapshot>[] completedWatches;
+        lock (stateGate)
         {
             disposed = true;
             pendingRecomputeIds.Clear();
+            completedWatches = watches.Values.ToArray();
+            watches.Clear();
         }
 
         subscriptions.Dispose();
         summaries.Dispose();
-        foreach (var watch in watches.Values)
-        {
-            watch.OnCompleted();
-            watch.Dispose();
-        }
+        CompleteWatches(completedWatches);
     }
 
     private void ApplySessionChanges(IChangeSet<SessionSnapshot, Guid> changes)
     {
         var affected = new HashSet<Guid>();
-        foreach (var change in changes)
+        var completedWatches = new List<ReplaySubject<RecordedSessionDomainSnapshot>>();
+        lock (stateGate)
         {
-            switch (change.Reason)
+            if (disposed)
             {
-                case ChangeReason.Add:
-                case ChangeReason.Update:
-                case ChangeReason.Refresh:
-                    sessions[change.Key] = change.Current;
-                    affected.Add(change.Key);
-                    break;
-                case ChangeReason.Remove:
-                    sessions.Remove(change.Key);
-                    domains.Remove(change.Key);
-                    summaries.RemoveKey(change.Key);
-                    RemovePendingRecompute(change.Key);
-                    break;
-                case ChangeReason.Moved:
-                    break;
+                return;
+            }
+
+            foreach (var change in changes)
+            {
+                switch (change.Reason)
+                {
+                    case ChangeReason.Add:
+                    case ChangeReason.Update:
+                    case ChangeReason.Refresh:
+                        sessions[change.Key] = change.Current;
+                        affected.Add(change.Key);
+                        break;
+                    case ChangeReason.Remove:
+                        sessions.Remove(change.Key);
+                        domains.Remove(change.Key);
+                        summaries.RemoveKey(change.Key);
+                        RemovePendingRecomputeLocked(change.Key);
+                        if (watches.Remove(change.Key, out var watch))
+                        {
+                            completedWatches.Add(watch);
+                        }
+                        break;
+                    case ChangeReason.Moved:
+                        break;
+                }
             }
         }
 
+        CompleteWatches(completedWatches);
         QueueRecompute(affected);
     }
 
     private void ApplySetupChanges(IChangeSet<SetupSnapshot, Guid> changes)
     {
         var changed = false;
-        foreach (var change in changes)
+        lock (stateGate)
         {
-            switch (change.Reason)
+            if (disposed)
             {
-                case ChangeReason.Add:
-                case ChangeReason.Update:
-                case ChangeReason.Refresh:
-                    setups[change.Key] = change.Current;
-                    changed = true;
-                    break;
-                case ChangeReason.Remove:
-                    setups.Remove(change.Key);
-                    changed = true;
-                    break;
-                case ChangeReason.Moved:
-                    break;
+                return;
+            }
+
+            foreach (var change in changes)
+            {
+                switch (change.Reason)
+                {
+                    case ChangeReason.Add:
+                    case ChangeReason.Update:
+                    case ChangeReason.Refresh:
+                        setups[change.Key] = change.Current;
+                        changed = true;
+                        break;
+                    case ChangeReason.Remove:
+                        setups.Remove(change.Key);
+                        changed = true;
+                        break;
+                    case ChangeReason.Moved:
+                        break;
+                }
             }
         }
 
@@ -132,22 +187,30 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
     private void ApplyBikeChanges(IChangeSet<BikeSnapshot, Guid> changes)
     {
         var changed = false;
-        foreach (var change in changes)
+        lock (stateGate)
         {
-            switch (change.Reason)
+            if (disposed)
             {
-                case ChangeReason.Add:
-                case ChangeReason.Update:
-                case ChangeReason.Refresh:
-                    bikes[change.Key] = change.Current;
-                    changed = true;
-                    break;
-                case ChangeReason.Remove:
-                    bikes.Remove(change.Key);
-                    changed = true;
-                    break;
-                case ChangeReason.Moved:
-                    break;
+                return;
+            }
+
+            foreach (var change in changes)
+            {
+                switch (change.Reason)
+                {
+                    case ChangeReason.Add:
+                    case ChangeReason.Update:
+                    case ChangeReason.Refresh:
+                        bikes[change.Key] = change.Current;
+                        changed = true;
+                        break;
+                    case ChangeReason.Remove:
+                        bikes.Remove(change.Key);
+                        changed = true;
+                        break;
+                    case ChangeReason.Moved:
+                        break;
+                }
             }
         }
 
@@ -160,35 +223,56 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
     private void ApplySourceChanges(IChangeSet<RecordedSessionSourceSnapshot, Guid> changes)
     {
         var affected = new HashSet<Guid>();
-        foreach (var change in changes)
+        lock (stateGate)
         {
-            switch (change.Reason)
+            if (disposed)
             {
-                case ChangeReason.Add:
-                case ChangeReason.Update:
-                case ChangeReason.Refresh:
-                    sources[change.Key] = change.Current;
-                    affected.Add(change.Key);
-                    break;
-                case ChangeReason.Remove:
-                    sources.Remove(change.Key);
-                    affected.Add(change.Key);
-                    break;
-                case ChangeReason.Moved:
-                    break;
+                return;
+            }
+
+            foreach (var change in changes)
+            {
+                switch (change.Reason)
+                {
+                    case ChangeReason.Add:
+                    case ChangeReason.Update:
+                    case ChangeReason.Refresh:
+                        sources[change.Key] = change.Current;
+                        affected.Add(change.Key);
+                        break;
+                    case ChangeReason.Remove:
+                        sources.Remove(change.Key);
+                        affected.Add(change.Key);
+                        break;
+                    case ChangeReason.Moved:
+                        break;
+                }
             }
         }
 
         QueueRecompute(affected);
     }
 
-    private void QueueRecomputeAll() => QueueRecompute(sessions.Keys.ToArray());
+    private void QueueRecomputeAll()
+    {
+        Guid[] sessionIds;
+        lock (stateGate)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            sessionIds = sessions.Keys.ToArray();
+        }
+
+        QueueRecompute(sessionIds);
+    }
 
     private void QueueRecompute(IEnumerable<Guid> sessionIds)
     {
         var shouldSchedule = false;
-        var context = SynchronizationContext.Current;
-        lock (pendingRecomputeGate)
+        lock (stateGate)
         {
             if (disposed)
             {
@@ -209,36 +293,18 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 
         if (shouldSchedule)
         {
-            ScheduleRecomputeFlush(context);
+            ScheduleRecomputeFlush();
         }
     }
 
-    private void RemovePendingRecompute(Guid sessionId)
-    {
-        lock (pendingRecomputeGate)
-        {
-            pendingRecomputeIds.Remove(sessionId);
-        }
-    }
+    private void RemovePendingRecomputeLocked(Guid sessionId) => pendingRecomputeIds.Remove(sessionId);
 
-    private void ScheduleRecomputeFlush(SynchronizationContext? context)
-    {
-        if (context is not null)
-        {
-            context.Post(static state => ((RecordedSessionGraph)state!).FlushPendingRecomputes(), this);
-            return;
-        }
-
-        Dispatcher.UIThread.Post(
-            static state => ((RecordedSessionGraph)state!).FlushPendingRecomputes(),
-            this,
-            DispatcherPriority.Background);
-    }
+    private void ScheduleRecomputeFlush() => scheduler.Post(FlushPendingRecomputes);
 
     private void FlushPendingRecomputes()
     {
         Guid[] sessionIds;
-        lock (pendingRecomputeGate)
+        lock (stateGate)
         {
             if (disposed)
             {
@@ -253,9 +319,8 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 
         Recompute(sessionIds);
 
-        SynchronizationContext? context = null;
         var shouldSchedule = false;
-        lock (pendingRecomputeGate)
+        lock (stateGate)
         {
             if (disposed)
             {
@@ -270,61 +335,74 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
                 return;
             }
 
-            context = SynchronizationContext.Current;
             shouldSchedule = true;
         }
 
         if (shouldSchedule)
         {
-            ScheduleRecomputeFlush(context);
+            ScheduleRecomputeFlush();
         }
     }
 
     private void Recompute(IEnumerable<Guid> sessionIds)
     {
-        foreach (var sessionId in sessionIds)
+        var emissions = new List<(ReplaySubject<RecordedSessionDomainSnapshot> Watch, RecordedSessionDomainSnapshot Domain)>();
+        lock (stateGate)
         {
-            if (!sessions.TryGetValue(sessionId, out var session))
+            if (disposed)
             {
-                continue;
+                return;
             }
 
-            setups.TryGetValue(session.SetupId ?? Guid.Empty, out var setup);
-            var bike = setup is null
-                ? null
-                : bikes.GetValueOrDefault(setup.BikeId);
-            sources.TryGetValue(session.Id, out var source);
-
-            var previous = domains.GetValueOrDefault(session.Id);
-            var initial = previous is null;
-            var changeKind = initial
-                ? DerivedChangeKind.Initial
-                : ComputeChangeKind(previous!, session, setup, bike, source);
-
-            var domain = RecordedSessionDomainSnapshotFactory.Create(
-                session,
-                setup,
-                bike,
-                source,
-                fingerprintService,
-                changeKind);
-            domains[session.Id] = domain;
-            summaries.AddOrUpdate(new RecordedSessionSummary(
-                session.Id,
-                session.Name,
-                session.Description,
-                session.Timestamp,
-                session.HasProcessedData,
-                domain.Staleness));
-
-            if (watches.TryGetValue(session.Id, out var watch))
+            foreach (var sessionId in sessionIds)
             {
-                watch.OnNext(domain);
+                if (!sessions.TryGetValue(sessionId, out var session))
+                {
+                    continue;
+                }
+
+                setups.TryGetValue(session.SetupId ?? Guid.Empty, out var setup);
+                var bike = setup is null
+                    ? null
+                    : bikes.GetValueOrDefault(setup.BikeId);
+                sources.TryGetValue(session.Id, out var source);
+
+                var previous = domains.GetValueOrDefault(session.Id);
+                var initial = previous is null;
+                var changeKind = initial
+                    ? DerivedChangeKind.Initial
+                    : ComputeChangeKind(previous!, session, setup, bike, source);
+
+                var domain = RecordedSessionDomainSnapshotFactory.Create(
+                    session,
+                    setup,
+                    bike,
+                    source,
+                    fingerprintService,
+                    changeKind);
+                domains[session.Id] = domain;
+                summaries.AddOrUpdate(new RecordedSessionSummary(
+                    session.Id,
+                    session.Name,
+                    session.Description,
+                    session.Timestamp,
+                    session.HasProcessedData,
+                    domain.Staleness));
+
+                if (watches.TryGetValue(session.Id, out var watch))
+                {
+                    emissions.Add((watch, domain));
+                }
             }
+        }
+
+        foreach (var (watch, domain) in emissions)
+        {
+            watch.OnNext(domain);
         }
     }
 
-    private (ReplaySubject<RecordedSessionDomainSnapshot> Watch, bool Created) GetWatch(Guid sessionId)
+    private (ReplaySubject<RecordedSessionDomainSnapshot> Watch, bool Created) GetWatchLocked(Guid sessionId)
     {
         if (watches.TryGetValue(sessionId, out var watch))
         {
@@ -334,6 +412,14 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         watch = new ReplaySubject<RecordedSessionDomainSnapshot>(1);
         watches[sessionId] = watch;
         return (watch, true);
+    }
+
+    private static void CompleteWatches(IEnumerable<ReplaySubject<RecordedSessionDomainSnapshot>> completedWatches)
+    {
+        foreach (var watch in completedWatches)
+        {
+            watch.OnCompleted();
+        }
     }
 
     private static DerivedChangeKind ComputeChangeKind(
@@ -401,4 +487,20 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         setup is null || bike is null
             ? null
             : ProcessingDependencyHash.Compute(setup, bike);
+}
+
+internal interface IRecordedSessionGraphScheduler
+{
+    void Post(Action action);
+}
+
+internal sealed class AvaloniaRecordedSessionGraphScheduler : IRecordedSessionGraphScheduler
+{
+    public static AvaloniaRecordedSessionGraphScheduler Instance { get; } = new();
+
+    private AvaloniaRecordedSessionGraphScheduler()
+    {
+    }
+
+    public void Post(Action action) => Dispatcher.UIThread.Post(action, DispatcherPriority.Background);
 }

@@ -50,20 +50,16 @@ internal static class RecordedSessionDomainSnapshotFactory
         IProcessingFingerprintService fingerprintService,
         DerivedChangeKind changeKind)
     {
-        var persisted = fingerprintService.ParsePersisted(session);
-        var current = setup is not null && bike is not null && source is not null
-            ? fingerprintService.CreateCurrent(session, setup, bike, source)
-            : null;
-        var staleness = fingerprintService.Evaluate(session, setup, bike, source);
+        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source);
 
         return new RecordedSessionDomainSnapshot(
             session,
             setup,
             bike,
-            current,
-            persisted,
+            evaluation.Current,
+            evaluation.Persisted,
             source,
-            staleness,
+            evaluation.Staleness,
             changeKind);
     }
 }

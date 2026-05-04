@@ -30,6 +30,24 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void EvaluateState_ReturnsCurrentPersistedAndStaleness()
+    {
+        var context = CreateContext();
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        var session = context.Session with
+        {
+            HasProcessedData = true,
+            ProcessingFingerprintJson = AppJson.Serialize(current)
+        };
+
+        var evaluation = service.EvaluateState(session, context.Setup, context.Bike, context.Source);
+
+        Assert.Equal(current, evaluation.Current);
+        Assert.Equal(current, evaluation.Persisted);
+        Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
+    }
+
+    [Fact]
     public void Evaluate_ReturnsMissingDependencies_WhenSetupOrBikeIsMissing()
     {
         var context = CreateContext();
