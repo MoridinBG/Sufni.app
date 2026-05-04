@@ -31,6 +31,26 @@ public class RecordedSessionGraphTests
     }
 
     [Fact]
+    public void ConnectSessions_PublishesNoRawSummary_WhenSourceIsMissing()
+    {
+        using var synchronization = new QueuedSynchronizationContextScope();
+        using var stores = new StoreFixtures();
+        var fingerprintService = new ProcessingFingerprintService();
+        using var graph = stores.CreateGraph(fingerprintService);
+        using var subscription = graph.ConnectSessions().Bind(out var summaries).Subscribe();
+        var context = CreateCurrentContext(fingerprintService);
+
+        stores.Bikes.Add(context.Bike);
+        stores.Setups.Add(context.Setup);
+        stores.Sessions.Add(context.Session);
+        synchronization.Flush();
+
+        var summary = Assert.Single(summaries);
+        Assert.IsType<SessionStaleness.MissingRawSource>(summary.Staleness);
+        Assert.False(summary.Staleness.IsStale);
+    }
+
+    [Fact]
     public void WatchSession_EmitsInitialThenCombinedSessionChangeKind_WhenSessionChanges()
     {
         using var synchronization = new QueuedSynchronizationContextScope();

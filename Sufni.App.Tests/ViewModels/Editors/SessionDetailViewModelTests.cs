@@ -1350,7 +1350,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_ReportsNotRecomputable_WhenInitialDomainIsStaleWithoutSource()
+    public async Task Loaded_DoesNotReportError_WhenInitialDomainHasNoRawSource()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
         var watch = new Subject<RecordedSessionDomainSnapshot>();
@@ -1366,7 +1366,8 @@ public class SessionDetailViewModelTests
             new SessionStaleness.MissingRawSource()));
         await Task.Yield();
 
-        Assert.Contains(editor.ErrorMessages, message => message.Contains("cannot be recomputed", StringComparison.Ordinal));
+        Assert.Empty(editor.ErrorMessages);
+        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 

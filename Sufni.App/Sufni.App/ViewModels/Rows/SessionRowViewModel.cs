@@ -22,6 +22,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     public Guid Id { get; private set; }
     private string baseName = string.Empty;
     private bool isStale;
+    private bool hasNoRawSource;
 
     public string BaseName
     {
@@ -33,6 +34,12 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     {
         get => isStale;
         private set => SetProperty(ref isStale, value);
+    }
+
+    public bool HasNoRawSource
+    {
+        get => hasNoRawSource;
+        private set => SetProperty(ref hasNoRawSource, value);
     }
 
     public SessionRowViewModel(
@@ -50,7 +57,12 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         Id = summary.Id;
         BaseName = summary.Name;
         IsStale = summary.Staleness.IsStale;
-        Name = IsStale ? $"{BaseName} (Stale)" : BaseName;
+        HasNoRawSource = summary.Staleness is SessionStaleness.MissingRawSource;
+        Name = HasNoRawSource
+            ? $"{BaseName} (No Raw)"
+            : IsStale
+                ? $"{BaseName} (Stale)"
+                : BaseName;
         Timestamp = summary.Timestamp is null
             ? null
             : DateTimeOffset.FromUnixTimeSeconds(summary.Timestamp.Value).LocalDateTime;

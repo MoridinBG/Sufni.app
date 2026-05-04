@@ -69,7 +69,11 @@ public class SufniPlot
         Plot.Axes.Bottom.MinorTickStyle.Width = 0;
     }
 
-    public void Clear() => Plot.Clear();
+    public void Clear()
+    {
+        Plot.Clear();
+        Plot.Axes.Rules.Clear();
+    }
 
     public string GetSvgXml(int width, int height) => Plot.GetSvgXml(width, height);
 

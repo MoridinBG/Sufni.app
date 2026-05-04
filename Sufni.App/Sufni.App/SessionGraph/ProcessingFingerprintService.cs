@@ -63,14 +63,14 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source)
     {
-        if (setup is null || bike is null)
-        {
-            return new SessionStaleness.MissingDependencies(setup is null, bike is null);
-        }
-
         if (source is null)
         {
             return new SessionStaleness.MissingRawSource();
+        }
+
+        if (setup is null || bike is null)
+        {
+            return new SessionStaleness.MissingDependencies(setup is null, bike is null);
         }
 
         if (!session.HasProcessedData)

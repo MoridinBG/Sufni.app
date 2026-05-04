@@ -69,6 +69,7 @@ public class RecordedSessionDomainQueryTests
         Assert.Null(domain!.Source);
         Assert.Null(domain.CurrentFingerprint);
         Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
+        Assert.False(domain.Staleness.IsStale);
     }
 
     [Fact]
