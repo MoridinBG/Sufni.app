@@ -6,6 +6,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
+using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Stores;
@@ -20,9 +21,11 @@ public class ImportSessionsCoordinatorTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
+    private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
+    private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
 
     /// <summary>
     /// Resolver for `ImportSessionsViewModel` is a `Func<T>` — the tests
@@ -34,8 +37,54 @@ public class ImportSessionsCoordinatorTests
         () => throw new InvalidOperationException(
             "The resolver should not be invoked directly from tests.");
 
+    public ImportSessionsCoordinatorTests()
+    {
+        reprocessor
+            .ReprocessAsync(
+                Arg.Any<RecordedSessionDomainSnapshot>(),
+                Arg.Any<RecordedSessionSource>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
+                var source = callInfo.ArgAt<RecordedSessionSource>(1);
+                return Task.FromResult(new RecordedSessionReprocessResult(
+                    CreateTelemetryData(),
+                    GeneratedFullTrack: null,
+                    new ProcessingFingerprint(
+                        SchemaVersion: 1,
+                        ProcessingVersion: 1,
+                        SetupId: domain.Setup!.Id,
+                        BikeId: domain.Bike!.Id,
+                        DependencyHash: "dependency",
+                        SourceHash: source.SourceHash)));
+            });
+
+        database
+            .PutProcessedSessionAsync(
+                Arg.Any<Session>(),
+                Arg.Any<Track?>(),
+                Arg.Any<RecordedSessionSource?>())
+            .Returns(callInfo =>
+            {
+                var session = callInfo.ArgAt<Session>(0);
+                var track = callInfo.ArgAt<Track?>(1);
+                session.FullTrack = track?.Id;
+                session.HasProcessedData = session.ProcessedData is not null;
+                session.Updated = 10;
+                return Task.FromResult(session);
+            });
+    }
+
     private ImportSessionsCoordinator CreateCoordinator() => new(
-        database, sessionStore, shell, backgroundTaskRunner, daqManagementService, importSessionsResolver);
+        database,
+        sessionStore,
+        sourceStore,
+        shell,
+        backgroundTaskRunner,
+        daqManagementService,
+        reprocessor,
+        importSessionsResolver);
 
     // ----- OpenAsync -----
 
@@ -85,47 +134,35 @@ public class ImportSessionsCoordinatorTests
     // ----- ImportAsync BikeData construction -----
 
     [Fact]
-    public async Task ImportAsync_ConstructsBikeDataFromHeadAngleAndSensorConfigs_AndForwardsIntoGeneratePsst()
+    public async Task ImportAsync_BuildsDomainFromSetupAndBike_AndForwardsIntoReprocessor()
     {
         var (setup, bike) = SeedSetupAndBike(headAngle: 64.5);
         var file = CreateTelemetryFile(shouldBeImported: true);
 
-        BikeData? captured = null;
-        file.GeneratePsstAsync(Arg.Any<BikeData>())
-            .Returns(info =>
-            {
-                captured = info.Arg<BikeData>();
-                return Task.FromResult(new byte[] { 1, 2, 3 });
-            });
-
         var coordinator = CreateCoordinator();
         await coordinator.ImportAsync(new[] { file }, setup.Id);
 
-        Assert.NotNull(captured);
-        Assert.Equal(64.5, captured!.HeadAngle);
-        // Front/rear sensor configs are null when the setup has no
-        // sensor configuration JSON, so max-travel and measurement funcs
-        // are null too.
-        Assert.Null(captured.FrontMaxTravel);
-        Assert.Null(captured.RearMaxTravel);
-        Assert.Null(captured.FrontMeasurementToTravel);
-        Assert.Null(captured.RearMeasurementToTravel);
+        await reprocessor.Received(1).ReprocessAsync(
+            Arg.Is<RecordedSessionDomainSnapshot>(domain =>
+                domain.Setup!.Id == setup.Id &&
+                domain.Bike!.Id == bike.Id &&
+                domain.Bike.HeadAngle == 64.5),
+            Arg.Any<RecordedSessionSource>(),
+            Arg.Any<CancellationToken>());
     }
 
     // ----- ImportAsync per-file branches -----
 
     [Fact]
-    public async Task ImportAsync_ShouldBeImportedTrue_GeneratesPsstWritesSessionUpsertsAndReports()
+    public async Task ImportAsync_ShouldBeImportedTrue_ReadsSourceReprocessesWritesSessionSourceUpsertsAndReports()
     {
         var (setup, bike) = SeedSetupAndBike();
-        var psst = CreatePsst();
         var startTime = new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc);
         var file = CreateTelemetryFile(
             name: "ride-01",
             description: "morning lap",
             startTime: startTime,
             shouldBeImported: true);
-        file.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(psst));
 
         var progressEvents = new List<SessionImportEvent>();
         var progress = new ProgressCapture(progressEvents);
@@ -135,13 +172,19 @@ public class ImportSessionsCoordinatorTests
 
         // Session persisted with the expected metadata.
         var expectedTimestamp = new DateTimeOffset(startTime).ToUnixTimeSeconds();
-        await database.Received(1).PutSessionAsync(Arg.Is<Session>(s =>
-            s.Name == "ride-01" &&
-            s.Description == "morning lap" &&
-            s.Setup == setup.Id &&
-            s.Timestamp == expectedTimestamp &&
-            s.ProcessedData == psst &&
-            s.FullTrack == null));
+        await database.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(s =>
+                s.Name == "ride-01" &&
+                s.Description == "morning lap" &&
+                s.Setup == setup.Id &&
+                s.Timestamp == expectedTimestamp &&
+                s.ProcessedData != null &&
+                s.ProcessingFingerprintJson != null),
+            null,
+            Arg.Is<RecordedSessionSource>(source =>
+                source.SourceKind == RecordedSessionSourceKind.ImportedSst &&
+                source.SourceName == "ride-01.SST" &&
+                source.Payload.SequenceEqual(new byte[] { 1, 2, 3 })));
         await database.DidNotReceive().PutAsync(Arg.Any<Track>());
         await file.Received(1).OnImported();
         await file.DidNotReceive().OnTrashed();
@@ -149,6 +192,8 @@ public class ImportSessionsCoordinatorTests
         // Store upsert and result list.
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Name == "ride-01" && s.SetupId == setup.Id && s.HasProcessedData));
+        sourceStore.Received(1).Upsert(Arg.Is<RecordedSessionSourceSnapshot>(s =>
+            s.SourceName == "ride-01.SST"));
         Assert.Single(result.Imported);
         Assert.Empty(result.Failures);
 
@@ -169,18 +214,36 @@ public class ImportSessionsCoordinatorTests
             new GpsRecord(new DateTime(2025, 6, 1, 12, 34, 57, DateTimeKind.Utc), 42.6978, 23.3220, 591f, 5.5f, 182f, 3, 10, 1f, 2f)
         };
 
-        var psst = CreatePsst(gpsRecords);
+        var telemetryData = CreateTelemetryData();
+        telemetryData.GpsData = gpsRecords;
+        var generatedTrack = Track.FromGpsRecords(gpsRecords);
         var file = CreateTelemetryFile(name: "ride-gps", shouldBeImported: true);
-        file.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(psst));
+        reprocessor
+            .ReprocessAsync(
+                Arg.Any<RecordedSessionDomainSnapshot>(),
+                Arg.Any<RecordedSessionSource>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
+                var source = callInfo.ArgAt<RecordedSessionSource>(1);
+                return Task.FromResult(new RecordedSessionReprocessResult(
+                    telemetryData,
+                    generatedTrack,
+                    new ProcessingFingerprint(1, 1, domain.Setup!.Id, domain.Bike!.Id, "dependency", source.SourceHash)));
+            });
 
         var coordinator = CreateCoordinator();
         var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
 
-        await database.Received(1).PutAsync(Arg.Is<Track>(track => track.Points.Count == 2));
-        await database.Received(1).PutSessionAsync(Arg.Is<Session>(s =>
-            s.Name == "ride-gps" &&
-            s.ProcessedData == psst &&
-            s.FullTrack != null));
+        await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+        await database.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(s =>
+                s.Name == "ride-gps" &&
+                s.ProcessedData != null &&
+                s.ProcessedData.SequenceEqual(telemetryData.BinaryForm)),
+            Arg.Is<Track>(track => track.Points.Count == 2),
+            Arg.Any<RecordedSessionSource>());
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Name == "ride-gps" &&
             s.FullTrackId != null));
@@ -199,8 +262,11 @@ public class ImportSessionsCoordinatorTests
         var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
 
         await file.Received(1).OnTrashed();
-        await file.DidNotReceive().GeneratePsstAsync(Arg.Any<BikeData>());
-        await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
+        await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+        await database.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
         Assert.Empty(result.Imported);
         Assert.Empty(result.Failures);
@@ -217,8 +283,11 @@ public class ImportSessionsCoordinatorTests
 
         await file.DidNotReceive().OnTrashed();
         await file.DidNotReceive().OnImported();
-        await file.DidNotReceive().GeneratePsstAsync(Arg.Any<BikeData>());
-        await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
+        await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+        await database.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
         Assert.Empty(result.Imported);
         Assert.Empty(result.Failures);
     }
@@ -226,11 +295,11 @@ public class ImportSessionsCoordinatorTests
     // ----- ImportAsync per-file failure handling -----
 
     [Fact]
-    public async Task ImportAsync_GeneratePsstThrows_CapturedInFailures_AndReportedAsFailed()
+    public async Task ImportAsync_ReadSourceThrows_CapturedInFailures_AndReportedAsFailed()
     {
         var (setup, _) = SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "broken", shouldBeImported: true);
-        file.GeneratePsstAsync(Arg.Any<BikeData>())
+        file.ReadSourceAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("boom"));
 
         var progressEvents = new List<SessionImportEvent>();
@@ -242,7 +311,10 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("broken", failure.FileName);
-        await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
+        await database.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
 
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
@@ -252,12 +324,15 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
-    public async Task ImportAsync_PutSessionThrows_CapturedInFailures_AndReportedAsFailed()
+    public async Task ImportAsync_PutProcessedSessionThrows_CapturedInFailures_AndReportedAsFailed()
     {
         var (setup, _) = SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "persist-fail", shouldBeImported: true);
-        file.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(CreatePsst()));
-        database.PutSessionAsync(Arg.Any<Session>())
+        database
+            .PutProcessedSessionAsync(
+                Arg.Any<Session>(),
+                Arg.Any<Track?>(),
+                Arg.Any<RecordedSessionSource?>())
             .ThrowsAsync(new InvalidOperationException("db"));
 
         var coordinator = CreateCoordinator();
@@ -275,7 +350,6 @@ public class ImportSessionsCoordinatorTests
     {
         var (setup, _) = SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "post-import-fail", shouldBeImported: true);
-        file.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(CreatePsst()));
         file.OnImported().ThrowsAsync(new InvalidOperationException("post"));
 
         var coordinator = CreateCoordinator();
@@ -314,11 +388,10 @@ public class ImportSessionsCoordinatorTests
         var (setup, _) = SeedSetupAndBike();
 
         var brokenFile = CreateTelemetryFile(name: "broken", shouldBeImported: true);
-        brokenFile.GeneratePsstAsync(Arg.Any<BikeData>())
+        brokenFile.ReadSourceAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("boom"));
 
         var goodFile = CreateTelemetryFile(name: "ok", shouldBeImported: true);
-        goodFile.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(CreatePsst()));
 
         var coordinator = CreateCoordinator();
         var result = await coordinator.ImportAsync(new[] { brokenFile, goodFile }, setup.Id);
@@ -326,7 +399,10 @@ public class ImportSessionsCoordinatorTests
         Assert.Single(result.Failures);
         Assert.Single(result.Imported);
         Assert.Equal("ok", result.Imported[0].Name);
-        await database.Received(1).PutSessionAsync(Arg.Is<Session>(s => s.Name == "ok"));
+        await database.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(s => s.Name == "ok"),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Name == "ok"));
     }
 
@@ -348,7 +424,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("bad", failure.FileName);
-        await file.DidNotReceive().GeneratePsstAsync(Arg.Any<BikeData>());
+        await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
         await file.DidNotReceive().OnImported();
 
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
@@ -366,14 +442,13 @@ public class ImportSessionsCoordinatorTests
             shouldBeImported: true,
             malformedMessage: "trailing chunk was trimmed",
             canImport: true);
-        file.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(CreatePsst()));
 
         var coordinator = CreateCoordinator();
         var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
 
         Assert.Single(result.Imported);
         Assert.Empty(result.Failures);
-        await file.Received(1).GeneratePsstAsync(Arg.Any<BikeData>());
+        await file.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
         await file.Received(1).OnImported();
     }
 
@@ -381,10 +456,7 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_ReportsProgressForEachProcessedFile_IgnoringSkipped()
     {
         var (setup, _) = SeedSetupAndBike();
-        var psst = CreatePsst();
-
         var importedFile = CreateTelemetryFile(name: "import-me", shouldBeImported: true);
-        importedFile.GeneratePsstAsync(Arg.Any<BikeData>()).Returns(Task.FromResult(psst));
 
         var trashedFile = CreateTelemetryFile(name: "trash-me", shouldBeImported: null);
         var ignoredFile = CreateTelemetryFile(name: "leave-me", shouldBeImported: false);

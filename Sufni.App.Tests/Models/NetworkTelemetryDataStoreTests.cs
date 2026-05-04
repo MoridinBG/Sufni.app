@@ -158,7 +158,7 @@ public class NetworkTelemetryDataStoreTests
     }
 
     [Fact]
-    public async Task GeneratePsstAsync_UsesInjectedRecordIdRatherThanFileName()
+    public async Task ReadSourceAsync_UsesInjectedRecordIdRatherThanFileName()
     {
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
@@ -180,15 +180,16 @@ public class NetworkTelemetryDataStoreTests
             DateTimeOffset.FromUnixTimeSeconds(111),
             TimeSpan.FromSeconds(6));
 
-        var psst = await file.GeneratePsstAsync(CreateBikeData());
+        var source = await file.ReadSourceAsync();
 
-        Assert.NotEmpty(psst);
+        Assert.Equal("DEVICE.SST", source.FileName);
+        Assert.Equal(CreateValidV3SstBytes(), source.SstBytes);
         await daqManagementService.Received(1)
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GeneratePsstAsync_ThrowsWhenGetFileReturnsTypedError()
+    public async Task ReadSourceAsync_ThrowsWhenGetFileReturnsTypedError()
     {
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
@@ -205,9 +206,94 @@ public class NetworkTelemetryDataStoreTests
             DateTimeOffset.FromUnixTimeSeconds(111),
             TimeSpan.FromSeconds(6));
 
-        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.GeneratePsstAsync(CreateBikeData()));
+        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.ReadSourceAsync());
 
         Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ReadSourceAsync_DeletesCurrentTempFileOnSuccess()
+    {
+        var before = SourceTempFiles();
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var bytes = CreateValidV3SstBytes();
+                var destination = callInfo.ArgAt<Stream>(4);
+                destination.Write(bytes);
+                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
+            });
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        _ = await file.ReadSourceAsync();
+
+        Assert.Empty(SourceTempFiles().Except(before));
+    }
+
+    [Fact]
+    public async Task ReadSourceAsync_DeletesCurrentTempFileWhenGetFileReturnsTypedError()
+    {
+        var before = SourceTempFiles();
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqGetFileResult>(
+                new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        _ = await Assert.ThrowsAsync<DaqManagementException>(() => file.ReadSourceAsync());
+
+        Assert.Empty(SourceTempFiles().Except(before));
+    }
+
+    [Fact]
+    public async Task ReadSourceAsync_DeletesStaleSourceTempFilesBeforeRead()
+    {
+        var stalePath = Path.Combine(Path.GetTempPath(), $"sufni-source-stale-test-{Guid.NewGuid():N}.SST");
+        await File.WriteAllBytesAsync(stalePath, [1, 2, 3]);
+        File.SetLastWriteTimeUtc(stalePath, DateTime.UtcNow.AddDays(-2));
+
+        var daqManagementService = Substitute.For<IDaqManagementService>();
+        daqManagementService
+            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var bytes = CreateValidV3SstBytes();
+                var destination = callInfo.ArgAt<Stream>(4);
+                destination.Write(bytes);
+                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
+            });
+
+        var file = new NetworkTelemetryFile(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+        _ = await file.ReadSourceAsync();
+
+        Assert.False(File.Exists(stalePath));
     }
 
     [Fact]
@@ -313,12 +399,8 @@ public class NetworkTelemetryDataStoreTests
         return boardIdInspector;
     }
 
-    private static BikeData CreateBikeData() => new(
-        HeadAngle: 65.0,
-        FrontMaxTravel: 200.0,
-        RearMaxTravel: 200.0,
-        FrontMeasurementToTravel: measurement => Math.Clamp((measurement - 1500.0) / 5.0, 0.0, 200.0),
-        RearMeasurementToTravel: measurement => Math.Clamp((measurement - 1500.0) / 5.0, 0.0, 200.0));
+    private static HashSet<string> SourceTempFiles() =>
+        Directory.EnumerateFiles(Path.GetTempPath(), "sufni-source-*.SST").ToHashSet(StringComparer.Ordinal);
 
     private static byte[] CreateValidV3SstBytes()
     {

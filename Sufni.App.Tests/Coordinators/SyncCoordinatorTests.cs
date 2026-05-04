@@ -13,6 +13,7 @@ public class SyncCoordinatorTests
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
+    private readonly IRecordedSessionSourceStore recordedSessionSourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
     private readonly ISynchronizationClientService syncClient = Substitute.For<ISynchronizationClientService>();
     private readonly IPairingClientCoordinator pairing = Substitute.For<IPairingClientCoordinator>();
@@ -24,6 +25,7 @@ public class SyncCoordinatorTests
             bikeStore,
             setupStore,
             sessionStore,
+            recordedSessionSourceStore,
             pairedDeviceStore,
             syncClientOverride ?? syncClient,
             pairingOverride ?? pairing);
@@ -83,7 +85,7 @@ public class SyncCoordinatorTests
         // Bypass the helper — it uses `??` to fall back to the class-level
         // substitute, so a null override there wouldn't actually inject null.
         var coordinator = new SyncCoordinator(
-            bikeStore, setupStore, sessionStore, pairedDeviceStore,
+            bikeStore, setupStore, sessionStore, recordedSessionSourceStore, pairedDeviceStore,
             synchronizationClientService: null,
             pairingClientCoordinator: pairing);
 
@@ -92,6 +94,7 @@ public class SyncCoordinatorTests
         await bikeStore.DidNotReceive().RefreshAsync();
         await setupStore.DidNotReceive().RefreshAsync();
         await sessionStore.DidNotReceive().RefreshAsync();
+        await recordedSessionSourceStore.DidNotReceive().RefreshAsync();
         await pairedDeviceStore.DidNotReceive().RefreshAsync();
     }
 
@@ -105,6 +108,7 @@ public class SyncCoordinatorTests
         bikeStore.RefreshAsync().Returns(Task.CompletedTask);
         setupStore.RefreshAsync().Returns(Task.CompletedTask);
         sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
         pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
 
         var coordinator = CreateCoordinator();
@@ -114,6 +118,7 @@ public class SyncCoordinatorTests
         await bikeStore.Received(1).RefreshAsync();
         await setupStore.Received(1).RefreshAsync();
         await sessionStore.Received(1).RefreshAsync();
+        await recordedSessionSourceStore.Received(1).RefreshAsync();
         await pairedDeviceStore.Received(1).RefreshAsync();
     }
 
@@ -125,6 +130,7 @@ public class SyncCoordinatorTests
         bikeStore.RefreshAsync().Returns(Task.CompletedTask);
         setupStore.RefreshAsync().Returns(Task.CompletedTask);
         sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
         pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
         var coordinator = CreateCoordinator();
 
@@ -219,6 +225,7 @@ public class SyncCoordinatorTests
         await bikeStore.Received(1).RefreshAsync();
         await setupStore.Received(1).RefreshAsync();
         await sessionStore.Received(1).RefreshAsync();
+        await recordedSessionSourceStore.Received(1).RefreshAsync();
         await pairedDeviceStore.Received(1).RefreshAsync();
     }
 
@@ -247,6 +254,7 @@ public class SyncCoordinatorTests
         });
         setupStore.RefreshAsync().Returns(Task.CompletedTask);
         sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
         pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
 
         await CreateCoordinator().SyncAllAsync();
@@ -260,7 +268,7 @@ public class SyncCoordinatorTests
     public void Constructor_DoesNotSubscribe_WhenPairingCoordinatorIsNull()
     {
         var coordinator = new SyncCoordinator(
-            bikeStore, setupStore, sessionStore, pairedDeviceStore,
+            bikeStore, setupStore, sessionStore, recordedSessionSourceStore, pairedDeviceStore,
             synchronizationClientService: syncClient,
             pairingClientCoordinator: null);
 

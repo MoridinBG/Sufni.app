@@ -53,6 +53,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
+    public event EventHandler<SessionDataArrivedEventArgs>? SessionSourceDataArrived;
     public event EventHandler<PairingEventArgs>? PairingConfirmed;
     public event EventHandler<PairingEventArgs>? Unpaired;
 
@@ -396,6 +397,64 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                 logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, data.Length);
                 SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
+                return Results.NoContent();
+            });
+
+            app.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, [Authorize] async (ClaimsPrincipal user) =>
+            {
+                var incompleteSources = await databaseService.GetSessionIdsMissingRecordedSourceAsync();
+                logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
+                return Results.Ok(incompleteSources);
+            });
+
+            app.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            {
+                var source = await databaseService.GetRecordedSessionSourceAsync(id);
+                if (source is null)
+                {
+                    logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
+                    return Results.NotFound(new { msg = "Recorded source does not exist!" });
+                }
+
+                logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
+                return Results.Ok(new RecordedSessionSourceTransfer(
+                    source.SessionId,
+                    source.SourceKind,
+                    source.SourceName,
+                    source.SchemaVersion,
+                    source.SourceHash,
+                    source.Payload));
+            });
+
+            app.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            {
+                var transfer = await request.ReadFromJsonAsync(AppJson.Context.RecordedSessionSourceTransfer);
+                if (transfer is null)
+                {
+                    logger.Warning("Recorded source patch failed because request JSON was empty for {SessionId}", id);
+                    return Results.BadRequest();
+                }
+
+                if (transfer.SessionId != id)
+                {
+                    logger.Warning("Recorded source patch rejected because route id {RouteSessionId} did not match payload id {PayloadSessionId}", id, transfer.SessionId);
+                    return Results.BadRequest();
+                }
+
+                var source = new RecordedSessionSource
+                {
+                    SessionId = transfer.SessionId,
+                    SourceKind = transfer.SourceKind,
+                    SourceName = transfer.SourceName,
+                    SchemaVersion = transfer.SchemaVersion,
+                    SourceHash = transfer.SourceHash,
+                    Payload = transfer.Payload
+                };
+
+                await databaseService.PutRecordedSessionSourceAsync(source);
+
+                logger.Verbose("Patched recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
+                SessionSourceDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
                 return Results.NoContent();
             });
 

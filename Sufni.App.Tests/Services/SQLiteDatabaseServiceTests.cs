@@ -163,6 +163,216 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
+    public async Task Initialization_CreatesReactiveSessionPersistenceSchema()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "reactive-schema.db");
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            _ = await database.GetSessionsAsync();
+
+            using var connection = new SQLiteConnection(databasePath);
+            var sessionColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session)");
+            var sourceColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session_recording_source)");
+
+            Assert.Contains(sessionColumns, column => column.Name == "session_processing_fingerprint");
+            Assert.Contains(sourceColumns, column => column.Name == "session_id");
+            Assert.Contains(sourceColumns, column => column.Name == "source_kind");
+            Assert.Contains(sourceColumns, column => column.Name == "source_name");
+            Assert.Contains(sourceColumns, column => column.Name == "schema_version");
+            Assert.Contains(sourceColumns, column => column.Name == "source_hash");
+            Assert.Contains(sourceColumns, column => column.Name == "payload");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Initialization_AddsFingerprintColumnToLegacySessionTable()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "legacy-session-fingerprint.db");
+
+        try
+        {
+            using (var connection = new SQLiteConnection(databasePath))
+            {
+                connection.Execute(
+                    """
+                    CREATE TABLE session (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        setup_id TEXT,
+                        description TEXT NOT NULL,
+                        timestamp INTEGER,
+                        full_track_id TEXT,
+                        track TEXT,
+                        data BLOB,
+                        front_springrate TEXT,
+                        front_hsc INTEGER,
+                        front_lsc INTEGER,
+                        front_lsr INTEGER,
+                        front_hsr INTEGER,
+                        rear_springrate TEXT,
+                        rear_hsc INTEGER,
+                        rear_lsc INTEGER,
+                        rear_lsr INTEGER,
+                        rear_hsr INTEGER,
+                        updated INTEGER NOT NULL,
+                        client_updated INTEGER,
+                        deleted INTEGER,
+                        has_data INTEGER NOT NULL DEFAULT 0
+                    )
+                    """);
+            }
+
+            var database = new SqLiteDatabaseService(databasePath);
+            _ = await database.GetSessionsAsync();
+
+            using var verificationConnection = new SQLiteConnection(databasePath);
+            var columns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(session)");
+
+            Assert.Contains(columns, column => column.Name == "session_processing_fingerprint");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RecordedSessionSourceCrud_RoundTripsSourceAndMissingSourceIds()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "source-crud.db");
+        var sessionId = Guid.NewGuid();
+        var missingSessionId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            await database.PutSessionAsync(new Session(sessionId, "with source", "desc", null, 100));
+            await database.PutSessionAsync(new Session(missingSessionId, "missing source", "desc", null, 101));
+
+            var source = CreateRecordedSessionSource(sessionId);
+
+            await database.PutRecordedSessionSourceAsync(source);
+
+            var loaded = await database.GetRecordedSessionSourceAsync(sessionId);
+            var allSources = await database.GetRecordedSessionSourcesAsync();
+            var missingSourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
+
+            Assert.NotNull(loaded);
+            Assert.Equal(sessionId, loaded!.SessionId);
+            Assert.Equal(RecordedSessionSourceKind.ImportedSst, loaded.SourceKind);
+            Assert.Equal("source.SST", loaded.SourceName);
+            Assert.Equal(1, loaded.SchemaVersion);
+            Assert.Equal("abc123", loaded.SourceHash);
+            Assert.Equal([1, 2, 3], loaded.Payload);
+            Assert.Single(allSources);
+            Assert.DoesNotContain(sessionId, missingSourceIds);
+            Assert.Contains(missingSessionId, missingSourceIds);
+
+            await database.DeleteRecordedSessionSourceAsync(sessionId);
+
+            Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
+            Assert.Contains(sessionId, await database.GetSessionIdsMissingRecordedSourceAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionAsync_PersistsSessionTrackSourceAndFingerprint()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "processed-session.db");
+        var sessionId = Guid.NewGuid();
+        var track = CreateFullTrack();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            var session = new Session(sessionId, "processed", "desc", null, 100)
+            {
+                ProcessedData = [8, 7, 6],
+                ProcessingFingerprintJson = """{"schemaVersion":1}"""
+            };
+            var source = CreateRecordedSessionSource(sessionId);
+
+            var persisted = await database.PutProcessedSessionAsync(session, track, source);
+
+            Assert.Equal(track.Id, persisted.FullTrack);
+            Assert.True(persisted.HasProcessedData);
+            Assert.Equal("""{"schemaVersion":1}""", persisted.ProcessingFingerprintJson);
+            Assert.Equal([8, 7, 6], await database.GetSessionRawPsstAsync(sessionId));
+            Assert.NotNull(await database.GetAsync<Track>(track.Id));
+            Assert.NotNull(await database.GetRecordedSessionSourceAsync(sessionId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionAsync_RollsBackSessionTrackAndSource_WhenSourceWriteFails()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "processed-session-rollback.db");
+        var sessionId = Guid.NewGuid();
+        var track = CreateFullTrack();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            var session = new Session(sessionId, "processed", "desc", null, 100)
+            {
+                ProcessedData = [8, 7, 6],
+                ProcessingFingerprintJson = """{"schemaVersion":1}"""
+            };
+            var source = CreateRecordedSessionSource(sessionId);
+            source.SourceName = null!;
+
+            await Assert.ThrowsAnyAsync<SQLiteException>(() => database.PutProcessedSessionAsync(session, track, source));
+
+            Assert.Null(await database.GetSessionAsync(sessionId));
+            Assert.Null(await database.GetAsync<Track>(track.Id));
+            Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task GetSynchronizationDataAsync_IncludesTrackReferencedByChangedSession()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
@@ -369,6 +579,7 @@ public class SQLiteDatabaseServiceTests
                     new TrackPoint(1234, 1, 1, 100),
                     new TrackPoint(1235, 2, 2, 101)
                 ],
+                ProcessingFingerprintJson = """{"remote":true}""",
                 FrontSpringRate = "50",
                 RearSpringRate = "60",
                 Updated = 99,
@@ -404,6 +615,7 @@ public class SQLiteDatabaseServiceTests
             Assert.Equal(setupId, session.Setup);
             Assert.Equal(1234, session.Timestamp);
             Assert.Equal(trackId, session.FullTrack);
+            Assert.Equal("""{"remote":true}""", session.ProcessingFingerprintJson);
             Assert.Equal(99, session.Updated);
             Assert.Equal("50", session.FrontSpringRate);
             Assert.Equal("60", session.RearSpringRate);
@@ -460,6 +672,7 @@ public class SQLiteDatabaseServiceTests
                             new TrackPoint(1234, 1, 1, 100),
                             new TrackPoint(1235, 2, 2, 101)
                         ],
+                        ProcessingFingerprintJson = """{"remote":true}""",
                         FrontSpringRate = "50",
                         RearSpringRate = "60",
                         Updated = 99,
@@ -479,6 +692,7 @@ public class SQLiteDatabaseServiceTests
             Assert.Equal(setupId, session.Setup);
             Assert.Equal(1234, session.Timestamp);
             Assert.Equal(trackId, session.FullTrack);
+            Assert.Equal("""{"remote":true}""", session.ProcessingFingerprintJson);
             Assert.Equal("50", session.FrontSpringRate);
             Assert.Equal("60", session.RearSpringRate);
             Assert.True(session.HasProcessedData);
@@ -756,7 +970,8 @@ public class SQLiteDatabaseServiceTests
 
             await database.PutSessionAsync(new Session(sessionId, "new", "new desc", setupId, 1234)
             {
-                FullTrack = fullTrackId
+                FullTrack = fullTrackId,
+                ProcessingFingerprintJson = """{"current":true}"""
             });
 
             var session = await database.GetSessionAsync(sessionId);
@@ -769,6 +984,7 @@ public class SQLiteDatabaseServiceTests
             Assert.Equal(setupId, session.Setup);
             Assert.Equal(1234, session.Timestamp);
             Assert.Equal(fullTrackId, session.FullTrack);
+            Assert.Equal("""{"current":true}""", session.ProcessingFingerprintJson);
             Assert.True(session.HasProcessedData);
             Assert.Null(session.Deleted);
             Assert.Equal(originalPsst, rawPsst);
@@ -1076,6 +1292,26 @@ public class SQLiteDatabaseServiceTests
             }
         }
     }
+
+    private static RecordedSessionSource CreateRecordedSessionSource(Guid sessionId) => new()
+    {
+        SessionId = sessionId,
+        SourceKind = RecordedSessionSourceKind.ImportedSst,
+        SourceName = "source.SST",
+        SchemaVersion = 1,
+        SourceHash = "abc123",
+        Payload = [1, 2, 3]
+    };
+
+    private static Track CreateFullTrack() => new()
+    {
+        Id = Guid.NewGuid(),
+        Points =
+        [
+            new TrackPoint(100, 1, 1, 10),
+            new TrackPoint(101, 2, 2, 11)
+        ]
+    };
 
     private sealed class TableColumnInfo
     {

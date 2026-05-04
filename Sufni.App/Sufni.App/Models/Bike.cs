@@ -8,8 +8,10 @@ using System.Text.Json.Serialization;
 using Serilog;
 using SQLite;
 using Sufni.App.Models.SensorConfigurations;
+using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -379,6 +381,18 @@ internal static class AppJson
 [JsonSerializable(typeof(SetupExportModel))]
 [JsonSerializable(typeof(SynchronizationData))]
 [JsonSerializable(typeof(TrackPoint))]
+[JsonSerializable(typeof(RecordedSessionSourceTransfer))]
+[JsonSerializable(typeof(RecordedSessionSourceKind))]
+[JsonSerializable(typeof(RecordedLiveCaptureSourcePayload))]
+[JsonSerializable(typeof(ProcessingFingerprint))]
+[JsonSerializable(typeof(Metadata))]
+[JsonSerializable(typeof(RawImuData))]
+[JsonSerializable(typeof(ImuMetaEntry))]
+[JsonSerializable(typeof(ImuRecord))]
+[JsonSerializable(typeof(GpsRecord))]
+[JsonSerializable(typeof(MarkerData))]
+[JsonSerializable(typeof(ushort[]))]
+[JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(List<Guid>))]
 [JsonSerializable(typeof(List<TrackPoint>))]
 [JsonSerializable(typeof(PairingRequest))]

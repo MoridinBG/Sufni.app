@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Sufni.App.Tests" />
+    <InternalsVisibleTo Include="Sufni.App.Desktop" />
     <InternalsVisibleTo Include="Sufni.App.macOS" />
     <InternalsVisibleTo Include="Sufni.App.iOS" />
   </ItemGroup>

@@ -43,6 +43,10 @@ public class Session : Synchronizable
     [Column("full_track_id")]
     public Guid? FullTrack { get; set; }
 
+    [JsonPropertyName("processing_fingerprint")]
+    [Column("session_processing_fingerprint")]
+    public string? ProcessingFingerprintJson { get; set; }
+
     [JsonPropertyName("track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [Ignore]
     public List<TrackPoint>? Track { get; set; }

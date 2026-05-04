@@ -23,7 +23,8 @@ public static class TestTelemetryFactories
         byte version = 4,
         string? malformedMessage = null,
         bool? canImport = null,
-        bool hasUnknown = false)
+        bool hasUnknown = false,
+        byte[]? sourceBytes = null)
     {
         var telemetryFile = Substitute.For<ITelemetryFile>();
         telemetryFile.Name.Returns(name);
@@ -36,6 +37,8 @@ public static class TestTelemetryFactories
         telemetryFile.MalformedMessage.Returns(malformedMessage);
         telemetryFile.CanImport.Returns(canImport ?? string.IsNullOrWhiteSpace(malformedMessage));
         telemetryFile.HasUnknown.Returns(hasUnknown);
+        telemetryFile.ReadSourceAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new TelemetryFileSource($"{name}.SST", sourceBytes ?? [1, 2, 3])));
         return telemetryFile;
     }
 
