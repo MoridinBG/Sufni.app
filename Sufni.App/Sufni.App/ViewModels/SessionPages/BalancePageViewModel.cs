@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.SessionPages;
 
@@ -20,6 +21,30 @@ public partial class BalancePageViewModel : PageViewModelBase
     [ObservableProperty] private string? reboundBalance;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
+
+    public bool ZenithModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Zenith;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceDisplacementMode(BalanceDisplacementMode.Zenith);
+            }
+        }
+    }
+
+    public bool TravelModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Travel;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceDisplacementMode(BalanceDisplacementMode.Travel);
+            }
+        }
+    }
 
     public BalancePageViewModel(ISessionStatisticsWorkspace? statisticsWorkspace = null)
         : base("Balance")
@@ -57,5 +82,26 @@ public partial class BalancePageViewModel : PageViewModelBase
         {
             OnPropertyChanged(nameof(ReboundPresentationState));
         }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedBalanceDisplacementMode))
+        {
+            RefreshBalanceDisplacementModeSelection();
+        }
+    }
+
+    private void SelectBalanceDisplacementMode(BalanceDisplacementMode mode)
+    {
+        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedBalanceDisplacementMode == mode)
+        {
+            return;
+        }
+
+        StatisticsWorkspace.SelectedBalanceDisplacementMode = mode;
+        RefreshBalanceDisplacementModeSelection();
+    }
+
+    private void RefreshBalanceDisplacementModeSelection()
+    {
+        OnPropertyChanged(nameof(ZenithModeSelected));
+        OnPropertyChanged(nameof(TravelModeSelected));
     }
 }
