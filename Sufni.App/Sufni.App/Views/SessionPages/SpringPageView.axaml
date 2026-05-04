@@ -4,7 +4,9 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.ViewModels.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
 d:DesignHeight="600"
 d:DesignWidth="500"
@@ -12,19 +14,65 @@ x:DataType="vm:SpringPageViewModel"
 mc:Ignorable="d">
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
-        <StackPanel Orientation="Vertical">
-            <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontHistogramState}">
+        <StackPanel Orientation="Vertical" Spacing="8">
+            <ComboBox
+            Name="MobileTravelHistogramModeComboBox"
+            Margin="0,8,0,0"
+            HorizontalAlignment="Stretch"
+            IsVisible="{Binding HasDynamicStatistics}"
+            ItemsSource="{Binding StatisticsWorkspace.TravelHistogramModeOptions}"
+            SelectedValue="{Binding StatisticsWorkspace.SelectedTravelHistogramMode, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=editors:TravelHistogramModeOption}"
+            ToolTip.Tip="Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="editors:TravelHistogramModeOption">
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontPresentationState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>
-                    <Svg Name="FrontHistogramSvg" Source="{Binding FrontTravelHistogram}" />
+                    <Grid>
+                        <plots:SessionStatisticsPlotView
+                        Name="FrontTravelHistogramPlot"
+                        Height="260"
+                        AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+                        IsVisible="{Binding HasDynamicStatistics}"
+                        PlotKind="TravelHistogram"
+                        SuspensionType="Front"
+                        Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+                        TravelHistogramMode="{Binding StatisticsWorkspace.SelectedTravelHistogramMode}" />
+
+                        <Svg
+                        Name="FrontHistogramSvg"
+                        IsVisible="{Binding !HasDynamicStatistics}"
+                        Source="{Binding FrontTravelHistogram}" />
+                    </Grid>
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>
                     <controls:SurfacePlaceholderCard Margin="0,0,0,12" Title="Front travel" MinCardHeight="220" />
                 </controls:PlaceholderOverlayContainer.PlaceholderContent>
             </controls:PlaceholderOverlayContainer>
 
-            <controls:PlaceholderOverlayContainer PresentationState="{Binding RearHistogramState}">
+            <controls:PlaceholderOverlayContainer PresentationState="{Binding RearPresentationState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>
-                    <Svg Name="RearHistogramSvg" Source="{Binding RearTravelHistogram}" />
+                    <Grid>
+                        <plots:SessionStatisticsPlotView
+                        Name="RearTravelHistogramPlot"
+                        Height="260"
+                        AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+                        IsVisible="{Binding HasDynamicStatistics}"
+                        PlotKind="TravelHistogram"
+                        SuspensionType="Rear"
+                        Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+                        TravelHistogramMode="{Binding StatisticsWorkspace.SelectedTravelHistogramMode}" />
+
+                        <Svg
+                        Name="RearHistogramSvg"
+                        IsVisible="{Binding !HasDynamicStatistics}"
+                        Source="{Binding RearTravelHistogram}" />
+                    </Grid>
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>
                     <controls:SurfacePlaceholderCard Title="Rear travel" MinCardHeight="220" />

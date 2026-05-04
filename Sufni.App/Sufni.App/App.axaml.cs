@@ -44,6 +44,13 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        if (ShouldUseDesignModePreviewStartup())
+        {
+            InitializeForDesignModePreview();
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         LoggingBootstrapper.InstallGlobalExceptionHooks();
 
         var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
@@ -256,5 +263,20 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    internal void InitializeForDesignModePreview()
+    {
+        if (!DataTemplates.OfType<ViewLocator>().Any())
+        {
+            DataTemplates.Add(new ViewLocator());
+        }
+    }
+
+    internal bool ShouldUseDesignModePreviewStartup()
+    {
+        return Design.IsDesignMode
+            || ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime
+                and not ISingleViewApplicationLifetime;
     }
 }

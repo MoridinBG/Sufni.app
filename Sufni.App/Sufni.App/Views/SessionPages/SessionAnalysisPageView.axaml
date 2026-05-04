@@ -1,0 +1,105 @@
+<UserControl
+x:Class="Sufni.App.Views.SessionPages.SessionAnalysisPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Models"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:SessionAnalysisPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    IsScrollChainingEnabled="False">
+        <StackPanel Name="MobileAnalysisContent" Spacing="10">
+            <StackPanel Name="MobileAnalysisHeader" Spacing="4">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="Analysis" />
+                <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Workspace.SessionAnalysisRangeText}" />
+                <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Workspace.SessionAnalysisModesText}" />
+
+                <ComboBox
+                Name="MobileAnalysisTargetProfileComboBox"
+                HorizontalAlignment="Stretch"
+                ItemsSource="{Binding Workspace.SessionAnalysisTargetProfileOptions}"
+                SelectedValue="{Binding Workspace.SelectedSessionAnalysisTargetProfile, Mode=TwoWay}"
+                SelectedValueBinding="{Binding Value, DataType=models:SessionAnalysisTargetProfileOption}"
+                ToolTip.Tip="Speed references are interpreted through the selected riding context.">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:SessionAnalysisTargetProfileOption">
+                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <controls:PlaceholderOverlayContainer
+            Name="MobileAnalysisHost"
+            PresentationState="{Binding Workspace.SessionAnalysis.State}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <ItemsControl
+                    Name="MobileSessionAnalysisFindingsItemsControl"
+                    ItemsSource="{Binding Workspace.SessionAnalysis.Findings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:SessionAnalysisFinding">
+                                <Border
+                                Margin="0,0,0,8"
+                                Padding="10"
+                                BorderBrush="#55606C"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                    <StackPanel>
+                                        <StackPanel Margin="0,0,0,6" Spacing="2">
+                                            <TextBlock
+                                            FontSize="15"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Title}"
+                                            TextWrapping="Wrap" />
+                                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Severity}" />
+                                            <TextBlock FontSize="12" Opacity="0.7" Text="{Binding Confidence}" />
+                                        </StackPanel>
+
+                                        <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Category}" />
+                                        <TextBlock Margin="0,8,0,0" Text="{Binding Observation}" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,6,0,0" Text="{Binding Recommendation}" TextWrapping="Wrap" />
+
+                                        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Evidence}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:SessionAnalysisEvidence">
+                                                    <Border
+                                                    Margin="0,0,6,6"
+                                                    Padding="6,4"
+                                                    BorderBrush="#46515D"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4">
+                                                        <StackPanel>
+                                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
+                                                            <TextBlock FontSize="12" Text="{Binding DisplayValue}" />
+                                                            <TextBlock FontSize="10" Opacity="0.7" Text="{Binding Side}" />
+                                                            <TextBlock FontSize="10" Opacity="0.7" Text="{Binding SourceMode}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Analysis" MinCardHeight="260" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -55,8 +55,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly ISessionPreferences sessionPreferences;
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
-    private SpringPageViewModel SpringPage { get; } = new();
-    private BalancePageViewModel BalancePage { get; } = new();
+    private StrokesPageViewModel StrokesPage { get; }
+    private SpringPageViewModel SpringPage { get; }
+    private BalancePageViewModel BalancePage { get; }
+    private VibrationPageViewModel VibrationPage { get; }
+    private SessionAnalysisPageViewModel AnalysisPage { get; }
 
     private readonly CancellableOperation loadOperation = new();
     private bool lastObservedHasProcessedData;
@@ -82,7 +85,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     #region Public fields
 
-    public DamperPageViewModel DamperPage { get; } = new();
+    public DamperPageViewModel DamperPage { get; }
     public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
     public NotesPageViewModel NotesPage { get; } = new();
     public SessionPlotPreferences PlotPreferences
@@ -354,14 +357,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 return;
             }
 
-            var notesIndex = Pages.IndexOf(NotesPage);
-            if (notesIndex < 0)
+            var insertIndex = Pages.IndexOf(VibrationPage);
+            if (insertIndex < 0)
+            {
+                insertIndex = Pages.IndexOf(AnalysisPage);
+            }
+
+            if (insertIndex < 0)
+            {
+                insertIndex = Pages.IndexOf(NotesPage);
+            }
+
+            if (insertIndex < 0)
             {
                 Pages.Add(BalancePage);
             }
             else
             {
-                Pages.Insert(notesIndex, BalancePage);
+                Pages.Insert(insertIndex, BalancePage);
             }
 
             return;
@@ -684,6 +697,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 {
                     suppressAnalysisRecompute = false;
                 }
+                ApplyMobileExtendedStatisticsStates(
+                    loadedFromCache.Telemetry,
+                    HasFrontCacheStatistics(loadedFromCache.Data),
+                    HasRearCacheStatistics(loadedFromCache.Data),
+                    loadedFromCache.Data.BalanceAvailable);
                 ApplyRecordedReadyGraphStates(TelemetryData);
                 ApplyMobileTrackPresentation(loadedFromCache.TrackData);
                 ScreenState = SessionScreenPresentationState.Ready;
@@ -703,6 +721,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 {
                     suppressAnalysisRecompute = false;
                 }
+                ApplyMobileExtendedStatisticsStates(
+                    builtCache.Telemetry,
+                    HasFrontCacheStatistics(builtCache.Data),
+                    HasRearCacheStatistics(builtCache.Data),
+                    builtCache.Data.BalanceAvailable);
                 ApplyRecordedReadyGraphStates(TelemetryData);
                 ApplyMobileTrackPresentation(builtCache.TrackData);
                 ScreenState = SessionScreenPresentationState.Ready;
@@ -719,6 +742,56 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             case SessionMobileLoadResult.Failed failed:
                 ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
+        }
+    }
+
+    private static bool HasFrontCacheStatistics(SessionCachePresentationData data)
+    {
+        return !string.IsNullOrWhiteSpace(data.FrontTravelHistogram)
+               || !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
+    }
+
+    private static bool HasRearCacheStatistics(SessionCachePresentationData data)
+    {
+        return !string.IsNullOrWhiteSpace(data.RearTravelHistogram)
+               || !string.IsNullOrWhiteSpace(data.RearVelocityHistogram);
+    }
+
+    private void ApplyMobileExtendedStatisticsStates(
+        TelemetryData? telemetry,
+        bool frontStatisticsAvailable,
+        bool rearStatisticsAvailable,
+        bool balanceAvailable)
+    {
+        if (telemetry is null)
+        {
+            FrontStatisticsState = SurfacePresentationState.Hidden;
+            RearStatisticsState = SurfacePresentationState.Hidden;
+            CompressionBalanceState = SurfacePresentationState.Hidden;
+            ReboundBalanceState = SurfacePresentationState.Hidden;
+            HideVibrationStates();
+            return;
+        }
+
+        ApplyAnalysisRangeStates(telemetry);
+        if (!frontStatisticsAvailable)
+        {
+            FrontStatisticsState = SurfacePresentationState.Hidden;
+            FrontForkVibrationState = SurfacePresentationState.Hidden;
+            FrontFrameVibrationState = SurfacePresentationState.Hidden;
+        }
+
+        if (!rearStatisticsAvailable)
+        {
+            RearStatisticsState = SurfacePresentationState.Hidden;
+            RearForkVibrationState = SurfacePresentationState.Hidden;
+            RearFrameVibrationState = SurfacePresentationState.Hidden;
+        }
+
+        if (!balanceAvailable)
+        {
+            CompressionBalanceState = SurfacePresentationState.Hidden;
+            ReboundBalanceState = SurfacePresentationState.Hidden;
         }
     }
 
@@ -977,7 +1050,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
         GraphPage = new RecordedGraphPageViewModel(this, this);
-        Pages = [GraphPage, SpringPage, DamperPage, BalancePage, NotesPage, PreferencesPage];
+        SpringPage = new SpringPageViewModel(this);
+        StrokesPage = new StrokesPageViewModel(this);
+        DamperPage = new DamperPageViewModel(this);
+        BalancePage = new BalancePageViewModel(this);
+        VibrationPage = new VibrationPageViewModel(this);
+        AnalysisPage = new SessionAnalysisPageViewModel(this);
+        Pages = [GraphPage, SpringPage, StrokesPage, DamperPage, BalancePage, VibrationPage, AnalysisPage, NotesPage, PreferencesPage];
         MapViewModel = new MapViewModel(tileLayerService, dialogService);
         _ = MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)

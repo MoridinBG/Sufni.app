@@ -1,12 +1,61 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Presentation;
+using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.ViewModels.SessionPages;
 
-public partial class SpringPageViewModel() : PageViewModelBase("Spring")
+public partial class SpringPageViewModel : PageViewModelBase
 {
+    public ISessionStatisticsWorkspace? StatisticsWorkspace { get; }
+    public bool HasDynamicStatistics => StatisticsWorkspace?.TelemetryData is not null;
+    public SurfacePresentationState FrontPresentationState => HasDynamicStatistics
+        ? StatisticsWorkspace!.FrontStatisticsState
+        : FrontHistogramState;
+    public SurfacePresentationState RearPresentationState => HasDynamicStatistics
+        ? StatisticsWorkspace!.RearStatisticsState
+        : RearHistogramState;
+
     [ObservableProperty] private string? frontTravelHistogram;
     [ObservableProperty] private string? rearTravelHistogram;
     [ObservableProperty] private SurfacePresentationState frontHistogramState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearHistogramState = SurfacePresentationState.Hidden;
+
+    public SpringPageViewModel(ISessionStatisticsWorkspace? statisticsWorkspace = null)
+        : base("Spring")
+    {
+        StatisticsWorkspace = statisticsWorkspace;
+        if (statisticsWorkspace is INotifyPropertyChanged observableWorkspace)
+        {
+            observableWorkspace.PropertyChanged += OnWorkspacePropertyChanged;
+        }
+    }
+
+    partial void OnFrontHistogramStateChanged(SurfacePresentationState value)
+    {
+        OnPropertyChanged(nameof(FrontPresentationState));
+    }
+
+    partial void OnRearHistogramStateChanged(SurfacePresentationState value)
+    {
+        OnPropertyChanged(nameof(RearPresentationState));
+    }
+
+    private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(ISessionStatisticsWorkspace.TelemetryData))
+        {
+            OnPropertyChanged(nameof(HasDynamicStatistics));
+            OnPropertyChanged(nameof(FrontPresentationState));
+            OnPropertyChanged(nameof(RearPresentationState));
+        }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.FrontStatisticsState))
+        {
+            OnPropertyChanged(nameof(FrontPresentationState));
+        }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.RearStatisticsState))
+        {
+            OnPropertyChanged(nameof(RearPresentationState));
+        }
+    }
 }
