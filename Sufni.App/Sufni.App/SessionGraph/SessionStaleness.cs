@@ -19,7 +19,7 @@ public abstract record SessionStaleness
 
     public sealed record MissingRawSource : SessionStaleness
     {
-        public override bool IsStale => true;
+        public override bool IsStale => false;
         public override bool CanRecompute => false;
     }
 

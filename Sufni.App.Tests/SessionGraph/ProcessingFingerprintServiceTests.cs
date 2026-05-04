@@ -53,7 +53,19 @@ public class ProcessingFingerprintServiceTests
         var staleness = service.Evaluate(context.Session, context.Setup, context.Bike, null);
 
         Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.True(staleness.IsStale);
+        Assert.False(staleness.IsStale);
+        Assert.False(staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsMissingRawSource_WhenSourceAndDependenciesAreMissing()
+    {
+        var context = CreateContext();
+
+        var staleness = service.Evaluate(context.Session, null, null, null);
+
+        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
+        Assert.False(staleness.IsStale);
         Assert.False(staleness.CanRecompute);
     }
 

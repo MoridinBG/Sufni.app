@@ -105,7 +105,7 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "Alpine",
                 description: "rough track",
-                staleness: new SessionStaleness.MissingRawSource());
+                staleness: new SessionStaleness.DependencyHashChanged());
             sessionCache.AddOrUpdate(summary);
             var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
 
@@ -115,6 +115,33 @@ public class SessionListViewModelTests
             Assert.Equal("Alpine (Stale)", row.Name);
 
             viewModel.SearchText = "Stale";
+            Assert.Empty(viewModel.Items);
+
+            viewModel.SearchText = "rough";
+            Assert.Single(viewModel.Items);
+        }
+    }
+
+    [Fact]
+    public void NoRawRows_ShowSuffix_ButAreNotStaleAndSearchUsesSummaryText()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(
+                name: "Alpine",
+                description: "rough track",
+                staleness: new SessionStaleness.MissingRawSource());
+            sessionCache.AddOrUpdate(summary);
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+
+            var row = Assert.Single(viewModel.Items);
+            Assert.False(row.IsStale);
+            Assert.True(row.HasNoRawSource);
+            Assert.Equal("Alpine", row.BaseName);
+            Assert.Equal("Alpine (No Raw)", row.Name);
+
+            viewModel.SearchText = "No Raw";
             Assert.Empty(viewModel.Items);
 
             viewModel.SearchText = "rough";
