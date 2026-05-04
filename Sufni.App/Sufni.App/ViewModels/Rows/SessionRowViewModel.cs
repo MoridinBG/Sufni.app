@@ -58,11 +58,12 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         BaseName = summary.Name;
         IsStale = summary.Staleness.IsStale;
         HasNoRawSource = summary.Staleness is SessionStaleness.MissingRawSource;
-        Name = HasNoRawSource
-            ? $"{BaseName} (No Raw)"
-            : IsStale
-                ? $"{BaseName} (Stale)"
-                : BaseName;
+        Name = summary.Staleness switch
+        {
+            SessionStaleness.MissingRawSource => $"{BaseName} (No Raw)",
+            { IsStale: true } => $"{BaseName} (Stale)",
+            _ => BaseName,
+        };
         Timestamp = summary.Timestamp is null
             ? null
             : DateTimeOffset.FromUnixTimeSeconds(summary.Timestamp.Value).LocalDateTime;
