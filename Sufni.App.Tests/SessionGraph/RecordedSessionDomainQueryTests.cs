@@ -50,6 +50,52 @@ public class RecordedSessionDomainQueryTests
     }
 
     [Fact]
+    public void Get_UsesSingleFingerprintEvaluation()
+    {
+        var context = CreateCurrentContext();
+        var fingerprint = new ProcessingFingerprint(
+            1,
+            1,
+            context.Setup.Id,
+            context.Bike.Id,
+            "dependency",
+            context.Source.SourceHash);
+        var fingerprintService = Substitute.For<IProcessingFingerprintService>();
+        var staleness = new SessionStaleness.Current();
+        fingerprintService
+            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source)
+            .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
+        sessionStore.Get(context.Session.Id).Returns(context.Session);
+        setupStore.Get(context.Setup.Id).Returns(context.Setup);
+        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
+        sourceStore.Get(context.Session.Id).Returns(context.Source);
+        var query = new RecordedSessionDomainQuery(
+            sessionStore,
+            setupStore,
+            bikeStore,
+            sourceStore,
+            fingerprintService);
+
+        var domain = query.Get(context.Session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Equal(fingerprint, domain!.CurrentFingerprint);
+        Assert.Equal(fingerprint, domain.PersistedFingerprint);
+        Assert.Equal(staleness, domain.Staleness);
+        fingerprintService.Received(1).EvaluateState(context.Session, context.Setup, context.Bike, context.Source);
+        fingerprintService.DidNotReceive().CreateCurrent(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<SetupSnapshot>(),
+            Arg.Any<BikeSnapshot>(),
+            Arg.Any<RecordedSessionSourceSnapshot>());
+        fingerprintService.DidNotReceive().Evaluate(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<SetupSnapshot?>(),
+            Arg.Any<BikeSnapshot?>(),
+            Arg.Any<RecordedSessionSourceSnapshot?>());
+    }
+
+    [Fact]
     public void Get_ReturnsMissingRawSource_WhenSourceIsMissing()
     {
         var context = CreateCurrentContext();

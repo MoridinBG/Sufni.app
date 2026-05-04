@@ -17,4 +17,15 @@ public interface IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source);
+
+    ProcessingFingerprintEvaluation EvaluateState(
+        SessionSnapshot session,
+        SetupSnapshot? setup,
+        BikeSnapshot? bike,
+        RecordedSessionSourceSnapshot? source);
 }
+
+public sealed record ProcessingFingerprintEvaluation(
+    ProcessingFingerprint? Current,
+    ProcessingFingerprint? Persisted,
+    SessionStaleness Staleness);
