@@ -9,6 +9,7 @@ erDiagram
     session ||--o| setup : "setup_id"
     session ||--o| track : "full_track_id"
     session ||--o| session_cache : "session_id"
+    session ||--o| session_recording_source : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -22,6 +23,7 @@ erDiagram
         int has_data
         text track
         text full_track_id FK
+        text session_processing_fingerprint
         text front_springrate
         text rear_springrate
         int front_hsc
@@ -35,6 +37,15 @@ erDiagram
         int updated
         int client_updated
         int deleted
+    }
+
+    session_recording_source {
+        text session_id PK
+        text source_kind
+        text source_name
+        int schema_version
+        text source_hash
+        blob payload
     }
 
     bike {
@@ -131,20 +142,27 @@ Generic operations on any `Synchronizable` subclass:
 - `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
 - `DeleteAsync<T>(id)` — sets `Deleted` timestamp (soft delete); idempotent — leaves the existing tombstone in place if the row is already deleted.
 
-Session-specific operations split metadata from blob handling:
+Session-specific operations split metadata, processed data, and recording source handling:
 
-- `PutSessionAsync()` — updates metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. The `data` blob and `has_data` flag are written via `COALESCE(?, data)`: if `session.ProcessedData` is non-null the blob is overwritten, otherwise the existing blob is preserved.
+- `PutSessionAsync()` — updates session metadata columns, the processing fingerprint, and stamps `Updated`/`Deleted` like `PutAsync`. The `data` blob and `track` cache are written via `COALESCE(?, existing)`: if `session.ProcessedData` or `session.Track` is null, the existing derived payload is preserved.
+- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data` and `session_processing_fingerprint`, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, generated track, and source write roll back together.
 - `PatchSessionPsstAsync(id, bytes)` — updates only the `data` column (and sets `has_data = 1`)
+- `PatchSessionTrackAsync(id, points)` — updates the cached session-window `track` JSON and stamps `updated`
 - `GetSessionPsstAsync(id)` — deserializes MessagePack blob to `TelemetryData`
+- `GetSessionRawPsstAsync(id)` — returns the raw MessagePack blob for sync transfer
+- `GetRecordedSessionSourcesAsync()` / `GetRecordedSessionSourceAsync(id)` — load recorded-source rows or one full source payload
+- `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids that do not have a source row
+- `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, and `sync` are not `Synchronizable` and have their own lifecycles.
+`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles.
 
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
 - Orphaned `session_cache` rows whose parent session is past that 1-day grace window
+- `session_recording_source` rows for purged sessions, plus any source row without a parent session
 - `paired_device` rows where `Expires < DateTime.UtcNow`
 
 ## Conflict Resolution
@@ -161,3 +179,5 @@ The merge cases, in evaluation order:
 6. **Remote wins** (otherwise): persist remote content with `ClientUpdated = entity.Updated`, `Updated = now`. Update.
 
 This gives local client changes precedence in conflicts while accepting remote deletes that are newer than the local content.
+
+Session merge accepts metadata, track linkage/cache JSON, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or the raw recording source through `SynchronizationData`. Those payloads are synchronized by the session-data and recorded-source endpoints described in [Cross-Device Synchronization](sync.md).

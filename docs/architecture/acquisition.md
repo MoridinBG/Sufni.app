@@ -23,8 +23,10 @@ graph LR
     Import -->|"FindByBoardId"| SetupStore["ISetupStore"]
     Import -->|"ImportAsync(progress)"| Coord["ImportSessionsCoordinator"]
     Coord --> Runner["IBackgroundTaskRunner"]
-    Coord --> DB["IDatabaseService"]
+    Coord --> Reprocessor["RecordedSessionReprocessor"]
+    Coord --> DB["IDatabaseService<br/>PutProcessedSessionAsync"]
     Coord --> SessionStore["ISessionStoreWriter"]
+    Coord --> SourceStore["IRecordedSessionSourceStoreWriter"]
     Coord --> TelemetryFile["ITelemetryFile"]
 ```
 
@@ -37,7 +39,7 @@ graph LR
 - `ShouldBeImported` — tri-state nullable bool driving the per-row import action selector (legacy semantics): `false` (default) "Ignore" / leave alone, `true` "Import", `null` "Trash". `ImportSessionsCoordinator` only imports rows with `ShouldBeImported is true` and only trashes rows with `ShouldBeImported is null`.
 - `CanImport` — set from inspection; `false` for malformed files, which forces the action selector to stay disabled.
 - `MalformedMessage`, `HasUnknown` — diagnostic flags surfaced by inspection for the import row UI.
-- `GeneratePsstAsync(BikeData)` — the full pipeline in one call: reads raw bytes, parses SST, runs signal processing, returns MessagePack-serialized `TelemetryData`
+- `ReadSourceAsync(CancellationToken)` — returns the original recording bytes as `TelemetryFileSource(FileName, SstBytes)`. The coordinator turns those bytes into a persisted `RecordedSessionSource`, then asks the recorded-session reprocessor to derive `TelemetryData`, generated GPS track data, and the processing fingerprint.
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
@@ -51,13 +53,13 @@ The import-sessions feature is the canonical worked example of the current bound
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads `IDatabaseService` directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for the welcome-screen create-setup flow.
-- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, session persistence, session-store upserts, background execution, and per-file progress reporting.
+- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture, processed telemetry derivation, processing fingerprint creation, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
 
 ### Mass Storage
 
 `MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
 
-`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Services/TelemetryDataStoreService.cs`) still uses a `DispatcherTimer` for browse cadence, but the expensive work no longer lives on the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation, one-shot board detection, and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread.
+`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation, one-shot board detection, and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread.
 
 `MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device.
 
@@ -65,11 +67,11 @@ On import, files move to an `uploaded/` subdirectory. On trash, files move to `t
 
 ### Network (WiFi DAQ)
 
-`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import now goes through `IDaqManagementService` rather than a model-owned TCP utility: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
+`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import goes through `IDaqManagementService`: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
 
-- `Initialization` no longer lists files. It performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore.
+- `Initialization` performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore. File listing happens in `GetFiles()`.
 - `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, maps `DaqSstFileRecord` values into importable `NetworkTelemetryFile` instances, and maps `DaqMalformedSstFileRecord` values into non-importable `NetworkTelemetryFile` instances (`canImport: false`) carrying the malformed message. The combined list is returned sorted by descending `StartTime`.
-- `NetworkTelemetryFile` now carries the DAQ `recordId` from the management directory listing. `GeneratePsstAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temp file before SST validation and processing. `OnImported()` calls `IDaqManagementService.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
+- `NetworkTelemetryFile` carries the DAQ `recordId` from the management directory listing. `ReadSourceAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temporary `sufni-source-*.SST` file, reads those bytes into a `TelemetryFileSource`, and deletes the temporary file in a `finally` block. Stale matching temp files older than one day are removed before each read. `OnImported()` calls `IDaqManagementService.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
 - Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
 
 Import still shares the DAQ's single-client TCP port with live preview. If another live or management connection is already active, the resulting connection failure is surfaced through `TelemetryDataStoreService.ErrorOccurred` just as before.
