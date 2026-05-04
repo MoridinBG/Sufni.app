@@ -94,4 +94,33 @@ public class TravelPlotDesktopViewTests
             Assert.Equal(Color.FromHex("#d53e4f").WithAlpha(0.9), line.LineColor);
         });
     }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ClearsAndReloadsTelemetryWhileHidden()
+    {
+        var view = new TravelPlotDesktopView();
+        var oldTelemetry = CreateTelemetryData();
+        oldTelemetry.Markers = [new MarkerData(0.5)];
+        var freshTelemetry = CreateTelemetryData();
+        freshTelemetry.Markers = [new MarkerData(0.25), new MarkerData(1.5)];
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = oldTelemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.Equal(2, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
+
+        view.IsVisible = false;
+        view.Telemetry = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(plot.Plot.PlottableList);
+
+        view.Telemetry = freshTelemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
+    }
 }
