@@ -16,14 +16,22 @@ public enum TrackSignalKind
 
 public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
 {
+    private readonly List<CursorReadoutSeries> cursorSeries = [];
+    private double cursorDurationSeconds;
+
     public VerticalLine? CursorLine { get; set; }
 
-    public override void SetCursorPosition(double position)
+    protected override void SetCursorLinePosition(double position)
     {
         if (CursorLine is not null)
         {
             CursorLine.Position = position;
         }
+    }
+
+    protected override CursorReadout? GetCursorReadout(double position)
+    {
+        return CreateCursorReadout(position, cursorDurationSeconds, cursorSeries);
     }
 
     public void LoadTrackData(
@@ -32,7 +40,10 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
         TelemetryData? telemetryData,
         TrackSignalKind kind)
     {
+        ResetCursorReadout();
         CursorLine = null;
+        cursorSeries.Clear();
+        cursorDurationSeconds = context.DurationSeconds;
 
         var samples = points
             .Select(point => (X: point.Time - context.OriginSeconds, Y: GetSignalValue(point, kind)))
@@ -54,9 +65,23 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
         var yValues = TelemetryDisplaySmoothing.Apply(
             samples.Select(sample => sample.Y).ToArray(),
             SmoothingLevel);
+        var signalColor = Color.FromHex("#ffffbf");
+        var (label, unit, format) = kind switch
+        {
+            TrackSignalKind.Speed => ("Speed", "km/h", "0.#"),
+            TrackSignalKind.Elevation => ("Elevation", "m", "0.#"),
+            _ => ("Track", string.Empty, "0.##")
+        };
+        cursorSeries.Add(CursorReadoutSeries.FromScatterSamples(
+            label,
+            unit,
+            signalColor,
+            xValues,
+            yValues,
+            format));
 
         var signal = Plot.Add.Scatter(xValues, yValues);
-        signal.Color = Color.FromHex("#ffffbf");
+        signal.Color = signalColor;
         signal.LineWidth = 2.0f;
         signal.MarkerStyle.IsVisible = false;
 
