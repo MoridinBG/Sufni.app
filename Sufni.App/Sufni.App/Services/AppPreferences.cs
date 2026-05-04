@@ -233,19 +233,27 @@ public sealed class AppPreferences : IAppPreferences
         public bool? Travel { get; set; }
         public bool? Velocity { get; set; }
         public bool? Imu { get; set; }
+        public bool? Speed { get; set; }
+        public bool? Elevation { get; set; }
         public string? TravelSmoothing { get; set; }
         public string? VelocitySmoothing { get; set; }
         public string? ImuSmoothing { get; set; }
+        public string? SpeedSmoothing { get; set; }
+        public string? ElevationSmoothing { get; set; }
 
         public SessionPlotPreferences ToModel()
         {
             return new SessionPlotPreferences(
-                Travel ?? true,
-                Velocity ?? true,
-                Imu ?? true,
-                ParseEnum(TravelSmoothing, PlotSmoothingLevel.Off),
-                ParseEnum(VelocitySmoothing, PlotSmoothingLevel.Off),
-                ParseEnum(ImuSmoothing, PlotSmoothingLevel.Off));
+                Travel: Travel ?? true,
+                Velocity: Velocity ?? true,
+                Imu: Imu ?? true,
+                TravelSmoothing: ParseEnum(TravelSmoothing, PlotSmoothingLevel.Off),
+                VelocitySmoothing: ParseEnum(VelocitySmoothing, PlotSmoothingLevel.Off),
+                ImuSmoothing: ParseEnum(ImuSmoothing, PlotSmoothingLevel.Off),
+                Speed: Speed ?? true,
+                Elevation: Elevation ?? true,
+                SpeedSmoothing: ParseEnum(SpeedSmoothing, PlotSmoothingLevel.Off),
+                ElevationSmoothing: ParseEnum(ElevationSmoothing, PlotSmoothingLevel.Off));
         }
 
         public static SessionPlotPreferencesDocument FromModel(SessionPlotPreferences preferences)
@@ -255,9 +263,13 @@ public sealed class AppPreferences : IAppPreferences
                 Travel = preferences.Travel,
                 Velocity = preferences.Velocity,
                 Imu = preferences.Imu,
+                Speed = preferences.Speed,
+                Elevation = preferences.Elevation,
                 TravelSmoothing = preferences.TravelSmoothing.ToString(),
                 VelocitySmoothing = preferences.VelocitySmoothing.ToString(),
                 ImuSmoothing = preferences.ImuSmoothing.ToString(),
+                SpeedSmoothing = preferences.SpeedSmoothing.ToString(),
+                ElevationSmoothing = preferences.ElevationSmoothing.ToString(),
             };
         }
 

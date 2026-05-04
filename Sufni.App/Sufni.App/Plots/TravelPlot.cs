@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;
@@ -7,8 +8,10 @@ namespace Sufni.App.Plots;
 
 public class TravelPlot(Plot plot) : TelemetryPlot(plot)
 {
+    private readonly List<CursorReadoutSeries> cursorSeries = [];
     private HorizontalSpan? selectedSpan;
     private HorizontalSpan? previewSpan;
+    private double cursorDurationSeconds;
 
     public VerticalLine? CursorLine { get; set; }
 
@@ -23,7 +26,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         previewSpan = SetSpan(previewSpan, startSeconds, endSeconds, Colors.LightGray.WithAlpha(0.12));
     }
 
-    public override void SetCursorPosition(double position)
+    protected override void SetCursorLinePosition(double position)
     {
         if (CursorLine is not null)
         {
@@ -31,11 +34,18 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         }
     }
 
+    protected override CursorReadout? GetCursorReadout(double position)
+    {
+        return CreateCursorReadout(position, cursorDurationSeconds, cursorSeries);
+    }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
 
         CursorLine = null;
+        cursorSeries.Clear();
+        cursorDurationSeconds = telemetryData.Metadata.Duration;
         selectedSpan = null;
         previewSpan = null;
 
@@ -46,6 +56,14 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         if (telemetryData.Front.Present)
         {
             var (frontTravel, frontStep) = PrepareDisplaySignal(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate);
+            cursorSeries.Add(CursorReadoutSeries.FromRegularSamples(
+                "Front",
+                "mm",
+                FrontColor,
+                frontTravel,
+                frontStep,
+                telemetryData.Metadata.Duration,
+                "0.#"));
             var frontSignal = Plot.Add.Signal(frontTravel, frontStep, FrontColor);
             frontSignal.Axes.XAxis = Plot.Axes.Bottom;
             frontSignal.Axes.YAxis = Plot.Axes.Left;
@@ -60,6 +78,14 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         if (telemetryData.Rear.Present)
         {
             var (rearTravel, rearStep) = PrepareDisplaySignal(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate);
+            cursorSeries.Add(CursorReadoutSeries.FromRegularSamples(
+                "Rear",
+                "mm",
+                RearColor,
+                rearTravel,
+                rearStep,
+                telemetryData.Metadata.Duration,
+                "0.#"));
             var rearSignal = Plot.Add.Signal(rearTravel, rearStep, RearColor);
             rearSignal.Axes.XAxis = Plot.Axes.Bottom;
             rearSignal.Axes.YAxis = Plot.Axes.Right;

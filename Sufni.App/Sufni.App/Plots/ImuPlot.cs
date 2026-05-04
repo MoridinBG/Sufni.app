@@ -9,11 +9,14 @@ namespace Sufni.App.Plots;
 
 public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 {
+    private readonly List<CursorReadoutSeries> cursorSeries = [];
+    private double cursorDurationSeconds;
+
     public VerticalLine? CursorLine { get; set; }
 
     public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
-    public override void SetCursorPosition(double position)
+    protected override void SetCursorLinePosition(double position)
     {
         if (CursorLine is not null)
         {
@@ -21,9 +24,17 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         }
     }
 
+    protected override CursorReadout? GetCursorReadout(double position)
+    {
+        return CreateCursorReadout(position, cursorDurationSeconds, cursorSeries);
+    }
+
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
         base.LoadTelemetryData(telemetryData);
+        CursorLine = null;
+        cursorSeries.Clear();
+        cursorDurationSeconds = telemetryData.Metadata.Duration;
 
         if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
         {
@@ -94,13 +105,21 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             var (data, step) = PrepareDisplaySignal(fullData, imuData.SampleRate);
 
             // 0=Frame, 1=Fork (Front), 2=Shock (Rear)
-            Color color = locId switch
+            var (label, color) = locId switch
             {
-                0 => FrameColor,
-                1 => FrontColor,
-                2 => RearColor,
-                _ => Colors.Gray
+                0 => ("Frame", FrameColor),
+                1 => ("Fork", FrontColor),
+                2 => ("Shock", RearColor),
+                _ => ($"Location {locId}", Colors.Gray)
             };
+            cursorSeries.Add(CursorReadoutSeries.FromRegularSamples(
+                label,
+                "g",
+                color,
+                data,
+                step,
+                telemetryData.Metadata.Duration,
+                "0.###"));
 
             var signal = Plot.Add.Signal(data, step, color);
             signal.Axes.XAxis = Plot.Axes.Bottom;

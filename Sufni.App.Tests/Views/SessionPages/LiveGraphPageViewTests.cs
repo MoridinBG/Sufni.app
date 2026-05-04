@@ -34,6 +34,14 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         workspace.VelocityGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live velocity data."));
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.SpeedGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live speed data."));
+        workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.TrackPoints.Returns(
+        [
+            new TrackPoint(0, 0, 0, 100, 5),
+            new TrackPoint(1, 100, 100, 101, 6),
+        ]);
+        workspace.TrackTimelineContext.Returns(new TrackTimeRange(0, 1));
 
         var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
@@ -45,15 +53,19 @@ public class LiveGraphPageViewTests
             .ToArray();
         var graphGrid = mounted.View.GetVisualDescendants()
             .OfType<Grid>()
-            .Single(grid => grid.RowDefinitions.Count == 3 && grid.Children.OfType<PlaceholderOverlayContainer>().Count() == 3);
-        Assert.Equal(3, hosts.Length);
+            .Single(grid => grid.RowDefinitions.Count == 5 && grid.Children.OfType<PlaceholderOverlayContainer>().Count() == 5);
+        Assert.Equal(5, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
         Assert.Equal(SurfacePresentationState.Hidden, hosts[2].PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, hosts[4].PresentationState);
         Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[0].Height.GridUnitType);
         Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[1].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[3].Height.GridUnitType);
         Assert.Equal(graphGrid.RowDefinitions[0].Height.Value, graphGrid.RowDefinitions[1].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
     }
 
     [AvaloniaFact]
@@ -66,6 +78,8 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.VelocityGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
 
         var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
@@ -85,6 +99,8 @@ public class LiveGraphPageViewTests
         graphWorkspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.VelocityGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        graphWorkspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
+        graphWorkspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
         var mediaWorkspace = CreateMediaWorkspace(
         [
             new TrackPoint(0, 0, 0, null),

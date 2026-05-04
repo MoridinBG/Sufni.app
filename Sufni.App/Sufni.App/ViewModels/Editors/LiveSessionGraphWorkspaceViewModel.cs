@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reactive.Linq;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -12,16 +13,34 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
+    private SessionGraphLayout graphLayout = SessionGraphLayout.Empty;
     private uint? sessionId;
     private bool travelExpected;
     private bool imuExpected;
+    private bool gpsExpected;
     private bool hasTravelData;
     private bool hasImuData;
+    private IReadOnlyList<TrackPoint> trackPoints = [];
+    private TrackTimeRange? trackTimelineContext;
     private SessionPlotPreferences plotPreferences = new();
 
     public IObservable<LiveGraphBatch> GraphBatches { get; }
     public LiveSessionPlotRanges PlotRanges { get; }
     public SessionTimelineLinkViewModel Timeline { get; }
+    public IReadOnlyList<TrackPoint> TrackPoints
+    {
+        get => trackPoints;
+        private set => SetProperty(ref trackPoints, value);
+    }
+
+    public TrackTimeRange? TrackTimelineContext
+    {
+        get => trackTimelineContext;
+        private set => SetProperty(ref trackTimelineContext, value);
+    }
+
     public SessionPlotPreferences PlotPreferences
     {
         get => plotPreferences;
@@ -43,6 +62,24 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     {
         get => velocityGraphState;
         private set => SetProperty(ref velocityGraphState, value);
+    }
+
+    public SurfacePresentationState SpeedGraphState
+    {
+        get => speedGraphState;
+        private set => SetProperty(ref speedGraphState, value);
+    }
+
+    public SurfacePresentationState ElevationGraphState
+    {
+        get => elevationGraphState;
+        private set => SetProperty(ref elevationGraphState, value);
+    }
+
+    public SessionGraphLayout GraphLayout
+    {
+        get => graphLayout;
+        private set => SetProperty(ref graphLayout, value);
     }
 
     public LiveSessionGraphWorkspaceViewModel()
@@ -67,8 +104,11 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
             sessionId = null;
             travelExpected = false;
             imuExpected = false;
+            gpsExpected = false;
             hasTravelData = false;
             hasImuData = false;
+            TrackPoints = [];
+            TrackTimelineContext = null;
             RefreshStates();
             return;
         }
@@ -77,11 +117,14 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         sessionId = sessionHeader.SessionId;
         travelExpected = sessionHeader.AcceptedTravelHz > 0;
         imuExpected = sessionHeader.AcceptedImuHz > 0 && sessionHeader.GetActiveImuLocations().Count > 0;
+        gpsExpected = sessionHeader.AcceptedGpsFixHz > 0;
 
         if (sessionChanged)
         {
             hasTravelData = false;
             hasImuData = false;
+            TrackPoints = [];
+            TrackTimelineContext = null;
         }
 
         RefreshStates();
@@ -110,6 +153,13 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
             this.hasImuData = true;
         }
 
+        RefreshStates();
+    }
+
+    public void ApplyTrackPresentation(IReadOnlyList<TrackPoint> points, TrackTimeRange? context)
+    {
+        TrackPoints = points;
+        TrackTimelineContext = context;
         RefreshStates();
     }
 
@@ -164,8 +214,30 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
                 ? SurfacePresentationState.Ready
                 : SurfacePresentationState.WaitingForData("Waiting for live IMU data.");
 
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(TrackPoints);
+        var speedState = !gpsExpected
+            ? SurfacePresentationState.Hidden
+            : hasSpeedSeries
+                ? SurfacePresentationState.Ready
+                : SurfacePresentationState.WaitingForData("Waiting for live speed data.");
+
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(TrackPoints);
+        var elevationState = !gpsExpected
+            ? SurfacePresentationState.Hidden
+            : hasElevationSeries
+                ? SurfacePresentationState.Ready
+                : SurfacePresentationState.WaitingForData("Waiting for live elevation data.");
+
         TravelGraphState = travelState.ApplyPlotSelection(plotPreferences.Travel);
         VelocityGraphState = velocityState.ApplyPlotSelection(plotPreferences.Velocity);
         ImuGraphState = imuState.ApplyPlotSelection(plotPreferences.Imu);
+        SpeedGraphState = speedState.ApplyPlotSelection(plotPreferences.Speed);
+        ElevationGraphState = elevationState.ApplyPlotSelection(plotPreferences.Elevation);
+        GraphLayout = SessionGraphLayout.Create(
+            TravelGraphState,
+            VelocityGraphState,
+            ImuGraphState,
+            SpeedGraphState,
+            ElevationGraphState);
     }
 }

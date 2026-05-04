@@ -15,6 +15,7 @@ using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Tests.Views;
@@ -197,13 +198,13 @@ public class LiveGraphPlotDesktopViewTests
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
-        Assert.Equal(0, grid!.RowDefinitions[0].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[0].Height.GridUnitType);
+        Assert.NotEqual(0, grid!.RowDefinitions[0].Height.Value);
+        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[0].Height.GridUnitType);
         Assert.NotEqual(0, grid.RowDefinitions[2].Height.Value);
         Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
-        Assert.NotEqual(0, grid.RowDefinitions[4].Height.Value);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[4].Height.GridUnitType);
-        Assert.Equal(grid.RowDefinitions[2].Height.Value, grid.RowDefinitions[4].Height.Value);
+        Assert.Equal(0, grid.RowDefinitions[4].Height.Value);
+        Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[4].Height.GridUnitType);
+        Assert.Equal(grid.RowDefinitions[0].Height.Value, grid.RowDefinitions[2].Height.Value);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -234,20 +235,20 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var grid = view.FindControl<Grid>("GraphGrid");
-        var travelVelocitySplitter = view.FindControl<GridSplitter>("TravelVelocitySplitter");
-        var imuSplitter = view.FindControl<GridSplitter>("ImuSplitter");
+        var firstSplitter = view.FindControl<GridSplitter>("FirstGraphSplitter");
+        var secondSplitter = view.FindControl<GridSplitter>("SecondGraphSplitter");
 
         Assert.NotNull(grid);
-        Assert.NotNull(travelVelocitySplitter);
-        Assert.NotNull(imuSplitter);
+        Assert.NotNull(firstSplitter);
+        Assert.NotNull(secondSplitter);
         Assert.NotEqual(0, grid!.RowDefinitions[0].Height.Value);
-        Assert.Equal(0, grid.RowDefinitions[2].Height.Value);
-        Assert.NotEqual(0, grid.RowDefinitions[4].Height.Value);
+        Assert.NotEqual(0, grid.RowDefinitions[2].Height.Value);
+        Assert.Equal(0, grid.RowDefinitions[4].Height.Value);
         Assert.Equal(GridUnitType.Star, grid.RowDefinitions[0].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[4].Height.GridUnitType);
-        Assert.Equal(grid.RowDefinitions[0].Height.Value, grid.RowDefinitions[4].Height.Value);
-        Assert.False(travelVelocitySplitter!.IsVisible);
-        Assert.False(imuSplitter!.IsVisible);
+        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(grid.RowDefinitions[0].Height.Value, grid.RowDefinitions[2].Height.Value);
+        Assert.True(firstSplitter!.IsVisible);
+        Assert.False(secondSplitter!.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -280,6 +281,101 @@ public class LiveGraphPlotDesktopViewTests
         Assert.NotNull(imuView);
         Assert.Equal(0, grid!.RowDefinitions[4].Height.Value);
         Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[4].Height.GridUnitType);
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_ShowsSplitterBetweenVelocityAndSpeed_WhenImuIsHidden()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var workspace = new StubLiveSessionGraphWorkspace(
+            new Subject<LiveGraphBatch>(),
+            hasTravelSection: true,
+            hasVelocitySection: true,
+            hasImuSection: false,
+            hasSpeedSection: true);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var grid = view.FindControl<Grid>("GraphGrid");
+        var firstSplitter = view.FindControl<GridSplitter>("FirstGraphSplitter");
+        var secondSplitter = view.FindControl<GridSplitter>("SecondGraphSplitter");
+        var thirdSplitter = view.FindControl<GridSplitter>("ThirdGraphSplitter");
+        var speedView = view.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
+
+        Assert.NotNull(grid);
+        Assert.NotNull(firstSplitter);
+        Assert.NotNull(secondSplitter);
+        Assert.NotNull(thirdSplitter);
+        Assert.NotNull(speedView);
+        var speedHost = speedView!.GetVisualAncestors().OfType<PlaceholderOverlayContainer>().First();
+        Assert.Equal(4, Grid.GetRow(speedHost));
+        Assert.True(firstSplitter!.IsVisible);
+        Assert.True(secondSplitter!.IsVisible);
+        Assert.False(thirdSplitter!.IsVisible);
+        Assert.Equal(GridUnitType.Star, grid!.RowDefinitions[0].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[4].Height.GridUnitType);
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task LiveSessionGraphDesktopView_ResetVisiblePlotRows_MakesVisibleRowsEqualHeight()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var workspace = new StubLiveSessionGraphWorkspace(
+            new Subject<LiveGraphBatch>(),
+            hasTravelSection: true,
+            hasVelocitySection: true,
+            hasImuSection: true,
+            hasSpeedSection: true);
+        var view = new LiveSessionGraphDesktopView
+        {
+            DataContext = workspace
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var graphGrid = view.FindControl<Grid>("GraphGrid");
+        Assert.NotNull(graphGrid);
+
+        graphGrid!.RowDefinitions[0].Height = new GridLength(4, GridUnitType.Star);
+        graphGrid.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
+        graphGrid.RowDefinitions[4].Height = new GridLength(2, GridUnitType.Star);
+        graphGrid.RowDefinitions[6].Height = new GridLength(5, GridUnitType.Star);
+        graphGrid.RowDefinitions[8].Height = new GridLength(7, GridUnitType.Star);
+
+        SessionGraphGridSizing.ResetVisiblePlotRows(graphGrid);
+
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[0].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[2].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[4].Height);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[6].Height);
+        Assert.Equal(new GridLength(0, GridUnitType.Pixel), graphGrid.RowDefinitions[8].Height);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -338,10 +434,18 @@ public class LiveGraphPlotDesktopViewTests
         Subject<LiveGraphBatch> graphBatches,
         bool hasTravelSection = true,
         bool hasVelocitySection = true,
-        bool hasImuSection = true) : ILiveSessionGraphWorkspace
+        bool hasImuSection = true,
+        bool hasSpeedSection = false,
+        bool hasElevationSection = false) : ILiveSessionGraphWorkspace
     {
         public IObservable<LiveGraphBatch> GraphBatches { get; } = graphBatches;
         public LiveSessionPlotRanges PlotRanges { get; } = new(180, 5, 5);
+        public IReadOnlyList<TrackPoint> TrackPoints { get; } =
+        [
+            new TrackPoint(0, 0, 0, 100, 5),
+            new TrackPoint(1, 1, 1, 101, 6),
+        ];
+        public TrackTimeRange? TrackTimelineContext { get; } = new(0, 1);
         public SurfacePresentationState TravelGraphState { get; } = hasTravelSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
@@ -351,6 +455,18 @@ public class LiveGraphPlotDesktopViewTests
         public SurfacePresentationState ImuGraphState { get; } = hasImuSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
+        public SurfacePresentationState SpeedGraphState { get; } = hasSpeedSection
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState ElevationGraphState { get; } = hasElevationSection
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
+            TravelGraphState,
+            VelocityGraphState,
+            ImuGraphState,
+            SpeedGraphState,
+            ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }

@@ -58,13 +58,12 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             Timeline?.SetCursorPosition(normalizedCursorPosition);
 
-            SetCursorPosition(coords.X);
-            VelocityPlotView?.SetCursorPosition(coords.X);
-            TravelPlotView?.SetCursorPosition(coords.X);
+            SetCursorPositionWithReadout(coords.X);
         }
 
         PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
         PlotControl.PointerMoved += (_, args) => UpdateCursor(args);
+        PlotControl.PointerExited += (_, _) => HideCursorReadout();
     }
 
     private void LinkVelocity()

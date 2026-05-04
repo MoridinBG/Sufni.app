@@ -129,7 +129,9 @@ public partial class MapView : UserControl
         {
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => UpdateTileLayer(ViewModel.SelectedLayer));
         }
-        else if (e.PropertyName == nameof(MapViewModel.FullTrackPoints) || e.PropertyName == nameof(MapViewModel.SessionTrackPoints))
+        else if (e.PropertyName == nameof(MapViewModel.FullTrackPoints)
+                 || e.PropertyName == nameof(MapViewModel.SessionTrackPoints)
+                 || e.PropertyName == nameof(MapViewModel.TimelineContext))
         {
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(UpdateTracks);
         }
@@ -260,9 +262,23 @@ public partial class MapView : UserControl
             return;
         }
 
-        var index = (int)Math.Ceiling((sessionTrackPoints.Count - 1) * pos);
+        var context = GetTimelineContext(sessionTrackPoints);
+        if (context is null)
+        {
+            ClearNormalizedCursorPosition();
+            return;
+        }
+
+        var targetTime = context.Value.OriginSeconds + pos * context.Value.DurationSeconds;
+        var point = FindClosestTrackPoint(sessionTrackPoints, targetTime);
+        if (point is null)
+        {
+            ClearNormalizedCursorPosition();
+            return;
+        }
+
         positionMarkerLayer.Clear();
-        var feature = new PointFeature(sessionTrackPoints[index].X, sessionTrackPoints[index].Y);
+        var feature = new PointFeature(point.X, point.Y);
         feature.Styles.Add(new SymbolStyle
         {
             SymbolType = SymbolType.Ellipse,
@@ -290,14 +306,20 @@ public partial class MapView : UserControl
         startNormalized = Math.Clamp(startNormalized, 0, 1);
         endNormalized = Math.Clamp(endNormalized, 0, 1);
 
-        var startIndex = (int)Math.Floor((sessionTrackPoints.Count - 1) * startNormalized);
-        var endIndex = (int)Math.Ceiling((sessionTrackPoints.Count - 1) * endNormalized);
+        var context = GetTimelineContext(sessionTrackPoints);
+        if (context is null)
+        {
+            return;
+        }
 
-        startIndex = Math.Max(0, startIndex);
-        endIndex = Math.Min(sessionTrackPoints.Count - 1, endIndex);
-        if (startIndex >= endIndex) return;
+        var startSeconds = context.Value.OriginSeconds + startNormalized * context.Value.DurationSeconds;
+        var endSeconds = context.Value.OriginSeconds + endNormalized * context.Value.DurationSeconds;
+        var pointsInRange = GetTrackPointsInTimeRange(sessionTrackPoints, startSeconds, endSeconds);
+        if (pointsInRange.Count == 0)
+        {
+            return;
+        }
 
-        var pointsInRange = sessionTrackPoints.Skip(startIndex).Take(endIndex - startIndex + 1).ToList();
         var minX = pointsInRange.Min(p => p.X);
         var maxX = pointsInRange.Max(p => p.X);
         var minY = pointsInRange.Min(p => p.Y);
@@ -305,6 +327,14 @@ public partial class MapView : UserControl
 
         var width = maxX - minX;
         var height = maxY - minY;
+        if (width <= 0 || height <= 0)
+        {
+            mapControl.Map.Navigator.CenterOnAndZoomTo(
+                new Mapsui.MPoint((minX + maxX) / 2, (minY + maxY) / 2),
+                mapControl.Map.Navigator.Viewport.Resolution);
+            return;
+        }
+
         var paddingX = width * padding;
         var paddingY = height * padding;
 
@@ -353,7 +383,12 @@ public partial class MapView : UserControl
         var minY = viewport.CenterY - halfHeight;
         var maxY = viewport.CenterY + halfHeight;
 
-        if (!TryGetVisibleTrackRange(sessionTrackPoints, minX, maxX, minY, maxY, out var start, out var end)) return;
+        var context = GetTimelineContext(sessionTrackPoints);
+        if (context is null ||
+            !TryGetVisibleTrackRange(sessionTrackPoints, context.Value, minX, maxX, minY, maxY, out var start, out var end))
+        {
+            return;
+        }
 
         Timeline.SetVisibleRange(start, end, this);
     }
@@ -438,6 +473,7 @@ public partial class MapView : UserControl
 
     private static bool TryGetVisibleTrackRange(
         IReadOnlyList<TrackPoint> sessionTrackPoints,
+        TrackTimeRange context,
         double minX,
         double maxX,
         double minY,
@@ -473,10 +509,98 @@ public partial class MapView : UserControl
             return false;
         }
 
-        var count = sessionTrackPoints.Count - 1;
-        start = (double)firstVisible / count;
-        end = (double)lastVisible / count;
+        var firstTime = sessionTrackPoints[firstVisible].Time;
+        var lastTime = sessionTrackPoints[lastVisible].Time;
+        if (!double.IsFinite(firstTime) || !double.IsFinite(lastTime))
+        {
+            start = 0;
+            end = 1;
+            return false;
+        }
+
+        start = NormalizeTime(firstTime, context);
+        end = NormalizeTime(lastTime, context);
         return true;
+    }
+
+    private TrackTimeRange? GetTimelineContext(IReadOnlyList<TrackPoint> sessionTrackPoints)
+    {
+        return ViewModel?.TimelineContext
+               ?? TrackPointSeries.BuildTimelineContext(sessionTrackPoints, originSeconds: null, durationSeconds: null);
+    }
+
+    private static TrackPoint? FindClosestTrackPoint(IReadOnlyList<TrackPoint> sessionTrackPoints, double targetTime)
+    {
+        TrackPoint? closest = null;
+        var closestDistance = double.PositiveInfinity;
+
+        foreach (var point in sessionTrackPoints)
+        {
+            if (!double.IsFinite(point.Time))
+            {
+                continue;
+            }
+
+            var distance = Math.Abs(point.Time - targetTime);
+            if (distance >= closestDistance)
+            {
+                continue;
+            }
+
+            closest = point;
+            closestDistance = distance;
+        }
+
+        return closest;
+    }
+
+    private static List<TrackPoint> GetTrackPointsInTimeRange(
+        IReadOnlyList<TrackPoint> sessionTrackPoints,
+        double startSeconds,
+        double endSeconds)
+    {
+        var pointsInRange = new List<TrackPoint>();
+        TrackPoint? before = null;
+        TrackPoint? after = null;
+
+        foreach (var point in sessionTrackPoints)
+        {
+            if (!double.IsFinite(point.Time))
+            {
+                continue;
+            }
+
+            if (point.Time < startSeconds)
+            {
+                before = point;
+                continue;
+            }
+
+            if (point.Time > endSeconds)
+            {
+                after ??= point;
+                continue;
+            }
+
+            pointsInRange.Add(point);
+        }
+
+        if (before is not null)
+        {
+            pointsInRange.Insert(0, before);
+        }
+
+        if (after is not null)
+        {
+            pointsInRange.Add(after);
+        }
+
+        return pointsInRange;
+    }
+
+    private static double NormalizeTime(double timeSeconds, TrackTimeRange context)
+    {
+        return Math.Clamp((timeSeconds - context.OriginSeconds) / context.DurationSeconds, 0, 1);
     }
 
     private static bool IsPointVisible(TrackPoint point, double minX, double maxX, double minY, double maxY)
