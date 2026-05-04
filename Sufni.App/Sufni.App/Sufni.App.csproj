@@ -45,6 +45,7 @@
     <PackageReference Include="SourceGear.sqlite3" />
     <PackageReference Include="Tmds.MDns" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="ZstdSharp.Port" />
   </ItemGroup>
 
   <ItemGroup>
