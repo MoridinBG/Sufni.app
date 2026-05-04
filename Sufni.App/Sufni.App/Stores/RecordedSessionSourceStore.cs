@@ -7,6 +7,11 @@ using Sufni.App.Services;
 
 namespace Sufni.App.Stores;
 
+/// <summary>
+/// Reactive metadata cache for recorded-session raw sources.
+/// It keeps source identity and hash information in a DynamicData cache and
+/// leaves payload retrieval to explicit load calls.
+/// </summary>
 internal sealed class RecordedSessionSourceStore(IDatabaseService databaseService) : IRecordedSessionSourceStoreWriter
 {
     private readonly SourceCache<RecordedSessionSourceSnapshot, Guid> source = new(s => s.SessionId);

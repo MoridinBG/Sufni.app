@@ -2,6 +2,11 @@ using System;
 
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Flags describing why a recorded-session domain snapshot changed.
+/// Multiple causes can be present when related metadata, source, dependency,
+/// or fingerprint changes are coalesced into one emission.
+/// </summary>
 [Flags]
 public enum DerivedChangeKind
 {

@@ -14,6 +14,11 @@ using Serilog;
 
 namespace Sufni.App.Coordinators;
 
+/// <summary>
+/// Coordinates importing telemetry files into recorded sessions.
+/// It reads the raw SST source, builds processed telemetry from it, and
+/// persists both the canonical raw source and the derived session data.
+/// </summary>
 public class ImportSessionsCoordinator(
     IDatabaseService databaseService,
     ISessionStoreWriter sessionStore,

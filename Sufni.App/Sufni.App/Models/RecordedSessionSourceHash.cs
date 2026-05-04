@@ -5,6 +5,11 @@ using System.Text;
 
 namespace Sufni.App.Models;
 
+/// <summary>
+/// Computes the stable content hash for a recorded source.
+/// The hash covers source kind, source name, schema version, and payload bytes
+/// so source identity changes and raw-data changes are both visible.
+/// </summary>
 public static class RecordedSessionSourceHash
 {
     public static string Compute(

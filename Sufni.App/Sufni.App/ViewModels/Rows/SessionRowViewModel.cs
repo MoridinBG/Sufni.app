@@ -6,13 +6,9 @@ using Sufni.App.SessionGraph;
 namespace Sufni.App.ViewModels.Rows;
 
 /// <summary>
-/// Presentation wrapper around a <see cref="RecordedSessionSummary"/> for use
-/// inside the session list. Refreshes itself via <see cref="Update"/>
-/// when the underlying summary changes. <see cref="OpenPage"/> routes
-/// through <see cref="SessionCoordinator"/>;
-/// <see cref="UndoableDelete"/> hands the row back to the owning list
-/// view model via the <c>requestDelete</c> callback so the list can run
-/// its pending-delete undo window before finalizing.
+/// Binding state for one recorded-session summary row.
+/// It translates summary metadata and staleness into display text, completion
+/// state, timestamp state, and no-raw/stale indicators.
 /// </summary>
 public sealed class SessionRowViewModel : ListItemRowViewModelBase
 {

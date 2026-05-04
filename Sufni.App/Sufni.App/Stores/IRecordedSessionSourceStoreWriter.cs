@@ -5,6 +5,11 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Stores;
 
+/// <summary>
+/// Write side of the recorded-session source cache.
+/// It owns persistence-backed source saves and removals as well as direct
+/// metadata updates after the database has already changed.
+/// </summary>
 public interface IRecordedSessionSourceStoreWriter : IRecordedSessionSourceStore
 {
     Task SaveAsync(RecordedSessionSource source, CancellationToken cancellationToken = default);
