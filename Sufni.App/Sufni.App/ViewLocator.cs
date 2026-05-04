@@ -42,7 +42,10 @@ public class ViewLocator : IDataTemplate
         [typeof(RecordedGraphPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.RecordedGraphPageView(),
         [typeof(NotesPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.NotesPageView(),
         [typeof(PreferencesPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.PreferencesPageView(),
+        [typeof(SessionAnalysisPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.SessionAnalysisPageView(),
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.SpringPageView(),
+        [typeof(StrokesPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.StrokesPageView(),
+        [typeof(VibrationPageViewModel)] = static () => new global::Sufni.App.Views.SessionPages.VibrationPageView(),
     };
 
     private static readonly IReadOnlyDictionary<Type, Func<Control>> DesktopViewFactories = new Dictionary<Type, Func<Control>>

@@ -25,9 +25,10 @@ Key pieces:
 
 `ScreenshotApp.axaml` is a standalone copy of every color, brush, and style
 from the production `App.axaml`. It must be kept in sync manually when
-production resources change. It does **not** load `ViewLocator` because the
-screenshot project does not subclass `Sufni.App.App` and views are
-instantiated directly.
+production resources change. It does **not** load `ViewLocator` by default;
+scenarios that need it (because a view resolves child controls through
+`ItemsControl`/`DataTemplate` lookup) register it at runtime — see
+"Resolving Pages Through ViewLocator" below.
 
 ## Running Screenshots
 
@@ -268,10 +269,92 @@ If a new style include is added to `App.axaml`, add the same include to
 ## Capturing Desktop vs Mobile Variants
 
 The production app uses `App.Current.IsDesktop` (via `ViewLocator`) to
-select between desktop and mobile views. The screenshot project bypasses
-`ViewLocator` entirely — views are constructed directly. To screenshot a
-mobile view, instantiate the mobile view class; to screenshot a desktop
-view, instantiate the desktop view class. No `IsDesktop` flag is involved.
+select between desktop and mobile views. The screenshot project usually
+bypasses `ViewLocator` and instantiates views directly — to screenshot a
+mobile view, construct the mobile view class; for a desktop view,
+construct the desktop view class.
+
+When the scenario does register `ViewLocator` at runtime (see below),
+`App.Current` is `null` because `ScreenshotApp` does not derive from
+`Sufni.App.App`. The locator's `App.Current?.IsDesktop` lookup
+short-circuits to `null`, so it returns mobile views by default. There
+is no supported way to flip it to desktop from a screenshot test.
+
+## Resolving Pages Through ViewLocator
+
+Some shells render their content via `ItemsControl` bound to a list of
+view models — for example `SessionShellMobileView` binds
+`ItemsSource="{Binding Pages}"` to a `PageViewModelBase` collection and
+relies on Avalonia's data-template lookup to materialize each page view.
+That lookup walks `Application.DataTemplates`, which the screenshot app
+leaves empty by default.
+
+Register `ViewLocator` once per scenario, idempotently:
+
+```csharp
+private static void EnsureViewLocator()
+{
+    var application = Application.Current
+        ?? throw new InvalidOperationException("Application.Current is null.");
+    if (application.DataTemplates.OfType<ViewLocator>().Any())
+    {
+        return;
+    }
+    application.DataTemplates.Add(new ViewLocator());
+}
+```
+
+The check protects against duplicate registrations when several
+`[AvaloniaFact]` methods run in the same test process.
+
+## Driving Interaction Before Capture
+
+Capturing an interaction state — a tab navigated to, a dropdown opened,
+a flyout shown — requires three things: invoking the interaction, giving
+Avalonia time to settle layout, and capturing only after settle.
+
+**Click-handler buttons** (`Click="OnSomething"` rather than `Command=`)
+inspect `e.Source` for the originating button. Raising the event
+manually must therefore carry an explicit source:
+
+```csharp
+var button = view.GetVisualDescendants().OfType<Button>()
+    .First(b => b.Name == "Spring");
+button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+```
+
+**ComboBox dropdowns** open via the `IsDropDownOpen` property; no event
+raising required:
+
+```csharp
+combo.IsDropDownOpen = true;
+```
+
+**Layout settling.** When the interaction triggers further layout (e.g.
+a tab click that programmatically scrolls a viewport), the next
+`CaptureRenderedFrame()` can race the layout pass and capture the
+pre-interaction frame. Two techniques together make the capture
+deterministic:
+
+```csharp
+private static async Task FlushAsync()
+{
+    Dispatcher.UIThread.RunJobs();
+    await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+}
+
+// After the interaction, before the real capture:
+view.Measure(new Size(WindowWidth, WindowHeight));
+view.Arrange(new Rect(0, 0, WindowWidth, WindowHeight));
+await FlushAsync();
+_ = window.CaptureRenderedFrame(); // warmup, discarded
+await FlushAsync();
+await FlushAsync();
+```
+
+`RunJobs()` drains pending dispatcher work synchronously; the discarded
+`CaptureRenderedFrame()` forces one full render cycle so the next
+capture reflects the post-interaction state.
 
 ## Capturing Intermediate Async States
 
@@ -342,8 +425,14 @@ Skia's PNG decoder rejects certain minimal or unusual images. Use
 ### A control appears but is empty
 
 The control likely depends on a `DataTemplate` registered in
-`Application.DataTemplates` (via `ViewLocator` in production). Since the
-screenshot app does not register `ViewLocator`, any `ContentControl` that
-resolves its child through data-template lookup will be empty. Either
-set the child view directly in the test, or add a targeted `DataTemplate`
-to `ScreenshotApp.axaml` for the specific view model type.
+`Application.DataTemplates` (via `ViewLocator` in production). The
+screenshot app does not register one by default, so any `ContentControl`
+or `ItemsControl` that resolves children through data-template lookup
+will be empty. Three options:
+
+- Register `ViewLocator` at runtime (see "Resolving Pages Through
+  ViewLocator").
+- Set the child view directly in the test rather than binding a view
+  model.
+- Add a targeted `DataTemplate` to `ScreenshotApp.axaml` for the
+  specific view-model type.

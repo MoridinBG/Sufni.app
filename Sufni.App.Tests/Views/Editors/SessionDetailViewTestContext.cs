@@ -81,7 +81,9 @@ internal sealed class SessionDetailViewTestContext
             DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80)));
     }
 
-    public SessionMobileLoadResult.LoadedFromCache CreateMobileLoadedState(bool includeBalance = true)
+    public SessionMobileLoadResult.LoadedFromCache CreateMobileLoadedState(
+        bool includeBalance = true,
+        bool includeTelemetry = true)
     {
         return new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
             FrontTravelHistogram: DefaultSvg,
@@ -92,7 +94,7 @@ internal sealed class SessionDetailViewTestContext
             ReboundBalance: includeBalance ? DefaultSvg : null,
             DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
             BalanceAvailable: includeBalance),
-            TestTelemetryData.Create(),
+            includeTelemetry ? TestTelemetryData.Create() : null,
             null);
     }
 
