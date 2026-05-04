@@ -10,7 +10,11 @@ d:DesignWidth="320"
 x:DataType="vm:PreferencesPageViewModel"
 mc:Ignorable="d">
 
-    <StackPanel Margin="15,10,15,10" Spacing="8">
+    <ScrollViewer
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    Padding="15,10,15,10"
+    IsScrollChainingEnabled="False">
+        <StackPanel Spacing="8">
         <TextBlock
         FontSize="14"
         FontWeight="SemiBold"
@@ -133,5 +137,6 @@ mc:Ignorable="d">
                 </ComboBox.ItemTemplate>
             </ComboBox>
         </Grid>
-    </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
