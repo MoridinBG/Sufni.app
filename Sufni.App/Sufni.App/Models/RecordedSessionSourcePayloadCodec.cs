@@ -2,6 +2,11 @@ using ZstdSharp;
 
 namespace Sufni.App.Models;
 
+/// <summary>
+/// Encodes and decodes raw-source payloads for persisted recorded sessions.
+/// Imported SST files are stored compressed so the canonical raw artifact can
+/// remain local without carrying the full file size in the hot metadata path.
+/// </summary>
 public static class RecordedSessionSourcePayloadCodec
 {
     private const int ImportedSstCompressionLevel = 3;

@@ -1,5 +1,10 @@
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Classification of whether recorded-session processed data matches its
+/// current raw source and processing inputs. Each state also declares whether
+/// rebuilding derived data is currently possible.
+/// </summary>
 public abstract record SessionStaleness
 {
     public abstract bool IsStale { get; }

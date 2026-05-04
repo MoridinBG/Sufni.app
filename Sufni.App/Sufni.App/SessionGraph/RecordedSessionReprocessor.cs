@@ -10,6 +10,11 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Rebuilds processed telemetry from a persisted recorded raw source.
+/// It decodes the source payload, reconstructs the bike processing context,
+/// generates any GPS-backed full track, and returns the matching fingerprint.
+/// </summary>
 public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fingerprintService)
     : IRecordedSessionReprocessor
 {
@@ -94,6 +99,11 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
     };
 }
 
+/// <summary>
+/// Stable hash over the track point values that affect stored full-track
+/// content. It allows generated tracks to be compared by content instead of by
+/// row identity.
+/// </summary>
 internal static class TrackContentHash
 {
     public static string Compute(Track track)

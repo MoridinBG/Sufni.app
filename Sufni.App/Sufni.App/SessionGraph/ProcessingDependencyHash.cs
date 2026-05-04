@@ -12,6 +12,11 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Builds the canonical hash for setup and bike inputs that affect telemetry
+/// processing. The payload is normalized to include calibration and suspension
+/// geometry while ignoring metadata that does not change computed telemetry.
+/// </summary>
 public static class ProcessingDependencyHash
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

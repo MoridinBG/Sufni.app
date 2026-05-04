@@ -3,6 +3,11 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Builds a one-shot domain snapshot for a recorded session.
+/// The snapshot captures the session metadata, setup and bike dependency
+/// state, raw-source metadata, fingerprint state, and staleness together.
+/// </summary>
 public sealed class RecordedSessionDomainQuery(
     ISessionStore sessionStore,
     ISetupStore setupStore,

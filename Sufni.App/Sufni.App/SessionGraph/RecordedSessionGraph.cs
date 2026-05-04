@@ -10,6 +10,11 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Reactive read model that keeps recorded-session derived state current.
+/// It mirrors the relevant persisted snapshots, coalesces bursts of changes,
+/// and publishes coherent list summaries plus per-session domain snapshots.
+/// </summary>
 public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 {
     private readonly IBikeStore bikeStore;
@@ -494,6 +499,11 @@ internal interface IRecordedSessionGraphScheduler
     void Post(Action action);
 }
 
+/// <summary>
+/// Dispatcher-backed scheduler for deferred recorded-session graph recomputes.
+/// The fixed scheduler keeps graph flush timing independent from the ambient
+/// synchronization context of the thread that queued a change.
+/// </summary>
 internal sealed class AvaloniaRecordedSessionGraphScheduler : IRecordedSessionGraphScheduler
 {
     public static AvaloniaRecordedSessionGraphScheduler Instance { get; } = new();

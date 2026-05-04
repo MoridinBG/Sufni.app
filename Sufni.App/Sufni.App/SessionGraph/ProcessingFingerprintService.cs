@@ -6,6 +6,11 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.SessionGraph;
 
+/// <summary>
+/// Creates, parses, and evaluates processing fingerprints for recorded
+/// sessions. It classifies processed data as current, stale, missing, legacy,
+/// or blocked by missing inputs.
+/// </summary>
 public sealed class ProcessingFingerprintService : IProcessingFingerprintService
 {
     private const int SchemaVersion = 1;

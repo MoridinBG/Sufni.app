@@ -19,9 +19,10 @@ using Serilog;
 namespace Sufni.App.Coordinators;
 
 /// <summary>
-/// Owns the session feature workflow. Subscribes to the synchronization
-/// server's session events in its constructor and keeps the
-/// <see cref="ISessionStore"/> in sync.
+/// Owns recorded-session workflows.
+/// It opens session detail state, loads desktop and mobile telemetry, saves
+/// metadata and live captures, recomputes derived data, deletes sessions, and
+/// applies inbound session changes.
 /// </summary>
 public class SessionCoordinator
 {
@@ -770,6 +771,11 @@ public abstract record LiveSessionSaveResult
     public sealed record Failed(string ErrorMessage) : LiveSessionSaveResult;
 }
 
+/// <summary>
+/// Result of attempting to rebuild a recorded session's derived telemetry.
+/// It distinguishes successful recompute, optimistic-concurrency conflict,
+/// unrecomputable current state, and failure.
+/// </summary>
 public abstract record SessionRecomputeResult
 {
     private SessionRecomputeResult() { }

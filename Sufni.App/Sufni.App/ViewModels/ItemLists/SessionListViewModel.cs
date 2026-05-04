@@ -13,10 +13,12 @@ using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-// Inherits from ItemListViewModelBase for the shared search-bar /
-// date-filter / menu-item state. The items collection is owned locally
-// — `sessionRows` is a typed projection from the store, exposed via
-// the `new` shadow on `Items`.
+/// <summary>
+/// List state for recorded sessions.
+/// It maintains the searchable and date-filtered row collection, tracks
+/// pending delete undo windows, and reflects stale/no-raw session status in
+/// the rows.
+/// </summary>
 public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields

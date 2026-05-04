@@ -3,6 +3,11 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
+/// <summary>
+/// JSON payload shape for a saved live-capture source.
+/// It preserves the measured samples and optional IMU, GPS, and marker data
+/// from the capture so processed telemetry can be rebuilt later.
+/// </summary>
 public sealed record RecordedLiveCaptureSourcePayload(
     [property: JsonPropertyName("schema_version")] int SchemaVersion,
     [property: JsonPropertyName("metadata")] Metadata Metadata,

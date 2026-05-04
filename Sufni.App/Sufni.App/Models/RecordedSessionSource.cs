@@ -3,6 +3,11 @@ using SQLite;
 
 namespace Sufni.App.Models;
 
+/// <summary>
+/// Persisted raw recording artifact for a recorded session.
+/// It keeps the source identity, schema version, content hash, and payload
+/// bytes needed to derive processed telemetry again from the original input.
+/// </summary>
 [Table("session_recording_source")]
 public sealed class RecordedSessionSource
 {

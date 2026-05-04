@@ -25,9 +25,10 @@ using Sufni.Telemetry;
 namespace Sufni.App.ViewModels.Editors;
 
 /// <summary>
-/// Editor view model for a session's detail tab. Constructed by
-/// <see cref="SessionCoordinator"/> from a <see cref="SessionSnapshot"/>;
-/// save and delete route back through the coordinator.
+/// Editor state for a recorded session's detail tab.
+/// It owns loaded telemetry presentation, plot and sidebar workspace state,
+/// editable notes/settings state, and reactive stale-data prompts for the
+/// opened session.
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
