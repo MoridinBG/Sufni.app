@@ -109,6 +109,15 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
 
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ContentControl
+                                Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+                                ClipToBounds="True"
+                                Content="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+
                     <Interaction.Behaviors>
                         <EventTriggerBehavior EventName="Loaded">
                             <InvokeCommandAction
