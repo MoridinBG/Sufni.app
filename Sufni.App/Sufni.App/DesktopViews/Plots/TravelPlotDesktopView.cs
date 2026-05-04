@@ -50,7 +50,7 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             Timeline?.SetCursorPosition(normalizedCursorPosition);
 
-            SetCursorPosition(coords.X);
+            SetCursorPositionWithReadout(coords.X);
         }
 
         PlotControl.AddHandler<PointerPressedEventArgs>(
@@ -109,6 +109,7 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
                 isGraphClickCandidate = false;
             }
         };
+        PlotControl.PointerExited += (_, _) => HideCursorReadout();
 
         PlotControl.AddHandler<PointerReleasedEventArgs>(
             InputElement.PointerReleasedEvent,

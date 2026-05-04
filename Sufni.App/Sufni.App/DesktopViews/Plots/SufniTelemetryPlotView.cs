@@ -134,6 +134,18 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
         RefreshPlot();
     }
 
+    public void SetCursorPositionWithReadout(double position)
+    {
+        plot?.SetCursorPositionWithReadout(position);
+        RefreshPlot();
+    }
+
+    public void HideCursorReadout()
+    {
+        plot?.HideCursorReadout();
+        RefreshPlot();
+    }
+
     public void LinkXAxisWith(SufniTelemetryPlotView other)
     {
         if (!IsPlotReady || !other.IsPlotReady)

@@ -142,12 +142,17 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
             var coords = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
             var normalizedCursorPosition = Math.Clamp(coords.X / TimelineContext.Value.DurationSeconds, 0.0, 1.0);
             Timeline?.SetCursorPosition(normalizedCursorPosition);
-            plot.SetCursorPosition(normalizedCursorPosition * TimelineContext.Value.DurationSeconds);
+            plot.SetCursorPositionWithReadout(normalizedCursorPosition * TimelineContext.Value.DurationSeconds);
             RefreshPlot();
         }
 
         PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
         PlotControl.PointerMoved += (_, args) => UpdateCursor(args);
+        PlotControl.PointerExited += (_, _) =>
+        {
+            plot?.HideCursorReadout();
+            RefreshPlot();
+        };
         PlotControl.PointerReleased += (_, _) => UpdateTimelineRange();
         PlotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();
     }
