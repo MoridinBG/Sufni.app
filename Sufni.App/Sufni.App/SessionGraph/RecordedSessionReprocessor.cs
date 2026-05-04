@@ -51,7 +51,8 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
 
     private static TelemetryData ReprocessImportedSst(RecordedSessionSource source, BikeData bikeData)
     {
-        var rawTelemetryData = RawTelemetryData.FromByteArray(source.Payload);
+        var sstBytes = RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload);
+        var rawTelemetryData = RawTelemetryData.FromByteArray(sstBytes);
         var metadata = MetadataFromRaw(source.SourceName, rawTelemetryData);
         return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData);
     }

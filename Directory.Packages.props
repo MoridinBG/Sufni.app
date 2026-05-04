@@ -46,6 +46,7 @@
     <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="11.3.9.5" />
     <PackageVersion Include="sqlite-net-e" Version="1.11.0" />
     <PackageVersion Include="SourceGear.sqlite3" Version="3.50.4.5" />
+    <PackageVersion Include="ZstdSharp.Port" Version="0.8.7" />
     <!-- Test-only packages used by Sufni.App.Tests / Sufni.Telemetry.Tests -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

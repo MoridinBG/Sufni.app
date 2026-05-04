@@ -206,7 +206,7 @@ public class ImportSessionsCoordinator(
                 telemetrySource.FileName,
                 schemaVersion,
                 telemetrySource.SstBytes),
-            Payload = telemetrySource.SstBytes
+            Payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(telemetrySource.SstBytes)
         };
     }
 
