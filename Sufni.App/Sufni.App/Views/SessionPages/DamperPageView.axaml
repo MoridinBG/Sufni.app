@@ -14,7 +14,7 @@ d:DesignWidth="500"
 x:DataType="vm:DamperPageViewModel"
 mc:Ignorable="d">
 
-    <ScrollViewer Width="{Binding $parent[ScrollViewer].Viewport.Width}" IsScrollChainingEnabled="False">
+    <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical" Spacing="8">
             <ComboBox
             Name="MobileVelocityAverageModeComboBox"
