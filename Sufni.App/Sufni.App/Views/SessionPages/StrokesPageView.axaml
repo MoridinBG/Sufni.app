@@ -1,0 +1,133 @@
+<UserControl
+x:Class="Sufni.App.Views.SessionPages.StrokesPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:StrokesPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    IsScrollChainingEnabled="False">
+        <StackPanel Spacing="8">
+            <ComboBox
+            Name="MobileStrokesSideComboBox"
+            Margin="0,8,0,0"
+            HorizontalAlignment="Stretch"
+            IsVisible="{Binding HasBothStatisticsSides}"
+            ItemsSource="{Binding SuspensionSideOptions}"
+            SelectedValue="{Binding SelectedSuspensionType, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SuspensionSideOption}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SuspensionSideOption">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <Grid Name="FrontStrokesPanel" IsVisible="{Binding ShowFrontStrokes}">
+                <controls:PlaceholderOverlayContainer PresentationState="{Binding Workspace.FrontStatisticsState}">
+                    <controls:PlaceholderOverlayContainer.ReadyContent>
+                        <Grid RowDefinitions="260,260,260,260,220" RowSpacing="8">
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            BalanceType="Compression"
+                            PlotKind="StrokeLengthHistogram"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="1"
+                            BalanceType="Compression"
+                            PlotKind="StrokeSpeedHistogram"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="2"
+                            BalanceType="Rebound"
+                            PlotKind="StrokeLengthHistogram"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="3"
+                            BalanceType="Rebound"
+                            PlotKind="StrokeSpeedHistogram"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="4"
+                            PlotKind="DeepTravelHistogram"
+                            SuspensionType="Front"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+                        </Grid>
+                    </controls:PlaceholderOverlayContainer.ReadyContent>
+                    <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        <controls:SurfacePlaceholderCard Title="Front strokes" MinCardHeight="260" />
+                    </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                </controls:PlaceholderOverlayContainer>
+            </Grid>
+
+            <Grid Name="RearStrokesPanel" IsVisible="{Binding ShowRearStrokes}">
+                <controls:PlaceholderOverlayContainer PresentationState="{Binding Workspace.RearStatisticsState}">
+                    <controls:PlaceholderOverlayContainer.ReadyContent>
+                        <Grid RowDefinitions="260,260,260,260,220" RowSpacing="8">
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            BalanceType="Compression"
+                            PlotKind="StrokeLengthHistogram"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="1"
+                            BalanceType="Compression"
+                            PlotKind="StrokeSpeedHistogram"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="2"
+                            BalanceType="Rebound"
+                            PlotKind="StrokeLengthHistogram"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="3"
+                            BalanceType="Rebound"
+                            PlotKind="StrokeSpeedHistogram"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+
+                            <plots:SessionStatisticsPlotView
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            Grid.Row="4"
+                            PlotKind="DeepTravelHistogram"
+                            SuspensionType="Rear"
+                            Telemetry="{Binding Workspace.TelemetryData}" />
+                        </Grid>
+                    </controls:PlaceholderOverlayContainer.ReadyContent>
+                    <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        <controls:SurfacePlaceholderCard Title="Rear strokes" MinCardHeight="260" />
+                    </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                </controls:PlaceholderOverlayContainer>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
