@@ -14,4 +14,6 @@ public static class SynchronizationProtocol
     public const string EndpointSyncPull = "/sync/pull";
     public const string EndpointSessionIncomplete = "/session/incomplete";
     public const string EndpointSessionData = "/session/data/";
+    public const string EndpointSessionSourceIncomplete = "/session/source/incomplete";
+    public const string EndpointSessionSourceData = "/session/source/data/";
 }

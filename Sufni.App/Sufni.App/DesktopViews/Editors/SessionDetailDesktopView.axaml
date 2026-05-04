@@ -2,6 +2,7 @@
 x:Class="Sufni.App.DesktopViews.Editors.SessionDetailDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="using:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
 xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
@@ -86,6 +87,13 @@ mc:Ignorable="d">
                 <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
+
+        <controls:ErrorMessagesBar
+            Name="SessionErrorMessagesBar"
+            Margin="16"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            MaxWidth="720" />
     </Grid>
 
 </UserControl>

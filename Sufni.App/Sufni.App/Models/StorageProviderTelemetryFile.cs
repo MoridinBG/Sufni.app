@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
 using Sufni.Telemetry;
@@ -46,22 +46,12 @@ public class StorageProviderTelemetryFile : ITelemetryFile
         return telemetryFile;
     }
 
-    public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
+    public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)
     {
         await using var stream = await storageFile.OpenReadAsync();
-        var rawTelemetryData = RawTelemetryData.FromStream(stream);
-        var telemetryMetadata = new Metadata
-        {
-            SourceName = FileName,
-            Version = rawTelemetryData.Version,
-            SampleRate = rawTelemetryData.SampleRate,
-            Timestamp = rawTelemetryData.Timestamp,
-            Duration = rawTelemetryData.SampleRate > 0
-                ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
-                : 0.0
-        };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
-        return telemetryData.BinaryForm;
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory, cancellationToken);
+        return new TelemetryFileSource(FileName, memory.ToArray());
     }
 
     public async Task OnImported()

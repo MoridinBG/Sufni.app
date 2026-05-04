@@ -41,4 +41,15 @@ public class MainPagesViewModelTests
 
         await trackCoordinator.Received(1).ImportGpxAsync();
     }
+
+    [Fact]
+    public async Task Constructor_RefreshesRecordedSourceStore_WithInitialDatabaseLoad()
+    {
+        var sourceStore = Substitute.For<IRecordedSessionSourceStore>();
+        sourceStore.RefreshAsync().Returns(Task.CompletedTask);
+
+        _ = MainPagesViewModelTestFactory.Create(recordedSessionSourceStore: sourceStore);
+
+        await sourceStore.Received(1).RefreshAsync();
+    }
 }

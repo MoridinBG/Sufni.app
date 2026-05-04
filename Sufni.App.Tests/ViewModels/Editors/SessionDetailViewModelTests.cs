@@ -7,6 +7,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
+using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -21,6 +22,7 @@ public class SessionDetailViewModelTests
 {
     private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
+    private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
@@ -38,7 +40,7 @@ public class SessionDetailViewModelTests
 
     private SessionDetailViewModel CreateEditor(
         SessionSnapshot snapshot,
-        IObservable<SessionSnapshot>? watch = null,
+        IObservable<RecordedSessionDomainSnapshot>? watch = null,
         bool? isDesktop = null,
         ISessionPreferences? sessionPreferences = null)
     {
@@ -47,13 +49,14 @@ public class SessionDetailViewModelTests
             TestApp.SetIsDesktop(isDesktop.Value);
         }
 
-        sessionStore.Watch(snapshot.Id).Returns(watch ?? Observable.Empty<SessionSnapshot>());
+        recordedSessionGraph.WatchSession(snapshot.Id).Returns(watch ?? Observable.Empty<RecordedSessionDomainSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         var preferencesService = sessionPreferences ?? CreateSessionPreferences();
         return new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
             sessionStore,
+            recordedSessionGraph,
             sessionPresentationService,
             sessionAnalysisService,
             tileLayerService,
@@ -1059,7 +1062,7 @@ public class SessionDetailViewModelTests
     public async Task WatchRefreshes_AreCoalescedWhileLoadIsInFlight()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        var watch = new Subject<SessionSnapshot>();
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
         var initialResult = new SessionDesktopLoadResult.TelemetryPending();
         var refreshLoadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var refreshPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1127,10 +1130,11 @@ public class SessionDetailViewModelTests
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        watch.OnNext(snapshot with { HasProcessedData = true });
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = true }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
         await refreshLoadStarted.Task;
-        watch.OnNext(snapshot with { HasProcessedData = false });
-        watch.OnNext(snapshot with { HasProcessedData = true });
+        watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = false }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
+        watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = true }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
         refreshPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
             TestTelemetryData.Create(),
             null,
@@ -1154,6 +1158,295 @@ public class SessionDetailViewModelTests
         await sessionCoordinator.Received(3).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         watch.Dispose();
     }
+
+    [AvaloniaFact]
+    public async Task Loaded_PromptsAndRecomputes_WhenInitialDomainIsStaleAndRecomputable()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var recomputedSnapshot = snapshot with { Updated = 7 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var recomputeCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                "Recompute this session now?")
+            .Returns(true);
+        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+                recomputeCalled.TrySetResult();
+                return new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated);
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.Initial,
+            new SessionStaleness.UnknownLegacyFingerprint()));
+
+        await recomputeCalled.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await Task.Yield();
+        Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_AcceptedInitialRecompute_DoesNotPromptAgainForSameStaleDomain()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var recomputedSnapshot = snapshot with { Updated = 7 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var recomputeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recomputeResult = new TaskCompletionSource<SessionRecomputeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var staleDomain = DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.Initial,
+            new SessionStaleness.DependencyHashChanged());
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot, recomputedSnapshot, recomputedSnapshot);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                "Recompute this session now?")
+            .Returns(true);
+        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                recomputeStarted.TrySetResult();
+                return recomputeResult.Task;
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        watch.OnNext(staleDomain);
+        await recomputeStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        watch.OnNext(staleDomain);
+        watch.OnNext(staleDomain);
+        await Task.Yield();
+
+        sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+        recomputeResult.SetResult(new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated));
+        await WaitForAsync(() => editor.BaselineUpdated == recomputedSnapshot.Updated);
+
+        watch.OnNext(staleDomain);
+        await Task.Yield();
+
+        await dialogService.Received(1).ShowConfirmationAsync(
+            "Session trail run has to be recomputed",
+            "Recompute this session now?");
+        await sessionCoordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
+        Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public async Task RecomputeSuccess_ClearsOldPresentationBeforeApplyingFreshTelemetry()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var recomputedSnapshot = snapshot with { Updated = 7 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var oldTelemetry = TestTelemetryData.Create();
+        var freshTelemetry = TestTelemetryData.Create();
+        var telemetryChanges = new List<TelemetryData?>();
+        var loadCount = 0;
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                loadCount++;
+                return loadCount == 1
+                    ? LoadedDesktopResult(oldTelemetry)
+                    : LoadedDesktopResult(freshTelemetry);
+            });
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                "Recompute this session now?")
+            .Returns(true);
+        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+                return new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated);
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        Assert.Same(oldTelemetry, editor.TelemetryData);
+
+        editor.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SessionDetailViewModel.TelemetryData))
+            {
+                telemetryChanges.Add(editor.TelemetryData);
+            }
+        };
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.Initial,
+            new SessionStaleness.DependencyHashChanged()));
+
+        await WaitForAsync(() => ReferenceEquals(editor.TelemetryData, freshTelemetry));
+
+        Assert.Contains(null, telemetryChanges);
+        Assert.Same(freshTelemetry, editor.TelemetryData);
+        await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task CloseCommand_DisposesGraphWatchAfterDeclinedStalePrompt()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                "Recompute this session now?")
+            .Returns(false);
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.Initial,
+            new SessionStaleness.DependencyHashChanged()));
+        await Task.Yield();
+
+        await dialogService.Received(1).ShowConfirmationAsync(
+            "Session trail run has to be recomputed",
+            "Recompute this session now?");
+
+        await editor.CloseCommand.ExecuteAsync(null);
+        shell.Received(1).Close(editor);
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.DependencyChanged,
+            new SessionStaleness.DependencyHashChanged()));
+        await Task.Yield();
+
+        await dialogService.Received(1).ShowConfirmationAsync(
+            "Session trail run has to be recomputed",
+            "Recompute this session now?");
+        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_ReportsNotRecomputable_WhenInitialDomainIsStaleWithoutSource()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.Initial,
+            new SessionStaleness.MissingRawSource()));
+        await Task.Yield();
+
+        Assert.Contains(editor.ErrorMessages, message => message.Contains("cannot be recomputed", StringComparison.Ordinal));
+        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task RuntimeDerivedChange_RecomputeConfirmation_DiscardsDirtyDraft()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
+        var recomputedSnapshot = snapshot with { Updated = 8 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var recomputeCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot, recomputedSnapshot, recomputedSnapshot);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                Arg.Is<string>(message => message.Contains("discard unsaved changes", StringComparison.Ordinal)))
+            .Returns(true);
+        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+                recomputeCalled.TrySetResult();
+                return new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated);
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        editor.DescriptionText = "dirty draft";
+        Assert.True(editor.IsDirty);
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.DependencyChanged,
+            new SessionStaleness.DependencyHashChanged()));
+
+        await recomputeCalled.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await Task.Yield();
+        Assert.False(editor.IsDirty);
+        Assert.Equal("persisted", editor.DescriptionText);
+        Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public async Task RuntimeDerivedChange_DeclinedRecompute_KeepsDirtyDraft()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync("Session trail run has to be recomputed", Arg.Any<string>()).Returns(false);
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        editor.DescriptionText = "dirty draft";
+
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.FingerprintChanged,
+            new SessionStaleness.DependencyHashChanged()));
+        await Task.Yield();
+
+        Assert.True(editor.IsDirty);
+        Assert.Equal("dirty draft", editor.DescriptionText);
+        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    private static RecordedSessionDomainSnapshot DomainFromSnapshot(
+        SessionSnapshot snapshot,
+        DerivedChangeKind changeKind = DerivedChangeKind.None,
+        SessionStaleness? staleness = null) => new(
+        snapshot,
+        null,
+        null,
+        null,
+        null,
+        null,
+        staleness ?? new SessionStaleness.Current(),
+        changeKind);
 
     private static SessionDesktopLoadResult LoadedDesktopResult(TelemetryData telemetry)
     {

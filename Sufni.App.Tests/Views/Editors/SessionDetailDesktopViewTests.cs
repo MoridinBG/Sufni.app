@@ -29,6 +29,7 @@ public class SessionDetailDesktopViewTests
         var statisticsHost = shell.FindControl<ContentControl>("StatisticsHost");
         var controlHost = shell.FindControl<ContentControl>("ControlHost");
         var sidebarHost = shell.FindControl<ContentControl>("SidebarHost");
+        var errorMessagesBar = mounted.View.FindControl<ErrorMessagesBar>("SessionErrorMessagesBar");
 
         var graphView = Assert.IsType<RecordedSessionGraphDesktopView>(shell.GraphContent);
         var mediaView = Assert.IsType<SessionMediaDesktopView>(shell.MediaContent);
@@ -40,6 +41,7 @@ public class SessionDetailDesktopViewTests
         Assert.NotNull(statisticsHost);
         Assert.NotNull(controlHost);
         Assert.NotNull(sidebarHost);
+        Assert.NotNull(errorMessagesBar);
 
         Assert.Same(graphView, graphHost!.Content);
         Assert.Same(mediaView, mediaHost!.Content);
@@ -51,6 +53,7 @@ public class SessionDetailDesktopViewTests
         Assert.Same(mounted.Editor, mediaView.DataContext);
         Assert.Same(mounted.Editor, statisticsView.DataContext);
         Assert.Same(mounted.Editor, sidebarView.DataContext);
+        Assert.Same(mounted.Editor, errorMessagesBar!.DataContext);
     }
 
     [AvaloniaFact]

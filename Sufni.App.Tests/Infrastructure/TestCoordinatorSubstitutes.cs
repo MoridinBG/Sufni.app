@@ -8,6 +8,7 @@ using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Queries;
+using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Services.Management;
@@ -96,9 +97,16 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ISessionPreferences>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
+            Substitute.For<IRecordedSessionSourceStoreWriter>(),
+            Substitute.For<IProcessingFingerprintService>(),
+            Substitute.For<IRecordedSessionDomainQuery>(),
+            Substitute.For<IRecordedSessionGraph>(),
+            Substitute.For<IRecordedSessionReprocessor>(),
             null);
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+        coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
 
         return coordinator;
     }
@@ -131,9 +139,11 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<ImportSessionsCoordinator>(
             Substitute.For<IDatabaseService>(),
             Substitute.For<ISessionStoreWriter>(),
+            Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBackgroundTaskRunner>(),
             Substitute.For<IDaqManagementService>(),
+            Substitute.For<IRecordedSessionReprocessor>(),
             new Func<ImportSessionsViewModel>(() => null!));
 
         coordinator.OpenAsync().Returns(Task.CompletedTask);
@@ -146,6 +156,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IBikeStoreWriter>(),
             Substitute.For<ISetupStoreWriter>(),
             Substitute.For<ISessionStoreWriter>(),
+            Substitute.For<IRecordedSessionSourceStore>(),
             Substitute.For<IPairedDeviceStoreWriter>(),
             null,
             null);

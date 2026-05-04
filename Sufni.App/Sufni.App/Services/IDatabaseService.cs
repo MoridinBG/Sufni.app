@@ -18,10 +18,16 @@ public interface IDatabaseService
     public Task<List<Session>> GetSessionsAsync();
     public Task<Session?> GetSessionAsync(Guid id);
     public Task<List<Guid>> GetIncompleteSessionIdsAsync();
+    public Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync();
+    public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id);
+    public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync();
     public Task<TelemetryData?> GetSessionPsstAsync(Guid id);
     public Task<byte[]?> GetSessionRawPsstAsync(Guid id);
     public Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id);
     public Task<Guid> PutSessionAsync(Session session);
+    public Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
+    public Task DeleteRecordedSessionSourceAsync(Guid sessionId);
+    public Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source);
     public Task PatchSessionPsstAsync(Guid id, byte[] data);
     public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points);
     public Task<SessionCache?> GetSessionCacheAsync(Guid sessionId);

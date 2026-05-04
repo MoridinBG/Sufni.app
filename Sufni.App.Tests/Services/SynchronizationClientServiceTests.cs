@@ -9,9 +9,17 @@ public class SynchronizationClientServiceTests
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
 
-    private SynchronizationClientService CreateService()
+    public SynchronizationClientServiceTests()
     {
         httpApiService.ServerUrl.Returns("https://sync.test");
+        httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
+        database.GetIncompleteSessionIdsAsync().Returns([]);
+        httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
+        database.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
+    }
+
+    private SynchronizationClientService CreateService()
+    {
         return new SynchronizationClientService(database, httpApiService);
     }
 
@@ -47,8 +55,6 @@ public class SynchronizationClientServiceTests
         database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(localChanges);
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
-        database.GetIncompleteSessionIdsAsync().Returns([]);
 
         await CreateService().SyncAll();
 
@@ -88,8 +94,6 @@ public class SynchronizationClientServiceTests
         database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(remoteChanges);
-        httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
-        database.GetIncompleteSessionIdsAsync().Returns([]);
 
         await CreateService().SyncAll();
 
@@ -99,5 +103,74 @@ public class SynchronizationClientServiceTests
             data.Tracks[0].Id == trackId));
         await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+    }
+
+    [Fact]
+    public async Task SyncAll_PushesMissingRecordedSourcesToServer()
+    {
+        var source = CreateRecordedSource();
+
+        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
+        database.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
+
+        await CreateService().SyncAll();
+
+        await httpApiService.Received(1).PatchRecordedSessionSourceAsync(Arg.Is<RecordedSessionSourceTransfer>(transfer =>
+            transfer.SessionId == source.SessionId &&
+            transfer.SourceKind == source.SourceKind &&
+            transfer.SourceName == source.SourceName &&
+            transfer.SchemaVersion == source.SchemaVersion &&
+            transfer.SourceHash == source.SourceHash &&
+            transfer.Payload.SequenceEqual(source.Payload)));
+    }
+
+    [Fact]
+    public async Task SyncAll_PullsMissingRecordedSourcesFromServer()
+    {
+        var source = CreateRecordedSource();
+        var transfer = new RecordedSessionSourceTransfer(
+            source.SessionId,
+            source.SourceKind,
+            source.SourceName,
+            source.SchemaVersion,
+            source.SourceHash,
+            source.Payload);
+
+        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        database.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
+        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+
+        await CreateService().SyncAll();
+
+        await database.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == source.SessionId &&
+            saved.SourceKind == source.SourceKind &&
+            saved.SourceName == source.SourceName &&
+            saved.SchemaVersion == source.SchemaVersion &&
+            saved.SourceHash == source.SourceHash &&
+            saved.Payload.SequenceEqual(source.Payload)));
+    }
+
+    private static RecordedSessionSource CreateRecordedSource()
+    {
+        var payload = new byte[] { 8, 6, 7, 5 };
+        return new RecordedSessionSource
+        {
+            SessionId = Guid.NewGuid(),
+            SourceKind = RecordedSessionSourceKind.ImportedSst,
+            SourceName = "sync.SST",
+            SchemaVersion = 1,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                "sync.SST",
+                1,
+                payload),
+            Payload = payload
+        };
     }
 }

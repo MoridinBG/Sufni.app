@@ -1,8 +1,10 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.SessionGraph;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views.Controls;
@@ -18,11 +20,20 @@ public class SessionListViewTests
         ViewTestHelpers.EnsureViewTestResources();
 
         var snapshot = TestSnapshots.Session(name: "Morning Ride", timestamp: 1_700_000_000, hasProcessedData: false);
-        var store = new SessionStoreStub(snapshot);
+        using var cache = new SourceCache<RecordedSessionSummary, Guid>(summary => summary.Id);
+        cache.AddOrUpdate(new RecordedSessionSummary(
+            snapshot.Id,
+            snapshot.Name,
+            snapshot.Description,
+            snapshot.Timestamp,
+            snapshot.HasProcessedData,
+            new SessionStaleness.MissingProcessedData()));
+        var graph = Substitute.For<IRecordedSessionGraph>();
+        graph.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SessionListViewModel(store, coordinator);
+        var viewModel = new SessionListViewModel(graph, coordinator);
         var view = new SessionListView
         {
             DataContext = viewModel,

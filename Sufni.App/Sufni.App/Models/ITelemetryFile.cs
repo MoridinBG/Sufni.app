@@ -1,6 +1,6 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
-using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -18,7 +18,7 @@ public interface ITelemetryFile
     public bool CanImport { get; }
     public bool HasUnknown { get; }
 
-    public Task<byte[]> GeneratePsstAsync(BikeData bikeData);
+    public Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default);
     public Task OnImported();
     public Task OnTrashed();
 }
