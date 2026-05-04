@@ -41,13 +41,12 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
             var normalizedCursorPosition = Math.Clamp(coords.X / Telemetry.Metadata.Duration, 0.0, 1.0);
             Timeline?.SetCursorPosition(normalizedCursorPosition);
 
-            SetCursorPosition(coords.X);
-            TravelPlotView.SetCursorPosition(coords.X);
-            ImuPlotView?.SetCursorPosition(coords.X);
+            SetCursorPositionWithReadout(coords.X);
         }
 
         PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
         PlotControl.PointerMoved += (_, args) => UpdateCursor(args);
+        PlotControl.PointerExited += (_, _) => HideCursorReadout();
 
         PlotControl.PointerReleased += (_, _) => UpdateTimelineRange();
         PlotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();

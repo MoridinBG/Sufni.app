@@ -12,12 +12,13 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
-public class TrackPoint(double time, double x, double y, double? elevation)
+public class TrackPoint(double time, double x, double y, double? elevation, double? speed = null)
 {
     [JsonPropertyName("time")] public double Time { get; set; } = time;
     [JsonPropertyName("x")] public double X { get; set; } = x;
     [JsonPropertyName("y")] public double Y { get; set; } = y;
     [JsonPropertyName("ele")] public double? Elevation { get; set; } = elevation;
+    [JsonPropertyName("spd")] public double? Speed { get; set; } = speed;
 }
 
 [Table("track")]
@@ -62,7 +63,8 @@ public class Track : Synchronizable
 
     public static Track? FromGpx(string gpx)
     {
-        var points = ParseGpx(gpx);
+        var points = ParseGpx(gpx, out var coordinates);
+        TrackPointSeries.CalculateSpeed(points, coordinates);
         return points.Count == 0 ? null : new Track
         {
             Points = points
@@ -78,9 +80,10 @@ public class Track : Synchronizable
         };
     }
 
-    private static List<TrackPoint> ParseGpx(string gpxData)
+    private static List<TrackPoint> ParseGpx(string gpxData, out List<TrackPointGeoCoordinate> coordinates)
     {
         var points = new List<TrackPoint>();
+        coordinates = [];
 
         XNamespace ns = "http://www.topografix.com/GPX/1/1";
         var xdoc = XDocument.Parse(gpxData);
@@ -103,14 +106,15 @@ public class Track : Synchronizable
 
             double? elevation = null;
             var elevationString = pt.Element(ns + "ele")?.Value;
-            if (!string.IsNullOrEmpty(elevationString))
+            if (!string.IsNullOrEmpty(elevationString) &&
+                double.TryParse(elevationString, CultureInfo.InvariantCulture, out var ele))
             {
-                double.TryParse(elevationString, CultureInfo.InvariantCulture, out var ele);
                 elevation = ele;
             }
 
             var (mx, my) = SphericalMercator.FromLonLat(lon, lat);
             points.Add(new TrackPoint(new DateTimeOffset(time).ToUnixTimeMilliseconds() / 1000.0, mx, my, elevation));
+            coordinates.Add(new TrackPointGeoCoordinate(lat, lon));
         }
 
         return points;
@@ -140,15 +144,76 @@ public class Track : Synchronizable
 
         var xInterpolate = CubicSpline.InterpolatePchip(sessionTimes, session.Select(tp => tp.X).ToArray());
         var yInterpolate = CubicSpline.InterpolatePchip(sessionTimes, session.Select(tp => tp.Y).ToArray());
+        var elevationInterpolate = CreateNullableLinearInterpolator(session, sessionTimes, tp => tp.Elevation);
+        var speedInterpolate = CreateNullableLinearInterpolator(session, sessionTimes, tp => tp.Speed);
 
         var interpolated = x.Select(t =>
             new TrackPoint(
                 start + t,
                 xInterpolate.Interpolate(t),
                 yInterpolate.Interpolate(t),
-                0
+                elevationInterpolate(t),
+                speedInterpolate(t)
             )).ToList();
 
         return interpolated;
+    }
+
+    private static Func<double, double?> CreateNullableLinearInterpolator(
+        IReadOnlyList<TrackPoint> points,
+        IReadOnlyList<double> times,
+        Func<TrackPoint, double?> valueSelector)
+    {
+        var samples = points
+            .Select((point, index) => (Time: times[index], Value: valueSelector(point)))
+            .Where(sample => double.IsFinite(sample.Time)
+                             && sample.Value is { } value
+                             && double.IsFinite(value))
+            .Select(sample => (sample.Time, Value: sample.Value!.Value))
+            .ToArray();
+
+        if (samples.Length < 2)
+        {
+            return _ => null;
+        }
+
+        var sampleTimes = samples.Select(sample => sample.Time).ToArray();
+        var sampleValues = samples.Select(sample => sample.Value).ToArray();
+
+        return time => InterpolateLinear(sampleTimes, sampleValues, time);
+    }
+
+    private static double? InterpolateLinear(IReadOnlyList<double> times, IReadOnlyList<double> values, double time)
+    {
+        if (time <= times[0])
+        {
+            return values[0];
+        }
+
+        if (time >= times[^1])
+        {
+            return values[^1];
+        }
+
+        for (var i = 1; i < times.Count; i++)
+        {
+            if (time > times[i])
+            {
+                continue;
+            }
+
+            var lowerTime = times[i - 1];
+            var upperTime = times[i];
+            var span = upperTime - lowerTime;
+            if (!double.IsFinite(span) || span <= 0)
+            {
+                return null;
+            }
+
+            var ratio = (time - lowerTime) / span;
+            return values[i - 1] + (values[i] - values[i - 1]) * ratio;
+        }
+
+        return values[^1];
     }
 }

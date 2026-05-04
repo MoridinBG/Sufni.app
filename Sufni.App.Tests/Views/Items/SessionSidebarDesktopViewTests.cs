@@ -26,7 +26,12 @@ public class SessionSidebarDesktopViewTests
             DescriptionText = "Suspension notes",
         };
         workspace.PreferencesPage.ApplyPlotPreferences(new SessionPlotPreferences(Travel: false, Velocity: true, Imu: true));
-        workspace.PreferencesPage.ApplyPlotAvailability(travelAvailable: true, velocityAvailable: false, imuAvailable: true);
+        workspace.PreferencesPage.ApplyPlotAvailability(
+            travelAvailable: true,
+            velocityAvailable: false,
+            speedAvailable: true,
+            elevationAvailable: true,
+            imuAvailable: true);
 
         await using var mounted = await MountAsync(workspace);
 

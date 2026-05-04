@@ -92,6 +92,55 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task SessionPreferences_UpdateRecorded_PersistsAllPlotVisibilityValues()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+            {
+                Plots = current.Plots with
+                {
+                    Travel = false,
+                    Velocity = true,
+                    Imu = false,
+                    Speed = true,
+                    Elevation = false,
+                },
+            });
+
+            var reloaded = new AppPreferences(preferencesPath);
+            var stored = await reloaded.Session.GetRecordedAsync(sessionId);
+
+            Assert.False(stored.Plots.Travel);
+            Assert.True(stored.Plots.Velocity);
+            Assert.False(stored.Plots.Imu);
+            Assert.True(stored.Plots.Speed);
+            Assert.False(stored.Plots.Elevation);
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            var plots = json.RootElement
+                .GetProperty("session")
+                .GetProperty("sessions")
+                .GetProperty(sessionId.ToString("D"))
+                .GetProperty("plots");
+            Assert.False(plots.GetProperty("travel").GetBoolean());
+            Assert.True(plots.GetProperty("velocity").GetBoolean());
+            Assert.False(plots.GetProperty("imu").GetBoolean());
+            Assert.True(plots.GetProperty("speed").GetBoolean());
+            Assert.False(plots.GetProperty("elevation").GetBoolean());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task SessionPreferences_UpdateRecorded_MergesSessionEntryWithoutDeletingOthers()
     {
         var (tempDirectory, preferencesPath) = CreatePreferencesPath();
@@ -151,6 +200,8 @@ public class AppPreferencesTests
                     TravelSmoothing = PlotSmoothingLevel.Light,
                     VelocitySmoothing = PlotSmoothingLevel.Strong,
                     ImuSmoothing = PlotSmoothingLevel.Off,
+                    SpeedSmoothing = PlotSmoothingLevel.Light,
+                    ElevationSmoothing = PlotSmoothingLevel.Strong,
                 },
             });
 
@@ -160,6 +211,8 @@ public class AppPreferencesTests
             Assert.Equal(PlotSmoothingLevel.Light, stored.Plots.TravelSmoothing);
             Assert.Equal(PlotSmoothingLevel.Strong, stored.Plots.VelocitySmoothing);
             Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ImuSmoothing);
+            Assert.Equal(PlotSmoothingLevel.Light, stored.Plots.SpeedSmoothing);
+            Assert.Equal(PlotSmoothingLevel.Strong, stored.Plots.ElevationSmoothing);
 
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
             var plots = json.RootElement
@@ -170,6 +223,8 @@ public class AppPreferencesTests
             Assert.Equal("Light", plots.GetProperty("travelSmoothing").GetString());
             Assert.Equal("Strong", plots.GetProperty("velocitySmoothing").GetString());
             Assert.Equal("Off", plots.GetProperty("imuSmoothing").GetString());
+            Assert.Equal("Light", plots.GetProperty("speedSmoothing").GetString());
+            Assert.Equal("Strong", plots.GetProperty("elevationSmoothing").GetString());
         }
         finally
         {
@@ -260,9 +315,13 @@ public class AppPreferencesTests
                           "travel": false,
                           "velocity": true,
                                                     "imu": false,
+                                                    "speed": false,
+                                                    "elevation": true,
                                                     "travelSmoothing": "MissingMode",
                                                     "velocitySmoothing": "MissingMode",
-                                                    "imuSmoothing": "MissingMode"
+                                                    "imuSmoothing": "MissingMode",
+                                                    "speedSmoothing": "MissingMode",
+                                                    "elevationSmoothing": "MissingMode"
                         },
                         "statistics": {
                           "travelHistogramMode": "MissingMode",
@@ -282,9 +341,13 @@ public class AppPreferencesTests
             Assert.False(stored.Plots.Travel);
             Assert.True(stored.Plots.Velocity);
             Assert.False(stored.Plots.Imu);
+            Assert.False(stored.Plots.Speed);
+            Assert.True(stored.Plots.Elevation);
             Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.TravelSmoothing);
             Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.VelocitySmoothing);
             Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ImuSmoothing);
+            Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.SpeedSmoothing);
+            Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ElevationSmoothing);
             Assert.Equal(TravelHistogramMode.ActiveSuspension, stored.Statistics.TravelHistogramMode);
             Assert.Equal(VelocityAverageMode.SampleAveraged, stored.Statistics.VelocityAverageMode);
             Assert.Equal(BalanceDisplacementMode.Zenith, stored.Statistics.BalanceDisplacementMode);
@@ -301,9 +364,13 @@ public class AppPreferencesTests
         Assert.True(preferences.Plots.Travel);
         Assert.True(preferences.Plots.Velocity);
         Assert.True(preferences.Plots.Imu);
+        Assert.True(preferences.Plots.Speed);
+        Assert.True(preferences.Plots.Elevation);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.TravelSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.VelocitySmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ImuSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.SpeedSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ElevationSmoothing);
         Assert.Equal(TravelHistogramMode.ActiveSuspension, preferences.Statistics.TravelHistogramMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, preferences.Statistics.VelocityAverageMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, preferences.Statistics.BalanceDisplacementMode);

@@ -105,6 +105,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private TelemetryData? statisticsTelemetry;
     private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     private TrackPoint[] sessionTrackPoints = [];
+    private TrackPointGeoCoordinate? previousAcceptedGpsCoordinate;
     private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
     private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
     private string? lastError;
@@ -251,6 +252,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             statisticsTelemetry = null;
             damperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
             sessionTrackPoints = [];
+            previousAcceptedGpsCoordinate = null;
             captureStartMonotonicUs = null;
             captureStartUtc = null;
             captureRevision++;
@@ -600,6 +602,8 @@ internal sealed class LiveSessionService : ILiveSessionService
         var lastTrackPointTime = sessionTrackPoints.Length == 0
             ? double.NegativeInfinity
             : sessionTrackPoints[^1].Time;
+        TrackPoint? previousTrackPoint = sessionTrackPoints.Length == 0 ? null : sessionTrackPoints[^1];
+        var previousCoordinate = previousAcceptedGpsCoordinate;
 
         foreach (var record in frame.Records)
         {
@@ -617,13 +621,35 @@ internal sealed class LiveSessionService : ILiveSessionService
                 break;
             }
 
+            var coordinate = new TrackPointGeoCoordinate(record.Latitude, record.Longitude);
+            if (previousTrackPoint is not null && previousCoordinate is { } acceptedCoordinate)
+            {
+                projected.Speed = TrackPointSeries.CalculateSpeed(
+                    previousTrackPoint,
+                    projected,
+                    acceptedCoordinate,
+                    coordinate);
+            }
+
             appendedTrackPoints.Add(projected);
+            if (sessionTrackPoints.Length + appendedTrackPoints.Count == 2
+                && projected.Speed is { } secondSpeed
+                && double.IsFinite(secondSpeed))
+            {
+                var firstPoint = sessionTrackPoints.Length == 0 ? appendedTrackPoints[0] : sessionTrackPoints[0];
+                firstPoint.Speed = secondSpeed;
+            }
+
             lastTrackPointTime = projected.Time;
+            previousTrackPoint = projected;
+            previousCoordinate = coordinate;
         }
 
         if (fallbackToFullProjection)
         {
-            sessionTrackPoints = [.. GpsTrackPointProjection.ProjectAll(gpsRecords.CreateSnapshot().ToArray())];
+            var records = gpsRecords.CreateSnapshot().ToArray();
+            sessionTrackPoints = [.. GpsTrackPointProjection.ProjectAll(records)];
+            previousAcceptedGpsCoordinate = GetLastProjectedCoordinate(records);
         }
         else if (appendedTrackPoints.Count > 0)
         {
@@ -631,9 +657,26 @@ internal sealed class LiveSessionService : ILiveSessionService
             Array.Copy(sessionTrackPoints, updatedTrackPoints, sessionTrackPoints.Length);
             appendedTrackPoints.CopyTo(updatedTrackPoints, sessionTrackPoints.Length);
             sessionTrackPoints = updatedTrackPoints;
+            previousAcceptedGpsCoordinate = previousCoordinate;
         }
 
         captureRevision++;
+    }
+
+    private static TrackPointGeoCoordinate? GetLastProjectedCoordinate(IEnumerable<GpsRecord> records)
+    {
+        GpsRecord? lastProjectedRecord = null;
+        foreach (var record in records.OrderBy(record => record.Timestamp))
+        {
+            if (GpsTrackPointProjection.TryProject(record) is not null)
+            {
+                lastProjectedRecord = record;
+            }
+        }
+
+        return lastProjectedRecord is null
+            ? null
+            : new TrackPointGeoCoordinate(lastProjectedRecord.Latitude, lastProjectedRecord.Longitude);
     }
 
     private bool QueueDisplayUpdate(LiveDisplayUpdate update)

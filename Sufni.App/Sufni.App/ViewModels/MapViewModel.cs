@@ -24,6 +24,9 @@ public partial class MapViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasSessionTrackPoints))]
     private List<TrackPoint>? sessionTrackPoints;
 
+    [ObservableProperty]
+    private TrackTimeRange? timelineContext;
+
     public bool HasSessionTrackPoints => SessionTrackPoints?.Count > 0;
 
     public ObservableCollection<TileLayerConfig> AvailableLayers => tileLayerService.AvailableLayers;

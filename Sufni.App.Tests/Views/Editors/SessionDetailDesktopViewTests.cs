@@ -85,16 +85,17 @@ public class SessionDetailDesktopViewTests
             loadResult: new SessionDesktopLoadResult.TelemetryPending());
 
         var graphView = mounted.View.GetVisualDescendants().OfType<RecordedSessionGraphDesktopView>().Single();
-        var graphHosts = graphView.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
+        var graphHosts = graphView.GetVisualDescendants()
+            .OfType<PlaceholderOverlayContainer>()
+            .Where(host => host.IsVisible)
+            .ToArray();
         var progressIndicators = graphView.GetVisualDescendants()
             .OfType<Control>()
-            .Where(control => control.Name == "ProgressIndicator")
+            .Where(control => control.Name == "ProgressIndicator" && control.IsVisible)
             .ToArray();
 
-        Assert.Equal(2, graphHosts.Length);
-        Assert.All(graphHosts, host => Assert.True(host.IsVisible));
-        Assert.Equal(2, progressIndicators.Length);
-        Assert.All(progressIndicators, indicator => Assert.True(indicator.IsVisible));
+        Assert.Equal(3, graphHosts.Length);
+        Assert.Equal(3, progressIndicators.Length);
     }
 
     [AvaloniaFact]

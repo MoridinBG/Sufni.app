@@ -172,6 +172,53 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task GpsFrames_CalculateSpeedIncrementally_AndCopySecondSpeedToFirstPoint()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateGpsBatchFrame());
+        frames.OnNext(CreateGpsBatchFrame(
+            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
+            latitude: 42.6978,
+            longitude: 23.3220,
+            altitude: 601));
+
+        var points = service.Current.SessionTrackPoints;
+        Assert.Equal(2, points.Count);
+        Assert.NotNull(points[1].Speed);
+        Assert.True(points[1].Speed > 0);
+        Assert.Equal(points[1].Speed, points[0].Speed);
+    }
+
+    [Fact]
+    public async Task GpsFrames_OutOfOrderFallback_RebuildsCalculatedSpeeds()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateGpsBatchFrame());
+        frames.OnNext(CreateGpsBatchFrame(
+            timestamp: new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc),
+            latitude: 42.6979,
+            longitude: 23.3221,
+            altitude: 602));
+        frames.OnNext(CreateGpsBatchFrame(
+            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
+            latitude: 42.6978,
+            longitude: 23.3220,
+            altitude: 601));
+
+        var points = service.Current.SessionTrackPoints;
+        Assert.Equal(3, points.Count);
+        Assert.True(points[0].Time < points[1].Time);
+        Assert.True(points[1].Time < points[2].Time);
+        Assert.NotNull(points[0].Speed);
+        Assert.NotNull(points[1].Speed);
+        Assert.NotNull(points[2].Speed);
+    }
+
+    [Fact]
     public async Task TravelFrames_ThrottleStatisticsUpdatesToConfiguredInterval()
     {
         var service = CreateService();

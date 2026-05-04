@@ -20,6 +20,8 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     public PlotPreferenceItemViewModel TravelPlot { get; } = new("Travel");
     public PlotPreferenceItemViewModel VelocityPlot { get; } = new("Velocity");
     public PlotPreferenceItemViewModel ImuPlot { get; } = new("IMU");
+    public PlotPreferenceItemViewModel SpeedPlot { get; } = new("Speed");
+    public PlotPreferenceItemViewModel ElevationPlot { get; } = new("Elevation");
     public IReadOnlyList<PlotSmoothingOption> SmoothingOptions { get; } =
     [
         new(PlotSmoothingLevel.Off, "Off"),
@@ -35,12 +37,16 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     public SessionPlotPreferences CreatePlotPreferences()
     {
         return new SessionPlotPreferences(
-            TravelPlot.Selected,
-            VelocityPlot.Selected,
-            ImuPlot.Selected,
-            TravelPlot.SelectedSmoothing,
-            VelocityPlot.SelectedSmoothing,
-            ImuPlot.SelectedSmoothing);
+            Travel: TravelPlot.Selected,
+            Velocity: VelocityPlot.Selected,
+            Imu: ImuPlot.Selected,
+            TravelSmoothing: TravelPlot.SelectedSmoothing,
+            VelocitySmoothing: VelocityPlot.SelectedSmoothing,
+            ImuSmoothing: ImuPlot.SelectedSmoothing,
+            Speed: SpeedPlot.Selected,
+            Elevation: ElevationPlot.Selected,
+            SpeedSmoothing: SpeedPlot.SelectedSmoothing,
+            ElevationSmoothing: ElevationPlot.SelectedSmoothing);
     }
 
     public void ApplyPlotPreferences(SessionPlotPreferences preferences)
@@ -48,15 +54,26 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         TravelPlot.Selected = preferences.Travel;
         VelocityPlot.Selected = preferences.Velocity;
         ImuPlot.Selected = preferences.Imu;
+        SpeedPlot.Selected = preferences.Speed;
+        ElevationPlot.Selected = preferences.Elevation;
         TravelPlot.SelectedSmoothing = preferences.TravelSmoothing;
         VelocityPlot.SelectedSmoothing = preferences.VelocitySmoothing;
         ImuPlot.SelectedSmoothing = preferences.ImuSmoothing;
+        SpeedPlot.SelectedSmoothing = preferences.SpeedSmoothing;
+        ElevationPlot.SelectedSmoothing = preferences.ElevationSmoothing;
     }
 
-    public void ApplyPlotAvailability(bool travelAvailable, bool velocityAvailable, bool imuAvailable)
+    public void ApplyPlotAvailability(
+        bool travelAvailable,
+        bool velocityAvailable,
+        bool speedAvailable,
+        bool elevationAvailable,
+        bool imuAvailable)
     {
         TravelPlot.Available = travelAvailable;
         VelocityPlot.Available = velocityAvailable;
+        SpeedPlot.Available = speedAvailable;
+        ElevationPlot.Available = elevationAvailable;
         ImuPlot.Available = imuAvailable;
     }
 }
