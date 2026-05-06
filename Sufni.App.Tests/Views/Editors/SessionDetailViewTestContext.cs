@@ -7,6 +7,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Editors;
 using Sufni.App.Models;
+using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -23,6 +24,7 @@ internal sealed class SessionDetailViewTestContext
 
     private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
+    private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
@@ -142,7 +144,7 @@ internal sealed class SessionDetailViewTestContext
 
     private void ConfigureStores(SessionSnapshot snapshot)
     {
-        sessionStore.Watch(snapshot.Id).Returns(Observable.Empty<SessionSnapshot>());
+        recordedSessionGraph.WatchSession(snapshot.Id).Returns(Observable.Empty<RecordedSessionDomainSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
     }
 
@@ -152,6 +154,7 @@ internal sealed class SessionDetailViewTestContext
             snapshot,
             sessionCoordinator,
             sessionStore,
+            recordedSessionGraph,
             sessionPresentationService,
             sessionAnalysisService,
             tileLayerService,

@@ -2,10 +2,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using Sufni.App.Models;
+using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -17,9 +19,10 @@ using Serilog;
 namespace Sufni.App.Coordinators;
 
 /// <summary>
-/// Owns the session feature workflow. Subscribes to the synchronization
-/// server's session events in its constructor and keeps the
-/// <see cref="ISessionStore"/> in sync.
+/// Owns recorded-session workflows.
+/// It opens session detail state, loads desktop and mobile telemetry, saves
+/// metadata and live captures, recomputes derived data, deletes sessions, and
+/// applies inbound session changes.
 /// </summary>
 public class SessionCoordinator
 {
@@ -36,6 +39,11 @@ public class SessionCoordinator
     private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
+    private readonly IRecordedSessionSourceStoreWriter sourceStore;
+    private readonly IProcessingFingerprintService fingerprintService;
+    private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
+    private readonly IRecordedSessionGraph recordedSessionGraph;
+    private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -49,6 +57,11 @@ public class SessionCoordinator
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         IDialogService dialogService,
+        IRecordedSessionSourceStoreWriter sourceStore,
+        IProcessingFingerprintService fingerprintService,
+        IRecordedSessionDomainQuery recordedSessionDomainQuery,
+        IRecordedSessionGraph recordedSessionGraph,
+        IRecordedSessionReprocessor recordedSessionReprocessor,
         ISynchronizationServerService? synchronizationServer = null)
     {
         this.sessionStore = sessionStore;
@@ -62,11 +75,17 @@ public class SessionCoordinator
         this.sessionPreferences = sessionPreferences;
         this.shell = shell;
         this.dialogService = dialogService;
+        this.sourceStore = sourceStore;
+        this.fingerprintService = fingerprintService;
+        this.recordedSessionDomainQuery = recordedSessionDomainQuery;
+        this.recordedSessionGraph = recordedSessionGraph;
+        this.recordedSessionReprocessor = recordedSessionReprocessor;
 
         if (synchronizationServer is not null)
         {
             synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
             synchronizationServer.SessionDataArrived += OnSessionDataArrived;
+            synchronizationServer.SessionSourceDataArrived += OnSessionSourceDataArrived;
         }
     }
 
@@ -81,6 +100,7 @@ public class SessionCoordinator
                 snapshot,
                 this,
                 sessionStore,
+                recordedSessionGraph,
                 sessionPresentationService,
                 sessionAnalysisService,
                 tileLayerService,
@@ -251,6 +271,11 @@ public class SessionCoordinator
 
         try
         {
+            if (current is not null && session.ProcessingFingerprintJson is null)
+            {
+                session.ProcessingFingerprintJson = current.ProcessingFingerprintJson;
+            }
+
             await databaseService.PutSessionAsync(session);
             // PutSessionAsync only writes metadata columns; re-fetch via
             // the SQL-computed has_data path so the snapshot's
@@ -293,37 +318,41 @@ public class SessionCoordinator
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            Guid? fullTrackId = null;
+            Track? fullTrack = null;
             if (telemetryData.GpsData is { Length: > 0 })
             {
-                var track = await backgroundTaskRunner.RunAsync(
+                fullTrack = await backgroundTaskRunner.RunAsync(
                     () => Track.FromGpsRecords(telemetryData.GpsData),
                     cancellationToken);
 
                 cancellationToken.ThrowIfCancellationRequested();
-
-                if (track is not null)
-                {
-                    await databaseService.PutAsync(track);
-                    fullTrackId = track.Id;
-                }
             }
+
+            var source = CreateLiveCaptureSource(session.Id, capture.TelemetryCapture);
+            var setup = await databaseService.GetAsync<Setup>(capture.Context.SetupId)
+                        ?? throw new InvalidOperationException("Setup is missing.");
+            var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
+                       ?? throw new InvalidOperationException("Bike is missing.");
+            var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+            var bikeSnapshot = BikeSnapshot.From(bike);
+            var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+            var sessionSnapshot = SessionSnapshot.From(session);
+            var fingerprint = fingerprintService.CreateCurrent(
+                sessionSnapshot,
+                setupSnapshot,
+                bikeSnapshot,
+                sourceSnapshot);
 
             session.ProcessedData = telemetryData.BinaryForm;
-            session.FullTrack = fullTrackId;
+            session.ProcessingFingerprintJson = AppJson.Serialize(fingerprint);
 
-            await databaseService.PutSessionAsync(session);
-            var fresh = await databaseService.GetSessionAsync(session.Id);
-            if (fresh is null)
-            {
-                logger.Error("Live session save failed because the session disappeared after save for {SessionId}", session.Id);
-                return new LiveSessionSaveResult.Failed("Session disappeared after save");
-            }
+            var fresh = await databaseService.PutProcessedSessionAsync(session, fullTrack, source);
 
             var snapshot = SessionSnapshot.From(fresh);
             await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
 
             sessionStore.Upsert(snapshot);
+            sourceStore.Upsert(sourceSnapshot);
 
             logger.Information("Live session save completed for {SessionId}", session.Id);
             return new LiveSessionSaveResult.Saved(snapshot.Id, snapshot.Updated);
@@ -336,6 +365,145 @@ public class SessionCoordinator
         {
             logger.Error(e, "Live session save failed for {SessionId}", session.Id);
             return new LiveSessionSaveResult.Failed(e.Message);
+        }
+    }
+
+    public virtual async Task<SessionRecomputeResult> RecomputeAsync(
+        Guid sessionId,
+        long baselineUpdated,
+        CancellationToken cancellationToken = default)
+    {
+        logger.Information("Starting recorded session recompute for {SessionId}", sessionId);
+
+        try
+        {
+            var domain = recordedSessionDomainQuery.Get(sessionId);
+            if (domain is null)
+            {
+                logger.Warning("Recorded session recompute failed because session {SessionId} is missing", sessionId);
+                return new SessionRecomputeResult.Failed("Session is missing.");
+            }
+
+            if (domain.Session.Updated > baselineUpdated)
+            {
+                logger.Warning("Recorded session recompute conflict for {SessionId}", sessionId);
+                return new SessionRecomputeResult.Conflict(domain.Session);
+            }
+
+            if (!domain.Staleness.CanRecompute)
+            {
+                logger.Warning("Recorded session {SessionId} is not recomputable because {Reason}", sessionId, domain.Staleness.GetType().Name);
+                return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
+            }
+
+            var source = await sourceStore.LoadAsync(sessionId, cancellationToken);
+            if (source is null)
+            {
+                logger.Warning("Recorded session recompute failed because source {SessionId} is missing", sessionId);
+                return new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource());
+            }
+
+            var loadedSourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+            if (domain.Source != loadedSourceSnapshot)
+            {
+                sourceStore.Upsert(loadedSourceSnapshot);
+                domain = recordedSessionDomainQuery.Get(sessionId);
+                if (domain is null)
+                {
+                    logger.Warning("Recorded session recompute failed because session {SessionId} disappeared after source refresh", sessionId);
+                    return new SessionRecomputeResult.Failed("Session is missing.");
+                }
+
+                if (domain.Session.Updated > baselineUpdated)
+                {
+                    logger.Warning("Recorded session recompute conflict for {SessionId} after source refresh", sessionId);
+                    return new SessionRecomputeResult.Conflict(domain.Session);
+                }
+
+                if (!domain.Staleness.CanRecompute)
+                {
+                    logger.Warning("Recorded session {SessionId} is not recomputable after source refresh because {Reason}", sessionId, domain.Staleness.GetType().Name);
+                    return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
+                }
+            }
+
+            var reprocessResult = await backgroundTaskRunner.RunAsync(
+                () => recordedSessionReprocessor.ReprocessAsync(domain, source, cancellationToken),
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var persisted = await databaseService.GetSessionAsync(sessionId);
+            if (persisted is null)
+            {
+                logger.Warning("Recorded session recompute failed because session {SessionId} disappeared before persistence", sessionId);
+                return new SessionRecomputeResult.Failed("Session is missing.");
+            }
+
+            if (persisted.Updated > baselineUpdated)
+            {
+                var current = SessionSnapshot.From(persisted);
+                logger.Warning("Recorded session recompute conflict for {SessionId} before persistence", sessionId);
+                return new SessionRecomputeResult.Conflict(current);
+            }
+
+            var previousFullTrackId = persisted.FullTrack;
+            var previousFullTrack = previousFullTrackId.HasValue
+                ? await databaseService.GetAsync<Track>(previousFullTrackId.Value)
+                : null;
+            Track? newFullTrack = null;
+
+            if (reprocessResult.GeneratedFullTrack is null)
+            {
+                persisted.FullTrack = null;
+                persisted.Track = null;
+            }
+            else if (previousFullTrack is not null &&
+                     TrackContentHash.PointsEqual(previousFullTrack, reprocessResult.GeneratedFullTrack))
+            {
+                persisted.FullTrack = previousFullTrackId;
+            }
+            else
+            {
+                newFullTrack = reprocessResult.GeneratedFullTrack;
+                persisted.Track = null;
+            }
+
+            persisted.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
+            persisted.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
+
+            var fresh = await databaseService.PutProcessedSessionIfUnchangedAsync(
+                persisted,
+                newFullTrack,
+                source: null,
+                baselineUpdated);
+            if (fresh is null)
+            {
+                var current = await databaseService.GetSessionAsync(sessionId);
+                if (current is null)
+                {
+                    return new SessionRecomputeResult.Failed("Session is missing.");
+                }
+
+                return new SessionRecomputeResult.Conflict(SessionSnapshot.From(current));
+            }
+
+            var snapshot = SessionSnapshot.From(fresh);
+            sessionStore.Upsert(snapshot);
+
+            await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, fresh.FullTrack, sessionId);
+
+            logger.Information("Recorded session recompute completed for {SessionId}", sessionId);
+            return new SessionRecomputeResult.Recomputed(snapshot.Updated);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Recorded session recompute failed for {SessionId}", sessionId);
+            return new SessionRecomputeResult.Failed(e.Message);
         }
     }
 
@@ -356,6 +524,7 @@ public class SessionCoordinator
             }
 
             await databaseService.DeleteAsync<Session>(sessionId);
+            await sourceStore.RemoveAsync(sessionId);
 
             if (shouldDeleteTrack && trackId.HasValue)
             {
@@ -388,6 +557,61 @@ public class SessionCoordinator
         return backgroundTaskRunner.RunAsync(
             () => databaseService.GetSessionPsstAsync(sessionId),
             cancellationToken);
+    }
+
+    private async Task DeletePreviousFullTrackIfOrphanedAsync(Guid? previousFullTrackId, Guid? currentFullTrackId, Guid sessionId)
+    {
+        if (!previousFullTrackId.HasValue || previousFullTrackId == currentFullTrackId)
+        {
+            return;
+        }
+
+        var sessions = await databaseService.GetAllAsync<Session>();
+        var stillReferenced = sessions.Any(existing =>
+            existing.Id != sessionId &&
+            existing.Deleted is null &&
+            existing.FullTrack == previousFullTrackId.Value);
+        if (stillReferenced)
+        {
+            return;
+        }
+
+        try
+        {
+            await databaseService.DeleteAsync<Track>(previousFullTrackId.Value);
+        }
+        catch (Exception e)
+        {
+            logger.Warning(e, "Failed to delete orphaned track {TrackId} after recomputing session {SessionId}", previousFullTrackId.Value, sessionId);
+        }
+    }
+
+    private static RecordedSessionSource CreateLiveCaptureSource(Guid sessionId, LiveTelemetryCapture capture)
+    {
+        const int schemaVersion = 1;
+        var payload = new RecordedLiveCaptureSourcePayload(
+            schemaVersion,
+            capture.Metadata,
+            capture.FrontMeasurements,
+            capture.RearMeasurements,
+            capture.ImuData,
+            capture.GpsData,
+            capture.Markers);
+        var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
+
+        return new RecordedSessionSource
+        {
+            SessionId = sessionId,
+            SourceKind = RecordedSessionSourceKind.LiveCapture,
+            SourceName = capture.Metadata.SourceName,
+            SchemaVersion = schemaVersion,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.LiveCapture,
+                capture.Metadata.SourceName,
+                schemaVersion,
+                payloadBytes),
+            Payload = payloadBytes
+        };
     }
 
     private async Task<TelemetryData?> EnsureTelemetryDataAvailableForLoadAsync(
@@ -513,6 +737,36 @@ public class SessionCoordinator
             sessionStore.Upsert(snapshot);
         });
     }
+
+    private async void OnSessionSourceDataArrived(object? sender, SessionDataArrivedEventArgs e)
+    {
+        try
+        {
+            await HandleSessionSourceDataArrivedAsync(e);
+        }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Failed to apply inbound recorded source for {SessionId}", e.SessionId);
+        }
+    }
+
+    private async Task HandleSessionSourceDataArrivedAsync(SessionDataArrivedEventArgs e)
+    {
+        logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
+
+        var source = await databaseService.GetRecordedSessionSourceAsync(e.SessionId);
+        if (source is null)
+        {
+            logger.Verbose("Ignoring inbound recorded source because source {SessionId} is missing", e.SessionId);
+            return;
+        }
+
+        var snapshot = RecordedSessionSourceSnapshot.From(source);
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            sourceStore.Upsert(snapshot);
+        });
+    }
 }
 
 public abstract record SessionSaveResult
@@ -530,6 +784,21 @@ public abstract record LiveSessionSaveResult
 
     public sealed record Saved(Guid SessionId, long Updated) : LiveSessionSaveResult;
     public sealed record Failed(string ErrorMessage) : LiveSessionSaveResult;
+}
+
+/// <summary>
+/// Result of attempting to rebuild a recorded session's derived telemetry.
+/// It distinguishes successful recompute, optimistic-concurrency conflict,
+/// unrecomputable current state, and failure.
+/// </summary>
+public abstract record SessionRecomputeResult
+{
+    private SessionRecomputeResult() { }
+
+    public sealed record Recomputed(long NewBaselineUpdated) : SessionRecomputeResult;
+    public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionRecomputeResult;
+    public sealed record NotRecomputable(SessionStaleness Reason) : SessionRecomputeResult;
+    public sealed record Failed(string ErrorMessage) : SessionRecomputeResult;
 }
 
 public sealed record SessionDeleteResult(SessionDeleteOutcome Outcome, string? ErrorMessage = null);

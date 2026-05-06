@@ -17,7 +17,7 @@ public class TelemetryDisplaySmoothingTests
     }
 
     [Fact]
-    public void Apply_UsesCenteredMovingAverage_ForRecordedDisplaySamples()
+    public void Apply_UsesConfiguredCenteredMovingAverage_ForRecordedDisplaySamples()
     {
         double[] samples = [1, 2, 3, 4, 5];
 
@@ -25,11 +25,11 @@ public class TelemetryDisplaySmoothingTests
 
         Assert.Collection(
             result,
-            value => Assert.Equal(2.0, value, 10),
-            value => Assert.Equal(2.5, value, 10),
             value => Assert.Equal(3.0, value, 10),
-            value => Assert.Equal(3.5, value, 10),
-            value => Assert.Equal(4.0, value, 10));
+            value => Assert.Equal(3.0, value, 10),
+            value => Assert.Equal(3.0, value, 10),
+            value => Assert.Equal(3.0, value, 10),
+            value => Assert.Equal(3.0, value, 10));
     }
 
     [Fact]
@@ -53,6 +53,6 @@ public class TelemetryDisplaySmoothingTests
             secondBatch,
             value => Assert.Equal(2.5, value, 10),
             value => Assert.Equal(3.0, value, 10),
-            value => Assert.Equal(4.0, value, 10));
+            value => Assert.Equal(3.5, value, 10));
     }
 }

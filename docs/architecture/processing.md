@@ -93,7 +93,20 @@ TelemetryData
 └── Markers: MarkerData[] (V4 only)
 ```
 
-The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a BLOB in the session table.
+The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a derived BLOB in the `session.data` column. The original recording source is persisted separately so the BLOB can be regenerated when processing inputs change.
+
+### Recorded Session Derivation
+
+Recorded sessions have two durable data layers:
+
+- **Recording source** — `RecordedSessionSource` in `session_recording_source`, keyed by `session_id`. Imported SST sessions store compressed original SST bytes (`SourceKind = ImportedSst`). Saved live captures store a schema-versioned JSON payload (`SourceKind = LiveCapture`) containing capture metadata, raw front/rear measurements, IMU data, GPS data, and markers. The live-capture source deliberately excludes `BikeData`; calibration is resolved again from the current setup and bike when the source is processed.
+- **Processed telemetry** — MessagePack `TelemetryData` in `session.data`, derived from the recording source plus the current setup/bike calibration and the current `TelemetryProcessingVersion`.
+
+`RecordedSessionReprocessor` is the single recorded-session derivation path. For imported SST sources it decompresses the stored source bytes, parses them with `RawTelemetryData.FromByteArray`, rebuilds `Metadata` from the raw file, and calls `TelemetryData.FromRecording(...)`. For live-capture sources it deserializes the saved live payload, rebuilds `LiveTelemetryCapture`, and calls `TelemetryData.FromLiveCapture(...)`. In both cases it also produces a generated full `Track` when GPS data is present.
+
+`ProcessingFingerprintService` records the inputs used for the derived BLOB: fingerprint schema version, `TelemetryProcessingVersion.Current`, setup id, bike id, a deterministic dependency hash, and the recorded-source hash. The dependency hash includes the setup's front/rear sensor configuration, the bike geometry needed for processing, rear suspension kind, linkage joints/links/shock definition, and leverage-ratio points. Fields that do not affect processing, such as display names or notes, are not part of the hash.
+
+When the stored fingerprint is missing, uses an older processing version, references different processing inputs, or the processed BLOB is absent while the raw source exists, the recorded session is recomputable. Missing setup/bike dependencies make it stale but not recomputable. A missing raw source is displayed separately as "No Raw"; the app can still load existing processed data, but it cannot regenerate it until the source is restored.
 
 ---
 

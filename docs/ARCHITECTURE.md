@@ -82,7 +82,7 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 
 ## Data Acquisition & File Format
 
-Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in two binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers). Parsing applies multi-stage spike elimination before handing samples to the processing pipeline.
+Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in two binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers). Import captures the original SST bytes as a recorded-session source, then derives processed telemetry and a processing fingerprint from that source plus the selected setup/bike calibration.
 
 Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
@@ -115,7 +115,7 @@ Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 ## Signal Processing & Suspension Kinematics
 
-`TelemetryData.FromRecording()` orchestrates the full pipeline: travel calibration → Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram + statistics. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel.
+`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available.
 
 Topics in [architecture/processing.md](architecture/processing.md):
 
@@ -127,6 +127,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
   - [Airtime Detection](architecture/processing.md#airtime-detection) — front/rear overlap heuristics
   - [Processing Parameters](architecture/processing.md#processing-parameters) — all tunables in `Parameters.cs`
   - [Serialized Structure](architecture/processing.md#serialized-structure) — MessagePack `TelemetryData` shape
+  - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, processed BLOB, processing fingerprint, and staleness rules
 - [Suspension Kinematics](architecture/processing.md#suspension-kinematics)
   - [Linkage Model](architecture/processing.md#linkage-model) — joint types, links, JSON deserialization
   - [Kinematic Solver](architecture/processing.md#kinematic-solver) — Gauss-Seidel constraint relaxation across shock travel
@@ -138,7 +139,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); coordinators own all workflows, store writes, post-save navigation, and sync arrival; queries answer cross-domain business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI.
 
 Topics in [architecture/ui.md](architecture/ui.md):
 
@@ -146,10 +147,11 @@ Topics in [architecture/ui.md](architecture/ui.md):
 - [Layered Architecture](architecture/ui.md#layered-architecture) — diagram and dependency rules
 - [Threading & Lifecycle](architecture/ui.md#threading--lifecycle) — UI vs background ownership, `Loaded`/`Unloaded` discipline
   - [Cancellation & Result Coherence](architecture/ui.md#cancellation--result-coherence) — cancellation as neutral exit, stale-result guards
-- [Stores](architecture/ui.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `PairedDeviceStore`; snapshot model and conflict baseline
+- [Stores](architecture/ui.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`; snapshot model and conflict baseline
+- [Recorded Session Graph](architecture/ui.md#recorded-session-graph) — `IRecordedSessionGraph`, summaries, domain snapshots, staleness, and recompute inputs
 - [Coordinators](architecture/ui.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
 - [Result Shapes](architecture/ui.md#result-shapes) — sealed `Saved`/`Conflict`/`Failed` records and similar service outcomes
-- [Queries](architecture/ui.md#queries) — `IBikeDependencyQuery` and the database-sourced answer pattern
+- [Queries](architecture/ui.md#queries) — dependency, known-board, and recorded-session domain query patterns
 - [View Models](architecture/ui.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
 - [Testing Boundaries](architecture/ui.md#testing-boundaries) — what each layer's tests assert
 - [Dependency Injection](architecture/ui.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
@@ -178,7 +180,7 @@ Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 ## Maps & GPS Tracks
 
-GPS records from V4 SST files are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists the user's tile choice and view options.
+GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists the user's tile choice and view options.
 
 Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
@@ -195,7 +197,7 @@ Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
 ## Live DAQ Streaming
 
-The live preview feature streams real-time telemetry from a connected DAQ over a framed TCP protocol. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, and the diagnostics tab. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a persisted session lives in [Live Session Recording](#live-session-recording).
+The live preview feature streams real-time telemetry from a connected DAQ over a framed TCP protocol. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, and the diagnostics tab. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a recorded session with source data lives in [Live Session Recording](#live-session-recording).
 
 ```
 mDNS announcement
@@ -238,7 +240,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save and a `SlidingWindowBuffer` for display, fans graph batches through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a `Session` row plus optional `Track` from the captured GPS.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save and a `SlidingWindowBuffer` for display, fans graph batches through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a processed `Session` row, a live-capture recorded source, a processing fingerprint, and an optional generated `Track` from captured GPS.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 
@@ -259,12 +261,12 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 
 ## Persistence & Serialization
 
-SQLite via `sqlite-net-pcl` with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata and the MessagePack telemetry blob are split across separate operations so the blob isn't dragged through metadata-only writes.
+SQLite via `sqlite-net-pcl` with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata, processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
-- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_cache`, `sync`, `paired_device`
-- [Database Service](architecture/persistence.md#database-service) — generic `Synchronizable` operations and session-specific blob ops
+- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_recording_source`, `session_cache`, `sync`, `paired_device`
+- [Database Service](architecture/persistence.md#database-service) — generic `Synchronizable` operations, processed-session transactions, session blob ops, and recorded-source ops
 - [Soft Delete](architecture/persistence.md#soft-delete) — `Deleted` timestamp, 1-day purge window, expired-pair cleanup
 - [Conflict Resolution](architecture/persistence.md#conflict-resolution) — `MergeAsync<T>()` rules: new / remote-delete / local-wins / remote-wins
 
@@ -272,10 +274,10 @@ Topics in [architecture/persistence.md](architecture/persistence.md):
 
 ## Cross-Device Synchronization
 
-A desktop instance can host an embedded ASP.NET Core / Kestrel server over TLS with JWT auth, advertised via mDNS. Mobile clients pair with a 6-digit PIN, then push and pull entity changes plus session telemetry blobs. `SyncCoordinator` is the application-layer entry point; `HttpApiService` handles JWT auto-refresh.
+A desktop instance can host an embedded ASP.NET Core / Kestrel server over TLS with JWT auth, advertised via mDNS. Mobile clients pair with a 6-digit PIN, then push and pull entity changes, processed telemetry blobs, and recorded-source payloads. `SyncCoordinator` is the application-layer entry point; `HttpApiService` handles JWT auto-refresh.
 
 Topics in [architecture/sync.md](architecture/sync.md):
 
 - [Pairing Flow](architecture/sync.md#pairing-flow) — request → confirm → refresh sequence
 - [Server](architecture/sync.md#server) — `SynchronizationServerService`, TLS / JWT / mDNS setup, full endpoint table
-- [Client](architecture/sync.md#client) — `SynchronizationClientService` four-phase sync, `SyncCoordinator`, `HttpApiService` token refresh, `SynchronizationData` payload
+- [Client](architecture/sync.md#client) — `SynchronizationClientService` metadata/blob/source sync phases, `SyncCoordinator`, `HttpApiService` token refresh, `SynchronizationData` payload

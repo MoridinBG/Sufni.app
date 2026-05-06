@@ -95,6 +95,58 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSessionIds.Count);
     }
 
+    private async Task PushIncompleteSessionSources()
+    {
+        var incompleteSourceIds = await httpApiService.GetIncompleteSessionSourceIdsAsync();
+        var uploadedCount = 0;
+
+        foreach (var id in incompleteSourceIds)
+        {
+            var source = await databaseService.GetRecordedSessionSourceAsync(id);
+            if (source is not null)
+            {
+                if (!RecordedSessionSourceHash.Matches(source))
+                {
+                    continue;
+                }
+
+                await httpApiService.PatchRecordedSessionSourceAsync(ToTransfer(source));
+                uploadedCount++;
+            }
+        }
+
+        logger.Verbose(
+            "Pushed {UploadedCount} incomplete recorded sources out of {IncompleteSourceCount} requested by the server",
+            uploadedCount,
+            incompleteSourceIds.Count);
+    }
+
+    private async Task PullIncompleteSessionSources()
+    {
+        var incompleteSourceIds = await databaseService.GetSessionIdsMissingRecordedSourceAsync();
+        var downloadedCount = 0;
+
+        foreach (var id in incompleteSourceIds)
+        {
+            var source = await httpApiService.GetRecordedSessionSourceAsync(id);
+            if (source is not null)
+            {
+                if (!RecordedSessionSourceHash.Matches(source))
+                {
+                    continue;
+                }
+
+                await databaseService.PutRecordedSessionSourceAsync(FromTransfer(source));
+                downloadedCount++;
+            }
+        }
+
+        logger.Verbose(
+            "Pulled {DownloadedCount} incomplete recorded sources out of {IncompleteSourceCount} local placeholders",
+            downloadedCount,
+            incompleteSourceIds.Count);
+    }
+
     public async Task SyncAll()
     {
         try
@@ -107,6 +159,8 @@ public class SynchronizationClientService : ISynchronizationClientService
             await PullRemoteChanges(lastSyncTime);
             await PushIncompleteSessions();
             await PullIncompleteSessions();
+            await PushIncompleteSessionSources();
+            await PullIncompleteSessionSources();
 
             await databaseService.UpdateLastSyncTimeAsync(httpApiService.ServerUrl);
             logger.Verbose("Synchronization client run completed");
@@ -117,4 +171,22 @@ public class SynchronizationClientService : ISynchronizationClientService
             throw;
         }
     }
+
+    private static RecordedSessionSourceTransfer ToTransfer(RecordedSessionSource source) => new(
+        source.SessionId,
+        source.SourceKind,
+        source.SourceName,
+        source.SchemaVersion,
+        source.SourceHash,
+        source.Payload);
+
+    private static RecordedSessionSource FromTransfer(RecordedSessionSourceTransfer source) => new()
+    {
+        SessionId = source.SessionId,
+        SourceKind = source.SourceKind,
+        SourceName = source.SourceName,
+        SchemaVersion = source.SchemaVersion,
+        SourceHash = source.SourceHash,
+        Payload = source.Payload
+    };
 }

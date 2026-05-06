@@ -15,6 +15,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IBikeStore bikeStore;
     private readonly ISetupStore setupStore;
     private readonly ISessionStore sessionStore;
+    private readonly IRecordedSessionSourceStore recordedSessionSourceStore;
     private readonly IPairedDeviceStore pairedDeviceStore;
     private readonly ImportSessionsCoordinator importSessionsCoordinator;
     private readonly TrackCoordinator trackCoordinator;
@@ -49,6 +50,7 @@ public partial class MainPagesViewModel : ViewModelBase
         IBikeStore bikeStore,
         ISetupStore setupStore,
         ISessionStore sessionStore,
+        IRecordedSessionSourceStore recordedSessionSourceStore,
         IPairedDeviceStore pairedDeviceStore,
         ImportSessionsCoordinator importSessionsCoordinator,
         TrackCoordinator trackCoordinator,
@@ -66,6 +68,7 @@ public partial class MainPagesViewModel : ViewModelBase
         this.bikeStore = bikeStore;
         this.setupStore = setupStore;
         this.sessionStore = sessionStore;
+        this.recordedSessionSourceStore = recordedSessionSourceStore;
         this.pairedDeviceStore = pairedDeviceStore;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
@@ -142,6 +145,7 @@ public partial class MainPagesViewModel : ViewModelBase
         await bikeStore.RefreshAsync();
         await setupStore.RefreshAsync();
         await sessionStore.RefreshAsync();
+        await recordedSessionSourceStore.RefreshAsync();
         await pairedDeviceStore.RefreshAsync();
 
         DatabaseLoaded = true;

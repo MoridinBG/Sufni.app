@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Sufni.App.Tests" />
+    <InternalsVisibleTo Include="Sufni.App.Desktop" />
     <InternalsVisibleTo Include="Sufni.App.macOS" />
     <InternalsVisibleTo Include="Sufni.App.iOS" />
   </ItemGroup>
@@ -44,6 +45,7 @@
     <PackageReference Include="SourceGear.sqlite3" />
     <PackageReference Include="Tmds.MDns" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="ZstdSharp.Port" />
   </ItemGroup>
 
   <ItemGroup>

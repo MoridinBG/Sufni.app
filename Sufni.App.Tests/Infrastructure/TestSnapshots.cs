@@ -108,6 +108,7 @@ public static class TestSnapshots
         Guid? setupId = null,
         long? timestamp = null,
         bool hasProcessedData = false,
+        string? processingFingerprintJson = null,
         long updated = 1) => new(
         Id: id ?? Guid.NewGuid(),
         Name: name,
@@ -116,6 +117,7 @@ public static class TestSnapshots
         Timestamp: timestamp,
         FullTrackId: null,
         HasProcessedData: hasProcessedData,
+        ProcessingFingerprintJson: processingFingerprintJson,
         FrontSpringRate: null,
         FrontHighSpeedCompression: null,
         FrontLowSpeedCompression: null,

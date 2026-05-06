@@ -1,6 +1,6 @@
 # Live Session Recording
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the live-session recording slice: the per-tab capture service that subscribes to a shared live transport, accumulates raw samples for save, derives graphable batches, computes rolling statistics, and persists the result as a normal recorded `Session` row. Both desktop and mobile heads expose the live-session tab. The transport, discovery, catalog, and diagnostics-tab side of the live feature lives in [Live DAQ Streaming](live-streaming.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the live-session recording slice: the per-tab capture service that subscribes to a shared live transport, accumulates raw samples for save, derives graphable batches, computes rolling statistics, and persists the result as a recorded `Session` row with a live-capture source and processing fingerprint. Both desktop and mobile heads expose the live-session tab. The transport, discovery, catalog, and diagnostics-tab side of the live feature lives in [Live DAQ Streaming](live-streaming.md).
 
 ## Contents
 
@@ -39,9 +39,12 @@ graph LR
     DetailVM --> Coord["SessionCoordinator<br/>SaveLiveCaptureAsync"]
     Coord --> Telemetry["TelemetryData.FromLiveCapture"]
     Coord --> Track["Track.FromGpsRecords"]
-    Coord --> DB["IDatabaseService<br/>PutSessionAsync / PutAsync(track)"]
+    Coord --> Source["RecordedSessionSource<br/>live_capture"]
+    Coord --> Fingerprint["ProcessingFingerprintService"]
+    Coord --> DB["IDatabaseService<br/>PutProcessedSessionAsync"]
     Coord --> Prefs["ISessionPreferences<br/>UpdateRecordedAsync"]
     Coord --> Store["SessionStore<br/>Upsert"]
+    Coord --> SourceStore["RecordedSessionSourceStore<br/>Upsert"]
 ```
 
 ## Data Flow
@@ -62,6 +65,7 @@ Display loop (Task.Run)
           -> LiveGraphBatch (Travel/Velocity/IMU) -> Subject<LiveGraphBatch>
             -> LiveSessionDetailViewModel.QueueGraphBatchRefresh
               -> LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence
+    -> projected TrackPoint[] updates drive Speed/Elevation graph rows
 
 Statistics loop (Task.Run)
   -> snapshot AppendOnlyChunkBuffers under lock
@@ -78,10 +82,11 @@ User presses Save
         -> background BuildCapture -> LiveTelemetryCapture
     -> SessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
       -> TelemetryData.FromLiveCapture
-      -> optional Track.FromGpsRecords + databaseService.PutAsync(track)
-      -> databaseService.PutSessionAsync(session)
+      -> optional Track.FromGpsRecords
+      -> RecordedSessionSource(live_capture) + processing fingerprint
+      -> databaseService.PutProcessedSessionAsync(session, track, source)
       -> ISessionPreferences.UpdateRecordedAsync(sessionId, preferences)
-      -> SessionStore.Upsert(snapshot)
+      -> SessionStore.Upsert(snapshot) + RecordedSessionSourceStore.Upsert(source)
         -> LiveSessionSaveResult.Saved -> reset capture + open recorded editor
 
 User presses Reset
@@ -192,7 +197,7 @@ The view model wires together five things and owns no transport state:
 
 1. **Subscribes to `ILiveSessionService.Snapshots`** through `QueuePresentationRefresh`, which stashes the latest snapshot under a gate and lets a `DispatcherTimer` (`SessionGraphSettings.LiveUiRefreshIntervalMs`) project it into bindings via `ApplyPresentation`. This applies the session header to graph and media workspaces, recomputes statistics surface state, drives the timestamp, refreshes the control state, and queues the spring/damper/balance bake.
 2. **Subscribes to `ILiveSessionService.GraphBatches`** through `QueueGraphBatchRefresh`, which collapses presence flags onto the UI thread and calls `LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence` so each row's `SurfacePresentationState` reflects whether any travel or IMU data has arrived. Plot availability is recomputed from the latest accepted `LiveSessionHeader` (travel from `AcceptedTravelHz`, IMU from `AcceptedImuHz` plus active locations) and forwarded into `PreferencesPage.ApplyPlotAvailability`.
-3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damper/balance pages. Travel/Velocity/IMU plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
+3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damper/balance pages. Travel/Velocity/IMU/Speed/Elevation plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
 4. **Bakes statistics** — when a fresh `TelemetryData` arrives in a snapshot, `MaybeQueueBake` runs `ISessionPresentationService.BuildCachePresentation(...)` on the background runner and posts the resulting SVGs back onto the spring/damper/balance pages, mirroring the recorded-session bake. Older bakes are cancelled on each new arrival.
 5. **Drives the capture lifecycle** — `Loaded` calls `liveSessionService.EnsureAttachedAsync()`, `Unloaded` cancels the bake, `CloseImplementation` disposes the service. `ResetImplementation` calls `ResetCaptureAsync` and clears the statistics pages. `SaveImplementation` is the recording-side save entry point (see [Save Flow](#save-flow)).
 
@@ -219,13 +224,15 @@ LiveSessionDetailViewModel.SaveImplementation
        1. TelemetryData.FromLiveCapture (background runner)
        2. if telemetry has GPS data:
             track = await Track.FromGpsRecords(...)
-            databaseService.PutAsync(track)        -> session.FullTrack = track.Id
-       3. session.ProcessedData = telemetryData.BinaryForm
-       4. databaseService.PutSessionAsync(session)
-       5. fresh = databaseService.GetSessionAsync(session.Id)
-       6. snapshot = SessionSnapshot.From(fresh)
-       7. sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences)
-       8. sessionStore.Upsert(snapshot)
+       3. source = RecordedSessionSource(live_capture JSON payload)
+       4. fingerprint = ProcessingFingerprintService.CreateCurrent(...)
+       5. session.ProcessedData = telemetryData.BinaryForm
+       6. session.ProcessingFingerprintJson = fingerprint JSON
+       7. fresh = databaseService.PutProcessedSessionAsync(session, track, source)
+       8. snapshot = SessionSnapshot.From(fresh)
+       9. sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences)
+      10. sessionStore.Upsert(snapshot)
+      11. recordedSessionSourceStore.Upsert(source snapshot)
        -> LiveSessionSaveResult.Saved(SessionId, Updated)
             | LiveSessionSaveResult.Failed(ErrorMessage)
   -> on Saved: liveSessionService.ResetCaptureAsync
@@ -233,7 +240,9 @@ LiveSessionDetailViewModel.SaveImplementation
   -> on Failed: append to ErrorMessages
 ```
 
-`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a brand-new recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. `SessionPreferences` (built from `PreferencesPage` plus the per-mode statistics pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and statistics choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `sessionCoordinator.OpenEditAsync`.
+`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. The recorded source payload stores capture metadata, raw front/rear measurements, IMU data, GPS data, and markers; it does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
+
+`SessionPreferences` (built from `PreferencesPage` plus the per-mode statistics pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and statistics choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `sessionCoordinator.OpenEditAsync`.
 
 `OperationCanceledException` is rethrown out of `SaveLiveCaptureAsync` — typical-failure paths (database errors, telemetry build failures) are swallowed into `LiveSessionSaveResult.Failed`. The view model also surfaces a "Live session was saved, but post-save cleanup failed" message when the post-save reset or `OpenEditAsync` throws after `Saved` has already been observed, so a partial post-save failure does not lose the saved row.
 

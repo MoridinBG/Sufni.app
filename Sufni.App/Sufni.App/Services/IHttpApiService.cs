@@ -17,4 +17,7 @@ public interface IHttpApiService
     public Task<List<Guid>> GetIncompleteSessionIdsAsync();
     public Task<byte[]?> GetSessionPsstAsync(Guid id);
     public Task PatchSessionPsstAsync(Guid id, byte[] data);
+    public Task<List<Guid>> GetIncompleteSessionSourceIdsAsync();
+    public Task<RecordedSessionSourceTransfer?> GetRecordedSessionSourceAsync(Guid id);
+    public Task PatchRecordedSessionSourceAsync(RecordedSessionSourceTransfer source);
 }

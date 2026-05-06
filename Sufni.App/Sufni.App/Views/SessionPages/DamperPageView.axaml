@@ -4,7 +4,6 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-xmlns:editors="clr-namespace:Sufni.App.ViewModels.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:desktopplots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
@@ -16,21 +15,24 @@ mc:Ignorable="d">
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical" Spacing="8">
-            <ComboBox
-            Name="MobileVelocityAverageModeComboBox"
+            <StackPanel
+            Name="MobileVelocityAverageModeRadioButtons"
             Margin="0,8,0,0"
-            HorizontalAlignment="Stretch"
             IsVisible="{Binding HasDynamicStatistics}"
-            ItemsSource="{Binding StatisticsWorkspace.VelocityAverageModeOptions}"
-            SelectedValue="{Binding StatisticsWorkspace.SelectedVelocityAverageMode, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=editors:VelocityAverageModeOption}"
-            ToolTip.Tip="Sample-averaged uses all stroke samples. Stroke-peak average uses one peak-speed event per stroke.">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="editors:VelocityAverageModeOption">
-                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+            Spacing="4">
+                <RadioButton
+                Name="MobileSampleAveragedModeRadioButton"
+                Content="Sample-averaged"
+                GroupName="MobileVelocityAverageMode"
+                IsChecked="{Binding SampleAveragedModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Uses every stroke sample for bars and average labels." />
+                <RadioButton
+                Name="MobileStrokePeakAveragedModeRadioButton"
+                Content="Stroke-peak average"
+                GroupName="MobileVelocityAverageMode"
+                IsChecked="{Binding StrokePeakAveragedModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Uses one peak-speed event per stroke for bars and average labels." />
+            </StackPanel>
 
             <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontPresentationState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>

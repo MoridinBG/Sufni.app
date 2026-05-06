@@ -63,6 +63,7 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
                     if (e.NewValue is not TelemetryData telemetryData)
                     {
                         hasPendingTelemetryLoad = false;
+                        ClearPlot();
                         return;
                     }
 
@@ -173,6 +174,17 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
         RefreshPlot();
     }
 
+    private void ClearPlot()
+    {
+        if (plot is null || !HasPlotControl)
+        {
+            return;
+        }
+
+        plot.Clear();
+        RefreshPlot();
+    }
+
     protected virtual void OnAnalysisRangeChanged()
     {
         if (Telemetry is null)
@@ -191,7 +203,7 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
 
     private bool CanLoadTelemetryNow()
     {
-        return plot is not null && HasPlotControl && IsEffectivelyVisible;
+        return plot is not null && HasPlotControl;
     }
 
     private void TryApplyPendingTelemetryLoad()

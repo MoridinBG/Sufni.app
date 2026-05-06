@@ -9,7 +9,7 @@ public class LeverageRatioPlot(Plot plot) : SufniPlot(plot)
 {
     public void Reset()
     {
-        Plot.Clear();
+        Clear();
         Plot.Axes.Title.Label.Text = string.Empty;
         Plot.Axes.SetLimits(0, 1, 0, 1);
     }

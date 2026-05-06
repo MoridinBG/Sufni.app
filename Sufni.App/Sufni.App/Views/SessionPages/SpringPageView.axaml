@@ -4,7 +4,6 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-xmlns:editors="clr-namespace:Sufni.App.ViewModels.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
@@ -15,21 +14,24 @@ mc:Ignorable="d">
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical" Spacing="8">
-            <ComboBox
-            Name="MobileTravelHistogramModeComboBox"
+            <StackPanel
+            Name="MobileTravelHistogramModeRadioButtons"
             Margin="0,8,0,0"
-            HorizontalAlignment="Stretch"
             IsVisible="{Binding HasDynamicStatistics}"
-            ItemsSource="{Binding StatisticsWorkspace.TravelHistogramModeOptions}"
-            SelectedValue="{Binding StatisticsWorkspace.SelectedTravelHistogramMode, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=editors:TravelHistogramModeOption}"
-            ToolTip.Tip="Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="editors:TravelHistogramModeOption">
-                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+            Spacing="4">
+                <RadioButton
+                Name="MobileActiveSuspensionModeRadioButton"
+                Content="Active suspension"
+                GroupName="MobileTravelHistogramMode"
+                IsChecked="{Binding ActiveSuspensionModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Uses compression and rebound stroke samples only." />
+                <RadioButton
+                Name="MobileDynamicSagModeRadioButton"
+                Content="Dynamic sag"
+                GroupName="MobileTravelHistogramMode"
+                IsChecked="{Binding DynamicSagModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Uses all selected travel samples." />
+            </StackPanel>
 
             <controls:PlaceholderOverlayContainer PresentationState="{Binding FrontPresentationState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>

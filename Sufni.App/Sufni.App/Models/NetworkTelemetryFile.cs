@@ -1,10 +1,10 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
-using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
@@ -36,9 +36,12 @@ public class NetworkTelemetryFile : ITelemetryFile
         activeSession = session;
     }
 
-    public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
+    public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"sufni-{Guid.NewGuid():N}.SST");
+        var tempDirectory = Path.GetTempPath();
+        DeleteStaleSourceTempFiles(tempDirectory);
+
+        var tempPath = Path.Combine(tempDirectory, $"sufni-source-{Guid.NewGuid():N}.SST");
         try
         {
             DaqGetFileResult downloadedFile;
@@ -54,13 +57,15 @@ public class NetworkTelemetryFile : ITelemetryFile
                     ? await activeSession.GetFileAsync(
                         DaqFileClass.RootSst,
                         recordId,
-                        destination)
+                        destination,
+                        cancellationToken)
                     : await daqManagementService.GetFileAsync(
                         ipEndPoint.Address.ToString(),
                         ipEndPoint.Port,
                         DaqFileClass.RootSst,
                         recordId,
-                        destination);
+                        destination,
+                        cancellationToken);
             }
 
             var loadedFile = downloadedFile switch
@@ -70,32 +75,33 @@ public class NetworkTelemetryFile : ITelemetryFile
                 _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
             };
 
-            await using var source = new FileStream(
-                tempPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 64 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            var rawTelemetryData = RawTelemetryData.FromStream(source);
-            var telemetryMetadata = new Metadata
-            {
-                SourceName = loadedFile.Name,
-                Version = rawTelemetryData.Version,
-                SampleRate = rawTelemetryData.SampleRate,
-                Timestamp = rawTelemetryData.Timestamp,
-                Duration = rawTelemetryData.SampleRate > 0
-                    ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
-                    : 0.0
-            };
-            var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
-            return telemetryData.BinaryForm;
+            var rawData = await File.ReadAllBytesAsync(tempPath, cancellationToken);
+            var sourceName = string.IsNullOrWhiteSpace(loadedFile.Name) ? FileName : loadedFile.Name;
+            return new TelemetryFileSource(sourceName, rawData);
         }
         finally
         {
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
+            }
+        }
+    }
+
+    private static void DeleteStaleSourceTempFiles(string tempDirectory)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-1);
+        foreach (var path in Directory.EnumerateFiles(tempDirectory, "sufni-source-*.SST"))
+        {
+            try
+            {
+                if (File.GetLastWriteTimeUtc(path) < cutoff)
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
             }
         }
     }

@@ -16,20 +16,22 @@ mc:Ignorable="d">
     Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="8">
-            <ComboBox
-            Name="MobileStrokesSideComboBox"
+            <StackPanel
+            Name="MobileStrokesSideRadioButtons"
             Margin="0,8,0,0"
-            HorizontalAlignment="Stretch"
             IsVisible="{Binding HasBothStatisticsSides}"
-            ItemsSource="{Binding SuspensionSideOptions}"
-            SelectedValue="{Binding SelectedSuspensionType, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SuspensionSideOption}">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SuspensionSideOption">
-                        <TextBlock Text="{Binding DisplayName}" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+            Spacing="4">
+                <RadioButton
+                Name="MobileFrontStrokesSideRadioButton"
+                Content="Front"
+                GroupName="MobileStrokesSide"
+                IsChecked="{Binding FrontSideSelected, Mode=TwoWay}" />
+                <RadioButton
+                Name="MobileRearStrokesSideRadioButton"
+                Content="Rear"
+                GroupName="MobileStrokesSide"
+                IsChecked="{Binding RearSideSelected, Mode=TwoWay}" />
+            </StackPanel>
 
             <Grid Name="FrontStrokesPanel" IsVisible="{Binding ShowFrontStrokes}">
                 <controls:PlaceholderOverlayContainer PresentationState="{Binding Workspace.FrontStatisticsState}">
