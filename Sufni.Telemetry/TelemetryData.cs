@@ -23,6 +23,7 @@ public class TelemetryData
     public MarkerData[] Markers { get; set; } = [];
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
+    public TemperatureAverage[] TemperatureAverages { get; set; } = [];
     [IgnoreMember] public byte[] BinaryForm => MessagePackSerializer.Serialize(this);
 
     #endregion
@@ -178,6 +179,15 @@ public class TelemetryData
             : (double)anomalyCount / sampleCount * sampleRate;
     }
 
+    private static TemperatureAverage[] CalculateTemperatureAverages(IReadOnlyCollection<TemperatureSample> samples)
+    {
+        return samples
+            .GroupBy(sample => sample.LocationId)
+            .OrderBy(group => group.Key)
+            .Select(group => new TemperatureAverage(group.Key, group.Average(sample => sample.TemperatureCelsius)))
+            .ToArray();
+    }
+
     #endregion
 
     #region PSST conversion
@@ -204,6 +214,7 @@ public class TelemetryData
         td.Markers = rawData.Markers;
         td.ImuData = rawData.ImuData;
         td.GpsData = rawData.GpsData;
+        td.TemperatureAverages = CalculateTemperatureAverages(rawData.TemperatureData);
 
         // Evaluate front and rear input arrays
         var fc = rawData.Front.Length;

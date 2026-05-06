@@ -20,6 +20,7 @@ public class RawTelemetryData
     public MarkerData[] Markers { get; set; } = [];
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
+    public TemperatureSample[] TemperatureData { get; set; } = [];
     public bool Malformed { get; set; }
     public string? MalformedMessage { get; set; }
 
