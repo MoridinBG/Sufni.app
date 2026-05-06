@@ -28,6 +28,7 @@ public interface IDatabaseService
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
     public Task DeleteRecordedSessionSourceAsync(Guid sessionId);
     public Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source);
+    public Task<Session?> PutProcessedSessionIfUnchangedAsync(Session session, Track? newFullTrack, RecordedSessionSource? source, long baselineUpdated);
     public Task PatchSessionPsstAsync(Guid id, byte[] data);
     public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points);
     public Task<SessionCache?> GetSessionCacheAsync(Guid sessionId);

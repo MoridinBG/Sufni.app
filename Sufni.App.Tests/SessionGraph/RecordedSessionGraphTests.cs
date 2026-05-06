@@ -198,6 +198,39 @@ public class RecordedSessionGraphTests
         Assert.Equal(1, emissions);
     }
 
+    [Fact]
+    public void WatchSession_StaysSubscribed_WhenRefreshClearsAndReaddsSameSession()
+    {
+        var scheduler = new QueuedRecordedSessionGraphScheduler();
+        using var stores = new StoreFixtures();
+        var fingerprintService = new ProcessingFingerprintService();
+        using var graph = stores.CreateGraph(fingerprintService, scheduler);
+        var context = CreateCurrentContext(fingerprintService);
+        var completed = false;
+        var emissions = new List<RecordedSessionDomainSnapshot>();
+        using var subscription = graph.WatchSession(context.Session.Id).Subscribe(
+            emissions.Add,
+            () => completed = true);
+        stores.Add(context);
+        scheduler.Flush();
+        Assert.Single(emissions);
+
+        var refreshed = context.Session with { Name = "refreshed session" };
+        stores.Sessions.RefreshWith(refreshed);
+        scheduler.Flush();
+
+        Assert.False(completed);
+        Assert.Equal(2, emissions.Count);
+        Assert.Equal("refreshed session", emissions[^1].Session.Name);
+        Assert.Equal(DerivedChangeKind.SessionMetadataChanged, emissions[^1].ChangeKind);
+
+        stores.Sources.Add(context.Source with { SourceHash = "changed-after-refresh" });
+        scheduler.Flush();
+
+        Assert.Equal(3, emissions.Count);
+        Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, emissions[^1].ChangeKind);
+    }
+
     private static TestContext CreateCurrentContext(ProcessingFingerprintService fingerprintService)
     {
         var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "graph bike");
@@ -286,6 +319,15 @@ public class RecordedSessionGraphTests
         public Task RefreshAsync() => Task.CompletedTask;
 
         public void Add(SessionSnapshot snapshot) => cache.AddOrUpdate(snapshot);
+
+        public void RefreshWith(SessionSnapshot snapshot)
+        {
+            cache.Edit(updater =>
+            {
+                updater.Clear();
+                updater.AddOrUpdate(snapshot);
+            });
+        }
 
         public void Remove(Guid id) => cache.RemoveKey(id);
 

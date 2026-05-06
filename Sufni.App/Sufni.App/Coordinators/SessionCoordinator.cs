@@ -472,7 +472,22 @@ public class SessionCoordinator
             persisted.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
             persisted.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
-            var fresh = await databaseService.PutProcessedSessionAsync(persisted, newFullTrack, source: null);
+            var fresh = await databaseService.PutProcessedSessionIfUnchangedAsync(
+                persisted,
+                newFullTrack,
+                source: null,
+                baselineUpdated);
+            if (fresh is null)
+            {
+                var current = await databaseService.GetSessionAsync(sessionId);
+                if (current is null)
+                {
+                    return new SessionRecomputeResult.Failed("Session is missing.");
+                }
+
+                return new SessionRecomputeResult.Conflict(SessionSnapshot.From(current));
+            }
+
             var snapshot = SessionSnapshot.From(fresh);
             sessionStore.Upsert(snapshot);
 

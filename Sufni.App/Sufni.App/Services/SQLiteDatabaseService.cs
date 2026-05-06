@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
@@ -160,6 +161,8 @@ public class SqLiteDatabaseService : IDatabaseService
 
     private Task PutRecordedSessionSourceInCurrentTransactionAsync(RecordedSessionSource source)
     {
+        ValidateRecordedSessionSource(source);
+
         const string query = """
                              INSERT OR REPLACE INTO session_recording_source (
                                  session_id,
@@ -183,7 +186,41 @@ public class SqLiteDatabaseService : IDatabaseService
             ]);
     }
 
-    private Task UpdateProcessedSessionAsync(Session session)
+    private static void ValidateRecordedSessionSource(RecordedSessionSource source)
+    {
+        if (!RecordedSessionSourceHash.Matches(source))
+        {
+            throw new InvalidOperationException("Recorded session source hash does not match its payload.");
+        }
+    }
+
+    private static string? TryReadFingerprintSourceHash(string? processingFingerprintJson)
+    {
+        if (string.IsNullOrWhiteSpace(processingFingerprintJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(processingFingerprintJson);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "SourceHash", StringComparison.OrdinalIgnoreCase) &&
+                    property.Value.ValueKind == JsonValueKind.String)
+                {
+                    return property.Value.GetString();
+                }
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
+    }
+
+    private Task<int> UpdateProcessedSessionAsync(Session session)
     {
         var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
         const string query = """
@@ -232,6 +269,56 @@ public class SqLiteDatabaseService : IDatabaseService
             ]);
     }
 
+    private Task<int> UpdateProcessedSessionIfUnchangedAsync(Session session, long baselineUpdated)
+    {
+        var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
+        const string query = """
+                             UPDATE session
+                             SET
+                                 name=?,
+                                 setup_id=?,
+                                 description=?,
+                                 timestamp=?,
+                                 full_track_id=?,
+                                 session_processing_fingerprint=?,
+                                 track=?,
+                                 data=?,
+                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                 updated=?,
+                                 deleted=NULL,
+                                 has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
+                             WHERE
+                                 id=? AND updated=?
+                             """;
+
+        return connection.ExecuteAsync(query,
+            [
+                session.Name,
+                session.Setup,
+                session.Description,
+                session.Timestamp,
+                session.FullTrack,
+                session.ProcessingFingerprintJson,
+                trackJson,
+                session.ProcessedData,
+                session.FrontSpringRate,
+                session.FrontHighSpeedCompression,
+                session.FrontLowSpeedCompression,
+                session.FrontLowSpeedRebound,
+                session.FrontHighSpeedRebound,
+                session.RearSpringRate,
+                session.RearHighSpeedCompression,
+                session.RearLowSpeedCompression,
+                session.RearLowSpeedRebound,
+                session.RearHighSpeedRebound,
+                session.Updated,
+                session.ProcessedData,
+                session.Id,
+                baselineUpdated
+            ]);
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
     private Task<int> DeleteEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : new()
     {
@@ -242,6 +329,18 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         [Column("name")]
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class SessionSourceStatusRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
+
+        [Column("source_hash")]
+        public string? SourceHash { get; set; }
     }
 
     private sealed record CleanupSummary(
@@ -451,12 +550,31 @@ public class SqLiteDatabaseService : IDatabaseService
         await Initialization;
 
         const string query = """
-                             SELECT s.id
+                             SELECT
+                                 s.id,
+                                 s.session_processing_fingerprint,
+                                 source.source_hash
                              FROM session s
                              LEFT JOIN session_recording_source source ON source.session_id = s.id
-                             WHERE s.deleted IS null AND source.session_id IS null
+                             WHERE s.deleted IS null
                              """;
-        return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
+        var rows = await connection.QueryAsync<SessionSourceStatusRow>(query);
+        return
+        [
+            .. rows
+                .Where(row =>
+                {
+                    if (string.IsNullOrWhiteSpace(row.SourceHash))
+                    {
+                        return true;
+                    }
+
+                    var expectedSourceHash = TryReadFingerprintSourceHash(row.ProcessingFingerprintJson);
+                    return !string.IsNullOrWhiteSpace(expectedSourceHash) &&
+                           !StringComparer.Ordinal.Equals(row.SourceHash, expectedSourceHash);
+                })
+                .Select(row => row.Id)
+        ];
     }
 
     public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
@@ -560,6 +678,25 @@ public class SqLiteDatabaseService : IDatabaseService
 
     public async Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source)
     {
+        return await PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated: null)
+               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
+    }
+
+    public Task<Session?> PutProcessedSessionIfUnchangedAsync(
+        Session session,
+        Track? newFullTrack,
+        RecordedSessionSource? source,
+        long baselineUpdated)
+    {
+        return PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated);
+    }
+
+    private async Task<Session?> PutProcessedSessionCoreAsync(
+        Session session,
+        Track? newFullTrack,
+        RecordedSessionSource? source,
+        long? baselineUpdated)
+    {
         await Initialization;
 
         if (source is not null && source.SessionId != session.Id)
@@ -595,10 +732,23 @@ public class SqLiteDatabaseService : IDatabaseService
 
             if (existingSession)
             {
-                await UpdateProcessedSessionAsync(session);
+                var updatedRows = baselineUpdated.HasValue
+                    ? await UpdateProcessedSessionIfUnchangedAsync(session, baselineUpdated.Value)
+                    : await UpdateProcessedSessionAsync(session);
+                if (updatedRows == 0)
+                {
+                    await connection.ExecuteAsync("ROLLBACK");
+                    return null;
+                }
             }
             else
             {
+                if (baselineUpdated.HasValue)
+                {
+                    await connection.ExecuteAsync("ROLLBACK");
+                    return null;
+                }
+
                 await InsertEntityAsync(session);
             }
 

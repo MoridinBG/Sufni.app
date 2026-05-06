@@ -105,6 +105,11 @@ public class SynchronizationClientService : ISynchronizationClientService
             var source = await databaseService.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
+                if (!RecordedSessionSourceHash.Matches(source))
+                {
+                    continue;
+                }
+
                 await httpApiService.PatchRecordedSessionSourceAsync(ToTransfer(source));
                 uploadedCount++;
             }
@@ -126,6 +131,11 @@ public class SynchronizationClientService : ISynchronizationClientService
             var source = await httpApiService.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
+                if (!RecordedSessionSourceHash.Matches(source))
+                {
+                    continue;
+                }
+
                 await databaseService.PutRecordedSessionSourceAsync(FromTransfer(source));
                 downloadedCount++;
             }

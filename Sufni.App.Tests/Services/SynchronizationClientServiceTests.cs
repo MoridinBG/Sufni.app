@@ -128,6 +128,23 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
+    public async Task SyncAll_DoesNotPushRecordedSource_WhenHashDoesNotMatchPayload()
+    {
+        var source = CreateRecordedSource();
+        source.SourceHash = "invalid";
+
+        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
+        database.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
+
+        await CreateService().SyncAll();
+
+        await httpApiService.DidNotReceive().PatchRecordedSessionSourceAsync(Arg.Any<RecordedSessionSourceTransfer>());
+    }
+
+    [Fact]
     public async Task SyncAll_PullsMissingRecordedSourcesFromServer()
     {
         var source = CreateRecordedSource();
@@ -154,6 +171,29 @@ public class SynchronizationClientServiceTests
             saved.SchemaVersion == source.SchemaVersion &&
             saved.SourceHash == source.SourceHash &&
             saved.Payload.SequenceEqual(source.Payload)));
+    }
+
+    [Fact]
+    public async Task SyncAll_DoesNotPersistPulledRecordedSource_WhenHashDoesNotMatchPayload()
+    {
+        var source = CreateRecordedSource();
+        var transfer = new RecordedSessionSourceTransfer(
+            source.SessionId,
+            source.SourceKind,
+            source.SourceName,
+            source.SchemaVersion,
+            "invalid",
+            source.Payload);
+
+        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        database.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
+        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+
+        await CreateService().SyncAll();
+
+        await database.DidNotReceive().PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>());
     }
 
     private static RecordedSessionSource CreateRecordedSource()

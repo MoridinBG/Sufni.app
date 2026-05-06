@@ -99,6 +99,25 @@ public class RecordedSessionDomainQueryTests
     public void Get_ReturnsMissingRawSource_WhenSourceIsMissing()
     {
         var context = CreateCurrentContext();
+        sessionStore.Get(context.Session.Id).Returns(context.Session);
+        setupStore.Get(context.Setup.Id).Returns(context.Setup);
+        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
+        sourceStore.Get(context.Session.Id).Returns((RecordedSessionSourceSnapshot?)null);
+        var query = CreateQuery();
+
+        var domain = query.Get(context.Session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Null(domain!.Source);
+        Assert.Null(domain.CurrentFingerprint);
+        Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
+        Assert.False(domain.Staleness.IsStale);
+    }
+
+    [Fact]
+    public void Get_ReturnsStaleMissingRawSource_WhenSourceAndFingerprintAreMissing()
+    {
+        var context = CreateCurrentContext();
         var session = context.Session with
         {
             ProcessingFingerprintJson = null
@@ -115,7 +134,8 @@ public class RecordedSessionDomainQueryTests
         Assert.Null(domain!.Source);
         Assert.Null(domain.CurrentFingerprint);
         Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
-        Assert.False(domain.Staleness.IsStale);
+        Assert.True(domain.Staleness.IsStale);
+        Assert.False(domain.Staleness.CanRecompute);
     }
 
     [Fact]

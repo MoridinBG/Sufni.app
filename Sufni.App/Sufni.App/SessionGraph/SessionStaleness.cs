@@ -22,9 +22,9 @@ public abstract record SessionStaleness
         public override bool CanRecompute => true;
     }
 
-    public sealed record MissingRawSource : SessionStaleness
+    public sealed record MissingRawSource(bool ProcessedStateStale = false) : SessionStaleness
     {
-        public override bool IsStale => false;
+        public override bool IsStale => ProcessedStateStale;
         public override bool CanRecompute => false;
     }
 

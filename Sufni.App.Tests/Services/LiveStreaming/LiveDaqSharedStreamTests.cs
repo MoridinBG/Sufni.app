@@ -447,9 +447,11 @@ public class LiveDaqSharedStreamTests
 
         lock (receivedOffsets)
         {
-            Assert.DoesNotContain(2UL, receivedOffsets);
             Assert.True(receivedOffsets.Count < publishedFrameCount);
             Assert.Contains((ulong)publishedFrameCount, receivedOffsets);
+            Assert.Contains(
+                receivedOffsets.Zip(receivedOffsets.Skip(1), (previous, current) => current > previous + 1),
+                hasGap => hasGap);
         }
 
         Assert.True(stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0);
