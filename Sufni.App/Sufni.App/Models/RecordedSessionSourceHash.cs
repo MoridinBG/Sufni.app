@@ -30,4 +30,18 @@ public static class RecordedSessionSourceHash
 
         return Convert.ToHexString(SHA256.HashData(stream.ToArray())).ToLowerInvariant();
     }
+
+    public static bool Matches(RecordedSessionSource source) =>
+        !string.IsNullOrWhiteSpace(source.SourceName) &&
+        !string.IsNullOrWhiteSpace(source.SourceHash) &&
+        StringComparer.Ordinal.Equals(
+            source.SourceHash,
+            Compute(source.SourceKind, source.SourceName, source.SchemaVersion, source.Payload));
+
+    public static bool Matches(RecordedSessionSourceTransfer source) =>
+        !string.IsNullOrWhiteSpace(source.SourceName) &&
+        !string.IsNullOrWhiteSpace(source.SourceHash) &&
+        StringComparer.Ordinal.Equals(
+            source.SourceHash,
+            Compute(source.SourceKind, source.SourceName, source.SchemaVersion, source.Payload));
 }

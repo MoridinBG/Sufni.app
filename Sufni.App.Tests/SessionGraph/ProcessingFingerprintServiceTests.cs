@@ -67,8 +67,10 @@ public class ProcessingFingerprintServiceTests
     public void Evaluate_ReturnsMissingRawSource_WhenSourceIsMissing()
     {
         var context = CreateContext();
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(current) };
 
-        var staleness = service.Evaluate(context.Session, context.Setup, context.Bike, null);
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, null);
 
         Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
         Assert.False(staleness.IsStale);
@@ -83,7 +85,35 @@ public class ProcessingFingerprintServiceTests
         var staleness = service.Evaluate(context.Session, null, null, null);
 
         Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.False(staleness.IsStale);
+        Assert.True(staleness.IsStale);
+        Assert.False(staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsStaleMissingRawSource_WhenProcessedDataIsMissing()
+    {
+        var context = CreateContext();
+        var session = context.Session with { HasProcessedData = false };
+
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, null);
+
+        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
+        Assert.True(staleness.IsStale);
+        Assert.False(staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsStaleMissingRawSource_WhenDependencyHashChanged()
+    {
+        var context = CreateContext();
+        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
+        var changedBike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
+
+        var staleness = service.Evaluate(session, context.Setup, changedBike, null);
+
+        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
+        Assert.True(staleness.IsStale);
         Assert.False(staleness.CanRecompute);
     }
 

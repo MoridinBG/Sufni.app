@@ -97,7 +97,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
     {
         if (source is null)
         {
-            return new SessionStaleness.MissingRawSource();
+            return new SessionStaleness.MissingRawSource(
+                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted));
         }
 
         if (setup is null || bike is null)
@@ -129,5 +130,38 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash)
             ? new SessionStaleness.DependencyHashChanged()
             : new SessionStaleness.Current();
+    }
+
+    private static bool IsProcessedStateStaleWithoutRawSource(
+        SessionSnapshot session,
+        SetupSnapshot? setup,
+        BikeSnapshot? bike,
+        ProcessingFingerprint? persisted)
+    {
+        if (setup is null || bike is null)
+        {
+            return true;
+        }
+
+        if (!session.HasProcessedData)
+        {
+            return true;
+        }
+
+        if (persisted is null || persisted.SchemaVersion != SchemaVersion)
+        {
+            return true;
+        }
+
+        if (persisted.ProcessingVersion != TelemetryProcessingVersion.Current)
+        {
+            return true;
+        }
+
+        return persisted.SetupId != setup.Id ||
+               persisted.BikeId != bike.Id ||
+               !StringComparer.Ordinal.Equals(
+                   persisted.DependencyHash,
+                   ProcessingDependencyHash.Compute(setup, bike));
     }
 }

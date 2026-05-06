@@ -280,7 +280,7 @@ public class SQLiteDatabaseServiceTests
             Assert.Equal(RecordedSessionSourceKind.ImportedSst, loaded.SourceKind);
             Assert.Equal("source.SST", loaded.SourceName);
             Assert.Equal(1, loaded.SchemaVersion);
-            Assert.Equal("abc123", loaded.SourceHash);
+            Assert.Equal(source.SourceHash, loaded.SourceHash);
             Assert.Equal([1, 2, 3], loaded.Payload);
             Assert.Single(allSources);
             Assert.DoesNotContain(sessionId, missingSourceIds);
@@ -290,6 +290,80 @@ public class SQLiteDatabaseServiceTests
 
             Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
             Assert.Contains(sessionId, await database.GetSessionIdsMissingRecordedSourceAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetSessionIdsMissingRecordedSourceAsync_IncludesSourceHashMismatches()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "source-mismatch.db");
+        var matchingSessionId = Guid.NewGuid();
+        var staleSessionId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            var matchingSource = CreateRecordedSessionSource(matchingSessionId);
+            var staleSource = CreateRecordedSessionSource(staleSessionId);
+            var expectedStaleHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                "replacement.SST",
+                1,
+                [9, 8, 7]);
+
+            await database.PutSessionAsync(new Session(matchingSessionId, "matching", "desc", null, 100)
+            {
+                ProcessingFingerprintJson = $$"""{"SourceHash":"{{matchingSource.SourceHash}}"}"""
+            });
+            await database.PutSessionAsync(new Session(staleSessionId, "stale", "desc", null, 101)
+            {
+                ProcessingFingerprintJson = $$"""{"SourceHash":"{{expectedStaleHash}}"}"""
+            });
+            await database.PutRecordedSessionSourceAsync(matchingSource);
+            await database.PutRecordedSessionSourceAsync(staleSource);
+
+            var sourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
+
+            Assert.DoesNotContain(matchingSessionId, sourceIds);
+            Assert.Contains(staleSessionId, sourceIds);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PutRecordedSessionSourceAsync_RejectsHashMismatch()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "source-invalid-hash.db");
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100));
+            var source = CreateRecordedSessionSource(sessionId);
+            source.SourceHash = "not-the-payload-hash";
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                database.PutRecordedSessionSourceAsync(source));
+
+            Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
         }
         finally
         {
@@ -338,6 +412,66 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
+    public async Task PutProcessedSessionIfUnchangedAsync_ReturnsNullAndRollsBack_WhenBaselineDoesNotMatch()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "processed-session-conflict.db");
+        var sessionId = Guid.NewGuid();
+        var newTrack = CreateFullTrack();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            var original = new Session(sessionId, "original", "desc", null, 100)
+            {
+                ProcessedData = [1, 2, 3],
+                ProcessingFingerprintJson = """{"schemaVersion":1}"""
+            };
+            var persisted = await database.PutProcessedSessionAsync(original, newFullTrack: null, source: null);
+            var baselineUpdated = persisted.Updated;
+            var newerUpdated = baselineUpdated + 10;
+
+            using (var connection = new SQLiteConnection(databasePath))
+            {
+                connection.Execute(
+                    "UPDATE session SET name=?, data=?, updated=? WHERE id=?",
+                    "newer",
+                    new byte[] { 4, 5, 6 },
+                    newerUpdated,
+                    sessionId);
+            }
+
+            var recomputed = new Session(sessionId, "recomputed", "desc", null, 100)
+            {
+                ProcessedData = [8, 7, 6],
+                ProcessingFingerprintJson = """{"schemaVersion":2}"""
+            };
+
+            var result = await database.PutProcessedSessionIfUnchangedAsync(
+                recomputed,
+                newTrack,
+                source: null,
+                baselineUpdated);
+
+            Assert.Null(result);
+            var current = await database.GetSessionAsync(sessionId);
+            Assert.NotNull(current);
+            Assert.Equal("newer", current!.Name);
+            Assert.Equal(newerUpdated, current.Updated);
+            Assert.Equal([4, 5, 6], await database.GetSessionRawPsstAsync(sessionId));
+            Assert.Null(await database.GetAsync<Track>(newTrack.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PutProcessedSessionAsync_RollsBackSessionTrackAndSource_WhenSourceWriteFails()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
@@ -357,7 +491,7 @@ public class SQLiteDatabaseServiceTests
             var source = CreateRecordedSessionSource(sessionId);
             source.SourceName = null!;
 
-            await Assert.ThrowsAnyAsync<SQLiteException>(() => database.PutProcessedSessionAsync(session, track, source));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => database.PutProcessedSessionAsync(session, track, source));
 
             Assert.Null(await database.GetSessionAsync(sessionId));
             Assert.Null(await database.GetAsync<Track>(track.Id));
@@ -1299,7 +1433,11 @@ public class SQLiteDatabaseServiceTests
         SourceKind = RecordedSessionSourceKind.ImportedSst,
         SourceName = "source.SST",
         SchemaVersion = 1,
-        SourceHash = "abc123",
+        SourceHash = RecordedSessionSourceHash.Compute(
+            RecordedSessionSourceKind.ImportedSst,
+            "source.SST",
+            1,
+            [1, 2, 3]),
         Payload = [1, 2, 3]
     };
 

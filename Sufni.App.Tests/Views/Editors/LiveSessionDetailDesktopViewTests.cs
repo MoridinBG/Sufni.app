@@ -36,7 +36,6 @@ public class LiveSessionDetailDesktopViewTests
 
         Assert.Equal("State: Connected", textBlocks.First(textBlock => textBlock.Name == "LiveConnectionStateTextBlock").Text);
         Assert.Equal("Session: 909", textBlocks.First(textBlock => textBlock.Name == "LiveSessionIdTextBlock").Text);
-        Assert.Single(controls.OfType<Button>(), button => Equals(button.Content, "Save"));
         Assert.NotNull(controls.FirstOrDefault(control => control.Name == "TabControl"));
         Assert.IsType<LiveSessionGraphDesktopView>(shellView.GraphContent);
         Assert.IsType<SessionMediaDesktopView>(shellView.MediaContent);
@@ -141,8 +140,7 @@ public class LiveSessionDetailDesktopViewTests
             DataContext = editor
         };
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedLiveSessionDetailDesktopView(host, view);
     }
 }

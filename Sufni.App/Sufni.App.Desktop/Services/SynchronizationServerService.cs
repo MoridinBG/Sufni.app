@@ -441,6 +441,11 @@ public class SynchronizationServerService : ISynchronizationServerService
                     return Results.BadRequest();
                 }
 
+                if (!RecordedSessionSourceHash.Matches(transfer))
+                {
+                    return Results.BadRequest();
+                }
+
                 var source = new RecordedSessionSource
                 {
                     SessionId = transfer.SessionId,
