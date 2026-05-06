@@ -11,8 +11,8 @@ Views → ViewModels → Coordinators / Stores / Queries → Services → Platfo
 
 CommunityToolkit.Mvvm source generators (`[ObservableProperty]`,
 `[RelayCommand]`) drive bindings; views are XAML with compiled
-bindings; reactive collections use DynamicData (`SourceCache<T, TKey>`
-→ `ReadOnlyObservableCollection<T>`).
+bindings; shared read state is reactive and uses DynamicData
+(`SourceCache<T, TKey>` → `ReadOnlyObservableCollection<T>`).
 
 ## Architectural Invariants
 
@@ -21,6 +21,7 @@ or feature wording evolve:
 
 - A view model owns screen state, command flow, and binding-friendly projection.
 - A store owns shared read state for an entity family and direct lookups over its own read model.
+- A read graph owns a joined projection across stores and publishes derived state for screens that need more than one entity family.
 - A query answers a business question that crosses domains or requires derived reasoning; it does not own the shared collection.
 - A coordinator owns workflows with side effects, store writes, navigation decisions, and long-lived event subscriptions.
 - A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution.
@@ -39,7 +40,8 @@ graph TB
     subgraph Application["Application"]
         Coords["Coordinators<br/>(per entity + shell)"]
         Stores["Stores<br/>(IXxxStore / IXxxStoreWriter)"]
-        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)"]
+        Graphs["Read Graphs<br/>(IRecordedSessionGraph)"]
+        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)<br/>(IRecordedSessionDomainQuery)"]
     end
 
     subgraph Services["Services"]
@@ -52,23 +54,26 @@ graph TB
 
     Shell --> Coords
     Lists --> Stores
+    Lists --> Graphs
     Lists --> Coords
     Rows --> Coords
     Editors --> Coords
     Editors --> Stores
+    Editors --> Graphs
     Coords --> Stores
     Coords --> Queries
     Coords --> Services
+    Graphs --> Stores
     Queries --> Services
     Stores --> Services
 ```
 
 Rules enforced by convention:
 
-- A view model may depend on coordinators, **read-only** stores, queries, services, and other shell composition view models. It may not depend on another feature view model or on a store writer. Any remaining direct feature-VM dependency outside shell composition is technical debt, not a pattern to copy.
+- A view model may depend on coordinators, **read-only** stores, read graphs, queries, services, and other shell composition view models. It may not depend on another feature view model or on a store writer. Any remaining direct feature-VM dependency outside shell composition is technical debt, not a pattern to copy.
 - A coordinator may depend on services, **read/write** stores, other coordinators, queries, the shell coordinator, and dialogs. It may not depend on any view model.
 - A service or factory may depend on platform or infrastructure APIs and may create concrete datastores, own file-picker lifetime, and own background execution. View models ask services and factories to do this work; they do not `new` concrete infrastructure types.
-- A store may depend only on services. A query may depend on services or read-only stores.
+- A store may depend only on services. A read graph may depend on read-only stores and pure derivation services. A query may depend on services or read-only stores.
 - Controls in `Views/Controls/` and `DesktopViews/Controls/` resolve nothing from the DI container — parent views supply everything via bindings or attached behaviours.
 
 ## Threading & Lifecycle
@@ -106,13 +111,14 @@ injected into list/row/editor view models and queries, and a
 coordinators and the composition root. The implementation lives in
 `Sufni.App/Sufni.App/Stores/`.
 
-| Store               | Read interface       | Writer interface           | Snapshot type          | Key      |
-| ------------------- | -------------------- | -------------------------- | ---------------------- | -------- |
-| `BikeStore`         | `IBikeStore`         | `IBikeStoreWriter`         | `BikeSnapshot`         | `Guid`   |
-| `SetupStore`        | `ISetupStore`        | `ISetupStoreWriter`        | `SetupSnapshot`        | `Guid`   |
-| `SessionStore`      | `ISessionStore`      | `ISessionStoreWriter`      | `SessionSnapshot`      | `Guid`   |
-| `PairedDeviceStore` | `IPairedDeviceStore` | `IPairedDeviceStoreWriter` | `PairedDeviceSnapshot` | `string` |
-| `LiveDaqStore`      | `ILiveDaqStore`      | `ILiveDaqStoreWriter`      | `LiveDaqSnapshot`      | `string` |
+| Store                        | Read interface                  | Writer interface                  | Snapshot type                   | Key      |
+| ---------------------------- | ------------------------------- | --------------------------------- | ------------------------------- | -------- |
+| `BikeStore`                  | `IBikeStore`                    | `IBikeStoreWriter`                | `BikeSnapshot`                  | `Guid`   |
+| `SetupStore`                 | `ISetupStore`                   | `ISetupStoreWriter`               | `SetupSnapshot`                 | `Guid`   |
+| `SessionStore`               | `ISessionStore`                 | `ISessionStoreWriter`             | `SessionSnapshot`               | `Guid`   |
+| `RecordedSessionSourceStore` | `IRecordedSessionSourceStore`   | `IRecordedSessionSourceStoreWriter` | `RecordedSessionSourceSnapshot` | `Guid`   |
+| `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`        | `PairedDeviceSnapshot`          | `string` |
+| `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`             | `LiveDaqSnapshot`               | `string` |
 
 Each store wraps a `SourceCache<TSnapshot, TKey>` and exposes:
 
@@ -130,11 +136,25 @@ Snapshots are immutable records, not view models. They carry an
 `Updated` timestamp that the editors keep as their `BaselineUpdated`
 for optimistic conflict detection.
 
-`SessionStore` additionally exposes `Watch(Guid)`, a per-id observable
-filtered to `Add`/`Update` change reasons. `SessionDetailViewModel`
-subscribes to this in `Loaded` to react to telemetry-arrival and
-recalculation events for the session it is editing, then disposes the
-subscription in `Unloaded`.
+`SessionSnapshot` is metadata-only: it carries `HasProcessedData`
+and `ProcessingFingerprintJson`, but not the MessagePack telemetry
+BLOB and not the raw recorded source. Those large payloads stay in
+SQLite and are loaded on demand.
+
+`SessionStore` additionally exposes `Watch(Guid)`, a low-level per-id
+observable filtered to `Add`/`Update` change reasons. Recorded-session
+screens consume the higher-level `RecordedSessionGraph` instead, so
+they see session metadata together with setup, bike, source, and
+staleness state.
+
+`RecordedSessionSourceStore` is the metadata cache for
+`session_recording_source`: source kind, source name, schema version,
+and source hash. The full payload is not kept in the store; callers
+use `LoadAsync(sessionId)` to load a `RecordedSessionSource` from
+SQLite when recompute needs the bytes. The writer surface persists
+or removes source rows and then updates the cache, while sync-server
+source arrivals are applied through `SessionCoordinator` so this
+store still has one application-layer writer.
 
 `SetupStore` exposes `FindByBoardId(Guid)` so the import flow can
 look up the existing setup for the currently selected DAQ board
@@ -152,6 +172,55 @@ discovery and known-board query results. Its writer interface adds
 [Live DAQ Streaming](live-streaming.md) for the full feature
 architecture.
 
+## Recorded Session Graph
+
+`IRecordedSessionGraph` is the read-side projection for recorded
+session screens. It subscribes to `ISessionStore`, `ISetupStore`,
+`IBikeStore`, and `IRecordedSessionSourceStore`, joins their current
+snapshots, evaluates processing staleness, and publishes two reactive
+surfaces:
+
+- `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`
+  records for the session list. `SessionListViewModel` filters and
+  sorts this stream directly; `SessionRowViewModel` displays `(Stale)`
+  when the summary is stale and `(No Raw)` when the processed data may
+  exist but the raw source is unavailable.
+- `WatchSession(sessionId)` — a replaying observable of
+  `RecordedSessionDomainSnapshot` for the recorded detail editor. The
+  snapshot carries the session, setup, bike, current fingerprint,
+  persisted fingerprint, source metadata, staleness result, and a
+  `DerivedChangeKind` flags value describing what changed since the
+  previous domain snapshot.
+
+Graph recomputes are coalesced onto the current synchronization
+context or the Avalonia UI dispatcher, so a batch of session/setup/
+bike/source updates produces coherent summaries and domain snapshots
+instead of a cascade of partial UI states. Dependency changes recompute
+all sessions because a setup or bike update can affect any recorded
+session linked through that dependency.
+
+`ProcessingFingerprintService` is the pure derivation service behind
+the graph. It parses the persisted fingerprint JSON from
+`SessionSnapshot`, computes the current fingerprint from session,
+setup, bike, and source snapshots, and classifies staleness as:
+
+- `Current` — processed data matches the recorded source and current
+  processing inputs.
+- `MissingProcessedData`, `ProcessingVersionChanged`,
+  `DependencyHashChanged`, `UnknownLegacyFingerprint` — stale and
+  recomputable when setup, bike, and raw source are available.
+- `MissingDependencies` — stale but not recomputable until the setup
+  or bike is restored.
+- `MissingRawSource` — not marked stale, displayed as "No Raw", and
+  not recomputable. Existing processed data can still be opened.
+
+`IRecordedSessionDomainQuery` is the command-side companion. It reads
+the current session/setup/bike/source snapshots synchronously from
+stores and returns one `RecordedSessionDomainSnapshot` for workflows
+such as `SessionCoordinator.RecomputeAsync`. Coordinators use the
+query for current-state decisions; they do not subscribe to the graph
+stream.
+
 ## Coordinators
 
 Coordinators own feature workflows. They are the only layer that
@@ -165,10 +234,10 @@ and are registered as singletons.
 | `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `CloseIfOpen<T>` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                                                                                                                                     |
 | `BikeCoordinator`                                                         | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                                                                                                                                                            |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                                                                                                                                                             |
-| `SessionCoordinator`                                                      | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)` which seeds `ISessionPreferences` for the new session, plus the mobile `LoadMobileDetailAsync` path which transparently fetches missing telemetry from the server before returning; clears the session's stored preferences on delete; subscribes to the desktop server's `SynchronizationDataArrived` and `SessionDataArrived`                                                                                |
+| `SessionCoordinator`                                                      | shared       | Save/delete, create-only `SaveLiveCaptureAsync(...)`, `RecomputeAsync(...)`, recorded-source arrival handling, mobile `LoadMobileDetailAsync` which transparently fetches missing processed telemetry from the server before returning; preserves processing fingerprints on metadata-only saves; persists live captures as processed session + raw source + optional generated track; clears the session's stored preferences and recorded source on delete; subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived` |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
-| `ImportSessionsCoordinator`                                               | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reports per-file progress, and upserts new sessions into `SessionStore`                                                                                                                                                                                                                                                                                                           |
-| `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success                                                                                                                                                                                                                                                                                                                                       |
+| `ImportSessionsCoordinator`                                               | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and upserts new sessions/sources into their stores                                                                                                                                                                                              |
+| `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, refreshes every store on success, including `RecordedSessionSourceStore` after `SessionStore`                                                                                                                                                                                                                                                                          |
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                                  |
 | `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                                                                                                                                                                  |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                                                                                                                                                          |
@@ -206,6 +275,15 @@ The live session path is deliberately separate:
 `Saved(SessionId, Updated)` or `Failed(ErrorMessage)` because there
 is no optimistic-concurrency baseline for an in-memory live capture.
 
+Recorded-session recompute follows the same explicit-result pattern:
+`SessionCoordinator.RecomputeAsync(sessionId, baselineUpdated)`
+returns `Recomputed(NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`,
+`NotRecomputable(SessionStaleness)`, or `Failed(ErrorMessage)`.
+The coordinator checks the editor baseline before loading the source
+and again before persistence, so a recompute cannot overwrite a
+metadata edit or sync arrival that happened while processing was
+running.
+
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
 and for small sealed event hierarchies such as `SessionImportEvent`
@@ -236,6 +314,15 @@ setup or bike logic into the transport/session-state layer. Unlike
 store change subscriptions so consumers can re-enrich display names
 and calibration context without repeated database round-trips. See
 [Live DAQ Streaming](live-streaming.md).
+
+`IRecordedSessionDomainQuery` lives in `SessionGraph/` rather than
+`Queries/`, but it follows the same command-side rule: it answers one
+current business question without owning a collection. It joins the
+current session, setup, bike, and recorded-source snapshots and
+returns the same domain snapshot shape that `IRecordedSessionGraph`
+publishes. `SessionCoordinator.RecomputeAsync` uses it for
+baseline/staleness checks before loading the raw source and before
+committing recomputed data.
 
 ## View Models
 
@@ -300,11 +387,10 @@ There are five kinds of view model in the presentation layer:
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
-  `PairedDeviceListViewModel`, `LiveDaqListViewModel`. Each takes a
-  read-only store plus the matching coordinator, and projects the
-  store's `Connect()` change
-  stream through DynamicData into a typed `ReadOnlyObservableCollection`
-  of row view models:
+  `PairedDeviceListViewModel`, `LiveDaqListViewModel`. Most take a
+  read-only store plus the matching coordinator and project the
+  store's `Connect()` change stream through DynamicData into a typed
+  `ReadOnlyObservableCollection` of row view models:
 
   ```
   store.Connect()
@@ -329,6 +415,11 @@ There are five kinds of view model in the presentation layer:
   and the `AddCommand` plumbing (it does not declare an `Items`
   property — there is nothing to shadow). Individual lists
   override `AddImplementation()` to delegate to their coordinator.
+  `SessionListViewModel` follows the same projection shape but uses
+  `IRecordedSessionGraph.ConnectSessions()` instead of
+  `ISessionStore.Connect()`, so rows include processed-data presence,
+  staleness, and raw-source availability without each row doing its
+  own store lookups.
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,
@@ -343,6 +434,10 @@ There are five kinds of view model in the presentation layer:
   exception: it does not derive from `ListItemRowViewModelBase` because live DAQ
   rows are not deletable and use a custom row control with
   online/offline presentation.
+  `SessionRowViewModel` wraps `RecordedSessionSummary` rather than
+  `SessionSnapshot`; it keeps the unadorned `BaseName`, appends
+  `(Stale)` or `(No Raw)` to the display name when appropriate, and
+  exposes flags the view can style independently of the text.
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
   `SetupEditorViewModel`, `SessionDetailViewModel`,
@@ -374,6 +469,11 @@ There are five kinds of view model in the presentation layer:
   compose session sub-pages from `ViewModels/SessionPages/` instead of
   putting graph/spring/damper/balance/notes/preferences state directly
   on the editor — see [Session Sub-Pages](#session-sub-pages) below.
+  The recorded editor subscribes to `IRecordedSessionGraph.WatchSession`
+  in `Loaded` and disposes that subscription in `Unloaded`. Initial or
+  runtime domain snapshots that are recomputable prompt the user to
+  recompute; unrecomputable stale snapshots report an error; processed
+  data arriving for a current session reloads the presentation data.
 
 ### Session Sub-Pages
 
@@ -392,9 +492,10 @@ Each editor exposes an `ObservableCollection<PageViewModelBase>
 Pages` that the shell view binds against for both the tab header
 strip and the tab body. The two editors compose different sets:
 
-- Recorded sessions: graph, spring, damper, balance, notes, preferences.
-- Live captures: graph, spring, damper, notes, preferences (no balance
-  by default).
+- Recorded sessions: graph, spring, strokes, damper, balance,
+  vibration, analysis, notes, preferences.
+- Live captures: graph, spring, damper, notes, preferences; balance is
+  inserted when the current live statistics produce balance data.
 
 Both editors add or remove `BalancePage` at runtime via an
 `EnsureBalancePage(bool)` helper based on whether the current
@@ -419,18 +520,19 @@ Two pages diverge from that pattern:
 
 - **Graph pages** wrap the editor's graph workspace and a shared
   media workspace and forward bindings to plot rows. The recorded and
-  live graph pages each split into independent Travel, Velocity, and
-  IMU rows whose visibility is controlled by `TravelGraphState` /
-  `VelocityGraphState` / `ImuGraphState` on the workspace (recorded:
-  on the editor itself, projected onto the workspace; live: directly
-  on `LiveSessionGraphWorkspaceViewModel`).
+  live graph pages each split into independent Travel, Velocity, IMU,
+  Speed, and Elevation rows whose visibility is controlled by
+  `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
+  `SpeedGraphState` / `ElevationGraphState` on the workspace
+  (recorded: on the editor itself, projected onto the workspace; live:
+  directly on `LiveSessionGraphWorkspaceViewModel`).
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
   `ApplyPlotAvailability(...)` so the editor can round-trip through
   `SessionPlotPreferences` without reaching into individual
   `PlotPreferenceItemViewModel` instances. Both editors subscribe to
-  `PropertyChanged` on the three plot rows in their constructor and
+  `PropertyChanged` on the plot rows in their constructor and
   react to toggle/smoothing changes by re-applying preferences to the
   graph workspace — the recorded editor re-applies plot selection
   over its base presentation states, while the live editor calls
@@ -458,15 +560,15 @@ implementation, and the `OpenPreviousPageCommand` that delegates to
 `ViewModelBase` (`ViewModels/ViewModelBase.cs`) extends
 `ObservableObject` and contributes the notification / error-message
 collections plus the 3-second auto-hide timer that pauses on pointer
-hover. It no longer carries any navigation surface — that moved to
-`IShellCoordinator`.
+hover. Navigation surface belongs to `IShellCoordinator`, not
+`ViewModelBase`.
 
 ## Testing Boundaries
 
 The architecture is intended to be tested in layers:
 
-- View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command `IsRunning`, and progress-driven notification updates under a test `SynchronizationContext`.
 - View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command or local busy-state transitions, and progress-driven notification updates under a test `SynchronizationContext`.
+- Read-graph tests assert joined projections and derived-change flags across session, setup, bike, and recorded-source updates.
 - Coordinator tests assert workflow semantics such as persistence, store writes, branching, result shapes, per-file progress emission, and background-runner usage.
 - Service tests cover infrastructure ownership when the behavior is non-trivial, for example datastore registration, duplicate detection, or one-shot board detection.
 
@@ -496,16 +598,23 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `IDialogService`, plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
   registered as singletons via factory delegates that resolve the
-  same `IAppPreferences` instance.
+  same `IAppPreferences` instance. Recorded-session derivation
+  services (`IProcessingFingerprintService`,
+  `IRecordedSessionReprocessor`) are also singleton services.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
-  factory delegates that resolve the same instance.
+  factory delegates that resolve the same instance. This includes
+  `RecordedSessionSourceStore`, registered behind
+  `IRecordedSessionSourceStore` and
+  `IRecordedSessionSourceStoreWriter`.
 - **Coordinators**: every shared entity coordinator plus `SyncCoordinator`,
   `ImportSessionsCoordinator` (the latter takes both an
   `IBackgroundTaskRunner` and a `Func<ImportSessionsViewModel>` so it
   can open / focus the singleton import page while keeping the import
   workflow itself view-model-free).
-- **Queries**: `IBikeDependencyQuery`, `ILiveDaqKnownBoardsQuery`.
+- **Queries and read graphs**: `IBikeDependencyQuery`,
+  `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`, and
+  `IRecordedSessionGraph`.
 - **Live DAQ**: `LiveDaqStore` (singleton behind both
   `ILiveDaqStore` and `ILiveDaqStoreWriter`),
   `ILiveDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
@@ -517,7 +626,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 - **View models**: list view models, the import view model and the
   welcome screen as singletons; `MainViewModel` and
   `MainWindowViewModel` as singletons; `MainPagesViewModel` via an
-  explicit factory because two of its dependencies
+  explicit factory because it takes both store refresh roots and
+  platform-optional page view models. Two of its dependencies
   (`PairingClientViewModel`, `PairingServerViewModel`) are optional
   and platform-specific.
 

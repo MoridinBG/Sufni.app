@@ -12,7 +12,7 @@ public class SmokeTests
         Assert.IsType<TestApp>(Sufni.App.App.Current);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RealApp_StartupWithoutApplicationLifetime_UsesPreviewInitialization()
     {
         var app = new Sufni.App.App();

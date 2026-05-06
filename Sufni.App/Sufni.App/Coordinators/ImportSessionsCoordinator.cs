@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Sufni.App.Models;
+using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Stores;
@@ -13,12 +14,19 @@ using Serilog;
 
 namespace Sufni.App.Coordinators;
 
+/// <summary>
+/// Coordinates importing telemetry files into recorded sessions.
+/// It reads the raw SST source, builds processed telemetry from it, and
+/// persists both the canonical raw source and the derived session data.
+/// </summary>
 public class ImportSessionsCoordinator(
     IDatabaseService databaseService,
     ISessionStoreWriter sessionStore,
+    IRecordedSessionSourceStoreWriter sourceStore,
     IShellCoordinator shell,
     IBackgroundTaskRunner backgroundTaskRunner,
     IDaqManagementService daqManagementService,
+    IRecordedSessionReprocessor reprocessor,
     Func<ImportSessionsViewModel> importSessionsResolver)
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
@@ -75,7 +83,8 @@ public class ImportSessionsCoordinator(
         var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
             ?? throw new Exception("Bike is missing");
 
-        var bikeData = TelemetryBikeData.Create(setup, bike);
+        var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+        var bikeSnapshot = BikeSnapshot.From(bike);
 
         var sessions = new Dictionary<IPEndPoint, IDaqManagementSession>();
         try
@@ -122,38 +131,33 @@ public class ImportSessionsCoordinator(
                             continue;
                         }
 
-                        logger.Verbose("Generating processed session data for {FileName}", telemetryFile.Name);
-                        var psst = await telemetryFile.GeneratePsstAsync(bikeData);
-
-                        Guid? fullTrackId = null;
-                        var telemetryData = TelemetryData.FromBinary(psst);
-                        if (telemetryData.GpsData is { Length: > 0 })
-                        {
-                            var track = Track.FromGpsRecords(telemetryData.GpsData);
-                            if (track is not null)
-                            {
-                                await databaseService.PutAsync(track);
-                                fullTrackId = track.Id;
-                            }
-                        }
+                        logger.Verbose("Reading source data for {FileName}", telemetryFile.Name);
+                        var telemetrySource = await telemetryFile.ReadSourceAsync();
+                        var source = CreateImportedSource(Guid.NewGuid(), telemetrySource);
 
                         var session = new Session(
-                            id: Guid.NewGuid(),
+                            id: source.SessionId,
                             name: telemetryFile.Name,
                             description: telemetryFile.Description,
                             setup: setupId,
-                            timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds())
-                        {
-                            ProcessedData = psst,
-                            FullTrack = fullTrackId
-                        };
+                            timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds());
+
+                        var domain = CreateImportDomain(session, setupSnapshot, bikeSnapshot, source);
+                        logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
+                        var reprocessResult = await reprocessor.ReprocessAsync(domain, source);
+                        session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
+                        session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
                         logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
-                        await databaseService.PutSessionAsync(session);
+                        var persisted = await databaseService.PutProcessedSessionAsync(
+                            session,
+                            reprocessResult.GeneratedFullTrack,
+                            source);
                         await telemetryFile.OnImported();
 
-                        var snapshot = SessionSnapshot.From(session);
+                        var snapshot = SessionSnapshot.From(persisted);
                         sessionStore.Upsert(snapshot);
+                        sourceStore.Upsert(RecordedSessionSourceSnapshot.From(source));
                         imported.Add(snapshot);
                         progress?.Report(new SessionImportEvent.Imported(snapshot));
                     }
@@ -191,6 +195,43 @@ public class ImportSessionsCoordinator(
         }
 
         return new SessionImportResult(imported, failures);
+    }
+
+    private static RecordedSessionSource CreateImportedSource(Guid sessionId, TelemetryFileSource telemetrySource)
+    {
+        const int schemaVersion = 1;
+        return new RecordedSessionSource
+        {
+            SessionId = sessionId,
+            SourceKind = RecordedSessionSourceKind.ImportedSst,
+            SourceName = telemetrySource.FileName,
+            SchemaVersion = schemaVersion,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                telemetrySource.FileName,
+                schemaVersion,
+                telemetrySource.SstBytes),
+            Payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(telemetrySource.SstBytes)
+        };
+    }
+
+    private static RecordedSessionDomainSnapshot CreateImportDomain(
+        Session session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSource source)
+    {
+        var sessionSnapshot = SessionSnapshot.From(session);
+        var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+        return new RecordedSessionDomainSnapshot(
+            sessionSnapshot,
+            setup,
+            bike,
+            CurrentFingerprint: null,
+            PersistedFingerprint: null,
+            sourceSnapshot,
+            new SessionStaleness.UnknownLegacyFingerprint(),
+            DerivedChangeKind.None);
     }
 }
 

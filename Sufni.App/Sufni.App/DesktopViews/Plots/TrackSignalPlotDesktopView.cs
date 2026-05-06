@@ -109,7 +109,7 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
 
     private bool CanLoadNow()
     {
-        return plot is not null && HasPlotControl && IsEffectivelyVisible;
+        return plot is not null && HasPlotControl;
     }
 
     private void LoadTrackData()

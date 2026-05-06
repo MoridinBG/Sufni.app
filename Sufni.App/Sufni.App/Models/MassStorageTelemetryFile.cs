@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
 
@@ -32,22 +33,10 @@ public class MassStorageTelemetryFile : ITelemetryFile
         Description = $"Imported from {fileInfo.Name}";
     }
 
-    public async Task<byte[]> GeneratePsstAsync(BikeData bikeData)
+    public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)
     {
-        var rawData = await File.ReadAllBytesAsync(fileInfo.FullName);
-        var rawTelemetryData = RawTelemetryData.FromByteArray(rawData);
-        var telemetryMetadata = new Metadata
-        {
-            SourceName = FileName,
-            Version = rawTelemetryData.Version,
-            SampleRate = rawTelemetryData.SampleRate,
-            Timestamp = rawTelemetryData.Timestamp,
-            Duration = rawTelemetryData.SampleRate > 0
-                ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
-                : 0.0
-        };
-        var telemetryData = TelemetryData.FromRecording(rawTelemetryData, telemetryMetadata, bikeData);
-        return telemetryData.BinaryForm;
+        var rawData = await File.ReadAllBytesAsync(fileInfo.FullName, cancellationToken);
+        return new TelemetryFileSource(FileName, rawData);
     }
 
     public Task OnImported()

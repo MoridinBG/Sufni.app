@@ -57,6 +57,28 @@ public class TravelHistogramPlotTests
         Assert.Contains(labels, label => label.Contains(expectedLabel));
     }
 
+    [Fact]
+    public void Clear_RemovesAxisRulesBeforeReloadingChangedTravelRange()
+    {
+        var original = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var recomputed = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        recomputed.Front.MaxTravel = 240;
+        recomputed.Front.TravelBins = HistogramBuilder.Linspace(0, 240, Parameters.TravelHistBins + 1);
+        var plot = new Plot();
+        var sut = new TravelHistogramPlot(plot, SuspensionType.Front);
+
+        sut.LoadTelemetryData(original);
+        Assert.Equal(2, plot.Axes.Rules.Count);
+
+        sut.Clear();
+        Assert.Empty(plot.Axes.Rules);
+
+        sut.LoadTelemetryData(recomputed);
+
+        Assert.Equal(2, plot.Axes.Rules.Count);
+        Assert.True(plot.Axes.GetLimits().Bottom > 230);
+    }
+
     private static IEnumerable<string> ReadTextLabels(Text text)
     {
         return text.GetType()

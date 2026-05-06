@@ -8,23 +8,24 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
 using Sufni.App.Coordinators;
-using Sufni.App.Stores;
+using Sufni.App.SessionGraph;
 using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
-// Inherits from ItemListViewModelBase for the shared search-bar /
-// date-filter / menu-item state. The items collection is owned locally
-// — `sessionRows` is a typed projection from the store, exposed via
-// the `new` shadow on `Items`.
+/// <summary>
+/// List state for recorded sessions.
+/// It maintains the searchable and date-filtered row collection, tracks
+/// pending delete undo windows, and reflects stale/no-raw session status in
+/// the rows.
+/// </summary>
 public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
-    private readonly ISessionStore sessionStore;
     private readonly SessionCoordinator sessionCoordinator;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
-    private readonly BehaviorSubject<Func<SessionSnapshot, bool>> filterSubject = new(_ => true);
+    private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
 
     #endregion Private fields
@@ -37,16 +38,15 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #region Constructors
 
-    public SessionListViewModel(ISessionStore sessionStore, SessionCoordinator sessionCoordinator)
+    public SessionListViewModel(IRecordedSessionGraph recordedSessionGraph, SessionCoordinator sessionCoordinator)
     {
-        this.sessionStore = sessionStore;
         this.sessionCoordinator = sessionCoordinator;
 
-        sessionStore.Connect()
+        recordedSessionGraph.ConnectSessions()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new SessionRowViewModel(snapshot, sessionCoordinator, RequestRowDelete),
-                (row, snapshot) => row.Update(snapshot))
+                summary => new SessionRowViewModel(summary, sessionCoordinator, RequestRowDelete),
+                (row, summary) => row.Update(summary))
             .SortAndBind(
                 out sessionRows,
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
@@ -74,20 +74,20 @@ public partial class SessionListViewModel : ItemListViewModelBase
         var toDate = DateFilterTo;
         var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
 
-        filterSubject.OnNext(snapshot =>
+        filterSubject.OnNext(summary =>
         {
-            if (pendingIds is not null && pendingIds.Contains(snapshot.Id)) return false;
+            if (pendingIds is not null && pendingIds.Contains(summary.Id)) return false;
 
             // Search matches name OR description.
             var textMatch =
                 string.IsNullOrEmpty(search) ||
-                snapshot.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                snapshot.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase);
+                summary.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                summary.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase);
             if (!textMatch) return false;
 
-            if (snapshot.Timestamp is null) return true;
+            if (summary.Timestamp is null) return true;
 
-            var ts = DateTimeOffset.FromUnixTimeSeconds(snapshot.Timestamp.Value).LocalDateTime;
+            var ts = DateTimeOffset.FromUnixTimeSeconds(summary.Timestamp.Value).LocalDateTime;
             if (fromDate is not null && ts < fromDate) return false;
             if (toDate is not null && ts > toDate) return false;
 
@@ -101,16 +101,13 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SessionRowViewModel row)
     {
-        var snapshot = sessionStore.Get(row.Id);
-        if (snapshot is null) return;
-
-        pendingDeleteIds.Add(snapshot.Id);
+        pendingDeleteIds.Add(row.Id);
         RebuildFilter();
 
         StartUndoWindow(
-            snapshot.Name,
-            finalize: () => FinalizeSessionDeleteAsync(snapshot.Id),
-            onUndone: () => OnSessionDeleteUndone(snapshot.Id));
+            row.BaseName,
+            finalize: () => FinalizeSessionDeleteAsync(row.Id),
+            onUndone: () => OnSessionDeleteUndone(row.Id));
     }
 
     private void OnSessionDeleteUndone(Guid sessionId)

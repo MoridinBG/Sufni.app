@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using NSubstitute;
 using Sufni.App.Models;
 using Sufni.App.Services;
@@ -71,12 +72,12 @@ public class HttpApiServiceTests
             switch (request.RequestUri?.AbsolutePath)
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
-                    refreshRequestCount++;
+                    Interlocked.Increment(ref refreshRequestCount);
                     refreshStarted.TrySetResult();
                     await allowRefreshToComplete.Task.WaitAsync(cancellationToken);
                     return CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2"));
                 case SynchronizationProtocol.EndpointSessionIncomplete:
-                    dataRequestCount++;
+                    Interlocked.Increment(ref dataRequestCount);
                     lock (authorizationLock)
                     {
                         seenAuthorizations.Add(request.Headers.Authorization?.Parameter);

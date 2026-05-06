@@ -4,7 +4,6 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-xmlns:editors="clr-namespace:Sufni.App.ViewModels.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
@@ -15,21 +14,24 @@ mc:Ignorable="d">
 
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical" Spacing="8">
-            <ComboBox
-            Name="MobileBalanceDisplacementModeComboBox"
+            <StackPanel
+            Name="MobileBalanceDisplacementModeRadioButtons"
             Margin="0,8,0,0"
-            HorizontalAlignment="Stretch"
             IsVisible="{Binding HasDynamicStatistics}"
-            ItemsSource="{Binding StatisticsWorkspace.BalanceDisplacementModeOptions}"
-            SelectedValue="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=editors:BalanceDisplacementModeOption}"
-            ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="editors:BalanceDisplacementModeOption">
-                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+            Spacing="4">
+                <RadioButton
+                Name="MobileZenithModeRadioButton"
+                Content="Zenith"
+                GroupName="MobileBalanceDisplacementMode"
+                IsChecked="{Binding ZenithModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Uses deepest stroke travel." />
+                <RadioButton
+                Name="MobileTravelModeRadioButton"
+                Content="Travel"
+                GroupName="MobileBalanceDisplacementMode"
+                IsChecked="{Binding TravelModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Uses start-to-end stroke distance." />
+            </StackPanel>
 
             <controls:PlaceholderOverlayContainer PresentationState="{Binding CompressionPresentationState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>

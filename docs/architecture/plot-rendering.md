@@ -22,6 +22,7 @@ For recorded sessions the host view passes a `TelemetryData` and calls `LoadTele
 SufniPlot                      (Plots/SufniPlot.cs)
 ├── TelemetryPlot              (Plots/TelemetryPlot.cs)
 │   └── TravelPlot, VelocityPlot, ImuPlot,
+│       TrackSignalPlot,
 │       TravelHistogramPlot, TravelFrequencyHistogramPlot, DeepTravelHistogramPlot,
 │       VelocityHistogramPlot, StrokeLengthHistogramPlot, StrokeSpeedHistogramPlot,
 │       BalancePlot, VibrationThirdsPlot
@@ -48,6 +49,7 @@ SufniPlot                      (Plots/SufniPlot.cs)
 | Travel   | `DeepTravelHistogramPlot`      | Stroke counts across the deep-travel band (`DeepTravelThresholdRatio`)                                               |
 | Velocity | `VelocityPlot`                 | Velocity over time per suspension (m/s); positive = compression, negative = rebound                                  |
 | Velocity | `VelocityHistogramPlot`        | Stacked horizontal bars by 10 travel zones, supports `SampleAveraged` / `StrokePeakAveraged` modes                   |
+| Track    | `TrackSignalPlot`              | Speed or elevation over time from projected `TrackPoint` data, with marker lines and cursor readout                  |
 | Strokes  | `StrokeLengthHistogramPlot`    | Stroke count distribution by length, parametrized on suspension and `BalanceType` (compression/rebound)              |
 | Strokes  | `StrokeSpeedHistogramPlot`     | Stroke count distribution by peak speed, same parameter set                                                          |
 | Balance  | `BalancePlot`                  | Front vs rear scatter with polynomial trend lines, MSD and slope-delta labels; `Travel` / `Zenith` displacement mode |
@@ -62,20 +64,22 @@ SufniPlot                      (Plots/SufniPlot.cs)
 
 ## Display-Time Pipeline
 
-The pipeline only runs for the time-series plots (`TravelPlot`, `VelocityPlot`, `ImuPlot`, and the three live plots). Histograms, balance, vibration, and leverage-ratio plots already operate on summarized data and bypass it.
+The pipeline runs for time-series plots (`TravelPlot`, `VelocityPlot`, `ImuPlot`, `TrackSignalPlot`, and the three live plots). Histograms, balance, vibration, and leverage-ratio plots already operate on summarized data and bypass it.
 
-For recorded data, `TelemetryPlot.PrepareDisplaySignal(samples, sampleRate)` is the single entry point. It runs downsampling first, then smoothing, and returns the result plus the time step that ScottPlot needs to render a `Signal`:
+For recorded telemetry arrays, `TelemetryPlot.PrepareDisplaySignal(samples, sampleRate)` is the single entry point. It runs downsampling first, then smoothing, and returns the result plus the time step that ScottPlot needs to render a `Signal`:
 
 ```
 TelemetryDisplayDownsampling.Prepare(samples, sampleRate, MaximumDisplayHz) → samples', step'
 TelemetryDisplaySmoothing.Apply(samples', SmoothingLevel)
 ```
 
+`TrackSignalPlot` uses the same smoothing primitive over projected speed/elevation `TrackPoint` samples, but it does not use sample-rate downsampling because those points are already sparse and irregularly timed.
+
 For live data, every batch is smoothed by a per-channel `TelemetryDisplayStreamingSmoother` before being appended to its `DataStreamer`. Live data is not downsampled at this layer — the upstream batch already arrives at the display rate and the running window is bounded by `Capacity`.
 
 **Downsampling.** `TelemetryDisplayDownsampling` (`Sufni.App/Sufni.App/Plots/TelemetryDisplayDownsampling.cs`) is plain stride-based decimation. It computes `stride = ceil(sampleRate / maximumDisplayHz)` and writes every `stride`-th sample into a fresh array, scaling the time step by the same stride. It is a no-op when `MaximumDisplayHz` is null, the sample rate is at or below the cap, or the sample rate is unknown. In practice only the mobile recorded graph page sets it — `SessionGraphSettings.RecordedMobileMaximumDisplayHz = 100` — so desktop renders the full sample rate and mobile decimates to 100 Hz to stay responsive. There is no visible-range awareness; decimation runs once at load time and ScottPlot's `Signal` plottable handles further pixel-level decimation while the user pans and zooms.
 
-**Smoothing.** `TelemetryDisplaySmoothing` (`Sufni.App/Sufni.App/Plots/TelemetryDisplaySmoothing.cs`) applies a centred box-filter moving average. The window size is fixed per `PlotSmoothingLevel`: `Off` -> 1 (no-op), `Light` -> 8, `Strong` -> 30. Implementation is a single-pass sliding-sum, expanding the window outward to `index ± radius` and clamping at the array boundaries so edge samples reuse a smaller window rather than padding. Recordings with fewer than three samples skip smoothing. The strategy is intentionally simpler than the upstream Savitzky-Golay derivative used inside `Sufni.Telemetry`: this layer is purely cosmetic and never alters the underlying `TelemetryData`. The level is per-row (Travel / Velocity / IMU) in `SessionPlotPreferences`, persisted alongside the session so each row remembers the user's choice.
+**Smoothing.** `TelemetryDisplaySmoothing` (`Sufni.App/Sufni.App/Plots/TelemetryDisplaySmoothing.cs`) applies a centred box-filter moving average. The window size is fixed per `PlotSmoothingLevel`: `Off` -> 1 (no-op), `Light` -> 8, `Strong` -> 30. Implementation is a single-pass sliding-sum, expanding the window outward to `index ± radius` and clamping at the array boundaries so edge samples reuse a smaller window rather than padding. Recordings with fewer than three samples skip smoothing. The strategy is intentionally simpler than the upstream Savitzky-Golay derivative used inside `Sufni.Telemetry`: this layer is purely cosmetic and never alters the underlying `TelemetryData` or `TrackPoint` data. The level is per-row (Travel / Velocity / IMU / Speed / Elevation) in `SessionPlotPreferences`, persisted alongside the session so each row remembers the user's choice.
 
 **Streaming smoother.** `TelemetryDisplayStreamingSmoother` (same file) is the live equivalent. It maintains an internal queue of the last `windowSize` samples plus a running sum. Each `Apply(values, ref buffer)` call extends the queue, drops old samples once it hits the window size, and writes the running average into the caller's scratch buffer (grown geometrically). Changing `Level` resets the internal state — the desktop view base detects that change and also calls `Plot.Reset()` so the streamer redraws from a clean slate at the new smoothing level.
 
@@ -89,4 +93,4 @@ For live data, every batch is smoothed by a per-channel `TelemetryDisplayStreami
 
 **Recorded vs live.** The two paths share styling and the smoothing strategy, but diverge in everything else. Recorded plots receive a finished `TelemetryData` and call `Plot.Add.Signal(...)` once per `LoadTelemetryData`; live plots register one `DataStreamer` per channel up-front and append batches to it. Recorded plots draw seconds directly on the X axis, bounded by `Duration`; live plots draw a fixed `[0, Capacity]` axis and rewrite tick labels via a `LabelFormatter` that maps coordinate -> seconds against the rolling window. Recorded plots install a Y-locked axis rule based on the loaded extents; live plots track a running max as samples arrive and call `SetVerticalLimits(...)` on every batch with a small floor and 10 % padding. Markers, airtime overlays, and analysis-range spans are recorded-only. Downsampling is recorded-only — and only when the host view sets `MaximumDisplayHz` (currently mobile alone). `LiveStreamingPlotBase.Reset()` clears every streamer (`Clear(double.NaN)`), drops timing state, and restores the initial X / Y limits; the desktop view base treats an empty batch as a reset signal and calls `Reset()` so a fresh capture starts from a clean state.
 
-The workspace view models that split graphs into independent Travel / Velocity / IMU rows for both recorded and live editors live in the presentation layer. See [UI Architecture](ui.md) for the recorded workspace and [Live DAQ Streaming](live-streaming.md) for the live transport, capture, and save lifecycle.
+The workspace view models that split graphs into independent Travel / Velocity / IMU / Speed / Elevation rows for both recorded and live editors live in the presentation layer. See [UI Architecture](ui.md) for the recorded workspace and [Live DAQ Streaming](live-streaming.md) for the live transport, capture, and save lifecycle.

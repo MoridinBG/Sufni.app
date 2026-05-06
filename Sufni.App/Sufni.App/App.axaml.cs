@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
+using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
@@ -97,6 +98,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SessionStore>();
         ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
         ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
+        ServiceCollection.AddSingleton<RecordedSessionSourceStore>();
+        ServiceCollection.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
+        ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
+        ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
+        ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
+        ServiceCollection.AddSingleton<IRecordedSessionGraph, RecordedSessionGraph>();
+        ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
@@ -110,6 +118,11 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
+            sp.GetRequiredService<IProcessingFingerprintService>(),
+            sp.GetRequiredService<IRecordedSessionDomainQuery>(),
+            sp.GetRequiredService<IRecordedSessionGraph>(),
+            sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetService<ISynchronizationServerService>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
@@ -132,9 +145,11 @@ public partial class App : Application
             new ImportSessionsCoordinator(
                 sp.GetRequiredService<IDatabaseService>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),
+                sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
                 sp.GetRequiredService<IShellCoordinator>(),
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
                 sp.GetRequiredService<IDaqManagementService>(),
+                sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();
@@ -146,6 +161,7 @@ public partial class App : Application
             sp.GetRequiredService<IBikeStore>(),
             sp.GetRequiredService<ISetupStore>(),
             sp.GetRequiredService<ISessionStore>(),
+            sp.GetRequiredService<IRecordedSessionSourceStore>(),
             sp.GetRequiredService<IPairedDeviceStore>(),
             sp.GetRequiredService<ImportSessionsCoordinator>(),
             sp.GetRequiredService<TrackCoordinator>(),

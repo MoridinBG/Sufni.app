@@ -14,6 +14,7 @@ public class SyncCoordinator
     private readonly IBikeStoreWriter bikeStore;
     private readonly ISetupStoreWriter setupStore;
     private readonly ISessionStoreWriter sessionStore;
+    private readonly IRecordedSessionSourceStore recordedSessionSourceStore;
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
@@ -45,6 +46,7 @@ public class SyncCoordinator
         IBikeStoreWriter bikeStore,
         ISetupStoreWriter setupStore,
         ISessionStoreWriter sessionStore,
+        IRecordedSessionSourceStore recordedSessionSourceStore,
         IPairedDeviceStoreWriter pairedDeviceStore,
         ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null)
@@ -52,6 +54,7 @@ public class SyncCoordinator
         this.bikeStore = bikeStore;
         this.setupStore = setupStore;
         this.sessionStore = sessionStore;
+        this.recordedSessionSourceStore = recordedSessionSourceStore;
         this.pairedDeviceStore = pairedDeviceStore;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
@@ -122,6 +125,7 @@ public class SyncCoordinator
         await bikeStore.RefreshAsync();
         await setupStore.RefreshAsync();
         await sessionStore.RefreshAsync();
+        await recordedSessionSourceStore.RefreshAsync();
         await pairedDeviceStore.RefreshAsync();
     }
 }

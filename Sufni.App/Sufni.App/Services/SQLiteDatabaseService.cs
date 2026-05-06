@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
@@ -57,13 +58,15 @@ public class SqLiteDatabaseService : IDatabaseService
 
             await connection.EnableWriteAheadLoggingAsync();
             await CreateTablesAsync();
+            await EnsureSessionProcessingFingerprintColumnAsync();
             await BackfillRearSuspensionKindAsync();
 
             var cleanupSummary = await Cleanup();
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
             logger.Verbose(
-                "SQLite startup cleanup removed {SessionCacheCount} session caches, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+                "SQLite startup cleanup removed {SessionCacheCount} session caches, {RecordedSessionSourceCount} recorded session sources, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
                 cleanupSummary.SessionCaches,
+                cleanupSummary.RecordedSessionSources,
                 cleanupSummary.Sessions,
                 cleanupSummary.Tracks,
                 cleanupSummary.Boards,
@@ -87,11 +90,23 @@ public class SqLiteDatabaseService : IDatabaseService
             typeof(Setup),
             typeof(Bike),
             typeof(Session),
+            typeof(RecordedSessionSource),
             typeof(SessionCache),
             typeof(Synchronization),
             typeof(PairedDevice),
             typeof(Track)
         ]);
+    }
+
+    private async Task EnsureSessionProcessingFingerprintColumnAsync()
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
+        if (columns.Any(column => column.Name == "session_processing_fingerprint"))
+        {
+            return;
+        }
+
+        await connection.ExecuteAsync("ALTER TABLE session ADD COLUMN session_processing_fingerprint TEXT");
     }
 
     private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
@@ -144,14 +159,193 @@ public class SqLiteDatabaseService : IDatabaseService
         }
     }
 
+    private Task PutRecordedSessionSourceInCurrentTransactionAsync(RecordedSessionSource source)
+    {
+        ValidateRecordedSessionSource(source);
+
+        const string query = """
+                             INSERT OR REPLACE INTO session_recording_source (
+                                 session_id,
+                                 source_kind,
+                                 source_name,
+                                 schema_version,
+                                 source_hash,
+                                 payload
+                             )
+                             VALUES (?, ?, ?, ?, ?, ?)
+                             """;
+
+        return connection.ExecuteAsync(query,
+            [
+                source.SessionId,
+                source.SourceKindValue,
+                source.SourceName,
+                source.SchemaVersion,
+                source.SourceHash,
+                source.Payload
+            ]);
+    }
+
+    private static void ValidateRecordedSessionSource(RecordedSessionSource source)
+    {
+        if (!RecordedSessionSourceHash.Matches(source))
+        {
+            throw new InvalidOperationException("Recorded session source hash does not match its payload.");
+        }
+    }
+
+    private static string? TryReadFingerprintSourceHash(string? processingFingerprintJson)
+    {
+        if (string.IsNullOrWhiteSpace(processingFingerprintJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(processingFingerprintJson);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "SourceHash", StringComparison.OrdinalIgnoreCase) &&
+                    property.Value.ValueKind == JsonValueKind.String)
+                {
+                    return property.Value.GetString();
+                }
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
+    }
+
+    private Task<int> UpdateProcessedSessionAsync(Session session)
+    {
+        var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
+        const string query = """
+                             UPDATE session
+                             SET
+                                 name=?,
+                                 setup_id=?,
+                                 description=?,
+                                 timestamp=?,
+                                 full_track_id=?,
+                                 session_processing_fingerprint=?,
+                                 track=?,
+                                 data=?,
+                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                 updated=?,
+                                 deleted=NULL,
+                                 has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
+                             WHERE
+                                 id=?
+                             """;
+
+        return connection.ExecuteAsync(query,
+            [
+                session.Name,
+                session.Setup,
+                session.Description,
+                session.Timestamp,
+                session.FullTrack,
+                session.ProcessingFingerprintJson,
+                trackJson,
+                session.ProcessedData,
+                session.FrontSpringRate,
+                session.FrontHighSpeedCompression,
+                session.FrontLowSpeedCompression,
+                session.FrontLowSpeedRebound,
+                session.FrontHighSpeedRebound,
+                session.RearSpringRate,
+                session.RearHighSpeedCompression,
+                session.RearLowSpeedCompression,
+                session.RearLowSpeedRebound,
+                session.RearHighSpeedRebound,
+                session.Updated,
+                session.ProcessedData,
+                session.Id
+            ]);
+    }
+
+    private Task<int> UpdateProcessedSessionIfUnchangedAsync(Session session, long baselineUpdated)
+    {
+        var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
+        const string query = """
+                             UPDATE session
+                             SET
+                                 name=?,
+                                 setup_id=?,
+                                 description=?,
+                                 timestamp=?,
+                                 full_track_id=?,
+                                 session_processing_fingerprint=?,
+                                 track=?,
+                                 data=?,
+                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                 updated=?,
+                                 deleted=NULL,
+                                 has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
+                             WHERE
+                                 id=? AND updated=?
+                             """;
+
+        return connection.ExecuteAsync(query,
+            [
+                session.Name,
+                session.Setup,
+                session.Description,
+                session.Timestamp,
+                session.FullTrack,
+                session.ProcessingFingerprintJson,
+                trackJson,
+                session.ProcessedData,
+                session.FrontSpringRate,
+                session.FrontHighSpeedCompression,
+                session.FrontLowSpeedCompression,
+                session.FrontLowSpeedRebound,
+                session.FrontHighSpeedRebound,
+                session.RearSpringRate,
+                session.RearHighSpeedCompression,
+                session.RearLowSpeedCompression,
+                session.RearLowSpeedRebound,
+                session.RearHighSpeedRebound,
+                session.Updated,
+                session.ProcessedData,
+                session.Id,
+                baselineUpdated
+            ]);
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
     private Task<int> DeleteEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : new()
     {
         return connection.DeleteAsync(entity);
     }
 
+    private sealed class TableColumnInfo
+    {
+        [Column("name")]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class SessionSourceStatusRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
+
+        [Column("source_hash")]
+        public string? SourceHash { get; set; }
+    }
+
     private sealed record CleanupSummary(
         int SessionCaches,
+        int RecordedSessionSources,
         int Sessions,
         int Tracks,
         int Boards,
@@ -172,7 +366,19 @@ public class SqLiteDatabaseService : IDatabaseService
                                        )
                                        """;
         var deletedSessionCaches = await connection.ExecuteAsync(cleanSessionCachesQuery);
+
+        var cleanRecordedSourcesForPurgedSessionsQuery = $"""
+                                                          DELETE FROM session_recording_source
+                                                          WHERE session_id IN (
+                                                              SELECT id
+                                                              FROM session
+                                                              WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
+                                                          )
+                                                          """;
+        var deletedRecordedSources = await connection.ExecuteAsync(cleanRecordedSourcesForPurgedSessionsQuery);
         var deletedSessions = await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
+        deletedRecordedSources += await connection.ExecuteAsync(
+            "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
         var deletedTracks = await connection.Table<Track>().DeleteAsync(t => t.Deleted != null && t.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
@@ -181,6 +387,7 @@ public class SqLiteDatabaseService : IDatabaseService
 
         return new CleanupSummary(
             deletedSessionCaches,
+            deletedRecordedSources,
             deletedSessions,
             deletedTracks,
             deletedBoards,
@@ -269,6 +476,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                  description,
                                  timestamp,
                                  full_track_id,
+                                 session_processing_fingerprint,
                                  front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                  rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                  updated,
@@ -298,6 +506,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                  description,
                                  timestamp,
                                  full_track_id,
+                                 session_processing_fingerprint,
                                  front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                  rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                  updated,
@@ -320,6 +529,52 @@ public class SqLiteDatabaseService : IDatabaseService
 
         const string query = "SELECT id FROM session WHERE deleted IS null AND data IS null";
         return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
+    }
+
+    public async Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync()
+    {
+        await Initialization;
+        return await connection.Table<RecordedSessionSource>().ToListAsync();
+    }
+
+    public async Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id)
+    {
+        await Initialization;
+        return await connection.Table<RecordedSessionSource>()
+            .Where(source => source.SessionId == id)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync()
+    {
+        await Initialization;
+
+        const string query = """
+                             SELECT
+                                 s.id,
+                                 s.session_processing_fingerprint,
+                                 source.source_hash
+                             FROM session s
+                             LEFT JOIN session_recording_source source ON source.session_id = s.id
+                             WHERE s.deleted IS null
+                             """;
+        var rows = await connection.QueryAsync<SessionSourceStatusRow>(query);
+        return
+        [
+            .. rows
+                .Where(row =>
+                {
+                    if (string.IsNullOrWhiteSpace(row.SourceHash))
+                    {
+                        return true;
+                    }
+
+                    var expectedSourceHash = TryReadFingerprintSourceHash(row.ProcessingFingerprintJson);
+                    return !string.IsNullOrWhiteSpace(expectedSourceHash) &&
+                           !StringComparer.Ordinal.Equals(row.SourceHash, expectedSourceHash);
+                })
+                .Select(row => row.Id)
+        ];
     }
 
     public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
@@ -366,6 +621,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                      description=?,
                                      timestamp=?,
                                      full_track_id=?,
+                                     session_processing_fingerprint=?,
                                      track=COALESCE(?, track),
                                      data=COALESCE(?, data),
                                      front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
@@ -383,6 +639,7 @@ public class SqLiteDatabaseService : IDatabaseService
                     session.Description,
                     session.Timestamp,
                     session.FullTrack,
+                    session.ProcessingFingerprintJson,
                     trackJson,
                     session.ProcessedData,
                     session.FrontSpringRate,
@@ -405,6 +662,111 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         return session.Id;
+    }
+
+    public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
+    {
+        await Initialization;
+        await PutRecordedSessionSourceInCurrentTransactionAsync(source);
+    }
+
+    public async Task DeleteRecordedSessionSourceAsync(Guid sessionId)
+    {
+        await Initialization;
+        await connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
+    }
+
+    public async Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source)
+    {
+        return await PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated: null)
+               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
+    }
+
+    public Task<Session?> PutProcessedSessionIfUnchangedAsync(
+        Session session,
+        Track? newFullTrack,
+        RecordedSessionSource? source,
+        long baselineUpdated)
+    {
+        return PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated);
+    }
+
+    private async Task<Session?> PutProcessedSessionCoreAsync(
+        Session session,
+        Track? newFullTrack,
+        RecordedSessionSource? source,
+        long? baselineUpdated)
+    {
+        await Initialization;
+
+        if (source is not null && source.SessionId != session.Id)
+        {
+            throw new InvalidOperationException("Recorded session source must belong to the processed session.");
+        }
+
+        await connection.ExecuteAsync("BEGIN TRANSACTION");
+
+        try
+        {
+            if (newFullTrack is not null)
+            {
+                var existingTrack = await EntityExistsAsync<Track>(newFullTrack.Id);
+                newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                newFullTrack.Deleted = null;
+
+                if (existingTrack)
+                {
+                    await UpdateEntityAsync(newFullTrack);
+                }
+                else
+                {
+                    await InsertEntityAsync(newFullTrack);
+                }
+
+                session.FullTrack = newFullTrack.Id;
+            }
+
+            var existingSession = await EntityExistsAsync<Session>(session.Id);
+            session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            session.Deleted = null;
+
+            if (existingSession)
+            {
+                var updatedRows = baselineUpdated.HasValue
+                    ? await UpdateProcessedSessionIfUnchangedAsync(session, baselineUpdated.Value)
+                    : await UpdateProcessedSessionAsync(session);
+                if (updatedRows == 0)
+                {
+                    await connection.ExecuteAsync("ROLLBACK");
+                    return null;
+                }
+            }
+            else
+            {
+                if (baselineUpdated.HasValue)
+                {
+                    await connection.ExecuteAsync("ROLLBACK");
+                    return null;
+                }
+
+                await InsertEntityAsync(session);
+            }
+
+            if (source is not null)
+            {
+                await PutRecordedSessionSourceInCurrentTransactionAsync(source);
+            }
+
+            await connection.ExecuteAsync("COMMIT");
+        }
+        catch
+        {
+            await connection.ExecuteAsync("ROLLBACK");
+            throw;
+        }
+
+        return await GetSessionAsync(session.Id)
+               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
     }
 
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
@@ -672,6 +1034,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                  description=?,
                                  timestamp=?,
                                  full_track_id=?,
+                                 session_processing_fingerprint=?,
                                  track=?,
                                  front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                  rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
@@ -689,6 +1052,7 @@ public class SqLiteDatabaseService : IDatabaseService
                 session.Description,
                 session.Timestamp,
                 session.FullTrack,
+                session.ProcessingFingerprintJson,
                 session.Track is null ? null : AppJson.Serialize(session.Track),
                 session.FrontSpringRate,
                 session.FrontHighSpeedCompression,
@@ -820,6 +1184,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                  description=?,
                                  timestamp=?,
                                  full_track_id=?,
+                                 session_processing_fingerprint=?,
                                  track=?,
                                  front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                  rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
@@ -837,6 +1202,7 @@ public class SqLiteDatabaseService : IDatabaseService
                 session.Description,
                 session.Timestamp,
                 session.FullTrack,
+                session.ProcessingFingerprintJson,
                 session.Track is null ? null : AppJson.Serialize(session.Track),
                 session.FrontSpringRate,
                 session.FrontHighSpeedCompression,

@@ -549,5 +549,67 @@ internal class HttpApiService : IHttpApiService
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<List<Guid>> GetIncompleteSessionSourceIdsAsync()
+    {
+        await EnsureTokenFreshAsync();
+
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionSourceIncomplete}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Get,
+            route,
+            () => client.GetAsync(route));
+        response.EnsureSuccessStatusCode();
+        var incompleteSources = await response.Content.ReadFromJsonAsync(AppJson.Context.ListGuid);
+
+        logger.Verbose(
+            "Received {IncompleteSourceCount} incomplete recorded-source ids from the server",
+            incompleteSources?.Count ?? 0);
+
+        return incompleteSources ?? [];
+    }
+
+    public async Task<RecordedSessionSourceTransfer?> GetRecordedSessionSourceAsync(Guid id)
+    {
+        await EnsureTokenFreshAsync();
+
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionSourceData}{id}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Get,
+            route,
+            () => client.GetAsync(route));
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            logger.Verbose("Recorded source was not found on the server for {SessionId}", id);
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        var source = await response.Content.ReadFromJsonAsync(AppJson.Context.RecordedSessionSourceTransfer);
+
+        logger.Verbose(
+            "Downloaded recorded source for {SessionId} with {ByteCount} bytes",
+            id,
+            source?.Payload.Length ?? 0);
+
+        return source;
+    }
+
+    public async Task PatchRecordedSessionSourceAsync(RecordedSessionSourceTransfer source)
+    {
+        await EnsureTokenFreshAsync();
+
+        logger.Verbose("Uploading recorded source for {SessionId} with {ByteCount} bytes", source.SessionId, source.Payload.Length);
+
+        var route = $"{ServerUrl}{SynchronizationProtocol.EndpointSessionSourceData}{source.SessionId}";
+        using var response = await SendWithLoggingAsync(
+            HttpMethod.Patch,
+            route,
+            () => client.PatchAsJsonAsync(
+                route,
+                source,
+                AppJson.Context.RecordedSessionSourceTransfer));
+        response.EnsureSuccessStatusCode();
+    }
+
     #endregion Public methods - syncing
 }

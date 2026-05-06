@@ -20,7 +20,7 @@ namespace Sufni.App.Tests.Views.SessionPages;
 public class MobileStatisticsPageViewTests
 {
     [AvaloniaFact]
-    public async Task SpringPageView_BindsTravelHistogramModeSelector_WhenTelemetryIsAvailable()
+    public async Task SpringPageView_BindsTravelHistogramModeRadioButtons_WhenTelemetryIsAvailable()
     {
         var workspace = MobileStatisticsWorkspaceStub.Create(
             hasFrontStatistics: true,
@@ -29,20 +29,27 @@ public class MobileStatisticsPageViewTests
 
         await using var mounted = await MountAsync(new SpringPageView { DataContext = page });
 
-        var selector = mounted.View.FindControl<ComboBox>("MobileTravelHistogramModeComboBox");
+        var selector = mounted.View.FindControl<StackPanel>("MobileTravelHistogramModeRadioButtons");
+        var activeSuspension = mounted.View.FindControl<RadioButton>("MobileActiveSuspensionModeRadioButton");
+        var dynamicSag = mounted.View.FindControl<RadioButton>("MobileDynamicSagModeRadioButton");
 
         Assert.NotNull(selector);
         Assert.True(selector!.IsVisible);
-        Assert.Equal(TravelHistogramMode.ActiveSuspension, selector.SelectedValue);
+        Assert.NotNull(activeSuspension);
+        Assert.NotNull(dynamicSag);
+        Assert.True(activeSuspension!.IsChecked);
+        Assert.False(dynamicSag!.IsChecked);
 
-        selector.SelectedValue = TravelHistogramMode.DynamicSag;
+        dynamicSag.IsChecked = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
+        Assert.False(activeSuspension.IsChecked);
+        Assert.True(dynamicSag.IsChecked);
     }
 
     [AvaloniaFact]
-    public async Task DamperPageView_BindsVelocityAverageModeSelector_WhenTelemetryIsAvailable()
+    public async Task DamperPageView_BindsVelocityAverageModeRadioButtons_WhenTelemetryIsAvailable()
     {
         var workspace = MobileStatisticsWorkspaceStub.Create(
             hasFrontStatistics: true,
@@ -51,20 +58,27 @@ public class MobileStatisticsPageViewTests
 
         await using var mounted = await MountAsync(new DamperPageView { DataContext = page });
 
-        var selector = mounted.View.FindControl<ComboBox>("MobileVelocityAverageModeComboBox");
+        var selector = mounted.View.FindControl<StackPanel>("MobileVelocityAverageModeRadioButtons");
+        var sampleAveraged = mounted.View.FindControl<RadioButton>("MobileSampleAveragedModeRadioButton");
+        var strokePeakAveraged = mounted.View.FindControl<RadioButton>("MobileStrokePeakAveragedModeRadioButton");
 
         Assert.NotNull(selector);
         Assert.True(selector!.IsVisible);
-        Assert.Equal(VelocityAverageMode.SampleAveraged, selector.SelectedValue);
+        Assert.NotNull(sampleAveraged);
+        Assert.NotNull(strokePeakAveraged);
+        Assert.True(sampleAveraged!.IsChecked);
+        Assert.False(strokePeakAveraged!.IsChecked);
 
-        selector.SelectedValue = VelocityAverageMode.StrokePeakAveraged;
+        strokePeakAveraged.IsChecked = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, workspace.SelectedVelocityAverageMode);
+        Assert.False(sampleAveraged.IsChecked);
+        Assert.True(strokePeakAveraged.IsChecked);
     }
 
     [AvaloniaFact]
-    public async Task BalancePageView_BindsBalanceDisplacementModeSelector_WhenTelemetryIsAvailable()
+    public async Task BalancePageView_BindsBalanceDisplacementModeRadioButtons_WhenTelemetryIsAvailable()
     {
         var workspace = MobileStatisticsWorkspaceStub.Create(
             hasFrontStatistics: true,
@@ -73,16 +87,23 @@ public class MobileStatisticsPageViewTests
 
         await using var mounted = await MountAsync(new BalancePageView { DataContext = page });
 
-        var selector = mounted.View.FindControl<ComboBox>("MobileBalanceDisplacementModeComboBox");
+        var selector = mounted.View.FindControl<StackPanel>("MobileBalanceDisplacementModeRadioButtons");
+        var zenith = mounted.View.FindControl<RadioButton>("MobileZenithModeRadioButton");
+        var travel = mounted.View.FindControl<RadioButton>("MobileTravelModeRadioButton");
 
         Assert.NotNull(selector);
         Assert.True(selector!.IsVisible);
-        Assert.Equal(BalanceDisplacementMode.Zenith, selector.SelectedValue);
+        Assert.NotNull(zenith);
+        Assert.NotNull(travel);
+        Assert.True(zenith!.IsChecked);
+        Assert.False(travel!.IsChecked);
 
-        selector.SelectedValue = BalanceDisplacementMode.Travel;
+        travel.IsChecked = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+        Assert.False(zenith.IsChecked);
+        Assert.True(travel.IsChecked);
     }
 
     [AvaloniaFact]
@@ -95,22 +116,29 @@ public class MobileStatisticsPageViewTests
 
         await using var mounted = await MountAsync(new StrokesPageView { DataContext = page });
 
-        var selector = mounted.View.FindControl<ComboBox>("MobileStrokesSideComboBox");
+        var selector = mounted.View.FindControl<StackPanel>("MobileStrokesSideRadioButtons");
+        var frontSide = mounted.View.FindControl<RadioButton>("MobileFrontStrokesSideRadioButton");
+        var rearSide = mounted.View.FindControl<RadioButton>("MobileRearStrokesSideRadioButton");
         var frontPanel = mounted.View.FindControl<Grid>("FrontStrokesPanel");
         var rearPanel = mounted.View.FindControl<Grid>("RearStrokesPanel");
 
         Assert.NotNull(selector);
+        Assert.NotNull(frontSide);
+        Assert.NotNull(rearSide);
         Assert.NotNull(frontPanel);
         Assert.NotNull(rearPanel);
         Assert.True(selector!.IsVisible);
-        Assert.Equal(SuspensionType.Front, selector.SelectedValue);
+        Assert.True(frontSide!.IsChecked);
+        Assert.False(rearSide!.IsChecked);
         Assert.True(frontPanel!.IsVisible);
         Assert.False(rearPanel!.IsVisible);
 
-        selector.SelectedValue = SuspensionType.Rear;
+        rearSide.IsChecked = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(SuspensionType.Rear, page.SelectedSuspensionType);
+        Assert.False(frontSide.IsChecked);
+        Assert.True(rearSide.IsChecked);
         Assert.False(frontPanel.IsVisible);
         Assert.True(rearPanel.IsVisible);
     }
@@ -125,7 +153,7 @@ public class MobileStatisticsPageViewTests
 
         await using var mounted = await MountAsync(new StrokesPageView { DataContext = page });
 
-        var selector = mounted.View.FindControl<ComboBox>("MobileStrokesSideComboBox");
+        var selector = mounted.View.FindControl<StackPanel>("MobileStrokesSideRadioButtons");
         var frontPanel = mounted.View.FindControl<Grid>("FrontStrokesPanel");
         var rearPanel = mounted.View.FindControl<Grid>("RearStrokesPanel");
 

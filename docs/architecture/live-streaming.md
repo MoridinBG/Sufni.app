@@ -1,6 +1,6 @@
 # Live DAQ Streaming
 
-> Part of the [Sufni.App architecture documentation](../../ARCHITECTURE.md). This file covers the live preview transport: the framed TCP protocol, discovery and catalog services, the runtime-only store, the per-identity shared stream, and the diagnostics tab. The recording / capture / save side that turns a live stream into a persisted `Session` row lives in [Live Session Recording](live-session.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the live preview transport: the framed TCP protocol, discovery and catalog services, the runtime-only store, the per-identity shared stream, and the diagnostics tab. The recording / capture / save side that turns a live stream into a persisted recorded session lives in [Live Session Recording](live-session.md).
 
 ## Contents
 
@@ -186,7 +186,7 @@ All transport types live in `Sufni.App/Sufni.App/Services/LiveStreaming/`.
 
 `LiveDaqClient` owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. Two background tasks run off the UI thread: a socket drain loop reads exact frame headers and payloads from the network stream and pushes raw telemetry frames into a bounded channel, while a separate parse loop decodes those bytes into `LiveProtocolFrame` records. Both loops are started with `Task.Factory.StartNew`. Parsed frames and other client events are dispatched through a `Subject<LiveDaqClientEvent>` observable. A `SemaphoreSlim` gate serializes all lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the parse loop completes it when the matching ACK or error arrives.
 
-The client is no longer owned directly by a tab view model. It sits under `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
+The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
 
 ### Drop Counters
 
@@ -250,7 +250,7 @@ The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDa
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It no longer owns a `LiveDaqClient` directly. Instead it acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
 
 Management actions stay in the detail view model rather than the transport layer or coordinator:
 

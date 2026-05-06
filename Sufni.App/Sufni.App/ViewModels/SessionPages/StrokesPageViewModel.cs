@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ViewModels.Editors;
@@ -6,17 +5,9 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.SessionPages;
 
-public sealed record SuspensionSideOption(SuspensionType Value, string DisplayName);
-
 public sealed partial class StrokesPageViewModel : PageViewModelBase
 {
     public ISessionStatisticsWorkspace Workspace { get; }
-
-    public IReadOnlyList<SuspensionSideOption> SuspensionSideOptions { get; } =
-    [
-        new(SuspensionType.Front, "Front"),
-        new(SuspensionType.Rear, "Rear"),
-    ];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasBothStatisticsSides))]
@@ -31,6 +22,30 @@ public sealed partial class StrokesPageViewModel : PageViewModelBase
     public bool ShowFrontStrokes => SelectedSuspensionType == SuspensionType.Front;
     public bool ShowRearStrokes => SelectedSuspensionType == SuspensionType.Rear;
     public bool HasBothStatisticsSides => FrontSelectionAvailable && RearSelectionAvailable;
+
+    public bool FrontSideSelected
+    {
+        get => SelectedSuspensionType == SuspensionType.Front;
+        set
+        {
+            if (value)
+            {
+                SelectedSuspensionType = SuspensionType.Front;
+            }
+        }
+    }
+
+    public bool RearSideSelected
+    {
+        get => SelectedSuspensionType == SuspensionType.Rear;
+        set
+        {
+            if (value)
+            {
+                SelectedSuspensionType = SuspensionType.Rear;
+            }
+        }
+    }
 
     public StrokesPageViewModel(ISessionStatisticsWorkspace workspace)
         : base("Strokes")
@@ -48,6 +63,8 @@ public sealed partial class StrokesPageViewModel : PageViewModelBase
     {
         OnPropertyChanged(nameof(ShowFrontStrokes));
         OnPropertyChanged(nameof(ShowRearStrokes));
+        OnPropertyChanged(nameof(FrontSideSelected));
+        OnPropertyChanged(nameof(RearSideSelected));
     }
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
