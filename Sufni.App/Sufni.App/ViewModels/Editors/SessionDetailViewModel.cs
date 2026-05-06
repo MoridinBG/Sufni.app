@@ -171,6 +171,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         IsComplete = value != null;
+        NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
         pendingAnalysisRangeBoundary = null;
         RefreshTrackTimelineContext();
         if (value is null)
