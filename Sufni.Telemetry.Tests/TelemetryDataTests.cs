@@ -322,7 +322,12 @@ public class TelemetryDataTests
                 SampleRate = 100,
                 Meta = [new ImuMetaEntry(0, 16384.0f, 16.4f)],
                 Records = [new ImuRecord(1, 2, 3, 4, 5, 6)]
-            }
+            },
+            TemperatureAverages =
+            [
+                new TemperatureAverage(0, 22.5),
+                new TemperatureAverage(2, 27.25)
+            ]
         };
 
         // Act
@@ -338,6 +343,46 @@ public class TelemetryDataTests
         Assert.Single(result.ImuData.Meta);
         Assert.Single(result.ImuData.Records);
         Assert.Equal(3, result.ImuData.Records[0].Az);
+        Assert.Equal(2, result.TemperatureAverages.Length);
+        Assert.Equal(0, result.TemperatureAverages[0].LocationId);
+        Assert.Equal(22.5, result.TemperatureAverages[0].TemperatureCelsius);
+        Assert.Equal(2, result.TemperatureAverages[1].LocationId);
+        Assert.Equal(27.25, result.TemperatureAverages[1].TemperatureCelsius);
+    }
+
+    [Fact]
+    public void FromRecording_ComputesTemperatureAveragesByLocation()
+    {
+        var samples = Enumerable.Range(0, 200).Select(value => (ushort)value).ToArray();
+        var rawData = new RawTelemetryData
+        {
+            Version = 4,
+            SampleRate = 1000,
+            Front = samples,
+            Rear = samples,
+            TemperatureData =
+            [
+                new TemperatureSample(123, 1, 20.0f),
+                new TemperatureSample(124, 1, 24.0f),
+                new TemperatureSample(125, 0, 18.5f),
+                new TemperatureSample(126, 0, 19.5f)
+            ]
+        };
+        var metadata = new Metadata { SampleRate = 1000 };
+        var bikeData = new BikeData(
+            65.0,
+            100.0,
+            100.0,
+            measurement => measurement,
+            measurement => measurement);
+
+        var result = TelemetryData.FromRecording(rawData, metadata, bikeData);
+
+        Assert.Equal(2, result.TemperatureAverages.Length);
+        Assert.Equal(0, result.TemperatureAverages[0].LocationId);
+        Assert.Equal(19.0, result.TemperatureAverages[0].TemperatureCelsius);
+        Assert.Equal(1, result.TemperatureAverages[1].LocationId);
+        Assert.Equal(22.0, result.TemperatureAverages[1].TemperatureCelsius);
     }
 
     [Fact]

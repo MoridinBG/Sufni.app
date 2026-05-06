@@ -80,6 +80,51 @@ public class SstV4TlvParserTests
     }
 
     [Fact]
+    public void Parse_TemperatureChunk_ReturnsTemperatureSamples()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)4);
+        writer.Write((ushort)500);
+        writer.Write((ushort)600);
+
+        writer.Write((byte)TlvChunkType.Temperature);
+        writer.Write((ushort)26);
+        writer.Write((long)123456790);
+        writer.Write((byte)0);
+        writer.Write(22.5f);
+        writer.Write((long)123456791);
+        writer.Write((byte)2);
+        writer.Write(26.75f);
+
+        ms.Position = 0;
+        using var reader = new BinaryReader(ms);
+        reader.ReadBytes(4);
+
+        var result = new SstV4TlvParser().Parse(reader, 4);
+
+        Assert.Equal(2, result.TemperatureData.Length);
+        Assert.Equal(123456790, result.TemperatureData[0].TimestampUtc);
+        Assert.Equal(0, result.TemperatureData[0].LocationId);
+        Assert.Equal(22.5f, result.TemperatureData[0].TemperatureCelsius);
+        Assert.Equal(123456791, result.TemperatureData[1].TimestampUtc);
+        Assert.Equal(2, result.TemperatureData[1].LocationId);
+        Assert.Equal(26.75f, result.TemperatureData[1].TemperatureCelsius);
+    }
+
+    [Fact]
     public void Parse_GpsChunk_ReturnsCorrectData()
     {
         // Arrange
@@ -271,6 +316,71 @@ public class SstV4TlvParserTests
         writer.Write((byte)TlvChunkType.Telemetry);
         writer.Write((ushort)5);
         writer.Write(new byte[] { 1, 2, 3, 4, 5 });
+
+        ms.Position = 0;
+
+        Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
+    }
+
+    [Fact]
+    public void Inspect_InvalidTemperatureChunkLength_ReturnsMalformedInspection()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)4);
+        writer.Write((ushort)500);
+        writer.Write((ushort)600);
+
+        writer.Write((byte)TlvChunkType.Temperature);
+        writer.Write((ushort)12);
+        writer.Write(new byte[12]);
+
+        ms.Position = 0;
+
+        var result = RawTelemetryData.InspectStream(ms);
+
+        var inspection = Assert.IsType<MalformedSstFileInspection>(result);
+        Assert.Equal((byte)4, inspection.Version);
+        Assert.NotNull(inspection.StartTime);
+        Assert.NotEmpty(inspection.Message);
+    }
+
+    [Fact]
+    public void Parse_InvalidTemperatureChunkLength_ThrowsFormatException()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)123456789);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)4);
+        writer.Write((ushort)500);
+        writer.Write((ushort)600);
+
+        writer.Write((byte)TlvChunkType.Temperature);
+        writer.Write((ushort)12);
+        writer.Write(new byte[12]);
 
         ms.Position = 0;
 

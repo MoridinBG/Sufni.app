@@ -12,6 +12,7 @@ public class SstV4TlvParser : ISstParser
     private const int ImuMetaEntrySize = 9;
     private const int ImuRecordSize = 12;
     private const int GpsRecordSize = 46;
+    private const int TemperatureRecordSize = 13;
     private const string TrimmedTrailingChunkMessage = "SST v4 chunk extends past end of file; incomplete trailing chunk data was trimmed.";
 
     public SstFileInspection Inspect(BinaryReader reader, byte version)
@@ -159,6 +160,18 @@ public class SstV4TlvParser : ISstParser
                     }
 
                     break;
+                case TlvChunkType.Temperature:
+                    if (!TryGetUsablePayloadLength(length, TemperatureRecordSize, bounds.IsTrimmed, out _))
+                    {
+                        return CreateMalformedInspection(
+                            version,
+                            timestamp,
+                            sampleRate,
+                            telemetrySamples,
+                            "SST v4 temperature chunk length is invalid.");
+                    }
+
+                    break;
             }
 
             stream.Position = bounds.End;
@@ -203,6 +216,7 @@ public class SstV4TlvParser : ISstParser
         var markers = new List<MarkerData>();
         RawImuData? imuData = null;
         var gpsRecords = new List<GpsRecord>();
+        var temperatureSamples = new List<TemperatureSample>();
         var rates = new Dictionary<TlvChunkType, ushort>();
         var telemetrySampleCount = 0;
         string? malformedMessage = null;
@@ -353,6 +367,20 @@ public class SstV4TlvParser : ISstParser
                     }
                     break;
 
+                case TlvChunkType.Temperature:
+                    if (!TryGetUsablePayloadLength(length, TemperatureRecordSize, bounds.IsTrimmed, out var usableTemperatureLength))
+                        throw new FormatException("SST v4 temperature chunk length is invalid.");
+
+                    var temperatureRecordCount = usableTemperatureLength / TemperatureRecordSize;
+                    for (int i = 0; i < temperatureRecordCount; i++)
+                    {
+                        var sampleTimestamp = reader.ReadInt64();
+                        var locationId = reader.ReadByte();
+                        var temperatureCelsius = reader.ReadSingle();
+                        temperatureSamples.Add(new TemperatureSample(sampleTimestamp, locationId, temperatureCelsius));
+                    }
+                    break;
+
             }
 
             // Ensure we're at the exact chunk boundary regardless of how many bytes the handler read
@@ -381,6 +409,7 @@ public class SstV4TlvParser : ISstParser
             Markers = markers.ToArray(),
             ImuData = imuData is { Meta.Count: > 0 } ? imuData : null,
             GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null,
+            TemperatureData = temperatureSamples.ToArray(),
             Malformed = malformedMessage is not null,
             MalformedMessage = malformedMessage
         };
