@@ -34,6 +34,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private const int Port = 5575;
 
     private readonly IDatabaseService databaseService;
+    private readonly IAppPreferences appPreferences;
     private readonly ISecureStorage secureStorage;
     private readonly object advertisingGate = new();
 
@@ -59,9 +60,13 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     #region Constructors
 
-    public SynchronizationServerService(IDatabaseService databaseService, ISecureStorage secureStorage)
+    public SynchronizationServerService(
+        IDatabaseService databaseService,
+        IAppPreferences appPreferences,
+        ISecureStorage secureStorage)
     {
         this.databaseService = databaseService;
+        this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
         Initialization = Init();
     }
@@ -324,15 +329,17 @@ public class SynchronizationServerService : ISynchronizationServerService
             app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] long since, ClaimsPrincipal user) =>
             {
                 var data = await databaseService.GetSynchronizationDataAsync(since);
+                data.AppPreferences = await appPreferences.GetSyncDataAsync(since);
 
                 logger.Verbose(
-                    "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+                    "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
                     since,
                     data.Boards.Count,
                     data.Bikes.Count,
                     data.Setups.Count,
                     data.Sessions.Count,
-                    data.Tracks.Count);
+                    data.Tracks.Count,
+                    data.AppPreferences is not null);
 
                 return Results.Ok(data);
             });
@@ -340,14 +347,16 @@ public class SynchronizationServerService : ISynchronizationServerService
             app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
             {
                 logger.Verbose(
-                    "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+                    "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
                     data.Boards.Count,
                     data.Bikes.Count,
                     data.Setups.Count,
                     data.Sessions.Count,
-                    data.Tracks.Count);
+                    data.Tracks.Count,
+                    data.AppPreferences is not null);
 
                 await databaseService.MergeAllAsync(data);
+                await appPreferences.ApplySyncDataAsync(data.AppPreferences);
 
                 SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
                 return Results.NoContent();

@@ -11,25 +11,32 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private readonly IDatabaseService databaseService;
     private readonly IHttpApiService httpApiService;
+    private readonly IAppPreferences appPreferences;
 
-    public SynchronizationClientService(IDatabaseService databaseService, IHttpApiService httpApiService)
+    public SynchronizationClientService(
+        IDatabaseService databaseService,
+        IHttpApiService httpApiService,
+        IAppPreferences appPreferences)
     {
         this.databaseService = databaseService;
         this.httpApiService = httpApiService;
+        this.appPreferences = appPreferences;
     }
 
     private async Task PushLocalChanges(long lastSyncTime)
     {
         var changes = await databaseService.GetSynchronizationDataAsync(lastSyncTime);
+        changes.AppPreferences = await appPreferences.GetSyncDataAsync(lastSyncTime);
 
         logger.Verbose(
-            "Pushing local changes since {LastSyncTime} with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, and {TrackCount} tracks",
+            "Pushing local changes since {LastSyncTime} with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
             lastSyncTime,
             changes.Boards.Count,
             changes.Bikes.Count,
             changes.Setups.Count,
             changes.Sessions.Count,
-            changes.Tracks.Count);
+            changes.Tracks.Count,
+            changes.AppPreferences is not null);
 
         await httpApiService.PushSyncAsync(changes);
     }
@@ -59,9 +66,10 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
         await databaseService.ApplyRemoteSynchronizationDataAsync(syncData);
+        await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
 
         logger.Verbose(
-            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, and {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted",
+            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted, and app preferences present {HasAppPreferences}",
             syncData.Boards.Count(board => board.Deleted.HasValue),
             syncData.Boards.Count(board => !board.Deleted.HasValue),
             syncData.Bikes.Count(bike => bike.Deleted.HasValue),
@@ -71,7 +79,8 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.Tracks.Count(track => track.Deleted.HasValue),
             syncData.Tracks.Count(track => !track.Deleted.HasValue),
             syncData.Sessions.Count(session => session.Deleted.HasValue),
-            syncData.Sessions.Count(session => !session.Deleted.HasValue));
+            syncData.Sessions.Count(session => !session.Deleted.HasValue),
+            syncData.AppPreferences is not null);
     }
 
     private async Task PullIncompleteSessions()
