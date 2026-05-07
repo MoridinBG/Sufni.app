@@ -105,11 +105,16 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         IsPairedChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static string BuildServerUrl(ServiceAnnouncement announcement)
+    private static string? BuildServerUrl(ServiceAnnouncement announcement)
     {
         var address = announcement.Address.IsIPv4MappedToIPv6
             ? announcement.Address.MapToIPv4()
             : announcement.Address;
+        if (address.IsIPv6LinkLocal)
+        {
+            return null;
+        }
+
         var host = address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
             ? $"[{address}]"
             : address.ToString();
@@ -130,6 +135,11 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
     {
         var discoveredServerUrl = BuildServerUrl(e.Announcement);
+        if (discoveredServerUrl is null)
+        {
+            return;
+        }
+
         discoveredServerUrls.Remove(discoveredServerUrl);
         discoveredServerUrls.Add(discoveredServerUrl);
 
@@ -140,6 +150,11 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e)
     {
         var removedServerUrl = BuildServerUrl(e.Announcement);
+        if (removedServerUrl is null)
+        {
+            return;
+        }
+
         logger.Verbose("Pairing server removed from discovery for {ServerUrl}", removedServerUrl);
 
         discoveredServerUrls.Remove(removedServerUrl);
