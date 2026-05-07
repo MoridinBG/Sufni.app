@@ -19,17 +19,52 @@ mc:Ignorable="d">
     Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
-            <Grid MinHeight="420" Height="{Binding #PageScrollViewer.Bounds.Height}">
+            <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}" x:Name="GraphGrid">
                 <Grid.Resources>
-                    <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+                    <controls:SurfaceStateToViewportFractionGridLengthConverter x:Key="MobileGraphRowHeightConverter" />
                 </Grid.Resources>
 
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.VelocityGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.SpeedGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.ElevationGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.TravelGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.VelocityGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.ImuGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.SpeedGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.ElevationGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
                 </Grid.RowDefinitions>
 
                 <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
