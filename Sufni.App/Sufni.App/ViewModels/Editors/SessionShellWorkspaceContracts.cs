@@ -73,6 +73,7 @@ public interface ISessionSidebarWorkspace
 {
     string? Name { get; set; }
     string? DescriptionText { get; set; }
+    NotesPageViewModel NotesPage { get; }
     SuspensionSettings ForkSettings { get; }
     SuspensionSettings ShockSettings { get; }
     PreferencesPageViewModel PreferencesPage { get; }
