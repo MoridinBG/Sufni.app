@@ -7,5 +7,6 @@ public enum TlvChunkType : byte
     Marker = 0x02,
     Imu = 0x03,
     ImuMeta = 0x04,
-    Gps = 0x05
+    Gps = 0x05,
+    Temperature = 0x06
 }

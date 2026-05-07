@@ -12,6 +12,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.SessionPages;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Views.Items;
 
@@ -81,6 +82,35 @@ public class SessionSidebarDesktopViewTests
 
         Assert.Equal("Renamed Session", nameTextBox.Text);
         Assert.Equal("Updated notes", descriptionTextBox.Text);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionSidebarDesktopView_ShowsTemperatureAverages_WhenPresent()
+    {
+        var workspace = new SessionSidebarWorkspaceStub();
+        workspace.NotesPage.SetTemperatureAverages(
+        [
+            new TemperatureAverage(0, 18.26),
+            new TemperatureAverage(2, 24.76)
+        ]);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var panel = mounted.View.FindControl<StackPanel>("TemperatureAveragesPanel");
+        var itemsControl = mounted.View.FindControl<ItemsControl>("TemperatureAveragesItemsControl");
+
+        Assert.NotNull(panel);
+        Assert.NotNull(itemsControl);
+        Assert.True(panel!.IsVisible);
+        var rows = itemsControl!.Items.Cast<TemperatureAverageRowViewModel>().ToArray();
+        Assert.Equal(2, rows.Length);
+        Assert.Equal("Frame", rows[0].SensorName);
+        Assert.Equal("Rear", rows[1].SensorName);
+
+        workspace.NotesPage.SetTemperatureAverages([]);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(panel.IsVisible);
     }
 
     [AvaloniaFact]
@@ -203,6 +233,7 @@ public class SessionSidebarDesktopViewTests
 
         public SuspensionSettings ForkSettings { get; } = new();
         public SuspensionSettings ShockSettings { get; } = new();
+        public NotesPageViewModel NotesPage { get; } = new();
         public PreferencesPageViewModel PreferencesPage { get; } = new();
         public IAsyncRelayCommand SaveCommand { get; }
         public IAsyncRelayCommand ResetCommand { get; }

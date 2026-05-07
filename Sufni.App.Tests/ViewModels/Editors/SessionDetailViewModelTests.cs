@@ -163,6 +163,32 @@ public class SessionDetailViewModelTests
         }
     }
 
+    [AvaloniaFact]
+    public void TelemetryDataChanged_UpdatesNotesTemperatureAverages()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var telemetry = TestTelemetryFactories.CreateTelemetryData();
+        telemetry.TemperatureAverages =
+        [
+            new TemperatureAverage(1, 21.26),
+            new TemperatureAverage(2, 24.76)
+        ];
+
+        editor.TelemetryData = telemetry;
+
+        Assert.True(editor.NotesPage.HasTemperatureAverages);
+        Assert.Equal(2, editor.NotesPage.TemperatureAverages.Count);
+        Assert.Equal("Fork", editor.NotesPage.TemperatureAverages[0].SensorName);
+        Assert.Equal($"{21.26.ToString("F1", CultureInfo.CurrentCulture)} C", editor.NotesPage.TemperatureAverages[0].TemperatureText);
+        Assert.Equal("Rear", editor.NotesPage.TemperatureAverages[1].SensorName);
+        Assert.Equal($"{24.76.ToString("F1", CultureInfo.CurrentCulture)} C", editor.NotesPage.TemperatureAverages[1].TemperatureText);
+
+        editor.TelemetryData = null;
+
+        Assert.False(editor.NotesPage.HasTemperatureAverages);
+        Assert.Empty(editor.NotesPage.TemperatureAverages);
+    }
+
     // ----- Dirtiness -----
 
     [AvaloniaFact]

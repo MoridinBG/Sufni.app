@@ -56,7 +56,10 @@ mc:Ignorable="d">
             </TabStrip.Items>
         </TabStrip>
 
-        <ItemsControl Grid.Row="1">
+        <ItemsControl
+        Name="StatisticsContentHost"
+        Grid.Row="1"
+        Margin="16,16,16,0">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <Panel />
@@ -74,7 +77,7 @@ mc:Ignorable="d">
                     Grid.Row="0"
                     Width="170"
                     HorizontalAlignment="Right"
-                    Margin="0,0,0,8"
+                    Margin="0,0,10,8"
                     ItemsSource="{Binding TravelHistogramModeOptions}"
                     SelectedValue="{Binding SelectedTravelHistogramMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:TravelHistogramModeOption}"
@@ -275,7 +278,7 @@ mc:Ignorable="d">
                     Grid.ColumnSpan="4"
                     Width="190"
                     HorizontalAlignment="Right"
-                    Margin="0,0,0,8"
+                    Margin="0,0,69,8"
                     ItemsSource="{Binding VelocityAverageModeOptions}"
                     SelectedValue="{Binding SelectedVelocityAverageMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:VelocityAverageModeOption}"
@@ -350,7 +353,7 @@ mc:Ignorable="d">
                     Grid.Row="0"
                     Width="150"
                     HorizontalAlignment="Right"
-                    Margin="0,0,0,8"
+                    Margin="0,0,10,8"
                     ItemsSource="{Binding BalanceDisplacementModeOptions}"
                     SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
