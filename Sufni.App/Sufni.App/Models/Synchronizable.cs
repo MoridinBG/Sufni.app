@@ -47,4 +47,5 @@ public class SynchronizationData
     [JsonPropertyName("setup")] public List<Setup> Setups { get; set; } = [];
     [JsonPropertyName("session")] public List<Session> Sessions { get; set; } = [];
     [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
+    [JsonPropertyName("app_preferences")] public AppPreferencesSyncData? AppPreferences { get; set; }
 }
