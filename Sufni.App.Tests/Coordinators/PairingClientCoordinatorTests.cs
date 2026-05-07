@@ -229,19 +229,54 @@ public class PairingClientCoordinatorTests
     }
 
     [Fact]
-    public async Task ServiceAdded_BracketsRawIPv6Address()
+    public async Task ServiceAdded_BracketsGlobalIPv6Address()
     {
         SeedInitDefaults();
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
 
-        var ipv6 = IPAddress.Parse("fe80::1");
+        var ipv6 = IPAddress.Parse("2001:db8::1");
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
             new ServiceAnnouncementEventArgs(new ServiceAnnouncement(ipv6, 4321)));
 
-        Assert.Equal("https://[fe80::1]:4321", coordinator.ServerUrl);
+        Assert.Equal("https://[2001:db8::1]:4321", coordinator.ServerUrl);
+    }
+
+    [Fact]
+    public async Task ServiceAdded_IgnoresIPv6LinkLocalAddress()
+    {
+        SeedInitDefaults();
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        var urlChanged = false;
+        coordinator.ServerUrlChanged += (_, _) => urlChanged = true;
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("fe80::1489:542b:5856:9669"), 5575)));
+
+        Assert.Null(coordinator.ServerUrl);
+        Assert.False(urlChanged);
+    }
+
+    [Fact]
+    public async Task ServiceAdded_LeavesCurrentServerUrl_WhenIPv6LinkLocalAddressArrives()
+    {
+        SeedInitDefaults();
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 5575)));
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("fe80::1489:542b:5856:9669"), 5575)));
+
+        Assert.Equal("https://192.168.1.10:5575", coordinator.ServerUrl);
     }
 
     [Fact]
