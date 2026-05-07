@@ -1,9 +1,12 @@
 using System;
+using System.Globalization;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.SessionPages;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Views.SessionPages;
 
@@ -97,6 +100,37 @@ public class NotesPageViewTests
         Assert.Equal((uint)4, viewModel.ForkSettings.HighSpeedCompression);
         Assert.Equal((uint)10, viewModel.ShockSettings.HighSpeedRebound);
         Assert.Equal("Ride notes", viewModel.Description);
+    }
+
+    [AvaloniaFact]
+    public async Task NotesPageView_ShowsTemperatureAverages_WhenPresent()
+    {
+        var viewModel = new NotesPageViewModel();
+        viewModel.SetTemperatureAverages(
+        [
+            new TemperatureAverage(0, 18.26),
+            new TemperatureAverage(1, 21.76)
+        ]);
+
+        await using var mounted = await MountAsync(viewModel);
+
+        var panel = mounted.View.FindControl<StackPanel>("TemperatureAveragesPanel");
+        var itemsControl = mounted.View.FindControl<ItemsControl>("TemperatureAveragesItemsControl");
+
+        Assert.NotNull(panel);
+        Assert.NotNull(itemsControl);
+        Assert.True(panel!.IsVisible);
+        var rows = itemsControl!.Items.Cast<TemperatureAverageRowViewModel>().ToArray();
+        Assert.Equal(2, rows.Length);
+        Assert.Equal("Frame", rows[0].SensorName);
+        Assert.Equal($"{18.26.ToString("F1", CultureInfo.CurrentCulture)} C", rows[0].TemperatureText);
+        Assert.Equal("Fork", rows[1].SensorName);
+        Assert.Equal($"{21.76.ToString("F1", CultureInfo.CurrentCulture)} C", rows[1].TemperatureText);
+
+        viewModel.SetTemperatureAverages([]);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(panel.IsVisible);
     }
 
     private static async Task<MountedNotesPageView> MountAsync(NotesPageViewModel viewModel)
