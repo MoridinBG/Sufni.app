@@ -200,6 +200,8 @@ public class ImportSessionsCoordinator(
     private static RecordedSessionSource CreateImportedSource(Guid sessionId, TelemetryFileSource telemetrySource)
     {
         const int schemaVersion = 1;
+        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(telemetrySource.SstBytes);
+
         return new RecordedSessionSource
         {
             SessionId = sessionId,
@@ -210,8 +212,8 @@ public class ImportSessionsCoordinator(
                 RecordedSessionSourceKind.ImportedSst,
                 telemetrySource.FileName,
                 schemaVersion,
-                telemetrySource.SstBytes),
-            Payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(telemetrySource.SstBytes)
+                payload),
+            Payload = payload
         };
     }
 
