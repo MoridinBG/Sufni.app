@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
@@ -38,12 +39,15 @@ public class SessionStatisticsDesktopViewTests
         var damping = mounted.View.FindControl<Grid>("Damping");
         var balance = mounted.View.FindControl<Grid>("Balance");
         var analysis = mounted.View.FindControl<Grid>("Analysis");
+        var contentHost = mounted.View.FindControl<ItemsControl>("StatisticsContentHost");
 
         Assert.NotNull(springRate);
         Assert.NotNull(damping);
         Assert.NotNull(balance);
         Assert.NotNull(analysis);
+        Assert.NotNull(contentHost);
 
+        Assert.Equal(new Thickness(16, 16, 16, 0), contentHost!.Margin);
         Assert.True(springRate!.IsVisible);
         Assert.False(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
@@ -311,6 +315,9 @@ public class SessionStatisticsDesktopViewTests
         Assert.Equal(
             "Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.",
             ToolTip.GetTip(balanceMode));
+        Assert.Equal(new Thickness(0, 0, 10, 8), travelMode.Margin);
+        Assert.Equal(new Thickness(0, 0, 69, 8), velocityAverageMode.Margin);
+        Assert.Equal(new Thickness(0, 0, 10, 8), balanceMode.Margin);
 
         travelMode.SelectedValue = TravelHistogramMode.DynamicSag;
         velocityAverageMode.SelectedValue = VelocityAverageMode.StrokePeakAveraged;
