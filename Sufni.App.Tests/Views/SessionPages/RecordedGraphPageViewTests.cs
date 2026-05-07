@@ -46,12 +46,16 @@ public class RecordedGraphPageViewTests
         var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
+        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
 
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
+        Assert.NotNull(graphGrid);
+        Assert.NotNull(pageScrollViewer);
         Assert.True(travelView!.IsVisible);
         Assert.True(velocityView!.IsVisible);
         Assert.True(imuView!.IsVisible);
@@ -60,6 +64,11 @@ public class RecordedGraphPageViewTests
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
+        AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 2);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 4);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
@@ -138,8 +147,8 @@ public class RecordedGraphPageViewTests
         Assert.NotEqual(0, graphGrid!.RowDefinitions[0].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[1].Height.Value);
         Assert.NotEqual(0, graphGrid.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[0].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[0].Height.GridUnitType);
+        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[2].Height.GridUnitType);
         Assert.Equal(graphGrid.RowDefinitions[0].Height.Value, graphGrid.RowDefinitions[2].Height.Value);
     }
 
@@ -183,6 +192,14 @@ public class RecordedGraphPageViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(new ScrollViewer { Content = view });
         return new MountedRecordedGraphPageView(host, view);
+    }
+
+    private static void AssertMobileGraphRowHeight(Grid graphGrid, ScrollViewer pageScrollViewer, int row)
+    {
+        var expected = Math.Max(180, pageScrollViewer.Bounds.Height / 3);
+
+        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[row].Height.GridUnitType);
+        Assert.Equal(expected, graphGrid.RowDefinitions[row].Height.Value, precision: 3);
     }
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
