@@ -186,11 +186,7 @@ public class ImportSessionsCoordinatorTests
                 source.SourceName == "ride-01.SST" &&
                 !source.Payload.SequenceEqual(new byte[] { 1, 2, 3 }) &&
                 RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload).SequenceEqual(new byte[] { 1, 2, 3 }) &&
-                source.SourceHash == RecordedSessionSourceHash.Compute(
-                    RecordedSessionSourceKind.ImportedSst,
-                    "ride-01.SST",
-                    source.SchemaVersion,
-                    new byte[] { 1, 2, 3 })));
+                RecordedSessionSourceHash.Matches(source)));
         await database.DidNotReceive().PutAsync(Arg.Any<Track>());
         await file.Received(1).OnImported();
         await file.DidNotReceive().OnTrashed();

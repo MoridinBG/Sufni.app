@@ -22,6 +22,7 @@ public class RecordedSessionReprocessorTests
             })
         };
         var sstBytes = CreateSstV3Bytes();
+        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes);
         var source = new RecordedSessionSource
         {
             SessionId = session.Id,
@@ -32,8 +33,8 @@ public class RecordedSessionReprocessorTests
                 RecordedSessionSourceKind.ImportedSst,
                 "compressed-source.SST",
                 1,
-                sstBytes),
-            Payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes)
+                payload),
+            Payload = payload
         };
         var domain = new RecordedSessionDomainSnapshot(
             session,
