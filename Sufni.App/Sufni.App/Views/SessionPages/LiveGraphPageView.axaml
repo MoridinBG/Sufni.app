@@ -72,6 +72,7 @@ mc:Ignorable="d">
                         <plots:LiveTravelPlotDesktopView
                         x:Name="TravelPlot"
                         GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
                         MaximumY="{Binding Workspace.PlotRanges.TravelMaximum}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.TravelSmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
@@ -87,6 +88,7 @@ mc:Ignorable="d">
                         x:Name="VelocityPlot"
                         Margin="0,4,0,0"
                         GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
                         MaximumY="{Binding Workspace.PlotRanges.VelocityMaximum}"
                         MinimumY="{Binding Workspace.PlotRanges.VelocityMinimum}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.VelocitySmoothing}"
@@ -103,6 +105,7 @@ mc:Ignorable="d">
                         x:Name="ImuPlot"
                         Margin="0,4,0,0"
                         GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
                         MaximumY="{Binding Workspace.PlotRanges.ImuMaximum}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.ImuSmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
@@ -122,8 +125,7 @@ mc:Ignorable="d">
                         SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
                         Timeline="{Binding Workspace.Timeline}"
                         TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                        TrackPoints="{Binding Workspace.TrackPoints}"
-                        UseCompactRightPadding="True" />
+                        TrackPoints="{Binding Workspace.TrackPoints}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Speed" Margin="0,4,0,0" />
@@ -140,8 +142,7 @@ mc:Ignorable="d">
                         SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
                         Timeline="{Binding Workspace.Timeline}"
                         TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                        TrackPoints="{Binding Workspace.TrackPoints}"
-                        UseCompactRightPadding="True" />
+                        TrackPoints="{Binding Workspace.TrackPoints}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Elevation" Margin="0,4,0,0" />

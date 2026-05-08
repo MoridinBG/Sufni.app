@@ -41,7 +41,7 @@ public class SufniPlot
         Plot.Axes.Color(Color.FromHex("#505558"));
 
         Plot.Axes.Title.Label.FontSize = 14;
-        Plot.Axes.Title.Label.OffsetY = 5;
+        Plot.Axes.Title.Label.OffsetY = -5;
         Plot.Axes.Title.Label.ForeColor = Color.FromHex("#D0D0D0");
 
         Plot.Axes.Left.Label.ForeColor = Color.FromHex("#D0D0D0");
@@ -67,6 +67,7 @@ public class SufniPlot
         Plot.Axes.Bottom.MinorTickStyle.Length = 0;
         Plot.Axes.Bottom.MajorTickStyle.Width = 0;
         Plot.Axes.Bottom.MinorTickStyle.Width = 0;
+        Plot.Axes.Bottom.TickLabelStyle.OffsetY = 5;
     }
 
     public void Clear()

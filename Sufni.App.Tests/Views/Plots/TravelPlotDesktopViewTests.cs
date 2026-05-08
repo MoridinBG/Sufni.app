@@ -35,8 +35,34 @@ public class TravelPlotDesktopViewTests
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         Assert.Equal("Travel (mm)", plot.Plot.Axes.Title.Label.Text);
+        var signals = plot.Plot.PlottableList.OfType<Signal>().ToArray();
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
-        Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
+        Assert.Equal(2, signals.Length);
+        Assert.All(signals, signal => Assert.Same(plot.Plot.Axes.Left, signal.Axes.YAxis));
+        Assert.True(plot.Plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoTravelData()
+    {
+        var view = new TravelPlotDesktopView();
+        var telemetry = CreateTelemetryData();
+        telemetry.Front.Present = false;
+        telemetry.Rear.Present = false;
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = telemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.Equal("Travel (mm)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
+        Assert.Single(plot.Plot.PlottableList.OfType<Text>());
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
     }
 
     [AvaloniaFact]
@@ -54,6 +80,8 @@ public class TravelPlotDesktopViewTests
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         Assert.False(plot.Plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
     }
 
     [AvaloniaFact]

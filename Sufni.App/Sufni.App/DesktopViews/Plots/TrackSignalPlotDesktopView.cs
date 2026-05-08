@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Avalonia;
 using Sufni.App.Models;
@@ -7,12 +6,8 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.DesktopViews.Plots;
 
-public class TrackSignalPlotDesktopView : SufniTimelinePlotView
+public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
 {
-    private TrackSignalPlot? plot;
-    private bool hasPendingLoad;
-
-    protected override TelemetryPlot? TimelinePlot => plot;
     protected override double? TimelineDurationSeconds => TimelineContext?.DurationSeconds;
 
     public static readonly StyledProperty<TrackSignalKind> SignalKindProperty =
@@ -51,32 +46,7 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
         set => SetValue(TelemetryProperty, value);
     }
 
-    public static readonly StyledProperty<PlotSmoothingLevel> SmoothingLevelProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, PlotSmoothingLevel>(nameof(SmoothingLevel));
-
-    public PlotSmoothingLevel SmoothingLevel
-    {
-        get => GetValue(SmoothingLevelProperty);
-        set => SetValue(SmoothingLevelProperty, value);
-    }
-
-    public static readonly StyledProperty<bool> UseCompactRightPaddingProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, bool>(nameof(UseCompactRightPadding));
-
-    public bool UseCompactRightPadding
-    {
-        get => GetValue(UseCompactRightPaddingProperty);
-        set => SetValue(UseCompactRightPaddingProperty, value);
-    }
-
-    public static readonly StyledProperty<bool> HideRightAxisProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, bool>(nameof(HideRightAxis));
-
-    public bool HideRightAxis
-    {
-        get => GetValue(HideRightAxisProperty);
-        set => SetValue(HideRightAxisProperty, value);
-    }
+    protected override TelemetryData? MarkerSource => Telemetry;
 
     public TrackSignalPlotDesktopView()
     {
@@ -88,94 +58,27 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
                 case nameof(TrackPoints):
                 case nameof(TimelineContext):
                 case nameof(Telemetry):
-                case nameof(SmoothingLevel):
-                case nameof(UseCompactRightPadding):
-                case nameof(HideRightAxis):
                     RequestReload();
-                    break;
-
-                case nameof(IsVisible):
-                    TryApplyPendingLoad();
                     break;
             }
         };
-
-        EffectiveViewportChanged += (_, _) => TryApplyPendingLoad();
     }
 
     protected override void CreatePlot()
     {
-        plot = new TrackSignalPlot(PlotControl.Plot);
-        InitializeInteractions();
-        TryApplyPendingLoad();
+        SetPlotModel(new TrackSignalPlot(PlotControl.Plot));
+        InitializeCursorReadoutInteractions();
     }
 
-    private void RequestReload()
-    {
-        hasPendingLoad = true;
-        TryApplyPendingLoad();
-    }
+    protected override bool CanLoadPlotData => TrackPoints is not null && TimelineContext is not null;
 
-    private void TryApplyPendingLoad()
+    protected override void LoadPlotData(TelemetryPlot plotModel)
     {
-        if (!hasPendingLoad || !CanLoadNow())
+        if (plotModel is not TrackSignalPlot trackPlot || TrackPoints is null || TimelineContext is null)
         {
             return;
         }
 
-        hasPendingLoad = false;
-        LoadTrackData();
-    }
-
-    private bool CanLoadNow()
-    {
-        return plot is not null && HasPlotControl;
-    }
-
-    private void LoadTrackData()
-    {
-        if (plot is null || TrackPoints is null || TimelineContext is null)
-        {
-            plot?.Clear();
-            RefreshPlot();
-            return;
-        }
-
-        plot.SmoothingLevel = SmoothingLevel;
-        plot.UseCompactRightPadding = UseCompactRightPadding;
-        plot.HideRightAxis = HideRightAxis;
-        plot.Clear();
-        plot.LoadTrackData(TrackPoints, TimelineContext.Value, Telemetry, SignalKind);
-        ApplyTimelineCursor();
-        ApplyTimelineRange();
-        RefreshPlot();
-    }
-
-    private void InitializeInteractions()
-    {
-        void UpdateCursor(Avalonia.Input.PointerEventArgs args)
-        {
-            if (plot is null || TimelineContext is null || TimelineContext.Value.DurationSeconds <= 0)
-            {
-                return;
-            }
-
-            var point = args.GetPosition(PlotControl);
-            var coords = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
-            var normalizedCursorPosition = Math.Clamp(coords.X / TimelineContext.Value.DurationSeconds, 0.0, 1.0);
-            Timeline?.SetCursorPosition(normalizedCursorPosition);
-            plot.SetCursorPositionWithReadout(normalizedCursorPosition * TimelineContext.Value.DurationSeconds);
-            RefreshPlot();
-        }
-
-        PlotControl.PointerPressed += (_, args) => UpdateCursor(args);
-        PlotControl.PointerMoved += (_, args) => UpdateCursor(args);
-        PlotControl.PointerExited += (_, _) =>
-        {
-            plot?.HideCursorReadout();
-            RefreshPlot();
-        };
-        PlotControl.PointerReleased += (_, _) => UpdateTimelineRange();
-        PlotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();
+        trackPlot.LoadTrackData(TrackPoints, TimelineContext.Value, Telemetry, SignalKind);
     }
 }

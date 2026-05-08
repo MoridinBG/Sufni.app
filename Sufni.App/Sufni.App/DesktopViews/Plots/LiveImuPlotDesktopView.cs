@@ -9,7 +9,7 @@ public sealed class LiveImuPlotDesktopView : LiveGraphPlotDesktopViewBase
     protected override void CreatePlot()
     {
         Debug.Assert(HasPlotControl);
-        Plot = new LiveImuPlot(PlotControl.Plot, MaximumY ?? 5);
+        Plot = new LiveImuPlot(PlotControl.Plot, MaximumY ?? 5, HideRightAxis);
         ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();

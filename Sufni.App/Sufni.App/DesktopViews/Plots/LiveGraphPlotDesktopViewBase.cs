@@ -73,6 +73,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         set => SetValue(SmoothingLevelProperty, value);
     }
 
+    public static readonly StyledProperty<bool> HideRightAxisProperty =
+        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, bool>(nameof(HideRightAxis));
+
+    public bool HideRightAxis
+    {
+        get => GetValue(HideRightAxisProperty);
+        set => SetValue(HideRightAxisProperty, value);
+    }
+
     protected LiveGraphPlotDesktopViewBase()
     {
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -110,6 +119,11 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
                 case nameof(SmoothingLevel):
                     ApplySmoothingLevel(resetExistingSamples: true);
+                    break;
+
+                case nameof(HideRightAxis):
+                    Plot?.SetHideRightAxis(HideRightAxis);
+                    RefreshPlot();
                     break;
             }
         };

@@ -62,7 +62,7 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
         Assert.Equal("Travel (mm)", travelPlot.Plot.Axes.Title.Label.Text);
-        Assert.Equal("Velocity (m/second)", velocityPlot.Plot.Axes.Title.Label.Text);
+        Assert.Equal("Velocity (m/s)", velocityPlot.Plot.Axes.Title.Label.Text);
         Assert.Equal("IMU Acceleration (g)", imuPlot.Plot.Axes.Title.Label.Text);
         Assert.Empty(travelPlot.Plot.Axes.Bottom.Label.Text);
         Assert.Empty(travelPlot.Plot.Axes.Left.Label.Text);
@@ -70,6 +70,9 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Empty(velocityPlot.Plot.Axes.Left.Label.Text);
         Assert.Empty(imuPlot.Plot.Axes.Bottom.Label.Text);
         Assert.Empty(imuPlot.Plot.Axes.Left.Label.Text);
+        Assert.True(travelPlot.Plot.Axes.Right.IsVisible);
+        Assert.True(velocityPlot.Plot.Axes.Right.IsVisible);
+        Assert.True(imuPlot.Plot.Axes.Right.IsVisible);
         // Live plots auto-size around the largest value seen so far (with 10% headroom),
         // falling back to a per-metric floor when running max is below it.
         Assert.Equal(13.2, travelPlot.Plot.Axes.Left.Max, precision: 4);
@@ -78,6 +81,12 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Equal(-1.122, velocityPlot.Plot.Axes.Left.Min, precision: 4);
         Assert.Equal(1.65, imuPlot.Plot.Axes.Left.Max, precision: 4);
         Assert.Equal(0, imuPlot.Plot.Axes.Left.Min);
+        Assert.Equal(travelPlot.Plot.Axes.Left.Min, travelPlot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(travelPlot.Plot.Axes.Left.Max, travelPlot.Plot.Axes.Right.Max, precision: 6);
+        Assert.Equal(velocityPlot.Plot.Axes.Left.Min, velocityPlot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(velocityPlot.Plot.Axes.Left.Max, velocityPlot.Plot.Axes.Right.Max, precision: 6);
+        Assert.Equal(imuPlot.Plot.Axes.Left.Min, imuPlot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(imuPlot.Plot.Axes.Left.Max, imuPlot.Plot.Axes.Right.Max, precision: 6);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
         await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!);

@@ -22,10 +22,9 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private double[] rearSmoothingScratch = [];
     private double runningMax;
 
-    public LiveImuPlot(Plot plot, double imuMaximum)
-        : base(plot, 1024, 0, Math.Max(0.1, imuMaximum))
+    public LiveImuPlot(Plot plot, double imuMaximum, bool hideRightAxis)
+        : base(plot, "IMU Acceleration (g)", 1024, 0, Math.Max(0.1, imuMaximum), hideRightAxis)
     {
-        ConfigurePlot("IMU Acceleration (g)");
         frameStreamer = CreateStreamer(ImuPlot.FrameColor);
         forkStreamer = CreateStreamer(TelemetryPlot.FrontColor);
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor);

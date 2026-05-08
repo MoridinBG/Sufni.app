@@ -9,7 +9,7 @@ public sealed class LiveTravelPlotDesktopView : LiveGraphPlotDesktopViewBase
     protected override void CreatePlot()
     {
         Debug.Assert(HasPlotControl);
-        Plot = new LiveTravelPlot(PlotControl.Plot, MaximumY ?? 1);
+        Plot = new LiveTravelPlot(PlotControl.Plot, MaximumY ?? 1, HideRightAxis);
         ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();

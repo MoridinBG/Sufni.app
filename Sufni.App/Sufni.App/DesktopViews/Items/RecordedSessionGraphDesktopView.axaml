@@ -36,11 +36,10 @@ mc:Ignorable="d">
                 <plots:TravelPlotDesktopView
                 Name="Travel"
                 AnalysisRange="{Binding AnalysisRange}"
+                GraphWorkspace="{Binding}"
                 SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
                 Telemetry="{Binding TelemetryData}"
-                Timeline="{Binding Timeline}"
-                VelocityPlotView="{Binding #Velocity}"
-                ImuPlotView="{Binding #Imu}" />
+                Timeline="{Binding Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -59,11 +58,11 @@ mc:Ignorable="d">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:VelocityPlotDesktopView
                 Name="Velocity"
+                AnalysisRange="{Binding AnalysisRange}"
+                GraphWorkspace="{Binding}"
                 SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
                 Telemetry="{Binding TelemetryData}"
-                Timeline="{Binding Timeline}"
-                TravelPlotView="{Binding #Travel}"
-                ImuPlotView="{Binding #Imu}" />
+                Timeline="{Binding Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -82,11 +81,11 @@ mc:Ignorable="d">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:ImuPlotDesktopView
                 Name="Imu"
+                AnalysisRange="{Binding AnalysisRange}"
+                GraphWorkspace="{Binding}"
                 SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
                 Telemetry="{Binding TelemetryData}"
-                Timeline="{Binding Timeline}"
-                TravelPlotView="{Binding #Travel}"
-                VelocityPlotView="{Binding #Velocity}" />
+                Timeline="{Binding Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
 
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -105,6 +104,8 @@ mc:Ignorable="d">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:TrackSignalPlotDesktopView
                 Name="Speed"
+                AnalysisRange="{Binding AnalysisRange}"
+                GraphWorkspace="{Binding}"
                 SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
                 SmoothingLevel="{Binding PlotPreferences.SpeedSmoothing}"
                 Telemetry="{Binding TelemetryData}"
@@ -129,6 +130,8 @@ mc:Ignorable="d">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <plots:TrackSignalPlotDesktopView
                 Name="Elevation"
+                AnalysisRange="{Binding AnalysisRange}"
+                GraphWorkspace="{Binding}"
                 SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
                 SmoothingLevel="{Binding PlotPreferences.ElevationSmoothing}"
                 Telemetry="{Binding TelemetryData}"

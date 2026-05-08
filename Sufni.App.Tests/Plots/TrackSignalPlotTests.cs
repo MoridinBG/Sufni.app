@@ -82,6 +82,8 @@ public class TrackSignalPlotTests
             TrackSignalKind.Speed);
 
         Assert.False(plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
     }
 
     [Fact]
