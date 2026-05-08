@@ -52,6 +52,15 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
         set => SetValue(AnalysisRangeProperty, value);
     }
 
+    public static readonly StyledProperty<bool> HideRightAxisProperty =
+        AvaloniaProperty.Register<SufniTelemetryPlotView, bool>(nameof(HideRightAxis));
+
+    public bool HideRightAxis
+    {
+        get => GetValue(HideRightAxisProperty);
+        set => SetValue(HideRightAxisProperty, value);
+    }
+
     protected SufniTelemetryPlotView()
     {
         // Populate the ScottPlot plot when the Telemetry property is set.
@@ -83,6 +92,7 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
 
                 case nameof(MaximumDisplayHz):
                 case nameof(SmoothingLevel):
+                case nameof(HideRightAxis):
                     if (Telemetry is not null)
                     {
                         hasPendingTelemetryLoad = true;
@@ -168,6 +178,7 @@ public abstract class SufniTelemetryPlotView : SufniTimelinePlotView
         plot.MaximumDisplayHz = MaximumDisplayHz;
         plot.SmoothingLevel = SmoothingLevel;
         plot.AnalysisRange = AnalysisRange;
+        plot.HideRightAxis = HideRightAxis;
         plot.Clear();
         plot.LoadTelemetryData(telemetryData);
         ApplyTimelineCursor();

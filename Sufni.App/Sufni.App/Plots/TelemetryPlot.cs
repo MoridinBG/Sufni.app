@@ -119,9 +119,17 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     public int? MaximumDisplayHz { get; set; }
     public PlotSmoothingLevel SmoothingLevel { get; set; }
     public TelemetryTimeRange? AnalysisRange { get; set; }
+    public bool HideRightAxis { get; set; }
 
     protected void ConfigureRightAxisStyle()
     {
+        if (HideRightAxis)
+        {
+            Plot.Axes.Right.IsVisible = false;
+            return;
+        }
+
+        Plot.Axes.Right.IsVisible = true;
         Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
         Plot.Axes.Right.TickLabelStyle.Bold = false;
         Plot.Axes.Right.TickLabelStyle.FontSize = 12;
