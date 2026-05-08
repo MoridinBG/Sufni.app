@@ -64,6 +64,9 @@ public class RecordedGraphPageViewTests
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
+        Assert.True(travelView.HideRightAxis);
+        Assert.True(velocityView.HideRightAxis);
+        Assert.True(imuView.HideRightAxis);
         AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 2);

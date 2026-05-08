@@ -40,6 +40,23 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task TravelPlotDesktopView_HidesRightAxis_WhenRequested()
+    {
+        var view = new TravelPlotDesktopView
+        {
+            HideRightAxis = true,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = CreateTelemetryData();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.False(plot.Plot.Axes.Right.IsVisible);
+    }
+
+    [AvaloniaFact]
     public async Task TravelPlotDesktopView_AnalysisRangeUpdatesOverlayWithoutReloadingSignals()
     {
         var view = new TravelPlotDesktopView();
