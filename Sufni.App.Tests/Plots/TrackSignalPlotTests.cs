@@ -31,6 +31,9 @@ public class TrackSignalPlotTests
         Assert.Single(plot.PlottableList.OfType<Scatter>());
         Assert.True(plot.Axes.Left.Min < 36);
         Assert.True(plot.Axes.Left.Max > 72);
+        Assert.True(plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
     }
 
     [Fact]
@@ -55,6 +58,30 @@ public class TrackSignalPlotTests
         Assert.Single(plot.PlottableList.OfType<Scatter>());
         Assert.True(plot.Axes.Left.Min < 500);
         Assert.True(plot.Axes.Left.Max > 510);
+        Assert.True(plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
+    }
+
+    [Fact]
+    public void LoadTrackData_HidesRightAxis_WhenRequested()
+    {
+        var plot = new Plot();
+        var sut = new TrackSignalPlot(plot)
+        {
+            HideRightAxis = true,
+        };
+
+        sut.LoadTrackData(
+            [
+                new TrackPoint(100, 0, 0, 500, 10),
+                new TrackPoint(101, 1, 1, 501, 20),
+            ],
+            new TrackTimeRange(100, 1),
+            telemetryData: null,
+            TrackSignalKind.Speed);
+
+        Assert.False(plot.Axes.Right.IsVisible);
     }
 
     [Fact]

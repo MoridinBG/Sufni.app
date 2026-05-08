@@ -12,18 +12,34 @@ namespace Sufni.App.Tests.Views.Plots;
 public class TrackSignalPlotDesktopViewTests
 {
     [AvaloniaFact]
+    public async Task TrackSignalPlotDesktopView_ShowsRightAxisByDefault()
+    {
+        var view = CreateTrackSignalView();
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.True(plot.Plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
+    }
+
+    [AvaloniaFact]
+    public async Task TrackSignalPlotDesktopView_HidesRightAxis_WhenRequested()
+    {
+        var view = CreateTrackSignalView();
+        view.HideRightAxis = true;
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.False(plot.Plot.Axes.Right.IsVisible);
+    }
+
+    [AvaloniaFact]
     public async Task TrackSignalPlotDesktopView_ReloadsTelemetryMarkersWhileHidden()
     {
-        var view = new TrackSignalPlotDesktopView
-        {
-            SignalKind = TrackSignalKind.Speed,
-            TrackPoints =
-            [
-                new TrackPoint(0, 0, 0, 100, 5),
-                new TrackPoint(1, 1, 1, 101, 6),
-            ],
-            TimelineContext = new TrackTimeRange(0, 1),
-        };
+        var view = CreateTrackSignalView();
         var oldTelemetry = CreateTelemetryData();
         oldTelemetry.Markers = [new MarkerData(0.5)];
         var freshTelemetry = CreateTelemetryData();
@@ -43,4 +59,15 @@ public class TrackSignalPlotDesktopViewTests
 
         Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
     }
+
+    private static TrackSignalPlotDesktopView CreateTrackSignalView() => new()
+    {
+        SignalKind = TrackSignalKind.Speed,
+        TrackPoints =
+        [
+            new TrackPoint(0, 0, 0, 100, 5),
+            new TrackPoint(1, 1, 1, 101, 6),
+        ],
+        TimelineContext = new TrackTimeRange(0, 1),
+    };
 }
