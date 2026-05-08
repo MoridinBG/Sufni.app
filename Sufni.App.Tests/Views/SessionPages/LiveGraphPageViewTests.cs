@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
@@ -51,21 +52,36 @@ public class LiveGraphPageViewTests
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.Name != "MapHost")
             .ToArray();
-        var graphGrid = mounted.View.GetVisualDescendants()
-            .OfType<Grid>()
-            .Single(grid => grid.RowDefinitions.Count == 5 && grid.Children.OfType<PlaceholderOverlayContainer>().Count() == 5);
+        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
+        var travelView = mounted.View.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
+        var velocityView = mounted.View.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
+        var imuView = mounted.View.FindControl<LiveImuPlotDesktopView>("ImuPlot");
+        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
+        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
+        Assert.NotNull(graphGrid);
+        Assert.NotNull(pageScrollViewer);
+        Assert.NotNull(travelView);
+        Assert.NotNull(velocityView);
+        Assert.NotNull(imuView);
+        Assert.NotNull(speedView);
+        Assert.NotNull(elevationView);
         Assert.Equal(5, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
         Assert.Equal(SurfacePresentationState.Hidden, hosts[2].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
         Assert.Equal(SurfacePresentationState.Hidden, hosts[4].PresentationState);
-        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[0].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[1].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, graphGrid.RowDefinitions[3].Height.GridUnitType);
-        Assert.Equal(graphGrid.RowDefinitions[0].Height.Value, graphGrid.RowDefinitions[1].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
+        AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
+        Assert.Equal(0, graphGrid!.RowDefinitions[2].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.True(travelView!.HideRightAxis);
+        Assert.True(velocityView!.HideRightAxis);
+        Assert.True(imuView!.HideRightAxis);
+        Assert.True(speedView!.HideRightAxis);
+        Assert.True(elevationView!.HideRightAxis);
     }
 
     [AvaloniaFact]
@@ -134,6 +150,14 @@ public class LiveGraphPageViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(new ScrollViewer { Content = view });
         return new MountedLiveGraphPageView(host, view);
+    }
+
+    private static void AssertMobileGraphRowHeight(Grid graphGrid, ScrollViewer pageScrollViewer, int row)
+    {
+        var expected = Math.Max(180, pageScrollViewer.Bounds.Height / 3);
+
+        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[row].Height.GridUnitType);
+        Assert.Equal(expected, graphGrid.RowDefinitions[row].Height.Value, precision: 3);
     }
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)

@@ -13,13 +13,7 @@ public class VelocityPlotDesktopViewTests
     [AvaloniaFact]
     public async Task VelocityPlotDesktopView_StartsEmpty_BeforeTelemetryIsAssigned()
     {
-        var travelView = new TravelPlotDesktopView();
-        await using var mountedTravel = await PlotViewTestSupport.MountAsync(travelView);
-
-        var velocityView = new VelocityPlotDesktopView
-        {
-            TravelPlotView = mountedTravel.View,
-        };
+        var velocityView = new VelocityPlotDesktopView();
 
         await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
 
@@ -30,13 +24,7 @@ public class VelocityPlotDesktopViewTests
     [AvaloniaFact]
     public async Task VelocityPlotDesktopView_LoadsSignalsFromTelemetryProperty()
     {
-        var travelView = new TravelPlotDesktopView();
-        await using var mountedTravel = await PlotViewTestSupport.MountAsync(travelView);
-
-        var velocityView = new VelocityPlotDesktopView
-        {
-            TravelPlotView = mountedTravel.View,
-        };
+        var velocityView = new VelocityPlotDesktopView();
 
         await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
 
@@ -44,21 +32,40 @@ public class VelocityPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mountedVelocity.View);
-        Assert.Equal("Velocity (m/seconds / time )", plot.Plot.Axes.Title.Label.Text);
+        Assert.Equal("Velocity (m/s)", plot.Plot.Axes.Title.Label.Text);
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
+        Assert.True(plot.Plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
+    }
+
+    [AvaloniaFact]
+    public async Task VelocityPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoVelocityData()
+    {
+        var velocityView = new VelocityPlotDesktopView();
+
+        await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
+
+        var telemetry = CreateTelemetryData();
+        telemetry.Front.Present = false;
+        telemetry.Rear.Present = false;
+
+        velocityView.Telemetry = telemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mountedVelocity.View);
+        Assert.Equal("Velocity (m/s)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
+        Assert.Single(plot.Plot.PlottableList.OfType<Text>());
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
     }
 
     [AvaloniaFact]
     public async Task VelocityPlotDesktopView_RendersMarkerLinesFromTelemetry()
     {
-        var travelView = new TravelPlotDesktopView();
-        await using var mountedTravel = await PlotViewTestSupport.MountAsync(travelView);
-
-        var velocityView = new VelocityPlotDesktopView
-        {
-            TravelPlotView = mountedTravel.View,
-        };
+        var velocityView = new VelocityPlotDesktopView();
 
         await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
 

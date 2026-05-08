@@ -21,10 +21,9 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
     private double[] rearSmoothingScratch = [];
     private double runningMaxAbs;
 
-    public LiveVelocityPlot(Plot plot, double velocityMaximum)
-        : base(plot, 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum))
+    public LiveVelocityPlot(Plot plot, double velocityMaximum, bool hideRightAxis)
+        : base(plot, "Velocity (m/s)", 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum), hideRightAxis)
     {
-        ConfigurePlot("Velocity", "Velocity (m/s)");
         frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
         ApplyAutoLimits();

@@ -25,6 +25,9 @@ public class ImuPlotDesktopViewTests
         Assert.Equal("IMU Acceleration (g)", plot.Plot.Axes.Title.Label.Text);
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
+        Assert.True(plot.Plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
     }
 
     [AvaloniaFact]

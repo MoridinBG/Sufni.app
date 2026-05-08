@@ -25,10 +25,15 @@ public class TrackSignalPlotTests
             TrackSignalKind.Speed);
 
         Assert.NotNull(sut.CursorLine);
-        Assert.Equal("Speed", plot.Axes.Title.Label.Text);
+        Assert.Equal("Speed (km/h)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Bottom.Label.Text);
+        Assert.Empty(plot.Axes.Left.Label.Text);
         Assert.Single(plot.PlottableList.OfType<Scatter>());
         Assert.True(plot.Axes.Left.Min < 36);
         Assert.True(plot.Axes.Left.Max > 72);
+        Assert.True(plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
     }
 
     [Fact]
@@ -47,10 +52,38 @@ public class TrackSignalPlotTests
             TrackSignalKind.Elevation);
 
         Assert.NotNull(sut.CursorLine);
-        Assert.Equal("Elevation", plot.Axes.Title.Label.Text);
+        Assert.Equal("Elevation (m)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Bottom.Label.Text);
+        Assert.Empty(plot.Axes.Left.Label.Text);
         Assert.Single(plot.PlottableList.OfType<Scatter>());
         Assert.True(plot.Axes.Left.Min < 500);
         Assert.True(plot.Axes.Left.Max > 510);
+        Assert.True(plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
+    }
+
+    [Fact]
+    public void LoadTrackData_HidesRightAxis_WhenRequested()
+    {
+        var plot = new Plot();
+        var sut = new TrackSignalPlot(plot)
+        {
+            HideRightAxis = true,
+        };
+
+        sut.LoadTrackData(
+            [
+                new TrackPoint(100, 0, 0, 500, 10),
+                new TrackPoint(101, 1, 1, 501, 20),
+            ],
+            new TrackTimeRange(100, 1),
+            telemetryData: null,
+            TrackSignalKind.Speed);
+
+        Assert.False(plot.Axes.Right.IsVisible);
+        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
     }
 
     [Fact]

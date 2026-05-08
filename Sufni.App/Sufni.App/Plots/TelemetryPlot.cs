@@ -5,6 +5,7 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
+using Sufni.App.SessionGraphs;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -119,9 +120,27 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     public int? MaximumDisplayHz { get; set; }
     public PlotSmoothingLevel SmoothingLevel { get; set; }
     public TelemetryTimeRange? AnalysisRange { get; set; }
+    public bool HideRightAxis { get; set; }
+
+    protected void ConfigureTimeSeriesFrame(string title, Func<double, string>? timeLabelFormatter = null)
+    {
+        Plot.Axes.Title.Label.Text = title;
+        SetAxisLabels(string.Empty, string.Empty);
+        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
+        ConfigureRightAxisStyle();
+        Plot.Axes.Top.IsVisible = false;
+        ConfigureTimeTicks(labelFormatter: timeLabelFormatter);
+    }
 
     protected void ConfigureRightAxisStyle()
     {
+        if (HideRightAxis)
+        {
+            Plot.Axes.Right.IsVisible = false;
+            return;
+        }
+
+        Plot.Axes.Right.IsVisible = true;
         Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
         Plot.Axes.Right.TickLabelStyle.Bold = false;
         Plot.Axes.Right.TickLabelStyle.FontSize = 12;
@@ -131,12 +150,12 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
         Plot.Axes.Right.MinorTickStyle.Width = 0;
     }
 
-    protected void ConfigureTimeTicks()
+    protected void ConfigureTimeTicks(int targetTickCount = 20, Func<double, string>? labelFormatter = null)
     {
         Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic
         {
-            TargetTickCount = 20,
-            LabelFormatter = value => $"{value:0.###}"
+            TargetTickCount = targetTickCount,
+            LabelFormatter = labelFormatter ?? (value => $"{value:0.###}")
         };
     }
 
@@ -149,6 +168,55 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 
         Plot.Axes.Left.TickGenerator = tickGenerator;
         Plot.Axes.Right.TickGenerator = tickGenerator;
+    }
+
+    protected void SetMirroredValueRange(double minimum, double maximum)
+    {
+        Plot.Axes.Left.Range.Set(minimum, maximum);
+        Plot.Axes.Right.Range.Set(minimum, maximum);
+    }
+
+    protected void AddMirroredTimeSeriesAxisRules(double xMinimum, double xMaximum, double yMinimum, double yMaximum)
+    {
+        SetMirroredValueRange(yMinimum, yMaximum);
+        Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(
+            Plot.Axes.Bottom,
+            Plot.Axes.Left,
+            xMinimum,
+            xMaximum,
+            yMinimum,
+            yMaximum));
+        Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(
+            Plot.Axes.Bottom,
+            Plot.Axes.Right,
+            xMinimum,
+            xMaximum,
+            yMinimum,
+            yMaximum));
+    }
+
+    protected VerticalLine AddTimeSeriesCursorLine(bool isVisible = true)
+    {
+        var line = Plot.Add.VerticalLine(double.NaN);
+        line.LineWidth = 1;
+        line.LineColor = Colors.LightGray;
+        line.IsVisible = isVisible;
+        return line;
+    }
+
+    protected void ShowTimeSeriesEmptyState(string message, double durationSeconds)
+    {
+        var xMaximum = double.IsFinite(durationSeconds) && durationSeconds > 0
+            ? durationSeconds
+            : 1.0;
+
+        Plot.Axes.SetLimits(0, xMaximum, 0, 1);
+        AddMirroredTimeSeriesAxisRules(0, xMaximum, 0, 1);
+
+        var text = Plot.Add.Text(message, xMaximum / 2.0, 0.5);
+        text.LabelFontColor = Color.FromHex("#fefefe");
+        text.LabelFontSize = 13;
+        text.LabelAlignment = Alignment.MiddleCenter;
     }
 
     protected void AddMarkerLines(TelemetryData telemetryData)

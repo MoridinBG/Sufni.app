@@ -1,5 +1,7 @@
 namespace Sufni.App.SessionGraphs;
 
+using ScottPlot;
+
 public static class SessionGraphSettings
 {
     // Controls how often live graph plot controls flush queued stream samples to the visible plots.
@@ -13,4 +15,21 @@ public static class SessionGraphSettings
 
     // Caps the display sample rate used by recorded session graphs on mobile views.
     public const int RecordedMobileMaximumDisplayHz = 100;
+
+    public const float TimeSeriesPlotChromePadding = 40;
+    public const float TimeSeriesPlotBottomChromePadding = 24;
+    public const float MobileGraphOuterBleed = 8;
+
+    public static PixelPadding CreateTimeSeriesPlotPadding(bool reserveRightChrome)
+    {
+        var rightPadding = reserveRightChrome
+            ? TimeSeriesPlotChromePadding
+            : MobileGraphOuterBleed;
+
+        return new PixelPadding(
+            TimeSeriesPlotChromePadding,
+            rightPadding,
+            TimeSeriesPlotBottomChromePadding,
+            TimeSeriesPlotChromePadding);
+    }
 }

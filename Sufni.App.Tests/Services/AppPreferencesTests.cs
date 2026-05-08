@@ -359,6 +359,174 @@ public class AppPreferencesTests
         }
     }
 
+    [Fact]
+    public async Task GetSyncDataAsync_ReturnsChangedPreferencesSnapshot()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        var layer = new TileLayerConfig
+        {
+            Id = Guid.NewGuid(),
+            Name = "Trail maps",
+            UrlTemplate = "https://tiles.example/{z}/{x}/{y}.png",
+            AttributionText = "Example tiles",
+            AttributionUrl = "https://tiles.example",
+            MaxZoom = 18,
+            IsCustom = true,
+        };
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.Map.SetSelectedLayerIdAsync(layer.Id);
+            await preferences.Map.SetCustomLayersAsync([layer]);
+            await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+            {
+                Plots = current.Plots with { Velocity = false },
+            });
+
+            var snapshot = await preferences.GetSyncDataAsync(0);
+
+            Assert.NotNull(snapshot);
+            Assert.True(snapshot!.Updated > 0);
+            Assert.Equal(layer.Id, snapshot.Maps.SelectedLayerId);
+            Assert.Single(snapshot.Maps.CustomLayers);
+            Assert.False(snapshot.Session.Sessions[sessionId].Plots.Velocity);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task GetSyncDataAsync_MigratesLegacyDocumentWithoutUpdatedTimestamp()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var selectedLayerId = Guid.NewGuid();
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                preferencesPath,
+                $$"""
+                {
+                  "version": 1,
+                  "maps": {
+                    "selectedLayerId": "{{selectedLayerId:D}}",
+                    "customLayers": []
+                  }
+                }
+                """);
+            var preferences = new AppPreferences(preferencesPath);
+
+            var snapshot = await preferences.GetSyncDataAsync(1);
+
+            Assert.NotNull(snapshot);
+            Assert.True(snapshot!.Updated > 1);
+            Assert.Equal(selectedLayerId, snapshot.Maps.SelectedLayerId);
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            Assert.True(json.RootElement.GetProperty("updated").GetInt64() > 1);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ApplySyncDataAsync_AppliesNewerSnapshotAndIgnoresOlderSnapshot()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        var selectedLayerId = Guid.NewGuid();
+        var olderLayerId = Guid.NewGuid();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 100,
+                Maps = new MapPreferencesSyncData
+                {
+                    SelectedLayerId = selectedLayerId,
+                },
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions =
+                    {
+                        [sessionId] = SessionPreferences.Default with
+                        {
+                            Statistics = SessionPreferences.Default.Statistics with
+                            {
+                                TravelHistogramMode = TravelHistogramMode.DynamicSag,
+                            },
+                        },
+                    },
+                },
+            });
+
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 99,
+                Maps = new MapPreferencesSyncData
+                {
+                    SelectedLayerId = olderLayerId,
+                },
+            });
+
+            Assert.Equal(selectedLayerId, await preferences.Map.GetSelectedLayerIdAsync());
+            var stored = await preferences.Session.GetRecordedAsync(sessionId);
+            Assert.Equal(TravelHistogramMode.DynamicSag, stored.Statistics.TravelHistogramMode);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public void SynchronizationData_SerializesAppPreferencesSnapshot()
+    {
+        var selectedLayerId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var data = new SynchronizationData
+        {
+            AppPreferences = new AppPreferencesSyncData
+            {
+                Updated = 42,
+                Maps = new MapPreferencesSyncData
+                {
+                    SelectedLayerId = selectedLayerId,
+                },
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions =
+                    {
+                        [sessionId] = SessionPreferences.Default with
+                        {
+                            Plots = SessionPreferences.Default.Plots with
+                            {
+                                TravelSmoothing = PlotSmoothingLevel.Strong,
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        var roundTripped = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(data));
+
+        Assert.NotNull(roundTripped?.AppPreferences);
+        Assert.Equal(42, roundTripped!.AppPreferences!.Updated);
+        Assert.Equal(selectedLayerId, roundTripped.AppPreferences.Maps.SelectedLayerId);
+        Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].Plots.TravelSmoothing);
+    }
+
     private static void AssertDefaultSessionPreferences(SessionPreferences preferences)
     {
         Assert.True(preferences.Plots.Travel);

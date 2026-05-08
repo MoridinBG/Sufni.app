@@ -54,13 +54,45 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private async Task UpdateAsync(Action<AppPreferencesDocument> update)
+    public async Task<AppPreferencesSyncData?> GetSyncDataAsync(long since)
     {
         await gate.WaitAsync();
         try
         {
             var document = await ReadDocumentCoreAsync();
-            update(document);
+            if (document.Updated <= 0 && document.HasUserPreferences())
+            {
+                document.Updated = GetCurrentTimestamp();
+                await WriteDocumentCoreAsync(document);
+            }
+
+            return document.Updated > since
+                ? document.ToSyncData()
+                : null;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public async Task ApplySyncDataAsync(AppPreferencesSyncData? preferences)
+    {
+        if (preferences is null)
+        {
+            return;
+        }
+
+        await gate.WaitAsync();
+        try
+        {
+            var document = await ReadDocumentCoreAsync();
+            if (preferences.Updated < document.Updated)
+            {
+                return;
+            }
+
+            document.ApplySyncData(preferences);
             await WriteDocumentCoreAsync(document);
         }
         finally
@@ -68,6 +100,24 @@ public sealed class AppPreferences : IAppPreferences
             gate.Release();
         }
     }
+
+    private async Task UpdateAsync(Action<AppPreferencesDocument> update)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            var document = await ReadDocumentCoreAsync();
+            update(document);
+            document.Updated = GetCurrentTimestamp();
+            await WriteDocumentCoreAsync(document);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static long GetCurrentTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
     private async Task<AppPreferencesDocument> ReadDocumentCoreAsync()
     {
@@ -174,6 +224,7 @@ public sealed class AppPreferences : IAppPreferences
     private sealed class AppPreferencesDocument
     {
         public int Version { get; set; } = CurrentVersion;
+        public long Updated { get; set; }
         public MapPreferencesDocument Maps { get; set; } = new();
         public SessionPreferencesGroupDocument Session { get; set; } = new();
 
@@ -185,6 +236,62 @@ public sealed class AppPreferences : IAppPreferences
             Session ??= new SessionPreferencesGroupDocument();
             Session.Sessions ??= [];
             return this;
+        }
+
+        public bool HasUserPreferences()
+        {
+            return !string.IsNullOrWhiteSpace(Maps.SelectedLayerId)
+                || Maps.CustomLayers?.Count > 0
+                || Session.Sessions.Count > 0;
+        }
+
+        public AppPreferencesSyncData ToSyncData()
+        {
+            var sessions = Session.Sessions
+                .Where(pair => pair.Value is not null && Guid.TryParse(pair.Key, out _))
+                .ToDictionary(
+                    pair => Guid.Parse(pair.Key),
+                    pair => pair.Value!.ToModel());
+
+            return new AppPreferencesSyncData
+            {
+                Updated = Updated,
+                Maps = new MapPreferencesSyncData
+                {
+                    SelectedLayerId = Guid.TryParse(Maps.SelectedLayerId, out var selectedLayerId)
+                        ? selectedLayerId
+                        : null,
+                    CustomLayers = Maps.CustomLayers?.Where(layer => layer is not null).ToList() ?? [],
+                },
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions = sessions,
+                },
+            };
+        }
+
+        public void ApplySyncData(AppPreferencesSyncData preferences)
+        {
+            var maps = preferences.Maps ?? new MapPreferencesSyncData();
+            var session = preferences.Session ?? new SessionPreferencesSyncData();
+
+            Updated = preferences.Updated > 0
+                ? preferences.Updated
+                : GetCurrentTimestamp();
+            Maps = new MapPreferencesDocument
+            {
+                SelectedLayerId = maps.SelectedLayerId?.ToString("D"),
+                CustomLayers = maps.CustomLayers?.Where(layer => layer is not null).ToList() ?? [],
+            };
+            Session = new SessionPreferencesGroupDocument
+            {
+                Sessions = session.Sessions?
+                    .ToDictionary(
+                        pair => pair.Key.ToString("D"),
+                        pair => (SessionPreferencesDocument?)SessionPreferencesDocument.FromModel(pair.Value))
+                    ?? [],
+            };
+            Normalize();
         }
     }
 

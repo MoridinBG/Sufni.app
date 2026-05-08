@@ -2,49 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
-using ScottPlot.Plottables;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class ImuPlot(Plot plot) : TelemetryPlot(plot)
+public class ImuPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
 {
-    private readonly List<CursorReadoutSeries> cursorSeries = [];
-    private double cursorDurationSeconds;
-
-    public VerticalLine? CursorLine { get; set; }
+    private const string Title = "IMU Acceleration (g)";
 
     public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
-    protected override void SetCursorLinePosition(double position)
-    {
-        if (CursorLine is not null)
-        {
-            CursorLine.Position = position;
-        }
-    }
-
-    protected override CursorReadout? GetCursorReadout(double position)
-    {
-        return CreateCursorReadout(position, cursorDurationSeconds, cursorSeries);
-    }
-
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        base.LoadTelemetryData(telemetryData);
-        CursorLine = null;
-        cursorSeries.Clear();
-        cursorDurationSeconds = telemetryData.Metadata.Duration;
-
         if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
         {
-            ShowEmptyState();
+            ShowEmptyState(telemetryData.Metadata.Duration);
             return;
         }
-
-        Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        ConfigureRightAxisStyle();
 
         var imuData = telemetryData.ImuData;
         var activeLocations = imuData.ActiveLocations;
@@ -84,6 +58,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         double minVal = 0.0;
         double maxVal = 0.0;
         bool hasData = false;
+        var series = new List<RecordedTimeSeries>();
 
         foreach (var locId in signals.Keys.OrderBy(k => k))
         {
@@ -102,8 +77,6 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
                 maxVal = Math.Max(maxVal, fullData.Max());
             }
 
-            var (data, step) = PrepareDisplaySignal(fullData, imuData.SampleRate);
-
             // 0=Frame, 1=Fork (Front), 2=Shock (Rear)
             var (label, color) = locId switch
             {
@@ -112,19 +85,12 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
                 2 => ("Shock", RearColor),
                 _ => ($"Location {locId}", Colors.Gray)
             };
-            cursorSeries.Add(CursorReadoutSeries.FromRegularSamples(
+            series.Add(new RecordedTimeSeries(
                 label,
                 "g",
                 color,
-                data,
-                step,
-                telemetryData.Metadata.Duration,
+                new SampledValues(fullData, imuData.SampleRate),
                 "0.###"));
-
-            var signal = Plot.Add.Signal(data, step, color);
-            signal.Axes.XAxis = Plot.Axes.Bottom;
-            signal.Axes.YAxis = Plot.Axes.Left;
-            signal.LineWidth = 2.0f;
         }
 
         if (!hasData)
@@ -133,34 +99,21 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             maxVal = 1;
         }
 
-        // Lock the vertical, and set limits on the horizontal axis
-        var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0, telemetryData.Metadata.Duration, minVal, maxVal);
-        Plot.Axes.Rules.Add(rule);
-
-        var ruleRight = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right,
-            0, telemetryData.Metadata.Duration, minVal, maxVal);
-        Plot.Axes.Rules.Add(ruleRight);
-
-        ConfigureTimeTicks();
-        ConfigureSymmetricValueTicks(0.1f);
-
-        AddMarkerLines(telemetryData);
-
-        CursorLine = Plot.Add.VerticalLine(double.NaN);
-        CursorLine.LineWidth = 1;
-        CursorLine.LineColor = Colors.LightGray;
+        LoadTimeSeries(new RecordedTimeSeriesData(
+            Title,
+            "No IMU data",
+            telemetryData.Metadata.Duration,
+            series,
+            new RecordedTimeSeriesValueRange(minVal, maxVal),
+            telemetryData));
     }
 
-    private void ShowEmptyState()
+    private void ShowEmptyState(double durationSeconds)
     {
-        Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        Plot.Axes.SetLimits(0, 1, 0, 1);
-
-        var text = Plot.Add.Text("No IMU data", 0.5, 0.5);
-        text.LabelFontColor = Color.FromHex("#fefefe");
-        text.LabelFontSize = 13;
-        text.LabelAlignment = Alignment.MiddleCenter;
+        LoadTimeSeries(new RecordedTimeSeriesData(
+            Title,
+            "No IMU data",
+            durationSeconds,
+            []));
     }
 }
