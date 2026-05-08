@@ -44,7 +44,7 @@ public class VelocityPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mountedVelocity.View);
-        Assert.Equal("Velocity (m/seconds / time )", plot.Plot.Axes.Title.Label.Text);
+        Assert.Equal("Velocity (m/second)", plot.Plot.Axes.Title.Label.Text);
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
     }

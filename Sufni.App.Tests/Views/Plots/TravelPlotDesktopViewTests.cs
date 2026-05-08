@@ -34,7 +34,7 @@ public class TravelPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal("Travel (mm / seconds)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Equal("Travel (mm)", plot.Plot.Axes.Title.Label.Text);
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
     }

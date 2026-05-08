@@ -50,7 +50,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         selectedSpan = null;
         previewSpan = null;
 
-        Plot.Axes.Title.Label.Text = "Travel (mm / seconds)";
+        Plot.Axes.Title.Label.Text = "Travel (mm)";
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
 

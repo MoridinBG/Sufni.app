@@ -25,7 +25,9 @@ public class TrackSignalPlotTests
             TrackSignalKind.Speed);
 
         Assert.NotNull(sut.CursorLine);
-        Assert.Equal("Speed", plot.Axes.Title.Label.Text);
+        Assert.Equal("Speed (km/h)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Bottom.Label.Text);
+        Assert.Empty(plot.Axes.Left.Label.Text);
         Assert.Single(plot.PlottableList.OfType<Scatter>());
         Assert.True(plot.Axes.Left.Min < 36);
         Assert.True(plot.Axes.Left.Max > 72);
@@ -47,7 +49,9 @@ public class TrackSignalPlotTests
             TrackSignalKind.Elevation);
 
         Assert.NotNull(sut.CursorLine);
-        Assert.Equal("Elevation", plot.Axes.Title.Label.Text);
+        Assert.Equal("Elevation (m)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Bottom.Label.Text);
+        Assert.Empty(plot.Axes.Left.Label.Text);
         Assert.Single(plot.PlottableList.OfType<Scatter>());
         Assert.True(plot.Axes.Left.Min < 500);
         Assert.True(plot.Axes.Left.Max > 510);

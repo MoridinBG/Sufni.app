@@ -34,7 +34,7 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         cursorSeries.Clear();
         cursorDurationSeconds = telemetryData.Metadata.Duration;
 
-        Plot.Axes.Title.Label.Text = "Velocity (m/seconds / time )";
+        Plot.Axes.Title.Label.Text = "Velocity (m/second)";
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
         var minimum = 0.0;

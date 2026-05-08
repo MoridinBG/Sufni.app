@@ -25,7 +25,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     public LiveImuPlot(Plot plot, double imuMaximum)
         : base(plot, 1024, 0, Math.Max(0.1, imuMaximum))
     {
-        ConfigurePlot("IMU", "Acceleration (g)");
+        ConfigurePlot("IMU Acceleration (g)");
         frameStreamer = CreateStreamer(ImuPlot.FrameColor);
         forkStreamer = CreateStreamer(TelemetryPlot.FrontColor);
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor);

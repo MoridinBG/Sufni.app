@@ -61,6 +61,15 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
+        Assert.Equal("Travel (mm)", travelPlot.Plot.Axes.Title.Label.Text);
+        Assert.Equal("Velocity (m/second)", velocityPlot.Plot.Axes.Title.Label.Text);
+        Assert.Equal("IMU Acceleration (g)", imuPlot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(travelPlot.Plot.Axes.Bottom.Label.Text);
+        Assert.Empty(travelPlot.Plot.Axes.Left.Label.Text);
+        Assert.Empty(velocityPlot.Plot.Axes.Bottom.Label.Text);
+        Assert.Empty(velocityPlot.Plot.Axes.Left.Label.Text);
+        Assert.Empty(imuPlot.Plot.Axes.Bottom.Label.Text);
+        Assert.Empty(imuPlot.Plot.Axes.Left.Label.Text);
         // Live plots auto-size around the largest value seen so far (with 10% headroom),
         // falling back to a per-metric floor when running max is below it.
         Assert.Equal(13.2, travelPlot.Plot.Axes.Left.Max, precision: 4);

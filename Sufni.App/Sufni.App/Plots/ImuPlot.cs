@@ -10,6 +10,8 @@ namespace Sufni.App.Plots;
 
 public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 {
+    private const string Title = "IMU Acceleration (g)";
+
     private readonly List<CursorReadoutSeries> cursorSeries = [];
     private double cursorDurationSeconds;
 
@@ -43,7 +45,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
             return;
         }
 
-        Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
+        Plot.Axes.Title.Label.Text = Title;
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
 
@@ -155,7 +157,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
 
     private void ShowEmptyState()
     {
-        Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
+        Plot.Axes.Title.Label.Text = Title;
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         Plot.Axes.SetLimits(0, 1, 0, 1);
 
