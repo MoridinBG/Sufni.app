@@ -116,12 +116,14 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:TrackSignalPlotDesktopView
                         x:Name="SpeedPlot"
+                        HideRightAxis="True"
                         Margin="0,4,0,0"
                         SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
                         Timeline="{Binding Workspace.Timeline}"
                         TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                        TrackPoints="{Binding Workspace.TrackPoints}" />
+                        TrackPoints="{Binding Workspace.TrackPoints}"
+                        UseCompactRightPadding="True" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Speed" Margin="0,4,0,0" />
@@ -132,12 +134,14 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:TrackSignalPlotDesktopView
                         x:Name="ElevationPlot"
+                        HideRightAxis="True"
                         Margin="0,4,0,0"
                         SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
                         Timeline="{Binding Workspace.Timeline}"
                         TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                        TrackPoints="{Binding Workspace.TrackPoints}" />
+                        TrackPoints="{Binding Workspace.TrackPoints}"
+                        UseCompactRightPadding="True" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Elevation" Margin="0,4,0,0" />

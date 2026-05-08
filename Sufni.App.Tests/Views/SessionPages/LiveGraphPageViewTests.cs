@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
@@ -53,8 +54,12 @@ public class LiveGraphPageViewTests
             .ToArray();
         var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
+        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
+        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
         Assert.NotNull(graphGrid);
         Assert.NotNull(pageScrollViewer);
+        Assert.NotNull(speedView);
+        Assert.NotNull(elevationView);
         Assert.Equal(5, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
@@ -66,6 +71,10 @@ public class LiveGraphPageViewTests
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
         Assert.Equal(0, graphGrid!.RowDefinitions[2].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.True(speedView!.HideRightAxis);
+        Assert.True(speedView.UseCompactRightPadding);
+        Assert.True(elevationView!.HideRightAxis);
+        Assert.True(elevationView.UseCompactRightPadding);
     }
 
     [AvaloniaFact]

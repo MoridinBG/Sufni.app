@@ -89,6 +89,7 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
 
         var (minimum, maximum) = GetVerticalRange(yValues);
         Plot.Axes.SetLimits(0, context.DurationSeconds, minimum, maximum);
+        Plot.Axes.Right.Range.Set(minimum, maximum);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(
             Plot.Axes.Bottom,
             Plot.Axes.Left,
@@ -96,8 +97,16 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
             context.DurationSeconds,
             minimum,
             maximum));
+        Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(
+            Plot.Axes.Bottom,
+            Plot.Axes.Right,
+            0,
+            context.DurationSeconds,
+            minimum,
+            maximum));
 
         ConfigureTimeTicks();
+        ConfigureSymmetricValueTicks(20);
 
         if (telemetryData is not null)
         {
@@ -130,6 +139,7 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
 
         Plot.Axes.Title.Label.Text = title;
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!UseCompactRightPadding));
+        ConfigureRightAxisStyle();
         SetAxisLabels(string.Empty, string.Empty);
     }
 

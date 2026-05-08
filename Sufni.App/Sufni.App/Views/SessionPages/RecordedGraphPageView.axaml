@@ -126,6 +126,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:TrackSignalPlotDesktopView
                             Name="Speed"
+                            HideRightAxis="True"
                             Margin="0,4,0,0"
                             SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
                             SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
@@ -144,6 +145,7 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:TrackSignalPlotDesktopView
                             Name="Elevation"
+                            HideRightAxis="True"
                             Margin="0,4,0,0"
                             SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
                             SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
