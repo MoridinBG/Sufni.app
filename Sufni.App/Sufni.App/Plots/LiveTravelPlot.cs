@@ -22,7 +22,7 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
     public LiveTravelPlot(Plot plot, double travelMaximum)
         : base(plot, 2048, 0, Math.Max(1, travelMaximum))
     {
-        ConfigurePlot("Travel", "Travel (mm)");
+        ConfigurePlot("Travel (mm)");
         frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
         ApplyAutoLimits();

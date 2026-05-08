@@ -24,7 +24,7 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
     public LiveVelocityPlot(Plot plot, double velocityMaximum)
         : base(plot, 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum))
     {
-        ConfigurePlot("Velocity", "Velocity (m/s)");
+        ConfigurePlot("Velocity (m/second)");
         frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
         ApplyAutoLimits();

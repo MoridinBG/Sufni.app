@@ -121,16 +121,16 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
 
     private void ConfigureAxes(TrackSignalKind kind)
     {
-        var (title, yAxisLabel) = kind switch
+        var title = kind switch
         {
-            TrackSignalKind.Speed => ("Speed", "Speed (km/h)"),
-            TrackSignalKind.Elevation => ("Elevation", "Elevation (m)"),
-            _ => ("Track", "Value")
+            TrackSignalKind.Speed => "Speed (km/h)",
+            TrackSignalKind.Elevation => "Elevation (m)",
+            _ => "Value"
         };
 
         Plot.Axes.Title.Label.Text = title;
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!UseCompactRightPadding));
-        SetAxisLabels("Time (s)", yAxisLabel);
+        SetAxisLabels(string.Empty, string.Empty);
     }
 
     private void ShowEmptyState(TrackSignalKind kind)

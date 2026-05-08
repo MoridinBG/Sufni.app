@@ -30,11 +30,11 @@ public abstract class LiveStreamingPlotBase : SufniPlot
     public double LatestTimeSeconds => latestTimeSeconds;
     public PlotSmoothingLevel SmoothingLevel { get; set; }
 
-    protected void ConfigurePlot(string title, string yLabel)
+    protected void ConfigurePlot(string title)
     {
         Plot.Axes.Title.Label.Text = title;
-        Plot.Axes.Left.Label.Text = yLabel;
-        Plot.Axes.Bottom.Label.Text = "Time (s)";
+        Plot.Axes.Left.Label.Text = string.Empty;
+        Plot.Axes.Bottom.Label.Text = string.Empty;
         Plot.Layout.Fixed(new PixelPadding(40, 20, 32, 20));
         Plot.Axes.Right.IsVisible = false;
         Plot.Axes.Top.IsVisible = false;
