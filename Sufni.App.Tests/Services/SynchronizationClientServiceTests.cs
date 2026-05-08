@@ -8,6 +8,7 @@ public class SynchronizationClientServiceTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
+    private readonly IAppPreferences appPreferences = Substitute.For<IAppPreferences>();
 
     public SynchronizationClientServiceTests()
     {
@@ -16,11 +17,13 @@ public class SynchronizationClientServiceTests
         database.GetIncompleteSessionIdsAsync().Returns([]);
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
         database.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
+        appPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
+        appPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
 
     private SynchronizationClientService CreateService()
     {
-        return new SynchronizationClientService(database, httpApiService);
+        return new SynchronizationClientService(database, httpApiService, appPreferences);
     }
 
     [Fact]
@@ -66,6 +69,14 @@ public class SynchronizationClientServiceTests
     public async Task SyncAll_AppliesPulledChangesThroughRemoteSynchronizationPath()
     {
         var trackId = Guid.NewGuid();
+        var remotePreferences = new AppPreferencesSyncData
+        {
+            Updated = 21,
+            Maps = new MapPreferencesSyncData
+            {
+                SelectedLayerId = Guid.NewGuid(),
+            },
+        };
         var remoteChanges = new SynchronizationData
         {
             Sessions =
@@ -88,7 +99,8 @@ public class SynchronizationClientServiceTests
                     ],
                     Updated = 19
                 }
-            ]
+            ],
+            AppPreferences = remotePreferences,
         };
 
         database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
@@ -101,8 +113,32 @@ public class SynchronizationClientServiceTests
             data.Sessions.Count == 1 &&
             data.Tracks.Count == 1 &&
             data.Tracks[0].Id == trackId));
+        await appPreferences.Received(1).ApplySyncDataAsync(remotePreferences);
         await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+    }
+
+    [Fact]
+    public async Task SyncAll_PushesAppPreferencesChangedSinceLastSync()
+    {
+        var localPreferences = new AppPreferencesSyncData
+        {
+            Updated = 8,
+            Maps = new MapPreferencesSyncData
+            {
+                SelectedLayerId = Guid.NewGuid(),
+            },
+        };
+
+        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        appPreferences.GetSyncDataAsync(5).Returns(localPreferences);
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+
+        await CreateService().SyncAll();
+
+        await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data =>
+            ReferenceEquals(data.AppPreferences, localPreferences)));
     }
 
     [Fact]

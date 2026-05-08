@@ -47,18 +47,12 @@ public class RecordedSessionGraphDesktopViewTests
 
         Assert.Same(workspace.TelemetryData, travelView!.Telemetry);
         Assert.Same(workspace.Timeline, travelView.Timeline);
-        Assert.Same(velocityView, travelView.VelocityPlotView);
-        Assert.Same(imuView, travelView.ImuPlotView);
 
         Assert.Same(workspace.TelemetryData, velocityView!.Telemetry);
         Assert.Same(workspace.Timeline, velocityView.Timeline);
-        Assert.Same(travelView, velocityView.TravelPlotView);
-        Assert.Same(imuView, velocityView.ImuPlotView);
 
         Assert.Same(workspace.TelemetryData, imuView!.Telemetry);
         Assert.Same(workspace.Timeline, imuView.Timeline);
-        Assert.Same(travelView, imuView.TravelPlotView);
-        Assert.Same(velocityView, imuView.VelocityPlotView);
 
         Assert.True(firstSplitter!.IsVisible);
         Assert.False(secondSplitter!.IsVisible);
@@ -210,43 +204,72 @@ public class RecordedSessionGraphDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task RecordedSessionGraphDesktopView_AnalysisRangeBindingKeepsAndClearsOverlay()
+    public async Task RecordedSessionGraphDesktopView_AnalysisRangeBindingKeepsAndClearsOverlayOnEveryPlot()
     {
-        var workspace = new RecordedSessionGraphWorkspaceStub(CreateTelemetryData());
+        var telemetry = TestTelemetryData.Create();
+        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var workspace = new RecordedSessionGraphWorkspaceStub(
+            telemetry,
+            speedGraphState: SurfacePresentationState.Ready,
+            elevationGraphState: SurfacePresentationState.Ready);
 
         await using var mounted = await MountAsync(workspace);
 
         var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
+        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
+        var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
+        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
         Assert.NotNull(travelView);
-        var plot = Assert.Single(travelView!.GetVisualDescendants().OfType<AvaPlot>());
-        Assert.True(plot.Bounds.Width > 0);
-        Assert.True(plot.Bounds.Height > 0);
+        Assert.NotNull(velocityView);
+        Assert.NotNull(imuView);
+        Assert.NotNull(speedView);
+        Assert.NotNull(elevationView);
+        SufniTimeSeriesPlotView[] plotViews =
+        [
+            travelView!,
+            velocityView!,
+            imuView!,
+            speedView!,
+            elevationView!
+        ];
 
         workspace.SetAnalysisRange(0.25, 0.75);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.NotNull(workspace.AnalysisRange);
-        Assert.Equal(workspace.AnalysisRange, travelView.AnalysisRange);
-        var visibleSpan = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => span.IsVisible);
-        Assert.Equal(workspace.AnalysisRange!.Value.StartSeconds, visibleSpan.X1, 3);
-        Assert.Equal(workspace.AnalysisRange.Value.EndSeconds, visibleSpan.X2, 3);
+        foreach (var plotView in plotViews)
+        {
+            Assert.Equal(workspace.AnalysisRange, plotView.AnalysisRange);
+            var plot = Assert.Single(plotView.GetVisualDescendants().OfType<AvaPlot>());
+            Assert.True(plot.Bounds.Width > 0);
+            Assert.True(plot.Bounds.Height > 0);
+            var visibleSpan = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => span.IsVisible);
+            Assert.Equal(workspace.AnalysisRange!.Value.StartSeconds, visibleSpan.X1, 3);
+            Assert.Equal(workspace.AnalysisRange.Value.EndSeconds, visibleSpan.X2, 3);
+        }
+
         workspace.ClearAnalysisRange();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Null(travelView.AnalysisRange);
-        Assert.DoesNotContain(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => span.IsVisible);
+        foreach (var plotView in plotViews)
+        {
+            Assert.Null(plotView.AnalysisRange);
+            var plot = Assert.Single(plotView.GetVisualDescendants().OfType<AvaPlot>());
+            Assert.DoesNotContain(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => span.IsVisible);
+        }
     }
 
     [AvaloniaFact]
-    public async Task RecordedSessionGraphDesktopView_TravelPlotClick_ClearsAnalysisRange()
+    public async Task RecordedSessionGraphDesktopView_VelocityPlotClick_ClearsAnalysisRange()
     {
         var workspace = new RecordedSessionGraphWorkspaceStub(CreateTelemetryData());
 
         await using var mounted = await MountAsync(workspace);
 
-        var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
-        Assert.NotNull(travelView);
-        var plot = Assert.Single(travelView!.GetVisualDescendants().OfType<AvaPlot>());
+        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
+        Assert.NotNull(velocityView);
+        var plot = Assert.Single(velocityView!.GetVisualDescendants().OfType<AvaPlot>());
         workspace.SetAnalysisRange(0.25, 0.75);
         await ViewTestHelpers.FlushDispatcherAsync();
 
@@ -294,6 +317,8 @@ public class RecordedSessionGraphDesktopViewTests
 
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public int ClearAnalysisRangeCallCount { get; private set; }
+        public int SetAnalysisRangeBoundaryFromMarkerCallCount { get; private set; }
+        public double? LastAnalysisRangeBoundaryFromMarker { get; private set; }
         public TelemetryTimeRange? AnalysisRange
         {
             get => analysisRange;
@@ -341,7 +366,11 @@ public class RecordedSessionGraphDesktopViewTests
             AnalysisRange = null;
         }
 
-        public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds) { }
+        public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+        {
+            SetAnalysisRangeBoundaryFromMarkerCallCount++;
+            LastAnalysisRangeBoundaryFromMarker = markerSeconds;
+        }
 
         private static SurfacePresentationState CreateTravelState(TelemetryData? telemetry)
         {

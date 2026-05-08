@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -33,7 +34,10 @@ public class SessionShellMobileViewTests
         Assert.Equal(host.Pages.Count, tabHeaders.ItemCount);
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<EditableTitle>().FirstOrDefault());
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
-        Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault());
+        var buttonLine = mounted.Shell.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault();
+        Assert.NotNull(buttonLine);
+        Assert.Equal(new Thickness(0, 4, 0, 0), buttonLine!.Margin);
+        Assert.Equal(new Thickness(0), buttonLine.FindControl<Button>("DeleteButton")!.Margin);
     }
 
     [AvaloniaFact]
@@ -88,6 +92,26 @@ public class SessionShellMobileViewTests
 
         Assert.True(slot.IsVisible);
         Assert.Same(injected, slot.Content);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionShellMobileView_HidesScrollbarsForMobileTabs()
+    {
+        var host = CreateHost();
+        await using var mounted = await MountAsync(host);
+
+        var scrollViewers = mounted.Shell.GetVisualDescendants()
+            .OfType<ScrollViewer>()
+            .ToArray();
+
+        Assert.NotEmpty(scrollViewers);
+        Assert.All(scrollViewers, scrollViewer =>
+        {
+            Assert.NotEqual(ScrollBarVisibility.Auto, scrollViewer.HorizontalScrollBarVisibility);
+            Assert.NotEqual(ScrollBarVisibility.Visible, scrollViewer.HorizontalScrollBarVisibility);
+            Assert.NotEqual(ScrollBarVisibility.Auto, scrollViewer.VerticalScrollBarVisibility);
+            Assert.NotEqual(ScrollBarVisibility.Visible, scrollViewer.VerticalScrollBarVisibility);
+        });
     }
 
     [AvaloniaFact]

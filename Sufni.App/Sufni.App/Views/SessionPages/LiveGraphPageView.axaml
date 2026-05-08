@@ -19,17 +19,52 @@ mc:Ignorable="d">
     Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
-            <Grid MinHeight="420" Height="{Binding #PageScrollViewer.Bounds.Height}">
+            <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}" x:Name="GraphGrid" Margin="-8,0,-8,0">
                 <Grid.Resources>
-                    <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+                    <controls:SurfaceStateToViewportFractionGridLengthConverter x:Key="MobileGraphRowHeightConverter" />
                 </Grid.Resources>
 
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="{Binding Workspace.TravelGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.VelocityGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.ImuGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.SpeedGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                    <RowDefinition Height="{Binding Workspace.ElevationGraphState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.TravelGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.VelocityGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.ImuGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.SpeedGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.ElevationGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
                 </Grid.RowDefinitions>
 
                 <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
@@ -37,11 +72,11 @@ mc:Ignorable="d">
                         <plots:LiveTravelPlotDesktopView
                         x:Name="TravelPlot"
                         GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
                         MaximumY="{Binding Workspace.PlotRanges.TravelMaximum}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.TravelSmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
-
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Travel" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -53,12 +88,12 @@ mc:Ignorable="d">
                         x:Name="VelocityPlot"
                         Margin="0,4,0,0"
                         GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
                         MaximumY="{Binding Workspace.PlotRanges.VelocityMaximum}"
                         MinimumY="{Binding Workspace.PlotRanges.VelocityMinimum}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.VelocitySmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
-
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Velocity" Margin="0,4,0,0" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -70,11 +105,11 @@ mc:Ignorable="d">
                         x:Name="ImuPlot"
                         Margin="0,4,0,0"
                         GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
                         MaximumY="{Binding Workspace.PlotRanges.ImuMaximum}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.ImuSmoothing}"
                         Timeline="{Binding Workspace.Timeline}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
-
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="IMU" Margin="0,4,0,0" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -84,6 +119,7 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:TrackSignalPlotDesktopView
                         x:Name="SpeedPlot"
+                        HideRightAxis="True"
                         Margin="0,4,0,0"
                         SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
@@ -91,7 +127,6 @@ mc:Ignorable="d">
                         TimelineContext="{Binding Workspace.TrackTimelineContext}"
                         TrackPoints="{Binding Workspace.TrackPoints}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
-
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Speed" Margin="0,4,0,0" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
@@ -101,6 +136,7 @@ mc:Ignorable="d">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:TrackSignalPlotDesktopView
                         x:Name="ElevationPlot"
+                        HideRightAxis="True"
                         Margin="0,4,0,0"
                         SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
                         SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
@@ -108,7 +144,6 @@ mc:Ignorable="d">
                         TimelineContext="{Binding Workspace.TrackTimelineContext}"
                         TrackPoints="{Binding Workspace.TrackPoints}" />
                     </controls:PlaceholderOverlayContainer.ReadyContent>
-
                     <controls:PlaceholderOverlayContainer.PlaceholderContent>
                         <controls:SurfacePlaceholderCard Title="Elevation" Margin="0,4,0,0" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>

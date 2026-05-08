@@ -1,105 +1,56 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
-using ScottPlot.Plottables;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class TravelPlot(Plot plot) : TelemetryPlot(plot)
+public class TravelPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
 {
-    private readonly List<CursorReadoutSeries> cursorSeries = [];
-    private HorizontalSpan? selectedSpan;
-    private HorizontalSpan? previewSpan;
-    private double cursorDurationSeconds;
-
-    public VerticalLine? CursorLine { get; set; }
-
-    public void SetAnalysisRange(TelemetryTimeRange? range)
-    {
-        selectedSpan = SetSpan(selectedSpan, range?.StartSeconds, range?.EndSeconds,
-            FrontColor.WithAlpha(0.16));
-    }
-
-    public void SetPreviewRange(double? startSeconds, double? endSeconds)
-    {
-        previewSpan = SetSpan(previewSpan, startSeconds, endSeconds, Colors.LightGray.WithAlpha(0.12));
-    }
-
-    protected override void SetCursorLinePosition(double position)
-    {
-        if (CursorLine is not null)
-        {
-            CursorLine.Position = position;
-        }
-    }
-
-    protected override CursorReadout? GetCursorReadout(double position)
-    {
-        return CreateCursorReadout(position, cursorDurationSeconds, cursorSeries);
-    }
-
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        base.LoadTelemetryData(telemetryData);
-
-        CursorLine = null;
-        cursorSeries.Clear();
-        cursorDurationSeconds = telemetryData.Metadata.Duration;
-        selectedSpan = null;
-        previewSpan = null;
-
-        Plot.Axes.Title.Label.Text = "Travel (mm / seconds)";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
-        ConfigureRightAxisStyle();
+        var maxTravel = Math.Max(
+            telemetryData.Front.Present ? telemetryData.Front.MaxTravel!.Value : 0,
+            telemetryData.Rear.Present ? telemetryData.Rear.MaxTravel!.Value : 0);
+        var series = new List<RecordedTimeSeries>();
 
         if (telemetryData.Front.Present)
         {
-            var (frontTravel, frontStep) = PrepareDisplaySignal(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate);
-            cursorSeries.Add(CursorReadoutSeries.FromRegularSamples(
+            series.Add(new RecordedTimeSeries(
                 "Front",
                 "mm",
                 FrontColor,
-                frontTravel,
-                frontStep,
-                telemetryData.Metadata.Duration,
+                new SampledValues(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate),
                 "0.#"));
-            var frontSignal = Plot.Add.Signal(frontTravel, frontStep, FrontColor);
-            frontSignal.Axes.XAxis = Plot.Axes.Bottom;
-            frontSignal.Axes.YAxis = Plot.Axes.Left;
-            frontSignal.LineWidth = 2.0f;
-
-            // Lock the vertical, and set limits on the horizontal axis
-            var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
-                0, telemetryData.Metadata.Duration, telemetryData.Front.MaxTravel!.Value, 0);
-            Plot.Axes.Rules.Add(rule);
         }
 
         if (telemetryData.Rear.Present)
         {
-            var (rearTravel, rearStep) = PrepareDisplaySignal(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate);
-            cursorSeries.Add(CursorReadoutSeries.FromRegularSamples(
+            series.Add(new RecordedTimeSeries(
                 "Rear",
                 "mm",
                 RearColor,
-                rearTravel,
-                rearStep,
-                telemetryData.Metadata.Duration,
+                new SampledValues(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate),
                 "0.#"));
-            var rearSignal = Plot.Add.Signal(rearTravel, rearStep, RearColor);
-            rearSignal.Axes.XAxis = Plot.Axes.Bottom;
-            rearSignal.Axes.YAxis = Plot.Axes.Right;
-            rearSignal.LineWidth = 2.0f;
-
-            // Lock the vertical, and set limits on the horizontal axis
-            var rule = new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Right,
-                0, telemetryData.Metadata.Duration, telemetryData.Rear.MaxTravel!.Value, 0);
-            Plot.Axes.Rules.Add(rule);
         }
 
-        var maxTravel = Math.Max(
-            telemetryData.Front.Present ? telemetryData.Front.MaxTravel!.Value : 0,
-            telemetryData.Rear.Present ? telemetryData.Rear.MaxTravel!.Value : 0);
+        LoadTimeSeries(new RecordedTimeSeriesData(
+            "Travel (mm)",
+            "No travel data",
+            telemetryData.Metadata.Duration,
+            series,
+            new RecordedTimeSeriesValueRange(maxTravel, 0),
+            telemetryData));
+    }
+
+    protected override void AddTimeSeriesOverlays(RecordedTimeSeriesData data)
+    {
+        if (data.MarkerSource is not { } telemetryData)
+        {
+            return;
+        }
+
+        var maxTravel = data.ValueRange?.Minimum ?? 0;
         foreach (var airtime in telemetryData.Airtimes)
         {
             var span = Plot.Add.HorizontalSpan(airtime.Start, airtime.End);
@@ -111,49 +62,5 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
             AddLabel($"{timeSpan:0.##}s air", airtime.Start + timeSpan / 2, maxTravel - 10,
                 0, 0, Alignment.LowerCenter);
         }
-
-        AddMarkerLines(telemetryData);
-
-        ConfigureTimeTicks();
-        ConfigureSymmetricValueTicks(20);
-
-        SetAnalysisRange(AnalysisRange);
-        SetPreviewRange(null, null);
-
-        CursorLine = Plot.Add.VerticalLine(double.NaN);
-        CursorLine.LineWidth = 1;
-        CursorLine.LineColor = Colors.LightGray;
-    }
-
-    private HorizontalSpan? SetSpan(HorizontalSpan? span, double? startSeconds, double? endSeconds, Color color)
-    {
-        if (startSeconds is null || endSeconds is null)
-        {
-            if (span is not null)
-            {
-                span.IsVisible = false;
-            }
-
-            return span;
-        }
-
-        var start = Math.Min(startSeconds.Value, endSeconds.Value);
-        var end = Math.Max(startSeconds.Value, endSeconds.Value);
-        if (span is null)
-        {
-            span = Plot.Add.HorizontalSpan(start, end);
-            span.FillColor = color;
-            span.LineStyle.Width = 0;
-            span.EnableAutoscale = false;
-        }
-        else
-        {
-            span.X1 = start;
-            span.X2 = end;
-            span.FillColor = color;
-        }
-
-        span.IsVisible = true;
-        return span;
     }
 }

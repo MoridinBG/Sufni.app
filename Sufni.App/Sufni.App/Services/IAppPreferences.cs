@@ -9,6 +9,8 @@ public interface IAppPreferences
 {
     IMapPreferences Map { get; }
     ISessionPreferences Session { get; }
+    Task<AppPreferencesSyncData?> GetSyncDataAsync(long since);
+    Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
 }
 
 public interface IMapPreferences

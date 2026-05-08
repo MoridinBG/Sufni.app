@@ -2,7 +2,9 @@ using System;
 using Avalonia.Headless.XUnit;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Plots;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -64,8 +66,32 @@ public class SessionStatisticsPlotViewTests
         Assert.Equal(typeof(BalancePlot), mounted.View.PlotModelType);
     }
 
+    [AvaloniaFact]
+    public async Task SessionStatisticsPlotView_AnalysisRangeChangeReloadsStatisticsPlot()
+    {
+        var view = new TestableSessionStatisticsPlotView
+        {
+            PlotKind = PlotKind.TravelHistogram,
+            SuspensionType = SuspensionType.Front,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = CreateTelemetryData();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Null(mounted.View.PlotAnalysisRange);
+
+        var range = new TelemetryTimeRange(0.25, 0.75);
+        view.AnalysisRange = range;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(range, mounted.View.PlotAnalysisRange);
+    }
+
     private sealed class TestableSessionStatisticsPlotView : SessionStatisticsPlotView
     {
         public Type PlotModelType => PlotModel.GetType();
+        public TelemetryTimeRange? PlotAnalysisRange => PlotModel.AnalysisRange;
     }
 }
