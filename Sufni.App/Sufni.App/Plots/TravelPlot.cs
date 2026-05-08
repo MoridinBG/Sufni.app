@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.SessionGraphs;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -50,7 +51,7 @@ public class TravelPlot(Plot plot) : TelemetryPlot(plot)
         previewSpan = null;
 
         Plot.Axes.Title.Label.Text = "Travel (mm / seconds)";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
 
         if (telemetryData.Front.Present)

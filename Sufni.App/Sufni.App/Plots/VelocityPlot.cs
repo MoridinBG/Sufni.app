@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.SessionGraphs;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -34,7 +35,7 @@ public class VelocityPlot(Plot plot) : TelemetryPlot(plot)
         cursorDurationSeconds = telemetryData.Metadata.Duration;
 
         Plot.Axes.Title.Label.Text = "Velocity (m/seconds / time )";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
         var minimum = 0.0;
         var maximum = 0.0;
