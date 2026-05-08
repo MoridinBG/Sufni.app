@@ -10,7 +10,10 @@ public sealed class LiveVelocityPlotDesktopView : LiveGraphPlotDesktopViewBase
     protected override void CreatePlot()
     {
         Debug.Assert(HasPlotControl);
-        Plot = new LiveVelocityPlot(PlotControl.Plot, Math.Max(Math.Abs(MinimumY ?? 0), Math.Abs(MaximumY ?? 5)));
+        Plot = new LiveVelocityPlot(
+            PlotControl.Plot,
+            Math.Max(Math.Abs(MinimumY ?? 0), Math.Abs(MaximumY ?? 5)),
+            HideRightAxis);
         ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();

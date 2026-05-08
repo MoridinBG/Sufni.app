@@ -6,20 +6,30 @@ using Sufni.App.Models;
 
 namespace Sufni.App.Plots;
 
-public abstract class LiveStreamingPlotBase : SufniPlot
+public abstract class LiveStreamingPlotBase : TelemetryPlot
 {
+    private readonly string title;
     private double latestTimeSeconds;
     private double samplePeriodSeconds = 1;
     private bool hasTiming;
     private double configuredMinimumY;
     private double configuredMaximumY;
 
-    protected LiveStreamingPlotBase(Plot plot, int capacity, double minimumY, double maximumY)
+    protected LiveStreamingPlotBase(
+        Plot plot,
+        string title,
+        int capacity,
+        double minimumY,
+        double maximumY,
+        bool hideRightAxis)
         : base(plot)
     {
+        this.title = title;
         Capacity = capacity;
+        HideRightAxis = hideRightAxis;
+        CursorLine = AddTimeSeriesCursorLine(isVisible: false);
+        ApplyFrame();
         SetVerticalLimits(minimumY, maximumY);
-        CursorLine = plot.Add.VerticalLine(double.NaN);
     }
 
     protected int Capacity { get; }
@@ -28,28 +38,24 @@ public abstract class LiveStreamingPlotBase : SufniPlot
 
     public bool HasTiming => hasTiming;
     public double LatestTimeSeconds => latestTimeSeconds;
-    public PlotSmoothingLevel SmoothingLevel { get; set; }
 
-    protected void ConfigurePlot(string title)
+    public void SetHideRightAxis(bool hideRightAxis)
     {
-        Plot.Axes.Title.Label.Text = title;
-        Plot.Axes.Left.Label.Text = string.Empty;
-        Plot.Axes.Bottom.Label.Text = string.Empty;
-        Plot.Layout.Fixed(new PixelPadding(40, 20, 32, 20));
-        Plot.Axes.Right.IsVisible = false;
-        Plot.Axes.Top.IsVisible = false;
-        Plot.Axes.SetLimitsX(0, Capacity);
-        Plot.Axes.SetLimitsY(configuredMinimumY, configuredMaximumY);
-
-        Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic
+        if (HideRightAxis == hideRightAxis)
         {
-            TargetTickCount = 8,
-            LabelFormatter = coordinate => $"{CoordinateToTime(coordinate):0.##}"
-        };
+            return;
+        }
 
-        CursorLine.LineWidth = 1;
-        CursorLine.LineColor = Colors.LightGray;
-        CursorLine.IsVisible = false;
+        HideRightAxis = hideRightAxis;
+        ApplyFrame();
+    }
+
+    private void ApplyFrame()
+    {
+        ConfigureTimeSeriesFrame(title, coordinate => $"{CoordinateToTime(coordinate):0.###}");
+        ConfigureSymmetricValueTicks(20);
+        Plot.Axes.SetLimitsX(0, Capacity);
+        SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
 
     protected DataStreamer CreateStreamer(Color color)
@@ -81,7 +87,7 @@ public abstract class LiveStreamingPlotBase : SufniPlot
             configuredMaximumY = maximumY;
         }
 
-        Plot.Axes.SetLimitsY(configuredMinimumY, configuredMaximumY);
+        SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
 
     protected void UpdateTiming(IReadOnlyList<double> times)
@@ -168,7 +174,7 @@ public abstract class LiveStreamingPlotBase : SufniPlot
         CursorLine.Position = double.NaN;
         CursorLine.IsVisible = false;
         Plot.Axes.SetLimitsX(0, Capacity);
-        Plot.Axes.SetLimitsY(configuredMinimumY, configuredMaximumY);
+        SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
 
     protected abstract void ClearStreamers();

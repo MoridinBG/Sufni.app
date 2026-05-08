@@ -57,7 +57,7 @@ public class ImuPlotTests
         Assert.Null(sut.CursorLine);
         Assert.Equal("IMU Acceleration (g)", plot.Axes.Title.Label.Text);
         Assert.Empty(plot.PlottableList.OfType<Signal>());
-        Assert.Empty(plot.Axes.Rules);
+        Assert.Equal(2, plot.Axes.Rules.Count);
         Assert.Single(plot.PlottableList.OfType<Text>());
     }
 }

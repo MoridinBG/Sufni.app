@@ -54,10 +54,16 @@ public class LiveGraphPageViewTests
             .ToArray();
         var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
+        var travelView = mounted.View.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
+        var velocityView = mounted.View.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
+        var imuView = mounted.View.FindControl<LiveImuPlotDesktopView>("ImuPlot");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
         Assert.NotNull(graphGrid);
         Assert.NotNull(pageScrollViewer);
+        Assert.NotNull(travelView);
+        Assert.NotNull(velocityView);
+        Assert.NotNull(imuView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
         Assert.Equal(5, hosts.Length);
@@ -71,10 +77,11 @@ public class LiveGraphPageViewTests
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
         Assert.Equal(0, graphGrid!.RowDefinitions[2].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.True(travelView!.HideRightAxis);
+        Assert.True(velocityView!.HideRightAxis);
+        Assert.True(imuView!.HideRightAxis);
         Assert.True(speedView!.HideRightAxis);
-        Assert.True(speedView.UseCompactRightPadding);
         Assert.True(elevationView!.HideRightAxis);
-        Assert.True(elevationView.UseCompactRightPadding);
     }
 
     [AvaloniaFact]

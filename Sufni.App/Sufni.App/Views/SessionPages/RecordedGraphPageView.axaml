@@ -73,13 +73,13 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:TravelPlotDesktopView
                             Name="Travel"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            GraphWorkspace="{Binding Workspace}"
                             HideRightAxis="True"
                             MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
                             SmoothingLevel="{Binding Workspace.PlotPreferences.TravelSmoothing}"
                             Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}"
-                            VelocityPlotView="{Binding #Velocity}"
-                            ImuPlotView="{Binding #Imu}" />
+                            Timeline="{Binding Workspace.Timeline}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Title="Travel" />
@@ -90,14 +90,14 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:VelocityPlotDesktopView
                             Name="Velocity"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            GraphWorkspace="{Binding Workspace}"
                             HideRightAxis="True"
                             Margin="0,4,0,0"
                             MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
                             SmoothingLevel="{Binding Workspace.PlotPreferences.VelocitySmoothing}"
                             Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}"
-                            TravelPlotView="{Binding #Travel}"
-                            ImuPlotView="{Binding #Imu}" />
+                            Timeline="{Binding Workspace.Timeline}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Velocity" />
@@ -108,14 +108,14 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:ImuPlotDesktopView
                             Name="Imu"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            GraphWorkspace="{Binding Workspace}"
                             HideRightAxis="True"
                             Margin="0,4,0,0"
                             MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
                             SmoothingLevel="{Binding Workspace.PlotPreferences.ImuSmoothing}"
                             Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}"
-                            TravelPlotView="{Binding #Travel}"
-                            VelocityPlotView="{Binding #Velocity}" />
+                            Timeline="{Binding Workspace.Timeline}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="IMU" />
@@ -126,6 +126,8 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:TrackSignalPlotDesktopView
                             Name="Speed"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            GraphWorkspace="{Binding Workspace}"
                             HideRightAxis="True"
                             Margin="0,4,0,0"
                             SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
@@ -133,8 +135,7 @@ mc:Ignorable="d">
                             Telemetry="{Binding Workspace.TelemetryData}"
                             Timeline="{Binding Workspace.Timeline}"
                             TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                            TrackPoints="{Binding Workspace.TrackPoints}"
-                            UseCompactRightPadding="True" />
+                            TrackPoints="{Binding Workspace.TrackPoints}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Speed" />
@@ -145,6 +146,8 @@ mc:Ignorable="d">
                         <controls:PlaceholderOverlayContainer.ReadyContent>
                             <plots:TrackSignalPlotDesktopView
                             Name="Elevation"
+                            AnalysisRange="{Binding Workspace.AnalysisRange}"
+                            GraphWorkspace="{Binding Workspace}"
                             HideRightAxis="True"
                             Margin="0,4,0,0"
                             SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
@@ -152,8 +155,7 @@ mc:Ignorable="d">
                             Telemetry="{Binding Workspace.TelemetryData}"
                             Timeline="{Binding Workspace.Timeline}"
                             TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                            TrackPoints="{Binding Workspace.TrackPoints}"
-                            UseCompactRightPadding="True" />
+                            TrackPoints="{Binding Workspace.TrackPoints}" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Elevation" />

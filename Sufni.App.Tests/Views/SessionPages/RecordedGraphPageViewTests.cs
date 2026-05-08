@@ -35,7 +35,8 @@ public class RecordedGraphPageViewTests
             SurfacePresentationState.Ready,
             SurfacePresentationState.Ready,
             speedGraphState: SurfacePresentationState.Ready,
-            elevationGraphState: SurfacePresentationState.Ready);
+            elevationGraphState: SurfacePresentationState.Ready,
+            analysisRange: new TelemetryTimeRange(0.25, 0.75));
 
         var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
 
@@ -61,6 +62,16 @@ public class RecordedGraphPageViewTests
         Assert.True(imuView!.IsVisible);
         Assert.True(speedView!.IsVisible);
         Assert.True(elevationView!.IsVisible);
+        Assert.Same(workspace, travelView.GraphWorkspace);
+        Assert.Same(workspace, velocityView.GraphWorkspace);
+        Assert.Same(workspace, imuView.GraphWorkspace);
+        Assert.Same(workspace, speedView.GraphWorkspace);
+        Assert.Same(workspace, elevationView.GraphWorkspace);
+        Assert.Equal(workspace.AnalysisRange, travelView.AnalysisRange);
+        Assert.Equal(workspace.AnalysisRange, velocityView.AnalysisRange);
+        Assert.Equal(workspace.AnalysisRange, imuView.AnalysisRange);
+        Assert.Equal(workspace.AnalysisRange, speedView.AnalysisRange);
+        Assert.Equal(workspace.AnalysisRange, elevationView.AnalysisRange);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
@@ -69,8 +80,6 @@ public class RecordedGraphPageViewTests
         Assert.True(imuView.HideRightAxis);
         Assert.True(speedView.HideRightAxis);
         Assert.True(elevationView.HideRightAxis);
-        Assert.True(speedView.UseCompactRightPadding);
-        Assert.True(elevationView.UseCompactRightPadding);
         AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 2);
@@ -229,10 +238,11 @@ public class RecordedGraphPageViewTests
         SurfacePresentationState imuGraphState,
         SurfacePresentationState? velocityGraphState = null,
         SurfacePresentationState? speedGraphState = null,
-        SurfacePresentationState? elevationGraphState = null) : IRecordedSessionGraphWorkspace
+        SurfacePresentationState? elevationGraphState = null,
+        TelemetryTimeRange? analysisRange = null) : IRecordedSessionGraphWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
-        public TelemetryTimeRange? AnalysisRange { get; private set; }
+        public TelemetryTimeRange? AnalysisRange { get; private set; } = analysisRange;
         public IReadOnlyList<TrackPoint>? TrackPoints { get; } =
         [
             new TrackPoint(0, 0, 0, 100, 5),

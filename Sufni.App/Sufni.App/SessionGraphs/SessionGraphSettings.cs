@@ -17,6 +17,7 @@ public static class SessionGraphSettings
     public const int RecordedMobileMaximumDisplayHz = 100;
 
     public const float TimeSeriesPlotChromePadding = 40;
+    public const float TimeSeriesPlotBottomChromePadding = 24;
     public const float MobileGraphOuterBleed = 8;
 
     public static PixelPadding CreateTimeSeriesPlotPadding(bool reserveRightChrome)
@@ -28,7 +29,7 @@ public static class SessionGraphSettings
         return new PixelPadding(
             TimeSeriesPlotChromePadding,
             rightPadding,
-            TimeSeriesPlotChromePadding,
+            TimeSeriesPlotBottomChromePadding,
             TimeSeriesPlotChromePadding);
     }
 }
