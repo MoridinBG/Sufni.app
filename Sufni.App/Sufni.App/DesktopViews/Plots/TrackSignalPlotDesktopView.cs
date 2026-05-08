@@ -60,6 +60,15 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
         set => SetValue(SmoothingLevelProperty, value);
     }
 
+    public static readonly StyledProperty<bool> UseCompactRightPaddingProperty =
+        AvaloniaProperty.Register<TrackSignalPlotDesktopView, bool>(nameof(UseCompactRightPadding));
+
+    public bool UseCompactRightPadding
+    {
+        get => GetValue(UseCompactRightPaddingProperty);
+        set => SetValue(UseCompactRightPaddingProperty, value);
+    }
+
     public TrackSignalPlotDesktopView()
     {
         PropertyChanged += (_, e) =>
@@ -71,6 +80,7 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
                 case nameof(TimelineContext):
                 case nameof(Telemetry):
                 case nameof(SmoothingLevel):
+                case nameof(UseCompactRightPadding):
                     RequestReload();
                     break;
 
@@ -122,6 +132,7 @@ public class TrackSignalPlotDesktopView : SufniTimelinePlotView
         }
 
         plot.SmoothingLevel = SmoothingLevel;
+        plot.UseCompactRightPadding = UseCompactRightPadding;
         plot.Clear();
         plot.LoadTrackData(TrackPoints, TimelineContext.Value, Telemetry, SignalKind);
         ApplyTimelineCursor();

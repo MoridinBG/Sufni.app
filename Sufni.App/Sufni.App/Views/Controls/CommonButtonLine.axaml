@@ -60,7 +60,6 @@ mc:Ignorable="d">
         Grid.Column="3"
         Width="39"
         Height="39"
-        Margin="0,0,2,0"
         IsEnabled="{Binding CanDeleteItem}"
         HorizontalContentAlignment="Center"
         VerticalContentAlignment="Center">

@@ -148,7 +148,7 @@
                 IsVisible="{Binding $parent[vme:SessionShellMobileView].ControlContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
             <!--  Back, Save, Reset and Delete buttons  -->
-            <v:CommonButtonLine Grid.Row="5" Margin="4,4,4,0" />
+            <v:CommonButtonLine Grid.Row="5" Margin="0,4,0,0" />
         </Grid>
 
         <StackPanel

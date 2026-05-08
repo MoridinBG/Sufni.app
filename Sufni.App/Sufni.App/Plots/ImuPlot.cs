@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.SessionGraphs;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -43,7 +44,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
         }
 
         Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
 
         var imuData = telemetryData.ImuData;
@@ -155,7 +156,7 @@ public class ImuPlot(Plot plot) : TelemetryPlot(plot)
     private void ShowEmptyState()
     {
         Plot.Axes.Title.Label.Text = "IMU Acceleration (g)";
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         Plot.Axes.SetLimits(0, 1, 0, 1);
 
         var text = Plot.Add.Text("No IMU data", 0.5, 0.5);

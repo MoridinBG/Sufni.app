@@ -34,7 +34,10 @@ public class SessionShellMobileViewTests
         Assert.Equal(host.Pages.Count, tabHeaders.ItemCount);
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<EditableTitle>().FirstOrDefault());
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
-        Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault());
+        var buttonLine = mounted.Shell.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault();
+        Assert.NotNull(buttonLine);
+        Assert.Equal(new Thickness(0, 4, 0, 0), buttonLine!.Margin);
+        Assert.Equal(new Thickness(0), buttonLine.FindControl<Button>("DeleteButton")!.Margin);
     }
 
     [AvaloniaFact]

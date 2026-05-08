@@ -132,7 +132,8 @@ mc:Ignorable="d">
                             Telemetry="{Binding Workspace.TelemetryData}"
                             Timeline="{Binding Workspace.Timeline}"
                             TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                            TrackPoints="{Binding Workspace.TrackPoints}" />
+                            TrackPoints="{Binding Workspace.TrackPoints}"
+                            UseCompactRightPadding="True" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Speed" />
@@ -149,7 +150,8 @@ mc:Ignorable="d">
                             Telemetry="{Binding Workspace.TelemetryData}"
                             Timeline="{Binding Workspace.Timeline}"
                             TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                            TrackPoints="{Binding Workspace.TrackPoints}" />
+                            TrackPoints="{Binding Workspace.TrackPoints}"
+                            UseCompactRightPadding="True" />
                         </controls:PlaceholderOverlayContainer.ReadyContent>
                         <controls:PlaceholderOverlayContainer.PlaceholderContent>
                             <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Elevation" />

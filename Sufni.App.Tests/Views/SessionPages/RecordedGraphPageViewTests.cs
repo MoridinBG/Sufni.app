@@ -67,6 +67,8 @@ public class RecordedGraphPageViewTests
         Assert.True(travelView.HideRightAxis);
         Assert.True(velocityView.HideRightAxis);
         Assert.True(imuView.HideRightAxis);
+        Assert.True(speedView.UseCompactRightPadding);
+        Assert.True(elevationView.UseCompactRightPadding);
         AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 2);

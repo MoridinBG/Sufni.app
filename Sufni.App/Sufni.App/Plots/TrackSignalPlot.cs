@@ -4,6 +4,7 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
+using Sufni.App.SessionGraphs;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -20,6 +21,7 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
     private double cursorDurationSeconds;
 
     public VerticalLine? CursorLine { get; set; }
+    public bool UseCompactRightPadding { get; set; }
 
     protected override void SetCursorLinePosition(double position)
     {
@@ -127,7 +129,7 @@ public class TrackSignalPlot(Plot plot) : TelemetryPlot(plot)
         };
 
         Plot.Axes.Title.Label.Text = title;
-        Plot.Layout.Fixed(new PixelPadding(40, 40, 40, 40));
+        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!UseCompactRightPadding));
         SetAxisLabels("Time (s)", yAxisLabel);
     }
 
