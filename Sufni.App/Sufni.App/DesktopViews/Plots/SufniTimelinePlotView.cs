@@ -78,8 +78,14 @@ public abstract class SufniTimelinePlotView : SufniPlotView
         }
 
         var limits = PlotControl.Plot.Axes.GetLimits();
-        var startNormalized = Math.Clamp(limits.Left / duration, 0.0, 1.0);
-        var endNormalized = Math.Clamp(limits.Right / duration, 0.0, 1.0);
+        var (left, right) = AxisRangeConstraints.Constrain(
+            limits.Left,
+            limits.Right,
+            0,
+            duration,
+            duration * ZoomFractions.TimeSeries);
+        var startNormalized = Math.Clamp(left / duration, 0.0, 1.0);
+        var endNormalized = Math.Clamp(right / duration, 0.0, 1.0);
 
         Timeline.SetVisibleRange(startNormalized, endNormalized, this);
     }

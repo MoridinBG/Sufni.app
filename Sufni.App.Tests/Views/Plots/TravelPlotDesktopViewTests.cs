@@ -3,6 +3,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
@@ -167,5 +168,35 @@ public class TravelPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_TimelineSyncConstrainsOverscrolledFullRange()
+    {
+        var timeline = new SessionTimelineLinkViewModel();
+        var view = new TestableTravelPlotDesktopView
+        {
+            Timeline = timeline,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = CreateTelemetryData(duration: 10);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        plot.Plot.Axes.SetLimitsX(-2, 8);
+        mounted.View.UpdateTimelineRangeForTest();
+
+        Assert.Equal(0, timeline.VisibleRangeStart, 6);
+        Assert.Equal(1, timeline.VisibleRangeEnd, 6);
+    }
+
+    private sealed class TestableTravelPlotDesktopView : TravelPlotDesktopView
+    {
+        public void UpdateTimelineRangeForTest()
+        {
+            UpdateTimelineRange();
+        }
     }
 }
