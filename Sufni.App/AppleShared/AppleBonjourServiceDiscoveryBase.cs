@@ -80,6 +80,10 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         }
 
         var key = GetBrowseResultKey(result);
+        logger.Verbose(
+            "Bonjour browse result added on {Platform} for endpoint {Endpoint}",
+            platformName,
+            key);
         var connection = new NWConnection(result.EndPoint, NWParameters.CreateTcp());
         if (!browseLifecycle.TryTrackPending(key, connection, static pendingConnection => pendingConnection.Cancel(), out var resolutionId))
         {
@@ -89,8 +93,15 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
             return;
         }
 
-        connection.SetStateChangeHandler((state, _) =>
+        connection.SetStateChangeHandler((state, error) =>
         {
+            logger.Verbose(
+                "Bonjour resolution state on {Platform} for {Endpoint} is {State} error {Error}",
+                platformName,
+                key,
+                state,
+                error?.ErrorCode);
+
             if (state != NWConnectionState.Ready)
             {
                 return;
@@ -164,15 +175,39 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         var newBrowser = new NWBrowser(browserDescriptor, parameters);
         newBrowser.SetDispatchQueue(dispatchQueue);
 
+        newBrowser.SetStateChangesHandler((state, error) =>
+        {
+            logger.Verbose(
+                "Bonjour browser state on {Platform} for {ServiceType} is {State} error {Error}",
+                platformName,
+                type,
+                state,
+                error?.ErrorCode);
+        });
+
         newBrowser.CompleteChangesDelegate = changes =>
         {
             if (changes is null)
             {
+                logger.Verbose("Bonjour browse changes batch on {Platform} for {ServiceType} was null", platformName, type);
                 return;
             }
 
+            logger.Verbose(
+                "Bonjour browse changes batch on {Platform} for {ServiceType} count {Count}",
+                platformName,
+                type,
+                changes.Count);
+
             foreach (var change in changes)
             {
+                logger.Verbose(
+                    "Bonjour browse change on {Platform} for {ServiceType} kind {Kind} endpoint {Endpoint}",
+                    platformName,
+                    type,
+                    change.change,
+                    change.result?.EndPoint);
+
                 switch (change.change)
                 {
                     case NWBrowseResultChange.ResultAdded:

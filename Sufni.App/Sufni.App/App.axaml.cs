@@ -174,7 +174,8 @@ public partial class App : Application
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
             sp.GetService<PairingClientViewModel>(),
-            sp.GetService<PairingServerViewModel>()));
+            sp.GetService<PairingServerViewModel>(),
+            sp.GetService<IPairingServerCoordinator>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
