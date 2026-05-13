@@ -188,6 +188,72 @@ public class TrackTests
     }
 
     [Fact]
+    public void GenerateSessionTrack_IgnoresDuplicateTimesBeforeInterpolating()
+    {
+        const long start = 1_767_312_247;
+        var track = new Track
+        {
+            Points =
+            [
+                new TrackPoint(start, 0, 0, 100, 10),
+                new TrackPoint(start, 100, 100, 200, 20),
+                new TrackPoint(start + 1, 10, 10, 110, 11),
+                new TrackPoint(start + 2, 20, 20, 120, 12),
+            ]
+        };
+
+        var sessionTrack = track.GenerateSessionTrack(start, start + 2);
+
+        Assert.NotEmpty(sessionTrack);
+        Assert.Equal(start, sessionTrack[0].Time);
+        Assert.Equal(0, sessionTrack[0].X);
+        Assert.Equal(20, sessionTrack[^1].X);
+    }
+
+    [Fact]
+    public void GenerateSessionTrack_IgnoresNonFiniteCoordinatesBeforeInterpolating()
+    {
+        const long start = 1_767_312_247;
+        var track = new Track
+        {
+            Points =
+            [
+                new TrackPoint(start, 0, 0, 100, 10),
+                new TrackPoint(start + 1, double.NaN, 10, 110, 11),
+                new TrackPoint(start + 2, 20, 20, 120, 12),
+            ]
+        };
+
+        var sessionTrack = track.GenerateSessionTrack(start, start + 2);
+
+        Assert.NotEmpty(sessionTrack);
+        Assert.All(sessionTrack, point =>
+        {
+            Assert.True(double.IsFinite(point.X));
+            Assert.True(double.IsFinite(point.Y));
+        });
+        Assert.Equal(20, sessionTrack[^1].X);
+    }
+
+    [Fact]
+    public void GenerateSessionTrack_ReturnsEmpty_WhenFewerThanTwoUsablePointsRemain()
+    {
+        const long start = 1_767_312_247;
+        var track = new Track
+        {
+            Points =
+            [
+                new TrackPoint(start, double.NaN, 0, 100, 10),
+                new TrackPoint(start + 1, 10, 10, 110, 11),
+            ]
+        };
+
+        var sessionTrack = track.GenerateSessionTrack(start, start + 1);
+
+        Assert.Empty(sessionTrack);
+    }
+
+    [Fact]
     public void FromGpsRecords_ReturnsNull_WhenNoValidPointsRemain()
     {
         var track = Track.FromGpsRecords(
