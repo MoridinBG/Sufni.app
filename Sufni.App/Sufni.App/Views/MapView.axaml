@@ -19,7 +19,8 @@
                           MinWidth="120"
                           PlaceholderText="Select Map..."
                           ItemsSource="{Binding AvailableLayers}"
-                          SelectedItem="{Binding SelectedLayer, Mode=TwoWay}">
+                          SelectedItem="{Binding SelectedLayer, Mode=OneWay}"
+                          SelectionChanged="TileProviderComboBox_OnSelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="models:TileLayerConfig">
                             <TextBlock Text="{Binding Name}" />

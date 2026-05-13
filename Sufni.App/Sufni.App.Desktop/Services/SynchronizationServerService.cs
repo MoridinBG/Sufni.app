@@ -134,7 +134,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
     }
 
-    internal static IReadOnlyList<IPAddress> SelectAdvertisedAddresses(IEnumerable<IPAddress> addresses)
+    public static IReadOnlyList<IPAddress> SelectAdvertisedAddresses(IEnumerable<IPAddress> addresses)
     {
         return addresses
             .Where(IsAdvertisableAddress)
@@ -167,7 +167,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         return address.AddressFamily == AddressFamily.InterNetworkV6;
     }
 
-    internal static IEnumerable<string> CreateServiceInstanceNames()
+    public static IEnumerable<string> CreateServiceInstanceNames()
     {
         yield return DefaultServiceInstanceName;
 
