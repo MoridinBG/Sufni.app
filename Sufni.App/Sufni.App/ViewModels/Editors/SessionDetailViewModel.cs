@@ -9,6 +9,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
@@ -1394,6 +1395,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     protected override Task CloseImplementation()
     {
         StopLoadedSession();
+        MapViewModel?.Dispose();
         return Task.CompletedTask;
     }
 
@@ -1486,21 +1488,44 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             lastPresentationDimensions = dimensions;
         }
 
-        await RestoreRecordedPreferencesAsync();
-        await RequestLoadAsync();
-
-        if (!viewLoaded)
-        {
-            return;
-        }
-
+        // Subscribe before the awaited restore so a remote sync apply that
+        // lands while restore is in flight is not missed.
         var watch = recordedSessionGraph.WatchSession(Id);
         if (SynchronizationContext.Current is { } synchronizationContext)
         {
             watch = watch.ObserveOn(synchronizationContext);
         }
+        EnsureScopedSubscription(s =>
+        {
+            s.Add(sessionPreferences.ObserveRecorded(Id).Subscribe(OnSyncedPreferencesArrived));
+            s.Add(watch.Subscribe(domain => _ = HandleDomainChangedAsync(domain)));
+        });
 
-        EnsureScopedSubscription(s => s.Add(watch.Subscribe(domain => _ = HandleDomainChangedAsync(domain))));
+        await RestoreRecordedPreferencesAsync();
+        await RequestLoadAsync();
+    }
+
+    private void OnSyncedPreferencesArrived(SessionPreferences prefs)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            _ = Dispatcher.UIThread.InvokeAsync(() => OnSyncedPreferencesArrived(prefs));
+            return;
+        }
+
+        if (!viewLoaded) return;
+
+        // Suppress the persist echo: applying inbound sync values must not
+        // bounce back through UpdateRecordedAsync.
+        recordedPreferencePersistenceEnabled = false;
+        try
+        {
+            ApplyRecordedPreferences(prefs);
+        }
+        finally
+        {
+            recordedPreferencePersistenceEnabled = true;
+        }
     }
 
     [RelayCommand]

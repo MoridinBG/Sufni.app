@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -25,8 +28,15 @@ public sealed class AppPreferences : IAppPreferences
     private readonly string filePath;
     private readonly SemaphoreSlim gate = new(1, 1);
 
+    // Hot stream of "remote sync just landed in the on-disk document". Fired
+    // after the gate is released so subscribers can re-read without contending
+    // for it. Initial-value-less: subscribers care about future emissions, not
+    // a snapshot of "has sync ever happened".
+    private readonly Subject<Unit> syncDataAppliedSubject = new();
+
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
+    public IObservable<Unit> SyncDataApplied => syncDataAppliedSubject.AsObservable();
 
     public AppPreferences()
         : this(Path.Combine(Path.GetDirectoryName(AppPaths.DatabasePath)!, "app-preferences.json"))
@@ -83,6 +93,10 @@ public sealed class AppPreferences : IAppPreferences
             return;
         }
 
+        // Apply under the gate, signal outside it. The signal is what
+        // downstream services (TileLayerService, SessionDetailViewModel) use
+        // to know the JSON file has new content and they should re-read.
+        bool applied = false;
         await gate.WaitAsync();
         try
         {
@@ -94,10 +108,16 @@ public sealed class AppPreferences : IAppPreferences
 
             document.ApplySyncData(preferences);
             await WriteDocumentCoreAsync(document);
+            applied = true;
         }
         finally
         {
             gate.Release();
+        }
+
+        if (applied)
+        {
+            syncDataAppliedSubject.OnNext(Unit.Default);
         }
     }
 
@@ -216,6 +236,13 @@ public sealed class AppPreferences : IAppPreferences
         public Task RemoveRecordedAsync(Guid sessionId)
         {
             return owner.UpdateAsync(document => document.Session.Sessions.Remove(SessionKey(sessionId)));
+        }
+
+        public IObservable<SessionPreferences> ObserveRecorded(Guid sessionId)
+        {
+            return owner.SyncDataApplied
+                .SelectMany(_ => Observable.FromAsync(() => GetRecordedAsync(sessionId)))
+                .DistinctUntilChanged();
         }
 
         private static string SessionKey(Guid sessionId) => sessionId.ToString("D");

@@ -25,7 +25,7 @@ public class SessionDetailViewModelTests
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
 
@@ -382,7 +382,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
-        var preferences = Substitute.For<ISessionPreferences>();
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(
             preferences,
             snapshot.Id,
@@ -412,7 +412,7 @@ public class SessionDetailViewModelTests
     public async Task Loaded_OnDesktop_DisablesAndHidesImuPreference_WhenTelemetryHasNoImu()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var preferences = Substitute.For<ISessionPreferences>();
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
@@ -433,7 +433,7 @@ public class SessionDetailViewModelTests
     public async Task PlotPreferenceChange_PersistsAndUpdatesGraphStatesWithoutDirtyingSession()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var preferences = Substitute.For<ISessionPreferences>();
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         Func<SessionPreferences, SessionPreferences>? update = null;
         preferences.UpdateRecordedAsync(
@@ -463,7 +463,7 @@ public class SessionDetailViewModelTests
     public async Task Loaded_OnDesktop_AppliesPersistedStatisticsWithoutSavingDuringHydration()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var preferences = Substitute.For<ISessionPreferences>();
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(
             preferences,
             snapshot.Id,
@@ -489,10 +489,39 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task StatisticsPreferenceChange_RecomputesAnalysisAndPersistsAfterHydration()
+    public async Task SyncedPreferenceArrival_AppliesWithoutRePersisting()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var preferences = Substitute.For<ISessionPreferences>();
+        var syncStream = new Subject<SessionPreferences>();
+        preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+
+        var synced = SessionPreferences.Default with
+        {
+            Statistics = SessionPreferences.Default.Statistics with
+            {
+                TravelHistogramMode = TravelHistogramMode.DynamicSag,
+            },
+        };
+        syncStream.OnNext(synced);
+
+        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+    }
+
+    [AvaloniaFact]
+    public async Task StatisticsPreferenceChange_RecomputesAnalysisAndPersistsAfterHydration()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         Func<SessionPreferences, SessionPreferences>? update = null;
         preferences.UpdateRecordedAsync(
@@ -1499,7 +1528,7 @@ public class SessionDetailViewModelTests
 
     private static ISessionPreferences CreateSessionPreferences()
     {
-        var preferences = Substitute.For<ISessionPreferences>();
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         preferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(SessionPreferences.Default));
         preferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);

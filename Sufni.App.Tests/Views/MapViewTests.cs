@@ -26,7 +26,7 @@ public class MapViewTests
         var layerB = CreateLayer("Satellite");
         var layers = new ObservableCollection<TileLayerConfig> { layerA, layerB };
 
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(layers);
 
         var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
@@ -67,7 +67,7 @@ public class MapViewTests
         var customLayer = CreateLayer("Trail Map");
         var layers = new ObservableCollection<TileLayerConfig> { initialLayer };
 
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(layers);
         tileLayerService.AddCustomLayerAsync(customLayer).Returns(_ =>
         {
@@ -118,7 +118,7 @@ public class MapViewTests
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
         var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
@@ -234,7 +234,7 @@ public class MapViewTests
 
     private static MapViewModel CreateViewModelWithTrack()
     {
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
         return new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
