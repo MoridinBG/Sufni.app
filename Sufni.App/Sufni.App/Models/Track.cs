@@ -122,18 +122,15 @@ public class Track : Synchronizable
 
     public List<TrackPoint> GenerateSessionTrack(long start, long end)
     {
-        var indices = Points
-            .Select((tp, idx) => (tp.Time, idx))
-            .Where(x => x.Time >= start && x.Time <= end)
-            .Select(x => x.idx)
-            .ToArray();
+        var session = Points
+            .Where(tp => tp.Time >= start && tp.Time <= end)
+            .Where(IsFiniteInterpolationPoint)
+            .OrderBy(tp => tp.Time)
+            .ToList();
 
-        if (indices.Length == 0) return [];
+        session = RemoveDuplicateTimes(session);
+        if (session.Count < 2) return [];
 
-        var startIdx = indices.First();
-        var endIdx = indices.Last() + 1;
-
-        var session = Points.Skip(startIdx).Take(endIdx - startIdx).ToList();
         var sessionTimes = session.Select(tp => tp.Time - start).ToArray();
         sessionTimes[0] = 0;
 
@@ -142,21 +139,60 @@ public class Track : Synchronizable
             0,
             sessionTimes.Last());
 
-        var xInterpolate = CubicSpline.InterpolatePchip(sessionTimes, session.Select(tp => tp.X).ToArray());
-        var yInterpolate = CubicSpline.InterpolatePchip(sessionTimes, session.Select(tp => tp.Y).ToArray());
+        var xInterpolate = CreateCoordinateInterpolator(sessionTimes, session.Select(tp => tp.X).ToArray());
+        var yInterpolate = CreateCoordinateInterpolator(sessionTimes, session.Select(tp => tp.Y).ToArray());
         var elevationInterpolate = CreateNullableLinearInterpolator(session, sessionTimes, tp => tp.Elevation);
         var speedInterpolate = CreateNullableLinearInterpolator(session, sessionTimes, tp => tp.Speed);
 
         var interpolated = x.Select(t =>
             new TrackPoint(
                 start + t,
-                xInterpolate.Interpolate(t),
-                yInterpolate.Interpolate(t),
+                xInterpolate(t),
+                yInterpolate(t),
                 elevationInterpolate(t),
                 speedInterpolate(t)
             )).ToList();
 
         return interpolated;
+    }
+
+    private static bool IsFiniteInterpolationPoint(TrackPoint point)
+    {
+        return double.IsFinite(point.Time)
+               && double.IsFinite(point.X)
+               && double.IsFinite(point.Y);
+    }
+
+    private static List<TrackPoint> RemoveDuplicateTimes(IReadOnlyList<TrackPoint> points)
+    {
+        var unique = new List<TrackPoint>(points.Count);
+        foreach (var point in points)
+        {
+            if (unique.Count > 0 && point.Time <= unique[^1].Time)
+            {
+                continue;
+            }
+
+            unique.Add(point);
+        }
+
+        return unique;
+    }
+
+    private static Func<double, double> CreateCoordinateInterpolator(double[] times, double[] values)
+    {
+        if (times.Length >= 3)
+        {
+            var spline = CubicSpline.InterpolatePchip(times, values);
+            return spline.Interpolate;
+        }
+
+        return time => InterpolateLinearValue(times, values, time);
+    }
+
+    private static double InterpolateLinearValue(IReadOnlyList<double> times, IReadOnlyList<double> values, double time)
+    {
+        return InterpolateLinear(times, values, time) ?? values[0];
     }
 
     private static Func<double, double?> CreateNullableLinearInterpolator(
