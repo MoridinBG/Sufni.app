@@ -267,6 +267,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         builder.WebHost.ConfigureKestrel(options =>
         {
+            options.Limits.MaxRequestBodySize = null;
             options.ConfigureHttpsDefaults(httpsOptions =>
             {
                 httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
