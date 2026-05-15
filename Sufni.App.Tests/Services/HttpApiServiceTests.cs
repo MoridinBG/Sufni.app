@@ -170,6 +170,31 @@ public class HttpApiServiceTests
         Assert.Equal(1, refreshRequestCount);
     }
 
+    [Fact]
+    public async Task IsPairedAsync_ReturnsTrueFromStoredRefreshToken_WithoutRefreshingTemporaryUrl()
+    {
+        var secureStorage = CreateSecureStorage();
+        var service = CreateService(secureStorage, (_, _) =>
+            throw new InvalidOperationException("Pairing probe should not use the stored endpoint."));
+
+        var isPaired = await service.IsPairedAsync();
+
+        Assert.True(isPaired);
+    }
+
+    [Fact]
+    public async Task IsPairedAsync_ReturnsFalse_WhenRefreshTokenIsMissing()
+    {
+        var secureStorage = CreateSecureStorage();
+        secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
+        var service = CreateService(secureStorage, (_, _) =>
+            throw new InvalidOperationException("Pairing probe should not use the stored endpoint."));
+
+        var isPaired = await service.IsPairedAsync();
+
+        Assert.False(isPaired);
+    }
+
     private static HttpApiService CreateService(
         ISecureStorage secureStorage,
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync)

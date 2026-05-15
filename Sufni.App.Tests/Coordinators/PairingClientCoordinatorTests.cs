@@ -185,8 +185,69 @@ public class PairingClientCoordinatorTests
         SeedInitDefaults();
         var coordinator = CreateCoordinator();
 
+        coordinator.StartBrowsing();
         coordinator.StopBrowsing();
 
+        serviceDiscovery.Received(1).StopBrowse();
+    }
+
+    [Fact]
+    public async Task ResolveServerUrlAsync_ReturnsCurrentDiscoveryUrl_AndUpdatesHttpEndpoint()
+    {
+        SeedInitDefaults(isPaired: true);
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+
+        var resolvedUrl = await coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("https://192.168.1.10:8443", resolvedUrl);
+        httpApiService.Received(1).ServerUrl = "https://192.168.1.10:8443";
+        serviceDiscovery.DidNotReceive().StartBrowse(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task ResolveServerUrlAsync_StartsTemporaryBrowseUntilServerIsDiscovered()
+    {
+        SeedInitDefaults(isPaired: true);
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        var resolving = coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(1));
+        serviceDiscovery.Received(1).StartBrowse(SynchronizationProtocol.ServiceType);
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+
+        var resolvedUrl = await resolving;
+
+        Assert.Equal("https://192.168.1.10:8443", resolvedUrl);
+        httpApiService.Received(1).ServerUrl = "https://192.168.1.10:8443";
+        serviceDiscovery.Received(1).StopBrowse();
+    }
+
+    [Fact]
+    public async Task ResolveServerUrlAsync_DoesNotStopExistingBrowseLease()
+    {
+        SeedInitDefaults(isPaired: true);
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+        coordinator.StartBrowsing();
+
+        var resolving = coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(1));
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+        _ = await resolving;
+
+        serviceDiscovery.Received(1).StartBrowse(SynchronizationProtocol.ServiceType);
+        serviceDiscovery.DidNotReceive().StopBrowse();
+
+        coordinator.StopBrowsing();
         serviceDiscovery.Received(1).StopBrowse();
     }
 
