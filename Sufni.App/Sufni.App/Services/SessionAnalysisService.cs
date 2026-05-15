@@ -802,7 +802,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
             var adjustments = new[]
             {
                 CreateAdjustment(
-                    AdjustmentComponent.HighSpeedCompression,
+                    SelectCompressionOpenComponent(side, context),
                     AdjustmentDirection.Open,
                     "1 click",
                     side,
