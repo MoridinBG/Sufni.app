@@ -236,6 +236,40 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task SessionPreferences_UpdateRecorded_PersistsProcessingPreference()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+            {
+                Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250),
+            });
+
+            var reloaded = new AppPreferences(preferencesPath);
+            var stored = await reloaded.Session.GetRecordedAsync(sessionId);
+
+            Assert.Equal(250, stored.Processing.VelocityFilterWindowMilliseconds);
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            var processing = json.RootElement
+                .GetProperty("session")
+                .GetProperty("sessions")
+                .GetProperty(sessionId.ToString("D"))
+                .GetProperty("processing");
+            Assert.Equal(250, processing.GetProperty("velocityFilterWindowMilliseconds").GetInt32());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task SessionPreferences_UpdateRecorded_SerializesConcurrentUpdates()
     {
         var (tempDirectory, preferencesPath) = CreatePreferencesPath();
@@ -717,6 +751,9 @@ public class AppPreferencesTests
         Assert.Equal(VelocityAverageMode.SampleAveraged, preferences.Statistics.VelocityAverageMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, preferences.Statistics.BalanceDisplacementMode);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, preferences.Statistics.SessionAnalysisTargetProfile);
+        Assert.Equal(
+            TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
+            preferences.Processing.VelocityFilterWindowMilliseconds);
     }
 
     private static (string TempDirectory, string PreferencesPath) CreatePreferencesPath()

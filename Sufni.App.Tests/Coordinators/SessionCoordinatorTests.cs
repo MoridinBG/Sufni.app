@@ -40,6 +40,8 @@ public class SessionCoordinatorTests
     {
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
+        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>())
+            .Returns(Task.FromResult(SessionPreferences.Default));
         sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
@@ -303,7 +305,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
@@ -328,6 +330,42 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task RecomputeAsync_PassesRecordedProcessingPreferenceToReprocessor()
+    {
+        var context = CreateRecomputeContext();
+        var preferences = SessionPreferences.Default with
+        {
+            Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250)
+        };
+        var telemetry = TestTelemetryData.Create();
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
+        var persisted = CreateSession(context.Session, updated: 5);
+        var fresh = CreateSession(context.Session, updated: 9);
+        fresh.HasProcessedData = true;
+
+        sessionPreferences.GetRecordedAsync(context.Session.Id).Returns(Task.FromResult(preferences));
+        domainQuery.Get(context.Session.Id).Returns(context.Domain);
+        sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
+        reprocessor
+            .ReprocessAsync(
+                context.Domain,
+                context.Source,
+                Arg.Is<TelemetryProcessingOptions>(options => options.VelocityFilterWindowMilliseconds == 250),
+                Arg.Any<CancellationToken>())
+            .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
+        database.GetSessionAsync(context.Session.Id).Returns(persisted);
+        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+
+        await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
+
+        await reprocessor.Received(1).ReprocessAsync(
+            context.Domain,
+            context.Source,
+            Arg.Is<TelemetryProcessingOptions>(options => options.VelocityFilterWindowMilliseconds == 250),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RecomputeAsync_Recomputes_WhenProcessedDataIsMissingButSourceExists()
     {
         var context = CreateRecomputeContext(new SessionStaleness.MissingProcessedData(), hasProcessedData: false);
@@ -339,7 +377,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
@@ -362,7 +400,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
@@ -402,7 +440,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted, current);
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5)
@@ -460,7 +498,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
         database.GetAsync<Track>(previousTrackId).Returns(existingTrack);
@@ -497,7 +535,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
         database.GetAsync<Track>(previousTrackId).Returns(existingTrack);
@@ -535,7 +573,7 @@ public class SessionCoordinatorTests
 
         domainQuery.Get(context.Session.Id).Returns(context.Domain);
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
-        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
         database.GetAsync<Track>(previousTrackId).Returns(existingTrack);

@@ -179,6 +179,7 @@ ViewModels/
   SetupListViewModelTests.cs
  MainPagesViewModelTests.cs
  MainWindowViewModelTests.cs
+ SessionPages/PreferencesPageViewModelTests.cs
  TabPageViewModelBaseTests.cs
 Views/Controls/
  CommonButtonLineTests.cs
