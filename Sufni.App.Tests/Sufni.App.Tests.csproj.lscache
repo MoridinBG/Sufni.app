@@ -190,6 +190,7 @@ Views/Controls/
  PlaceholderOverlayContainerTests.cs
  SearchBarTests.cs
  SearchBarWithDateFilterTests.cs
+ SessionAnalysisControlsTests.cs
  SwipeToDeleteButtonTests.cs
  UndoDeleteButtonTests.cs
  YesNoCancelDialogWindowTests.cs
