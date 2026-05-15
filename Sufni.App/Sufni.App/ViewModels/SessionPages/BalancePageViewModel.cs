@@ -46,6 +46,42 @@ public partial class BalancePageViewModel : PageViewModelBase
         }
     }
 
+    public bool BothSpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.Both;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceSpeedMode(BalanceSpeedMode.Both);
+            }
+        }
+    }
+
+    public bool LowSpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.LowSpeed;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceSpeedMode(BalanceSpeedMode.LowSpeed);
+            }
+        }
+    }
+
+    public bool HighSpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.HighSpeed;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceSpeedMode(BalanceSpeedMode.HighSpeed);
+            }
+        }
+    }
+
     public BalancePageViewModel(ISessionStatisticsWorkspace? statisticsWorkspace = null)
         : base("Balance")
     {
@@ -86,6 +122,10 @@ public partial class BalancePageViewModel : PageViewModelBase
         {
             RefreshBalanceDisplacementModeSelection();
         }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedBalanceSpeedMode))
+        {
+            RefreshBalanceSpeedModeSelection();
+        }
     }
 
     private void SelectBalanceDisplacementMode(BalanceDisplacementMode mode)
@@ -99,9 +139,27 @@ public partial class BalancePageViewModel : PageViewModelBase
         RefreshBalanceDisplacementModeSelection();
     }
 
+    private void SelectBalanceSpeedMode(BalanceSpeedMode mode)
+    {
+        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedBalanceSpeedMode == mode)
+        {
+            return;
+        }
+
+        StatisticsWorkspace.SelectedBalanceSpeedMode = mode;
+        RefreshBalanceSpeedModeSelection();
+    }
+
     private void RefreshBalanceDisplacementModeSelection()
     {
         OnPropertyChanged(nameof(ZenithModeSelected));
         OnPropertyChanged(nameof(TravelModeSelected));
+    }
+
+    private void RefreshBalanceSpeedModeSelection()
+    {
+        OnPropertyChanged(nameof(BothSpeedModeSelected));
+        OnPropertyChanged(nameof(LowSpeedModeSelected));
+        OnPropertyChanged(nameof(HighSpeedModeSelected));
     }
 }

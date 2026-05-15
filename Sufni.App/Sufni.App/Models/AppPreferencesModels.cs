@@ -35,6 +35,7 @@ public sealed record SessionStatisticsPreferences(
     [property: JsonPropertyName("travel_histogram_mode")] TravelHistogramMode TravelHistogramMode = TravelHistogramMode.ActiveSuspension,
     [property: JsonPropertyName("velocity_average_mode")] VelocityAverageMode VelocityAverageMode = VelocityAverageMode.SampleAveraged,
     [property: JsonPropertyName("balance_displacement_mode")] BalanceDisplacementMode BalanceDisplacementMode = BalanceDisplacementMode.Zenith,
+    [property: JsonPropertyName("balance_speed_mode")] BalanceSpeedMode BalanceSpeedMode = BalanceSpeedMode.Both,
     [property: JsonPropertyName("session_analysis_target_profile")] SessionAnalysisTargetProfile SessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail);
 
 public sealed class AppPreferencesSyncData

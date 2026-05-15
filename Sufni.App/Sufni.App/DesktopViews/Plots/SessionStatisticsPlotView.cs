@@ -41,6 +41,11 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             nameof(BalanceDisplacementMode),
             BalanceDisplacementMode.Zenith);
 
+    public static readonly StyledProperty<BalanceSpeedMode> BalanceSpeedModeProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, BalanceSpeedMode>(
+            nameof(BalanceSpeedMode),
+            BalanceSpeedMode.Both);
+
     public static readonly StyledProperty<VelocityAverageMode> VelocityAverageModeProperty =
         AvaloniaProperty.Register<SessionStatisticsPlotView, VelocityAverageMode>(
             nameof(VelocityAverageMode),
@@ -82,6 +87,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         set => SetValue(BalanceDisplacementModeProperty, value);
     }
 
+    public BalanceSpeedMode BalanceSpeedMode
+    {
+        get => GetValue(BalanceSpeedModeProperty);
+        set => SetValue(BalanceSpeedModeProperty, value);
+    }
+
     public VelocityAverageMode VelocityAverageMode
     {
         get => GetValue(VelocityAverageModeProperty);
@@ -94,6 +105,7 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         {
             if (e.Property.Name is nameof(TravelHistogramMode) && PlotKind == PlotKind.TravelHistogram ||
                 e.Property.Name is nameof(BalanceDisplacementMode) && PlotKind == PlotKind.Balance ||
+                e.Property.Name is nameof(BalanceSpeedMode) && PlotKind == PlotKind.Balance ||
                 e.Property.Name is nameof(VelocityAverageMode) && PlotKind == PlotKind.VelocityHistogram)
             {
                 if (!HasPlotModel)
@@ -135,6 +147,7 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
                 break;
             case BalancePlot balance:
                 balance.DisplacementMode = BalanceDisplacementMode;
+                balance.SpeedMode = BalanceSpeedMode;
                 break;
             case VelocityHistogramPlot velocityHistogram:
                 velocityHistogram.AverageMode = VelocityAverageMode;

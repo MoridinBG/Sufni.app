@@ -348,22 +348,40 @@ mc:Ignorable="d">
 
                 <!--  Balance graphs  -->
                 <Grid Name="Balance" RowDefinitions="Auto,*">
-                    <ComboBox
-                    Name="BalanceDisplacementModeComboBox"
+                    <StackPanel
                     Grid.Row="0"
-                    Width="150"
                     HorizontalAlignment="Right"
                     Margin="0,0,10,8"
-                    ItemsSource="{Binding BalanceDisplacementModeOptions}"
-                    SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
-                    SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
-                    ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:BalanceDisplacementModeOption">
-                                <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                    Orientation="Horizontal"
+                    Spacing="8">
+                        <ComboBox
+                        Name="BalanceDisplacementModeComboBox"
+                        Width="150"
+                        ItemsSource="{Binding BalanceDisplacementModeOptions}"
+                        SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
+                        SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
+                        ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BalanceDisplacementModeOption">
+                                    <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <ComboBox
+                        Name="BalanceSpeedModeComboBox"
+                        Width="150"
+                        ItemsSource="{Binding BalanceSpeedModeOptions}"
+                        SelectedValue="{Binding SelectedBalanceSpeedMode, Mode=TwoWay}"
+                        SelectedValueBinding="{Binding Value, DataType=vm:BalanceSpeedModeOption}"
+                        ToolTip.Tip="Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BalanceSpeedModeOption">
+                                    <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
 
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
@@ -377,6 +395,7 @@ mc:Ignorable="d">
                                 AnalysisRange="{Binding AnalysisRange}"
                                 BalanceType="Compression"
                                 BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
+                                BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
                                 IsHitTestVisible="False"
                                 PlotKind="Balance"
                                 Telemetry="{Binding TelemetryData}" />
@@ -392,6 +411,7 @@ mc:Ignorable="d">
                                 AnalysisRange="{Binding AnalysisRange}"
                                 BalanceType="Rebound"
                                 BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
+                                BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
                                 IsHitTestVisible="False"
                                 PlotKind="Balance"
                                 Telemetry="{Binding TelemetryData}" />

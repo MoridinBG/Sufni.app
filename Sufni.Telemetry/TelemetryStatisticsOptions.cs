@@ -12,6 +12,13 @@ public enum BalanceDisplacementMode
     Travel = 1,
 }
 
+public enum BalanceSpeedMode
+{
+    Both = 0,
+    LowSpeed = 1,
+    HighSpeed = 2,
+}
+
 public enum VelocityAverageMode
 {
     SampleAveraged = 0,
@@ -24,7 +31,9 @@ public sealed record TravelStatisticsOptions(
 
 public sealed record BalanceStatisticsOptions(
     TelemetryTimeRange? Range = null,
-    BalanceDisplacementMode DisplacementMode = BalanceDisplacementMode.Zenith);
+    BalanceDisplacementMode DisplacementMode = BalanceDisplacementMode.Zenith,
+    BalanceSpeedMode SpeedMode = BalanceSpeedMode.Both,
+    double HighSpeedThreshold = 200.0);
 
 public sealed record VelocityStatisticsOptions(
     TelemetryTimeRange? Range = null,
