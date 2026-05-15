@@ -5,25 +5,39 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using Mapsui.Projections;
-using MathNet.Numerics;
 using MathNet.Numerics.Interpolation;
 using SQLite;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
 
-public class TrackPoint(double time, double x, double y, double? elevation, double? speed = null)
+public class TrackPoint(
+    double time,
+    double x,
+    double y,
+    double? elevation,
+    double? speed = null,
+    byte? fixMode = null,
+    byte? satellites = null,
+    float? epe2d = null,
+    float? epe3d = null)
 {
     [JsonPropertyName("time")] public double Time { get; set; } = time;
     [JsonPropertyName("x")] public double X { get; set; } = x;
     [JsonPropertyName("y")] public double Y { get; set; } = y;
     [JsonPropertyName("ele")] public double? Elevation { get; set; } = elevation;
     [JsonPropertyName("spd")] public double? Speed { get; set; } = speed;
+    [JsonPropertyName("fix")] public byte? FixMode { get; set; } = fixMode;
+    [JsonPropertyName("sats")] public byte? Satellites { get; set; } = satellites;
+    [JsonPropertyName("epe2d")] public float? Epe2d { get; set; } = epe2d;
+    [JsonPropertyName("epe3d")] public float? Epe3d { get; set; } = epe3d;
 }
 
 [Table("track")]
 public class Track : Synchronizable
 {
+    private const double SessionTrackSampleStepSeconds = 0.1;
+    private const double SessionTrackTimeMergeToleranceSeconds = 1e-9;
     private List<TrackPoint> points = [];
 
     [JsonIgnore]
@@ -131,29 +145,84 @@ public class Track : Synchronizable
         session = RemoveDuplicateTimes(session);
         if (session.Count < 2) return [];
 
-        var sessionTimes = session.Select(tp => tp.Time - start).ToArray();
+        var actualSessionTimes = session.Select(tp => tp.Time - start).ToArray();
+        var sessionTimes = actualSessionTimes.ToArray();
         sessionTimes[0] = 0;
-
-        var x = Generate.LinearSpaced(
-            Convert.ToInt32(sessionTimes.Last() / 0.1),
-            0,
-            sessionTimes.Last());
 
         var xInterpolate = CreateCoordinateInterpolator(sessionTimes, session.Select(tp => tp.X).ToArray());
         var yInterpolate = CreateCoordinateInterpolator(sessionTimes, session.Select(tp => tp.Y).ToArray());
         var elevationInterpolate = CreateNullableLinearInterpolator(session, sessionTimes, tp => tp.Elevation);
         var speedInterpolate = CreateNullableLinearInterpolator(session, sessionTimes, tp => tp.Speed);
+        var sourcePointsByTime = session
+            .Select((point, index) => (
+                Time: sessionTimes[index],
+                Point: point,
+                IsPinnedToSessionStart: index == 0 && actualSessionTimes[index] != sessionTimes[index]))
+            .Where(item => !item.IsPinnedToSessionStart)
+            .ToDictionary(item => item.Time, item => item.Point);
+        var x = CreateSessionTrackTimes(sessionTimes);
 
         var interpolated = x.Select(t =>
-            new TrackPoint(
+        {
+            sourcePointsByTime.TryGetValue(t, out var sourcePoint);
+            return new TrackPoint(
                 start + t,
                 xInterpolate(t),
                 yInterpolate(t),
                 elevationInterpolate(t),
-                speedInterpolate(t)
-            )).ToList();
+                speedInterpolate(t),
+                sourcePoint?.FixMode,
+                sourcePoint?.Satellites,
+                sourcePoint?.Epe2d,
+                sourcePoint?.Epe3d);
+        }).ToList();
 
         return interpolated;
+    }
+
+    private static double[] CreateSessionTrackTimes(IReadOnlyList<double> sourceTimes)
+    {
+        var duration = sourceTimes[^1];
+        var candidates = new List<SessionTrackTimeCandidate>();
+        var regularSampleCount = (int)Math.Floor(duration / SessionTrackSampleStepSeconds);
+        for (var index = 0; index <= regularSampleCount; index++)
+        {
+            candidates.Add(new SessionTrackTimeCandidate(index * SessionTrackSampleStepSeconds, IsSourceTime: false));
+        }
+
+        candidates.Add(new SessionTrackTimeCandidate(duration, IsSourceTime: false));
+        candidates.AddRange(sourceTimes
+            .Where(time => double.IsFinite(time) && time >= 0 && time <= duration)
+            .Select(time => new SessionTrackTimeCandidate(time, IsSourceTime: true)));
+
+        candidates.Sort(static (left, right) =>
+        {
+            var comparison = left.Time.CompareTo(right.Time);
+            if (comparison != 0) return comparison;
+            return right.IsSourceTime.CompareTo(left.IsSourceTime);
+        });
+
+        var times = new List<double>(candidates.Count);
+        var lastWasSourceTime = false;
+        foreach (var candidate in candidates)
+        {
+            if (times.Count > 0 &&
+                Math.Abs(candidate.Time - times[^1]) <= SessionTrackTimeMergeToleranceSeconds)
+            {
+                if (candidate.IsSourceTime && !lastWasSourceTime)
+                {
+                    times[^1] = candidate.Time;
+                    lastWasSourceTime = true;
+                }
+
+                continue;
+            }
+
+            times.Add(candidate.Time);
+            lastWasSourceTime = candidate.IsSourceTime;
+        }
+
+        return times.ToArray();
     }
 
     private static bool IsFiniteInterpolationPoint(TrackPoint point)
@@ -252,4 +321,6 @@ public class Track : Synchronizable
 
         return values[^1];
     }
+
+    private readonly record struct SessionTrackTimeCandidate(double Time, bool IsSourceTime);
 }

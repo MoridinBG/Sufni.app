@@ -54,10 +54,11 @@ public class RecordedSessionDomainQueryTests
     {
         var context = CreateCurrentContext();
         var fingerprint = new ProcessingFingerprint(
-            1,
+            2,
             1,
             context.Setup.Id,
             context.Bike.Id,
+            1,
             "dependency",
             context.Source.SourceHash);
         var fingerprintService = Substitute.For<IProcessingFingerprintService>();

@@ -97,6 +97,101 @@ public class SessionListViewModelTests
     }
 
     [Fact]
+    public async Task RecalculateRow_CallsCoordinatorWithSummaryUpdatedBaseline()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(
+                name: "stale",
+                updated: 42,
+                staleness: new SessionStaleness.DependencyHashChanged());
+            sessionCache.AddOrUpdate(summary);
+
+            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
+            sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
+                .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
+
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var row = Assert.Single(viewModel.Items);
+
+            Assert.True(row.RecalculateCommand.CanExecute(null));
+            await row.RecalculateCommand.ExecuteAsync(null);
+
+            await sessionCoordinator.Received(1)
+                .RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>());
+            Assert.Empty(viewModel.ErrorMessages);
+        }
+    }
+
+    [Fact]
+    public async Task RecalculateRow_ReportsCoordinatorFailure()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(
+                name: "stale",
+                updated: 42,
+                staleness: new SessionStaleness.DependencyHashChanged());
+            sessionCache.AddOrUpdate(summary);
+
+            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
+            sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
+                .Returns(new SessionRecomputeResult.Failed("boom"));
+
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            await viewModel.Items[0].RecalculateCommand.ExecuteAsync(null);
+
+            Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task RecalculateRow_CallsCoordinator_WhenSummaryIsCurrent()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(
+                name: "current",
+                updated: 42,
+                staleness: new SessionStaleness.Current());
+            sessionCache.AddOrUpdate(summary);
+
+            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
+            sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
+                .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
+
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var row = Assert.Single(viewModel.Items);
+
+            Assert.True(row.RecalculateCommand.CanExecute(null));
+            await row.RecalculateCommand.ExecuteAsync(null);
+
+            await sessionCoordinator.Received(1)
+                .RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>());
+        }
+    }
+
+    [Fact]
+    public void RecalculateRow_Disabled_WhenSummaryCannotManuallyRecompute()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            sessionCache.AddOrUpdate(CreateSummary(
+                name: "no raw",
+                staleness: new SessionStaleness.MissingRawSource()));
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var row = Assert.Single(viewModel.Items);
+
+            Assert.False(row.RecalculateCommand.CanExecute(null));
+        }
+    }
+
+    [Fact]
     public void StaleRows_ShowSuffix_ButSearchUsesSummaryText()
     {
         var (graph, sessionCache) = CreateGraph();
@@ -160,8 +255,10 @@ public class SessionListViewModelTests
     private static RecordedSessionSummary CreateSummary(
         string name,
         string description = "",
+        long updated = 1,
         SessionStaleness? staleness = null) => new(
         Guid.NewGuid(),
+        updated,
         name,
         description,
         Timestamp: null,

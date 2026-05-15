@@ -8,6 +8,8 @@ namespace Sufni.App.Models;
 
 internal static class GpsTrackPointProjection
 {
+    public const int ProjectionVersion = 1;
+
     public static TrackPoint? TryProject(GpsRecord record)
     {
         if (record.FixMode <= 0
@@ -23,7 +25,11 @@ internal static class GpsTrackPointProjection
             new DateTimeOffset(record.Timestamp).ToUnixTimeMilliseconds() / 1000.0,
             mx,
             my,
-            record.Altitude);
+            record.Altitude,
+            fixMode: record.FixMode,
+            satellites: record.Satellites,
+            epe2d: record.Epe2d,
+            epe3d: record.Epe3d);
     }
 
     public static List<TrackPoint> ProjectAll(IEnumerable<GpsRecord> records)

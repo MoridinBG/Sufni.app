@@ -140,6 +140,46 @@ internal static class TrackContentHash
                     writer.WriteNullValue();
                 }
 
+                writer.WritePropertyName("fixMode");
+                if (point.FixMode.HasValue)
+                {
+                    writer.WriteNumberValue(point.FixMode.Value);
+                }
+                else
+                {
+                    writer.WriteNullValue();
+                }
+
+                writer.WritePropertyName("satellites");
+                if (point.Satellites.HasValue)
+                {
+                    writer.WriteNumberValue(point.Satellites.Value);
+                }
+                else
+                {
+                    writer.WriteNullValue();
+                }
+
+                writer.WritePropertyName("epe2d");
+                if (point.Epe2d.HasValue)
+                {
+                    writer.WriteNumberValue(point.Epe2d.Value);
+                }
+                else
+                {
+                    writer.WriteNullValue();
+                }
+
+                writer.WritePropertyName("epe3d");
+                if (point.Epe3d.HasValue)
+                {
+                    writer.WriteNumberValue(point.Epe3d.Value);
+                }
+                else
+                {
+                    writer.WriteNullValue();
+                }
+
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();

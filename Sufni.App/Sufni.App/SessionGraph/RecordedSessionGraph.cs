@@ -420,6 +420,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
                 domains[session.Id] = domain;
                 summaries.AddOrUpdate(new RecordedSessionSummary(
                     session.Id,
+                    session.Updated,
                     session.Name,
                     session.Description,
                     session.Timestamp,

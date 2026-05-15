@@ -78,7 +78,7 @@ public class ModelJsonTests
         var points =
             new[]
             {
-                new TrackPoint(10, 1.25, 2.5, 3.75),
+                new TrackPoint(10, 1.25, 2.5, 3.75, 4.5, 3, 12, 0.5f, 0.8f),
                 new TrackPoint(11, 4.5, 5.5, null)
             };
 
@@ -91,9 +91,43 @@ public class ModelJsonTests
         Assert.Equal(2, rehydratedTrack.Points.Count);
         Assert.Equal(1.25, rehydratedTrack.Points[0].X);
         Assert.Equal(3.75, rehydratedTrack.Points[0].Elevation);
+        Assert.Equal((byte)3, rehydratedTrack.Points[0].FixMode);
+        Assert.Equal((byte)12, rehydratedTrack.Points[0].Satellites);
+        Assert.Equal(0.5f, rehydratedTrack.Points[0].Epe2d);
+        Assert.Equal(0.8f, rehydratedTrack.Points[0].Epe3d);
         Assert.Equal(2, rehydratedSession.Track!.Count);
         Assert.Equal(11, rehydratedSession.Track[1].Time);
         Assert.Null(rehydratedSession.Track[1].Elevation);
+        Assert.Null(rehydratedSession.Track[1].FixMode);
+        Assert.Null(rehydratedSession.Track[1].Satellites);
+        Assert.Null(rehydratedSession.Track[1].Epe2d);
+        Assert.Null(rehydratedSession.Track[1].Epe3d);
+    }
+
+    [Fact]
+    public void TrackPointJson_DeserializesMissingGpsQualityAsNull()
+    {
+        const string json = """
+                            [
+                              {
+                                "time": 10,
+                                "x": 1.25,
+                                "y": 2.5,
+                                "ele": 3.75,
+                                "spd": 4.5
+                              }
+                            ]
+                            """;
+
+        var points = AppJson.Deserialize<List<TrackPoint>>(json);
+
+        var point = Assert.Single(points!);
+        Assert.Equal(10, point.Time);
+        Assert.Equal(4.5, point.Speed);
+        Assert.Null(point.FixMode);
+        Assert.Null(point.Satellites);
+        Assert.Null(point.Epe2d);
+        Assert.Null(point.Epe3d);
     }
 
     private static Linkage CreateSimpleLinkage()

@@ -45,7 +45,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
         recordedSessionGraph.ConnectSessions()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                summary => new SessionRowViewModel(summary, sessionCoordinator, RequestRowDelete),
+                summary => new SessionRowViewModel(summary, sessionCoordinator, RequestRowDelete, RecalculateSessionAsync),
                 (row, summary) => row.Update(summary))
             .SortAndBind(
                 out sessionRows,
@@ -126,6 +126,29 @@ public partial class SessionListViewModel : ItemListViewModelBase
         if (result.Outcome == SessionDeleteOutcome.Failed)
         {
             ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
+        }
+    }
+
+    private async Task RecalculateSessionAsync(SessionRowViewModel row)
+    {
+        var result = await sessionCoordinator.RecomputeAsync(row.Id, row.Updated);
+
+        switch (result)
+        {
+            case SessionRecomputeResult.Recomputed:
+                break;
+
+            case SessionRecomputeResult.Conflict:
+                ErrorMessages.Add("Session changed elsewhere. Open it before recalculating.");
+                break;
+
+            case SessionRecomputeResult.NotRecomputable:
+                ErrorMessages.Add("Session cannot be recalculated in its current state.");
+                break;
+
+            case SessionRecomputeResult.Failed failed:
+                ErrorMessages.Add($"Session could not be recalculated: {failed.ErrorMessage}");
+                break;
         }
     }
 
