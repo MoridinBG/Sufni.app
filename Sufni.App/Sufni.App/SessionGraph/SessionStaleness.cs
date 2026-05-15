@@ -3,12 +3,14 @@ namespace Sufni.App.SessionGraph;
 /// <summary>
 /// Classification of whether recorded-session processed data matches its
 /// current raw source and processing inputs. Each state also declares whether
-/// rebuilding derived data is currently possible.
+/// stale data can be repaired automatically and whether a user-requested
+/// recompute has the required inputs.
 /// </summary>
 public abstract record SessionStaleness
 {
     public abstract bool IsStale { get; }
     public abstract bool CanRecompute { get; }
+    public bool CanManualRecompute => CanRecompute || this is Current;
 
     public sealed record Current : SessionStaleness
     {

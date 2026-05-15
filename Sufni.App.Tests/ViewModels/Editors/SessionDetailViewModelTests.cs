@@ -1491,6 +1491,75 @@ public class SessionDetailViewModelTests
         await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
+    [AvaloniaFact]
+    public async Task RuntimeFreshUpdate_ReloadsPresentation_WhenUpdatedSnapshotArrives()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var updatedSnapshot = snapshot with { Updated = 8 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var oldTelemetry = TestTelemetryData.Create();
+        var freshTelemetry = TestTelemetryData.Create();
+        var loadCount = 0;
+
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                loadCount++;
+                return loadCount == 1
+                    ? LoadedDesktopResult(oldTelemetry)
+                    : LoadedDesktopResult(freshTelemetry);
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        sessionStore.Get(snapshot.Id).Returns(snapshot, updatedSnapshot);
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        Assert.Same(oldTelemetry, editor.TelemetryData);
+
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot));
+
+        await WaitForAsync(() => ReferenceEquals(editor.TelemetryData, freshTelemetry));
+
+        Assert.Equal(updatedSnapshot.Updated, editor.BaselineUpdated);
+        await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [AvaloniaFact]
+    public async Task RuntimeFreshUpdate_DeclinedDirtyReload_KeepsDraftAndCurrentPresentation()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
+        var updatedSnapshot = snapshot with { Updated = 8, Description = "remote" };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var oldTelemetry = TestTelemetryData.Create();
+
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(oldTelemetry));
+        dialogService.ShowConfirmationAsync(
+                "Session changed elsewhere",
+                "This session has been updated from another source. Discard your changes and reload?")
+            .Returns(false);
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        editor.DescriptionText = "dirty draft";
+        Assert.True(editor.IsDirty);
+
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot));
+        await Task.Yield();
+
+        Assert.True(editor.IsDirty);
+        Assert.Equal("dirty draft", editor.DescriptionText);
+        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+        Assert.Same(oldTelemetry, editor.TelemetryData);
+        await sessionCoordinator.Received(1).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await dialogService.Received(1).ShowConfirmationAsync(
+            "Session changed elsewhere",
+            "This session has been updated from another source. Discard your changes and reload?");
+    }
+
     private static RecordedSessionDomainSnapshot DomainFromSnapshot(
         SessionSnapshot snapshot,
         DerivedChangeKind changeKind = DerivedChangeKind.None,

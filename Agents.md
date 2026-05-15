@@ -53,6 +53,8 @@ and [§ Platform Abstractions](docs/ARCHITECTURE.md#platform-abstractions).
 
 # Finding Things
 
+Do not tail or head commands or files unless known that they are >800-1000 lines
+
 When you need specifics, read the code rather than guessing. Typical
 locations inside `Sufni.App/Sufni.App/`:
 

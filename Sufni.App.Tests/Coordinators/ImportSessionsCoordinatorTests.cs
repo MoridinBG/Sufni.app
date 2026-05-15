@@ -52,10 +52,11 @@ public class ImportSessionsCoordinatorTests
                     CreateTelemetryData(),
                     GeneratedFullTrack: null,
                     new ProcessingFingerprint(
-                        SchemaVersion: 1,
+                        SchemaVersion: 2,
                         ProcessingVersion: 1,
                         SetupId: domain.Setup!.Id,
                         BikeId: domain.Bike!.Id,
+                        TrackProjectionVersion: 1,
                         DependencyHash: "dependency",
                         SourceHash: source.SourceHash)));
             });
@@ -232,7 +233,7 @@ public class ImportSessionsCoordinatorTests
                 return Task.FromResult(new RecordedSessionReprocessResult(
                     telemetryData,
                     generatedTrack,
-                    new ProcessingFingerprint(1, 1, domain.Setup!.Id, domain.Bike!.Id, "dependency", source.SourceHash)));
+                    new ProcessingFingerprint(2, 1, domain.Setup!.Id, domain.Bike!.Id, 1, "dependency", source.SourceHash)));
             });
 
         var coordinator = CreateCoordinator();
@@ -244,7 +245,12 @@ public class ImportSessionsCoordinatorTests
                 s.Name == "ride-gps" &&
                 s.ProcessedData != null &&
                 s.ProcessedData.SequenceEqual(telemetryData.BinaryForm)),
-            Arg.Is<Track>(track => track.Points.Count == 2),
+            Arg.Is<Track>(track =>
+                track.Points.Count == 2 &&
+                track.Points[0].FixMode == 3 &&
+                track.Points[0].Satellites == 10 &&
+                track.Points[0].Epe2d == 1f &&
+                track.Points[0].Epe3d == 2f),
             Arg.Any<RecordedSessionSource>());
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Name == "ride-gps" &&

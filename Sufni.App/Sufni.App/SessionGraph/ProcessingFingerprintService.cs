@@ -13,7 +13,7 @@ namespace Sufni.App.SessionGraph;
 /// </summary>
 public sealed class ProcessingFingerprintService : IProcessingFingerprintService
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     public ProcessingFingerprint CreateCurrent(
         SessionSnapshot session,
@@ -41,6 +41,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             TelemetryProcessingVersion.Current,
             setup.Id,
             bike.Id,
+            GpsTrackPointProjection.ProjectionVersion,
             ProcessingDependencyHash.Compute(setup, bike),
             source.SourceHash);
     }
@@ -126,6 +127,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         current ??= CreateCurrent(session, setup, bike, source);
         return persisted.SetupId != current.SetupId ||
                persisted.BikeId != current.BikeId ||
+               persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
                !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||
                !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash)
             ? new SessionStaleness.DependencyHashChanged()
@@ -160,6 +162,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
 
         return persisted.SetupId != setup.Id ||
                persisted.BikeId != bike.Id ||
+               persisted.TrackProjectionVersion != GpsTrackPointProjection.ProjectionVersion ||
                !StringComparer.Ordinal.Equals(
                    persisted.DependencyHash,
                    ProcessingDependencyHash.Compute(setup, bike));

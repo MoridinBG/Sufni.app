@@ -892,6 +892,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return;
         }
 
+        if (domain.Session.Updated > BaselineUpdated && !domain.Staleness.IsStale)
+        {
+            await ReloadFreshExternalUpdateAsync(domain);
+            return;
+        }
+
         if (domain.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) &&
             domain.Session.HasProcessedData &&
             !domain.Staleness.IsStale)
@@ -915,6 +921,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
 
         ReportNotRecomputableStale();
+    }
+
+    private async Task ReloadFreshExternalUpdateAsync(RecordedSessionDomainSnapshot domain)
+    {
+        if (IsDirty)
+        {
+            var reload = await dialogService.ShowConfirmationAsync(
+                "Session changed elsewhere",
+                "This session has been updated from another source. Discard your changes and reload?");
+            if (!reload)
+            {
+                return;
+            }
+        }
+
+        await ApplyPersistedSnapshotAsync(domain.Session);
+        await RequestLoadAsync();
     }
 
     private void ReportNotRecomputableStale()

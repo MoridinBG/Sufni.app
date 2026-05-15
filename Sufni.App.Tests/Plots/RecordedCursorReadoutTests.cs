@@ -91,6 +91,79 @@ public class RecordedCursorReadoutTests
     }
 
     [Fact]
+    public void TrackSignalPlot_SetCursorPositionWithReadout_ShowsGpsQuality_ForElevation()
+    {
+        var plot = new Plot();
+        var sut = new TrackSignalPlot(plot);
+        sut.LoadTrackData(
+            [
+                new TrackPoint(100, 0, 0, 500, 10, fixMode: 3, satellites: 12, epe2d: 0.5f, epe3d: 0.8f),
+                new TrackPoint(101, 1, 1, 510, 20, fixMode: 3, satellites: 11, epe2d: 0.6f, epe3d: 0.9f),
+            ],
+            new TrackTimeRange(100, 1),
+            telemetryData: null,
+            TrackSignalKind.Elevation);
+
+        sut.SetCursorPositionWithReadout(0);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Elevation: 500 m", tooltip.LabelText);
+        Assert.Contains("Satellites: 12", tooltip.LabelText);
+        Assert.Contains("EPE 2D: 0.5 m", tooltip.LabelText);
+        Assert.Contains("EPE 3D: 0.8 m", tooltip.LabelText);
+    }
+
+    [Fact]
+    public void TrackSignalPlot_SetCursorPositionWithReadout_ShowsNearestGpsQuality_ForInterpolatedElevationPoint()
+    {
+        var plot = new Plot();
+        var sut = new TrackSignalPlot(plot);
+        sut.LoadTrackData(
+            [
+                new TrackPoint(100, 0, 0, 500, 10, fixMode: 3, satellites: 12, epe2d: 0.5f, epe3d: 0.8f),
+                new TrackPoint(100.1, 1, 1, 501, 11),
+                new TrackPoint(100.2, 2, 2, 502, 12),
+                new TrackPoint(101, 3, 3, 510, 20, fixMode: 3, satellites: 9, epe2d: 0.7f, epe3d: 1.1f),
+            ],
+            new TrackTimeRange(100, 1),
+            telemetryData: null,
+            TrackSignalKind.Elevation);
+
+        sut.SetCursorPositionWithReadout(0.2);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Elevation: 502 m", tooltip.LabelText);
+        Assert.Contains("Satellites: 12", tooltip.LabelText);
+        Assert.Contains("EPE 2D: 0.5 m", tooltip.LabelText);
+        Assert.Contains("EPE 3D: 0.8 m", tooltip.LabelText);
+    }
+
+    [Fact]
+    public void TrackSignalPlot_SetCursorPositionWithReadout_DoesNotShowGpsQuality_ForSpeed()
+    {
+        var plot = new Plot();
+        var sut = new TrackSignalPlot(plot);
+        sut.LoadTrackData(
+            [
+                new TrackPoint(100, 0, 0, 500, 10, fixMode: 3, satellites: 12, epe2d: 0.5f, epe3d: 0.8f),
+                new TrackPoint(101, 1, 1, 510, 20, fixMode: 3, satellites: 11, epe2d: 0.6f, epe3d: 0.9f),
+            ],
+            new TrackTimeRange(100, 1),
+            telemetryData: null,
+            TrackSignalKind.Speed);
+
+        sut.SetCursorPositionWithReadout(0);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Speed: 36 km/h", tooltip.LabelText);
+        Assert.DoesNotContain("Satellites", tooltip.LabelText);
+        Assert.DoesNotContain("EPE", tooltip.LabelText);
+    }
+
+    [Fact]
     public void SetCursorPosition_HidesExistingReadout()
     {
         var plot = new Plot();

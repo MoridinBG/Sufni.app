@@ -13,6 +13,7 @@
     <Platforms>AnyCPU</Platforms>
     <EnableCodeSigning>true</EnableCodeSigning>
     <CodesignKey>Apple Development</CodesignKey>
+    <UserSecretsId>9dc6bf57-4366-4b6b-aede-915715ef1f8d</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,9 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\AppleShared\AppleBonjourServiceDiscoveryBase.cs"
-      Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
-    <Compile Include="..\AppleShared\AppleSecureStorageBase.cs"
-      Link="AppleShared/AppleSecureStorageBase.cs" />
+    <Compile Include="..\AppleShared\AppleBonjourServiceDiscoveryBase.cs" Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
+    <Compile Include="..\AppleShared\AppleSecureStorageBase.cs" Link="AppleShared/AppleSecureStorageBase.cs" />
   </ItemGroup>
 </Project>
