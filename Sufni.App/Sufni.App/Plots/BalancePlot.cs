@@ -9,6 +9,7 @@ namespace Sufni.App.Plots;
 public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 {
     public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
+    public BalanceSpeedMode SpeedMode { get; set; } = BalanceSpeedMode.Both;
 
     private void AddStatistics(BalanceData balance)
     {
@@ -31,7 +32,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
         base.LoadTelemetryData(telemetryData);
 
-        var modeLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+        var modeLabel = $"{DisplacementModeLabel()} / {SpeedModeLabel()}";
         var xAxisLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "Stroke travel (%)" : "Zenith (%)";
         Plot.Axes.Title.Label.Text = type == BalanceType.Compression
               ? $"Compression balance - {modeLabel}"
@@ -74,7 +75,19 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
         AddStatistics(balance);
     }
 
-    private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode);
+    private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode, SpeedMode);
+
+    private string DisplacementModeLabel() => DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+
+    private string SpeedModeLabel()
+    {
+        return SpeedMode switch
+        {
+            BalanceSpeedMode.LowSpeed => "low speed",
+            BalanceSpeedMode.HighSpeed => "high speed",
+            _ => "all speeds",
+        };
+    }
 
     private static bool HasRenderableBalanceData(BalanceData balance) =>
         balance.FrontTravel.Count >= 2 && balance.RearTravel.Count >= 2;

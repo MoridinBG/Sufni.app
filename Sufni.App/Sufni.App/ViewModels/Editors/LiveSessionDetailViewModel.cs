@@ -86,6 +86,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
+    private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
     private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
     private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
 
@@ -107,6 +108,18 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         set
         {
             if (SetProperty(ref selectedBalanceDisplacementMode, value))
+            {
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+            }
+        }
+    }
+
+    public BalanceSpeedMode SelectedBalanceSpeedMode
+    {
+        get => selectedBalanceSpeedMode;
+        set
+        {
+            if (SetProperty(ref selectedBalanceSpeedMode, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
             }
@@ -141,6 +154,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [
         new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
         new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+    ];
+
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
+    [
+        new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
+        new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
+        new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
     ];
 
     public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
@@ -178,7 +198,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public TelemetryTimeRange? AnalysisRange => null;
     public SessionAnalysisResult SessionAnalysis => SessionAnalysisResult.Hidden;
     public string SessionAnalysisRangeText => "Live session";
-    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
+    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)} / {DisplayName(SelectedBalanceSpeedMode)}";
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
@@ -481,6 +501,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 SelectedTravelHistogramMode,
                 SelectedVelocityAverageMode,
                 SelectedBalanceDisplacementMode,
+                SelectedBalanceSpeedMode,
                 SelectedSessionAnalysisTargetProfile));
     }
 
@@ -517,6 +538,16 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private static string DisplayName(BalanceDisplacementMode mode)
     {
         return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
+    }
+
+    private static string DisplayName(BalanceSpeedMode mode)
+    {
+        return mode switch
+        {
+            BalanceSpeedMode.LowSpeed => "Low speed",
+            BalanceSpeedMode.HighSpeed => "High speed",
+            _ => "Both",
+        };
     }
 
     private static LiveSessionPlotRanges CreatePlotRanges(LiveDaqSessionContext context)

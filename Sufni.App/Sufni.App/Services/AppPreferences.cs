@@ -421,6 +421,7 @@ public sealed class AppPreferences : IAppPreferences
         public string? TravelHistogramMode { get; set; }
         public string? VelocityAverageMode { get; set; }
         public string? BalanceDisplacementMode { get; set; }
+        public string? BalanceSpeedMode { get; set; }
         public string? SessionAnalysisTargetProfile { get; set; }
 
         public SessionStatisticsPreferences ToModel()
@@ -429,6 +430,7 @@ public sealed class AppPreferences : IAppPreferences
                 ParseEnum(TravelHistogramMode, Sufni.Telemetry.TravelHistogramMode.ActiveSuspension),
                 ParseEnum(VelocityAverageMode, Sufni.Telemetry.VelocityAverageMode.SampleAveraged),
                 ParseEnum(BalanceDisplacementMode, Sufni.Telemetry.BalanceDisplacementMode.Zenith),
+                ParseEnum(BalanceSpeedMode, Sufni.Telemetry.BalanceSpeedMode.Both),
                 ParseEnum(SessionAnalysisTargetProfile, Sufni.App.Models.SessionAnalysisTargetProfile.Trail));
         }
 
@@ -439,6 +441,7 @@ public sealed class AppPreferences : IAppPreferences
                 TravelHistogramMode = preferences.TravelHistogramMode.ToString(),
                 VelocityAverageMode = preferences.VelocityAverageMode.ToString(),
                 BalanceDisplacementMode = preferences.BalanceDisplacementMode.ToString(),
+                BalanceSpeedMode = preferences.BalanceSpeedMode.ToString(),
                 SessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile.ToString(),
             };
         }

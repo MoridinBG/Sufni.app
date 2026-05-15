@@ -1,0 +1,58 @@
+<UserControl
+x:Class="Sufni.App.Views.Controls.SessionAnalysisVibrationPanel"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Models"
+d:DesignHeight="160"
+d:DesignWidth="720"
+x:DataType="models:SessionAnalysisVibrationPanel"
+mc:Ignorable="d">
+
+    <Border
+    Margin="0,4,0,0"
+    Padding="10"
+    BorderBrush="#55606C"
+    BorderThickness="1"
+    CornerRadius="6">
+        <StackPanel Spacing="8">
+            <TextBlock
+            FontSize="15"
+            FontWeight="SemiBold"
+            Text="Vibration"
+            TextWrapping="Wrap" />
+
+            <ItemsControl ItemsSource="{Binding Metrics}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:SessionAnalysisMetric">
+                        <Border
+                        Margin="0,0,6,6"
+                        Padding="6,4"
+                        BorderBrush="#46515D"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
+                                <TextBlock FontSize="12" Text="{Binding DisplayValue}" />
+                                <TextBlock FontSize="10" Opacity="0.7" Text="{Binding Side}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock
+            FontSize="12"
+            FontStyle="Italic"
+            Opacity="0.75"
+            Text="{Binding Caveat}"
+            TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

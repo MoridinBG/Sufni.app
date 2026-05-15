@@ -127,6 +127,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
+    [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
     [ObservableProperty] private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
     [ObservableProperty] private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
     [ObservableProperty]
@@ -148,6 +149,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
         new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
     ];
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
+    [
+        new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
+        new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
+        new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
+    ];
     public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
     [
         new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
@@ -163,7 +170,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public string SessionAnalysisRangeText => AnalysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
-    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
+    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)} / {DisplayName(SelectedBalanceSpeedMode)}";
     public ObservableCollection<PageViewModelBase> Pages { get; }
     IReadOnlyList<TrackPoint>? IRecordedSessionGraphWorkspace.TrackPoints => TrackPoints;
 
@@ -207,6 +214,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     }
 
     partial void OnSelectedBalanceDisplacementModeChanged(BalanceDisplacementMode value)
+    {
+        OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeSessionAnalysis();
+        PersistRecordedStatisticsPreferencesIfEnabled();
+    }
+
+    partial void OnSelectedBalanceSpeedModeChanged(BalanceSpeedMode value)
     {
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeSessionAnalysis();
@@ -326,6 +340,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedTravelHistogramMode,
             SelectedVelocityAverageMode,
             SelectedBalanceDisplacementMode,
+            SelectedBalanceSpeedMode,
             DamperPercentages,
             SelectedSessionAnalysisTargetProfile));
     }
@@ -348,6 +363,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private static string DisplayName(BalanceDisplacementMode mode)
     {
         return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
+    }
+
+    private static string DisplayName(BalanceSpeedMode mode)
+    {
+        return mode switch
+        {
+            BalanceSpeedMode.LowSpeed => "Low speed",
+            BalanceSpeedMode.HighSpeed => "High speed",
+            _ => "Both",
+        };
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
@@ -1257,6 +1282,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedTravelHistogramMode = preferences.TravelHistogramMode;
             SelectedVelocityAverageMode = preferences.VelocityAverageMode;
             SelectedBalanceDisplacementMode = preferences.BalanceDisplacementMode;
+            SelectedBalanceSpeedMode = preferences.BalanceSpeedMode;
             SelectedSessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile;
         }
         finally
@@ -1285,6 +1311,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedTravelHistogramMode,
             SelectedVelocityAverageMode,
             SelectedBalanceDisplacementMode,
+            SelectedBalanceSpeedMode,
             SelectedSessionAnalysisTargetProfile);
     }
 

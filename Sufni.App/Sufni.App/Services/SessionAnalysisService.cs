@@ -33,7 +33,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         var telemetryData = request.TelemetryData;
         var travelOptions = new TravelStatisticsOptions(request.AnalysisRange, request.TravelHistogramMode);
         var velocityOptions = new VelocityStatisticsOptions(request.AnalysisRange, request.VelocityAverageMode);
-        var balanceOptions = new BalanceStatisticsOptions(request.AnalysisRange, request.BalanceDisplacementMode);
+        var balanceOptions = new BalanceStatisticsOptions(request.AnalysisRange, request.BalanceDisplacementMode, request.BalanceSpeedMode);
         var context = new AnalysisContext(request, travelOptions, velocityOptions, balanceOptions, GetProfileReferences(request.TargetProfile));
         var findings = new List<SessionAnalysisFinding>();
 
@@ -56,24 +56,251 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         AddBalanceFindings(telemetryData, front, rear, context, findings);
         AddVibrationFindings(telemetryData, front, rear, context, findings);
 
-        if (findings.Count == 0)
-        {
-            findings.Add(new SessionAnalysisFinding(
-                SessionAnalysisCategory.DataQuality,
-                SessionAnalysisSeverity.Info,
-                SessionAnalysisConfidence.Low,
-                "No strong finding",
-                "The selected data did not cross the first-pass analysis thresholds.",
-                "Use this as a baseline and compare against another run on the same section.",
-                []));
-        }
+        var orderedFindings = findings
+            .OrderByDescending(finding => finding.Severity)
+            .ThenBy(finding => finding.Category)
+            .ToArray();
 
         return new SessionAnalysisResult(
             SurfacePresentationState.Ready,
-            findings
-                .OrderByDescending(finding => finding.Severity)
-                .ThenBy(finding => finding.Category)
-                .ToArray());
+            BuildSteps(telemetryData, front, rear, context, orderedFindings),
+            orderedFindings.Where(finding => finding.Category == SessionAnalysisCategory.DataQuality).ToArray(),
+            BuildVibrationPanel(telemetryData, front, rear, context),
+            orderedFindings);
+    }
+
+    private static IReadOnlyList<SessionAnalysisStep> BuildSteps(
+        TelemetryData telemetryData,
+        SideSnapshot? front,
+        SideSnapshot? rear,
+        AnalysisContext context,
+        IReadOnlyList<SessionAnalysisFinding> findings)
+    {
+        return
+        [
+            BuildStep(
+                SessionAnalysisStepId.Sag,
+                "Sag & travel use",
+                BuildSagMetrics(front, rear),
+                findings.Where(IsSagFinding).ToArray()),
+            BuildStep(
+                SessionAnalysisStepId.Fork,
+                "Fork",
+                BuildSideMetrics(front, context),
+                findings.Where(IsForkFinding).ToArray()),
+            BuildStep(
+                SessionAnalysisStepId.Rear,
+                "Rear",
+                BuildSideMetrics(rear, context),
+                findings.Where(IsRearFinding).ToArray()),
+            BuildStep(
+                SessionAnalysisStepId.Balance,
+                "Balance",
+                BuildBalanceMetrics(telemetryData, context),
+                findings.Where(IsBalanceStepFinding).ToArray()),
+        ];
+    }
+
+    private static SessionAnalysisStep BuildStep(
+        SessionAnalysisStepId id,
+        string title,
+        IReadOnlyList<SessionAnalysisMetric> metrics,
+        IReadOnlyList<SessionAnalysisFinding> findings)
+    {
+        var hasIssue = findings.Any(finding => finding.Severity != SessionAnalysisSeverity.Info);
+        var verdict = hasIssue
+            ? findings.Max(finding => finding.Severity)
+            : SessionAnalysisSeverity.Info;
+        var candidates = findings
+            .SelectMany(finding => finding.Adjustments.Select(adjustment => new AdjustmentCandidate(
+                adjustment,
+                finding.Severity,
+                finding.Confidence)))
+            .OrderByDescending(candidate => candidate.Severity)
+            .ThenByDescending(candidate => candidate.Confidence)
+            .ThenBy(candidate => candidate.Adjustment.Priority)
+            .ToArray();
+        var primary = candidates.FirstOrDefault()?.Adjustment;
+        var alternates = candidates
+            .Skip(primary is null ? 0 : 1)
+            .Select(candidate => candidate.Adjustment)
+            .Where(adjustment => primary is null || !IsSameAdjustment(primary, adjustment))
+            .DistinctBy(adjustment => (adjustment.Component, adjustment.Direction, adjustment.Side))
+            .ToArray();
+
+        return new SessionAnalysisStep(id, title, verdict, hasIssue, metrics, primary, alternates, findings);
+    }
+
+    private static bool IsSagFinding(SessionAnalysisFinding finding)
+    {
+        return finding.Category == SessionAnalysisCategory.TravelUse ||
+               (finding.Category == SessionAnalysisCategory.Balance &&
+                finding.Title.Equals("Dynamic sag mismatch", StringComparison.Ordinal));
+    }
+
+    private static bool IsForkFinding(SessionAnalysisFinding finding)
+    {
+        return finding.Category == SessionAnalysisCategory.ForkDamping ||
+               (finding.Category == SessionAnalysisCategory.Packing && FindingSide(finding) == "Fork");
+    }
+
+    private static bool IsRearFinding(SessionAnalysisFinding finding)
+    {
+        return finding.Category == SessionAnalysisCategory.RearDamping ||
+               (finding.Category == SessionAnalysisCategory.Packing && FindingSide(finding) == "Rear");
+    }
+
+    private static bool IsBalanceStepFinding(SessionAnalysisFinding finding)
+    {
+        return finding.Category == SessionAnalysisCategory.Balance &&
+               !finding.Title.Equals("Dynamic sag mismatch", StringComparison.Ordinal);
+    }
+
+    private static string? FindingSide(SessionAnalysisFinding finding)
+    {
+        return finding.Evidence.FirstOrDefault(evidence => evidence.Side is "Fork" or "Rear")?.Side;
+    }
+
+    private static bool IsSameAdjustment(Adjustment left, Adjustment right)
+    {
+        return left.Component == right.Component &&
+               left.Direction == right.Direction &&
+               left.Side == right.Side;
+    }
+
+    private static IReadOnlyList<SessionAnalysisMetric> BuildSagMetrics(
+        SideSnapshot? front,
+        SideSnapshot? rear)
+    {
+        var metrics = new List<SessionAnalysisMetric>
+        {
+            CreateMetric("Fork max", FormatNullablePercent(front?.MaxTravelPercent), "%", "Fork", ">= 85 % on hard terrain"),
+            CreateMetric("Fork avg", FormatNullablePercent(front?.AverageTravelPercent), "%", "Fork", "compare against baseline"),
+            CreateMetric("Rear max", FormatNullablePercent(rear?.MaxTravelPercent), "%", "Rear", ">= 85 % on hard terrain"),
+            CreateMetric("Rear avg", FormatNullablePercent(rear?.AverageTravelPercent), "%", "Rear", "compare against baseline"),
+        };
+
+        if (front?.AverageTravelPercent is { } frontAverage && rear?.AverageTravelPercent is { } rearAverage)
+        {
+            metrics.Add(CreateMetric(
+                "Avg delta",
+                FormatNumber(Math.Abs(frontAverage - rearAverage), 1),
+                "%",
+                null,
+                "front/rear average within ~10-15 %"));
+        }
+
+        return metrics;
+    }
+
+    private static IReadOnlyList<SessionAnalysisMetric> BuildSideMetrics(
+        SideSnapshot? side,
+        AnalysisContext context)
+    {
+        if (side is null)
+        {
+            return
+            [
+                CreateMetric("Comp 95th", "n/a", "mm/s", null, FormatBand(context.Profile.Compression)),
+                CreateMetric("Reb 95th", "n/a", "mm/s", null, FormatBand(context.Profile.Rebound)),
+                CreateMetric("Max travel", "n/a", "%", null, ">= 85 % on hard terrain"),
+            ];
+        }
+
+        return
+        [
+            CreateMetric("Comp 95th", FormatSpeed(Math.Abs(side.Velocity.Percentile95Compression)), "mm/s", side.Name, FormatBand(context.Profile.Compression)),
+            CreateMetric("Reb 95th", FormatSpeed(Math.Abs(side.Velocity.Percentile95Rebound)), "mm/s", side.Name, FormatBand(context.Profile.Rebound)),
+            CreateMetric("Max travel", FormatNullablePercent(side.MaxTravelPercent), "%", side.Name, ">= 85 % on hard terrain"),
+        ];
+    }
+
+    private static IReadOnlyList<SessionAnalysisMetric> BuildBalanceMetrics(
+        TelemetryData telemetryData,
+        AnalysisContext context)
+    {
+        return
+        [
+            CreateMetric(
+                "Compression slope delta",
+                FormatBalanceDelta(telemetryData, BalanceType.Compression, context),
+                "%",
+                null,
+                "< 10 %"),
+            CreateMetric(
+                "Rebound slope delta",
+                FormatBalanceDelta(telemetryData, BalanceType.Rebound, context),
+                "%",
+                null,
+                "< 20 %"),
+        ];
+    }
+
+    private static string FormatBalanceDelta(
+        TelemetryData telemetryData,
+        BalanceType balanceType,
+        AnalysisContext context)
+    {
+        if (!TelemetryStatistics.HasBalanceData(telemetryData, balanceType, context.BalanceOptions))
+        {
+            return "n/a";
+        }
+
+        var balance = TelemetryStatistics.CalculateBalance(telemetryData, balanceType, context.BalanceOptions);
+        return FormatNumber(balance.AbsoluteSlopeDeltaPercent, 1);
+    }
+
+    private static SessionAnalysisVibrationPanel? BuildVibrationPanel(
+        TelemetryData telemetryData,
+        SideSnapshot? front,
+        SideSnapshot? rear,
+        AnalysisContext context)
+    {
+        var metrics = new List<SessionAnalysisMetric>();
+        AddVibrationMetrics(metrics, telemetryData, front, ImuLocation.Fork, SuspensionType.Front, "Fork", context);
+        AddVibrationMetrics(metrics, telemetryData, rear, ImuLocation.Shock, SuspensionType.Rear, "Rear", context);
+
+        return metrics.Count == 0
+            ? null
+            : new SessionAnalysisVibrationPanel(
+                metrics,
+                "Compare vibration only side-by-side on the same trail at the same pace.");
+    }
+
+    private static void AddVibrationMetrics(
+        List<SessionAnalysisMetric> metrics,
+        TelemetryData telemetryData,
+        SideSnapshot? side,
+        ImuLocation imuLocation,
+        SuspensionType suspensionType,
+        string sideName,
+        AnalysisContext context)
+    {
+        if (side?.HasStrokeData != true || !TelemetryStatistics.HasVibrationData(telemetryData, imuLocation))
+        {
+            return;
+        }
+
+        var vibration = TelemetryStatistics.CalculateVibration(telemetryData, imuLocation, suspensionType, context.Request.AnalysisRange);
+        if (vibration is null)
+        {
+            return;
+        }
+
+        metrics.Add(CreateMetric("Magic carpet ratio", FormatNumber(vibration.MagicCarpet, 2), null, sideName, null));
+        metrics.Add(CreateMetric("Average g", FormatNumber(vibration.AverageGOverall, 2), "g", sideName, null));
+        metrics.Add(CreateMetric("Compression vibration", FormatNumber(vibration.CompressionPercent, 1), "%", sideName, null));
+        metrics.Add(CreateMetric("Rebound vibration", FormatNumber(vibration.ReboundPercent, 1), "%", sideName, null));
+    }
+
+    private static SessionAnalysisMetric CreateMetric(
+        string label,
+        string value,
+        string? unit,
+        string? side,
+        string? targetRange)
+    {
+        return new SessionAnalysisMetric(label, value, unit, side, targetRange);
     }
 
     private static void AddDataQualityFindings(
@@ -201,43 +428,115 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
         if (side.MaxTravelPercent is not null && side.MaxTravelPercent < ShallowMaxTravelPercent)
         {
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.AirPressure,
+                    AdjustmentDirection.Remove,
+                    "small (~2-5 PSI)",
+                    side,
+                    "Max travel should rise toward 80-90 % on the same hard section.",
+                    1),
+                CreateAdjustment(
+                    SelectCompressionOpenComponent(side, context),
+                    AdjustmentDirection.Open,
+                    "1 click",
+                    side,
+                    "Max travel should rise toward 80-90 % on the same hard section.",
+                    2),
+            };
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.TravelUse,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
                 $"{side.Name} travel use is shallow",
                 $"The {side.Name.ToLowerInvariant()} only reached {FormatPercent(side.MaxTravelPercent.Value)} of available travel in the selected {TravelModeDescription(context.Request.TravelHistogramMode)} data.",
-                "Check pressure or preload and progression before chasing fine damping; try a small change and rerun the same section.",
-                CreateTravelEvidence(side, context)));
+                BuildRecommendationText(adjustments, "Check pressure or preload and progression before chasing fine damping; try a small change and rerun the same section."),
+                CreateTravelEvidence(side, context),
+                adjustments));
         }
 
         var bottomoutSeverity = GetBottomoutSeverity(side);
         if (bottomoutSeverity is not null)
         {
+            IReadOnlyList<Adjustment> adjustments = bottomoutSeverity == SessionAnalysisSeverity.Action
+                ?
+                [
+                    CreateAdjustment(
+                        AdjustmentComponent.Tokens,
+                        AdjustmentDirection.Add,
+                        "1 token",
+                        side,
+                        "End-stroke ramp should resist deep travel; 100 % hits become rare.",
+                        1),
+                    CreateAdjustment(
+                        AdjustmentComponent.AirPressure,
+                        AdjustmentDirection.Add,
+                        "small (~2-5 PSI)",
+                        side,
+                        "Repeated bottomouts should reduce; max settles near 90-95 %.",
+                        2),
+                ]
+                :
+                [
+                    CreateAdjustment(
+                        AdjustmentComponent.AirPressure,
+                        AdjustmentDirection.Add,
+                        "small (~2-5 PSI)",
+                        side,
+                        "Repeated bottomouts should reduce; max settles near 90-95 %.",
+                        1),
+                    CreateAdjustment(
+                        AdjustmentComponent.Tokens,
+                        AdjustmentDirection.Add,
+                        "1 token",
+                        side,
+                        "Repeated bottomouts should reduce; max settles near 90-95 %.",
+                        2),
+                ];
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.TravelUse,
                 bottomoutSeverity.Value,
                 CreateConfidence(context, side),
                 $"{side.Name} bottomed repeatedly",
                 $"The selected data contains {side.Travel.Bottomouts} {BottomoutObservationName(context.Request.TravelHistogramMode)} on the {side.Name.ToLowerInvariant()} side.",
-                bottomoutSeverity == SessionAnalysisSeverity.Action
+                BuildRecommendationText(adjustments, bottomoutSeverity == SessionAnalysisSeverity.Action
                     ? "Review spring pressure or preload, end-stroke progression, and compression support before opening damping further."
-                    : "Treat this as a support clue and compare against rider notes before changing pressure, progression, or compression support.",
-                CreateTravelEvidence(side, context)));
+                    : "Treat this as a support clue and compare against rider notes before changing pressure, progression, or compression support."),
+                CreateTravelEvidence(side, context),
+                adjustments));
         }
 
         if (side.AverageTravelPercent is not null &&
             side.AverageTravelPercent > HighAverageTravelPercent &&
             bottomoutSeverity is null)
         {
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.AirPressure,
+                    AdjustmentDirection.Add,
+                    "small (~2-5 PSI)",
+                    side,
+                    "Average travel should ride 5-10 % shallower; rebound 95th should rise.",
+                    1),
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedRebound,
+                    AdjustmentDirection.Open,
+                    "1 click",
+                    side,
+                    "Average travel should ride 5-10 % shallower; rebound 95th should rise.",
+                    2),
+            };
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.TravelUse,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
                 $"{side.Name} is riding deep",
                 $"The {side.Name.ToLowerInvariant()} average position is {FormatPercent(side.AverageTravelPercent.Value)} in the selected {TravelModeDescription(context.Request.TravelHistogramMode)} data.",
-                "Confirm this was a hard descending section, then use packing and balance evidence before deciding between support and rebound changes.",
-                CreateTravelEvidence(side, context)));
+                BuildRecommendationText(adjustments, "Confirm this was a hard descending section, then use packing and balance evidence before deciding between support and rebound changes."),
+                CreateTravelEvidence(side, context),
+                adjustments));
         }
     }
 
@@ -260,17 +559,37 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
         var higherSide = delta > 0 ? front.Name : rear.Name;
         var lowerSide = delta > 0 ? rear.Name : front.Name;
+        var deeperSide = delta > 0 ? front : rear;
+        var shallowerSide = delta > 0 ? rear : front;
+        var adjustments = new[]
+        {
+            CreateAdjustment(
+                AdjustmentComponent.AirPressure,
+                AdjustmentDirection.Add,
+                "small (~2-5 PSI)",
+                deeperSide,
+                "Front and rear average position should move closer together on the same steep section.",
+                1),
+            CreateAdjustment(
+                AdjustmentComponent.AirPressure,
+                AdjustmentDirection.Remove,
+                "small (~2-5 PSI)",
+                shallowerSide,
+                "Front and rear average position should move closer together on the same steep section.",
+                2),
+        };
         findings.Add(new SessionAnalysisFinding(
             SessionAnalysisCategory.Balance,
             SessionAnalysisSeverity.Watch,
             CreateConfidence(context, front, rear),
             "Dynamic sag mismatch",
             $"The {higherSide.ToLowerInvariant()} is averaging deeper than the {lowerSide.ToLowerInvariant()} by {FormatPercent(Math.Abs(delta))} in the selected travel mode.",
-            "Treat this as a geometry choice first. If it was not intentional for the terrain, correct travel use before tuning front/rear balance.",
+            BuildRecommendationText(adjustments, "Treat this as a geometry choice first. If it was not intentional for the terrain, correct travel use before tuning front/rear balance."),
             [
                 CreateEvidence("Average travel", FormatNumber(frontAverage, 1), "%", front.Name, ModeLabel(context.Request.TravelHistogramMode)),
                 CreateEvidence("Average travel", FormatNumber(rearAverage, 1), "%", rear.Name, ModeLabel(context.Request.TravelHistogramMode)),
-            ]));
+            ],
+            adjustments));
     }
 
     private static void AddPackingFindings(
@@ -296,20 +615,73 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         if (deepAverage && lowRebound && !repeatedBottomouts)
         {
             packingSides.Add(side.Type);
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedRebound,
+                    AdjustmentDirection.Open,
+                    "1-2 clicks",
+                    side,
+                    $"Rebound 95th should rise toward {FormatBand(context.Profile.Rebound)} mm/s and average position should ride shallower.",
+                    1),
+                CreateAdjustment(
+                    AdjustmentComponent.LowSpeedRebound,
+                    AdjustmentDirection.Open,
+                    "1 click",
+                    side,
+                    $"Rebound 95th should rise toward {FormatBand(context.Profile.Rebound)} mm/s and average position should ride shallower.",
+                    2),
+            };
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.Packing,
                 SessionAnalysisSeverity.Action,
                 CreateConfidence(context, side),
                 $"{side.Name} rebound packing is plausible",
                 $"The {side.Name.ToLowerInvariant()} is riding deep while rebound speed is below the {ProfileLabel(context.Request.TargetProfile)} reference band.",
-                "Try one or two clicks faster rebound and repeat the same section, then check whether average position and rider harshness improve.",
-                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true)));
+                BuildRecommendationText(adjustments, "Try one or two clicks faster rebound and repeat the same section, then check whether average position and rider harshness improve."),
+                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true),
+                adjustments));
             return;
         }
 
         if (deepAverage && repeatedBottomouts)
         {
             packingSides.Add(side.Type);
+            IReadOnlyList<Adjustment> adjustments = bottomoutSeverity == SessionAnalysisSeverity.Action
+                ?
+                [
+                    CreateAdjustment(
+                        AdjustmentComponent.Tokens,
+                        AdjustmentDirection.Add,
+                        "1 token",
+                        side,
+                        "End-stroke ramp should resist deep travel; 100 % hits become rare.",
+                        1),
+                    CreateAdjustment(
+                        AdjustmentComponent.AirPressure,
+                        AdjustmentDirection.Add,
+                        "small (~2-5 PSI)",
+                        side,
+                        "Repeated bottomouts should reduce; max settles near 90-95 %.",
+                        2),
+                ]
+                :
+                [
+                    CreateAdjustment(
+                        AdjustmentComponent.AirPressure,
+                        AdjustmentDirection.Add,
+                        "small (~2-5 PSI)",
+                        side,
+                        "Repeated bottomouts should reduce; max settles near 90-95 %.",
+                        1),
+                    CreateAdjustment(
+                        AdjustmentComponent.Tokens,
+                        AdjustmentDirection.Add,
+                        "1 token",
+                        side,
+                        "Repeated bottomouts should reduce; max settles near 90-95 %.",
+                        2),
+                ];
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.Packing,
                 bottomoutSeverity!.Value,
@@ -318,24 +690,43 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     ? $"{side.Name} needs support before rebound diagnosis"
                     : $"{side.Name} support needs context before rebound diagnosis",
                 $"The {side.Name.ToLowerInvariant()} is riding deep and has {side.Travel.Bottomouts} {BottomoutObservationName(context.Request.TravelHistogramMode)}, so support evidence should be separated from rebound packing before changing rebound.",
-                bottomoutSeverity == SessionAnalysisSeverity.Action
+                BuildRecommendationText(adjustments, bottomoutSeverity == SessionAnalysisSeverity.Action
                     ? "Address pressure or preload, progression, and compression support before opening rebound to chase a packing feel."
-                    : "Repeat the same section or compare rider notes before treating these bottomouts as a chronic support problem.",
-                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true)));
+                    : "Repeat the same section or compare rider notes before treating these bottomouts as a chronic support problem."),
+                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true),
+                adjustments));
             return;
         }
 
         if (shallowTravel && lowCompression)
         {
             packingSides.Add(side.Type);
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedCompression,
+                    AdjustmentDirection.Open,
+                    "1-2 clicks",
+                    side,
+                    "Compression 95th rises into reference and max travel reaches 80-90 %.",
+                    1),
+                CreateAdjustment(
+                    AdjustmentComponent.AirPressure,
+                    AdjustmentDirection.Remove,
+                    "small (~2-5 PSI)",
+                    side,
+                    "Compression 95th rises into reference and max travel reaches 80-90 %.",
+                    2),
+            };
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.Packing,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
                 $"{side.Name} may be resisting impacts",
                 $"The {side.Name.ToLowerInvariant()} is not using much travel and compression speed is below the {ProfileLabel(context.Request.TargetProfile)} reference band.",
-                "Separate spring/progression from damping with a small compression-opening experiment, but avoid larger changes until travel support evidence agrees.",
-                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true)));
+                BuildRecommendationText(adjustments, "Separate spring/progression from damping with a small compression-opening experiment, but avoid larger changes until travel support evidence agrees."),
+                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true),
+                adjustments));
         }
     }
 
@@ -358,25 +749,47 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
         if (IsBelowReference(reboundP95, context.Profile.Rebound))
         {
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedRebound,
+                    AdjustmentDirection.Open,
+                    "1 click",
+                    side,
+                    $"Rebound 95th should rise into {FormatBand(context.Profile.Rebound)} mm/s.",
+                    1),
+            };
             findings.Add(new SessionAnalysisFinding(
                 category,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
                 $"{side.Name} rebound is slow for profile context",
                 $"The {side.Name.ToLowerInvariant()} rebound 95th percentile speed is below the {ProfileLabel(context.Request.TargetProfile)} reference band.",
-                "If the rider felt packing or poor recovery, try one click faster rebound and repeat the same section.",
-                CreateDampingEvidence(side, context, includeTravel: false, includeDamperBands: true)));
+                BuildRecommendationText(adjustments, "If the rider felt packing or poor recovery, try one click faster rebound and repeat the same section."),
+                CreateDampingEvidence(side, context, includeTravel: false, includeDamperBands: true),
+                adjustments));
         }
         else if (IsAboveFastReference(reboundP95, context.Profile.Rebound))
         {
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedRebound,
+                    AdjustmentDirection.Close,
+                    "1 click",
+                    side,
+                    $"Rebound 95th should fall back into {FormatBand(context.Profile.Rebound)} mm/s; the bike should feel less nervous.",
+                    1),
+            };
             findings.Add(new SessionAnalysisFinding(
                 category,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
                 $"{side.Name} rebound is fast for profile context",
                 $"The {side.Name.ToLowerInvariant()} rebound 95th percentile speed is well above the {ProfileLabel(context.Request.TargetProfile)} reference band.",
-                "If the bike felt nervous or kicked back, try one click slower rebound and compare the same section.",
-                CreateDampingEvidence(side, context, includeTravel: false, includeDamperBands: true)));
+                BuildRecommendationText(adjustments, "If the bike felt nervous or kicked back, try one click slower rebound and compare the same section."),
+                CreateDampingEvidence(side, context, includeTravel: false, includeDamperBands: true),
+                adjustments));
         }
 
         if (side.Travel.Bottomouts >= RepeatedBottomoutCount)
@@ -386,25 +799,47 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
         if (IsBelowReference(compressionP95, context.Profile.Compression))
         {
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedCompression,
+                    AdjustmentDirection.Open,
+                    "1 click",
+                    side,
+                    "Compression 95th should rise; max travel should rise with it.",
+                    1),
+            };
             findings.Add(new SessionAnalysisFinding(
                 category,
                 SessionAnalysisSeverity.Info,
                 CreateConfidence(context, side),
                 $"{side.Name} compression speeds are subdued",
                 $"The {side.Name.ToLowerInvariant()} compression 95th percentile speed is below the {ProfileLabel(context.Request.TargetProfile)} context band.",
-                "Use rider feel and travel use before changing compression; this may also reflect smoother terrain or spring/progression.",
-                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true)));
+                BuildRecommendationText(adjustments, "Use rider feel and travel use before changing compression; this may also reflect smoother terrain or spring/progression."),
+                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true),
+                adjustments));
         }
         else if (IsAboveFastReference(compressionP95, context.Profile.Compression))
         {
+            var adjustments = new[]
+            {
+                CreateAdjustment(
+                    AdjustmentComponent.HighSpeedCompression,
+                    AdjustmentDirection.Close,
+                    "1 click",
+                    side,
+                    "Compression 95th should drop into reference; check that max travel still reaches 80-90 %.",
+                    1),
+            };
             findings.Add(new SessionAnalysisFinding(
                 category,
                 SessionAnalysisSeverity.Info,
                 CreateConfidence(context, side),
                 $"{side.Name} compression speeds are high",
                 $"The {side.Name.ToLowerInvariant()} compression 95th percentile speed is above the {ProfileLabel(context.Request.TargetProfile)} context band.",
-                "High speeds can simply mean hard terrain. Confirm support and bottomout margin before adding compression damping.",
-                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true)));
+                BuildRecommendationText(adjustments, "High speeds can simply mean hard terrain. Confirm support and bottomout margin before adding compression damping."),
+                CreateDampingEvidence(side, context, includeTravel: true, includeDamperBands: true),
+                adjustments));
         }
     }
 
@@ -420,9 +855,10 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
             return;
         }
 
-        AddBalanceFinding(telemetryData, BalanceType.Rebound, ReboundBalanceSlopeWatchPercent, context, findings);
-        AddBalanceFinding(telemetryData, BalanceType.Compression, CompressionBalanceSlopeWatchPercent, context, findings);
-        if (HasAnyBalanceData(telemetryData, context) && HasLimitedBalanceContext(front, rear, context))
+        var hasLimitedBalanceContext = HasLimitedBalanceContext(front, rear, context);
+        AddBalanceFinding(telemetryData, BalanceType.Rebound, ReboundBalanceSlopeWatchPercent, front, rear, hasLimitedBalanceContext, context, findings);
+        AddBalanceFinding(telemetryData, BalanceType.Compression, CompressionBalanceSlopeWatchPercent, front, rear, hasLimitedBalanceContext, context, findings);
+        if (HasAnyBalanceData(telemetryData, context) && hasLimitedBalanceContext)
         {
             findings.Add(new SessionAnalysisFinding(
                 SessionAnalysisCategory.Balance,
@@ -439,6 +875,9 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         TelemetryData telemetryData,
         BalanceType balanceType,
         double thresholdPercent,
+        SideSnapshot front,
+        SideSnapshot rear,
+        bool hasLimitedBalanceContext,
         AnalysisContext context,
         List<SessionAnalysisFinding> findings)
     {
@@ -457,23 +896,35 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         var rearMagnitude = Math.Abs(balance.RearSlope);
         var fasterSide = frontMagnitude >= rearMagnitude ? "front" : "rear";
         var slowerSide = frontMagnitude >= rearMagnitude ? "rear" : "front";
+        var slowerSnapshot = frontMagnitude >= rearMagnitude ? rear : front;
         var severity = balance.AbsoluteSlopeDeltaPercent >= thresholdPercent * 1.5
             ? SessionAnalysisSeverity.Action
             : SessionAnalysisSeverity.Watch;
         var typeLabel = balanceType == BalanceType.Rebound ? "rebound" : "compression";
+        IReadOnlyList<Adjustment> adjustments = hasLimitedBalanceContext
+            ? []
+            : new[]
+            {
+                CreateBalanceAdjustment(balanceType, slowerSnapshot, context),
+            };
         findings.Add(new SessionAnalysisFinding(
             SessionAnalysisCategory.Balance,
             severity,
             context.Request.AnalysisRange is null ? SessionAnalysisConfidence.Low : SessionAnalysisConfidence.Medium,
             $"{Capitalize(typeLabel)} balance slopes diverge",
             $"The {fasterSide} {typeLabel} trend is steeper than the {slowerSide} trend by {FormatPercent(balance.AbsoluteSlopeDeltaPercent)} using the selected {ModeLabel(context.Request.BalanceDisplacementMode).ToLowerInvariant()} balance mode.",
-            "Use this as a front/rear experiment guide only after travel use looks reasonable; change the side whose travel and damping evidence agree with the imbalance.",
+            BuildRecommendationText(
+                adjustments,
+                hasLimitedBalanceContext
+                    ? "Resolve travel use / speed context before balance tuning."
+                    : "Use this as a front/rear experiment guide only after travel use looks reasonable; change the side whose travel and damping evidence agree with the imbalance."),
             [
                 CreateEvidence("Slope delta", FormatNumber(balance.AbsoluteSlopeDeltaPercent, 1), "%", null, ModeLabel(context.Request.BalanceDisplacementMode)),
                 CreateEvidence("Front slope", FormatNumber(balance.FrontSlope, 2), null, "Fork", ModeLabel(context.Request.BalanceDisplacementMode)),
                 CreateEvidence("Rear slope", FormatNumber(balance.RearSlope, 2), null, "Rear", ModeLabel(context.Request.BalanceDisplacementMode)),
                 CreateEvidence("Mean deviation", FormatNumber(balance.MeanSignedDeviation, 1), "mm/s", null, ModeLabel(context.Request.BalanceDisplacementMode)),
-            ]));
+            ],
+            adjustments));
         return true;
     }
 
@@ -660,6 +1111,128 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         return new SessionAnalysisEvidence(label, value, unit, side, sourceMode, note);
     }
 
+    private static Adjustment CreateAdjustment(
+        AdjustmentComponent component,
+        AdjustmentDirection direction,
+        string magnitude,
+        SideSnapshot side,
+        string expectedEffect,
+        int priority)
+    {
+        return new Adjustment(component, direction, magnitude, side.Name, expectedEffect, priority);
+    }
+
+    private static string BuildRecommendationText(
+        IReadOnlyList<Adjustment> adjustments,
+        string fallbackRecommendation)
+    {
+        if (adjustments.Count == 0)
+        {
+            return fallbackRecommendation;
+        }
+
+        var primary = adjustments[0];
+        var text = primary.SentenceText;
+        if (adjustments.Count > 1)
+        {
+            text += $"; consider {BuildAdjustmentActionPhrase(adjustments[1])}";
+        }
+
+        return $"{text}. Expected: {primary.ExpectedEffect}";
+    }
+
+    private static string BuildAdjustmentActionPhrase(Adjustment adjustment)
+    {
+        var verb = adjustment.DirectionVerb.ToLowerInvariant();
+        return adjustment.Component switch
+        {
+            AdjustmentComponent.AirPressure or AdjustmentComponent.Preload =>
+                $"{verb} {adjustment.ComponentName}, {adjustment.Magnitude}",
+            AdjustmentComponent.Tokens =>
+                $"{verb} {adjustment.Magnitude}",
+            _ =>
+                $"{verb} {adjustment.ComponentName} by {adjustment.Magnitude}",
+        };
+    }
+
+    private static AdjustmentComponent SelectCompressionOpenComponent(SideSnapshot side, AnalysisContext context)
+    {
+        var hsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Hsc) ?? 0;
+        var lsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Lsc) ?? 0;
+        return hsc > lsc
+            ? AdjustmentComponent.HighSpeedCompression
+            : AdjustmentComponent.LowSpeedCompression;
+    }
+
+    private static Adjustment CreateBalanceAdjustment(
+        BalanceType balanceType,
+        SideSnapshot slowerSide,
+        AnalysisContext context)
+    {
+        if (balanceType == BalanceType.Rebound)
+        {
+            var reboundP95 = Math.Abs(slowerSide.Velocity.Percentile95Rebound);
+            return CreateAdjustment(
+                SelectBalanceReboundComponent(slowerSide, context),
+                IsBelowReference(reboundP95, context.Profile.Rebound)
+                    ? AdjustmentDirection.Open
+                    : AdjustmentDirection.Close,
+                "1 click",
+                slowerSide,
+                "Rebound slope delta should drop under 20 % without making travel use worse.",
+                1);
+        }
+
+        var compressionP95 = Math.Abs(slowerSide.Velocity.Percentile95Compression);
+        return CreateAdjustment(
+            SelectBalanceCompressionComponent(slowerSide, context),
+            IsBelowReference(compressionP95, context.Profile.Compression)
+                ? AdjustmentDirection.Open
+                : AdjustmentDirection.Close,
+            "1 click",
+            slowerSide,
+            "Compression slope delta should drop under 10 % without increasing bottomouts.",
+            1);
+    }
+
+    private static AdjustmentComponent SelectBalanceReboundComponent(SideSnapshot side, AnalysisContext context)
+    {
+        return context.Request.BalanceSpeedMode switch
+        {
+            BalanceSpeedMode.HighSpeed => AdjustmentComponent.HighSpeedRebound,
+            BalanceSpeedMode.LowSpeed => AdjustmentComponent.LowSpeedRebound,
+            _ => SelectDominantReboundComponent(side, context),
+        };
+    }
+
+    private static AdjustmentComponent SelectBalanceCompressionComponent(SideSnapshot side, AnalysisContext context)
+    {
+        return context.Request.BalanceSpeedMode switch
+        {
+            BalanceSpeedMode.HighSpeed => AdjustmentComponent.HighSpeedCompression,
+            BalanceSpeedMode.LowSpeed => AdjustmentComponent.LowSpeedCompression,
+            _ => SelectDominantCompressionComponent(side, context),
+        };
+    }
+
+    private static AdjustmentComponent SelectDominantReboundComponent(SideSnapshot side, AnalysisContext context)
+    {
+        var hsr = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Hsr) ?? 0;
+        var lsr = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Lsr) ?? 0;
+        return hsr > lsr
+            ? AdjustmentComponent.HighSpeedRebound
+            : AdjustmentComponent.LowSpeedRebound;
+    }
+
+    private static AdjustmentComponent SelectDominantCompressionComponent(SideSnapshot side, AnalysisContext context)
+    {
+        var hsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Hsc) ?? 0;
+        var lsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Lsc) ?? 0;
+        return hsc > lsc
+            ? AdjustmentComponent.HighSpeedCompression
+            : AdjustmentComponent.LowSpeedCompression;
+    }
+
     private static Suspension GetSuspension(TelemetryData telemetryData, SuspensionType side)
     {
         return side == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
@@ -744,6 +1317,16 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         return mode == BalanceDisplacementMode.Travel ? "Travel balance" : "Zenith balance";
     }
 
+    private static string ModeLabel(BalanceSpeedMode mode)
+    {
+        return mode switch
+        {
+            BalanceSpeedMode.LowSpeed => "low-speed",
+            BalanceSpeedMode.HighSpeed => "high-speed",
+            _ => "all-speed",
+        };
+    }
+
     private static string BottomoutEvidenceLabel(TravelHistogramMode mode)
     {
         return mode == TravelHistogramMode.DynamicSag ? "Bottomout windows" : "Stroke bottomouts";
@@ -811,6 +1394,11 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
     private readonly record struct SpeedBand(double Low, double High);
 
     private readonly record struct ProfileReferences(SpeedBand Rebound, SpeedBand Compression);
+
+    private sealed record AdjustmentCandidate(
+        Adjustment Adjustment,
+        SessionAnalysisSeverity Severity,
+        SessionAnalysisConfidence Confidence);
 
     private sealed record AnalysisContext(
         SessionAnalysisRequest Request,

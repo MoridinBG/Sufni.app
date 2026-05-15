@@ -15,22 +15,51 @@ mc:Ignorable="d">
     <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
         <StackPanel Orientation="Vertical" Spacing="8">
             <StackPanel
-            Name="MobileBalanceDisplacementModeRadioButtons"
+            Name="MobileBalanceModeRadioButtons"
             Margin="0,8,0,0"
             IsVisible="{Binding HasDynamicStatistics}"
             Spacing="4">
-                <RadioButton
-                Name="MobileZenithModeRadioButton"
-                Content="Zenith"
-                GroupName="MobileBalanceDisplacementMode"
-                IsChecked="{Binding ZenithModeSelected, Mode=TwoWay}"
-                ToolTip.Tip="Uses deepest stroke travel." />
-                <RadioButton
-                Name="MobileTravelModeRadioButton"
-                Content="Travel"
-                GroupName="MobileBalanceDisplacementMode"
-                IsChecked="{Binding TravelModeSelected, Mode=TwoWay}"
-                ToolTip.Tip="Uses start-to-end stroke distance." />
+                <StackPanel
+                Name="MobileBalanceDisplacementModeRadioButtons"
+                Orientation="Horizontal"
+                Spacing="8">
+                    <RadioButton
+                    Name="MobileZenithModeRadioButton"
+                    Content="Zenith"
+                    GroupName="MobileBalanceDisplacementMode"
+                    IsChecked="{Binding ZenithModeSelected, Mode=TwoWay}"
+                    ToolTip.Tip="Uses deepest stroke travel." />
+                    <RadioButton
+                    Name="MobileTravelModeRadioButton"
+                    Content="Travel"
+                    GroupName="MobileBalanceDisplacementMode"
+                    IsChecked="{Binding TravelModeSelected, Mode=TwoWay}"
+                    ToolTip.Tip="Uses start-to-end stroke distance." />
+                </StackPanel>
+
+                <StackPanel
+                Name="MobileBalanceSpeedModeRadioButtons"
+                Orientation="Horizontal"
+                Spacing="8">
+                    <RadioButton
+                    Name="MobileBothSpeedModeRadioButton"
+                    Content="Both"
+                    GroupName="MobileBalanceSpeedMode"
+                    IsChecked="{Binding BothSpeedModeSelected, Mode=TwoWay}"
+                    ToolTip.Tip="Uses all matching compression or rebound strokes." />
+                    <RadioButton
+                    Name="MobileLowSpeedModeRadioButton"
+                    Content="Low speed"
+                    GroupName="MobileBalanceSpeedMode"
+                    IsChecked="{Binding LowSpeedModeSelected, Mode=TwoWay}"
+                    ToolTip.Tip="Uses strokes below the high-speed threshold." />
+                    <RadioButton
+                    Name="MobileHighSpeedModeRadioButton"
+                    Content="High speed"
+                    GroupName="MobileBalanceSpeedMode"
+                    IsChecked="{Binding HighSpeedModeSelected, Mode=TwoWay}"
+                    ToolTip.Tip="Uses strokes at or above the high-speed threshold." />
+                </StackPanel>
             </StackPanel>
 
             <controls:PlaceholderOverlayContainer PresentationState="{Binding CompressionPresentationState}">
@@ -41,6 +70,7 @@ mc:Ignorable="d">
                         Height="260"
                         AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
                         BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
+                        BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
                         BalanceType="Compression"
                         IsVisible="{Binding HasDynamicStatistics}"
                         PlotKind="Balance"
@@ -65,6 +95,7 @@ mc:Ignorable="d">
                         Height="260"
                         AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
                         BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
+                        BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
                         BalanceType="Rebound"
                         IsVisible="{Binding HasDynamicStatistics}"
                         PlotKind="Balance"
