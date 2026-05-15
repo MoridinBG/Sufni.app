@@ -126,17 +126,20 @@ public class SessionDetailViewModelTests
 
         Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.SelectedTravelHistogramMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, editor.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.Both, editor.SelectedBalanceSpeedMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
         Assert.Equal([TravelHistogramMode.ActiveSuspension, TravelHistogramMode.DynamicSag], editor.TravelHistogramModeOptions.Select(option => option.Value));
         Assert.Equal([BalanceDisplacementMode.Zenith, BalanceDisplacementMode.Travel], editor.BalanceDisplacementModeOptions.Select(option => option.Value));
+        Assert.Equal([BalanceSpeedMode.Both, BalanceSpeedMode.LowSpeed, BalanceSpeedMode.HighSpeed], editor.BalanceSpeedModeOptions.Select(option => option.Value));
         Assert.Equal([VelocityAverageMode.SampleAveraged, VelocityAverageMode.StrokePeakAveraged], editor.VelocityAverageModeOptions.Select(option => option.Value));
         Assert.Equal([SessionAnalysisTargetProfile.Weekend, SessionAnalysisTargetProfile.Trail, SessionAnalysisTargetProfile.Enduro, SessionAnalysisTargetProfile.DH], editor.SessionAnalysisTargetProfileOptions.Select(option => option.Value));
         Assert.All(editor.TravelHistogramModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.BalanceDisplacementModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+        Assert.All(editor.BalanceSpeedModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.VelocityAverageModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.SessionAnalysisTargetProfileOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith", editor.SessionAnalysisModesText);
+        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both", editor.SessionAnalysisModesText);
     }
 
     [AvaloniaFact]
@@ -155,7 +158,7 @@ public class SessionDetailViewModelTests
             editor.SetAnalysisRange(0.02, 0.16);
 
             Assert.Equal("Selected range 0.0-0.2s", editor.SessionAnalysisRangeText);
-            Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel", editor.SessionAnalysisModesText);
+            Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel / Both", editor.SessionAnalysisModesText);
         }
         finally
         {
@@ -473,6 +476,7 @@ public class SessionDetailViewModelTests
                     TravelHistogramMode.DynamicSag,
                     VelocityAverageMode.StrokePeakAveraged,
                     BalanceDisplacementMode.Travel,
+                    BalanceSpeedMode.HighSpeed,
                     SessionAnalysisTargetProfile.DH)));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
