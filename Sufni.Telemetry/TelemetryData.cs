@@ -13,6 +13,7 @@ public class TelemetryData
     private static readonly ILogger logger = Log.ForContext<TelemetryData>();
 
     public const int TravelBinsForVelocityHistogram = 10;
+    private const double VelocityFilterWindowSeconds = 0.05;
 
     #region Public properties
 
@@ -156,17 +157,28 @@ public class TelemetryData
         suspension.FineVelocityBins = trace.FineVelocityBins;
     }
 
-    private static SavitzkyGolay? CreateVelocityFilter(int recordCount)
+    private static SavitzkyGolay? CreateVelocityFilter(int recordCount, int sampleRate)
     {
         if (recordCount < 5)
         {
             return null;
         }
 
-        var windowSize = Math.Min(51, recordCount);
+        var target = (int)Math.Round(sampleRate * VelocityFilterWindowSeconds);
+        if (target % 2 == 0)
+        {
+            target++;
+        }
+
+        var windowSize = Math.Min(target, recordCount);
         if (windowSize % 2 == 0)
         {
             windowSize--;
+        }
+
+        if (windowSize < 5)
+        {
+            windowSize = 5;
         }
 
         return SavitzkyGolay.Create(windowSize, 1, 3);
@@ -253,7 +265,7 @@ public class TelemetryData
 
         // Create a velocity filter that matches the capture size. Live captures may be
         // shorter than a full SST import during early-session save or stats recompute.
-        var filter = CreateVelocityFilter(recordCount);
+        var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate);
 
         // Calculate telemetry data
         if (td.Front.Present)
