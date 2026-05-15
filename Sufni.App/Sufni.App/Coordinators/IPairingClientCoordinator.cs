@@ -57,6 +57,7 @@ public interface IPairingClientCoordinator
     void StartBrowsing();
     void StopBrowsing();
 
+    Task<string?> ResolveServerUrlAsync(TimeSpan timeout);
     Task<RequestPairingResult> RequestPairingAsync(string? displayName);
     Task<ConfirmPairingResult> ConfirmPairingAsync(string? displayName, string pin);
     Task<UnpairResult> UnpairAsync();
