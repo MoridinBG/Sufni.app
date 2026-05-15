@@ -61,6 +61,32 @@ public class SessionAnalysisServiceTests
         Assert.DoesNotContain(result.Findings, finding =>
             finding.Category == SessionAnalysisCategory.TravelUse &&
             finding.Severity == SessionAnalysisSeverity.Action);
+
+        var shallowTravel = Assert.Single(result.Findings, finding => finding.Title == "Fork travel use is shallow");
+        var adjustment = Assert.Single(shallowTravel.Adjustments, adjustment =>
+            adjustment.Component == AdjustmentComponent.AirPressure &&
+            adjustment.Direction == AdjustmentDirection.Remove);
+        Assert.Equal("Fork", adjustment.Side);
+        Assert.Contains("Expected:", shallowTravel.Recommendation);
+    }
+
+    [Fact]
+    public void Analyze_BuildsWorkflowStepsAndDataQualityBanner()
+    {
+        var telemetry = CreateTelemetry(
+            front: BuildSide(maxTravelPercent: 52, averageTravelPercent: 30),
+            rear: BuildSide(maxTravelPercent: 98, averageTravelPercent: 62, bottomouts: 4));
+
+        var result = service.Analyze(CreateRequest(telemetry, range: null));
+
+        Assert.Equal(
+            [SessionAnalysisStepId.Sag, SessionAnalysisStepId.Fork, SessionAnalysisStepId.Rear, SessionAnalysisStepId.Balance],
+            result.Steps.Select(step => step.Id));
+        Assert.Contains(result.DataQualityFindings, finding => finding.Title == "Full session analysis");
+        var sag = Assert.Single(result.Steps, step => step.Id == SessionAnalysisStepId.Sag);
+        Assert.True(sag.HasIssue);
+        Assert.NotNull(sag.PrimaryAdjustment);
+        Assert.Contains(sag.Metrics, metric => metric.Label == "Fork max");
     }
 
     [Fact]
@@ -135,8 +161,8 @@ public class SessionAnalysisServiceTests
             TravelHistogramMode.DynamicSag,
             VelocityAverageMode.StrokePeakAveraged,
             BalanceDisplacementMode.Travel,
-            SessionAnalysisTargetProfile.DH,
-            damperPercentages));
+            profile: SessionAnalysisTargetProfile.DH,
+            damperPercentages: damperPercentages));
 
         Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Dynamic sag travel stats");
         Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Stroke-peak average velocity");
@@ -156,6 +182,25 @@ public class SessionAnalysisServiceTests
         Assert.Contains(result.Findings, finding =>
             finding.Category == SessionAnalysisCategory.Balance &&
             finding.Evidence.Any(evidence => evidence.Label == "Slope delta"));
+    }
+
+    [Fact]
+    public void Analyze_HighSpeedBalanceMode_UsesHighSpeedBalanceAdjustment()
+    {
+        var telemetry = CreateTelemetry(
+            front: BuildSide(compressionSlope: 55, reboundSlope: 32),
+            rear: BuildSide(compressionSlope: 28, reboundSlope: 15));
+
+        var result = service.Analyze(CreateRequest(
+            telemetry,
+            SelectedRange,
+            balanceSpeedMode: BalanceSpeedMode.HighSpeed));
+
+        var balance = Assert.Single(result.Steps, step => step.Id == SessionAnalysisStepId.Balance);
+        Assert.NotNull(balance.PrimaryAdjustment);
+        Assert.Contains(
+            balance.Findings.SelectMany(finding => finding.Adjustments),
+            adjustment => adjustment.Component is AdjustmentComponent.HighSpeedCompression or AdjustmentComponent.HighSpeedRebound);
     }
 
     [Fact]
@@ -223,6 +268,7 @@ public class SessionAnalysisServiceTests
         TravelHistogramMode travelMode = TravelHistogramMode.ActiveSuspension,
         VelocityAverageMode velocityMode = VelocityAverageMode.SampleAveraged,
         BalanceDisplacementMode balanceMode = BalanceDisplacementMode.Zenith,
+        BalanceSpeedMode balanceSpeedMode = BalanceSpeedMode.Both,
         SessionAnalysisTargetProfile profile = SessionAnalysisTargetProfile.Trail,
         SessionDamperPercentages? damperPercentages = null)
     {
@@ -232,6 +278,7 @@ public class SessionAnalysisServiceTests
             travelMode,
             velocityMode,
             balanceMode,
+            balanceSpeedMode,
             damperPercentages ?? new SessionDamperPercentages(null, null, null, null, null, null, null, null),
             profile);
     }

@@ -245,6 +245,7 @@ public class SessionCoordinatorTests
                 TravelHistogramMode.DynamicSag,
                 VelocityAverageMode.StrokePeakAveraged,
                 BalanceDisplacementMode.Travel,
+                BalanceSpeedMode.HighSpeed,
                 SessionAnalysisTargetProfile.DH));
         Func<SessionPreferences, SessionPreferences>? update = null;
         SeedLiveCaptureDependencies(capture);

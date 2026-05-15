@@ -88,13 +88,13 @@ public class LiveSessionDetailViewModelTests
         Assert.Empty(editor.SessionAnalysis.Findings);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
         Assert.Equal([SessionAnalysisTargetProfile.Weekend, SessionAnalysisTargetProfile.Trail, SessionAnalysisTargetProfile.Enduro, SessionAnalysisTargetProfile.DH], editor.SessionAnalysisTargetProfileOptions.Select(option => option.Value));
-        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith", editor.SessionAnalysisModesText);
+        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both", editor.SessionAnalysisModesText);
 
         editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
         editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
 
-        Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel", editor.SessionAnalysisModesText);
+        Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel / Both", editor.SessionAnalysisModesText);
     }
 
     [AvaloniaFact]
