@@ -463,6 +463,39 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task ProcessingPreferenceCommit_PersistsPreferenceAndRecomputesSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
+        var recomputedSnapshot = snapshot with { Updated = 7 };
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+            .Returns(new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+        sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+
+        editor.PreferencesPage.VelocityFilterWindowMilliseconds = 250;
+        editor.PreferencesPage.CommitProcessingPreferenceChange();
+
+        await WaitForAsync(() => editor.BaselineUpdated == recomputedSnapshot.Updated);
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(250, update!(SessionPreferences.Default).Processing.VelocityFilterWindowMilliseconds);
+        await sessionCoordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_OnDesktop_AppliesPersistedStatisticsWithoutSavingDuringHydration()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
