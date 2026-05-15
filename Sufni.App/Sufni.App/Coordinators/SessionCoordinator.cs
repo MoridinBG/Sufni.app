@@ -312,8 +312,9 @@ public class SessionCoordinator
 
         try
         {
+            var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
             var telemetryData = await backgroundTaskRunner.RunAsync(
-                () => TelemetryData.FromLiveCapture(capture.TelemetryCapture),
+                () => TelemetryData.FromLiveCapture(capture.TelemetryCapture, processingOptions),
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -427,8 +428,10 @@ public class SessionCoordinator
                 }
             }
 
+            var preferences = await sessionPreferences.GetRecordedAsync(sessionId);
+            var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
             var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(domain, source, cancellationToken),
+                () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();

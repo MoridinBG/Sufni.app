@@ -71,6 +71,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool suppressAnalysisRecompute;
     private bool observedInitialDomain;
     private bool recomputePromptRunning;
+    private bool processingPreferenceRecomputeRunning;
     private string? promptedRecomputeSignature;
     private bool reportedNotRecomputableStale;
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
@@ -1123,6 +1124,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
     }
@@ -1270,6 +1272,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         recordedPreferences = preferences;
         PlotPreferences = preferences.Plots;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
+        PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);
         RefreshRecordedGraphStates();
     }
@@ -1320,6 +1323,73 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         var statistics = CreateStatisticsPreferences();
         recordedPreferences = recordedPreferences with { Statistics = statistics };
         PersistRecordedPreferenceChangeIfEnabled(current => current with { Statistics = statistics });
+    }
+
+    private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args)
+    {
+        _ = PersistRecordedProcessingPreferenceAndRecomputeAsync();
+    }
+
+    private async Task PersistRecordedProcessingPreferenceAndRecomputeAsync()
+    {
+        if (!recordedPreferencePersistenceEnabled || !viewLoaded)
+        {
+            return;
+        }
+
+        if (processingPreferenceRecomputeRunning)
+        {
+            PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+            return;
+        }
+
+        var processing = PreferencesPage.CreateProcessingPreferences();
+        if (processing == recordedPreferences.Processing)
+        {
+            return;
+        }
+
+        processingPreferenceRecomputeRunning = true;
+        try
+        {
+            if (IsDirty)
+            {
+                var confirmed = await dialogService.ShowConfirmationAsync(
+                    "Recompute session?",
+                    "Changing the velocity filter recomputes this session and will discard unsaved changes.");
+                if (!confirmed)
+                {
+                    PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+                    return;
+                }
+
+                if (sessionStore.Get(Id) is { } current)
+                {
+                    await ApplyPersistedSnapshotAsync(current);
+                }
+            }
+
+            var previousProcessing = recordedPreferences.Processing;
+            recordedPreferences = recordedPreferences with { Processing = processing };
+            try
+            {
+                await sessionPreferences.UpdateRecordedAsync(Id, current => current with { Processing = processing });
+            }
+            catch (Exception e)
+            {
+                recordedPreferences = recordedPreferences with { Processing = previousProcessing };
+                PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+                ErrorMessages.Add($"Session preferences could not be saved: {e.Message}");
+                return;
+            }
+
+            var result = await sessionCoordinator.RecomputeAsync(Id, BaselineUpdated);
+            await ApplyRecomputeResultAsync(result);
+        }
+        finally
+        {
+            processingPreferenceRecomputeRunning = false;
+        }
     }
 
     private void PersistRecordedPreferenceChangeIfEnabled(Func<SessionPreferences, SessionPreferences> update)

@@ -137,6 +137,28 @@ mc:Ignorable="d">
                 </ComboBox.ItemTemplate>
             </ComboBox>
         </Grid>
+
+        <TextBlock
+        Margin="0,8,0,0"
+        FontSize="14"
+        FontWeight="SemiBold"
+        Text="Processing" />
+
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Velocity filter" />
+            <TextBlock
+            Grid.Column="1"
+            FontSize="12"
+            Text="{Binding VelocityFilterWindowDisplay}" />
+        </Grid>
+
+        <Slider
+        Name="VelocityFilterWindowSlider"
+        Minimum="{Binding MinVelocityFilterWindowMilliseconds}"
+        Maximum="{Binding MaxVelocityFilterWindowMilliseconds}"
+        TickFrequency="10"
+        IsSnapToTickEnabled="True"
+        Value="{Binding VelocityFilterWindowMilliseconds, Mode=TwoWay}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

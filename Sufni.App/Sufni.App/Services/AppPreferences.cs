@@ -344,12 +344,14 @@ public sealed class AppPreferences : IAppPreferences
     {
         public SessionPlotPreferencesDocument? Plots { get; set; }
         public SessionStatisticsPreferencesDocument? Statistics { get; set; }
+        public SessionProcessingPreferencesDocument? Processing { get; set; }
 
         public SessionPreferences ToModel()
         {
             return new SessionPreferences(
                 Plots?.ToModel() ?? new SessionPlotPreferences(),
-                Statistics?.ToModel() ?? new SessionStatisticsPreferences());
+                Statistics?.ToModel() ?? new SessionStatisticsPreferences(),
+                Processing?.ToModel() ?? new SessionProcessingPreferences());
         }
 
         public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
@@ -358,6 +360,7 @@ public sealed class AppPreferences : IAppPreferences
             {
                 Plots = SessionPlotPreferencesDocument.FromModel(preferences.Plots),
                 Statistics = SessionStatisticsPreferencesDocument.FromModel(preferences.Statistics),
+                Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
             };
         }
     }
@@ -452,6 +455,26 @@ public sealed class AppPreferences : IAppPreferences
             return Enum.TryParse<TEnum>(value, ignoreCase: false, out var parsed)
                 ? parsed
                 : fallback;
+        }
+    }
+
+    private sealed class SessionProcessingPreferencesDocument
+    {
+        public int? VelocityFilterWindowMilliseconds { get; set; }
+
+        public SessionProcessingPreferences ToModel()
+        {
+            return new SessionProcessingPreferences(
+                VelocityFilterWindowMilliseconds ??
+                TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds);
+        }
+
+        public static SessionProcessingPreferencesDocument FromModel(SessionProcessingPreferences preferences)
+        {
+            return new SessionProcessingPreferencesDocument
+            {
+                VelocityFilterWindowMilliseconds = preferences.VelocityFilterWindowMilliseconds,
+            };
         }
     }
 }

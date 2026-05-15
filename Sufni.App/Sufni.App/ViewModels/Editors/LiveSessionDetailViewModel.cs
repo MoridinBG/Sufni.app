@@ -502,7 +502,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 SelectedVelocityAverageMode,
                 SelectedBalanceDisplacementMode,
                 SelectedBalanceSpeedMode,
-                SelectedSessionAnalysisTargetProfile));
+                SelectedSessionAnalysisTargetProfile),
+            PreferencesPage.CreateProcessingPreferences());
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)
