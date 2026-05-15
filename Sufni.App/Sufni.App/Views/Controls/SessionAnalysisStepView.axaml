@@ -60,7 +60,7 @@ mc:Ignorable="d">
                 </Border>
             </Grid>
 
-            <ItemsControl ItemsSource="{Binding Metrics}">
+            <ItemsControl Name="StepMetricsItemsControl" ItemsSource="{Binding Metrics}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel />

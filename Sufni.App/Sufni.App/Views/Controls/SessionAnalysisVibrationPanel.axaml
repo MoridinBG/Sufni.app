@@ -23,7 +23,7 @@ mc:Ignorable="d">
             Text="Vibration"
             TextWrapping="Wrap" />
 
-            <ItemsControl ItemsSource="{Binding Metrics}">
+            <ItemsControl Name="VibrationMetricsItemsControl" ItemsSource="{Binding Metrics}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel />
