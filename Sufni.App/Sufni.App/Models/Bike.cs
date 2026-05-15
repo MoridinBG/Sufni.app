@@ -386,6 +386,7 @@ internal static class AppJson
 [JsonSerializable(typeof(SessionPreferences))]
 [JsonSerializable(typeof(SessionPlotPreferences))]
 [JsonSerializable(typeof(SessionStatisticsPreferences))]
+[JsonSerializable(typeof(SessionProcessingPreferences))]
 [JsonSerializable(typeof(Dictionary<Guid, SessionPreferences>))]
 [JsonSerializable(typeof(TileLayerConfig))]
 [JsonSerializable(typeof(List<TileLayerConfig>))]

@@ -23,6 +23,16 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
         RecordedSessionSource source,
         CancellationToken cancellationToken = default)
     {
+        return ReprocessAsync(domain, source, TelemetryProcessingOptions.Default, cancellationToken);
+    }
+
+    public Task<RecordedSessionReprocessResult> ReprocessAsync(
+        RecordedSessionDomainSnapshot domain,
+        RecordedSessionSource source,
+        TelemetryProcessingOptions processingOptions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(processingOptions);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (domain.Setup is null || domain.Bike is null || domain.Source is null)
@@ -41,8 +51,8 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
 
         var telemetryData = source.SourceKind switch
         {
-            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData),
-            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData),
+            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions),
+            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions),
             _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
         };
 
@@ -54,15 +64,21 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
         return Task.FromResult(new RecordedSessionReprocessResult(telemetryData, fullTrack, fingerprint));
     }
 
-    private static TelemetryData ReprocessImportedSst(RecordedSessionSource source, BikeData bikeData)
+    private static TelemetryData ReprocessImportedSst(
+        RecordedSessionSource source,
+        BikeData bikeData,
+        TelemetryProcessingOptions processingOptions)
     {
         var sstBytes = RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload);
         var rawTelemetryData = RawTelemetryData.FromByteArray(sstBytes);
         var metadata = MetadataFromRaw(source.SourceName, rawTelemetryData);
-        return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData);
+        return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData, processingOptions);
     }
 
-    private static TelemetryData ReprocessLiveCapture(RecordedSessionSource source, BikeData bikeData)
+    private static TelemetryData ReprocessLiveCapture(
+        RecordedSessionSource source,
+        BikeData bikeData,
+        TelemetryProcessingOptions processingOptions)
     {
         var json = Encoding.UTF8.GetString(source.Payload);
         var payload = AppJson.Deserialize<RecordedLiveCaptureSourcePayload>(json)
@@ -76,7 +92,7 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
             payload.GpsData,
             payload.Markers);
 
-        return TelemetryData.FromLiveCapture(capture);
+        return TelemetryData.FromLiveCapture(capture, processingOptions);
     }
 
     private static Metadata MetadataFromRaw(string sourceName, RawTelemetryData rawTelemetryData) => new()

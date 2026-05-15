@@ -12,11 +12,32 @@ public enum PlotSmoothingLevel
     Strong,
 }
 
-public sealed record SessionPreferences(
-    [property: JsonPropertyName("plots")] SessionPlotPreferences Plots,
-    [property: JsonPropertyName("statistics")] SessionStatisticsPreferences Statistics)
+public sealed record SessionPreferences
 {
-    public static SessionPreferences Default => new(new SessionPlotPreferences(), new SessionStatisticsPreferences());
+    public SessionPreferences()
+    {
+    }
+
+    public SessionPreferences(
+        SessionPlotPreferences? plots = null,
+        SessionStatisticsPreferences? statistics = null,
+        SessionProcessingPreferences? processing = null)
+    {
+        Plots = plots ?? new SessionPlotPreferences();
+        Statistics = statistics ?? new SessionStatisticsPreferences();
+        Processing = processing ?? new SessionProcessingPreferences();
+    }
+
+    [JsonPropertyName("plots")]
+    public SessionPlotPreferences Plots { get; init; } = new();
+
+    [JsonPropertyName("statistics")]
+    public SessionStatisticsPreferences Statistics { get; init; } = new();
+
+    [JsonPropertyName("processing")]
+    public SessionProcessingPreferences Processing { get; init; } = new();
+
+    public static SessionPreferences Default => new();
 }
 
 public sealed record SessionPlotPreferences(
@@ -37,6 +58,15 @@ public sealed record SessionStatisticsPreferences(
     [property: JsonPropertyName("balance_displacement_mode")] BalanceDisplacementMode BalanceDisplacementMode = BalanceDisplacementMode.Zenith,
     [property: JsonPropertyName("balance_speed_mode")] BalanceSpeedMode BalanceSpeedMode = BalanceSpeedMode.Both,
     [property: JsonPropertyName("session_analysis_target_profile")] SessionAnalysisTargetProfile SessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail);
+
+public sealed record SessionProcessingPreferences(
+    [property: JsonPropertyName("velocity_filter_window_ms")] int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds)
+{
+    public TelemetryProcessingOptions ToTelemetryProcessingOptions()
+    {
+        return new TelemetryProcessingOptions(VelocityFilterWindowMilliseconds);
+    }
+}
 
 public sealed class AppPreferencesSyncData
 {
