@@ -12,7 +12,7 @@ public class SynchronizationClientServiceTests
 
     public SynchronizationClientServiceTests()
     {
-        httpApiService.ServerUrl.Returns("https://sync.test");
+        httpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
         httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
         database.GetIncompleteSessionIdsAsync().Returns([]);
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
@@ -55,14 +55,14 @@ public class SynchronizationClientServiceTests
             ]
         };
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(localChanges);
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
 
         await CreateService().SyncAll();
 
         await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data => ReferenceEquals(data, localChanges)));
-        await database.Received(1).UpdateLastSyncTimeAsync("https://sync.test");
+        await database.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class SynchronizationClientServiceTests
             AppPreferences = remotePreferences,
         };
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(remoteChanges);
 
@@ -130,7 +130,7 @@ public class SynchronizationClientServiceTests
             },
         };
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         appPreferences.GetSyncDataAsync(5).Returns(localPreferences);
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
@@ -146,7 +146,7 @@ public class SynchronizationClientServiceTests
     {
         var source = CreateRecordedSource();
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
@@ -169,7 +169,7 @@ public class SynchronizationClientServiceTests
         var source = CreateRecordedSource();
         source.SourceHash = "invalid";
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
@@ -192,7 +192,7 @@ public class SynchronizationClientServiceTests
             source.SourceHash,
             source.Payload);
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         database.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
@@ -221,7 +221,7 @@ public class SynchronizationClientServiceTests
             "invalid",
             source.Payload);
 
-        database.GetLastSyncTimeAsync("https://sync.test").Returns(5);
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         database.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);

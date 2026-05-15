@@ -12,5 +12,6 @@ public sealed record ProcessingFingerprint(
     int ProcessingVersion,
     Guid SetupId,
     Guid BikeId,
+    int TrackProjectionVersion,
     string DependencyHash,
     string SourceHash);

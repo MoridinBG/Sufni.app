@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,7 +10,7 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.ViewModels.Editors;
 
-public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISessionMediaWorkspace
+public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISessionMediaWorkspace, IDisposable
 {
     private bool isInitialized;
     private bool mapExpected;
@@ -80,4 +81,6 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
         OnPropertyChanged(nameof(MapState));
         OnPropertyChanged(nameof(HasMediaContent));
     }
+
+    public void Dispose() => MapViewModel?.Dispose();
 }

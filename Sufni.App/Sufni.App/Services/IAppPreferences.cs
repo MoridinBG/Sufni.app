@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reactive;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 
@@ -11,6 +12,11 @@ public interface IAppPreferences
     ISessionPreferences Session { get; }
     Task<AppPreferencesSyncData?> GetSyncDataAsync(long since);
     Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
+
+    // Fires once per successful remote sync apply. Hot observable: subscribers
+    // only see emissions that happen after they subscribe. Local writes do not
+    // emit through this — view models drive those directly.
+    IObservable<Unit> SyncDataApplied { get; }
 }
 
 public interface IMapPreferences
@@ -26,4 +32,9 @@ public interface ISessionPreferences
     Task<SessionPreferences> GetRecordedAsync(Guid sessionId);
     Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update);
     Task RemoveRecordedAsync(Guid sessionId);
+
+    // Emits whenever remote sync writes a (potentially) new value for this
+    // session. Cold: no replay of the current value on subscribe — pair with
+    // GetRecordedAsync if you need the initial read.
+    IObservable<SessionPreferences> ObserveRecorded(Guid sessionId);
 }

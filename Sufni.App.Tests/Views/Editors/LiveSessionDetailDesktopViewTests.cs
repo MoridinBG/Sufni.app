@@ -50,7 +50,7 @@ public class LiveSessionDetailDesktopViewTests
         var sessionCoordinator = TestCoordinatorSubstitutes.Session();
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
         var graphBatches = new ReplaySubject<LiveGraphBatch>(1);

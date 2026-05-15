@@ -47,7 +47,7 @@
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
-                        <c:DeletableListItemButton />
+                        <c:SessionListItemButton />
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>

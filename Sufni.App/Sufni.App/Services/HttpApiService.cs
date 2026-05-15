@@ -372,31 +372,7 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        var token = await secureStorage.GetStringAsync(RefreshTokenKey);
-        var url = await secureStorage.GetStringAsync(ServerUrlKey);
-        if (token is null || url is null) return false;
-
-        try
-        {
-            await EnsureTokenFreshAsync(forceRefresh: true);
-        }
-        catch (HttpRequestException e)
-        {
-            if (e.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                logger.Warning("Pairing probe reported unauthorized refresh token");
-                return false;
-            }
-        }
-        catch (Exception)
-        {
-            // If we get any other error than 401 - Unauthorized, we assume we are paired, because we have a refresh
-            // token. This way, we won't show up as unpaired in case ofe.g. a network error.
-            logger.Verbose("Pairing probe kept paired state after a non-auth refresh failure");
-            return true;
-        }
-
-        return true;
+        return refreshToken is not null;
     }
 
     private async Task EnsureTokenFreshAsync(bool forceRefresh)
