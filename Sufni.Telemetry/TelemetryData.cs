@@ -13,7 +13,6 @@ public class TelemetryData
     private static readonly ILogger logger = Log.ForContext<TelemetryData>();
 
     public const int TravelBinsForVelocityHistogram = 10;
-    private const double VelocityFilterWindowSeconds = 0.05;
 
     #region Public properties
 
@@ -157,14 +156,17 @@ public class TelemetryData
         suspension.FineVelocityBins = trace.FineVelocityBins;
     }
 
-    private static SavitzkyGolay? CreateVelocityFilter(int recordCount, int sampleRate)
+    private static SavitzkyGolay? CreateVelocityFilter(
+        int recordCount,
+        int sampleRate,
+        TelemetryProcessingOptions processingOptions)
     {
-        if (recordCount < 5)
+        if (!processingOptions.UsesVelocityFilter)
         {
             return null;
         }
 
-        var target = (int)Math.Round(sampleRate * VelocityFilterWindowSeconds);
+        var target = (int)Math.Round(sampleRate * processingOptions.VelocityFilterWindowSeconds);
         if (target % 2 == 0)
         {
             target++;
@@ -206,11 +208,27 @@ public class TelemetryData
 
     public static TelemetryData FromRecording(RawTelemetryData rawData, Metadata metadata, BikeData bikeData)
     {
-        return FromRecording(rawData, metadata, bikeData, logLifecycle: true);
+        return FromRecording(rawData, metadata, bikeData, TelemetryProcessingOptions.Default);
     }
 
-    private static TelemetryData FromRecording(RawTelemetryData rawData, Metadata metadata, BikeData bikeData, bool logLifecycle)
+    public static TelemetryData FromRecording(
+        RawTelemetryData rawData,
+        Metadata metadata,
+        BikeData bikeData,
+        TelemetryProcessingOptions processingOptions)
     {
+        return FromRecording(rawData, metadata, bikeData, processingOptions, logLifecycle: true);
+    }
+
+    private static TelemetryData FromRecording(
+        RawTelemetryData rawData,
+        Metadata metadata,
+        BikeData bikeData,
+        TelemetryProcessingOptions processingOptions,
+        bool logLifecycle)
+    {
+        ArgumentNullException.ThrowIfNull(processingOptions);
+
         if (logLifecycle)
         {
             logger.Verbose(
@@ -263,40 +281,34 @@ public class TelemetryData
             time[i] = 1.0 / td.Metadata.SampleRate * i;
         }
 
+        if (recordCount < 5)
+        {
+            td.Front.Present = false;
+            td.Rear.Present = false;
+            td.CalculateAirTimes();
+            return td;
+        }
+
         // Create a velocity filter that matches the capture size. Live captures may be
         // shorter than a full SST import during early-session save or stats recompute.
-        var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate);
+        var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate, processingOptions);
 
         // Calculate telemetry data
         if (td.Front.Present)
         {
             Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
-            if (filter is not null)
-            {
-                var front = MeasurementPreprocessor.Process(rawData.Front, MeasurementPreprocessor.SensorTypeForWrapping(bikeData.FrontMeasurementWraps));
-                var frontTrace = SuspensionTraceProcessor.Process(front.Samples, td.Front.MaxTravel!.Value, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
-                ApplySuspensionTrace(td.Front, frontTrace);
-                td.Front.AnomalyRate = CalculateAnomalyRate(front.AnomalyCount, front.Samples.Length, td.Metadata.SampleRate);
-            }
-            else
-            {
-                td.Front.Present = false;
-            }
+            var front = MeasurementPreprocessor.Process(rawData.Front, MeasurementPreprocessor.SensorTypeForWrapping(bikeData.FrontMeasurementWraps));
+            var frontTrace = SuspensionTraceProcessor.Process(front.Samples, td.Front.MaxTravel!.Value, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            ApplySuspensionTrace(td.Front, frontTrace);
+            td.Front.AnomalyRate = CalculateAnomalyRate(front.AnomalyCount, front.Samples.Length, td.Metadata.SampleRate);
         }
         if (td.Rear.Present)
         {
             Debug.Assert(bikeData.RearMeasurementToTravel is not null);
-            if (filter is not null)
-            {
-                var rear = MeasurementPreprocessor.Process(rawData.Rear, MeasurementPreprocessor.SensorTypeForWrapping(bikeData.RearMeasurementWraps));
-                var rearTrace = SuspensionTraceProcessor.Process(rear.Samples, td.Rear.MaxTravel!.Value, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
-                ApplySuspensionTrace(td.Rear, rearTrace);
-                td.Rear.AnomalyRate = CalculateAnomalyRate(rear.AnomalyCount, rear.Samples.Length, td.Metadata.SampleRate);
-            }
-            else
-            {
-                td.Rear.Present = false;
-            }
+            var rear = MeasurementPreprocessor.Process(rawData.Rear, MeasurementPreprocessor.SensorTypeForWrapping(bikeData.RearMeasurementWraps));
+            var rearTrace = SuspensionTraceProcessor.Process(rear.Samples, td.Rear.MaxTravel!.Value, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
+            ApplySuspensionTrace(td.Rear, rearTrace);
+            td.Rear.AnomalyRate = CalculateAnomalyRate(rear.AnomalyCount, rear.Samples.Length, td.Metadata.SampleRate);
         }
 
         td.CalculateAirTimes();
@@ -319,6 +331,13 @@ public class TelemetryData
 
     public static TelemetryData FromLiveCapture(LiveTelemetryCapture capture)
     {
+        return FromLiveCapture(capture, TelemetryProcessingOptions.Default);
+    }
+
+    public static TelemetryData FromLiveCapture(
+        LiveTelemetryCapture capture,
+        TelemetryProcessingOptions processingOptions)
+    {
         var rawData = new RawTelemetryData
         {
             Version = 4,
@@ -331,7 +350,7 @@ public class TelemetryData
             GpsData = capture.GpsData,
         };
 
-        return FromRecording(rawData, capture.Metadata, capture.BikeData, logLifecycle: false);
+        return FromRecording(rawData, capture.Metadata, capture.BikeData, processingOptions, logLifecycle: false);
     }
 
     #endregion
