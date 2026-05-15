@@ -29,11 +29,15 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private readonly IFriendlyNameProvider friendlyNameProvider;
     private readonly IShellCoordinator shell;
     private readonly List<string> discoveredServerUrls = [];
+    private readonly object browseGate = new();
 
     private string? deviceId;
     private string? displayName;
     private string? serverUrl;
     private bool isPaired;
+    private int browseReferenceCount;
+    private bool isBrowseStarted;
+    private TaskCompletionSource<string?>? pendingServerResolution;
 
     private Task Initialization { get; }
 
@@ -130,6 +134,11 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
         serverUrl = value;
         ServerUrlChanged?.Invoke(this, EventArgs.Empty);
+
+        if (value is not null)
+        {
+            pendingServerResolution?.TrySetResult(value);
+        }
     }
 
     private void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
@@ -168,14 +177,104 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public void StartBrowsing()
     {
-        logger.Verbose("Starting pairing server browse");
-        serviceDiscovery.StartBrowse(SynchronizationProtocol.ServiceType);
+        lock (browseGate)
+        {
+            browseReferenceCount++;
+            if (isBrowseStarted)
+            {
+                return;
+            }
+
+            isBrowseStarted = true;
+        }
+
+        try
+        {
+            logger.Verbose("Starting pairing server browse");
+            serviceDiscovery.StartBrowse(SynchronizationProtocol.ServiceType);
+        }
+        catch
+        {
+            lock (browseGate)
+            {
+                browseReferenceCount--;
+                isBrowseStarted = false;
+            }
+
+            throw;
+        }
     }
 
     public void StopBrowsing()
     {
+        lock (browseGate)
+        {
+            if (browseReferenceCount == 0)
+            {
+                return;
+            }
+
+            browseReferenceCount--;
+            if (browseReferenceCount > 0)
+            {
+                return;
+            }
+
+            isBrowseStarted = false;
+        }
+
         logger.Verbose("Stopping pairing server browse");
         serviceDiscovery.StopBrowse();
+    }
+
+    public async Task<string?> ResolveServerUrlAsync(TimeSpan timeout)
+    {
+        await Initialization;
+
+        if (!isPaired)
+        {
+            return null;
+        }
+
+        if (serverUrl is not null)
+        {
+            httpApiService.ServerUrl = serverUrl;
+            return serverUrl;
+        }
+
+        var resolution = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        pendingServerResolution = resolution;
+
+        var browseStarted = false;
+        try
+        {
+            StartBrowsing();
+            browseStarted = true;
+
+            var completed = await Task.WhenAny(resolution.Task, Task.Delay(timeout));
+            var resolvedServerUrl = completed == resolution.Task
+                ? await resolution.Task
+                : null;
+
+            if (resolvedServerUrl is not null)
+            {
+                httpApiService.ServerUrl = resolvedServerUrl;
+            }
+
+            return resolvedServerUrl;
+        }
+        finally
+        {
+            if (ReferenceEquals(pendingServerResolution, resolution))
+            {
+                pendingServerResolution = null;
+            }
+
+            if (browseStarted)
+            {
+                StopBrowsing();
+            }
+        }
     }
 
     public async Task<RequestPairingResult> RequestPairingAsync(string? displayName)

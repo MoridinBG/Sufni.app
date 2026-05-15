@@ -162,7 +162,7 @@ public class LiveGraphPageViewTests
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
     {
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
         var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())

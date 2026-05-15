@@ -117,7 +117,7 @@ public class SessionMediaDesktopViewTests
 
     private static SessionMediaWorkspaceStub CreateWorkspace(IReadOnlyList<TrackPoint> trackPoints, string? videoUrl = null)
     {
-        var tileLayerService = Substitute.For<ITileLayerService>();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
         var dialogService = Substitute.For<IDialogService>();

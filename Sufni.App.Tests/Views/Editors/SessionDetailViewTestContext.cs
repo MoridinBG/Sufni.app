@@ -27,8 +27,8 @@ internal sealed class SessionDetailViewTestContext
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
-    private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+    private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
 

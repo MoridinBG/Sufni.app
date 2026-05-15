@@ -18,6 +18,12 @@ public class SyncCoordinatorTests
     private readonly ISynchronizationClientService syncClient = Substitute.For<ISynchronizationClientService>();
     private readonly IPairingClientCoordinator pairing = Substitute.For<IPairingClientCoordinator>();
 
+    public SyncCoordinatorTests()
+    {
+        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
+            .Returns(Task.FromResult<string?>("https://sync.test"));
+    }
+
     private SyncCoordinator CreateCoordinator(
         ISynchronizationClientService? syncClientOverride = null,
         IPairingClientCoordinator? pairingOverride = null) =>
@@ -260,6 +266,36 @@ public class SyncCoordinatorTests
         await CreateCoordinator().SyncAllAsync();
 
         Assert.True(refreshedOnUiThread);
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_ResolvesCurrentServerEndpoint_BeforeRunningSync()
+    {
+        pairing.IsPaired.Returns(true);
+        var coordinator = CreateCoordinator();
+
+        await coordinator.SyncAllAsync();
+
+        await pairing.Received(1).ResolveServerUrlAsync(Arg.Any<TimeSpan>());
+        await syncClient.Received(1).SyncAll();
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RaisesSyncFailed_WhenNoServerEndpointIsDiscovered()
+    {
+        pairing.IsPaired.Returns(true);
+        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
+            .Returns(Task.FromResult<string?>(null));
+        var coordinator = CreateCoordinator();
+
+        var failed = 0;
+        coordinator.SyncFailed += (_, _) => failed++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Equal(1, failed);
+        await syncClient.DidNotReceive().SyncAll();
+        await bikeStore.DidNotReceive().RefreshAsync();
     }
 
     // ----- Constructor tolerates null pairing -----

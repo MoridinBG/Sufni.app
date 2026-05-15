@@ -8,6 +8,7 @@ namespace Sufni.App.Services;
 public class SynchronizationClientService : ISynchronizationClientService
 {
     private static readonly ILogger logger = Log.ForContext<SynchronizationClientService>();
+    public const string SyncStateKey = "paired-server";
 
     private readonly IDatabaseService databaseService;
     private readonly IHttpApiService httpApiService;
@@ -160,7 +161,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         try
         {
-            var lastSyncTime = await databaseService.GetLastSyncTimeAsync(httpApiService.ServerUrl);
+            var lastSyncTime = await databaseService.GetLastSyncTimeAsync(SyncStateKey);
 
             logger.Verbose("Starting synchronization client run with last sync time {LastSyncTime}", lastSyncTime);
 
@@ -171,7 +172,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             await PushIncompleteSessionSources();
             await PullIncompleteSessionSources();
 
-            await databaseService.UpdateLastSyncTimeAsync(httpApiService.ServerUrl);
+            await databaseService.UpdateLastSyncTimeAsync(SyncStateKey);
             logger.Verbose("Synchronization client run completed");
         }
         catch (System.Exception exception)

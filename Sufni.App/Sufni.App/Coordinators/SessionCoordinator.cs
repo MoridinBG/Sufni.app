@@ -390,7 +390,7 @@ public class SessionCoordinator
                 return new SessionRecomputeResult.Conflict(domain.Session);
             }
 
-            if (!domain.Staleness.CanRecompute)
+            if (!domain.Staleness.CanManualRecompute)
             {
                 logger.Warning("Recorded session {SessionId} is not recomputable because {Reason}", sessionId, domain.Staleness.GetType().Name);
                 return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
@@ -420,7 +420,7 @@ public class SessionCoordinator
                     return new SessionRecomputeResult.Conflict(domain.Session);
                 }
 
-                if (!domain.Staleness.CanRecompute)
+                if (!domain.Staleness.CanManualRecompute)
                 {
                     logger.Warning("Recorded session {SessionId} is not recomputable after source refresh because {Reason}", sessionId, domain.Staleness.GetType().Name);
                     return new SessionRecomputeResult.NotRecomputable(domain.Staleness);

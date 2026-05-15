@@ -137,6 +137,16 @@ public partial class MapView : UserControl
         }
     }
 
+    private async void TileProviderComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel is null || sender is not ComboBox { SelectedItem: TileLayerConfig layer })
+        {
+            return;
+        }
+
+        await ViewModel.SelectLayerAsync(layer);
+    }
+
     private void UpdateTracks()
     {
         if (mapControl == null || ViewModel == null) return;

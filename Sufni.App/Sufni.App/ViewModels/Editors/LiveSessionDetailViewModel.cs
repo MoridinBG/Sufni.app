@@ -289,6 +289,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         CancelBake();
 
         await liveSessionService.DisposeAsync();
+        mediaWorkspace.Dispose();
     }
 
     protected override void EvaluateDirtiness()

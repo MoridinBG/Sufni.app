@@ -1,15 +1,20 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
+using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Makaretu.Dns;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -32,11 +37,14 @@ public class SynchronizationServerService : ISynchronizationServerService
     private const int TokenTtlMinutes = 10;
     private const int RefreshTtlDays = 30;
     private const int Port = 5575;
+    private const string DefaultServiceInstanceName = "s1";
+    private const int MaxServiceProbeAttempts = 5;
 
     private readonly IDatabaseService databaseService;
     private readonly IAppPreferences appPreferences;
     private readonly ISecureStorage secureStorage;
     private readonly object advertisingGate = new();
+    private readonly object startGate = new();
 
     private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
@@ -46,6 +54,8 @@ public class SynchronizationServerService : ISynchronizationServerService
     private string? certPassword;
     private Makaretu.Dns.ServiceDiscovery? serviceDiscovery;
     private ServiceProfile? advertisedService;
+    private WebApplication? application;
+    private Task? startTask;
 
     private readonly string certPath = AppPaths.CertificatePath;
 
@@ -83,18 +93,87 @@ public class SynchronizationServerService : ISynchronizationServerService
             serviceDiscovery = null;
             advertisedService = null;
 
-            var service = new ServiceProfile("s1", SynchronizationProtocol.ServiceType, Port);
-            var discovery = new Makaretu.Dns.ServiceDiscovery();
-            if (discovery.Probe(service))
+            var allAddresses = MulticastService.GetIPAddresses().ToList();
+            var addresses = SelectAdvertisedAddresses(allAddresses).ToList();
+            logger.Information(
+                "Synchronization advertising candidate addresses count {Count} all {All} advertising {Advertising}",
+                allAddresses.Count,
+                string.Join(",", allAddresses),
+                string.Join(",", addresses));
+            if (addresses.Count == 0)
             {
-                discovery.Dispose();
+                logger.Warning("Synchronization advertising has no routable addresses after filtering loopback and link-local addresses");
+            }
+
+            var discovery = new Makaretu.Dns.ServiceDiscovery();
+            foreach (var instanceName in CreateServiceInstanceNames())
+            {
+                var service = new ServiceProfile(instanceName, SynchronizationProtocol.ServiceType, Port, addresses);
+                if (discovery.Probe(service))
+                {
+                    logger.Warning(
+                        "Synchronization service instance name {InstanceName} conflicted during mDNS probe; retrying with another name",
+                        instanceName);
+                    continue;
+                }
+
+                discovery.Advertise(service);
+                discovery.Announce(service);
+                advertisedService = service;
+                serviceDiscovery = discovery;
+                logger.Information(
+                    "Synchronization service advertised as {InstanceName} on port {Port} with addresses {Addresses}",
+                    instanceName,
+                    Port,
+                    string.Join(",", addresses));
                 return;
             }
 
-            discovery.Advertise(service);
-            discovery.Announce(service);
-            advertisedService = service;
-            serviceDiscovery = discovery;
+            discovery.Dispose();
+            throw new InvalidOperationException("Could not advertise synchronization service because all mDNS service instance names conflicted.");
+        }
+    }
+
+    public static IReadOnlyList<IPAddress> SelectAdvertisedAddresses(IEnumerable<IPAddress> addresses)
+    {
+        return addresses
+            .Where(IsAdvertisableAddress)
+            .OrderBy(address => address.AddressFamily == AddressFamily.InterNetwork ? 0 : 1)
+            .ToList();
+    }
+
+    private static bool IsAdvertisableAddress(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address)
+            || address.Equals(IPAddress.Any)
+            || address.Equals(IPAddress.IPv6Any)
+            || address.Equals(IPAddress.None)
+            || address.Equals(IPAddress.IPv6None))
+        {
+            return false;
+        }
+
+        if (address.IsIPv6LinkLocal)
+        {
+            return false;
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var bytes = address.GetAddressBytes();
+            return bytes is not [169, 254, _, _];
+        }
+
+        return address.AddressFamily == AddressFamily.InterNetworkV6;
+    }
+
+    public static IEnumerable<string> CreateServiceInstanceNames()
+    {
+        yield return DefaultServiceInstanceName;
+
+        for (var attempt = 2; attempt <= MaxServiceProbeAttempts; attempt++)
+        {
+            yield return $"{DefaultServiceInstanceName}-{attempt}";
         }
     }
 
@@ -188,6 +267,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         builder.WebHost.ConfigureKestrel(options =>
         {
+            options.Limits.MaxRequestBodySize = null;
             options.ConfigureHttpsDefaults(httpsOptions =>
             {
                 httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
@@ -196,6 +276,15 @@ public class SynchronizationServerService : ISynchronizationServerService
             {
                 listenOptions.UseHttps(certPath, certPassword);
             });
+        });
+
+        // Matches the client's AppJsonContext options so snake_case enum
+        // strings (e.g. "active_suspension") round-trip through the minimal
+        // API [FromBody] / Results.Ok pipeline.
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(jsonOptions =>
+        {
+            jsonOptions.SerializerOptions.PropertyNameCaseInsensitive = true;
+            jsonOptions.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         });
 
         var key = Encoding.UTF8.GetBytes(jwtSecret);
@@ -221,13 +310,29 @@ public class SynchronizationServerService : ISynchronizationServerService
     #region Public methods
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The synchronization server is a desktop-only feature and these minimal API delegates are explicitly rooted in this method.")]
-    public async Task StartAsync()
+    public Task StartAsync()
     {
+        lock (startGate)
+        {
+            if (application is not null)
+            {
+                return Task.CompletedTask;
+            }
+
+            startTask ??= StartCoreAsync();
+            return startTask;
+        }
+    }
+
+    private async Task StartCoreAsync()
+    {
+        WebApplication? app = null;
+
         try
         {
             logger.Information("Starting synchronization server on port {Port}", Port);
 
-            var app = await BuildApplication(Port);
+            app = await BuildApplication(Port);
             app.Lifetime.ApplicationStopping.Register(StopAdvertising);
             app.Lifetime.ApplicationStopped.Register(StopAdvertising);
             app.UseAuthentication();
@@ -472,16 +577,59 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.NoContent();
             });
 
+            await app.StartAsync();
+
+            lock (startGate)
+            {
+                application = app;
+                startTask = null;
+            }
+
+            logger.Information("Synchronization server listening on port {Port}", Port);
             logger.Verbose("Advertising synchronization service on port {Port}", Port);
             StartAdvertising();
-            logger.Information("Synchronization server listening on port {Port}", Port);
-            await app.RunAsync();
         }
         catch (Exception ex)
         {
+            lock (startGate)
+            {
+                if (ReferenceEquals(application, app))
+                {
+                    application = null;
+                }
+
+                startTask = null;
+            }
+
             StopAdvertising();
-            logger.Error(ex, "Synchronization server failed to start or run on port {Port}", Port);
+            if (app is not null)
+            {
+                await StopAndDisposeAfterStartFailureAsync(app);
+            }
+
+            logger.Error(ex, "Synchronization server failed to start on port {Port}", Port);
             throw;
+        }
+    }
+
+    private async Task StopAndDisposeAfterStartFailureAsync(WebApplication app)
+    {
+        try
+        {
+            await app.StopAsync();
+        }
+        catch (Exception stopException)
+        {
+            logger.Warning(stopException, "Stopping partially started synchronization server failed on port {Port}", Port);
+        }
+
+        try
+        {
+            await app.DisposeAsync();
+        }
+        catch (Exception disposeException)
+        {
+            logger.Warning(disposeException, "Disposing partially started synchronization server failed on port {Port}", Port);
         }
     }
 

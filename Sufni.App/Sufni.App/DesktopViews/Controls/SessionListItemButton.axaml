@@ -1,0 +1,70 @@
+﻿<UserControl
+    x:Class="Sufni.App.DesktopViews.Controls.SessionListItemButton"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:SessionRowViewModel"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <Button
+            Name="Button"
+            Height="48"
+            Padding="10,0,10,0"
+            HorizontalAlignment="Stretch"
+            VerticalContentAlignment="Center"
+            Classes="item"
+            Command="{Binding OpenPageCommand}"
+            CommandParameter="{Binding}"
+            CornerRadius="0">
+            <Grid HorizontalAlignment="Stretch" ColumnDefinitions="25 25 auto * auto 40">
+                <Button
+                    Name="DeleteButton"
+                    Grid.Column="0"
+                    Padding="0"
+                    HorizontalAlignment="Left"
+                    Classes="embedded"
+                    Command="{Binding UndoableDeleteCommand}"
+                    IsVisible="{Binding #Button.IsPointerOver}"
+                    Svg.Css=".default { fill: #bf312d; }"
+                    ToolTip.Tip="Delete">
+                    <Image
+                        Width="16"
+                        Height="16"
+                        Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                </Button>
+                <Button
+                    Name="RecalculateButton"
+                    Grid.Column="1"
+                    Padding="0"
+                    HorizontalAlignment="Left"
+                    Classes="embedded"
+                    Command="{Binding RecalculateCommand}"
+                    IsVisible="{Binding #Button.IsPointerOver}"
+                    ToolTip.Tip="Recalculate">
+                    <Image
+                        Width="16"
+                        Height="16"
+                        Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+                </Button>
+                <TextBlock Grid.Column="2" Text="{Binding Name}" />
+                <TextBlock Grid.Column="4" Text="{Binding Timestamp}" />
+                <Image
+                    Grid.Column="5"
+                    Width="16"
+                    Height="16"
+                    IsVisible="{Binding !IsComplete}"
+                    Opacity="0.5"
+                    Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}" />
+            </Grid>
+        </Button>
+        <Separator
+            Height="1"
+            Margin="0"
+            Background="{StaticResource SufniBackgroundDisabled}" />
+    </StackPanel>
+</UserControl>

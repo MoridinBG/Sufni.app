@@ -10,6 +10,7 @@ namespace Sufni.App.Coordinators;
 public class SyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
+    private static readonly TimeSpan ServerDiscoveryTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IBikeStoreWriter bikeStore;
     private readonly ISetupStoreWriter setupStore;
@@ -89,6 +90,16 @@ public class SyncCoordinator
         IsRunning = true;
         try
         {
+            if (pairingClientCoordinator is not null)
+            {
+                var serverUrl = await pairingClientCoordinator.ResolveServerUrlAsync(ServerDiscoveryTimeout);
+                if (serverUrl is null)
+                {
+                    SyncFailed?.Invoke(this, new SyncFailedEventArgs("Sync failed: no server discovered"));
+                    return;
+                }
+            }
+
             logger.Verbose("Running remote synchronization phases");
             await synchronizationClientService.SyncAll();
 

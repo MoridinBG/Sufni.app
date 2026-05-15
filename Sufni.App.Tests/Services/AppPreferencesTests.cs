@@ -1,3 +1,6 @@
+using System.Reactive;
+using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using System.Text.Json;
 using Sufni.App.Models;
 using Sufni.App.Services;
@@ -482,6 +485,177 @@ public class AppPreferencesTests
             Assert.Equal(selectedLayerId, await preferences.Map.GetSelectedLayerIdAsync());
             var stored = await preferences.Session.GetRecordedAsync(sessionId);
             Assert.Equal(TravelHistogramMode.DynamicSag, stored.Statistics.TravelHistogramMode);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task SyncDataApplied_EmitsOncePerSuccessfulApply()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            var emissions = 0;
+            using var subscription = preferences.SyncDataApplied.Subscribe(_ => Interlocked.Increment(ref emissions));
+
+            // null payload: short-circuits before any I/O — must not emit.
+            await preferences.ApplySyncDataAsync(null);
+            Assert.Equal(0, emissions);
+
+            // Newer payload applies → one emission.
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 100,
+                Maps = new MapPreferencesSyncData { SelectedLayerId = Guid.NewGuid() },
+            });
+            Assert.Equal(1, emissions);
+
+            // Older payload skips (Updated < document.Updated) → no emission.
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 50,
+                Maps = new MapPreferencesSyncData { SelectedLayerId = Guid.NewGuid() },
+            });
+            Assert.Equal(1, emissions);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task SyncDataApplied_DoesNotReplayHistory_OnLateSubscribe()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            // Apply before subscribing — late subscribers should not see this.
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 100,
+                Maps = new MapPreferencesSyncData { SelectedLayerId = Guid.NewGuid() },
+            });
+
+            var emissions = 0;
+            using var subscription = preferences.SyncDataApplied.Subscribe(_ => Interlocked.Increment(ref emissions));
+            Assert.Equal(0, emissions);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ObserveRecorded_EmitsOnSyncApply()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            var next = preferences.Session.ObserveRecorded(sessionId).FirstAsync().ToTask();
+
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 100,
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions =
+                    {
+                        [sessionId] = SessionPreferences.Default with
+                        {
+                            Statistics = SessionPreferences.Default.Statistics with
+                            {
+                                TravelHistogramMode = TravelHistogramMode.DynamicSag,
+                            },
+                        },
+                    },
+                },
+            });
+
+            var observed = await next.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(TravelHistogramMode.DynamicSag, observed.Statistics.TravelHistogramMode);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ObserveRecorded_DoesNotEmitOnLocalUpdate()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            var emissions = 0;
+            using var subscription = preferences.Session.ObserveRecorded(sessionId)
+                .Subscribe(_ => Interlocked.Increment(ref emissions));
+
+            await preferences.Session.UpdateRecordedAsync(sessionId, current =>
+                current with
+                {
+                    Statistics = current.Statistics with { TravelHistogramMode = TravelHistogramMode.DynamicSag },
+                });
+
+            Assert.Equal(0, emissions);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ObserveRecorded_DistinctUntilChanged_SquashesIdenticalRefresh()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            var emissions = 0;
+            using var subscription = preferences.Session.ObserveRecorded(sessionId)
+                .Subscribe(_ => Interlocked.Increment(ref emissions));
+
+            var stored = SessionPreferences.Default with
+            {
+                Statistics = SessionPreferences.Default.Statistics with
+                {
+                    TravelHistogramMode = TravelHistogramMode.DynamicSag,
+                },
+            };
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 100,
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions = { [sessionId] = stored },
+                },
+            });
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 101,
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions = { [sessionId] = stored },
+                },
+            });
+
+            Assert.Equal(1, emissions);
         }
         finally
         {

@@ -25,8 +25,8 @@ public class SessionCoordinatorTests
     private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>();
-    private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+    private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
@@ -49,7 +49,7 @@ public class SessionCoordinatorTests
                 Arg.Any<SetupSnapshot>(),
                 Arg.Any<BikeSnapshot>(),
                 Arg.Any<RecordedSessionSourceSnapshot>())
-            .Returns(new ProcessingFingerprint(1, 1, Guid.NewGuid(), Guid.NewGuid(), "dependency", "source"));
+            .Returns(new ProcessingFingerprint(2, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source"));
     }
 
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
@@ -209,7 +209,12 @@ public class SessionCoordinatorTests
                 && saved.ProcessedData != null
                 && saved.ProcessedData.Length > 0
                 && saved.ProcessingFingerprintJson != null),
-            Arg.Is<Track>(track => track.Points.Count == 1),
+            Arg.Is<Track>(track =>
+                track.Points.Count == 1 &&
+                track.Points[0].FixMode == 3 &&
+                track.Points[0].Satellites == 12 &&
+                track.Points[0].Epe2d == 0.5f &&
+                track.Points[0].Epe3d == 0.8f),
             Arg.Is<RecordedSessionSource>(source =>
                 source.SessionId == session.Id &&
                 source.SourceKind == RecordedSessionSourceKind.LiveCapture &&
@@ -289,7 +294,7 @@ public class SessionCoordinatorTests
     {
         var context = CreateRecomputeContext();
         var telemetry = TestTelemetryData.Create();
-        var fingerprint = new ProcessingFingerprint(1, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, "new-dependency", context.Source.SourceHash);
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "new-dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var fresh = CreateSession(context.Session, updated: 9);
         fresh.HasProcessedData = true;
@@ -326,7 +331,30 @@ public class SessionCoordinatorTests
     {
         var context = CreateRecomputeContext(new SessionStaleness.MissingProcessedData(), hasProcessedData: false);
         var telemetry = TestTelemetryData.Create();
-        var fingerprint = new ProcessingFingerprint(1, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, "dependency", context.Source.SourceHash);
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
+        var persisted = CreateSession(context.Session, updated: 5);
+        var fresh = CreateSession(context.Session, updated: 8);
+        fresh.HasProcessedData = true;
+
+        domainQuery.Get(context.Session.Id).Returns(context.Domain);
+        sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+            .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
+        database.GetSessionAsync(context.Session.Id).Returns(persisted);
+        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+
+        var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
+
+        Assert.IsType<SessionRecomputeResult.Recomputed>(result);
+        await database.Received(1).PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5);
+    }
+
+    [Fact]
+    public async Task RecomputeAsync_Recomputes_WhenSessionIsCurrentAndManualRecomputeRequested()
+    {
+        var context = CreateRecomputeContext(new SessionStaleness.Current());
+        var telemetry = TestTelemetryData.Create();
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var fresh = CreateSession(context.Session, updated: 8);
         fresh.HasProcessedData = true;
@@ -367,7 +395,7 @@ public class SessionCoordinatorTests
     {
         var context = CreateRecomputeContext();
         var telemetry = TestTelemetryData.Create();
-        var fingerprint = new ProcessingFingerprint(1, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, "dependency", context.Source.SourceHash);
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var current = CreateSession(context.Session, updated: 12);
 
@@ -422,7 +450,7 @@ public class SessionCoordinatorTests
         var generatedTrack = CreateTrack(new TrackPoint(1, 2, 3, 4));
         var context = CreateRecomputeContext(fullTrackId: previousTrackId);
         var telemetry = TestTelemetryData.Create();
-        var fingerprint = new ProcessingFingerprint(1, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, "dependency", context.Source.SourceHash);
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         persisted.FullTrack = previousTrackId;
         persisted.Track = [new TrackPoint(1, 2, 3, 4)];
@@ -459,7 +487,45 @@ public class SessionCoordinatorTests
         var generatedTrack = CreateTrack(new TrackPoint(2, 4, 6, 8));
         var context = CreateRecomputeContext(fullTrackId: previousTrackId);
         var telemetry = TestTelemetryData.Create();
-        var fingerprint = new ProcessingFingerprint(1, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, "dependency", context.Source.SourceHash);
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
+        var persisted = CreateSession(context.Session, updated: 5);
+        persisted.FullTrack = previousTrackId;
+        persisted.Track = [new TrackPoint(1, 2, 3, 4)];
+        var fresh = CreateSession(context.Session, updated: 9);
+        fresh.FullTrack = generatedTrack.Id;
+
+        domainQuery.Get(context.Session.Id).Returns(context.Domain);
+        sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
+        reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<CancellationToken>())
+            .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
+        database.GetSessionAsync(context.Session.Id).Returns(persisted);
+        database.GetAsync<Track>(previousTrackId).Returns(existingTrack);
+        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
+        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session> { fresh }));
+
+        var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
+
+        Assert.IsType<SessionRecomputeResult.Recomputed>(result);
+        await database.Received(1).PutProcessedSessionIfUnchangedAsync(
+            Arg.Is<Session>(session =>
+                session.Track == null &&
+                session.ProcessingFingerprintJson != null),
+            generatedTrack,
+            null,
+            5);
+        await database.Received(1).DeleteAsync<Track>(previousTrackId);
+    }
+
+    [Fact]
+    public async Task RecomputeAsync_ReplacesFullTrack_WhenGeneratedGpsQualityDiffers()
+    {
+        var previousTrackId = Guid.NewGuid();
+        var existingTrack = CreateTrack(new TrackPoint(1, 2, 3, 4));
+        existingTrack.Id = previousTrackId;
+        var generatedTrack = CreateTrack(new TrackPoint(1, 2, 3, 4, fixMode: 3, satellites: 12, epe2d: 0.5f, epe3d: 0.8f));
+        var context = CreateRecomputeContext(fullTrackId: previousTrackId);
+        var telemetry = TestTelemetryData.Create();
+        var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         persisted.FullTrack = previousTrackId;
         persisted.Track = [new TrackPoint(1, 2, 3, 4)];
