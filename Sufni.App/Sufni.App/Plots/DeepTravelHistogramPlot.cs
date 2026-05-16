@@ -26,16 +26,26 @@ public class DeepTravelHistogramPlot(Plot plot, SuspensionType type) : Telemetry
         var data = TelemetryStatistics.CalculateDeepTravelHistogram(telemetryData, type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Select((value, index) => new Bar
-        {
-            Position = data.Bins[index],
-            Value = value,
-            FillColor = color.WithOpacity(),
-            LineColor = color,
-            LineWidth = 1.5f,
-            Orientation = Orientation.Vertical,
-            Size = step * 0.65f,
-        })
+        var bars = data.Values.Select((value, index) =>
+            {
+                var bar = new Bar
+                {
+                    Position = data.Bins[index],
+                    Value = value,
+                    FillColor = color.WithOpacity(),
+                    LineColor = color,
+                    LineWidth = 1.5f,
+                    Orientation = Orientation.Vertical,
+                    Size = step * 0.65f,
+                };
+
+                AddBarReadout(
+                    bar,
+                    FormatReadoutRange("Axle position", data.Bins, index, "mm"),
+                    new CursorReadoutLine("Strokes", value, string.Empty, color, "0"));
+
+                return bar;
+            })
             .ToList();
 
         Plot.Add.Bars(bars);

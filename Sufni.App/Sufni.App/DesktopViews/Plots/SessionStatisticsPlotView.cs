@@ -1,5 +1,6 @@
 using System;
 using Avalonia;
+using Avalonia.Input;
 using Sufni.App.Plots;
 using Sufni.Telemetry;
 
@@ -136,6 +137,7 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
 
         ApplyModeToPlotModel(plotModel);
         SetPlotModel(plotModel);
+        InitializeBarReadoutInteractions();
     }
 
     private void ApplyModeToPlotModel(TelemetryPlot plotModel)
@@ -153,5 +155,36 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
                 velocityHistogram.AverageMode = VelocityAverageMode;
                 break;
         }
+    }
+
+    private void InitializeBarReadoutInteractions()
+    {
+        PlotControl.PointerPressed += (_, args) => SetBarReadoutFromPointer(args);
+        PlotControl.PointerMoved += (_, args) => SetBarReadoutFromPointer(args);
+        PlotControl.PointerExited += (_, _) =>
+        {
+            PlotModel.HideCursorReadout();
+            RefreshPlot();
+        };
+    }
+
+    private void SetBarReadoutFromPointer(PointerEventArgs args)
+    {
+        if (!HasPlotControl || !HasPlotModel)
+        {
+            return;
+        }
+
+        var point = args.GetPosition(PlotControl);
+        if (!PlotControl.IsPointInDataArea(point))
+        {
+            PlotModel.HideCursorReadout();
+            RefreshPlot();
+            return;
+        }
+
+        var coordinates = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
+        PlotModel.SetPointerPositionWithReadout(coordinates.X, coordinates.Y);
+        RefreshPlot();
     }
 }

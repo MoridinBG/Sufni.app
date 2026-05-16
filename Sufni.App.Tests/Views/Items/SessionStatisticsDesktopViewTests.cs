@@ -212,6 +212,9 @@ public class SessionStatisticsDesktopViewTests
         Assert.True(balance!.IsVisible);
         Assert.False(vibration!.IsVisible);
         Assert.Equal(1, balance.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
+        Assert.All(
+            balance.GetVisualDescendants().OfType<SessionStatisticsPlotView>(),
+            plot => Assert.True(plot.IsHitTestVisible));
     }
 
     [AvaloniaFact]

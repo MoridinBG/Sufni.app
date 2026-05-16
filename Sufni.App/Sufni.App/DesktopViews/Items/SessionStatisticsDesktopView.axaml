@@ -396,7 +396,6 @@ mc:Ignorable="d">
                                 BalanceType="Compression"
                                 BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
                                 BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
-                                IsHitTestVisible="False"
                                 PlotKind="Balance"
                                 Telemetry="{Binding TelemetryData}" />
                             </controls:PlaceholderOverlayContainer.ReadyContent>
@@ -412,7 +411,6 @@ mc:Ignorable="d">
                                 BalanceType="Rebound"
                                 BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
                                 BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
-                                IsHitTestVisible="False"
                                 PlotKind="Balance"
                                 Telemetry="{Binding TelemetryData}" />
                             </controls:PlaceholderOverlayContainer.ReadyContent>

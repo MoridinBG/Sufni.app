@@ -6,9 +6,12 @@ namespace Sufni.App.Plots;
 
 internal static class TelemetryDisplaySmoothing
 {
-    public static double[] Apply(double[] samples, PlotSmoothingLevel level)
+    private const int LightWindowMilliseconds = 9;
+    private const int StrongWindowMilliseconds = 31;
+
+    public static double[] ApplyRegular(double[] samples, PlotSmoothingLevel level, double samplePeriodSeconds)
     {
-        var radius = (GetWindowSize(level) - 1) / 2;
+        var radius = (GetWindowSize(level, samplePeriodSeconds) - 1) / 2;
         if (radius == 0 || samples.Length <= 2)
         {
             return samples;
@@ -40,13 +43,66 @@ internal static class TelemetryDisplaySmoothing
         return smoothed;
     }
 
-    public static int GetWindowSize(PlotSmoothingLevel level)
+    public static double[] ApplyIrregular(double[] xValues, double[] samples, PlotSmoothingLevel level)
+    {
+        var windowSeconds = GetWindowDurationMilliseconds(level) / 1000.0;
+        if (windowSeconds <= 0 || samples.Length <= 2 || xValues.Length != samples.Length)
+        {
+            return samples;
+        }
+
+        var radiusSeconds = windowSeconds / 2.0;
+        var smoothed = new double[samples.Length];
+        var start = 0;
+        var end = -1;
+        var sum = 0.0;
+
+        for (var index = 0; index < samples.Length; index++)
+        {
+            var center = xValues[index];
+            var targetStart = center - radiusSeconds;
+            var targetEnd = center + radiusSeconds;
+
+            while (end + 1 < samples.Length && xValues[end + 1] <= targetEnd)
+            {
+                sum += samples[++end];
+            }
+
+            while (start <= end && xValues[start] < targetStart)
+            {
+                sum -= samples[start++];
+            }
+
+            smoothed[index] = start <= end ? sum / (end - start + 1) : samples[index];
+        }
+
+        return smoothed;
+    }
+
+    public static int GetWindowSize(PlotSmoothingLevel level, double samplePeriodSeconds)
+    {
+        var windowSeconds = GetWindowDurationMilliseconds(level) / 1000.0;
+        if (windowSeconds <= 0 || !double.IsFinite(samplePeriodSeconds) || samplePeriodSeconds <= 0)
+        {
+            return 1;
+        }
+
+        var windowSize = Math.Max(1, (int)Math.Round(windowSeconds / samplePeriodSeconds));
+        if (windowSize % 2 == 0)
+        {
+            windowSize++;
+        }
+
+        return windowSize;
+    }
+
+    public static int GetWindowDurationMilliseconds(PlotSmoothingLevel level)
     {
         return level switch
         {
-            PlotSmoothingLevel.Light => 9,
-            PlotSmoothingLevel.Strong => 31,
-            _ => 1,
+            PlotSmoothingLevel.Light => LightWindowMilliseconds,
+            PlotSmoothingLevel.Strong => StrongWindowMilliseconds,
+            _ => 0,
         };
     }
 }
@@ -54,7 +110,9 @@ internal static class TelemetryDisplaySmoothing
 internal sealed class TelemetryDisplayStreamingSmoother
 {
     private readonly Queue<double> window = new();
+    private readonly Queue<double> windowTimes = new();
     private double sum;
+    private double? lastTime;
     private PlotSmoothingLevel level;
 
     public PlotSmoothingLevel Level
@@ -72,10 +130,10 @@ internal sealed class TelemetryDisplayStreamingSmoother
         }
     }
 
-    public IReadOnlyList<double> Apply(IReadOnlyList<double> values, ref double[] buffer)
+    public IReadOnlyList<double> Apply(IReadOnlyList<double> times, IReadOnlyList<double> values, ref double[] buffer)
     {
-        var windowSize = TelemetryDisplaySmoothing.GetWindowSize(Level);
-        if (windowSize <= 1 || values.Count == 0)
+        var windowSeconds = TelemetryDisplaySmoothing.GetWindowDurationMilliseconds(Level) / 1000.0;
+        if (windowSeconds <= 0 || values.Count == 0 || times.Count != values.Count)
         {
             return values;
         }
@@ -88,11 +146,27 @@ internal sealed class TelemetryDisplayStreamingSmoother
         for (var index = 0; index < values.Count; index++)
         {
             var value = values[index];
-            window.Enqueue(value);
-            sum += value;
-
-            while (window.Count > windowSize)
+            var time = times[index];
+            if (!double.IsFinite(time))
             {
+                Reset();
+                buffer[index] = value;
+                continue;
+            }
+
+            if (lastTime is { } previousTime && time < previousTime)
+            {
+                Reset();
+            }
+
+            window.Enqueue(value);
+            windowTimes.Enqueue(time);
+            sum += value;
+            lastTime = time;
+
+            while (windowTimes.Count > 0 && time - windowTimes.Peek() >= windowSeconds)
+            {
+                windowTimes.Dequeue();
                 sum -= window.Dequeue();
             }
 
@@ -105,6 +179,8 @@ internal sealed class TelemetryDisplayStreamingSmoother
     public void Reset()
     {
         window.Clear();
+        windowTimes.Clear();
         sum = 0;
+        lastTime = null;
     }
 }

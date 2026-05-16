@@ -267,7 +267,6 @@ Services/
   LiveSessionControlState.cs
   LiveSessionPresentation.cs
   LiveSessionService.cs
-  SlidingWindowBuffer.cs
  LoggingBootstrapper.cs
  Management/
   DaqConfigDocument.cs
