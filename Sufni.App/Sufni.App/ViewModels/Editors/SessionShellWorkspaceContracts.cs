@@ -30,7 +30,7 @@ public interface IRecordedSessionGraphWorkspace
     SessionTimelineLinkViewModel Timeline { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
-    void SetAnalysisRangeBoundaryFromMarker(double markerSeconds);
+    void SetAnalysisRangeBoundary(double boundarySeconds);
 }
 
 public interface ISessionMediaWorkspace

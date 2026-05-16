@@ -1564,26 +1564,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         AnalysisRange = null;
     }
 
-    public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+    public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
         if (TelemetryData is null ||
-            double.IsNaN(markerSeconds) ||
-            double.IsInfinity(markerSeconds))
+            double.IsNaN(boundarySeconds) ||
+            double.IsInfinity(boundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
         }
 
-        markerSeconds = Math.Clamp(markerSeconds, 0, TelemetryData.Metadata.Duration);
+        boundarySeconds = Math.Clamp(boundarySeconds, 0, TelemetryData.Metadata.Duration);
         if (AnalysisRange is { } range)
         {
-            if (Math.Abs(markerSeconds - range.StartSeconds) <= Math.Abs(markerSeconds - range.EndSeconds))
+            if (Math.Abs(boundarySeconds - range.StartSeconds) <= Math.Abs(boundarySeconds - range.EndSeconds))
             {
-                SetAnalysisRange(markerSeconds, range.EndSeconds);
+                SetAnalysisRange(boundarySeconds, range.EndSeconds);
             }
             else
             {
-                SetAnalysisRange(range.StartSeconds, markerSeconds);
+                SetAnalysisRange(range.StartSeconds, boundarySeconds);
             }
 
             return;
@@ -1591,11 +1591,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
         {
-            pendingAnalysisRangeBoundary = markerSeconds;
+            pendingAnalysisRangeBoundary = boundarySeconds;
             return;
         }
 
-        SetAnalysisRange(pendingBoundary, markerSeconds);
+        SetAnalysisRange(pendingBoundary, boundarySeconds);
+    }
+
+    public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+    {
+        SetAnalysisRangeBoundary(markerSeconds);
     }
 
     [RelayCommand]
