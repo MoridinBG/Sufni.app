@@ -147,11 +147,11 @@ The `Inspect()` path walks every TLV chunk, validating each chunk's declared len
 
 `SpikeElimination.EliminateSpikes()` (`Sufni.Telemetry/SpikeElimination.cs`) cleans sensor data in four stages:
 
-1. **Detect sudden changes** — multi-pass sliding window search (window sizes 5 down to 1). A change is flagged when the total magnitude exceeds `summaThreshold=100` ADC counts AND every individual step within the window exceeds `stepThreshold=30`. Already-flagged regions are excluded from subsequent passes.
+1. **Detect sudden changes** — multi-pass sliding window search over the sample-rate equivalent of 5 ms. A change is flagged when the unscaled total magnitude exceeds `MinimumCandidateTotalChangeCounts=100` ADC counts AND every individual step within the window exceeds the per-sample threshold derived from `MinimumAdjacentStepChangeRateCountsPerSecond=30_000`. Multi-sample candidates, plus single-sample candidates when the 5 ms window rounds to one sample, are ignored when the signal continues in the same direction by at least the per-sample threshold within the sample-rate equivalent of the next 5 ms. Already-flagged regions are excluded from subsequent passes.
 
 2. **Flatten gradual spikes** — each detected change region is collapsed to a single step (all intermediate samples set to the end value).
 
-3. **Handle early baseline shift** — if the first detected change occurs within the first 100 samples (~100ms at 1kHz), the entire signal after the change is shifted by the change magnitude. This corrects for sensor initialization drift.
+3. **Handle early baseline shift** — if the first detected change occurs within the sample-rate equivalent of 100 ms, the entire signal after the change is shifted by the change magnitude. This corrects for sensor initialization drift.
 
 4. **Handle temporary dips and unrecovered tails** — walks the remaining changes in order, tracking a cumulative negative offset (`activeFaultDelta`). Each segment between changes is shifted by the active offset. Negative changes accumulate into the offset; subsequent positive changes partially undo it (clamped to zero). Any leftover offset at the final change is also applied to the trailing samples through end of capture, so a dip that never recovers is corrected as a sensor fault rather than left in the signal.
 

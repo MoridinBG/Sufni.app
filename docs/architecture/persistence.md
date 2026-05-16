@@ -145,8 +145,9 @@ Generic operations on any `Synchronizable` subclass:
 Session-specific operations split metadata, processed data, and recording source handling:
 
 - `PutSessionAsync()` — updates session metadata columns, the processing fingerprint, and stamps `Updated`/`Deleted` like `PutAsync`. The `data` blob and `track` cache are written via `COALESCE(?, existing)`: if `session.ProcessedData` or `session.Track` is null, the existing derived payload is preserved.
-- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data` and `session_processing_fingerprint`, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, generated track, and source write roll back together.
+- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data` and `session_processing_fingerprint`, and optionally inserts/replaces the matching `RecordedSessionSource`. When no new full track is supplied and the session has no existing `full_track_id`, it links the session to an active track whose `[start_time, end_time]` window contains the session timestamp. If any write fails, the session, generated track, and source write roll back together.
 - `PutProcessedSessionIfUnchangedAsync(session, newFullTrack, source, baselineUpdated)` — the optimistic-concurrency variant used by recorded-session recompute. It runs the same processed-session / optional full-track / optional source transaction only when the current `session.updated` still equals `baselineUpdated`; on conflict it returns `null` and rolls back any generated track/source writes.
+- `FindTrackByTimeRangeAsync(startTime, endTime)` — returns the active track whose cached `start_time` and `end_time` exactly match the supplied values. GPX import uses this to skip already-imported tracks before writing.
 - `PatchSessionPsstAsync(id, bytes)` — updates only the `data` column (and sets `has_data = 1`)
 - `PatchSessionTrackAsync(id, points)` — updates the cached session-window `track` JSON and stamps `updated`
 - `GetSessionPsstAsync(id)` — deserializes MessagePack blob to `TelemetryData`
@@ -157,7 +158,7 @@ Session-specific operations split metadata, processed data, and recording source
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles.
+`Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. Startup cleanup also soft-deletes duplicate active tracks that share the same cached start/end seconds, keeps one canonical row, repoints non-deleted sessions to it, and clears affected cached session-window tracks so they regenerate from the canonical full track.
 
 On database initialization, the `Cleanup()` pass permanently removes:
 
