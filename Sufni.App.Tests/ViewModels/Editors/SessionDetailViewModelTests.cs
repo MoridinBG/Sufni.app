@@ -708,6 +708,20 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void ClearAnalysisRange_ClearsPendingAnalysisRangeBoundary()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = CreateVibrationTelemetry();
+
+        editor.SetAnalysisRangeBoundary(0.02);
+        editor.ClearAnalysisRange();
+        editor.SetAnalysisRangeBoundary(0.16);
+
+        Assert.Null(editor.AnalysisRange);
+    }
+
+    [AvaloniaFact]
     public void SelectedTravelHistogramMode_RecomputesAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
