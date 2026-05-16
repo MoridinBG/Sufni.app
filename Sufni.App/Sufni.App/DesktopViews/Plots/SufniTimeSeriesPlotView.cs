@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.ViewModels.Editors;
@@ -18,9 +19,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool hasPendingLoad;
     private bool isSelectingAnalysisRange;
     private bool isGraphClickCandidate;
+    private bool suppressGraphClickClear;
     private Point graphClickStartPoint;
     private double selectionStartSeconds;
     private double selectionEndSeconds;
+    private IDisposable? mobileAnalysisRangeLongPress;
+    private Point mobileAnalysisRangeLongPressStartPoint;
+    private double mobileAnalysisRangeLongPressSeconds;
 
     protected TelemetryPlot PlotModel => plot!;
     protected bool HasPlotModel => plot is not null;
@@ -144,12 +149,20 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 UpdateCursor(args);
 
                 var workspace = GraphWorkspace;
-                if (!IsLeftButtonPressed(args) || workspace is null || TimelineDurationSeconds is not > 0)
+                if (!IsPrimaryPointerPressed(args) || workspace is null || TimelineDurationSeconds is not > 0)
                 {
                     return;
                 }
 
                 var point = args.GetPosition(PlotControl);
+                if (UsesMobileAnalysisRangeGestures())
+                {
+                    StartMobileAnalysisRangeLongPress(args, point);
+                    isGraphClickCandidate = true;
+                    graphClickStartPoint = point;
+                    return;
+                }
+
                 if (args.KeyModifiers.HasFlag(KeyModifiers.Shift))
                 {
                     isSelectingAnalysisRange = true;
@@ -166,7 +179,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
                 if (TryGetHitMarkerSeconds(args, out var markerSeconds))
                 {
-                    workspace.SetAnalysisRangeBoundaryFromMarker(markerSeconds);
+                    workspace.SetAnalysisRangeBoundary(markerSeconds);
                     isGraphClickCandidate = false;
                     args.Handled = true;
                     return;
@@ -192,6 +205,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
             if (isGraphClickCandidate && HasExceededClickMovement(args))
             {
+                CancelMobileAnalysisRangeLongPress();
                 isGraphClickCandidate = false;
             }
         };
@@ -213,9 +227,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
                 if (isGraphClickCandidate && !HasExceededClickMovement(args))
                 {
-                    GraphWorkspace?.ClearAnalysisRange();
+                    if (!suppressGraphClickClear)
+                    {
+                        GraphWorkspace?.ClearAnalysisRange();
+                    }
                 }
 
+                CancelMobileAnalysisRangeLongPress();
+                suppressGraphClickClear = false;
                 isGraphClickCandidate = false;
                 UpdateTimelineRange();
             },
@@ -232,6 +251,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             }
 
             isGraphClickCandidate = false;
+            suppressGraphClickClear = false;
+            CancelMobileAnalysisRangeLongPress();
             PlotControl.Cursor = Cursor.Default;
             SetPreviewRange(null, null);
             RefreshPlot();
@@ -285,12 +306,67 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
     }
 
-    private bool IsLeftButtonPressed(PointerEventArgs args)
-        => args.GetCurrentPoint(PlotControl).Properties.IsLeftButtonPressed;
+    private bool IsPrimaryPointerPressed(PointerEventArgs args)
+    {
+        var point = args.GetCurrentPoint(PlotControl);
+        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+    }
+
+    protected virtual IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromMilliseconds(500),
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            callback();
+        };
+        timer.Start();
+        return new DispatcherTimerSubscription(timer);
+    }
 
     private double GetClampedTimeSeconds(PointerEventArgs args)
     {
         return TryGetTimelineSeconds(args, out var seconds) ? seconds : 0;
+    }
+
+    private static bool UsesMobileAnalysisRangeGestures()
+    {
+        return App.Current?.IsDesktop == false;
+    }
+
+    private void StartMobileAnalysisRangeLongPress(PointerEventArgs args, Point startPoint)
+    {
+        CancelMobileAnalysisRangeLongPress();
+        suppressGraphClickClear = false;
+        mobileAnalysisRangeLongPressStartPoint = startPoint;
+        mobileAnalysisRangeLongPressSeconds = GetClampedTimeSeconds(args);
+        mobileAnalysisRangeLongPress = ScheduleMobileAnalysisRangeLongPress(CompleteMobileAnalysisRangeLongPress);
+    }
+
+    private void CancelMobileAnalysisRangeLongPress()
+    {
+        mobileAnalysisRangeLongPress?.Dispose();
+        mobileAnalysisRangeLongPress = null;
+    }
+
+    private void CompleteMobileAnalysisRangeLongPress()
+    {
+        CancelMobileAnalysisRangeLongPress();
+        if (GraphWorkspace is null ||
+            TimelineDurationSeconds is not { } duration ||
+            duration <= 0 ||
+            !IsPlotReady)
+        {
+            return;
+        }
+
+        GraphWorkspace.SetAnalysisRangeBoundary(mobileAnalysisRangeLongPressSeconds);
+        suppressGraphClickClear = true;
+        isGraphClickCandidate = false;
+        RefreshPlot();
     }
 
     private void SetPreviewRange(double? startSeconds, double? endSeconds)
@@ -325,7 +401,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool HasExceededClickMovement(PointerEventArgs args)
     {
         var point = args.GetPosition(PlotControl);
-        var delta = point - graphClickStartPoint;
+        var startPoint = mobileAnalysisRangeLongPress is not null
+            ? mobileAnalysisRangeLongPressStartPoint
+            : graphClickStartPoint;
+        var delta = point - startPoint;
         return Math.Abs(delta.X) > ClickMovementThresholdPixels ||
                Math.Abs(delta.Y) > ClickMovementThresholdPixels;
     }
@@ -351,6 +430,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         RefreshPlot();
+    }
+
+    private sealed class DispatcherTimerSubscription(DispatcherTimer timer) : IDisposable
+    {
+        public void Dispose() => timer.Stop();
     }
 
     private bool CanLoadNow()

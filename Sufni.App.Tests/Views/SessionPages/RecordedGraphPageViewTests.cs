@@ -275,7 +275,7 @@ public class RecordedGraphPageViewTests
             AnalysisRange = null;
         }
 
-        public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds) { }
+        public void SetAnalysisRangeBoundary(double boundarySeconds) { }
     }
 
     private sealed class SessionMediaWorkspaceStub : ISessionMediaWorkspace

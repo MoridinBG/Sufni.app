@@ -12,6 +12,7 @@ namespace Sufni.App.Tests.Services.LiveStreaming;
 
 public class LiveGraphPipelineTests
 {
+    private const int MaxVelocityContextMilliseconds = 127;
     private static readonly TimeSpan FlushInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(2);
 
@@ -89,9 +90,10 @@ public class LiveGraphPipelineTests
         Assert.Equal(sampleCount, batch.RearVelocity.Count);
         Assert.Single(batch.ImuTimes[LiveImuLocation.Frame]);
         Assert.Equal(9.81, batch.ImuMagnitudes[LiveImuLocation.Frame][0]);
-        Assert.All(batch.FrontVelocity.Take(sampleCount - 127), value => Assert.True(double.IsNaN(value)));
-        Assert.All(batch.FrontVelocity.Skip(sampleCount - 127), value => Assert.False(double.IsNaN(value)));
-        Assert.All(batch.RearVelocity.Skip(sampleCount - 127), value => Assert.False(double.IsNaN(value)));
+        var expectedVelocitySamples = times.Count(time => times[^1] - time < MaxVelocityContextMilliseconds / 1000.0);
+        Assert.All(batch.FrontVelocity.Take(sampleCount - expectedVelocitySamples), value => Assert.True(double.IsNaN(value)));
+        Assert.All(batch.FrontVelocity.Skip(sampleCount - expectedVelocitySamples), value => Assert.False(double.IsNaN(value)));
+        Assert.All(batch.RearVelocity.Skip(sampleCount - expectedVelocitySamples), value => Assert.False(double.IsNaN(value)));
     }
 
     [Fact]
@@ -224,12 +226,12 @@ public class LiveGraphPipelineTests
             .WaitAsync(Timeout);
     }
 
-    private static double[] BuildRampTimes(int count, int startOffset = 0)
+    private static double[] BuildRampTimes(int count, int startOffset = 0, double samplePeriodSeconds = 0.001)
     {
         var times = new double[count];
         for (var i = 0; i < count; i++)
         {
-            times[i] = (startOffset + i) * 0.01;
+            times[i] = (startOffset + i) * samplePeriodSeconds;
         }
 
         return times;

@@ -9,8 +9,9 @@ namespace Sufni.App.Plots;
 public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 {
     public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
+    public BalanceSpeedMode SpeedMode { get; set; } = BalanceSpeedMode.Both;
 
-    private void AddStatistics(BalanceData balance)
+    private void AddStatistics(BalanceData balance, double axisMaximum)
     {
         var maxVelocity = Math.Max(
             balance.FrontVelocity.Max(),
@@ -19,9 +20,10 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
         var msd = balance.MeanSignedDeviation / maxVelocity * 100.0;
         var slopeString = $"Slope Δ: {balance.SignedSlopeDeltaPercent:+0.0;-#.0} %";
         var msdString = $"MSD: {msd:+0.0;-#.0} %";
+        var labelY = axisMaximum * 0.10;
 
-        AddLabel(slopeString, 100, 0, -10, -23, Alignment.LowerRight);
-        AddLabel(msdString, 100, 0, -10, -5, Alignment.LowerRight);
+        AddLabel(slopeString, 100, labelY, -10, -23, Alignment.LowerRight);
+        AddLabel(msdString, 100, labelY, -10, -5, Alignment.LowerRight);
     }
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
@@ -31,8 +33,9 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
 
         base.LoadTelemetryData(telemetryData);
 
-        var modeLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+        var modeLabel = $"{DisplacementModeLabel()} / {SpeedModeLabel()}";
         var xAxisLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "Stroke travel (%)" : "Zenith (%)";
+        var xReadoutLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "Stroke travel" : "Zenith";
         Plot.Axes.Title.Label.Text = type == BalanceType.Compression
               ? $"Compression balance - {modeLabel}"
               : $"Rebound balance - {modeLabel}";
@@ -56,6 +59,7 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
         front.MarkerStyle.Size = 5;
 
         var frontTrend = Plot.Add.Scatter(balance.FrontTravel, balance.FrontTrend);
+        frontTrend.LegendText = "Front";
         frontTrend.MarkerStyle.IsVisible = false;
         frontTrend.LineStyle.Color = FrontColor;
         frontTrend.LineStyle.Width = 2;
@@ -67,14 +71,35 @@ public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
         rear.MarkerStyle.Size = 5;
 
         var rearTrend = Plot.Add.Scatter(balance.RearTravel, balance.RearTrend);
+        rearTrend.LegendText = "Rear";
         rearTrend.MarkerStyle.IsVisible = false;
         rearTrend.LineStyle.Color = RearColor;
         rearTrend.LineStyle.Width = 2;
 
-        AddStatistics(balance);
+        AddPointerReadoutTarget(BalanceTrendReadout.FromTrends(
+            balance.FrontTravel,
+            balance.FrontTrend,
+            balance.RearTravel,
+            balance.RearTrend,
+            xReadoutLabel));
+
+        ShowSourceLegend();
+        AddStatistics(balance, roundedMaxVelocity);
     }
 
-    private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode);
+    private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode, SpeedMode);
+
+    private string DisplacementModeLabel() => DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+
+    private string SpeedModeLabel()
+    {
+        return SpeedMode switch
+        {
+            BalanceSpeedMode.LowSpeed => "low speed",
+            BalanceSpeedMode.HighSpeed => "high speed",
+            _ => "all speeds",
+        };
+    }
 
     private static bool HasRenderableBalanceData(BalanceData balance) =>
         balance.FrontTravel.Count >= 2 && balance.RearTravel.Count >= 2;

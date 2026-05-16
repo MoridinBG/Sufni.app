@@ -78,7 +78,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IFilesService>(),
             Substitute.For<IBackgroundTaskRunner>());
 
-        coordinator.ImportGpxAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        coordinator.ImportGpxAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new GpxImportResult(0, 0)));
 
         return coordinator;
     }

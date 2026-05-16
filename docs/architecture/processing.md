@@ -8,7 +8,7 @@
 graph TD
     Raw["RawTelemetryData<br/>ushort[] front/rear"] --> Pre["MeasurementPreprocessor<br/>Circular unwrapping + spike elimination"]
     Pre --> Travel["Travel Calculation<br/>Sensor calibration → mm"]
-    Travel --> Velocity["Velocity Calculation<br/>Savitzky-Golay filter → mm/s"]
+    Travel --> Velocity["Velocity Calculation<br/>configurable Savitzky-Golay filter → mm/s"]
     Velocity --> Strokes["Stroke Detection<br/>Sign changes + top-out concatenation"]
     Strokes --> Cat["Stroke Categorization<br/>Compression / Rebound / Idling"]
     Cat --> Air["Airtime Detection<br/>Both suspensions at top-out"]
@@ -21,12 +21,12 @@ The pipeline produces histogram **bin definitions** and per-stroke digitized ind
 
 ### Measurement Preprocessing
 
-`MeasurementPreprocessor.Process(ushort[], MeasurementSensorType)` (`Sufni.Telemetry/MeasurementPreprocessor.cs`) is the first stage of the pipeline, called for each present suspension before travel conversion. The selected path is `Linear` or `Rotational`, picked by `MeasurementPreprocessor.SensorTypeForWrapping(bool)` from `BikeData.FrontMeasurementWraps` / `BikeData.RearMeasurementWraps`. Those flags are sourced from each sensor configuration's `MeasurementWraps` property — only the rotational sensor types currently set them.
+`MeasurementPreprocessor.Process(ushort[], MeasurementSensorType, sampleRate)` (`Sufni.Telemetry/MeasurementPreprocessor.cs`) is the first stage of the pipeline, called for each present suspension before travel conversion. The selected path is `Linear` or `Rotational`, picked by `MeasurementPreprocessor.SensorTypeForWrapping(bool)` from `BikeData.FrontMeasurementWraps` / `BikeData.RearMeasurementWraps`. Those flags are sourced from each sensor configuration's `MeasurementWraps` property — only the rotational sensor types currently set them.
 
 - **Linear path** (`MeasurementWraps == false`, the default): convert each `ushort` straight to `int`, run `SpikeElimination.EliminateSpikesAsInt`, clamp every result back into `[0, 4095]` (the 12-bit ADC range).
 - **Rotational path** (`MeasurementWraps == true`, rotary sensors): unwrap the 12-bit (4096-step) circular ADC into a continuous `int` signal — each step's delta to the previous sample is examined, and a `±4096` offset is accumulated whenever the delta crosses the half-range (`±2048`) so wrap-arounds become continuous deltas. Run `SpikeElimination.EliminateSpikesAsInt` on the unwrapped integer signal, then re-wrap each result modulo 4096 back to `ushort`.
 
-`SpikeElimination.EliminateSpikesAsInt` (`Sufni.Telemetry/SpikeElimination.cs`) walks the signal three times: it first detects sudden changes (windows up to 5 samples where the cumulative change is >= 100 and every per-step change is >= 30) and flattens each window to its endpoint; it then corrects an early-recording baseline jump if the first detected change starts within the first 100 samples; finally it tracks negative excursions that never recover and shifts the trailing tail back to the pre-excursion baseline. The number of detected sudden changes is returned alongside the cleaned samples and surfaced as the per-suspension `AnomalyRate` (anomalies per second) on the `Suspension` record.
+`SpikeElimination.EliminateSpikesAsInt` (`Sufni.Telemetry/SpikeElimination.cs`) walks the signal three times: it first detects sudden changes using fixed 5 ms search/lookahead windows, a fixed 100 ms early-jump gate, a per-step threshold derived from `MinimumAdjacentStepChangeRateCountsPerSecond=30_000`, and an unscaled total-change threshold of `MinimumCandidateTotalChangeCounts=100`; it skips candidates that keep moving in the same direction and flattens the remaining windows to their endpoints; it then corrects an early-recording baseline jump if the first detected change starts inside the 100 ms gate; finally it tracks negative excursions that never recover and shifts the trailing tail back to the pre-excursion baseline. The number of detected sudden changes is returned alongside the cleaned samples and surfaced as the per-suspension `AnomalyRate` (anomalies per second) on the `Suspension` record.
 
 The preprocessor return record `MeasurementPreprocessorResult(Samples, AnomalyCount)` feeds directly into `SuspensionTraceProcessor.Process` inside `TelemetryData.FromRecording(...)`.
 
@@ -36,7 +36,7 @@ Each preprocessed sample is then passed through the sensor's `MeasurementToTrave
 
 ### Velocity Calculation
 
-A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal. Parameters: window size up to 51 points (clamped down to fit short recordings, decremented if even, with a hard minimum of 5 — recordings with fewer than 5 samples skip processing and both suspensions are flagged not-present), polynomial order 3, 1st derivative. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries by precomputing one weight row per evaluation offset within the fixed-size window: edge samples reuse the same first/last `windowSize` data points but apply weights centred at the appropriate off-centre row instead of shrinking the window. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
+A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal unless the session's processing preferences disable it. The recorded-processing preference is stored as `VelocityFilterWindowMilliseconds` in `TelemetryProcessingOptions`: default 50 ms, valid range 0-1000 ms, with 0 meaning "no velocity filter" and falling back to unfiltered slope velocity. For nonzero windows the target sample count is derived from `sampleRate * windowSeconds`, rounded to an odd value, clamped to the recording length, then raised to the hard minimum of 5 when needed; recordings with fewer than 5 samples skip processing and both suspensions are flagged not-present. The polynomial order is 3 and the derivative order is 1. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries by precomputing one weight row per evaluation offset within the fixed-size window: edge samples reuse the same first/last `windowSize` data points but apply weights centred at the appropriate off-centre row instead of shrinking the window. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
 
 ### Stroke Detection
 
@@ -90,7 +90,8 @@ TelemetryData
 ├── Airtimes[] (Start, End in seconds)
 ├── ImuData: RawImuData? (V4 only)
 ├── GpsData: GpsRecord[]? (V4 only)
-└── Markers: MarkerData[] (V4 only)
+├── Markers: MarkerData[] (V4 only)
+└── TemperatureAverages: TemperatureAverage[] (V4 temperature TLVs, averaged by location)
 ```
 
 The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a derived BLOB in the `session.data` column. The original recording source is persisted separately so the BLOB can be regenerated when processing inputs change.
@@ -104,9 +105,9 @@ Recorded sessions have two durable data layers:
 
 `RecordedSessionReprocessor` is the single recorded-session derivation path. For imported SST sources it decompresses the stored source bytes, parses them with `RawTelemetryData.FromByteArray`, rebuilds `Metadata` from the raw file, and calls `TelemetryData.FromRecording(...)`. For live-capture sources it deserializes the saved live payload, rebuilds `LiveTelemetryCapture`, and calls `TelemetryData.FromLiveCapture(...)`. In both cases it also produces a generated full `Track` when GPS data is present.
 
-`ProcessingFingerprintService` records the inputs used for the derived BLOB: fingerprint schema version, `TelemetryProcessingVersion.Current`, setup id, bike id, a deterministic dependency hash, and the recorded-source hash. The dependency hash includes the setup's front/rear sensor configuration, the bike geometry needed for processing, rear suspension kind, linkage joints/links/shock definition, and leverage-ratio points. Fields that do not affect processing, such as display names or notes, are not part of the hash.
+`ProcessingFingerprintService` records the inputs used for the derived BLOB: fingerprint schema version, `TelemetryProcessingVersion.Current`, setup id, bike id, `GpsTrackPointProjection.ProjectionVersion`, a deterministic dependency hash, and the recorded-source hash. The dependency hash includes the setup's front/rear sensor configuration, the bike geometry needed for processing, rear suspension kind, linkage joints/links/shock definition, and leverage-ratio points. Fields that do not affect processing, such as display names or notes, are not part of the hash. Track-projection-version changes make GPS-derived generated tracks stale/recomputable even if the suspension processing inputs are unchanged.
 
-When the stored fingerprint is missing, uses an older processing version, references different processing inputs, or the processed BLOB is absent while the raw source exists, the recorded session is recomputable. Missing setup/bike dependencies make it stale but not recomputable. A missing raw source is displayed separately as "No Raw"; the app can still load existing processed data, but it cannot regenerate it until the source is restored.
+When the stored fingerprint is missing, uses an older processing version, references different processing inputs, or the processed BLOB is absent while the raw source exists, the recorded session is recomputable. Missing setup/bike dependencies make it stale but not recomputable. A missing raw source is displayed separately as "No Raw"; the app can still load existing processed data, but it cannot regenerate it until the source is restored. If the source is missing and the persisted processed state is known to be stale, `SessionStaleness.MissingRawSource(ProcessedStateStale: true)` keeps the stale flag while still reporting the session as not recomputable.
 
 ---
 

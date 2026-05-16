@@ -23,10 +23,30 @@ public class TrackCoordinatorTests
         var file = Substitute.For<IStorageFile>();
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(ValidGpx()))));
         filesService.OpenGpxFilesAsync().Returns([file]);
+        database.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
+            .Returns(Task.FromResult<Guid?>(null));
 
-        await CreateCoordinator().ImportGpxAsync();
+        var result = await CreateCoordinator().ImportGpxAsync();
 
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(0, result.AlreadyImportedCount);
         await database.Received(1).PutAsync(Arg.Is<Track>(track => track.Points.Count == 2));
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_SkipsFile_WhenTrackTimeRangeAlreadyExists()
+    {
+        var file = Substitute.For<IStorageFile>();
+        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(ValidGpx()))));
+        filesService.OpenGpxFilesAsync().Returns([file]);
+        database.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
+            .Returns(Task.FromResult<Guid?>(Guid.NewGuid()));
+
+        var result = await CreateCoordinator().ImportGpxAsync();
+
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Equal(1, result.AlreadyImportedCount);
+        await database.DidNotReceive().PutAsync(Arg.Any<Track>());
     }
 
     [Fact]

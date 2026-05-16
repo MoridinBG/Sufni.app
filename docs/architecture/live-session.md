@@ -33,7 +33,7 @@ graph LR
     Service --> AppendBufs["AppendOnlyChunkBuffer<br/>front / rear / IMU / GPS"]
     Service --> GraphPipe["LiveGraphPipeline<br/>(velocity SG filter)"]
     Service --> StatsLoop["Statistics loop<br/>(TelemetryData.FromLiveCapture)"]
-    GraphPipe --> SlidingBuf["SlidingWindowBuffer<br/>(velocity window)"]
+    GraphPipe --> RecentTravel["Recent travel lists<br/>(127 ms velocity context)"]
     Service -->|"Snapshots"| DetailVM["LiveSessionDetailViewModel"]
     GraphPipe -->|"GraphBatches"| DetailVM
     DetailVM --> Coord["SessionCoordinator<br/>SaveLiveCaptureAsync"]
@@ -60,8 +60,8 @@ Shared stream emits LiveProtocolFrame
 Display loop (Task.Run)
   -> Channel<LiveDisplayUpdate> reader
     -> ILiveGraphPipeline.AppendTravelSamples / AppendImuSamples
-      -> SlidingWindowBuffer<double> recent travel + pending batch lists
-        -> PeriodicTimer flush -> Savitzky-Golay velocity over recent window
+      -> recent travel lists + pending batch lists
+        -> PeriodicTimer flush -> Savitzky-Golay velocity over recent 127 ms window
           -> LiveGraphBatch (Travel/Velocity/IMU) -> Subject<LiveGraphBatch>
             -> LiveSessionDetailViewModel.QueueGraphBatchRefresh
               -> LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence
@@ -144,11 +144,9 @@ Internally the buffer keeps a `List<T[]>` of sealed full chunks plus one growing
 
 This shape is what makes the recording side cheap: each `LiveTravelBatchFrame` appends in O(batch) without resizing a long-lived array, statistics recomputes can grab a snapshot in O(chunks) under the gate, and `BuildCapture` flattens to `T[]` once per save.
 
-### `SlidingWindowBuffer`
+### Live Velocity Window
 
-`SlidingWindowBuffer<T>` (`SlidingWindowBuffer.cs`) is a fixed-capacity circular buffer that implements `IReadOnlyList<T>`. When full, `Append` silently overwrites the oldest element; indexing is logical (oldest = `[0]`, newest = `[count-1]`).
-
-It is used only inside `LiveGraphPipeline` to hold the most recent travel times and front/rear travel values fed to the Savitzky-Golay velocity filter (`MaxVelocityWindowSamples = 127`, matching the upper bound on the SG window size). Each travel append updates the pending graph-batch lists and the sliding window in lockstep, and the periodic flush snapshots the window to drive velocity computation over a fixed local context. Capture and save never read this buffer — `AppendOnlyChunkBuffer` is the source of truth for the saved sample stream.
+`LiveGraphPipeline` keeps recent travel times plus front/rear travel values only for live graph velocity display. The retained context is duration-based: samples older than 127 ms from the newest travel sample are trimmed while keeping at least the five samples required by the Savitzky-Golay implementation. Capture and save never read this window — `AppendOnlyChunkBuffer` is the source of truth for the saved sample stream.
 
 ## Live Graph Pipeline
 
@@ -156,13 +154,13 @@ It is used only inside `LiveGraphPipeline` to hold the most recent travel times 
 
 **Purpose.** The DataStreamer-backed live plots want batches of samples at a steady cadence, not a callback per inbound frame. The pipeline collects appended samples into a `PendingGraphBatch` and flushes once per timer tick, which gives the UI a predictable refresh rate and lets the velocity filter run over a stable window snapshot.
 
-**Threading.** The pipeline owns one `Subject<LiveGraphBatch>`, one shared lock, and one flush loop task started by `Start()`. `AppendTravelSamples` and `AppendImuSamples` are called from the display-loop task off the UI thread; they take the lock just long enough to push into the pending lists and update the travel sliding window. `FlushPendingGraphBatch` (also off the UI thread, run from the periodic-timer loop) swaps the pending batch out under the lock, snapshots the sliding window arrays, then computes velocity and emits the batch outside the lock. A flush failure copies the unflushed work back into the pending batch under the lock and re-raises. `Reset` clears state, bumps the revision, and emits a single `LiveGraphBatch.Empty` so subscribers can drop their plot data; `DisposeAsync` cancels the flush loop and completes the subject.
+**Threading.** The pipeline owns one `Subject<LiveGraphBatch>`, one shared lock, and one flush loop task started by `Start()`. `AppendTravelSamples` and `AppendImuSamples` are called from the display-loop task off the UI thread; they take the lock just long enough to push into the pending lists and update the recent travel window. `FlushPendingGraphBatch` (also off the UI thread, run from the periodic-timer loop) swaps the pending batch out under the lock, snapshots the recent travel arrays, then computes velocity and emits the batch outside the lock. A flush failure copies the unflushed work back into the pending batch under the lock and re-raises. `Reset` clears state, bumps the revision, and emits a single `LiveGraphBatch.Empty` so subscribers can drop their plot data; `DisposeAsync` cancels the flush loop and completes the subject.
 
 **Batch shape.** `LiveGraphBatch` (defined in `LiveSessionPresentation.cs`) carries:
 
 - `Revision` — monotonically increasing across appends and resets, so consumers can filter stale batches.
 - `TravelTimes`, `FrontTravel`, `RearTravel` — exactly the samples appended since the previous flush.
-- `VelocityTimes`, `FrontVelocity`, `RearVelocity` — velocity samples aligned with the same travel times for that batch only. Velocity is computed by running a Savitzky-Golay filter over the sliding-window snapshot (window <= 51, polynomial 3, 1st derivative; falls back to NaN if fewer than 5 samples are available or the snapshot contains a NaN) and slicing off the last `batchCount` outputs. The cached `SavitzkyGolay` instance is keyed on the chosen window size and lives entirely on the flush-loop thread.
+- `VelocityTimes`, `FrontVelocity`, `RearVelocity` — velocity samples aligned with the same travel times for that batch only. Velocity is computed by running a Savitzky-Golay filter over the recent travel snapshot. The filter window targets 51 ms, is converted to an odd sample count from the observed sample period, and falls back to NaN if fewer than five samples are available or the snapshot contains a NaN. The cached `SavitzkyGolay` instance is keyed on the chosen window size and lives entirely on the flush-loop thread.
 - `ImuTimes`, `ImuMagnitudes` — per-`LiveImuLocation` series of times and accelerometer magnitudes, again only for samples appended since the previous flush.
 
 `LiveSessionService` exposes `graphPipeline.GraphBatches` directly through its `GraphBatches` property, so `LiveSessionDetailViewModel` subscribes to the pipeline output without going through the service's snapshot subject.
@@ -197,7 +195,7 @@ The view model wires together five things and owns no transport state:
 
 1. **Subscribes to `ILiveSessionService.Snapshots`** through `QueuePresentationRefresh`, which stashes the latest snapshot under a gate and lets a `DispatcherTimer` (`SessionGraphSettings.LiveUiRefreshIntervalMs`) project it into bindings via `ApplyPresentation`. This applies the session header to graph and media workspaces, recomputes statistics surface state, drives the timestamp, refreshes the control state, and queues the spring/damper/balance bake.
 2. **Subscribes to `ILiveSessionService.GraphBatches`** through `QueueGraphBatchRefresh`, which collapses presence flags onto the UI thread and calls `LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence` so each row's `SurfacePresentationState` reflects whether any travel or IMU data has arrived. Plot availability is recomputed from the latest accepted `LiveSessionHeader` (travel from `AcceptedTravelHz`, IMU from `AcceptedImuHz` plus active locations) and forwarded into `PreferencesPage.ApplyPlotAvailability`.
-3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damper/balance pages. Travel/Velocity/IMU/Speed/Elevation plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
+3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damper pages. `BalancePage` is constructed by the view model but inserted into `Pages` only while balance presentation is available or the layout needs to reserve the page. Travel/Velocity/IMU/Speed/Elevation plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
 4. **Bakes statistics** — when a fresh `TelemetryData` arrives in a snapshot, `MaybeQueueBake` runs `ISessionPresentationService.BuildCachePresentation(...)` on the background runner and posts the resulting SVGs back onto the spring/damper/balance pages, mirroring the recorded-session bake. Older bakes are cancelled on each new arrival.
 5. **Drives the capture lifecycle** — `Loaded` calls `liveSessionService.EnsureAttachedAsync()`, `Unloaded` cancels the bake, `CloseImplementation` disposes the service. `ResetImplementation` calls `ResetCaptureAsync` and clears the statistics pages. `SaveImplementation` is the recording-side save entry point (see [Save Flow](#save-flow)).
 
@@ -207,7 +205,7 @@ The view model never holds the configuration lock itself — that lives on the s
 
 `GpsPreviewState` (`Sufni.App/Sufni.App/Services/LiveStreaming/GpsPreviewState.cs`) is a small record interpreting the wire-level `GpsRecord.FixMode` byte. `FromRecord(record)` returns `NoFix` for mode 0 or null, a 2D-fix state for mode 1 (has fix but not ready for full use), a 3D-fix state for mode 2 (has fix and ready), and an "Other" state with the raw fix-mode number for anything else.
 
-It is consumed by both the diagnostics tab (where it drives the GPS section's status text in `LiveDaqDetailViewModel`) and the live-session media workspace (where the same projection feeds the map preview during recording — see [Maps & Tracks](maps-and-tracks.md#gps-preview-state)). The capture-side GPS handling that turns `GpsRecord` records into projected `TrackPoint[]` for the live map and the saved track lives in `LiveSessionService.ApplyGpsBatchLocked` (shared `GpsTrackPointProjection.TryProject` / `ProjectAll`); `GpsPreviewState` is purely the per-record fix-mode interpretation used to render status text.
+It is consumed by the diagnostics tab, where it drives the GPS section's status text in `LiveDaqDetailViewModel`. The live-session media workspace does not consume `GpsPreviewState`; it gates map availability from the accepted session header and then renders projected `TrackPoint[]` values published by the live session service. The capture-side GPS handling that turns `GpsRecord` records into projected `TrackPoint[]` for the live map and the saved track lives in `LiveSessionService.ApplyGpsBatchLocked` (shared `GpsTrackPointProjection.TryProject` / `ProjectAll`).
 
 ## Save Flow
 

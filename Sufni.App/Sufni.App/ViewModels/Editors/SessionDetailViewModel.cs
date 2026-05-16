@@ -71,6 +71,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool suppressAnalysisRecompute;
     private bool observedInitialDomain;
     private bool recomputePromptRunning;
+    private bool processingPreferenceRecomputeRunning;
     private string? promptedRecomputeSignature;
     private bool reportedNotRecomputableStale;
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
@@ -127,6 +128,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
+    [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
     [ObservableProperty] private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
     [ObservableProperty] private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
     [ObservableProperty]
@@ -148,6 +150,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
         new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
     ];
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
+    [
+        new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
+        new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
+        new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
+    ];
     public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
     [
         new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
@@ -163,7 +171,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public string SessionAnalysisRangeText => AnalysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
-    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)}";
+    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)} / {DisplayName(SelectedBalanceSpeedMode)}";
     public ObservableCollection<PageViewModelBase> Pages { get; }
     IReadOnlyList<TrackPoint>? IRecordedSessionGraphWorkspace.TrackPoints => TrackPoints;
 
@@ -207,6 +215,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     }
 
     partial void OnSelectedBalanceDisplacementModeChanged(BalanceDisplacementMode value)
+    {
+        OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeSessionAnalysis();
+        PersistRecordedStatisticsPreferencesIfEnabled();
+    }
+
+    partial void OnSelectedBalanceSpeedModeChanged(BalanceSpeedMode value)
     {
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeSessionAnalysis();
@@ -326,6 +341,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedTravelHistogramMode,
             SelectedVelocityAverageMode,
             SelectedBalanceDisplacementMode,
+            SelectedBalanceSpeedMode,
             DamperPercentages,
             SelectedSessionAnalysisTargetProfile));
     }
@@ -348,6 +364,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private static string DisplayName(BalanceDisplacementMode mode)
     {
         return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
+    }
+
+    private static string DisplayName(BalanceSpeedMode mode)
+    {
+        return mode switch
+        {
+            BalanceSpeedMode.LowSpeed => "Low speed",
+            BalanceSpeedMode.HighSpeed => "High speed",
+            _ => "Both",
+        };
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
@@ -1098,6 +1124,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
     }
@@ -1245,6 +1272,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         recordedPreferences = preferences;
         PlotPreferences = preferences.Plots;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
+        PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);
         RefreshRecordedGraphStates();
     }
@@ -1257,6 +1285,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedTravelHistogramMode = preferences.TravelHistogramMode;
             SelectedVelocityAverageMode = preferences.VelocityAverageMode;
             SelectedBalanceDisplacementMode = preferences.BalanceDisplacementMode;
+            SelectedBalanceSpeedMode = preferences.BalanceSpeedMode;
             SelectedSessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile;
         }
         finally
@@ -1285,6 +1314,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedTravelHistogramMode,
             SelectedVelocityAverageMode,
             SelectedBalanceDisplacementMode,
+            SelectedBalanceSpeedMode,
             SelectedSessionAnalysisTargetProfile);
     }
 
@@ -1293,6 +1323,73 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         var statistics = CreateStatisticsPreferences();
         recordedPreferences = recordedPreferences with { Statistics = statistics };
         PersistRecordedPreferenceChangeIfEnabled(current => current with { Statistics = statistics });
+    }
+
+    private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args)
+    {
+        _ = PersistRecordedProcessingPreferenceAndRecomputeAsync();
+    }
+
+    private async Task PersistRecordedProcessingPreferenceAndRecomputeAsync()
+    {
+        if (!recordedPreferencePersistenceEnabled || !viewLoaded)
+        {
+            return;
+        }
+
+        if (processingPreferenceRecomputeRunning)
+        {
+            PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+            return;
+        }
+
+        var processing = PreferencesPage.CreateProcessingPreferences();
+        if (processing == recordedPreferences.Processing)
+        {
+            return;
+        }
+
+        processingPreferenceRecomputeRunning = true;
+        try
+        {
+            if (IsDirty)
+            {
+                var confirmed = await dialogService.ShowConfirmationAsync(
+                    "Recompute session?",
+                    "Changing the velocity filter recomputes this session and will discard unsaved changes.");
+                if (!confirmed)
+                {
+                    PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+                    return;
+                }
+
+                if (sessionStore.Get(Id) is { } current)
+                {
+                    await ApplyPersistedSnapshotAsync(current);
+                }
+            }
+
+            var previousProcessing = recordedPreferences.Processing;
+            recordedPreferences = recordedPreferences with { Processing = processing };
+            try
+            {
+                await sessionPreferences.UpdateRecordedAsync(Id, current => current with { Processing = processing });
+            }
+            catch (Exception e)
+            {
+                recordedPreferences = recordedPreferences with { Processing = previousProcessing };
+                PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+                ErrorMessages.Add($"Session preferences could not be saved: {e.Message}");
+                return;
+            }
+
+            var result = await sessionCoordinator.RecomputeAsync(Id, BaselineUpdated);
+            await ApplyRecomputeResultAsync(result);
+        }
+        finally
+        {
+            processingPreferenceRecomputeRunning = false;
+        }
     }
 
     private void PersistRecordedPreferenceChangeIfEnabled(Func<SessionPreferences, SessionPreferences> update)
@@ -1467,26 +1564,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         AnalysisRange = null;
     }
 
-    public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+    public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
         if (TelemetryData is null ||
-            double.IsNaN(markerSeconds) ||
-            double.IsInfinity(markerSeconds))
+            double.IsNaN(boundarySeconds) ||
+            double.IsInfinity(boundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
         }
 
-        markerSeconds = Math.Clamp(markerSeconds, 0, TelemetryData.Metadata.Duration);
+        boundarySeconds = Math.Clamp(boundarySeconds, 0, TelemetryData.Metadata.Duration);
         if (AnalysisRange is { } range)
         {
-            if (Math.Abs(markerSeconds - range.StartSeconds) <= Math.Abs(markerSeconds - range.EndSeconds))
+            if (Math.Abs(boundarySeconds - range.StartSeconds) <= Math.Abs(boundarySeconds - range.EndSeconds))
             {
-                SetAnalysisRange(markerSeconds, range.EndSeconds);
+                SetAnalysisRange(boundarySeconds, range.EndSeconds);
             }
             else
             {
-                SetAnalysisRange(range.StartSeconds, markerSeconds);
+                SetAnalysisRange(range.StartSeconds, boundarySeconds);
             }
 
             return;
@@ -1494,11 +1591,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
         {
-            pendingAnalysisRangeBoundary = markerSeconds;
+            pendingAnalysisRangeBoundary = boundarySeconds;
             return;
         }
 
-        SetAnalysisRange(pendingBoundary, markerSeconds);
+        SetAnalysisRange(pendingBoundary, boundarySeconds);
+    }
+
+    public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+    {
+        SetAnalysisRangeBoundary(markerSeconds);
     }
 
     [RelayCommand]

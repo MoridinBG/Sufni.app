@@ -79,6 +79,7 @@ Strokes.cs
 SuspensionTraceProcessor.cs
 TelemetryData.cs
 TelemetryModels.cs
+TelemetryProcessingOptions.cs
 TelemetryProcessingVersion.cs
 TelemetryStatistics.Balance.cs
 TelemetryStatistics.cs

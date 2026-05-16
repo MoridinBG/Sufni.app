@@ -317,8 +317,8 @@ public class RecordedSessionGraphDesktopViewTests
 
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public int ClearAnalysisRangeCallCount { get; private set; }
-        public int SetAnalysisRangeBoundaryFromMarkerCallCount { get; private set; }
-        public double? LastAnalysisRangeBoundaryFromMarker { get; private set; }
+        public int SetAnalysisRangeBoundaryCallCount { get; private set; }
+        public double? LastAnalysisRangeBoundary { get; private set; }
         public TelemetryTimeRange? AnalysisRange
         {
             get => analysisRange;
@@ -366,10 +366,10 @@ public class RecordedSessionGraphDesktopViewTests
             AnalysisRange = null;
         }
 
-        public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
+        public void SetAnalysisRangeBoundary(double boundarySeconds)
         {
-            SetAnalysisRangeBoundaryFromMarkerCallCount++;
-            LastAnalysisRangeBoundaryFromMarker = markerSeconds;
+            SetAnalysisRangeBoundaryCallCount++;
+            LastAnalysisRangeBoundary = boundarySeconds;
         }
 
         private static SurfacePresentationState CreateTravelState(TelemetryData? telemetry)

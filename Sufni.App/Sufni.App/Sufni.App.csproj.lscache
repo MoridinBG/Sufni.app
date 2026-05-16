@@ -267,7 +267,6 @@ Services/
   LiveSessionControlState.cs
   LiveSessionPresentation.cs
   LiveSessionService.cs
-  SlidingWindowBuffer.cs
  LoggingBootstrapper.cs
  Management/
   DaqConfigDocument.cs
@@ -444,6 +443,8 @@ Views/
   PullableMenuScrollViewer.axaml.cs
   SearchBar.axaml.cs
   SearchBarWithDateFilter.axaml.cs
+  SessionAnalysisStepView.axaml.cs
+  SessionAnalysisVibrationPanel.axaml.cs
   SidePanel.axaml.cs
   SurfacePlaceholderCard.axaml.cs
   SurfaceStateToGridLengthConverter.cs
@@ -826,6 +827,8 @@ Views/
   PullableMenuScrollViewer.axaml
   SearchBar.axaml
   SearchBarWithDateFilter.axaml
+  SessionAnalysisStepView.axaml
+  SessionAnalysisVibrationPanel.axaml
   SidePanel.axaml
   SurfacePlaceholderCard.axaml
   SwipeToDeleteButton.axaml

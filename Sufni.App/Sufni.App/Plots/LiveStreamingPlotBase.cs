@@ -9,8 +9,8 @@ namespace Sufni.App.Plots;
 public abstract class LiveStreamingPlotBase : TelemetryPlot
 {
     private readonly string title;
+    private readonly int visibleWindowDurationMilliseconds;
     private double latestTimeSeconds;
-    private double samplePeriodSeconds = 1;
     private bool hasTiming;
     private double configuredMinimumY;
     private double configuredMaximumY;
@@ -19,12 +19,14 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         Plot plot,
         string title,
         int capacity,
+        int visibleWindowDurationMilliseconds,
         double minimumY,
         double maximumY,
         bool hideRightAxis)
         : base(plot)
     {
         this.title = title;
+        this.visibleWindowDurationMilliseconds = visibleWindowDurationMilliseconds;
         Capacity = capacity;
         HideRightAxis = hideRightAxis;
         CursorLine = AddTimeSeriesCursorLine(isVisible: false);
@@ -58,13 +60,14 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
 
-    protected DataStreamer CreateStreamer(Color color)
+    protected DataStreamer CreateStreamer(Color color, string legendText)
     {
         var streamer = Plot.Add.DataStreamer(Capacity);
         streamer.ViewScrollLeft();
         streamer.ManageAxisLimits = false;
         streamer.Color = color;
         streamer.LineWidth = 2;
+        streamer.LegendText = legendText;
         return streamer;
     }
 
@@ -100,14 +103,6 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         hasTiming = true;
         latestTimeSeconds = Math.Max(latestTimeSeconds, times[^1]);
 
-        if (times.Count > 1)
-        {
-            var inferredPeriod = (times[^1] - times[0]) / (times.Count - 1);
-            if (double.IsFinite(inferredPeriod) && inferredPeriod > 0)
-            {
-                samplePeriodSeconds = inferredPeriod;
-            }
-        }
     }
 
     public double? CoordinateToNormalizedTime(double coordinate)
@@ -170,7 +165,6 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         ClearStreamers();
         hasTiming = false;
         latestTimeSeconds = 0;
-        samplePeriodSeconds = 1;
         CursorLine.Position = double.NaN;
         CursorLine.IsVisible = false;
         Plot.Axes.SetLimitsX(0, Capacity);
@@ -209,6 +203,6 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
     private double VisibleWindowStartSeconds => Math.Max(0, latestTimeSeconds - VisibleWindowDurationSeconds);
 
     private double VisibleWindowDurationSeconds => hasTiming
-        ? Math.Min(latestTimeSeconds, samplePeriodSeconds * Capacity)
+        ? Math.Min(latestTimeSeconds, visibleWindowDurationMilliseconds / 1000.0)
         : 0;
 }

@@ -126,17 +126,20 @@ public class SessionDetailViewModelTests
 
         Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.SelectedTravelHistogramMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, editor.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.Both, editor.SelectedBalanceSpeedMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
         Assert.Equal([TravelHistogramMode.ActiveSuspension, TravelHistogramMode.DynamicSag], editor.TravelHistogramModeOptions.Select(option => option.Value));
         Assert.Equal([BalanceDisplacementMode.Zenith, BalanceDisplacementMode.Travel], editor.BalanceDisplacementModeOptions.Select(option => option.Value));
+        Assert.Equal([BalanceSpeedMode.Both, BalanceSpeedMode.LowSpeed, BalanceSpeedMode.HighSpeed], editor.BalanceSpeedModeOptions.Select(option => option.Value));
         Assert.Equal([VelocityAverageMode.SampleAveraged, VelocityAverageMode.StrokePeakAveraged], editor.VelocityAverageModeOptions.Select(option => option.Value));
         Assert.Equal([SessionAnalysisTargetProfile.Weekend, SessionAnalysisTargetProfile.Trail, SessionAnalysisTargetProfile.Enduro, SessionAnalysisTargetProfile.DH], editor.SessionAnalysisTargetProfileOptions.Select(option => option.Value));
         Assert.All(editor.TravelHistogramModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.BalanceDisplacementModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
+        Assert.All(editor.BalanceSpeedModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.VelocityAverageModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
         Assert.All(editor.SessionAnalysisTargetProfileOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith", editor.SessionAnalysisModesText);
+        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both", editor.SessionAnalysisModesText);
     }
 
     [AvaloniaFact]
@@ -155,7 +158,7 @@ public class SessionDetailViewModelTests
             editor.SetAnalysisRange(0.02, 0.16);
 
             Assert.Equal("Selected range 0.0-0.2s", editor.SessionAnalysisRangeText);
-            Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel", editor.SessionAnalysisModesText);
+            Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel / Both", editor.SessionAnalysisModesText);
         }
         finally
         {
@@ -460,6 +463,39 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task ProcessingPreferenceCommit_PersistsPreferenceAndRecomputesSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
+        var recomputedSnapshot = snapshot with { Updated = 7 };
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+            .Returns(new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+        sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+
+        editor.PreferencesPage.VelocityFilterWindowMilliseconds = 250;
+        editor.PreferencesPage.CommitProcessingPreferenceChange();
+
+        await WaitForAsync(() => editor.BaselineUpdated == recomputedSnapshot.Updated);
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(250, update!(SessionPreferences.Default).Processing.VelocityFilterWindowMilliseconds);
+        await sessionCoordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_OnDesktop_AppliesPersistedStatisticsWithoutSavingDuringHydration()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -473,6 +509,7 @@ public class SessionDetailViewModelTests
                     TravelHistogramMode.DynamicSag,
                     VelocityAverageMode.StrokePeakAveraged,
                     BalanceDisplacementMode.Travel,
+                    BalanceSpeedMode.HighSpeed,
                     SessionAnalysisTargetProfile.DH)));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
@@ -668,6 +705,20 @@ public class SessionDetailViewModelTests
         Assert.Null(editor.AnalysisRange);
         Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void ClearAnalysisRange_ClearsPendingAnalysisRangeBoundary()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var editor = CreateEditor(snapshot);
+        editor.TelemetryData = CreateVibrationTelemetry();
+
+        editor.SetAnalysisRangeBoundary(0.02);
+        editor.ClearAnalysisRange();
+        editor.SetAnalysisRangeBoundary(0.16);
+
+        Assert.Null(editor.AnalysisRange);
     }
 
     [AvaloniaFact]

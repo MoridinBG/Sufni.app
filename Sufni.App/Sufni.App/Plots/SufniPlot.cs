@@ -70,7 +70,7 @@ public class SufniPlot
         Plot.Axes.Bottom.TickLabelStyle.OffsetY = 5;
     }
 
-    public void Clear()
+    public virtual void Clear()
     {
         Plot.Clear();
         Plot.Axes.Rules.Clear();

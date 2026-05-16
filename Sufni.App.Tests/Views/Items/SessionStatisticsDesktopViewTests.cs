@@ -212,6 +212,9 @@ public class SessionStatisticsDesktopViewTests
         Assert.True(balance!.IsVisible);
         Assert.False(vibration!.IsVisible);
         Assert.Equal(1, balance.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
+        Assert.All(
+            balance.GetVisualDescendants().OfType<SessionStatisticsPlotView>(),
+            plot => Assert.True(plot.IsHitTestVisible));
     }
 
     [AvaloniaFact]
@@ -275,12 +278,14 @@ public class SessionStatisticsDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(SessionAnalysisTargetProfile.Enduro, workspace.SelectedSessionAnalysisTargetProfile);
-        var findingsItemsControl = analysisView.FindControl<ItemsControl>("SessionAnalysisFindingsItemsControl");
-        Assert.NotNull(findingsItemsControl);
-        var finding = Assert.IsType<SessionAnalysisFinding>(Assert.Single(findingsItemsControl!.Items));
+        var stepsItemsControl = analysisView.FindControl<ItemsControl>("SessionAnalysisStepsItemsControl");
+        Assert.NotNull(stepsItemsControl);
+        var step = Assert.IsType<SessionAnalysisStep>(Assert.Single(stepsItemsControl!.Items));
+        Assert.Equal(SessionAnalysisStepId.Sag, step.Id);
+        var finding = Assert.Single(step.Findings);
         Assert.Equal("Travel use watch", finding.Title);
         Assert.Equal("The fork is not using much travel.", finding.Observation);
-        Assert.Contains(finding.Evidence, evidence => evidence.Label == "Max travel");
+        Assert.Contains(step.Metrics, metric => metric.Label == "Max travel");
     }
 
     [AvaloniaFact]
@@ -298,14 +303,17 @@ public class SessionStatisticsDesktopViewTests
         var travelMode = mounted.View.FindControl<ComboBox>("TravelHistogramModeComboBox");
         var velocityAverageMode = mounted.View.FindControl<ComboBox>("VelocityAverageModeComboBox");
         var balanceMode = mounted.View.FindControl<ComboBox>("BalanceDisplacementModeComboBox");
+        var balanceSpeedMode = mounted.View.FindControl<ComboBox>("BalanceSpeedModeComboBox");
 
         Assert.NotNull(travelMode);
         Assert.NotNull(velocityAverageMode);
         Assert.NotNull(balanceMode);
+        Assert.NotNull(balanceSpeedMode);
 
         Assert.Equal(TravelHistogramMode.ActiveSuspension, travelMode!.SelectedValue);
         Assert.Equal(VelocityAverageMode.SampleAveraged, velocityAverageMode!.SelectedValue);
         Assert.Equal(BalanceDisplacementMode.Zenith, balanceMode!.SelectedValue);
+        Assert.Equal(BalanceSpeedMode.Both, balanceSpeedMode!.SelectedValue);
         Assert.Equal(
             "Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.",
             ToolTip.GetTip(travelMode));
@@ -315,18 +323,22 @@ public class SessionStatisticsDesktopViewTests
         Assert.Equal(
             "Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.",
             ToolTip.GetTip(balanceMode));
+        Assert.Equal(
+            "Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.",
+            ToolTip.GetTip(balanceSpeedMode));
         Assert.Equal(new Thickness(0, 0, 10, 8), travelMode.Margin);
         Assert.Equal(new Thickness(0, 0, 69, 8), velocityAverageMode.Margin);
-        Assert.Equal(new Thickness(0, 0, 10, 8), balanceMode.Margin);
 
         travelMode.SelectedValue = TravelHistogramMode.DynamicSag;
         velocityAverageMode.SelectedValue = VelocityAverageMode.StrokePeakAveraged;
         balanceMode.SelectedValue = BalanceDisplacementMode.Travel;
+        balanceSpeedMode.SelectedValue = BalanceSpeedMode.HighSpeed;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, workspace.SelectedVelocityAverageMode);
         Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.HighSpeed, workspace.SelectedBalanceSpeedMode);
     }
 
     private static async Task<MountedSessionStatisticsDesktopView> MountAsync(SessionStatisticsWorkspaceStub workspace)
@@ -357,6 +369,7 @@ public class SessionStatisticsDesktopViewTests
         public TelemetryTimeRange? AnalysisRange => null;
         public TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
         public BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
+        public BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;
         public VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
         public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; } = SessionAnalysisTargetProfile.Trail;
         public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
@@ -368,6 +381,12 @@ public class SessionStatisticsDesktopViewTests
         [
             new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
             new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+        ];
+        public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
+        [
+            new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
+            new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
+            new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
         ];
         public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
         [
@@ -382,7 +401,7 @@ public class SessionStatisticsDesktopViewTests
             new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
         ];
         public string SessionAnalysisRangeText => "Full session";
-        public string SessionAnalysisModesText => "Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith";
+        public string SessionAnalysisModesText => "Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both";
         public SurfacePresentationState FrontStatisticsState { get; } = hasFrontStatistics
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
@@ -410,6 +429,24 @@ public class SessionStatisticsDesktopViewTests
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
         public SessionAnalysisResult SessionAnalysis { get; } = new(
             SurfacePresentationState.Ready,
+            [new SessionAnalysisStep(
+                SessionAnalysisStepId.Sag,
+                "Sag & travel use",
+                SessionAnalysisSeverity.Watch,
+                true,
+                [new SessionAnalysisMetric("Max travel", "52.0", "%", "Fork", ">= 85 % on hard terrain")],
+                null,
+                [],
+                [new SessionAnalysisFinding(
+                    SessionAnalysisCategory.TravelUse,
+                    SessionAnalysisSeverity.Watch,
+                    SessionAnalysisConfidence.Medium,
+                    "Travel use watch",
+                    "The fork is not using much travel.",
+                    "Try a small pressure experiment and rerun the same section.",
+                    [new SessionAnalysisEvidence("Max travel", "52.0", "%", "Fork", "Active suspension travel stats")])])],
+            [],
+            null,
             [new SessionAnalysisFinding(
                 SessionAnalysisCategory.TravelUse,
                 SessionAnalysisSeverity.Watch,

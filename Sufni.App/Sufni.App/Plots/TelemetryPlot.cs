@@ -145,7 +145,7 @@ internal class FixedAutoScaler(double? minX = null, double? maxX = null, double?
     public bool InvertedY { get; set; }
 }
 
-public class TelemetryPlot(Plot plot) : SufniPlot(plot)
+public class TelemetryPlot : SufniPlot
 {
     public static readonly Color FrontColor = Color.FromHex("#3288bd");
     public static readonly Color RearColor = Color.FromHex("#66c2a5");
@@ -154,7 +154,14 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     private static readonly Color cursorTooltipTextColor = Color.FromHex("#F0F0F0");
     private static readonly Color cursorTooltipBorderColor = Color.FromHex("#5A5A5A");
     private const float MarkerLineWidth = 2.0f;
+    private readonly List<IPointerReadoutTarget> pointerReadoutTargets = [];
     private Tooltip? cursorTooltip;
+
+    public TelemetryPlot(Plot plot)
+        : base(plot)
+    {
+        HideSourceLegend();
+    }
 
     public int? MaximumDisplayHz { get; set; }
     public PlotSmoothingLevel SmoothingLevel { get; set; }
@@ -207,6 +214,22 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
 
         Plot.Axes.Left.TickGenerator = tickGenerator;
         Plot.Axes.Right.TickGenerator = tickGenerator;
+    }
+
+    protected void ShowSourceLegend()
+    {
+        Plot.ShowLegend(Alignment.LowerRight);
+        Plot.Legend.BackgroundColor = Color.FromHex("#1A1F23");
+        Plot.Legend.OutlineColor = Color.FromHex("#343C42");
+        Plot.Legend.ShadowColor = Colors.Transparent;
+        Plot.Legend.FontColor = Color.FromHex("#D0D0D0");
+        Plot.Legend.FontSize = 12;
+        Plot.Legend.Padding = new PixelPadding(8, 8, 8, 8);
+    }
+
+    protected void HideSourceLegend()
+    {
+        Plot.Legend.IsVisible = false;
     }
 
     protected void SetMirroredValueRange(double minimum, double maximum)
@@ -285,7 +308,12 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     public void SetCursorPositionWithReadout(double position)
     {
         SetCursorLinePosition(position);
-        ShowCursorReadout(position);
+        ShowCursorReadout(GetCursorReadout(position));
+    }
+
+    public void SetPointerPositionWithReadout(double x, double y)
+    {
+        ShowCursorReadout(GetPointerReadout(new Coordinates(x, y)));
     }
 
     public void HideCursorReadout()
@@ -299,6 +327,68 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     protected virtual void SetCursorLinePosition(double position) { }
 
     protected virtual CursorReadout? GetCursorReadout(double position) => null;
+
+    protected virtual CursorReadout? GetPointerReadout(Coordinates position)
+    {
+        if (pointerReadoutTargets.Count == 0)
+        {
+            return null;
+        }
+
+        IPointerReadoutTarget? nearest = null;
+        var nearestDistance = double.PositiveInfinity;
+        foreach (var readout in pointerReadoutTargets)
+        {
+            var distance = readout.GetDistanceSquared(position, Plot);
+            if (distance < nearestDistance)
+            {
+                nearest = readout;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest?.ToCursorReadout(position, Plot);
+    }
+
+    protected void AddBarReadout(
+        Bar bar,
+        string header,
+        params CursorReadoutLine[] lines)
+    {
+        pointerReadoutTargets.Add(StatisticsBarReadout.FromBar(bar, header, lines));
+    }
+
+    private protected void AddPointerReadoutTarget(IPointerReadoutTarget readoutTarget)
+    {
+        pointerReadoutTargets.Add(readoutTarget);
+    }
+
+    protected static string FormatReadoutRange(
+        string label,
+        IReadOnlyList<double> bins,
+        int index,
+        string unit,
+        string format = "0.#")
+    {
+        if (index + 1 >= bins.Count)
+        {
+            return $"{label}: {FormatReadoutValue(bins[index], unit, format)}";
+        }
+
+        return $"{label}: {FormatReadoutValue(bins[index], unit, format)}-" +
+               $"{FormatReadoutValue(bins[index + 1], unit, format)}";
+    }
+
+    protected static string FormatReadoutValue(
+        double value,
+        string unit,
+        string format = "0.#")
+    {
+        var formatted = value.ToString(format, CultureInfo.InvariantCulture);
+        return string.IsNullOrWhiteSpace(unit)
+            ? formatted
+            : $"{formatted} {unit}";
+    }
 
     protected static CursorReadout? CreateCursorReadout(
         double position,
@@ -336,23 +426,29 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
     protected (double[] Samples, double Step) PrepareDisplaySignal(double[] samples, int sampleRate)
     {
         var (displaySamples, step) = TelemetryDisplayDownsampling.Prepare(samples, sampleRate, MaximumDisplayHz);
-        return (TelemetryDisplaySmoothing.Apply(displaySamples, SmoothingLevel), step);
+        return (TelemetryDisplaySmoothing.ApplyRegular(displaySamples, SmoothingLevel, step), step);
+    }
+
+    public override void Clear()
+    {
+        base.Clear();
+        HideSourceLegend();
+        ResetReadouts();
     }
 
     public virtual void LoadTelemetryData(TelemetryData telemetryData)
     {
-        ResetCursorReadout();
+        ResetReadouts();
     }
 
-    private void ShowCursorReadout(double position)
+    private void ResetReadouts()
     {
-        if (!double.IsFinite(position))
-        {
-            HideCursorReadout();
-            return;
-        }
+        ResetCursorReadout();
+        pointerReadoutTargets.Clear();
+    }
 
-        var readout = GetCursorReadout(position);
+    private void ShowCursorReadout(CursorReadout? readout)
+    {
         if (readout is null || readout.Lines.Count == 0)
         {
             HideCursorReadout();
@@ -410,6 +506,11 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
         var cursorPixelX = Plot.GetPixel(anchor).X;
         var centerPixelY = dataRect.Center.Y;
 
+        if (readout.KeepTooltipInsideDataArea)
+        {
+            return GetClampedPointerTooltipLabel(readout, cursorPixelX, Plot.GetPixel(anchor).Y, dataRect);
+        }
+
         // Distance between the cursor line and the nearest edge of the balloon.
         const float pixelOffset = 12f;
 
@@ -421,12 +522,81 @@ public class TelemetryPlot(Plot plot) : SufniPlot(plot)
         return (labelCoord, alignment);
     }
 
+    private (Coordinates Location, Alignment Alignment) GetClampedPointerTooltipLabel(
+        CursorReadout readout,
+        float cursorPixelX,
+        float cursorPixelY,
+        PixelRect dataRect)
+    {
+        const float graphInset = 8f;
+        const float pixelOffset = 12f;
+
+        var (estimatedWidth, estimatedHeight) = EstimateTooltipSize(FormatCursorReadout(readout));
+        var placeRight = cursorPixelX <= dataRect.Center.X;
+        var alignment = placeRight ? Alignment.MiddleLeft : Alignment.MiddleRight;
+        var labelPixelX = placeRight
+            ? cursorPixelX + pixelOffset
+            : cursorPixelX - pixelOffset;
+
+        var dataWidth = Math.Abs(dataRect.Right - dataRect.Left);
+        if (estimatedWidth >= dataWidth - graphInset * 2)
+        {
+            alignment = Alignment.MiddleCenter;
+            labelPixelX = dataRect.Center.X;
+        }
+        else if (placeRight)
+        {
+            labelPixelX = Math.Clamp(
+                labelPixelX,
+                dataRect.Left + graphInset,
+                dataRect.Right - estimatedWidth - graphInset);
+        }
+        else
+        {
+            labelPixelX = Math.Clamp(
+                labelPixelX,
+                dataRect.Left + estimatedWidth + graphInset,
+                dataRect.Right - graphInset);
+        }
+
+        var halfHeight = estimatedHeight / 2.0f;
+        var minY = dataRect.Top + halfHeight + graphInset;
+        var maxY = dataRect.Bottom - halfHeight - graphInset;
+        var labelPixelY = minY <= maxY
+            ? Math.Clamp(cursorPixelY, minY, maxY)
+            : dataRect.Center.Y;
+
+        var labelCoord = Plot.GetCoordinates(labelPixelX, labelPixelY);
+        return (labelCoord, alignment);
+    }
+
+    private static (float Width, float Height) EstimateTooltipSize(string text)
+    {
+        const float fontSize = 12f;
+        const float horizontalPadding = 20f;
+        const float verticalPadding = 16f;
+        const float averageCharacterWidth = fontSize * 0.62f;
+        const float lineHeight = fontSize * 1.25f;
+
+        var lines = text.Split(Environment.NewLine);
+        var maxLineLength = lines.Length == 0 ? 0 : lines.Max(line => line.Length);
+        return (
+            Width: maxLineLength * averageCharacterWidth + horizontalPadding,
+            Height: lines.Length * lineHeight + verticalPadding);
+    }
+
     private static string FormatCursorReadout(CursorReadout readout)
     {
-        var lines = new List<string>(readout.Lines.Count + 1)
+        var lines = new List<string>(readout.Lines.Count + 1);
+
+        if (!string.IsNullOrWhiteSpace(readout.Header))
         {
-            $"{readout.TimeSeconds.ToString("0.###", CultureInfo.InvariantCulture)} s"
-        };
+            lines.Add(readout.Header);
+        }
+        else if (double.IsFinite(readout.TimeSeconds))
+        {
+            lines.Add($"{readout.TimeSeconds.ToString("0.###", CultureInfo.InvariantCulture)} s");
+        }
 
         lines.AddRange(readout.Lines.Select(line => $"{line.Label}: {line.FormatValue()}"));
         return string.Join(Environment.NewLine, lines);

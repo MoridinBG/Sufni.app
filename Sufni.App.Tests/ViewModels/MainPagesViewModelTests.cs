@@ -43,6 +43,19 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
+    public async Task OpenGpsTracksCommand_AddsNotification_WhenGpxWasAlreadyImported()
+    {
+        var trackCoordinator = TestCoordinatorSubstitutes.Track();
+        trackCoordinator.ImportGpxAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new GpxImportResult(0, 1)));
+        var viewModel = MainPagesViewModelTestFactory.Create(trackCoordinator: trackCoordinator);
+
+        await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.SessionsPage.Notifications);
+    }
+
+    [Fact]
     public async Task Constructor_RefreshesRecordedSourceStore_WithInitialDatabaseLoad()
     {
         var sourceStore = Substitute.For<IRecordedSessionSourceStore>();

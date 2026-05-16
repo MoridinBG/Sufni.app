@@ -58,4 +58,21 @@ public class SuspensionTraceProcessorTests
         Assert.NotEmpty(result.Strokes.Compressions);
         Assert.NotEmpty(result.Strokes.Rebounds);
     }
+
+    [Fact]
+    public void Process_WithNullVelocityFilter_UsesUnfilteredVelocity()
+    {
+        ushort[] measurements = [0, 10, 30, 60, 100];
+        double[] time = [0, 0.001, 0.002, 0.003, 0.004];
+
+        var result = SuspensionTraceProcessor.Process(
+            measurements,
+            maxTravel: 200,
+            measurementToTravel: measurement => measurement,
+            sampleRate: 1000,
+            time,
+            velocityFilter: null);
+
+        Assert.Equal([10000, 15000, 25000, 35000, 40000], result.Velocity);
+    }
 }

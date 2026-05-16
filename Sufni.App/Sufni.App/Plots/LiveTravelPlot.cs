@@ -10,6 +10,8 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
 {
     private const double Floor = 5.0;
     private const double Padding = 1.1;
+    private const int RenderCapacitySamples = 2048;
+    private const int VisibleWindowDurationMilliseconds = 2048;
 
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
@@ -20,10 +22,11 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
     private double runningMax;
 
     public LiveTravelPlot(Plot plot, double travelMaximum, bool hideRightAxis)
-        : base(plot, "Travel (mm)", 2048, 0, Math.Max(1, travelMaximum), hideRightAxis)
+        : base(plot, "Travel (mm)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(1, travelMaximum), hideRightAxis)
     {
-        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
-        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
+        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Front");
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor, "Rear");
+        ShowSourceLegend();
         ApplyAutoLimits();
     }
 
@@ -40,12 +43,12 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
 
         if (batch.FrontTravel.Count > 0)
         {
-            frontStreamer.AddRange(frontSmoother.Apply(batch.FrontTravel, ref frontSmoothingScratch));
+            frontStreamer.AddRange(frontSmoother.Apply(batch.TravelTimes, batch.FrontTravel, ref frontSmoothingScratch));
         }
 
         if (batch.RearTravel.Count > 0)
         {
-            rearStreamer.AddRange(rearSmoother.Apply(batch.RearTravel, ref rearSmoothingScratch));
+            rearStreamer.AddRange(rearSmoother.Apply(batch.TravelTimes, batch.RearTravel, ref rearSmoothingScratch));
         }
 
         UpdateRunningMax(batch.FrontTravel);

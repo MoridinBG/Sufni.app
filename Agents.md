@@ -6,6 +6,22 @@ Don't change things not related to the current prompt.
 
 File paths are relative to the repository root (`Sufni.App/`).
 
+# Documentation Is Required Context
+
+The summaries in this file are navigation aids, not the source of truth.
+Before answering architecture questions, changing non-trivial code, or adding
+tests for a subsystem, read `docs/ARCHITECTURE.md` and the linked
+`docs/architecture/*.md` document for the area you are touching. Do this before
+designing the change or explaining the current flow.
+
+Use the architecture docs to find the intended boundaries, ownership, and
+terminology; then verify the exact behavior in code/configuration before making
+claims or edits. If the docs and code disagree, treat the code as current truth,
+call out the documentation drift, and update the docs when the task includes
+documentation work.
+
+It is very important to keep the docs up to date as changes are introduced.
+
 # Project Overview
 
 Sufni.App is a cross-platform desktop and mobile application for recording,

@@ -344,12 +344,14 @@ public sealed class AppPreferences : IAppPreferences
     {
         public SessionPlotPreferencesDocument? Plots { get; set; }
         public SessionStatisticsPreferencesDocument? Statistics { get; set; }
+        public SessionProcessingPreferencesDocument? Processing { get; set; }
 
         public SessionPreferences ToModel()
         {
             return new SessionPreferences(
                 Plots?.ToModel() ?? new SessionPlotPreferences(),
-                Statistics?.ToModel() ?? new SessionStatisticsPreferences());
+                Statistics?.ToModel() ?? new SessionStatisticsPreferences(),
+                Processing?.ToModel() ?? new SessionProcessingPreferences());
         }
 
         public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
@@ -358,6 +360,7 @@ public sealed class AppPreferences : IAppPreferences
             {
                 Plots = SessionPlotPreferencesDocument.FromModel(preferences.Plots),
                 Statistics = SessionStatisticsPreferencesDocument.FromModel(preferences.Statistics),
+                Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
             };
         }
     }
@@ -421,6 +424,7 @@ public sealed class AppPreferences : IAppPreferences
         public string? TravelHistogramMode { get; set; }
         public string? VelocityAverageMode { get; set; }
         public string? BalanceDisplacementMode { get; set; }
+        public string? BalanceSpeedMode { get; set; }
         public string? SessionAnalysisTargetProfile { get; set; }
 
         public SessionStatisticsPreferences ToModel()
@@ -429,6 +433,7 @@ public sealed class AppPreferences : IAppPreferences
                 ParseEnum(TravelHistogramMode, Sufni.Telemetry.TravelHistogramMode.ActiveSuspension),
                 ParseEnum(VelocityAverageMode, Sufni.Telemetry.VelocityAverageMode.SampleAveraged),
                 ParseEnum(BalanceDisplacementMode, Sufni.Telemetry.BalanceDisplacementMode.Zenith),
+                ParseEnum(BalanceSpeedMode, Sufni.Telemetry.BalanceSpeedMode.Both),
                 ParseEnum(SessionAnalysisTargetProfile, Sufni.App.Models.SessionAnalysisTargetProfile.Trail));
         }
 
@@ -439,6 +444,7 @@ public sealed class AppPreferences : IAppPreferences
                 TravelHistogramMode = preferences.TravelHistogramMode.ToString(),
                 VelocityAverageMode = preferences.VelocityAverageMode.ToString(),
                 BalanceDisplacementMode = preferences.BalanceDisplacementMode.ToString(),
+                BalanceSpeedMode = preferences.BalanceSpeedMode.ToString(),
                 SessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile.ToString(),
             };
         }
@@ -449,6 +455,26 @@ public sealed class AppPreferences : IAppPreferences
             return Enum.TryParse<TEnum>(value, ignoreCase: false, out var parsed)
                 ? parsed
                 : fallback;
+        }
+    }
+
+    private sealed class SessionProcessingPreferencesDocument
+    {
+        public int? VelocityFilterWindowMilliseconds { get; set; }
+
+        public SessionProcessingPreferences ToModel()
+        {
+            return new SessionProcessingPreferences(
+                VelocityFilterWindowMilliseconds ??
+                TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds);
+        }
+
+        public static SessionProcessingPreferencesDocument FromModel(SessionProcessingPreferences preferences)
+        {
+            return new SessionProcessingPreferencesDocument
+            {
+                VelocityFilterWindowMilliseconds = preferences.VelocityFilterWindowMilliseconds,
+            };
         }
     }
 }

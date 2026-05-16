@@ -11,6 +11,7 @@ namespace Sufni.App.ViewModels.Editors;
 
 public sealed record TravelHistogramModeOption(TravelHistogramMode Value, string DisplayName, string Description);
 public sealed record BalanceDisplacementModeOption(BalanceDisplacementMode Value, string DisplayName, string Description);
+public sealed record BalanceSpeedModeOption(BalanceSpeedMode Value, string DisplayName, string Description);
 public sealed record VelocityAverageModeOption(VelocityAverageMode Value, string DisplayName, string Description);
 
 public interface IRecordedSessionGraphWorkspace
@@ -29,7 +30,7 @@ public interface IRecordedSessionGraphWorkspace
     SessionTimelineLinkViewModel Timeline { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
-    void SetAnalysisRangeBoundaryFromMarker(double markerSeconds);
+    void SetAnalysisRangeBoundary(double boundarySeconds);
 }
 
 public interface ISessionMediaWorkspace
@@ -49,10 +50,12 @@ public interface ISessionStatisticsWorkspace
     TelemetryTimeRange? AnalysisRange { get; }
     TravelHistogramMode SelectedTravelHistogramMode { get; set; }
     BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; }
+    BalanceSpeedMode SelectedBalanceSpeedMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
     SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; }
     IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
+    IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; }
     IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; }
     IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; }
     string SessionAnalysisRangeText { get; }

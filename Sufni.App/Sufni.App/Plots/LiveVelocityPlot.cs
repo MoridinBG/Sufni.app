@@ -10,6 +10,8 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
 {
     private const double Floor = 0.5;
     private const double Padding = 1.1;
+    private const int RenderCapacitySamples = 2048;
+    private const int VisibleWindowDurationMilliseconds = 2048;
 
     private readonly DataStreamer frontStreamer;
     private readonly DataStreamer rearStreamer;
@@ -22,10 +24,11 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
     private double runningMaxAbs;
 
     public LiveVelocityPlot(Plot plot, double velocityMaximum, bool hideRightAxis)
-        : base(plot, "Velocity (m/s)", 2048, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum), hideRightAxis)
+        : base(plot, "Velocity (m/s)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum), hideRightAxis)
     {
-        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor);
-        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
+        frontStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Front");
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor, "Rear");
+        ShowSourceLegend();
         ApplyAutoLimits();
     }
 
@@ -43,14 +46,14 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         if (batch.FrontVelocity.Count > 0)
         {
             var frontVelocity = ConvertToMetersPerSecond(batch.FrontVelocity, ref frontVelocityScratch);
-            frontStreamer.AddRange(frontSmoother.Apply(frontVelocity, ref frontSmoothingScratch));
+            frontStreamer.AddRange(frontSmoother.Apply(batch.VelocityTimes, frontVelocity, ref frontSmoothingScratch));
             UpdateRunningMaxAbs(frontVelocity);
         }
 
         if (batch.RearVelocity.Count > 0)
         {
             var rearVelocity = ConvertToMetersPerSecond(batch.RearVelocity, ref rearVelocityScratch);
-            rearStreamer.AddRange(rearSmoother.Apply(rearVelocity, ref rearSmoothingScratch));
+            rearStreamer.AddRange(rearSmoother.Apply(batch.VelocityTimes, rearVelocity, ref rearSmoothingScratch));
             UpdateRunningMaxAbs(rearVelocity);
         }
 

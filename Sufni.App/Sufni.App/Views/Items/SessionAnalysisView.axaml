@@ -41,72 +41,71 @@ mc:Ignorable="d">
         <controls:PlaceholderOverlayContainer Grid.Row="1" PresentationState="{Binding SessionAnalysis.State}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl
-                    Name="SessionAnalysisFindingsItemsControl"
-                    ItemsSource="{Binding SessionAnalysis.Findings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:SessionAnalysisFinding">
-                                <Border
-                                Margin="0,0,0,8"
-                                Padding="10"
-                                BorderBrush="#55606C"
-                                BorderThickness="1"
-                                CornerRadius="6">
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,6">
-                                            <TextBlock
-                                            Grid.Column="0"
-                                            FontSize="15"
-                                            FontWeight="SemiBold"
-                                            Text="{Binding Title}"
-                                            TextWrapping="Wrap" />
-                                            <TextBlock
-                                            Grid.Column="1"
-                                            Margin="12,0,0,0"
-                                            FontSize="12"
-                                            FontWeight="SemiBold"
-                                            Text="{Binding Severity}" />
-                                            <TextBlock
-                                            Grid.Column="2"
-                                            Margin="12,0,0,0"
-                                            FontSize="12"
-                                            Opacity="0.7"
-                                            Text="{Binding Confidence}" />
-                                        </Grid>
+                    <StackPanel>
+                        <ItemsControl
+                        Name="SessionAnalysisDataQualityItemsControl"
+                        IsVisible="{Binding SessionAnalysis.HasDataQualityFindings}"
+                        ItemsSource="{Binding SessionAnalysis.DataQualityFindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:SessionAnalysisFinding">
+                                    <Border
+                                    Margin="0,0,0,8"
+                                    Padding="10"
+                                    BorderBrush="#55606C"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                        <StackPanel>
+                                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,6">
+                                                <TextBlock
+                                                Grid.Column="0"
+                                                FontSize="15"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Title}"
+                                                TextWrapping="Wrap" />
+                                                <TextBlock
+                                                Grid.Column="1"
+                                                Margin="12,0,0,0"
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Severity}" />
+                                                <TextBlock
+                                                Grid.Column="2"
+                                                Margin="12,0,0,0"
+                                                FontSize="12"
+                                                Opacity="0.7"
+                                                Text="{Binding Confidence}" />
+                                            </Grid>
 
-                                        <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Category}" />
-                                        <TextBlock Margin="0,8,0,0" Text="{Binding Observation}" TextWrapping="Wrap" />
-                                        <TextBlock Margin="0,6,0,0" Text="{Binding Recommendation}" TextWrapping="Wrap" />
+                                            <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Category}" />
+                                            <TextBlock Margin="0,8,0,0" Text="{Binding Observation}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,6,0,0" Text="{Binding Recommendation}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                                        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Evidence}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="models:SessionAnalysisEvidence">
-                                                    <Border
-                                                    Margin="0,0,6,6"
-                                                    Padding="6,4"
-                                                    BorderBrush="#46515D"
-                                                    BorderThickness="1"
-                                                    CornerRadius="4">
-                                                        <StackPanel>
-                                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
-                                                            <TextBlock FontSize="12" Text="{Binding DisplayValue}" />
-                                                            <TextBlock FontSize="10" Opacity="0.7" Text="{Binding Side}" />
-                                                            <TextBlock FontSize="10" Opacity="0.7" Text="{Binding SourceMode}" />
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        <ItemsControl
+                        Name="SessionAnalysisStepsItemsControl"
+                        ItemsSource="{Binding SessionAnalysis.Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:SessionAnalysisStep">
+                                    <controls:SessionAnalysisStepView />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ContentControl
+                        Name="SessionAnalysisVibrationPanel"
+                        Content="{Binding SessionAnalysis.Vibration}"
+                        IsVisible="{Binding SessionAnalysis.HasVibration}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="models:SessionAnalysisVibrationPanel">
+                                    <controls:SessionAnalysisVibrationPanel />
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
+                    </StackPanel>
                 </ScrollViewer>
             </controls:PlaceholderOverlayContainer.ReadyContent>
             <controls:PlaceholderOverlayContainer.PlaceholderContent>

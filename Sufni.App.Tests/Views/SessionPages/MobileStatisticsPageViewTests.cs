@@ -107,6 +107,39 @@ public class MobileStatisticsPageViewTests
     }
 
     [AvaloniaFact]
+    public async Task BalancePageView_BindsBalanceSpeedModeRadioButtons_WhenTelemetryIsAvailable()
+    {
+        var workspace = MobileStatisticsWorkspaceStub.Create(
+            hasFrontStatistics: true,
+            hasRearStatistics: true);
+        var page = new BalancePageViewModel(workspace);
+
+        await using var mounted = await MountAsync(new BalancePageView { DataContext = page });
+
+        var selector = mounted.View.FindControl<StackPanel>("MobileBalanceSpeedModeRadioButtons");
+        var both = mounted.View.FindControl<RadioButton>("MobileBothSpeedModeRadioButton");
+        var low = mounted.View.FindControl<RadioButton>("MobileLowSpeedModeRadioButton");
+        var high = mounted.View.FindControl<RadioButton>("MobileHighSpeedModeRadioButton");
+
+        Assert.NotNull(selector);
+        Assert.True(selector!.IsVisible);
+        Assert.NotNull(both);
+        Assert.NotNull(low);
+        Assert.NotNull(high);
+        Assert.True(both!.IsChecked);
+        Assert.False(low!.IsChecked);
+        Assert.False(high!.IsChecked);
+
+        high.IsChecked = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(BalanceSpeedMode.HighSpeed, workspace.SelectedBalanceSpeedMode);
+        Assert.False(both.IsChecked);
+        Assert.False(low.IsChecked);
+        Assert.True(high.IsChecked);
+    }
+
+    [AvaloniaFact]
     public async Task StrokesPageView_SideSelector_ShowsOneSuspensionSideAtATime()
     {
         var workspace = MobileStatisticsWorkspaceStub.Create(
@@ -202,16 +235,17 @@ public class MobileStatisticsPageViewTests
         var content = mounted.View.FindControl<StackPanel>("MobileAnalysisContent");
         var header = mounted.View.FindControl<StackPanel>("MobileAnalysisHeader");
         var profileComboBox = mounted.View.FindControl<ComboBox>("MobileAnalysisTargetProfileComboBox");
-        var findings = mounted.View.FindControl<ItemsControl>("MobileSessionAnalysisFindingsItemsControl");
+        var steps = mounted.View.FindControl<ItemsControl>("MobileSessionAnalysisStepsItemsControl");
 
         Assert.NotNull(content);
         Assert.NotNull(header);
         Assert.Equal(Orientation.Vertical, content!.Orientation);
         Assert.Equal(Orientation.Vertical, header!.Orientation);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, profileComboBox!.SelectedValue);
-        Assert.NotNull(findings);
-        var finding = Assert.IsType<SessionAnalysisFinding>(Assert.Single(findings!.Items));
-        Assert.Equal("Travel use watch", finding.Title);
+        Assert.NotNull(steps);
+        var step = Assert.IsType<SessionAnalysisStep>(Assert.Single(steps!.Items));
+        Assert.Equal(SessionAnalysisStepId.Sag, step.Id);
+        Assert.Equal("Travel use watch", Assert.Single(step.Findings).Title);
 
         profileComboBox.SelectedValue = SessionAnalysisTargetProfile.Enduro;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -274,6 +308,7 @@ public class MobileStatisticsPageViewTests
         public TelemetryTimeRange? AnalysisRange => null;
         public TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
         public BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
+        public BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;
         public VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
         public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; } = SessionAnalysisTargetProfile.Trail;
         public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
@@ -285,6 +320,12 @@ public class MobileStatisticsPageViewTests
         [
             new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
             new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+        ];
+        public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
+        [
+            new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
+            new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
+            new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
         ];
         public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
         [
@@ -299,7 +340,7 @@ public class MobileStatisticsPageViewTests
             new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
         ];
         public string SessionAnalysisRangeText => "Full session";
-        public string SessionAnalysisModesText => "Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith";
+        public string SessionAnalysisModesText => "Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both";
         public SurfacePresentationState FrontStatisticsState { get; }
         public SurfacePresentationState RearStatisticsState { get; }
         public SurfacePresentationState CompressionBalanceState { get; } = SurfacePresentationState.Ready;
@@ -311,6 +352,24 @@ public class MobileStatisticsPageViewTests
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
         public SessionAnalysisResult SessionAnalysis { get; } = new(
             SurfacePresentationState.Ready,
+            [new SessionAnalysisStep(
+                SessionAnalysisStepId.Sag,
+                "Sag & travel use",
+                SessionAnalysisSeverity.Watch,
+                true,
+                [new SessionAnalysisMetric("Max travel", "52.0", "%", "Fork", ">= 85 % on hard terrain")],
+                null,
+                [],
+                [new SessionAnalysisFinding(
+                    SessionAnalysisCategory.TravelUse,
+                    SessionAnalysisSeverity.Watch,
+                    SessionAnalysisConfidence.Medium,
+                    "Travel use watch",
+                    "The fork is not using much travel.",
+                    "Try a small pressure experiment and rerun the same section.",
+                    [new SessionAnalysisEvidence("Max travel", "52.0", "%", "Fork", "Active suspension travel stats")])])],
+            [],
+            null,
             [new SessionAnalysisFinding(
                 SessionAnalysisCategory.TravelUse,
                 SessionAnalysisSeverity.Watch,
