@@ -63,7 +63,7 @@ The import-sessions feature is the canonical worked example of the current bound
 
 `MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device.
 
-On import, files move to an `uploaded/` subdirectory. On trash, files move to `trash/`.
+On import, files move to an `uploaded/` subdirectory, which the datastore creates during initialization. On trash, files move to `trash/`; the current local-file implementations expect that directory to already exist, so a missing `trash/` directory is a filesystem error surfaced by the import workflow rather than silently creating it.
 
 ### Network (WiFi DAQ)
 
@@ -74,7 +74,7 @@ On import, files move to an `uploaded/` subdirectory. On trash, files move to `t
 - `NetworkTelemetryFile` carries the DAQ `recordId` from the management directory listing. `ReadSourceAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temporary `sufni-source-*.SST` file, reads those bytes into a `TelemetryFileSource`, and deletes the temporary file in a `finally` block. Stale matching temp files older than one day are removed before each read. `OnImported()` calls `IDaqManagementService.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
 - Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
 
-Import still shares the DAQ's single-client TCP port with live preview. If another live or management connection is already active, the resulting connection failure is surfaced through `TelemetryDataStoreService.ErrorOccurred` just as before.
+Import still shares the DAQ's single-client TCP port with live preview. The diagnostics tab disables its management actions while the LIVE client is connected, but the import path does not globally coordinate with open live tabs. Listing or file-transfer conflicts therefore surface as load/import failures on the import page; `TelemetryDataStoreService.ErrorOccurred` is reserved for browse-time datastore initialization errors.
 
 Network add / remove handling follows the same split as mass storage: any initialization work completes first, and only the `DataStores` collection mutation is marshaled back to the UI thread.
 
@@ -96,7 +96,7 @@ graph TD
     Magic --> Version["Read version byte"]
     Version -->|"3"| V3["SstV3Parser"]
     Version -->|"4"| V4["SstV4TlvParser"]
-    V3 --> RawTD["RawTelemetryData<br/>(raw uint16 front/rear, markers, IMU/GPS, malformed flag)"]
+    V3 --> RawTD["RawTelemetryData<br/>(raw uint16 front/rear, markers, IMU/GPS/temperature, malformed flag)"]
     V4 --> RawTD
 ```
 
@@ -137,6 +137,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 | Imu       | `0x03` | N × 6 × int16                                                      | Accelerometer (Ax,Ay,Az) + gyroscope (Gx,Gy,Gz)                                                                                                        |
 | ImuMeta   | `0x04` | count(1) + N × (locId(1) + accelLsbPerG(f32) + gyroLsbPerDps(f32)) | IMU calibration per sensor location                                                                                                                    |
 | Gps       | `0x05` | N × 46 bytes                                                       | date(u32 YYYYMMDD) + timeMs(u32) + lat(f64) + lon(f64) + alt(f32) + speed(f32) + heading(f32) + fixMode(u8) + satellites(u8) + epe2d(f32) + epe3d(f32) |
+| Temperature | `0x06` | N × 13 bytes                                                     | timestampUtc(i64) + locationId(u8) + temperatureCelsius(f32)                                                                                           |
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
@@ -154,7 +155,7 @@ The `Inspect()` path walks every TLV chunk, validating each chunk's declared len
 
 4. **Handle temporary dips and unrecovered tails** — walks the remaining changes in order, tracking a cumulative negative offset (`activeFaultDelta`). Each segment between changes is shifted by the active offset. Negative changes accumulate into the offset; subsequent positive changes partially undo it (clamped to zero). Any leftover offset at the final change is also applied to the trailing samples through end of capture, so a dip that never recovers is corrected as a sensor fault rather than left in the signal.
 
-Output is clamped to valid 12-bit ADC range `[0, 4095]`. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
+`SpikeElimination` returns cleaned integer samples plus an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
 
 ### V4 Data Structures
 
@@ -165,3 +166,5 @@ All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 - **`ImuMetaEntry`** — LocationId (sensor position: 0=frame, 1=fork, 2=shock), AccelLsbPerG, GyroLsbPerDps (calibration)
 - **`RawImuData`** — Container: Meta list, SampleRate, Records list, ActiveLocations list
 - **`MarkerData`** — TimestampOffset (seconds from session start)
+- **`TemperatureSample`** — TimestampUtc, LocationId, TemperatureCelsius
+- **`TemperatureAverage`** — LocationId and averaged TemperatureCelsius, derived during processing and serialized on `TelemetryData`
