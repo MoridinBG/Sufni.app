@@ -241,7 +241,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save and a `SlidingWindowBuffer` for display, fans graph batches through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a processed `Session` row, a live-capture recorded source, a processing fingerprint, and an optional generated `Track` from captured GPS.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a processed `Session` row, a live-capture recorded source, a processing fingerprint, and an optional generated `Track` from captured GPS.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 
@@ -249,7 +249,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 - [Data Flow](architecture/live-session.md#data-flow) — attach → capture → save sequence
 - [Configuration Lock](architecture/live-session.md#configuration-lock) — exclusive control of stream parameters
 - [Capture Service](architecture/live-session.md#capture-service) — `LiveSessionService` lifecycle and frame handlers
-- [Buffers](architecture/live-session.md#buffers) — `AppendOnlyChunkBuffer` (save) and `SlidingWindowBuffer` (display)
+- [Buffers](architecture/live-session.md#buffers) — `AppendOnlyChunkBuffer` for saved samples and duration-bounded recent display context
 - [Live Graph Pipeline](architecture/live-session.md#live-graph-pipeline) — `ILiveGraphPipeline`, `LiveGraphPipelineFactory`, per-row batches
 - [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
 - [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentation`, `LiveSessionControlState`
