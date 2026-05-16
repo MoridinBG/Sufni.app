@@ -458,7 +458,7 @@ public class SessionCoordinator
 
             if (reprocessResult.GeneratedFullTrack is null)
             {
-                persisted.FullTrack = null;
+                persisted.FullTrack = previousFullTrackId;
                 persisted.Track = null;
             }
             else if (previousFullTrack is not null &&
