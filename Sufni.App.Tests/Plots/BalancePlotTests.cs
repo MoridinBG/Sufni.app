@@ -37,6 +37,68 @@ public class BalancePlotTests
         Assert.Contains(labels, label => label.Contains("Slope"));
     }
 
+    [Fact]
+    public void LoadTelemetryData_WithBalanceSamples_ShowsFrontRearLegend()
+    {
+        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
+        var plot = new Plot();
+        var sut = new BalancePlot(plot, BalanceType.Compression);
+
+        sut.LoadTelemetryData(telemetry);
+
+        Assert.True(plot.Legend.IsVisible);
+        Assert.Equal(Alignment.LowerRight, plot.Legend.Alignment);
+        Assert.Equal(Color.FromHex("#1A1F23"), plot.Legend.BackgroundColor);
+        Assert.Equal(
+            ["Front", "Rear"],
+            plot.PlottableList
+                .OfType<Scatter>()
+                .Select(scatter => scatter.LegendText)
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .ToArray());
+    }
+
+    [Fact]
+    public void SetPointerPositionWithReadout_ShowsFrontAndRearBalanceValuesAtPointerX()
+    {
+        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
+        var plot = new Plot();
+        var sut = new BalancePlot(plot, BalanceType.Compression);
+
+        sut.LoadTelemetryData(telemetry);
+        plot.GetSvgXml(500, 320);
+        sut.SetPointerPositionWithReadout(7.5, 150);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.DoesNotContain("Balance", tooltip.LabelText);
+        Assert.StartsWith("Zenith: 7.5 %", tooltip.LabelText);
+        Assert.Contains("Zenith: 7.5 %", tooltip.LabelText);
+        Assert.Contains("Front peak speed: 150 mm/s", tooltip.LabelText);
+        Assert.Contains("Rear peak speed: 125 mm/s", tooltip.LabelText);
+    }
+
+    [Fact]
+    public void SetPointerPositionWithReadout_UsesStrokeTravelLabelInTravelMode()
+    {
+        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
+        var plot = new Plot();
+        var sut = new BalancePlot(plot, BalanceType.Compression)
+        {
+            DisplacementMode = BalanceDisplacementMode.Travel,
+        };
+
+        sut.LoadTelemetryData(telemetry);
+        plot.GetSvgXml(500, 320);
+        sut.SetPointerPositionWithReadout(7.5, 125);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Stroke travel: 7.5 %", tooltip.LabelText);
+        Assert.Contains("Front peak speed: 150 mm/s", tooltip.LabelText);
+        Assert.Contains("Rear peak speed: 125 mm/s", tooltip.LabelText);
+    }
+
     private static IEnumerable<string> ReadTextLabels(Text text)
     {
         return text.GetType()

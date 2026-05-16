@@ -58,7 +58,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
 
         var isStrokePeakMode = AverageMode == VelocityAverageMode.StrokePeakAveraged;
         var modeLabel = isStrokePeakMode ? "stroke-peak stats" : "sample-averaged stats";
-        var percentageLabel = isStrokePeakMode ? "stroke%" : "time%";
+        var percentageLabel = isStrokePeakMode ? "Strokes" : "Time";
         Plot.Axes.Title.Label.Text = type == SuspensionType.Front
             ? $"Front velocity - {modeLabel}"
             : $"Rear velocity - {modeLabel}";
@@ -79,19 +79,26 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPl
                     continue;
                 }
 
-                Plot.Add.Bar(new Bar
+                var value = data.Values[i][j];
+                var bar = new Bar
                 {
                     Position = data.Bins[i],
                     ValueBase = nextBarBase,
-                    Value = nextBarBase + data.Values[i][j],
+                    Value = nextBarBase + value,
                     FillColor = palette[j].WithOpacity(0.8),
                     LineColor = Colors.Black,
                     LineWidth = 0.5f,
                     Orientation = Orientation.Horizontal,
                     Size = step * 0.95
-                });
+                };
 
-                nextBarBase += data.Values[i][j];
+                Plot.Add.Bar(bar);
+                AddBarReadout(
+                    bar,
+                    $"{FormatReadoutRange("Velocity", data.Bins, i, "mm/s", "0")}{Environment.NewLine}Travel: {j * 10}-{(j + 1) * 10} %",
+                    new CursorReadoutLine(percentageLabel, value, "%", palette[j]));
+
+                nextBarBase += value;
             }
         }
 

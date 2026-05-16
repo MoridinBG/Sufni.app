@@ -54,16 +54,25 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot
 
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Bins.Zip(data.Values)
-            .Select(tuple => new Bar
+        var bars = data.Values.Select((value, index) =>
             {
-                Position = tuple.First,
-                Value = tuple.Second,
-                FillColor = color.WithOpacity(),
-                LineColor = color,
-                LineWidth = 1.5f,
-                Orientation = Orientation.Horizontal,
-                Size = step * 0.65f,
+                var bar = new Bar
+                {
+                    Position = data.Bins[index],
+                    Value = value,
+                    FillColor = color.WithOpacity(),
+                    LineColor = color,
+                    LineWidth = 1.5f,
+                    Orientation = Orientation.Horizontal,
+                    Size = step * 0.65f,
+                };
+
+                AddBarReadout(
+                    bar,
+                    FormatReadoutRange("Axle position", data.Bins, index, "mm"),
+                    new CursorReadoutLine("Time", value, "%", color));
+
+                return bar;
             })
             .ToList();
 

@@ -32,6 +32,8 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
             stats.OverallThirds,
         };
         var colors = new[] { lowerColor, middleColor, upperColor };
+        var groupLabels = new[] { "Compression", "Rebound", "Overall" };
+        var thirdLabels = new[] { "Lower third", "Middle third", "Upper third" };
         var bars = new List<Bar>();
         const double barWidth = 0.22;
 
@@ -40,16 +42,24 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
             var values = new[] { groups[groupIndex].Lower, groups[groupIndex].Middle, groups[groupIndex].Upper };
             for (var thirdIndex = 0; thirdIndex < values.Length; thirdIndex++)
             {
-                bars.Add(new Bar
+                var color = colors[thirdIndex];
+                var bar = new Bar
                 {
                     Position = groupIndex + (thirdIndex - 1) * barWidth,
                     Value = values[thirdIndex],
-                    FillColor = colors[thirdIndex].WithOpacity(),
-                    LineColor = colors[thirdIndex],
+                    FillColor = color.WithOpacity(),
+                    LineColor = color,
                     LineWidth = 1.5f,
                     Orientation = Orientation.Vertical,
                     Size = barWidth * 0.85,
-                });
+                };
+
+                AddBarReadout(
+                    bar,
+                    $"{groupLabels[groupIndex]} / {thirdLabels[thirdIndex]}",
+                    new CursorReadoutLine("Vibration", values[thirdIndex], "%", color));
+
+                bars.Add(bar);
             }
         }
 

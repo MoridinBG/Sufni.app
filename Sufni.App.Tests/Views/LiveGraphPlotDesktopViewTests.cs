@@ -64,6 +64,18 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Equal("Travel (mm)", travelPlot.Plot.Axes.Title.Label.Text);
         Assert.Equal("Velocity (m/s)", velocityPlot.Plot.Axes.Title.Label.Text);
         Assert.Equal("IMU Acceleration (g)", imuPlot.Plot.Axes.Title.Label.Text);
+        Assert.True(travelPlot.Plot.Legend.IsVisible);
+        Assert.True(velocityPlot.Plot.Legend.IsVisible);
+        Assert.True(imuPlot.Plot.Legend.IsVisible);
+        Assert.Equal(
+            ["Front", "Rear"],
+            travelPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
+        Assert.Equal(
+            ["Front", "Rear"],
+            velocityPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
+        Assert.Equal(
+            ["Frame", "Fork", "Shock"],
+            imuPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
         Assert.Empty(travelPlot.Plot.Axes.Bottom.Label.Text);
         Assert.Empty(travelPlot.Plot.Axes.Left.Label.Text);
         Assert.Empty(velocityPlot.Plot.Axes.Bottom.Label.Text);
