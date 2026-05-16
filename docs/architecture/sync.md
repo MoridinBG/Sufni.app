@@ -55,14 +55,14 @@ sequenceDiagram
 
 `SynchronizationClientService` (`Sufni.App/Sufni.App/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases:
 
-1. **Push local changes** — collect all entities changed since last sync, PUT to `/sync/push`
-2. **Pull remote changes** — GET `/sync/pull?since=`, apply deletes or upserts locally
+1. **Push local changes** — collect all entities changed since last sync, add app-preference changes from `IAppPreferences.GetSyncDataAsync`, and PUT to `/sync/push`
+2. **Pull remote changes** — GET `/sync/pull?since=`, apply deletes or upserts locally, and apply `AppPreferencesSyncData` through `IAppPreferences.ApplySyncDataAsync`
 3. **Push incomplete sessions** — for each server-side session missing processed data, upload the local MessagePack blob
 4. **Pull incomplete sessions** — for each local session missing processed data, download the MessagePack blob from the server
 5. **Push incomplete recorded sources** — for each server-side session missing a recorded-source row, upload the local `RecordedSessionSourceTransfer`
 6. **Pull incomplete recorded sources** — for each local session missing a recorded-source row, download the server's `RecordedSessionSourceTransfer`
 
-Source sync runs after metadata sync so both sides know which session ids exist before asking for missing source payloads. Existing source rows are treated as immutable for transfer purposes; the incomplete-source endpoints only ask for ids without a local source row.
+Source sync runs after metadata sync so both sides know which session ids exist before asking for missing source payloads. Source rows are transferred through the incomplete-source endpoints when a side has no source row or when its local source hash no longer matches the `SourceHash` stored in the session's processing fingerprint.
 
 `SyncCoordinator` (`Sufni.App/Sufni.App/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, and refreshes every store after a successful round-trip, including `RecordedSessionSourceStore` immediately after `SessionStore`. On mobile it subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Inbound sync arrival is split by entity family — see [Coordinators](ui.md#coordinators) — so that each store has exactly one writer.
 
@@ -78,7 +78,8 @@ SynchronizationData
 ├── Bikes[]
 ├── Setups[]
 ├── Sessions[] (metadata, tuning fields, full-track link, processing fingerprint; no blob)
-└── Tracks[]
+├── Tracks[]
+└── AppPreferences? (map/session preferences as AppPreferencesSyncData)
 ```
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`.

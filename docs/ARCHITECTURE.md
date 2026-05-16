@@ -82,7 +82,7 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 
 ## Data Acquisition & File Format
 
-Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in two binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers). Import captures the original SST bytes as a recorded-session source, then derives processed telemetry and a processing fingerprint from that source plus the selected setup/bike calibration.
+Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in two binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers/temperature). Import captures the original SST bytes as a recorded-session source, then derives processed telemetry and a processing fingerprint from that source plus the selected setup/bike calibration.
 
 Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
@@ -94,9 +94,9 @@ Topics in [architecture/acquisition.md](architecture/acquisition.md):
   - [Storage Provider](architecture/acquisition.md#storage-provider) — Avalonia picker integration and duplicate detection
 - [File Format & Parsing](architecture/acquisition.md#file-format--parsing) — version dispatch
   - [SST V3 Format](architecture/acquisition.md#sst-v3-format) — legacy fixed-record layout
-  - [SST V4 TLV Format](architecture/acquisition.md#sst-v4-tlv-format) — TLV chunks (Rates, Telemetry, Marker, IMU, IMU Meta, GPS)
+  - [SST V4 TLV Format](architecture/acquisition.md#sst-v4-tlv-format) — TLV chunks (Rates, Telemetry, Marker, IMU, IMU Meta, GPS, Temperature)
   - [Spike Elimination](architecture/acquisition.md#spike-elimination) — four-stage anomaly correction
-  - [V4 Data Structures](architecture/acquisition.md#v4-data-structures) — `GpsRecord`, `ImuRecord`, `ImuMetaEntry`, `RawImuData`, `MarkerData`
+  - [V4 Data Structures](architecture/acquisition.md#v4-data-structures) — `GpsRecord`, `ImuRecord`, `ImuMetaEntry`, `RawImuData`, `MarkerData`, `TemperatureSample`, `TemperatureAverage`
 
 ---
 
@@ -115,7 +115,7 @@ Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 ## Signal Processing & Suspension Kinematics
 
-`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available.
+`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available.
 
 Topics in [architecture/processing.md](architecture/processing.md):
 
@@ -158,7 +158,7 @@ Topics in [architecture/ui.md](architecture/ui.md):
 - [Navigation](architecture/ui.md#navigation) — `IShellCoordinator`, mobile back-stack vs desktop tab model
 - [Controls Library](architecture/ui.md#controls-library) — reusable controls in `Views/Controls/` and `DesktopViews/Controls/`
 - [Data Visualization](architecture/ui.md#data-visualization) — `SufniPlot` / `TelemetryPlot` base classes
-  - [Plot Hierarchy](architecture/ui.md#plot-hierarchy) — table of every concrete plot
+  - [Plot Hierarchy](architecture/ui.md#plot-hierarchy) — quick orientation for the main plot families
   - [IMU Plot](architecture/ui.md#imu-plot) — per-location magnitude calculation
   - [Desktop vs Mobile](architecture/ui.md#desktop-vs-mobile) — extended desktop layouts vs stacked mobile views
 
@@ -166,7 +166,7 @@ Topics in [architecture/ui.md](architecture/ui.md):
 
 ## Plot Rendering
 
-ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded plots inherit from `TelemetryPlot` and load full sample arrays once; live plots inherit from `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time.
+ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
@@ -180,7 +180,7 @@ Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 ## Maps & GPS Tracks
 
-GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists the user's tile choice and view options.
+GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists and syncs the user's tile choice and custom layers.
 
 Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
@@ -214,9 +214,10 @@ User selects row
 
 Diagnostics tab attaches
   -> shared stream ensures LiveDaqClient.ConnectAsync + StartPreviewAsync
-  -> receive loop parses frames -> shared stream fan-out
-    -> LiveDaqSessionState.ApplyFrame
-    -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+  -> receive loop handles control frames and queues telemetry
+    -> parse loop -> publish loop -> shared stream fan-out
+      -> LiveDaqSessionState.ApplyFrame
+      -> DispatcherTimer tick -> CreateSnapshot -> UI binding
 
 Last lease released
   -> shared stream disconnects and registry evicts it
@@ -253,7 +254,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 - [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
 - [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentation`, `LiveSessionControlState`
 - [Live Session Detail View Model](architecture/live-session.md#live-session-detail-view-model) — tab lifecycle and preferences forwarding
-- [GPS Preview State](architecture/live-session.md#gps-preview-state) — fix-mode interpretation, dual consumer
+- [GPS Preview State](architecture/live-session.md#gps-preview-state) — diagnostics fix-mode interpretation; live maps use projected track points
 - [Save Flow](architecture/live-session.md#save-flow) — `SessionCoordinator.SaveLiveCaptureAsync` integration
 - [Design Decisions](architecture/live-session.md#design-decisions) — separation from streaming, lock model, throttling
 
@@ -261,7 +262,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 
 ## Persistence & Serialization
 
-SQLite via `sqlite-net-pcl` with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata, processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
+SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata, processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
@@ -274,7 +275,7 @@ Topics in [architecture/persistence.md](architecture/persistence.md):
 
 ## Cross-Device Synchronization
 
-A desktop instance can host an embedded ASP.NET Core / Kestrel server over TLS with JWT auth, advertised via mDNS. Mobile clients pair with a 6-digit PIN, then push and pull entity changes, processed telemetry blobs, and recorded-source payloads. `SyncCoordinator` is the application-layer entry point; `HttpApiService` handles JWT auto-refresh.
+A desktop instance can host an embedded ASP.NET Core / Kestrel server over TLS with JWT auth, advertised via mDNS. Mobile clients pair with a 6-digit PIN, then push and pull entity changes, app preferences, processed telemetry blobs, and recorded-source payloads. `SyncCoordinator` is the application-layer entry point; `HttpApiService` handles JWT auto-refresh.
 
 Topics in [architecture/sync.md](architecture/sync.md):
 

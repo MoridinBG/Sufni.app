@@ -17,7 +17,7 @@
 
 ## Project Layout
 
-The shared application code lives in `Sufni.App/Sufni.App/Sufni.App/` and is consumed by every platform head. Desktop-only infrastructure (sync server, ASP.NET Core hosting) is factored out into `Sufni.App/Sufni.App.Desktop/`, which the three desktop heads reference; mobile heads reference the shared project directly. The full table of projects and roles lives in [ARCHITECTURE.md § Project Structure](../ARCHITECTURE.md#project-structure).
+The shared application code lives in `Sufni.App/Sufni.App/` and is consumed by every platform head. Desktop-only infrastructure (sync server, ASP.NET Core hosting) is factored out into `Sufni.App/Sufni.App.Desktop/`, which the three desktop heads reference; mobile heads reference the shared project directly. The full table of projects and roles lives in [ARCHITECTURE.md § Project Structure](../ARCHITECTURE.md#project-structure).
 
 ```
                   Sufni.App (shared)
@@ -27,7 +27,7 @@ The shared application code lives in `Sufni.App/Sufni.App/Sufni.App/` and is con
  Windows   macOS    Linux    Android           iOS
 ```
 
-Only desktop heads pull in `Sufni.App.Desktop`, which is what keeps `Microsoft.AspNetCore.App` and the ECDSA / JWT machinery off the mobile builds.
+Only desktop heads pull in `Sufni.App.Desktop`, which is what keeps ASP.NET Core server hosting, JWT bearer validation, and server certificate generation off the mobile builds. Shared client-side JWT parsing still lives in `Sufni.App` because mobile sync clients need to inspect access-token expiry for refresh.
 
 ## View Selection
 
@@ -36,13 +36,13 @@ The shared project carries two parallel view folders:
 - `Views/` — the canonical view per view model, used on both shells unless overridden.
 - `DesktopViews/` — extended layouts (side panels, multi-pane editors, richer item rows) that desktop builds substitute in place of the mobile view.
 
-The `ViewLocator` (`Sufni.App/Sufni.App/Sufni.App/ViewLocator.cs`) holds two dictionaries keyed by view-model type — a shared `ViewFactories` and a desktop-only `DesktopViewFactories`. On desktop the locator checks the desktop dictionary first and falls back to the shared one; on mobile only the shared dictionary is consulted. View models that need a desktop-specific layout simply have an entry in both dictionaries (e.g. `BikeEditorViewModel` → `BikeEditorView` on mobile, `BikeEditorDesktopView` on desktop). Where the same view model has both, the two views share a small UserControl base (e.g. `MainPagesViewBase`) only when the code-behind is shared — there is no general "two-view base class" requirement.
+The `ViewLocator` (`Sufni.App/Sufni.App/ViewLocator.cs`) holds two dictionaries keyed by view-model type — a shared `ViewFactories` and a desktop-only `DesktopViewFactories`. On desktop the locator checks the desktop dictionary first and falls back to the shared one; on mobile only the shared dictionary is consulted. View models that need a desktop-specific layout simply have an entry in both dictionaries (e.g. `BikeEditorViewModel` → `BikeEditorView` on mobile, `BikeEditorDesktopView` on desktop). Where the same view model has both, the two views share a small UserControl base (e.g. `MainPagesViewBase`) only when the code-behind is shared — there is no general "two-view base class" requirement.
 
 `Views/Controls/` holds reusable controls that bind against shared view-model bases (`CommonButtonLine` against `TabPageViewModelBase`, etc.). `DesktopViews/Controls/` holds the desktop-only row controls (`DeletableListItemButton`, `PairedDeviceListItemButton`, `LiveDaqListItemButton`) that are wired up only inside desktop list views. See [UI § Controls Library](ui.md#controls-library).
 
 ## The `IsDesktop` Flag
 
-`App.IsDesktop` (`Sufni.App/Sufni.App/Sufni.App/App.axaml.cs`) is the single runtime source of truth for which shell is active. It is set once in `OnFrameworkInitializationCompleted` from the Avalonia application lifetime: `IClassicDesktopStyleApplicationLifetime` → `true`, `ISingleViewApplicationLifetime` → `false`.
+`App.IsDesktop` (`Sufni.App/Sufni.App/App.axaml.cs`) is the single runtime source of truth for which shell is active. It is set once in `OnFrameworkInitializationCompleted` from the Avalonia application lifetime: `IClassicDesktopStyleApplicationLifetime` → `true`, `ISingleViewApplicationLifetime` → `false`.
 
 The flag is consulted in three places, deliberately kept narrow:
 
@@ -75,7 +75,7 @@ Desktop builds add the following beyond the shared registrations. None of these 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
 - **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the desktop pairing UI and provides a `StartServerAsync()` passthrough. See [UI § Coordinators](ui.md#coordinators).
 - **Inbound sync coordinator**: `IInboundSyncCoordinator` is a marker interface whose implementation subscribes to `SynchronizationDataArrived` and writes incoming bikes / setups into their stores. Sessions and paired devices have their own dedicated coordinators so each store keeps exactly one writer.
-- **Desktop-shaped Live DAQ surfaces**: the live preview / live session feature itself is shared (see [Live DAQ Streaming](live-streaming.md)), but the desktop heads provide extended layouts via `DesktopViews/Editors/LiveDaqDetailDesktopView`, `LiveSessionDetailDesktopView`, and the desktop-only Device Management card on the diagnostics tab.
+- **Desktop-shaped Live DAQ surfaces**: the live preview / live session feature itself is shared (see [Live DAQ Streaming](live-streaming.md)), and device-management commands are available from the shared diagnostics view model on both shells. Desktop heads provide extended layouts via `DesktopViews/Editors/LiveDaqDetailDesktopView` and `LiveSessionDetailDesktopView`.
 - **Welcome screen**: instantiated only by `MainWindowViewModel` as the first tab; mobile boots straight into `MainPagesViewModel`.
 - **DAQ import via mass storage**: drive-mounted DAQ devices (`BOARDID` marker scanning) and storage-provider folder picking are both viable on desktop. See [Acquisition § Mass Storage](acquisition.md#mass-storage).
 

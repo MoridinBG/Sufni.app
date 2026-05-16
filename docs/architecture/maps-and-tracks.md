@@ -39,14 +39,14 @@ The same `MapView` Avalonia control is reused by the recorded session detail pag
 
 ## Track Model
 
-`Track` (`Sufni.App/Sufni.App/Models/Track.cs`) is a `Synchronizable` entity persisted to the `track` table. It holds an ordered list of `TrackPoint` records — `(Time, X, Y, Elevation)` — where `X`/`Y` are spherical-mercator metres (the projection Mapsui consumes natively) and `Time` is a Unix epoch in seconds. The list is exposed as a typed `Points` collection for callers and as a JSON `points` column for SQLite via a serialized companion property; cached `start_time` / `end_time` columns mirror the first and last point timestamps so the database can match a session timestamp against a track without parsing the JSON.
+`Track` (`Sufni.App/Sufni.App/Models/Track.cs`) is a `Synchronizable` entity persisted to the `track` table. It holds an ordered list of `TrackPoint` records. Each point carries `Time`, projected `X`/`Y`, nullable `Elevation`, nullable calculated `Speed`, and optional GPS-quality metadata (`FixMode`, `Satellites`, `Epe2d`, `Epe3d`). `X`/`Y` are spherical-mercator metres (the projection Mapsui consumes natively) and `Time` is a Unix epoch in seconds. The list is exposed as a typed `Points` collection for callers and as a JSON `points` column for SQLite via a serialized companion property; cached `start_time` / `end_time` columns mirror the first and last point timestamps so the database can match a session timestamp against a track without parsing the JSON.
 
 Two factory methods build a track:
 
 - `Track.FromGpx(gpx)` parses a GPX 1.1 document, projects each `trkpt` from lon/lat to spherical mercator, and returns a `Track` whose points share the file's UTC timestamps. Used by the GPX import flow.
 - `Track.FromGpsRecords(records)` delegates projection to `GpsTrackPointProjection.ProjectAll`, which sorts by timestamp, drops records whose `FixMode <= 0` or whose lat/lon/alt are non-finite, and projects the survivors. Used by both the SST import path and the live-capture save path.
 
-Both factories return `null` for an empty result so the caller does not write a degenerate track row. `Track.GenerateSessionTrack(start, end)` extracts the points covering a session's time window and resamples them with a 0.1-second cubic spline (`MathNet.Numerics.Interpolation.CubicSpline.InterpolatePchip`) on each axis. The resampled list is what `MapView` actually draws; the original `Points` list is the long polyline of the entire ride.
+Both factories return `null` for an empty result so the caller does not write a degenerate track row. `Track.GenerateSessionTrack(start, end)` extracts the points covering a session's time window and resamples them at 0.1-second intervals. Projected `X`/`Y` coordinates use PCHIP cubic interpolation with a linear fallback when the point count is too low; nullable elevation and speed use nullable linear interpolation. GPS-quality metadata is copied through only for samples that land on an original source timestamp. The resampled list is what `MapView` actually draws; the original `Points` list is the long polyline of the entire ride.
 
 `GpsTrackPointProjection` (`Sufni.App/Sufni.App/Models/GpsTrackPointProjection.cs`) is the single projection helper. `TryProject(record)` returns `null` for unusable fixes; the live path uses it per-record while accumulating GPS frames so a session track can grow incrementally, and falls back to `ProjectAll` if a record arrives out of order.
 
@@ -64,8 +64,10 @@ Both `SessionCoordinator.LoadDesktopDetailAsync` and `LoadMobileDetailAsync` cal
 `ITileLayerService` (`Sufni.App/Sufni.App/Services/ITileLayerService.cs`) and `TileLayerService` (`Sufni.App/Sufni.App/Services/TileLayerService.cs`) own the tile-provider catalog. Registered as a singleton; `MapViewModel` is the only consumer. The service exposes:
 
 - `AvailableLayers` — an `ObservableCollection<TileLayerConfig>` that the map control's selector binds to.
-- `SelectedLayer` — a two-way property; the setter persists the new selection through `IMapPreferences.SetSelectedLayerIdAsync`.
+- `SelectedLayer` — the current read-only selection.
+- `SelectedLayerChanges` — an observable that emits the current selection and every subsequent change.
 - `InitializeAsync()` — idempotent (cached `Task`); seeds the two built-in providers (Jawg Dark and OpenCycleMap via Thunderforest, both with embedded API keys), appends any custom layers loaded from preferences, and restores the previously selected layer.
+- `SetSelectedLayerAsync` — updates the selected layer and persists the new selection through `IMapPreferences.SetSelectedLayerIdAsync`.
 - `AddCustomLayerAsync` / `RemoveCustomLayerAsync` — mark the supplied `TileLayerConfig` as custom, mutate the observable collection, and persist the custom-layers list back through `IMapPreferences`.
 
 There is no in-memory tile cache or persistent disk cache here; tile fetching is the responsibility of Mapsui's `TileLayer` and BruTile's `HttpTileSource` constructed in `MapView` from each `TileLayerConfig`. `TileLayerConfig` (`Sufni.App/Sufni.App/Models/TileLayerConfig.cs`) carries the URL template, attribution metadata, `MaxZoom`, an `IsCustom` flag and a generated `Id`.
@@ -75,7 +77,7 @@ There is no in-memory tile cache or persistent disk cache here; tile fetching is
 `MapViewModel` (`Sufni.App/Sufni.App/ViewModels/MapViewModel.cs`) is a thin reusable view model — neither an editor nor a list. It owns:
 
 - `AvailableLayers` (forwarded from `ITileLayerService`).
-- `SelectedLayer` — its setter pushes the choice back to `tileLayerService.SelectedLayer`, which in turn persists it.
+- `SelectedLayer` — updated from `ITileLayerService.SelectedLayerChanges`; user selection is committed through `SelectLayerAsync`, which calls `ITileLayerService.SetSelectedLayerAsync`.
 - `FullTrackPoints` and `SessionTrackPoints` — the two `List<TrackPoint>?` properties the host editor writes into.
 - `AddCustomLayerCommand` — opens `IDialogService.ShowAddTileLayerDialogAsync` and forwards the resulting `TileLayerConfig` to the tile-layer service.
 
@@ -100,13 +102,15 @@ The facet exposes only the operations the tile-layer service uses:
 
 DI registers `IMapPreferences` as a singleton via a factory that resolves `IAppPreferences.Map` so both interfaces point at the same backing document. `ISessionPreferences` is the sibling facet that carries per-session plot and statistics preferences; the two never share state and have no overlap.
 
+Map preferences also participate in app-preference sync. `IAppPreferences.GetSyncDataAsync` packages the map facet as `AppPreferencesSyncData.Maps`, and `TileLayerService` refreshes its built-in/custom layer catalog and selected layer after `SyncDataApplied` so remote map-preference changes are reflected in open map views.
+
 ## Where Maps Are Displayed
 
 The `MapView` control is hosted from three places:
 
 - **Recorded session detail (desktop)** — `Sufni.App/Sufni.App/DesktopViews/Items/SessionMediaDesktopView.axaml` puts the map under a `PlaceholderOverlayContainer` that sizes the surface from `SessionDetailViewModel.MapState`.
 - **Recorded session detail (mobile)** — `Sufni.App/Sufni.App/Views/SessionPages/RecordedGraphPageView.axaml` includes the same control inside the recorded graph page's media stack.
-- **Live session detail** — `Sufni.App/Sufni.App/Views/SessionPages/LiveGraphPageView.axaml` does the same for the live capture screen, with `LiveSessionMediaWorkspaceViewModel.MapViewModel` as the data context. The workspace gates `MapState` on `LiveSessionHeader.AcceptedGpsFixHz > 0` and shows a placeholder until the live session service produces the first projected `TrackPoint`. Each incoming `GpsBatch` frame in `LiveSessionService` projects through `GpsTrackPointProjection.TryProject` and appends to the live session's accumulated `TrackPoint[]`; the workspace re-publishes that array into `MapViewModel.SessionTrackPoints`. There is no full-track polyline during a live capture — only the session-window line is meaningful before save. On save, `SessionCoordinator.SaveLiveCaptureAsync` re-projects the captured `GpsRecord[]` through `Track.FromGpsRecords` and passes the candidate track to `PutProcessedSessionAsync`, which persists it and links it from the saved session's `full_track_id`.
+- **Live session detail** — `Sufni.App/Sufni.App/Views/SessionPages/LiveGraphPageView.axaml` hosts the map for the mobile/shared live capture screen, while `Sufni.App/Sufni.App/DesktopViews/Editors/LiveSessionDetailDesktopView.axaml` reaches the same map through `SessionMediaDesktopView`. In both cases `LiveSessionMediaWorkspaceViewModel.MapViewModel` is the data context. The workspace gates `MapState` on `LiveSessionHeader.AcceptedGpsFixHz > 0` and shows a placeholder until the live session service produces the first projected `TrackPoint`. Each incoming `GpsBatch` frame in `LiveSessionService` projects through `GpsTrackPointProjection.TryProject` and appends to the live session's accumulated `TrackPoint[]`; the workspace re-publishes that array into `MapViewModel.SessionTrackPoints`. There is no full-track polyline during a live capture — only the session-window line is meaningful before save. On save, `SessionCoordinator.SaveLiveCaptureAsync` re-projects the captured `GpsRecord[]` through `Track.FromGpsRecords` and passes the candidate track to `PutProcessedSessionAsync`, which persists it and links it from the saved session's `full_track_id`.
 
 The live preview's `GpsPreviewState` (`Sufni.App/Sufni.App/Services/LiveStreaming/GpsPreviewState.cs`) is independent of the map subsystem: it interprets fix-mode bytes for the diagnostics tab's status text, while `LiveSessionMediaWorkspaceViewModel` is what feeds projected points into `MapViewModel`. See [GPS Preview State](live-session.md#gps-preview-state).
 

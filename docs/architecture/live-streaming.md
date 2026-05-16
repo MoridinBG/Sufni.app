@@ -87,7 +87,9 @@ Diagnostics tab loads
     -> LiveDaqSharedStream.EnsureStartedAsync
       -> LiveDaqClient.ConnectAsync (TCP)
         -> LiveDaqClient.StartPreviewAsync (START_LIVE frame)
-          -> receive loop parses ACK + SESSION_HEADER + data frames
+          -> receive loop handles control frames and queues telemetry frames
+            -> parse loop decodes telemetry frames
+              -> publish loop emits LiveDaqClientEvent frames
             -> LiveDaqSharedStream state/frames
               -> LiveDaqSessionState.ApplyFrame
                 -> DispatcherTimer tick -> CreateSnapshot -> UI binding
@@ -184,13 +186,13 @@ All transport types live in `Sufni.App/Sufni.App/Services/LiveStreaming/`.
 
 ### Client
 
-`LiveDaqClient` owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. Two background tasks run off the UI thread: a socket drain loop reads exact frame headers and payloads from the network stream and pushes raw telemetry frames into a bounded channel, while a separate parse loop decodes those bytes into `LiveProtocolFrame` records. Both loops are started with `Task.Factory.StartNew`. Parsed frames and other client events are dispatched through a `Subject<LiveDaqClientEvent>` observable. A `SemaphoreSlim` gate serializes all lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the parse loop completes it when the matching ACK or error arrives.
+`LiveDaqClient` owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. Three background tasks run off the UI thread. The receive loop reads exact frame headers and payloads from the network stream, handles control frames such as ACK / ERROR / PONG immediately, and pushes telemetry frames into a bounded raw channel. The parse loop decodes raw telemetry bytes into `LiveProtocolFrame` records and writes them to a second bounded channel. The publish loop emits parsed telemetry frames as `LiveDaqClientEvent` values through the client observable. All three are started with `Task.Factory.StartNew`. A `SemaphoreSlim` gate serializes lifecycle state mutations. Start and stop handshakes use `TaskCompletionSource` — the caller awaits the TCS while the receive loop completes it when the matching ACK or error arrives.
 
 The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
 
 ### Drop Counters
 
-`LiveDaqClientDropCounters` is the immutable record published as part of `LiveDaqSharedStreamState` and rolled into the live-session control state. It tracks four kinds of pressure: raw telemetry frames skipped at the socket-drain channel, parsed telemetry frames dropped at the subscriber boundary, subscriber frames dropped, and live-session-side coalescing (graph batches coalesced and graph samples discarded). Recording-side counters added by the live-session display channel are merged on top by `LiveSessionService` before it publishes them to the UI.
+`LiveDaqClientDropCounters` is the immutable record published as part of `LiveDaqSharedStreamState` and rolled into the live-session control state. It tracks six pressure boundaries: `RawTelemetryFramesSkipped` at the receive-loop raw channel, `ParsedTelemetryFramesDropped` at the parse-to-publish channel, `SubscriberFramesDropped` at each shared-stream subscriber buffer, `GraphBatchesCoalesced` when the live graph display loop merges pending batches, `GraphSamplesDiscarded` when graph batches exceed display capacity, and `StatisticsRecomputesSkipped` when live-session statistics recompute work is skipped because a newer recompute superseded it. Recording-side counters added by the live-session display/statistics loops are merged on top by `LiveSessionService` before it publishes them to the UI.
 
 ### Shared Stream
 
@@ -206,7 +208,7 @@ The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDa
 
 ### GPS Preview State
 
-`GpsPreviewState` interprets GPS fix modes for UI display: fix mode 0 is no fix, mode 1 is 2D fix (has fix but not ready for full use), mode 2 is 3D fix (has fix and ready). It is consumed by both the diagnostics tab and the live-session media workspace; see [GPS Preview State](live-session.md#gps-preview-state).
+`GpsPreviewState` interprets GPS fix modes for diagnostics UI display: fix mode 0 is no fix, mode 1 is 2D fix (has fix but not ready for full use), mode 2 is 3D fix (has fix and ready). `LiveDaqSessionState` publishes it in `LiveDaqUiSnapshot` for the diagnostics tab. Live-session media does not consume this record; it renders map state from accepted GPS capability and projected `TrackPoint[]` values. See [Live Session Recording § GPS Preview State](live-session.md#gps-preview-state).
 
 ## Discovery & Catalog
 
