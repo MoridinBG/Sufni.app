@@ -158,6 +158,7 @@ mc:Ignorable="d">
         Maximum="{Binding MaxVelocityFilterWindowMilliseconds}"
         TickFrequency="10"
         IsSnapToTickEnabled="True"
+        ToolTip.Tip="Controls how much the app smooths suspension speed before recalculating the session. Higher values reduce jitter and sharp noise; 0 turns it off."
         Value="{Binding VelocityFilterWindowMilliseconds, Mode=TwoWay}" />
         </StackPanel>
     </ScrollViewer>
