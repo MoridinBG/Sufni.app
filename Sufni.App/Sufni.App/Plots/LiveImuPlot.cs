@@ -10,6 +10,8 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
 {
     private const double Floor = 1.0;
     private const double Padding = 1.1;
+    private const int RenderCapacitySamples = 1024;
+    private const int VisibleWindowDurationMilliseconds = 1024;
 
     private readonly DataStreamer frameStreamer;
     private readonly DataStreamer forkStreamer;
@@ -23,11 +25,12 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private double runningMax;
 
     public LiveImuPlot(Plot plot, double imuMaximum, bool hideRightAxis)
-        : base(plot, "IMU Acceleration (g)", 1024, 0, Math.Max(0.1, imuMaximum), hideRightAxis)
+        : base(plot, "IMU Acceleration (g)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(0.1, imuMaximum), hideRightAxis)
     {
-        frameStreamer = CreateStreamer(ImuPlot.FrameColor);
-        forkStreamer = CreateStreamer(TelemetryPlot.FrontColor);
-        rearStreamer = CreateStreamer(TelemetryPlot.RearColor);
+        frameStreamer = CreateStreamer(ImuPlot.FrameColor, "Frame");
+        forkStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Fork");
+        rearStreamer = CreateStreamer(TelemetryPlot.RearColor, "Shock");
+        ShowSourceLegend();
         ApplyAutoLimits();
     }
 
@@ -38,38 +41,44 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
             return;
         }
 
-        if (batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var frameTimes) && frameTimes.Count > 0)
+        if (batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var timingFrameTimes) && timingFrameTimes.Count > 0)
         {
-            UpdateTiming(frameTimes);
+            UpdateTiming(timingFrameTimes);
         }
-        else if (batch.ImuTimes.TryGetValue(LiveImuLocation.Fork, out var forkTimes) && forkTimes.Count > 0)
+        else if (batch.ImuTimes.TryGetValue(LiveImuLocation.Fork, out var timingForkTimes) && timingForkTimes.Count > 0)
         {
-            UpdateTiming(forkTimes);
+            UpdateTiming(timingForkTimes);
         }
-        else if (batch.ImuTimes.TryGetValue(LiveImuLocation.Rear, out var rearTimes) && rearTimes.Count > 0)
+        else if (batch.ImuTimes.TryGetValue(LiveImuLocation.Rear, out var timingRearTimes) && timingRearTimes.Count > 0)
         {
-            UpdateTiming(rearTimes);
+            UpdateTiming(timingRearTimes);
         }
 
         frameSmoother.Level = SmoothingLevel;
         forkSmoother.Level = SmoothingLevel;
         rearSmoother.Level = SmoothingLevel;
 
-        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Frame, out var frameValues) && frameValues.Count > 0)
+        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Frame, out var frameValues) &&
+            batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var frameTimes) &&
+            frameValues.Count > 0)
         {
-            frameStreamer.AddRange(frameSmoother.Apply(frameValues, ref frameSmoothingScratch));
+            frameStreamer.AddRange(frameSmoother.Apply(frameTimes, frameValues, ref frameSmoothingScratch));
             UpdateRunningMax(frameValues);
         }
 
-        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Fork, out var forkValues) && forkValues.Count > 0)
+        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Fork, out var forkValues) &&
+            batch.ImuTimes.TryGetValue(LiveImuLocation.Fork, out var forkTimes) &&
+            forkValues.Count > 0)
         {
-            forkStreamer.AddRange(forkSmoother.Apply(forkValues, ref forkSmoothingScratch));
+            forkStreamer.AddRange(forkSmoother.Apply(forkTimes, forkValues, ref forkSmoothingScratch));
             UpdateRunningMax(forkValues);
         }
 
-        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Rear, out var rearValues) && rearValues.Count > 0)
+        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Rear, out var rearValues) &&
+            batch.ImuTimes.TryGetValue(LiveImuLocation.Rear, out var rearTimes) &&
+            rearValues.Count > 0)
         {
-            rearStreamer.AddRange(rearSmoother.Apply(rearValues, ref rearSmoothingScratch));
+            rearStreamer.AddRange(rearSmoother.Apply(rearTimes, rearValues, ref rearSmoothingScratch));
             UpdateRunningMax(rearValues);
         }
 

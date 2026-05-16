@@ -12,16 +12,18 @@ namespace Sufni.App.Services.LiveStreaming;
 
 internal sealed class LiveGraphPipeline : ILiveGraphPipeline
 {
-    private const int MaxVelocityWindowSamples = 127;
+    private const int MaxVelocityContextMilliseconds = 127;
+    private const int VelocityFilterWindowMilliseconds = 51;
+    private const int MinimumVelocityFilterSamples = 5;
 
     private readonly TimeSpan flushInterval;
     private readonly ILogger logger;
     private readonly object gate = new();
     private readonly Subject<LiveGraphBatch> graphBatchesSubject = new();
     private PendingGraphBatch pendingGraphBatch = new();
-    private readonly SlidingWindowBuffer<double> recentTravelTimes = new(MaxVelocityWindowSamples);
-    private readonly SlidingWindowBuffer<double> recentFrontTravel = new(MaxVelocityWindowSamples);
-    private readonly SlidingWindowBuffer<double> recentRearTravel = new(MaxVelocityWindowSamples);
+    private readonly List<double> recentTravelTimes = new();
+    private readonly List<double> recentFrontTravel = new();
+    private readonly List<double> recentRearTravel = new();
 
     // Flush-loop-owned. Never read or written from Append* or Reset paths.
     private SavitzkyGolay? cachedVelocityFilter;
@@ -75,10 +77,12 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                 pendingGraphBatch.TravelTimes.Add(times[i]);
                 pendingGraphBatch.FrontTravel.Add(frontTravel[i]);
                 pendingGraphBatch.RearTravel.Add(rearTravel[i]);
-                recentTravelTimes.Append(times[i]);
-                recentFrontTravel.Append(frontTravel[i]);
-                recentRearTravel.Append(rearTravel[i]);
+                recentTravelTimes.Add(times[i]);
+                recentFrontTravel.Add(frontTravel[i]);
+                recentRearTravel.Add(rearTravel[i]);
             }
+
+            TrimRecentTravelWindowLocked();
         }
     }
 
@@ -295,16 +299,12 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
 
     private double[] ComputeVelocityAppend(IReadOnlyList<double> times, IReadOnlyList<double> travel, int batchCount)
     {
-        if (times.Count < 5 || travel.Any(double.IsNaN))
+        if (times.Count < MinimumVelocityFilterSamples || travel.Any(double.IsNaN))
         {
             return Enumerable.Repeat(double.NaN, batchCount).ToArray();
         }
 
-        var filterWindow = Math.Min(51, times.Count);
-        if (filterWindow % 2 == 0)
-        {
-            filterWindow--;
-        }
+        var filterWindow = CalculateVelocityFilterWindow(times);
 
         if (cachedVelocityFilter is null || cachedVelocityFilterWindow != filterWindow)
         {
@@ -326,6 +326,70 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
             destinationIndex: batchCount - velocities.Length,
             length: velocities.Length);
         return result;
+    }
+
+    private void TrimRecentTravelWindowLocked()
+    {
+        if (recentTravelTimes.Count <= MinimumVelocityFilterSamples)
+        {
+            return;
+        }
+
+        var latest = recentTravelTimes[^1];
+        var removeCount = 0;
+        var maxContextSeconds = MaxVelocityContextMilliseconds / 1000.0;
+        while (recentTravelTimes.Count - removeCount > MinimumVelocityFilterSamples &&
+               latest - recentTravelTimes[removeCount] >= maxContextSeconds)
+        {
+            removeCount++;
+        }
+
+        if (removeCount == 0)
+        {
+            return;
+        }
+
+        recentTravelTimes.RemoveRange(0, removeCount);
+        recentFrontTravel.RemoveRange(0, removeCount);
+        recentRearTravel.RemoveRange(0, removeCount);
+    }
+
+    private static int CalculateVelocityFilterWindow(IReadOnlyList<double> times)
+    {
+        var samplePeriodSeconds = InferSamplePeriodSeconds(times);
+        if (!double.IsFinite(samplePeriodSeconds) || samplePeriodSeconds <= 0)
+        {
+            return MinimumVelocityFilterSamples;
+        }
+
+        var filterWindow = Math.Max(
+            MinimumVelocityFilterSamples,
+            (int)Math.Round(VelocityFilterWindowMilliseconds / 1000.0 / samplePeriodSeconds));
+        if (filterWindow % 2 == 0)
+        {
+            filterWindow++;
+        }
+
+        filterWindow = Math.Min(filterWindow, times.Count);
+        if (filterWindow % 2 == 0)
+        {
+            filterWindow--;
+        }
+
+        return Math.Max(MinimumVelocityFilterSamples, filterWindow);
+    }
+
+    private static double InferSamplePeriodSeconds(IReadOnlyList<double> times)
+    {
+        if (times.Count < 2)
+        {
+            return double.NaN;
+        }
+
+        var duration = times[^1] - times[0];
+        return duration > 0
+            ? duration / (times.Count - 1)
+            : double.NaN;
     }
 
     private sealed class PendingGraphBatch

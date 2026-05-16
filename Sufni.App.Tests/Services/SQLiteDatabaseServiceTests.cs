@@ -412,6 +412,47 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
+    public async Task PutProcessedSessionAsync_AssociatesExistingTrack_WhenSessionHasNoGeneratedTrack()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "processed-session-existing-track.db");
+        var sessionId = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            await database.PutAsync(new Track
+            {
+                Id = trackId,
+                Points =
+                [
+                    new TrackPoint(90, 1, 1, 10),
+                    new TrackPoint(110, 2, 2, 11)
+                ]
+            });
+            var session = new Session(sessionId, "processed", "desc", null, 100)
+            {
+                ProcessedData = [8, 7, 6],
+                ProcessingFingerprintJson = """{"schemaVersion":1}"""
+            };
+
+            var persisted = await database.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+
+            Assert.Equal(trackId, persisted.FullTrack);
+            Assert.Single(await database.GetAllAsync<Track>());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PutProcessedSessionIfUnchangedAsync_ReturnsNullAndRollsBack_WhenBaselineDoesNotMatch()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
@@ -569,6 +610,124 @@ public class SQLiteDatabaseServiceTests
             var database = new SqLiteDatabaseService(databasePath);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() => database.PutAsync(new Track { Points = [] }));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FindTrackByTimeRangeAsync_ReturnsActiveTrackWithSameStartAndEnd()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "track-time-range.db");
+        var trackId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            await database.PutAsync(new Track
+            {
+                Id = trackId,
+                Points =
+                [
+                    new TrackPoint(100, 1, 1, 10),
+                    new TrackPoint(101, 2, 2, 11)
+                ]
+            });
+
+            var found = await database.FindTrackByTimeRangeAsync(100, 101);
+            var missing = await database.FindTrackByTimeRangeAsync(100, 102);
+
+            Assert.Equal(trackId, found);
+            Assert.Null(missing);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task StartupCleanup_SoftDeletesDuplicateTrackTimeRanges_AndRepointsSessions()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "duplicate-track-cleanup.db");
+        var canonicalTrackId = Guid.NewGuid();
+        var duplicateTrackId = Guid.NewGuid();
+        var canonicalSessionId = Guid.NewGuid();
+        var duplicateSessionId = Guid.NewGuid();
+
+        try
+        {
+            using (var connection = new SQLiteConnection(databasePath))
+            {
+                connection.CreateTable<Track>();
+                connection.CreateTable<Session>();
+                connection.Insert(new Track
+                {
+                    Id = canonicalTrackId,
+                    Points =
+                    [
+                        new TrackPoint(100, 1, 1, 10),
+                        new TrackPoint(101, 2, 2, 11)
+                    ],
+                    Updated = 10,
+                    ClientUpdated = 10
+                });
+                connection.Insert(new Track
+                {
+                    Id = duplicateTrackId,
+                    Points =
+                    [
+                        new TrackPoint(100, 3, 3, 12),
+                        new TrackPoint(101, 4, 4, 13)
+                    ],
+                    Updated = 20,
+                    ClientUpdated = 20
+                });
+                connection.Insert(new Session(canonicalSessionId, "canonical", "desc", null, 100)
+                {
+                    FullTrack = canonicalTrackId,
+                    Updated = 10,
+                    ClientUpdated = 10
+                });
+                connection.Insert(new Session(duplicateSessionId, "duplicate", "desc", null, 100)
+                {
+                    FullTrack = duplicateTrackId,
+                    Track =
+                    [
+                        new TrackPoint(100, 3, 3, 12),
+                        new TrackPoint(101, 4, 4, 13)
+                    ],
+                    Updated = 20,
+                    ClientUpdated = 20
+                });
+            }
+
+            var database = new SqLiteDatabaseService(databasePath);
+
+            var activeTracks = await database.GetAllAsync<Track>();
+            var duplicateSession = await database.GetSessionAsync(duplicateSessionId);
+
+            Assert.Single(activeTracks);
+            Assert.Equal(canonicalTrackId, activeTracks[0].Id);
+            Assert.NotNull(duplicateSession);
+            Assert.Equal(canonicalTrackId, duplicateSession!.FullTrack);
+            Assert.Null(duplicateSession.Track);
+
+            using var verificationConnection = new SQLiteConnection(databasePath);
+            var duplicateTrack = verificationConnection.Table<Track>().Single(track => track.Id == duplicateTrackId);
+            Assert.NotNull(duplicateTrack.Deleted);
         }
         finally
         {

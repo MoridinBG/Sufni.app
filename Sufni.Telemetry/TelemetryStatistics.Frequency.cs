@@ -5,6 +5,8 @@ namespace Sufni.Telemetry;
 
 public static partial class TelemetryStatistics
 {
+    private const int MinimumFrequencyResolutionDurationMilliseconds = 20_000;
+
     public static HistogramData CalculateTravelFrequencyHistogram(
         TelemetryData telemetryData,
         SuspensionType type,
@@ -24,7 +26,10 @@ public static partial class TelemetryStatistics
         }
         var mean = sum / travelSamples.Length;
 
-        var count = Math.Max(20000, travelSamples.Length);
+        var minimumCount = Math.Max(
+            2,
+            (int)Math.Ceiling(MinimumFrequencyResolutionDurationMilliseconds / 1000.0 * telemetryData.Metadata.SampleRate));
+        var count = Math.Max(minimumCount, travelSamples.Length);
         var complexSignal = new Complex[count];
 
         for (var index = 0; index < travelSamples.Length; index++)

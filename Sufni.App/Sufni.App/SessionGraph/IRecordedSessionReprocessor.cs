@@ -16,6 +16,12 @@ public interface IRecordedSessionReprocessor
         RecordedSessionDomainSnapshot domain,
         RecordedSessionSource source,
         CancellationToken cancellationToken = default);
+
+    Task<RecordedSessionReprocessResult> ReprocessAsync(
+        RecordedSessionDomainSnapshot domain,
+        RecordedSessionSource source,
+        TelemetryProcessingOptions processingOptions,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

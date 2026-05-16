@@ -215,8 +215,36 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenGpsTracks()
     {
-        await trackCoordinator.ImportGpxAsync();
+        var result = await trackCoordinator.ImportGpxAsync();
+        PublishGpxImportResult(result);
     }
 
     #endregion
+
+    private void PublishGpxImportResult(GpxImportResult result)
+    {
+        if (result.ImportedCount == 0 && result.AlreadyImportedCount == 0)
+        {
+            return;
+        }
+
+        var currentPage = GetSelectedPrimaryPage();
+        if (result.ImportedCount > 0 && result.AlreadyImportedCount > 0)
+        {
+            currentPage.Notifications.Add(
+                $"Imported {result.ImportedCount} GPX track(s); skipped {result.AlreadyImportedCount} already imported track(s).");
+            return;
+        }
+
+        if (result.ImportedCount > 0)
+        {
+            currentPage.Notifications.Add($"Imported {result.ImportedCount} GPX track(s).");
+            return;
+        }
+
+        currentPage.Notifications.Add(
+            result.AlreadyImportedCount == 1
+                ? "GPX track is already imported."
+                : $"{result.AlreadyImportedCount} GPX tracks are already imported.");
+    }
 }

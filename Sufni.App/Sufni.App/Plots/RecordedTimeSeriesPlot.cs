@@ -93,6 +93,11 @@ public abstract class RecordedTimeSeriesPlot(Plot plot) : TelemetryPlot(plot)
             series.AddToPlot(Plot);
         }
 
+        if (preparedSeries.Length > 1)
+        {
+            ShowSourceLegend();
+        }
+
         var valueRange = data.ValueRange ?? GetValueRange(preparedSeries);
         Plot.Axes.SetLimits(0, data.DurationSeconds, valueRange.Minimum, valueRange.Maximum);
         AddMirroredTimeSeriesAxisRules(0, data.DurationSeconds, valueRange.Minimum, valueRange.Maximum);
@@ -193,7 +198,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot) : TelemetryPlot(plot)
 
         var xValues = values.XValues.Length == count ? values.XValues : values.XValues.Take(count).ToArray();
         var sourceYValues = values.YValues.Length == count ? values.YValues : values.YValues.Take(count).ToArray();
-        var yValues = TelemetryDisplaySmoothing.Apply(sourceYValues, SmoothingLevel);
+        var yValues = TelemetryDisplaySmoothing.ApplyIrregular(xValues, sourceYValues, SmoothingLevel);
         var cursorReadoutSeries = CursorReadoutSeries.FromScatterSamples(
             series.Label,
             series.Unit,
@@ -267,12 +272,14 @@ public abstract class RecordedTimeSeriesPlot(Plot plot) : TelemetryPlot(plot)
                 signal.Axes.XAxis = plot.Axes.Bottom;
                 signal.Axes.YAxis = plot.Axes.Left;
                 signal.LineWidth = Source.LineWidth;
+                signal.LegendText = Source.Label;
                 return;
             }
 
             var scatter = plot.Add.Scatter(XValues, YValues);
             scatter.Color = Source.Color;
             scatter.LineWidth = Source.LineWidth;
+            scatter.LegendText = Source.Label;
             scatter.MarkerStyle.IsVisible = false;
         }
     }

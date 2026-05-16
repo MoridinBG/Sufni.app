@@ -17,7 +17,8 @@ public static class MeasurementPreprocessor
 
     public static MeasurementPreprocessorResult Process(
         ushort[] samples,
-        MeasurementSensorType sensorType)
+        MeasurementSensorType sensorType,
+        int sampleRate)
     {
         var signal = sensorType switch
         {
@@ -26,7 +27,7 @@ public static class MeasurementPreprocessor
             _ => throw new ArgumentOutOfRangeException(nameof(sensorType), sensorType, null),
         };
 
-        var fixedSignal = SpikeElimination.EliminateSpikesAsInt(signal);
+        var fixedSignal = SpikeElimination.EliminateSpikesAsInt(signal, sampleRate);
         var fixedSamples = sensorType switch
         {
             MeasurementSensorType.Linear => Array.ConvertAll(fixedSignal.fixedSignal, ClampLinearSample),

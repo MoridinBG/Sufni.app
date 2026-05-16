@@ -1,7 +1,15 @@
+using System;
+using System.Collections.Generic;
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Models;
+using Sufni.App.Presentation;
+using Sufni.App.SessionGraphs;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -192,11 +200,117 @@ public class TravelPlotDesktopViewTests
         Assert.Equal(1, timeline.VisibleRangeEnd, 6);
     }
 
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_MobileLongPress_SetsAnalysisRangeBoundaryWithoutClearingOnRelease()
+    {
+        TestApp.SetIsDesktop(false);
+        try
+        {
+            var telemetry = CreateTelemetryData(duration: 10);
+            var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
+            var view = new LongPressTravelPlotDesktopView
+            {
+                Telemetry = telemetry,
+                GraphWorkspace = workspace,
+            };
+
+            await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+            var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+            var pressPoint = plot.TranslatePoint(
+                new Point(plot.Bounds.Width / 2, plot.Bounds.Height / 2),
+                mounted.Host);
+            Assert.True(plot.Bounds.Width > 0 && plot.Bounds.Height > 0, $"Plot bounds were {plot.Bounds}.");
+            Assert.NotNull(pressPoint);
+
+            mounted.Host.MouseDown(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            view.TriggerLongPress();
+            mounted.Host.MouseUp(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Equal(1, workspace.SetAnalysisRangeBoundaryCallCount);
+            Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
+            Assert.NotNull(workspace.LastAnalysisRangeBoundary);
+            Assert.InRange(workspace.LastAnalysisRangeBoundary.Value, 0, telemetry.Metadata.Duration);
+        }
+        finally
+        {
+            TestApp.SetIsDesktop(true);
+        }
+    }
+
     private sealed class TestableTravelPlotDesktopView : TravelPlotDesktopView
     {
         public void UpdateTimelineRangeForTest()
         {
             UpdateTimelineRange();
+        }
+    }
+
+    private sealed class LongPressTravelPlotDesktopView : TravelPlotDesktopView
+    {
+        private Action? scheduledLongPress;
+
+        public void TriggerLongPress()
+        {
+            var callback = scheduledLongPress ?? throw new InvalidOperationException("No long press was scheduled.");
+            callback();
+        }
+
+        protected override IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
+        {
+            scheduledLongPress = callback;
+            return new TestSubscription(() => scheduledLongPress = null);
+        }
+    }
+
+    private sealed class TestSubscription(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
+    }
+
+    private sealed class RecordedSessionGraphWorkspaceStub(TelemetryData telemetryData) : IRecordedSessionGraphWorkspace
+    {
+        public TelemetryData? TelemetryData { get; } = telemetryData;
+        public TelemetryTimeRange? AnalysisRange { get; private set; }
+        public IReadOnlyList<TrackPoint>? TrackPoints => null;
+        public TrackTimeRange? TrackTimelineContext => null;
+        public SurfacePresentationState TravelGraphState => SurfacePresentationState.Ready;
+        public SurfacePresentationState VelocityGraphState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState ImuGraphState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState SpeedGraphState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
+        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
+            TravelGraphState,
+            VelocityGraphState,
+            ImuGraphState,
+            SpeedGraphState,
+            ElevationGraphState);
+        public SessionPlotPreferences PlotPreferences { get; } = new();
+        public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public int ClearAnalysisRangeCallCount { get; private set; }
+        public int SetAnalysisRangeBoundaryCallCount { get; private set; }
+        public double? LastAnalysisRangeBoundary { get; private set; }
+
+        public void SetAnalysisRange(double startSeconds, double endSeconds)
+        {
+            AnalysisRange = TelemetryTimeRange.TryCreate(startSeconds, endSeconds, out var range)
+                ? range
+                : null;
+        }
+
+        public void ClearAnalysisRange()
+        {
+            ClearAnalysisRangeCallCount++;
+            AnalysisRange = null;
+        }
+
+        public void SetAnalysisRangeBoundary(double boundarySeconds)
+        {
+            SetAnalysisRangeBoundaryCallCount++;
+            LastAnalysisRangeBoundary = boundarySeconds;
         }
     }
 }

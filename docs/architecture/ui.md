@@ -132,9 +132,13 @@ Each store wraps a `SourceCache<TSnapshot, TKey>` and exposes:
 - `Upsert(snapshot)` / `Remove(key)` (writer interface only) — invoked
   by coordinators after a save / delete / sync arrival.
 
-Snapshots are immutable records, not view models. They carry an
-`Updated` timestamp that the editors keep as their `BaselineUpdated`
-for optimistic conflict detection.
+Snapshots are immutable records, not view models. Snapshots for
+editor-backed persisted entities such as bikes, setups, and sessions
+carry an `Updated` timestamp that the editors keep as their
+`BaselineUpdated` for optimistic conflict detection. Runtime-only or
+metadata-only snapshots that are not edited through that flow, such as
+`LiveDaqSnapshot`, `PairedDeviceSnapshot`, and
+`RecordedSessionSourceSnapshot`, do not expose an editor baseline.
 
 `SessionSnapshot` is metadata-only: it carries `HasProcessedData`
 and `ProcessingFingerprintJson`, but not the MessagePack telemetry
@@ -192,12 +196,16 @@ surfaces:
   `DerivedChangeKind` flags value describing what changed since the
   previous domain snapshot.
 
-Graph recomputes are coalesced onto the current synchronization
-context or the Avalonia UI dispatcher, so a batch of session/setup/
-bike/source updates produces coherent summaries and domain snapshots
-instead of a cascade of partial UI states. Dependency changes recompute
-all sessions because a setup or bike update can affect any recorded
-session linked through that dependency.
+Graph recomputes are coalesced through an injected
+`IRecordedSessionGraphScheduler`; the default
+`AvaloniaRecordedSessionGraphScheduler` posts to
+`Dispatcher.UIThread` at background priority rather than using the
+ambient synchronization context of the thread that queued the change.
+This lets a batch of session/setup/bike/source updates produce
+coherent summaries and domain snapshots instead of a cascade of
+partial UI states. Dependency changes recompute all sessions because a
+setup or bike update can affect any recorded session linked through
+that dependency.
 
 `ProcessingFingerprintService` is the pure derivation service behind
 the graph. It parses the persisted fingerprint JSON from
@@ -211,8 +219,11 @@ setup, bike, and source snapshots, and classifies staleness as:
   recomputable when setup, bike, and raw source are available.
 - `MissingDependencies` — stale but not recomputable until the setup
   or bike is restored.
-- `MissingRawSource` — not marked stale, displayed as "No Raw", and
-  not recomputable. Existing processed data can still be opened.
+- `MissingRawSource(ProcessedStateStale)` — displayed as "No Raw" and
+  not recomputable because the raw source is unavailable. Existing
+  processed data can still be opened. `ProcessedStateStale` preserves
+  whether the processed BLOB/fingerprint is known to be stale even
+  though the app cannot repair it until the source is restored.
 
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
 the current session/setup/bike/source snapshots synchronously from
@@ -287,8 +298,8 @@ running.
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
 and for small sealed event hierarchies such as `SessionImportEvent`
-(`Imported` / `Failed`) when a long-running workflow streams progress
-back to the UI.
+(`Imported` / `Failed` / `Progress(Current, Total)`) when a
+long-running workflow streams progress back to the UI.
 
 ## Queries
 
@@ -500,11 +511,13 @@ strip and the tab body. The two editors compose different sets:
 Both editors add or remove `BalancePage` at runtime via an
 `EnsureBalancePage(bool)` helper based on whether the current
 telemetry produces a balance plot, so `Pages` is mutated rather than
-rebuilt. The graph page is the only page constructed by the editor
-(it takes the editor's graph and media workspaces as constructor
-arguments — `RecordedGraphPageViewModel` for the recorded editor,
-`LiveGraphPageViewModel` for the live editor); the rest are
-parameterless and own only their own state.
+rebuilt. Graph pages are constructed with the editor's graph and media
+workspaces as constructor arguments — `RecordedGraphPageViewModel` for
+the recorded editor, `LiveGraphPageViewModel` for the live editor.
+Several statistics pages are also workspace-backed so their
+presentation states and SVG surfaces can be built from the editor's
+analysis service; notes and preferences remain the mostly local
+parameterless pages.
 
 Most pages are pure projection surfaces over data the editor pushes
 in: `SpringPageViewModel`, `DamperPageViewModel`, and
@@ -531,18 +544,22 @@ Two pages diverge from that pattern:
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
   `ApplyPlotAvailability(...)` so the editor can round-trip through
   `SessionPlotPreferences` without reaching into individual
-  `PlotPreferenceItemViewModel` instances. Both editors subscribe to
-  `PropertyChanged` on the plot rows in their constructor and
-  react to toggle/smoothing changes by re-applying preferences to the
-  graph workspace — the recorded editor re-applies plot selection
-  over its base presentation states, while the live editor calls
+  `PlotPreferenceItemViewModel` instances. It also owns the
+  processing preference `VelocityFilterWindowMilliseconds` and emits a
+  commit event when the user finishes changing that slider, allowing
+  the recorded editor to recompute and persist processed telemetry
+  with the new `TelemetryProcessingOptions`. Both editors subscribe to
+  `PropertyChanged` on the plot rows in their constructor and react to
+  toggle/smoothing changes by re-applying preferences to the graph
+  workspace — the recorded editor re-applies plot selection over its
+  base presentation states, while the live editor calls
   `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences`. The
   recorded editor also persists changes through `ISessionPreferences`
   (loaded on `Loaded`, written via `UpdateRecordedAsync`) and folds
   the statistics preferences (travel-histogram mode,
   velocity-average mode, balance-displacement mode, target profile)
-  through the same persistence path; the live editor only seeds the
-  preferences for the new session through
+  and processing preferences through the same persistence path; the
+  live editor seeds those preferences for the new session through
   `SessionCoordinator.SaveLiveCaptureAsync(...)` because there is no
   persisted entity to write back to until the capture is saved.
 
@@ -622,7 +639,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `ILiveDaqSharedStreamRegistry`, `ILiveSessionServiceFactory`,
   `LiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
   unconditionally; `MainPagesViewModel` receives
-  `LiveDaqListViewModel` conditionally (null on mobile).
+  `LiveDaqListViewModel` as a required dependency on both shells.
 - **View models**: list view models, the import view model and the
   welcome screen as singletons; `MainViewModel` and
   `MainWindowViewModel` as singletons; `MainPagesViewModel` via an
@@ -695,6 +712,12 @@ view.
 `SufniPlot` (`Sufni.App/Sufni.App/Plots/SufniPlot.cs`) is the base class providing dark theme styling (background `#15191C`, data area `#20262B`, grid `#505558`, labels `#D0D0D0`). It also patches a ScottPlot horizontal line rendering issue.
 
 `TelemetryPlot` (`Sufni.App/Sufni.App/Plots/TelemetryPlot.cs`) extends `SufniPlot` for time-series data with front (blue `#3288bd`) and rear (teal `#66c2a5`) color conventions. It defines `LockedVerticalSoftLockedHorizontalRule` — an axis rule that locks the Y range but allows X panning/zooming within the session duration.
+
+The table below is a quick orientation for the main plot families. The
+more complete and lower-level rendering reference is
+[Plot Rendering](plot-rendering.md), which covers recorded
+time-series, track-signal, statistics, leverage-ratio, and live plot
+classes.
 
 | Plot                             | File                                    | Description                                                                         |
 | -------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |

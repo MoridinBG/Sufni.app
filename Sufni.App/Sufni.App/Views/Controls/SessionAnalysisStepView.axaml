@@ -1,0 +1,205 @@
+<UserControl
+x:Class="Sufni.App.Views.Controls.SessionAnalysisStepView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Models"
+d:DesignHeight="260"
+d:DesignWidth="720"
+x:DataType="models:SessionAnalysisStep"
+mc:Ignorable="d">
+
+    <Border
+    Margin="0,0,0,8"
+    Padding="10"
+    BorderBrush="#55606C"
+    BorderThickness="1"
+    CornerRadius="6">
+        <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border
+                Grid.Column="0"
+                Width="26"
+                Height="26"
+                Margin="0,0,8,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="#26313D"
+                BorderBrush="#55606C"
+                BorderThickness="1"
+                CornerRadius="13">
+                    <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    Text="{Binding Number}" />
+                </Border>
+
+                <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                FontSize="15"
+                FontWeight="SemiBold"
+                Text="{Binding Title}"
+                TextWrapping="Wrap" />
+
+                <Border
+                Grid.Column="2"
+                Margin="8,0,0,0"
+                Padding="8,3"
+                VerticalAlignment="Center"
+                BorderBrush="#55606C"
+                BorderThickness="1"
+                CornerRadius="4">
+                    <TextBlock
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    Text="{Binding VerdictText}" />
+                </Border>
+            </Grid>
+
+            <ItemsControl Name="StepMetricsItemsControl" ItemsSource="{Binding Metrics}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:SessionAnalysisMetric">
+                        <Border
+                        Margin="0,0,6,6"
+                        Padding="6,4"
+                        BorderBrush="#46515D"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
+                                <TextBlock FontSize="12" Text="{Binding DisplayValue}" />
+                                <TextBlock FontSize="10" Opacity="0.7" Text="{Binding Side}" />
+                                <TextBlock FontSize="10" Opacity="0.7" Text="{Binding TargetRange, StringFormat='target: {0}'}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border
+            Name="PrimaryExperimentCard"
+            Padding="8"
+            Background="#202832"
+            BorderBrush="#46515D"
+            BorderThickness="1"
+            CornerRadius="4"
+            IsVisible="{Binding HasPrimaryAdjustment}">
+                <StackPanel>
+                    <TextBlock
+                    FontWeight="SemiBold"
+                    Text="{Binding PrimaryAdjustment.ExperimentText}"
+                    TextWrapping="Wrap" />
+                    <TextBlock
+                    Margin="0,4,0,0"
+                    FontSize="12"
+                    Opacity="0.75"
+                    Text="{Binding PrimaryAdjustment.ExpectedEffect, StringFormat='Expected: {0}'}"
+                    TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock
+            Name="ContextMessageTextBlock"
+            FontSize="12"
+            Opacity="0.8"
+            IsVisible="{Binding HasContextMessage}"
+            Text="{Binding ContextMessage}"
+            TextWrapping="Wrap" />
+
+            <Expander
+            Name="OtherOptionsExpander"
+            Header="{Binding OtherOptionsHeader}"
+            IsVisible="{Binding HasAlternates}">
+                <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Alternates}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:Adjustment">
+                            <TextBlock
+                            Margin="0,0,0,4"
+                            Text="{Binding ExperimentText}"
+                            TextWrapping="Wrap" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Expander>
+
+            <Expander
+            Name="FindingsExpander"
+            Header="{Binding FindingsHeader}"
+            IsVisible="{Binding HasFindings}">
+                <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Findings}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:SessionAnalysisFinding">
+                            <Border
+                            Margin="0,0,0,8"
+                            Padding="8"
+                            BorderBrush="#46515D"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                                <StackPanel>
+                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,6">
+                                        <TextBlock
+                                        Grid.Column="0"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding Title}"
+                                        TextWrapping="Wrap" />
+                                        <TextBlock
+                                        Grid.Column="1"
+                                        Margin="12,0,0,0"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding Severity}" />
+                                        <TextBlock
+                                        Grid.Column="2"
+                                        Margin="12,0,0,0"
+                                        FontSize="12"
+                                        Opacity="0.7"
+                                        Text="{Binding Confidence}" />
+                                    </Grid>
+
+                                    <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Category}" />
+                                    <TextBlock Margin="0,8,0,0" Text="{Binding Observation}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,6,0,0" Text="{Binding Recommendation}" TextWrapping="Wrap" />
+
+                                    <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Evidence}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:SessionAnalysisEvidence">
+                                                <Border
+                                                Margin="0,0,6,6"
+                                                Padding="6,4"
+                                                BorderBrush="#46515D"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                                    <StackPanel>
+                                                        <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
+                                                        <TextBlock FontSize="12" Text="{Binding DisplayValue}" />
+                                                        <TextBlock FontSize="10" Opacity="0.7" Text="{Binding Side}" />
+                                                        <TextBlock FontSize="10" Opacity="0.7" Text="{Binding SourceMode}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Expander>
+        </StackPanel>
+    </Border>
+</UserControl>

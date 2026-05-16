@@ -26,7 +26,9 @@ public sealed record CursorReadout(
     double TimeSeconds,
     double AnchorX,
     double AnchorY,
-    IReadOnlyList<CursorReadoutLine> Lines)
+    IReadOnlyList<CursorReadoutLine> Lines,
+    string? Header = null,
+    bool KeepTooltipInsideDataArea = false)
 {
     public Color AccentColor => Lines.FirstOrDefault()?.Color ?? Colors.LightGray;
 }

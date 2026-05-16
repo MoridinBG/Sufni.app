@@ -110,7 +110,9 @@ public static partial class TelemetryStatistics
         var travelMax = suspensionType == SuspensionType.Front
             ? telemetryData.Front.MaxTravel!.Value
             : telemetryData.Rear.MaxTravel!.Value;
-        var strokes = GetIncludedStrokes(telemetryData, suspension, balanceType, options.Range);
+        var strokes = GetIncludedStrokes(telemetryData, suspension, balanceType, options.Range)
+            .Where(stroke => IncludesSpeedMode(stroke, options))
+            .ToArray();
 
         var travelValues = new List<double>();
         var velocityValues = new List<double>();
@@ -140,5 +142,16 @@ public static partial class TelemetryStatistics
     {
         var denominator = Math.Max(Math.Abs(frontSlope), Math.Abs(rearSlope));
         return denominator < 1e-9 ? 0 : (frontSlope - rearSlope) / denominator * 100.0;
+    }
+
+    private static bool IncludesSpeedMode(Stroke stroke, BalanceStatisticsOptions options)
+    {
+        return options.SpeedMode switch
+        {
+            BalanceSpeedMode.Both => true,
+            BalanceSpeedMode.LowSpeed => Math.Abs(stroke.Stat.MaxVelocity) < options.HighSpeedThreshold,
+            BalanceSpeedMode.HighSpeed => Math.Abs(stroke.Stat.MaxVelocity) >= options.HighSpeedThreshold,
+            _ => throw new ArgumentOutOfRangeException(nameof(options), options.SpeedMode, null),
+        };
     }
 }

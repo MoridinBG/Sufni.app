@@ -137,6 +137,29 @@ mc:Ignorable="d">
                 </ComboBox.ItemTemplate>
             </ComboBox>
         </Grid>
+
+        <TextBlock
+        Margin="0,8,0,0"
+        FontSize="14"
+        FontWeight="SemiBold"
+        Text="Processing" />
+
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Velocity filter" />
+            <TextBlock
+            Grid.Column="1"
+            FontSize="12"
+            Text="{Binding VelocityFilterWindowDisplay}" />
+        </Grid>
+
+        <Slider
+        Name="VelocityFilterWindowSlider"
+        Minimum="{Binding MinVelocityFilterWindowMilliseconds}"
+        Maximum="{Binding MaxVelocityFilterWindowMilliseconds}"
+        TickFrequency="10"
+        IsSnapToTickEnabled="True"
+        ToolTip.Tip="Controls how much the app smooths suspension speed before recalculating the session. Higher values reduce jitter and sharp noise; 0 turns it off."
+        Value="{Binding VelocityFilterWindowMilliseconds, Mode=TwoWay}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

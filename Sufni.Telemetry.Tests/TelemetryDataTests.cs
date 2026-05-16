@@ -941,6 +941,22 @@ public class TelemetryDataTests
         Assert.Null(TelemetryStatistics.CalculateVibration(zeroImuSampleRate, ImuLocation.Fork, SuspensionType.Front));
     }
 
+    [Theory]
+    [InlineData(50)]
+    [InlineData(1000)]
+    public void CalculateTravelFrequencyHistogram_UsesSameFrequencyResolutionAcrossSampleRates(int sampleRate)
+    {
+        var telemetry = CreateTelemetry(
+            travel: Enumerable.Range(0, sampleRate).Select(index => Math.Sin(index * 0.1)).ToArray(),
+            maxTravel: 100,
+            sampleRate: sampleRate);
+
+        var histogram = TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front);
+
+        Assert.True(histogram.Bins.Count > 2);
+        Assert.Equal(0.05, histogram.Bins[1] - histogram.Bins[0], precision: 6);
+    }
+
     private static TelemetryData CreateTelemetry(
         double[] travel,
         double maxTravel,

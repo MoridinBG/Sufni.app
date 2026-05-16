@@ -31,6 +31,8 @@ public class RecordedTimeSeriesPlotTests
         Assert.Equal("Travel (mm)", plot.Axes.Title.Label.Text);
         Assert.Same(plot.Axes.Bottom, signal.Axes.XAxis);
         Assert.Same(plot.Axes.Left, signal.Axes.YAxis);
+        Assert.Equal("Front", signal.LegendText);
+        Assert.False(plot.Legend.IsVisible);
         Assert.NotNull(sut.CursorLine);
 
         sut.SetCursorPositionWithReadout(1.0);
@@ -38,6 +40,38 @@ public class RecordedTimeSeriesPlotTests
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
         Assert.Contains("Front: 50 mm", tooltip.LabelText);
+    }
+
+    [Fact]
+    public void LoadTimeSeries_WithMultipleSeries_ShowsSourceLegend()
+    {
+        var plot = new Plot();
+        var sut = new TestRecordedTimeSeriesPlot(plot);
+
+        sut.LoadForTest(new RecordedTimeSeriesData(
+            "Travel (mm)",
+            "No travel data",
+            DurationSeconds: 1.5,
+            Series:
+            [
+                new RecordedTimeSeries(
+                    "Front",
+                    "mm",
+                    TelemetryPlot.FrontColor,
+                    new SampledValues([0, 25, 50, 75], SampleRate: 2),
+                    "0.#"),
+                new RecordedTimeSeries(
+                    "Rear",
+                    "mm",
+                    TelemetryPlot.RearColor,
+                    new SampledValues([5, 30, 55, 80], SampleRate: 2),
+                    "0.#")
+            ]));
+
+        Assert.True(plot.Legend.IsVisible);
+        Assert.Equal(
+            ["Front", "Rear"],
+            plot.PlottableList.OfType<Signal>().Select(signal => signal.LegendText).ToArray());
     }
 
     [Fact]
@@ -59,7 +93,7 @@ public class RecordedTimeSeriesPlotTests
                     "Speed",
                     "km/h",
                     Color.FromHex("#ffffbf"),
-                    new ExplicitValues([0, 1, 2], [0, 9, 0]),
+                    new ExplicitValues([0, 0.001, 0.002], [0, 9, 0]),
                     "0.#")
             ]));
 
@@ -68,7 +102,7 @@ public class RecordedTimeSeriesPlotTests
         Assert.Empty(plot.PlottableList.OfType<Signal>());
         Assert.NotNull(sut.CursorLine);
 
-        sut.SetCursorPositionWithReadout(1.0);
+        sut.SetCursorPositionWithReadout(0.001);
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
