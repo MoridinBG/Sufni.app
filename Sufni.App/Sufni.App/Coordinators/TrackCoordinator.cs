@@ -17,15 +17,15 @@ public class TrackCoordinator(
 {
     private const double DefaultMapVideoWidth = 400.0;
 
-    public virtual async Task ImportGpxAsync(CancellationToken cancellationToken = default)
+    public virtual async Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default)
     {
         var files = await filesService.OpenGpxFilesAsync();
         if (files.Count == 0)
         {
-            return;
+            return new GpxImportResult(0, 0);
         }
 
-        await backgroundTaskRunner.RunAsync(
+        return await backgroundTaskRunner.RunAsync(
             () => ImportGpxCoreAsync(files, cancellationToken),
             cancellationToken);
     }
@@ -41,8 +41,13 @@ public class TrackCoordinator(
             cancellationToken);
     }
 
-    private async Task ImportGpxCoreAsync(IReadOnlyList<Avalonia.Platform.Storage.IStorageFile> files, CancellationToken cancellationToken)
+    private async Task<GpxImportResult> ImportGpxCoreAsync(
+        IReadOnlyList<Avalonia.Platform.Storage.IStorageFile> files,
+        CancellationToken cancellationToken)
     {
+        var importedCount = 0;
+        var alreadyImportedCount = 0;
+
         foreach (var file in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -56,8 +61,18 @@ public class TrackCoordinator(
                 throw new InvalidOperationException("GPX file did not contain any valid track points.");
             }
 
+            var existingTrackId = await databaseService.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
+            if (existingTrackId is not null)
+            {
+                alreadyImportedCount++;
+                continue;
+            }
+
             await databaseService.PutAsync(track);
+            importedCount++;
         }
+
+        return new GpxImportResult(importedCount, alreadyImportedCount);
     }
 
     private async Task<SessionTrackPresentationData> LoadSessionTrackCoreAsync(
@@ -94,3 +109,5 @@ public class TrackCoordinator(
             DefaultMapVideoWidth);
     }
 }
+
+public sealed record GpxImportResult(int ImportedCount, int AlreadyImportedCount);

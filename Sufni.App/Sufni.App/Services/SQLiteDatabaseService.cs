@@ -343,6 +343,36 @@ public class SqLiteDatabaseService : IDatabaseService
         public string? SourceHash { get; set; }
     }
 
+    private sealed class TrackIdRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+    }
+
+    private sealed class TrackTimeRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("start_time")]
+        public long StartTime { get; set; }
+
+        [Column("end_time")]
+        public long EndTime { get; set; }
+
+        [Column("updated")]
+        public long Updated { get; set; }
+    }
+
+    private sealed class SessionTrackReferenceRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("full_track_id")]
+        public Guid? FullTrackId { get; set; }
+    }
+
     private sealed record CleanupSummary(
         int SessionCaches,
         int RecordedSessionSources,
@@ -379,6 +409,7 @@ public class SqLiteDatabaseService : IDatabaseService
         var deletedSessions = await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
         deletedRecordedSources += await connection.ExecuteAsync(
             "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
+        var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(t => t.Deleted != null && t.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
@@ -389,11 +420,75 @@ public class SqLiteDatabaseService : IDatabaseService
             deletedSessionCaches,
             deletedRecordedSources,
             deletedSessions,
-            deletedTracks,
+            deletedTracks + duplicateTracks,
             deletedBoards,
             deletedSetups,
             deletedBikes,
             deletedPairedDevices);
+    }
+
+    private async Task<int> CleanupDuplicateTrackTimeRangesAsync()
+    {
+        var tracks = await connection.QueryAsync<TrackTimeRow>(
+            """
+            SELECT id, start_time, end_time, updated
+            FROM track
+            WHERE deleted IS NULL
+            """);
+        var duplicates = tracks
+            .Where(track => track.StartTime <= track.EndTime)
+            .GroupBy(track => (track.StartTime, track.EndTime))
+            .Where(group => group.Count() > 1)
+            .ToList();
+
+        if (duplicates.Count == 0)
+        {
+            return 0;
+        }
+
+        var sessionReferences = await connection.QueryAsync<SessionTrackReferenceRow>(
+            """
+            SELECT id, full_track_id
+            FROM session
+            WHERE deleted IS NULL AND full_track_id IS NOT NULL
+            """);
+        var sessionReferenceCounts = sessionReferences
+            .Where(reference => reference.FullTrackId.HasValue)
+            .GroupBy(reference => reference.FullTrackId!.Value)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var removed = 0;
+        foreach (var group in duplicates)
+        {
+            var canonicalTrack = SelectCanonicalDuplicateTrack(group, sessionReferenceCounts);
+            foreach (var duplicateTrack in group.Where(track => track.Id != canonicalTrack.Id))
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE session SET full_track_id=?, track=NULL, updated=? WHERE deleted IS NULL AND full_track_id=?",
+                    canonicalTrack.Id,
+                    now,
+                    duplicateTrack.Id);
+                removed += await connection.ExecuteAsync(
+                    "UPDATE track SET deleted=?, updated=? WHERE id=? AND deleted IS NULL",
+                    now,
+                    now,
+                    duplicateTrack.Id);
+            }
+        }
+
+        return removed;
+    }
+
+    private static TrackTimeRow SelectCanonicalDuplicateTrack(
+        IEnumerable<TrackTimeRow> tracks,
+        IReadOnlyDictionary<Guid, int> sessionReferenceCounts)
+    {
+        return tracks
+            .OrderByDescending(track => sessionReferenceCounts.TryGetValue(track.Id, out var count) ? count : 0)
+            .ThenBy(track => track.Updated == 0 ? long.MaxValue : track.Updated)
+            .ThenBy(track => track.Id)
+            .First();
     }
 
     public async Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : Synchronizable, new()
@@ -725,6 +820,10 @@ public class SqLiteDatabaseService : IDatabaseService
 
                 session.FullTrack = newFullTrack.Id;
             }
+            else if (session.FullTrack is null && session.Timestamp.HasValue)
+            {
+                session.FullTrack = await FindTrackContainingTimestampAsync(session.Timestamp.Value);
+            }
 
             var existingSession = await EntityExistsAsync<Session>(session.Id);
             session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -767,6 +866,23 @@ public class SqLiteDatabaseService : IDatabaseService
 
         return await GetSessionAsync(session.Id)
                ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
+    }
+
+    public async Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime)
+    {
+        await Initialization;
+
+        var rows = await connection.QueryAsync<TrackIdRow>(
+            """
+            SELECT id
+            FROM track
+            WHERE deleted IS NULL AND start_time = ? AND end_time = ?
+            ORDER BY updated ASC, id ASC
+            LIMIT 1
+            """,
+            startTime,
+            endTime);
+        return rows.Count == 0 ? null : rows[0].Id;
     }
 
     public async Task PatchSessionPsstAsync(Guid id, byte[] data)
@@ -840,14 +956,32 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         var session = sessions[0];
-        var track = await connection.Table<Track>()
-            .Where(t => t.Deleted == null && t.StartTime <= session.Timestamp && session.Timestamp <= t.EndTime)
-            .FirstOrDefaultAsync();
-        if (track is null) return null;
+        var trackId = await FindTrackContainingTimestampAsync(session.Timestamp);
+        if (trackId is null) return null;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        await connection.ExecuteAsync("UPDATE session SET full_track_id=?, updated=? WHERE id=?", track.Id, now, session.Id);
-        return track.Id;
+        await connection.ExecuteAsync("UPDATE session SET full_track_id=?, updated=? WHERE id=?", trackId.Value, now, session.Id);
+        return trackId;
+    }
+
+    private async Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp)
+    {
+        if (!timestamp.HasValue)
+        {
+            return null;
+        }
+
+        var rows = await connection.QueryAsync<TrackIdRow>(
+            """
+            SELECT id
+            FROM track
+            WHERE deleted IS NULL AND start_time <= ? AND ? <= end_time
+            ORDER BY start_time DESC, end_time ASC, updated ASC, id ASC
+            LIMIT 1
+            """,
+            timestamp.Value,
+            timestamp.Value);
+        return rows.Count == 0 ? null : rows[0].Id;
     }
 
     public async Task<SynchronizationData> GetSynchronizationDataAsync(long since)
