@@ -20,6 +20,8 @@ public sealed class TelemetryPlotRow : UserControl
     private const double HostedRowTitleLeftInset = 12;
     private const double HeaderClickMovementThresholdPixels = 6;
     private static readonly IBrush defaultHeaderBackground = new SolidColorBrush(Color.Parse("#1a1f23"));
+    private static readonly IBrush dragHeaderBackground = new SolidColorBrush(Color.Parse("#263238"));
+    private static readonly IBrush dropTargetHeaderBackground = new SolidColorBrush(Color.Parse("#1F3A46"));
     private static readonly IBrush defaultHostedRowBackground = new SolidColorBrush(Color.Parse("rgb(15, 19, 20)"));
     private static readonly IBrush defaultHostedHeaderBackground = new SolidColorBrush(Color.Parse("#101416"));
     private static readonly Color defaultBasePlotFigureBackground = Color.Parse("#15191C");
@@ -36,6 +38,10 @@ public sealed class TelemetryPlotRow : UserControl
     private readonly ContentControl placeholderContentHost;
     private readonly StackPanel childRowsHost;
     private bool isHeaderClickCandidate;
+    private bool isHeaderPointerActive;
+    private bool isHeaderDragInProgress;
+    private bool isDragFeedbackVisible;
+    private bool isDropTargetFeedbackVisible;
     private Point headerClickStartPoint;
 
     public static readonly StyledProperty<string?> TitleProperty =
@@ -185,6 +191,8 @@ public sealed class TelemetryPlotRow : UserControl
     internal double AllocatedPlotHeight { get; private set; }
     internal double? ManualGroupHeight { get; set; }
     internal bool ReservesLayout => PresentationState.ReservesLayout || ChildRows.Any(row => row.ReservesLayout);
+    internal bool IsDragFeedbackVisible => isDragFeedbackVisible;
+    internal bool IsDropTargetFeedbackVisible => isDropTargetFeedbackVisible;
 
     public TelemetryPlotRow()
     {
@@ -238,7 +246,7 @@ public sealed class TelemetryPlotRow : UserControl
             OnHeaderPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
-        headerButton.PointerCaptureLost += (_, _) => isHeaderClickCandidate = false;
+        headerButton.PointerCaptureLost += (_, _) => OnHeaderPointerCaptureLost();
 
         plotContentHost = new ContentControl();
         placeholderContentHost = new ContentControl();
@@ -474,7 +482,7 @@ public sealed class TelemetryPlotRow : UserControl
         }
     }
 
-    private void ApplyHostedRowDefaults()
+    internal void ApplyHostedRowDefaults()
     {
         if (!IsSet(RowBackgroundProperty))
         {
@@ -502,13 +510,85 @@ public sealed class TelemetryPlotRow : UserControl
         }
     }
 
+    internal void ApplyRootRowDefaults()
+    {
+        if (ReferenceEquals(RowBackground, defaultHostedRowBackground))
+        {
+            ClearValue(RowBackgroundProperty);
+        }
+
+        if (ReferenceEquals(HeaderBackground, defaultHostedHeaderBackground))
+        {
+            ClearValue(HeaderBackgroundProperty);
+        }
+
+        if (TitleLeftInset == HostedRowTitleLeftInset)
+        {
+            ClearValue(TitleLeftInsetProperty);
+        }
+
+        if (PlotFigureBackground == defaultHostedPlotFigureBackground)
+        {
+            ClearValue(PlotFigureBackgroundProperty);
+        }
+
+        if (PlotDataBackground == defaultHostedPlotDataBackground)
+        {
+            ClearValue(PlotDataBackgroundProperty);
+        }
+
+        UpdateVisualState();
+    }
+
+    internal bool HasDescendant(TelemetryPlotRow candidate)
+    {
+        return ChildRows.Any(row => ReferenceEquals(row, candidate) || row.HasDescendant(candidate));
+    }
+
+    internal bool HeaderContainsPoint(Point point, Control relativeTo)
+    {
+        var origin = headerButton.TranslatePoint(new Point(0, 0), relativeTo);
+        if (origin is null)
+        {
+            return false;
+        }
+
+        return new Rect(origin.Value, headerButton.Bounds.Size).Contains(point);
+    }
+
+    internal void SetDragFeedback(bool isVisible)
+    {
+        if (isDragFeedbackVisible == isVisible)
+        {
+            return;
+        }
+
+        isDragFeedbackVisible = isVisible;
+        UpdateVisualState();
+    }
+
+    internal void SetDropTargetFeedback(bool isVisible)
+    {
+        if (isDropTargetFeedbackVisible == isVisible)
+        {
+            return;
+        }
+
+        isDropTargetFeedbackVisible = isVisible;
+        UpdateVisualState();
+    }
+
     private void UpdateVisualState()
     {
         titleText.Text = Title;
         chevronText.Text = IsExpanded ? "-" : "+";
         chevronText.Margin = new Thickness(TitleLeftInset, 0, 0, 0);
         headerButton.Height = IsExpanded ? HeaderHeight : CollapsedHeaderHeight;
-        headerButton.Background = HeaderBackground ?? defaultHeaderBackground;
+        headerButton.Background = isDropTargetFeedbackVisible
+            ? dropTargetHeaderBackground
+            : isDragFeedbackVisible
+                ? dragHeaderBackground
+                : HeaderBackground ?? defaultHeaderBackground;
         expandedGrid.IsVisible = IsExpanded && ReservesLayout;
         plotHost.PresentationState = PresentationState;
         plotHost.Height = HasOwnPlotSlot ? AllocatedPlotHeight : 0;
@@ -519,6 +599,7 @@ public sealed class TelemetryPlotRow : UserControl
         childRowsHost.Spacing = ChildRowGap;
         childRowsHost.IsVisible = IsExpanded && ChildRows.Any(row => row.ReservesLayout);
         IsVisible = ReservesLayout;
+        Opacity = isDragFeedbackVisible ? 0.72 : 1;
         rowBorder.Background = RowBackground;
         rowBorder.Margin = new Thickness(0);
     }
@@ -531,6 +612,8 @@ public sealed class TelemetryPlotRow : UserControl
         }
 
         isHeaderClickCandidate = true;
+        isHeaderPointerActive = true;
+        isHeaderDragInProgress = false;
         headerClickStartPoint = args.GetPosition(headerButton);
         args.Pointer.Capture(headerButton);
         args.Handled = true;
@@ -538,29 +621,65 @@ public sealed class TelemetryPlotRow : UserControl
 
     private void OnHeaderPointerMoved(object? sender, PointerEventArgs args)
     {
-        if (isHeaderClickCandidate && HasExceededHeaderClickMovement(args))
+        if (!isHeaderPointerActive)
+        {
+            return;
+        }
+
+        if (!isHeaderDragInProgress && HasExceededHeaderClickMovement(args))
         {
             isHeaderClickCandidate = false;
-            args.Pointer.Capture(null);
+            isHeaderDragInProgress = true;
+            this.FindAncestorOfType<TelemetryPlotsRoot>()?.BeginRowDragFeedback(this);
+        }
+
+        if (isHeaderDragInProgress)
+        {
+            this.FindAncestorOfType<TelemetryPlotsRoot>()?.UpdateRowDragFeedback(this, args);
+            args.Handled = true;
         }
     }
 
     private void OnHeaderPointerReleased(object? sender, PointerReleasedEventArgs args)
     {
-        if (!isHeaderClickCandidate)
+        if (!isHeaderPointerActive)
         {
             return;
         }
 
-        var releasedInsideHeader = IsWithinHeaderBounds(args.GetPosition(headerButton));
-        if (releasedInsideHeader && !HasExceededHeaderClickMovement(args))
+        if (isHeaderDragInProgress)
+        {
+            var root = this.FindAncestorOfType<TelemetryPlotsRoot>();
+            root?.TryDropDraggedRow(this, args);
+            root?.EndRowDragFeedback(this);
+        }
+        else if (isHeaderClickCandidate &&
+                 IsWithinHeaderBounds(args.GetPosition(headerButton)) &&
+                 !HasExceededHeaderClickMovement(args))
         {
             IsExpanded = !IsExpanded;
         }
 
-        isHeaderClickCandidate = false;
+        ResetHeaderPointerState();
         args.Pointer.Capture(null);
         args.Handled = true;
+    }
+
+    private void ResetHeaderPointerState()
+    {
+        isHeaderClickCandidate = false;
+        isHeaderPointerActive = false;
+        isHeaderDragInProgress = false;
+    }
+
+    private void OnHeaderPointerCaptureLost()
+    {
+        if (isHeaderDragInProgress)
+        {
+            this.FindAncestorOfType<TelemetryPlotsRoot>()?.EndRowDragFeedback(this);
+        }
+
+        ResetHeaderPointerState();
     }
 
     private bool HasExceededHeaderClickMovement(PointerEventArgs args)

@@ -539,7 +539,11 @@ Two pages diverge from that pattern:
   Elevation. Desktop graph roots live inside the graph/statistics
   splitter region and grow visible base rows once all preferred row
   content fits; mobile graph roots are measured by the page scroll and
-  report preferred content height. Row visibility is still controlled
+  report preferred content height. Rows are draggable from their
+  headers within that hierarchy: dropping on another row appends the
+  dragged row to that row's children, while dropping in the divider
+  band between root rows makes the dragged row a root row at that
+  position. Row visibility is still controlled
   by `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
   `SpeedGraphState` / `ElevationGraphState` on the workspace
   (recorded: on the editor itself, projected onto the workspace; live:
