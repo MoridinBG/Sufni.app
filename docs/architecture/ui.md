@@ -533,10 +533,12 @@ Two pages diverge from that pattern:
 
 - **Graph pages** wrap the editor's graph workspace and a shared
   media workspace and forward bindings to plot rows. The recorded and
-  live graph pages each split into independent Travel, Velocity, IMU,
-  Speed, and Elevation rows whose visibility is controlled by
-  `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
-  `SpeedGraphState` / `ElevationGraphState` on the workspace
+  live graph pages each split into independent Travel, Velocity, IMU
+  vibration RMS, Frame Pitch/Roll, Speed, and Elevation rows whose
+  visibility is controlled by `TravelGraphState` /
+  `VelocityGraphState` / `ImuGraphState` /
+  `PitchRollGraphState` / `SpeedGraphState` /
+  `ElevationGraphState` on the workspace
   (recorded: on the editor itself, projected onto the workspace; live:
   directly on `LiveSessionGraphWorkspaceViewModel`).
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
@@ -728,11 +730,14 @@ classes.
 | **TravelFrequencyHistogramPlot** | `Plots/TravelFrequencyHistogramPlot.cs` | FFT of travel signal (0-10 Hz), identifies suspension oscillation frequencies       |
 | **BalancePlot**                  | `Plots/BalancePlot.cs`                  | Front vs rear scatter with polynomial trend lines, Mean Signed Deviation            |
 | **LeverageRatioPlot**            | `Plots/LeverageRatioPlot.cs`            | Leverage ratio curve from linkage kinematics                                        |
-| **ImuPlot**                      | `Plots/ImuPlot.cs`                      | Accelerometer magnitude per sensor location after removing gravity                  |
+| **ImuPlot**                      | `Plots/ImuPlot.cs`                      | Rolling vibration RMS from dynamic acceleration per IMU location                    |
+| **FramePitchRollPlot**           | `Plots/FramePitchRollPlot.cs`           | Frame-only pitch and roll from accelerometer plus gyro data                         |
 
 ### IMU Plot
 
-`ImuPlot` de-interleaves IMU records by sensor location (records cycle through active locations), converts raw counts to Gs using `AccelLsbPerG` calibration, subtracts 1G from the Z axis to remove gravity, then plots `sqrt(ax^2 + ay^2 + az^2)` per location. Colors: frame=orange, fork=blue, shock=teal.
+`ImuPlot` now renders `Vibration RMS (g)`. Firmware emits IMU records in calibrated bike-frame axes (`X=forward`, `Y=left`, `Z=up`) with accel/gyro bias already removed, while the values remain raw counts scaled by `AccelLsbPerG` / `GyroLsbPerDps`. `ImuDisplaySignalProcessor` de-interleaves IMU records by sensor location, converts accelerometer counts to Gs, tracks gravity with a low-pass filter initialized from the incoming bike-frame acceleration, subtracts that gravity estimate from each accelerometer vector, and plots a trailing 200 ms RMS of the dynamic acceleration magnitude. It does not treat the first session samples as rest. Colors remain frame=orange, fork=blue, shock=teal.
+
+`FramePitchRollPlot` is a separate frame-only row. It requires frame accelerometer and gyro scale metadata and fuses the firmware-calibrated frame gyro with accelerometer-derived gravity. Pitch and roll are displayed in degrees relative to the bike-frame calibration (`0,0,+1g` level), not relative to the beginning of the recording.
 
 ### Desktop vs Mobile
 
