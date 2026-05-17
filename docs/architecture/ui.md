@@ -548,6 +548,16 @@ Two pages diverge from that pattern:
   `SpeedGraphState` / `ElevationGraphState` on the workspace
   (recorded: on the editor itself, projected onto the workspace; live:
   directly on `LiveSessionGraphWorkspaceViewModel`).
+  The row hierarchy and each row's expanded/collapsed state are stored
+  in `SessionPreferences.Graph` as stable row IDs. For recorded
+  sessions, `SessionDetailViewModel.GraphPreferences` loads and writes
+  that graph preference through `ISessionPreferences`; live captures
+  carry the current live graph preference into
+  `SessionCoordinator.SaveLiveCaptureAsync(...)` so the newly saved
+  session opens with the same row layout. Hidden rows are not duplicated
+  in the graph hierarchy preference: plot visibility remains the
+  existing `SessionPlotPreferences` contract, so hidden rows keep their
+  saved hierarchy position and reappear there when re-enabled.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /

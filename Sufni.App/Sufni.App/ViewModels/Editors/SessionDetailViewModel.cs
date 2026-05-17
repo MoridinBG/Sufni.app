@@ -78,6 +78,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool viewLoaded;
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
+    private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -95,6 +96,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         get => plotPreferences;
         private set => SetProperty(ref plotPreferences, value);
+    }
+
+    public SessionGraphPreferences GraphPreferences
+    {
+        get => graphPreferences;
+        set
+        {
+            if (!SetProperty(ref graphPreferences, value))
+            {
+                return;
+            }
+
+            recordedPreferences = recordedPreferences with { Graph = value };
+            PersistRecordedPreferenceChangeIfEnabled(current => current with { Graph = value });
+        }
     }
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
@@ -1264,6 +1280,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         recordedPreferences = preferences;
         PlotPreferences = preferences.Plots;
+        GraphPreferences = preferences.Graph;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);

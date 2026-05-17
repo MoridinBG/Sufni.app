@@ -173,6 +173,39 @@ public class RecordedSessionGraphDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task RecordedSessionGraphDesktopView_AppliesStoredGraphPreferences()
+    {
+        var telemetry = TestTelemetryData.Create();
+        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var workspace = new RecordedSessionGraphWorkspaceStub(
+            telemetry,
+            speedGraphState: SurfacePresentationState.Ready)
+        {
+            GraphPreferences = new SessionGraphPreferences(
+            [
+                new SessionGraphRowPreferences(
+                    TelemetryGraphRowIds.Imu,
+                    isExpanded: false,
+                    children:
+                    [
+                        new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                    ]),
+                new SessionGraphRowPreferences(TelemetryGraphRowIds.Travel),
+            ]),
+        };
+
+        await using var mounted = await MountAsync(workspace);
+
+        var root = GetGraphRoot(mounted.View);
+        Assert.Equal(
+            ["IMU acceleration (g)", "Travel (mm)", "GPS speed (km/h)"],
+            root.Rows.Select(row => row.Title!).ToArray());
+        Assert.False(root.Rows[0].IsExpanded);
+        Assert.Equal(["Velocity (m/s)"], root.Rows[0].ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Elevation (m)"], root.Rows[2].ChildRows.Select(row => row.Title!).ToArray());
+    }
+
+    [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_AnalysisRangeBindingKeepsAndClearsOverlayOnEveryPlot()
     {
         var telemetry = TestTelemetryData.Create();
@@ -327,6 +360,7 @@ public class RecordedSessionGraphDesktopViewTests
         public SurfacePresentationState SpeedGraphState { get; } = speedGraphState ?? SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
+        public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)

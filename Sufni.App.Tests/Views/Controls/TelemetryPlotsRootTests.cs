@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
@@ -269,6 +270,83 @@ public class TelemetryPlotsRootTests
         Assert.False(root.IsRootDropIndicatorVisible);
     }
 
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_GraphPreferences_AppliesStoredHierarchyAndExpansion()
+    {
+        var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);
+        var velocity = CreateRow("Velocity", TelemetryGraphRowIds.Velocity);
+        var imu = CreateRow("IMU", TelemetryGraphRowIds.Imu);
+        var speed = CreateRow("Speed", TelemetryGraphRowIds.Speed);
+        var elevation = CreateRow("Elevation", TelemetryGraphRowIds.Elevation);
+        travel.ChildRows.Add(velocity);
+        speed.ChildRows.Add(elevation);
+        var root = CreateRoot(travel, imu, speed);
+        root.GraphPreferences = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Imu,
+                isExpanded: false,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                ]),
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Travel),
+        ]);
+
+        await using var mounted = await MountAsync(root);
+
+        Assert.Equal(["IMU", "Travel", "Speed"], root.Rows.Select(row => row.Title!).ToArray());
+        Assert.False(root.Rows[0].IsExpanded);
+        Assert.Equal(["Velocity"], root.Rows[0].ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Empty(root.Rows[1].ChildRows);
+        Assert.Equal(["Elevation"], root.Rows[2].ChildRows.Select(row => row.Title!).ToArray());
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_GraphPreferences_UpdatesWhenRowsMoveOrCollapse()
+    {
+        var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);
+        var velocity = CreateRow("Velocity", TelemetryGraphRowIds.Velocity);
+        var imu = CreateRow("IMU", TelemetryGraphRowIds.Imu);
+        travel.ChildRows.Add(velocity);
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+
+        travel.IsExpanded = false;
+        Assert.True(root.MoveRowToRoot(velocity, 1));
+
+        var stored = root.GraphPreferences;
+        Assert.Equal(
+            [TelemetryGraphRowIds.Travel, TelemetryGraphRowIds.Velocity, TelemetryGraphRowIds.Imu],
+            stored.Rows.Select(row => row.RowId).ToArray());
+        Assert.False(stored.Rows[0].IsExpanded);
+        Assert.Empty(stored.Rows[0].Children);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_GraphPreferences_ReparentsRootRowUnderAnotherRow()
+    {
+        var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);
+        var imu = CreateRow("IMU", TelemetryGraphRowIds.Imu);
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+
+        root.GraphPreferences = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Travel,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu),
+                ]),
+        ]);
+
+        Assert.Same(travel, Assert.Single(root.Rows));
+        Assert.Same(imu, Assert.Single(travel.ChildRows));
+    }
+
     private static TelemetryPlotsRoot CreateRoot(params TelemetryPlotRow[] rows)
     {
         var root = new TelemetryPlotsRoot();
@@ -281,10 +359,14 @@ public class TelemetryPlotsRootTests
     }
 
     private static TelemetryPlotRow CreateRow(string title)
+        => CreateRow(title, rowId: null);
+
+    private static TelemetryPlotRow CreateRow(string title, string? rowId)
     {
         return new TelemetryPlotRow
         {
             Title = title,
+            RowId = rowId,
             PresentationState = SurfacePresentationState.Ready,
             PlotContent = new Border(),
             PlaceholderContent = new Border(),

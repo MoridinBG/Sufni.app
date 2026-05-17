@@ -139,7 +139,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and graph row hierarchy/expanded state is stored per session through app preferences.
 
 Topics in [architecture/ui.md](architecture/ui.md):
 

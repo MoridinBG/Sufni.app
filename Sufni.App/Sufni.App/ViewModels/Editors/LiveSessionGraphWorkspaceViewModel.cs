@@ -24,6 +24,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     private IReadOnlyList<TrackPoint> trackPoints = [];
     private TrackTimeRange? trackTimelineContext;
     private SessionPlotPreferences plotPreferences = new();
+    private SessionGraphPreferences graphPreferences = SessionGraphPreferences.Default;
 
     public IObservable<LiveGraphBatch> GraphBatches { get; }
     public LiveSessionPlotRanges PlotRanges { get; }
@@ -45,6 +46,13 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         get => plotPreferences;
         private set => SetProperty(ref plotPreferences, value);
     }
+
+    public SessionGraphPreferences GraphPreferences
+    {
+        get => graphPreferences;
+        set => SetProperty(ref graphPreferences, value);
+    }
+
     public SurfacePresentationState TravelGraphState
     {
         get => travelGraphState;

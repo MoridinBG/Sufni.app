@@ -47,6 +47,9 @@ public sealed class TelemetryPlotRow : UserControl
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, string?>(nameof(Title));
 
+    public static readonly StyledProperty<string?> RowIdProperty =
+        AvaloniaProperty.Register<TelemetryPlotRow, string?>(nameof(RowId));
+
     public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, SurfacePresentationState>(
             nameof(PresentationState),
@@ -99,6 +102,12 @@ public sealed class TelemetryPlotRow : UserControl
     {
         get => GetValue(TitleProperty);
         set => SetValue(TitleProperty, value);
+    }
+
+    public string? RowId
+    {
+        get => GetValue(RowIdProperty);
+        set => SetValue(RowIdProperty, value);
     }
 
     public SurfacePresentationState PresentationState
