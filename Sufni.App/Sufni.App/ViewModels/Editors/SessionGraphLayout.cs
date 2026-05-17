@@ -6,6 +6,7 @@ public sealed record SessionGraphLayout(
     int TravelRow,
     int VelocityRow,
     int ImuRow,
+    int PitchRollRow,
     int SpeedRow,
     int ElevationRow,
     SurfacePresentationState FirstState,
@@ -13,12 +14,15 @@ public sealed record SessionGraphLayout(
     SurfacePresentationState ThirdState,
     SurfacePresentationState FourthState,
     SurfacePresentationState FifthState,
+    SurfacePresentationState SixthState,
     bool FirstSplitterVisible,
     bool SecondSplitterVisible,
     bool ThirdSplitterVisible,
-    bool FourthSplitterVisible)
+    bool FourthSplitterVisible,
+    bool FifthSplitterVisible)
 {
     public static SessionGraphLayout Empty { get; } = Create(
+        SurfacePresentationState.Hidden,
         SurfacePresentationState.Hidden,
         SurfacePresentationState.Hidden,
         SurfacePresentationState.Hidden,
@@ -29,6 +33,7 @@ public sealed record SessionGraphLayout(
         SurfacePresentationState travelState,
         SurfacePresentationState velocityState,
         SurfacePresentationState imuState,
+        SurfacePresentationState pitchRollState,
         SurfacePresentationState speedState,
         SurfacePresentationState elevationState)
     {
@@ -37,23 +42,27 @@ public sealed record SessionGraphLayout(
         var thirdState = SurfacePresentationState.Hidden;
         var fourthState = SurfacePresentationState.Hidden;
         var fifthState = SurfacePresentationState.Hidden;
+        var sixthState = SurfacePresentationState.Hidden;
         var travelRow = 0;
         var velocityRow = 0;
         var imuRow = 0;
+        var pitchRollRow = 0;
         var speedRow = 0;
         var elevationRow = 0;
         var slot = 0;
 
-        Add(travelState, ref slot, ref travelRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState);
-        Add(velocityState, ref slot, ref velocityRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState);
-        Add(imuState, ref slot, ref imuRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState);
-        Add(speedState, ref slot, ref speedRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState);
-        Add(elevationState, ref slot, ref elevationRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState);
+        Add(travelState, ref slot, ref travelRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState, ref sixthState);
+        Add(velocityState, ref slot, ref velocityRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState, ref sixthState);
+        Add(imuState, ref slot, ref imuRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState, ref sixthState);
+        Add(pitchRollState, ref slot, ref pitchRollRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState, ref sixthState);
+        Add(speedState, ref slot, ref speedRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState, ref sixthState);
+        Add(elevationState, ref slot, ref elevationRow, ref firstState, ref secondState, ref thirdState, ref fourthState, ref fifthState, ref sixthState);
 
         return new SessionGraphLayout(
             travelRow,
             velocityRow,
             imuRow,
+            pitchRollRow,
             speedRow,
             elevationRow,
             firstState,
@@ -61,10 +70,12 @@ public sealed record SessionGraphLayout(
             thirdState,
             fourthState,
             fifthState,
+            sixthState,
             firstState.ReservesLayout && secondState.ReservesLayout,
             secondState.ReservesLayout && thirdState.ReservesLayout,
             thirdState.ReservesLayout && fourthState.ReservesLayout,
-            fourthState.ReservesLayout && fifthState.ReservesLayout);
+            fourthState.ReservesLayout && fifthState.ReservesLayout,
+            fifthState.ReservesLayout && sixthState.ReservesLayout);
     }
 
     private static void Add(
@@ -75,7 +86,8 @@ public sealed record SessionGraphLayout(
         ref SurfacePresentationState secondState,
         ref SurfacePresentationState thirdState,
         ref SurfacePresentationState fourthState,
-        ref SurfacePresentationState fifthState)
+        ref SurfacePresentationState fifthState,
+        ref SurfacePresentationState sixthState)
     {
         if (!state.ReservesLayout)
         {
@@ -99,6 +111,9 @@ public sealed record SessionGraphLayout(
                 break;
             case 4:
                 fifthState = state;
+                break;
+            case 5:
+                sixthState = state;
                 break;
         }
 

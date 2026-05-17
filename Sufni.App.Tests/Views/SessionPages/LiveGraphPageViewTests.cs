@@ -35,6 +35,7 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         workspace.VelocityGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live velocity data."));
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.PitchRollGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live pitch/roll data."));
         workspace.SpeedGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live speed data."));
         workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.TrackPoints.Returns(
@@ -57,6 +58,7 @@ public class LiveGraphPageViewTests
         var travelView = mounted.View.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
         var velocityView = mounted.View.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
         var imuView = mounted.View.FindControl<LiveImuPlotDesktopView>("ImuPlot");
+        var pitchRollView = mounted.View.FindControl<LiveFramePitchRollPlotDesktopView>("PitchRollPlot");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
         Assert.NotNull(graphGrid);
@@ -64,22 +66,26 @@ public class LiveGraphPageViewTests
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(pitchRollView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
-        Assert.Equal(5, hosts.Length);
+        Assert.Equal(6, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
         Assert.Equal(SurfacePresentationState.Hidden, hosts[2].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
-        Assert.Equal(SurfacePresentationState.Hidden, hosts[4].PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[4].PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, hosts[5].PresentationState);
         AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 4);
         Assert.Equal(0, graphGrid!.RowDefinitions[2].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[5].Height.Value);
         Assert.True(travelView!.HideRightAxis);
         Assert.True(velocityView!.HideRightAxis);
         Assert.True(imuView!.HideRightAxis);
+        Assert.True(pitchRollView!.HideRightAxis);
         Assert.True(speedView!.HideRightAxis);
         Assert.True(elevationView!.HideRightAxis);
     }
@@ -94,6 +100,7 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.VelocityGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.PitchRollGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
 
@@ -115,6 +122,7 @@ public class LiveGraphPageViewTests
         graphWorkspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.VelocityGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        graphWorkspace.PitchRollGraphState.Returns(SurfacePresentationState.Hidden);
         graphWorkspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
         graphWorkspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
         var mediaWorkspace = CreateMediaWorkspace(

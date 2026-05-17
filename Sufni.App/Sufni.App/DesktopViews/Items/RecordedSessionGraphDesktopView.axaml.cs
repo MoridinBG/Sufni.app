@@ -12,6 +12,7 @@ public partial class RecordedSessionGraphDesktopView : UserControl
             this.FindControl<GridSplitter>("FirstGraphSplitter"),
             this.FindControl<GridSplitter>("SecondGraphSplitter"),
             this.FindControl<GridSplitter>("ThirdGraphSplitter"),
-            this.FindControl<GridSplitter>("FourthGraphSplitter"));
+            this.FindControl<GridSplitter>("FourthGraphSplitter"),
+            this.FindControl<GridSplitter>("FifthGraphSplitter"));
     }
 }

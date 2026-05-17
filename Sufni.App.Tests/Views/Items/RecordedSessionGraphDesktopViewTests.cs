@@ -210,6 +210,7 @@ public class RecordedSessionGraphDesktopViewTests
         telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(
             telemetry,
+            pitchRollGraphState: SurfacePresentationState.Ready,
             speedGraphState: SurfacePresentationState.Ready,
             elevationGraphState: SurfacePresentationState.Ready);
 
@@ -218,11 +219,13 @@ public class RecordedSessionGraphDesktopViewTests
         var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
         var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
         var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var pitchRollView = mounted.View.FindControl<FramePitchRollPlotDesktopView>("PitchRoll");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(pitchRollView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
         SufniTimeSeriesPlotView[] plotViews =
@@ -230,6 +233,7 @@ public class RecordedSessionGraphDesktopViewTests
             travelView!,
             velocityView!,
             imuView!,
+            pitchRollView!,
             speedView!,
             elevationView!
         ];
@@ -306,6 +310,7 @@ public class RecordedSessionGraphDesktopViewTests
         SurfacePresentationState? travelGraphState = null,
         SurfacePresentationState? velocityGraphState = null,
         SurfacePresentationState? imuGraphState = null,
+        SurfacePresentationState? pitchRollGraphState = null,
         SurfacePresentationState? speedGraphState = null,
         SurfacePresentationState? elevationGraphState = null) :
         IRecordedSessionGraphWorkspace,
@@ -336,6 +341,7 @@ public class RecordedSessionGraphDesktopViewTests
         public SurfacePresentationState TravelGraphState => travelGraphState ?? CreateTravelState(TelemetryData);
         public SurfacePresentationState VelocityGraphState => velocityGraphState ?? TravelGraphState;
         public SurfacePresentationState ImuGraphState => imuGraphState ?? CreateImuState(TelemetryData);
+        public SurfacePresentationState PitchRollGraphState { get; } = pitchRollGraphState ?? SurfacePresentationState.Hidden;
         public IReadOnlyList<TrackPoint>? TrackPoints { get; } =
         [
             new TrackPoint(0, 0, 0, 100, 5),
@@ -348,6 +354,7 @@ public class RecordedSessionGraphDesktopViewTests
             TravelGraphState,
             VelocityGraphState,
             ImuGraphState,
+            PitchRollGraphState,
             SpeedGraphState,
             ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();

@@ -34,6 +34,7 @@ public class RecordedGraphPageViewTests
             telemetry,
             SurfacePresentationState.Ready,
             SurfacePresentationState.Ready,
+            pitchRollGraphState: SurfacePresentationState.Ready,
             speedGraphState: SurfacePresentationState.Ready,
             elevationGraphState: SurfacePresentationState.Ready,
             analysisRange: new TelemetryTimeRange(0.25, 0.75));
@@ -45,6 +46,7 @@ public class RecordedGraphPageViewTests
         var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
         var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
         var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var pitchRollView = mounted.View.FindControl<FramePitchRollPlotDesktopView>("PitchRoll");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
         var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
@@ -53,6 +55,7 @@ public class RecordedGraphPageViewTests
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(pitchRollView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
         Assert.NotNull(graphGrid);
@@ -60,24 +63,29 @@ public class RecordedGraphPageViewTests
         Assert.True(travelView!.IsVisible);
         Assert.True(velocityView!.IsVisible);
         Assert.True(imuView!.IsVisible);
+        Assert.True(pitchRollView!.IsVisible);
         Assert.True(speedView!.IsVisible);
         Assert.True(elevationView!.IsVisible);
         Assert.Same(workspace, travelView.GraphWorkspace);
         Assert.Same(workspace, velocityView.GraphWorkspace);
         Assert.Same(workspace, imuView.GraphWorkspace);
+        Assert.Same(workspace, pitchRollView.GraphWorkspace);
         Assert.Same(workspace, speedView.GraphWorkspace);
         Assert.Same(workspace, elevationView.GraphWorkspace);
         Assert.Equal(workspace.AnalysisRange, travelView.AnalysisRange);
         Assert.Equal(workspace.AnalysisRange, velocityView.AnalysisRange);
         Assert.Equal(workspace.AnalysisRange, imuView.AnalysisRange);
+        Assert.Equal(workspace.AnalysisRange, pitchRollView.AnalysisRange);
         Assert.Equal(workspace.AnalysisRange, speedView.AnalysisRange);
         Assert.Equal(workspace.AnalysisRange, elevationView.AnalysisRange);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
+        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, pitchRollView.MaximumDisplayHz);
         Assert.True(travelView.HideRightAxis);
         Assert.True(velocityView.HideRightAxis);
         Assert.True(imuView.HideRightAxis);
+        Assert.True(pitchRollView.HideRightAxis);
         Assert.True(speedView.HideRightAxis);
         Assert.True(elevationView.HideRightAxis);
         AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
@@ -85,6 +93,7 @@ public class RecordedGraphPageViewTests
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 2);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
         AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 4);
+        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 5);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
@@ -95,6 +104,7 @@ public class RecordedGraphPageViewTests
             TestTelemetryData.Create(),
             SurfacePresentationState.WaitingForData("Waiting for travel data."),
             SurfacePresentationState.WaitingForData("Waiting for IMU data."),
+            pitchRollGraphState: SurfacePresentationState.WaitingForData("Waiting for pitch/roll data."),
             speedGraphState: SurfacePresentationState.WaitingForData("Waiting for speed data."),
             elevationGraphState: SurfacePresentationState.WaitingForData("Waiting for elevation data."));
 
@@ -106,12 +116,13 @@ public class RecordedGraphPageViewTests
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.Name != "MapHost")
             .ToArray();
-        Assert.Equal(5, hosts.Length);
+        Assert.Equal(6, hosts.Length);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[0].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[2].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[4].PresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[5].PresentationState.Kind);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
@@ -138,6 +149,7 @@ public class RecordedGraphPageViewTests
         Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[3].Height.Value);
         Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.Equal(0, graphGrid.RowDefinitions[5].Height.Value);
     }
 
     [AvaloniaFact]
@@ -236,6 +248,7 @@ public class RecordedGraphPageViewTests
         TelemetryData? telemetryData,
         SurfacePresentationState travelGraphState,
         SurfacePresentationState imuGraphState,
+        SurfacePresentationState? pitchRollGraphState = null,
         SurfacePresentationState? velocityGraphState = null,
         SurfacePresentationState? speedGraphState = null,
         SurfacePresentationState? elevationGraphState = null,
@@ -252,12 +265,14 @@ public class RecordedGraphPageViewTests
         public SurfacePresentationState TravelGraphState { get; } = travelGraphState;
         public SurfacePresentationState VelocityGraphState { get; } = velocityGraphState ?? travelGraphState;
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;
+        public SurfacePresentationState PitchRollGraphState { get; } = pitchRollGraphState ?? SurfacePresentationState.Hidden;
         public SurfacePresentationState SpeedGraphState { get; } = speedGraphState ?? SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
         public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
             TravelGraphState,
             VelocityGraphState,
             ImuGraphState,
+            PitchRollGraphState,
             SpeedGraphState,
             ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
