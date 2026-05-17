@@ -7,11 +7,16 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Threading;
 using ScottPlot;
+using AvaloniaColor = Avalonia.Media.Color;
+using ScottPlotColor = ScottPlot.Color;
 
 namespace Sufni.App.Views.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
 {
+    private static readonly AvaloniaColor defaultFigureBackground = AvaloniaColor.Parse("#15191C");
+    private static readonly AvaloniaColor defaultDataBackground = AvaloniaColor.Parse("#20262B");
+
     private readonly HashSet<IPointer> pointersStartedInDataArea = [];
     private SufniAvaPlot? avaPlot;
     private AxisLimits? pinchStartLimits;
@@ -21,7 +26,30 @@ public abstract class SufniPlotView : TemplatedControl
     protected SufniAvaPlot PlotControl => avaPlot!;
     protected bool HasPlotControl => avaPlot is not null;
 
+    public static readonly StyledProperty<AvaloniaColor> PlotFigureBackgroundProperty =
+        AvaloniaProperty.Register<SufniPlotView, AvaloniaColor>(nameof(PlotFigureBackground), defaultFigureBackground);
+
+    public AvaloniaColor PlotFigureBackground
+    {
+        get => GetValue(PlotFigureBackgroundProperty);
+        set => SetValue(PlotFigureBackgroundProperty, value);
+    }
+
+    public static readonly StyledProperty<AvaloniaColor> PlotDataBackgroundProperty =
+        AvaloniaProperty.Register<SufniPlotView, AvaloniaColor>(nameof(PlotDataBackground), defaultDataBackground);
+
+    public AvaloniaColor PlotDataBackground
+    {
+        get => GetValue(PlotDataBackgroundProperty);
+        set => SetValue(PlotDataBackgroundProperty, value);
+    }
+
     public void RefreshPlot() => avaPlot?.Refresh();
+
+    protected ScottPlotColor ToScottPlotColor(AvaloniaColor color)
+        => ScottPlotColor
+            .FromHex($"#{color.R:x2}{color.G:x2}{color.B:x2}")
+            .WithAlpha(color.A / 255.0);
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {

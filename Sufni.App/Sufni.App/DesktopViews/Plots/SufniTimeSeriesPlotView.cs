@@ -81,6 +81,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     RequestReload();
                     break;
 
+                case nameof(PlotFigureBackground):
+                case nameof(PlotDataBackground):
+                    ApplyPlotBackgroundColors();
+                    break;
+
                 case nameof(AnalysisRange):
                     OnAnalysisRangeChanged();
                     break;
@@ -292,6 +297,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         plotModel.SmoothingLevel = SmoothingLevel;
         plotModel.HideRightAxis = HideRightAxis;
         plotModel.AnalysisRange = AnalysisRange;
+        plotModel.SetBackgroundColors(ToScottPlotColor(PlotFigureBackground), ToScottPlotColor(PlotDataBackground));
+    }
+
+    private void ApplyPlotBackgroundColors()
+    {
+        plot?.SetBackgroundColors(ToScottPlotColor(PlotFigureBackground), ToScottPlotColor(PlotDataBackground));
+        RefreshPlot();
     }
 
     protected abstract bool CanLoadPlotData { get; }
