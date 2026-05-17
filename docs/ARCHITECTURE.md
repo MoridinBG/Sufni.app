@@ -166,7 +166,7 @@ Topics in [architecture/ui.md](architecture/ui.md):
 
 ## Plot Rendering
 
-ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time.
+ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Graph row titles and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
