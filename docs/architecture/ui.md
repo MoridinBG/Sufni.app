@@ -547,7 +547,15 @@ Two pages diverge from that pattern:
   by `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
   `SpeedGraphState` / `ElevationGraphState` on the workspace
   (recorded: on the editor itself, projected onto the workspace; live:
-  directly on `LiveSessionGraphWorkspaceViewModel`).
+  directly on `LiveSessionGraphWorkspaceViewModel`). Hosted row titles
+  are progressively inset by hierarchy depth. Expanded parent rows draw
+  short connector branches in the child-row band, starting at each
+  direct child row's top edge and stopping before that child row's
+  header glyph; those branches disappear with the parent's expanded
+  content. The guides stay in the left title/glyph gutter, avoid the
+  glyph text itself, and do not enter plot chrome or shift plot
+  content, so graph data remains vertically aligned across parent and
+  hosted rows.
   The row hierarchy and each row's expanded/collapsed state are stored
   in `SessionPreferences.Graph` as stable row IDs. For recorded
   sessions, `SessionDetailViewModel.GraphPreferences` loads and writes

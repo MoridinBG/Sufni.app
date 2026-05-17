@@ -194,7 +194,7 @@ public class TelemetryPlotsRootTests
         Assert.True(dropped);
         Assert.Empty(gps.ChildRows);
         Assert.Same(elevation, Assert.Single(velocity.ChildRows));
-        Assert.Equal(12, elevation.TitleLeftInset);
+        Assert.Equal(32, elevation.TitleLeftInset);
         Assert.NotNull(elevation.RowBackground);
     }
 
