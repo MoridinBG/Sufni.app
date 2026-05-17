@@ -27,7 +27,7 @@ internal sealed class TelemetryPlotRowsPanel : Panel
             }
         }
 
-        var dividerHeight = GetDividerTotalHeight(visibleRows.Count);
+        var dividerHeight = GetDividerTotalHeight(visibleRows);
         var preferredTotal = preferredRowsHeight + dividerHeight;
         var viewportHeight = ViewportHeightOverride;
         var extra = viewportHeight is { } finiteHeight
@@ -57,7 +57,9 @@ internal sealed class TelemetryPlotRowsPanel : Panel
 
         foreach (var divider in Children.OfType<TelemetryBaseRowDivider>())
         {
-            divider.Measure(new Size(width, BaseRowDividerHeight));
+            var isVisibleDivider = IsVisibleDivider(divider, visibleRows);
+            divider.IsVisible = isVisibleDivider;
+            divider.Measure(new Size(width, isVisibleDivider ? BaseRowDividerHeight : 0));
         }
 
         var desiredHeight = viewportHeight is { } finite
@@ -93,7 +95,7 @@ internal sealed class TelemetryPlotRowsPanel : Panel
             row.Arrange(new Rect(0, y, finalSize.Width, row.AllocatedGroupHeight));
             y += row.AllocatedGroupHeight;
 
-            if (row != visibleRows[^1] && dividerByTarget.TryGetValue(row, out var divider))
+            if (dividerByTarget.TryGetValue(row, out var divider) && IsVisibleDivider(divider, visibleRows))
             {
                 divider.Arrange(new Rect(0, y, finalSize.Width, BaseRowDividerHeight));
                 y += BaseRowDividerHeight;
@@ -102,7 +104,7 @@ internal sealed class TelemetryPlotRowsPanel : Panel
 
         foreach (var divider in Children.OfType<TelemetryBaseRowDivider>())
         {
-            if (divider.TargetRow is null || !visibleRowSet.Contains(divider.TargetRow) || divider.TargetRow == visibleRows.LastOrDefault())
+            if (!IsVisibleDivider(divider, visibleRows))
             {
                 divider.Arrange(new Rect(0, 0, 0, 0));
             }
@@ -117,6 +119,34 @@ internal sealed class TelemetryPlotRowsPanel : Panel
     private IReadOnlyList<TelemetryPlotRow> GetVisibleBaseRows()
         => GetBaseRows().Where(row => row.ReservesLayout).ToArray();
 
-    private static double GetDividerTotalHeight(int visibleRowCount)
-        => Math.Max(0, visibleRowCount - 1) * BaseRowDividerHeight;
+    private static double GetDividerTotalHeight(IReadOnlyList<TelemetryPlotRow> visibleRows)
+        => visibleRows
+            .Where((row, index) => index < visibleRows.Count - 1 && IsResizableBoundaryTarget(row))
+            .Count() * BaseRowDividerHeight;
+
+    private static bool IsVisibleDivider(TelemetryBaseRowDivider divider, IReadOnlyList<TelemetryPlotRow> visibleRows)
+    {
+        var targetRow = divider.TargetRow;
+        return targetRow is not null &&
+               IsResizableBoundaryTarget(targetRow) &&
+               IndexOf(visibleRows, targetRow) is var index &&
+               index >= 0 &&
+               index < visibleRows.Count - 1;
+    }
+
+    private static bool IsResizableBoundaryTarget(TelemetryPlotRow row)
+        => row.IsExpanded && row.GetVisiblePlotSlotCount() > 0;
+
+    private static int IndexOf(IReadOnlyList<TelemetryPlotRow> rows, TelemetryPlotRow targetRow)
+    {
+        for (var i = 0; i < rows.Count; i++)
+        {
+            if (ReferenceEquals(rows[i], targetRow))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }
