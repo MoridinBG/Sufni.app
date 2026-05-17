@@ -25,8 +25,17 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     private long lastRevision;
     private int pendingSampleMargin = DefaultPendingSampleMargin;
     private PendingGraphBatchBuffer pendingGraphBatches = new();
+    private LiveStreamingPlotBase? plot;
 
-    public LiveStreamingPlotBase? Plot { get; protected set; }
+    public LiveStreamingPlotBase? Plot
+    {
+        get => plot;
+        protected set
+        {
+            plot = value;
+            ApplyPlotBackgroundColors(refresh: false);
+        }
+    }
 
     public static readonly StyledProperty<IObservable<LiveGraphBatch>?> GraphBatchesProperty =
         AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, IObservable<LiveGraphBatch>?>(nameof(GraphBatches));
@@ -125,6 +134,11 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                     Plot?.SetHideRightAxis(HideRightAxis);
                     RefreshPlot();
                     break;
+
+                case nameof(PlotFigureBackground):
+                case nameof(PlotDataBackground):
+                    ApplyPlotBackgroundColors(refresh: true);
+                    break;
             }
         };
 
@@ -211,6 +225,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         Plot.Reset();
         RefreshPlot();
         UpdateTimelineRange();
+    }
+
+    private void ApplyPlotBackgroundColors(bool refresh)
+    {
+        Plot?.SetBackgroundColors(ToScottPlotColor(PlotFigureBackground), ToScottPlotColor(PlotDataBackground));
+        if (refresh)
+        {
+            RefreshPlot();
+        }
     }
 
     private void HandleGraphBatch(LiveGraphBatch batch)

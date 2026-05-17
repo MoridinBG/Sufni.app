@@ -170,7 +170,7 @@ public class TelemetryPlot : SufniPlot
 
     protected void ConfigureTimeSeriesFrame(string title, Func<double, string>? timeLabelFormatter = null)
     {
-        Plot.Axes.Title.Label.Text = title;
+        Plot.Axes.Title.Label.Text = string.Empty;
         SetAxisLabels(string.Empty, string.Empty);
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();

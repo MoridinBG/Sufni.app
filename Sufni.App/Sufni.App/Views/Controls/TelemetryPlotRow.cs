@@ -9,12 +9,17 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Sufni.App.Presentation;
+using Sufni.App.Views.Plots;
 
 namespace Sufni.App.Views.Controls;
 
 public sealed class TelemetryPlotRow : UserControl
 {
     private static readonly IBrush defaultHeaderBackground = new SolidColorBrush(Color.Parse("#1a1f23"));
+    private static readonly Color defaultBasePlotFigureBackground = Color.Parse("#15191C");
+    private static readonly Color defaultBasePlotDataBackground = Color.Parse("#20262B");
+    private static readonly Color defaultHostedPlotFigureBackground = Color.Parse("#171D21");
+    private static readonly Color defaultHostedPlotDataBackground = Color.Parse("#222A30");
     private readonly Button headerButton;
     private readonly TextBlock chevronText;
     private readonly TextBlock titleText;
@@ -61,6 +66,16 @@ public sealed class TelemetryPlotRow : UserControl
 
     public static readonly StyledProperty<IBrush?> HeaderBackgroundProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, IBrush?>(nameof(HeaderBackground));
+
+    public static readonly StyledProperty<Color> PlotFigureBackgroundProperty =
+        AvaloniaProperty.Register<TelemetryPlotRow, Color>(
+            nameof(PlotFigureBackground),
+            defaultValue: defaultBasePlotFigureBackground);
+
+    public static readonly StyledProperty<Color> PlotDataBackgroundProperty =
+        AvaloniaProperty.Register<TelemetryPlotRow, Color>(
+            nameof(PlotDataBackground),
+            defaultValue: defaultBasePlotDataBackground);
 
     public string? Title
     {
@@ -132,6 +147,18 @@ public sealed class TelemetryPlotRow : UserControl
     {
         get => GetValue(HeaderBackgroundProperty);
         set => SetValue(HeaderBackgroundProperty, value);
+    }
+
+    public Color PlotFigureBackground
+    {
+        get => GetValue(PlotFigureBackgroundProperty);
+        set => SetValue(PlotFigureBackgroundProperty, value);
+    }
+
+    public Color PlotDataBackground
+    {
+        get => GetValue(PlotDataBackgroundProperty);
+        set => SetValue(PlotDataBackgroundProperty, value);
     }
 
     public AvaloniaList<TelemetryPlotRow> ChildRows { get; } = [];
@@ -236,7 +263,9 @@ public sealed class TelemetryPlotRow : UserControl
                 e.Property == MinimumPlotHeightProperty ||
                 e.Property == ChildRowGapProperty ||
                 e.Property == RowBackgroundProperty ||
-                e.Property == HeaderBackgroundProperty)
+                e.Property == HeaderBackgroundProperty ||
+                e.Property == PlotFigureBackgroundProperty ||
+                e.Property == PlotDataBackgroundProperty)
             {
                 UpdateVisualState();
                 InvalidateRowLayout();
@@ -403,7 +432,21 @@ public sealed class TelemetryPlotRow : UserControl
         childRowsHost.Children.Clear();
         foreach (var row in ChildRows)
         {
+            row.ApplyHostedRowDefaults();
             childRowsHost.Children.Add(row);
+        }
+    }
+
+    private void ApplyHostedRowDefaults()
+    {
+        if (!IsSet(PlotFigureBackgroundProperty))
+        {
+            PlotFigureBackground = defaultHostedPlotFigureBackground;
+        }
+
+        if (!IsSet(PlotDataBackgroundProperty))
+        {
+            PlotDataBackground = defaultHostedPlotDataBackground;
         }
     }
 
@@ -419,6 +462,7 @@ public sealed class TelemetryPlotRow : UserControl
         plotHost.IsVisible = HasOwnPlotSlot && IsExpanded;
         plotContentHost.Content = PlotContent;
         placeholderContentHost.Content = PlaceholderContent;
+        ApplyPlotBackgrounds(PlotContent);
         childRowsHost.Spacing = ChildRowGap;
         childRowsHost.IsVisible = IsExpanded && ChildRows.Any(row => row.ReservesLayout);
         IsVisible = ReservesLayout;
@@ -427,6 +471,17 @@ public sealed class TelemetryPlotRow : UserControl
         {
             border.Background = RowBackground;
         }
+    }
+
+    private void ApplyPlotBackgrounds(object? content)
+    {
+        if (content is not SufniPlotView plotView)
+        {
+            return;
+        }
+
+        plotView.PlotFigureBackground = PlotFigureBackground;
+        plotView.PlotDataBackground = PlotDataBackground;
     }
 
     private void InvalidateRowLayout()

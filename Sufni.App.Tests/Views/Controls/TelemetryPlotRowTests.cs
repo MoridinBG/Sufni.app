@@ -1,10 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
+using Sufni.App.Views.Plots;
 
 namespace Sufni.App.Tests.Views.Controls;
 
@@ -65,6 +67,40 @@ public class TelemetryPlotRowTests
         Assert.Equal(424, travel.AllocatedGroupHeight);
     }
 
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_AppliesPlotBackgrounds_ToHostedPlotView()
+    {
+        var plotView = new TestPlotView();
+        var row = CreateRow("Travel");
+        row.PlotContent = plotView;
+        row.PlotFigureBackground = Color.Parse("#101820");
+        row.PlotDataBackground = Color.Parse("#203040");
+
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        Assert.Equal(Color.Parse("#101820"), plotView.PlotFigureBackground);
+        Assert.Equal(Color.Parse("#203040"), plotView.PlotDataBackground);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_DefaultsNestedPlotBackgrounds()
+    {
+        var childPlotView = new TestPlotView();
+        var velocity = CreateRow("Velocity");
+        velocity.PlotContent = childPlotView;
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+
+        await using var mounted = await MountAsync(travel);
+        Measure(travel, 400, travel.GetPreferredGroupHeight());
+
+        Assert.Equal(Color.Parse("#171D21"), velocity.PlotFigureBackground);
+        Assert.Equal(Color.Parse("#222A30"), velocity.PlotDataBackground);
+        Assert.Equal(Color.Parse("#171D21"), childPlotView.PlotFigureBackground);
+        Assert.Equal(Color.Parse("#222A30"), childPlotView.PlotDataBackground);
+    }
+
     private static TelemetryPlotRow CreateRow(string title)
     {
         return new TelemetryPlotRow
@@ -101,6 +137,13 @@ public class TelemetryPlotRowTests
         {
             host.Close();
             await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    private sealed class TestPlotView : SufniPlotView
+    {
+        protected override void CreatePlot()
+        {
         }
     }
 }

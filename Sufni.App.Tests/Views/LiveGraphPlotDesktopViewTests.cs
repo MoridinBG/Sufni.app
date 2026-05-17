@@ -17,6 +17,7 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
+using AvaloniaColor = Avalonia.Media.Color;
 
 namespace Sufni.App.Tests.Views;
 
@@ -61,9 +62,9 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
-        Assert.Equal("Travel (mm)", travelPlot.Plot.Axes.Title.Label.Text);
-        Assert.Equal("Velocity (m/s)", velocityPlot.Plot.Axes.Title.Label.Text);
-        Assert.Equal("IMU Acceleration (g)", imuPlot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(travelPlot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(velocityPlot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(imuPlot.Plot.Axes.Title.Label.Text);
         Assert.True(travelPlot.Plot.Legend.IsVisible);
         Assert.True(velocityPlot.Plot.Legend.IsVisible);
         Assert.True(imuPlot.Plot.Legend.IsVisible);
@@ -109,6 +110,41 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Equal(0.5, velocityPlot.Plot.Axes.Left.Max);
         Assert.Equal(-0.5, velocityPlot.Plot.Axes.Left.Min);
         Assert.Equal(1, imuPlot.Plot.Axes.Left.Max);
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task LiveTravelPlotDesktopView_AppliesPlotBackgroundProperties()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var view = new LiveTravelPlotDesktopView
+        {
+            PlotFigureBackground = AvaloniaColor.Parse("#101820"),
+            PlotDataBackground = AvaloniaColor.Parse("#203040"),
+        };
+        var host = new Window
+        {
+            Width = 800,
+            Height = 400,
+            Content = view
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = GetRenderedPlot(view);
+        Assert.Equal(ScottPlot.Color.FromHex("#101820"), plot.Plot.FigureBackground.Color);
+        Assert.Equal(ScottPlot.Color.FromHex("#203040"), plot.Plot.DataBackground.Color);
+
+        view.PlotFigureBackground = AvaloniaColor.Parse("#111213");
+        view.PlotDataBackground = AvaloniaColor.Parse("#212223");
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(ScottPlot.Color.FromHex("#111213"), plot.Plot.FigureBackground.Color);
+        Assert.Equal(ScottPlot.Color.FromHex("#212223"), plot.Plot.DataBackground.Color);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
