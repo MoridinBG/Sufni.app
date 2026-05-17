@@ -25,6 +25,7 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     public PlotPreferenceItemViewModel TravelPlot { get; } = new("Travel");
     public PlotPreferenceItemViewModel VelocityPlot { get; } = new("Velocity");
     public PlotPreferenceItemViewModel ImuPlot { get; } = new("IMU");
+    public PlotPreferenceItemViewModel PitchRollPlot { get; } = new("Pitch/roll");
     public PlotPreferenceItemViewModel SpeedPlot { get; } = new("Speed");
     public PlotPreferenceItemViewModel ElevationPlot { get; } = new("Elevation");
     public IReadOnlyList<PlotSmoothingOption> SmoothingOptions { get; } =
@@ -75,9 +76,11 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
             Travel: TravelPlot.Selected,
             Velocity: VelocityPlot.Selected,
             Imu: ImuPlot.Selected,
+            PitchRoll: PitchRollPlot.Selected,
             TravelSmoothing: TravelPlot.SelectedSmoothing,
             VelocitySmoothing: VelocityPlot.SelectedSmoothing,
             ImuSmoothing: ImuPlot.SelectedSmoothing,
+            PitchRollSmoothing: PitchRollPlot.SelectedSmoothing,
             Speed: SpeedPlot.Selected,
             Elevation: ElevationPlot.Selected,
             SpeedSmoothing: SpeedPlot.SelectedSmoothing,
@@ -113,11 +116,13 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         TravelPlot.Selected = preferences.Travel;
         VelocityPlot.Selected = preferences.Velocity;
         ImuPlot.Selected = preferences.Imu;
+        PitchRollPlot.Selected = preferences.PitchRoll;
         SpeedPlot.Selected = preferences.Speed;
         ElevationPlot.Selected = preferences.Elevation;
         TravelPlot.SelectedSmoothing = preferences.TravelSmoothing;
         VelocityPlot.SelectedSmoothing = preferences.VelocitySmoothing;
         ImuPlot.SelectedSmoothing = preferences.ImuSmoothing;
+        PitchRollPlot.SelectedSmoothing = preferences.PitchRollSmoothing;
         SpeedPlot.SelectedSmoothing = preferences.SpeedSmoothing;
         ElevationPlot.SelectedSmoothing = preferences.ElevationSmoothing;
     }
@@ -125,14 +130,16 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     public void ApplyPlotAvailability(
         bool travelAvailable,
         bool velocityAvailable,
+        bool imuAvailable,
+        bool pitchRollAvailable,
         bool speedAvailable,
-        bool elevationAvailable,
-        bool imuAvailable)
+        bool elevationAvailable)
     {
         TravelPlot.Available = travelAvailable;
         VelocityPlot.Available = velocityAvailable;
+        ImuPlot.Available = imuAvailable;
+        PitchRollPlot.Available = pitchRollAvailable;
         SpeedPlot.Available = speedAvailable;
         ElevationPlot.Available = elevationAvailable;
-        ImuPlot.Available = imuAvailable;
     }
 }

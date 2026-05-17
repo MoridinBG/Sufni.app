@@ -25,7 +25,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private double runningMax;
 
     public LiveImuPlot(Plot plot, double imuMaximum, bool hideRightAxis)
-        : base(plot, "IMU Acceleration (g)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(0.1, imuMaximum), hideRightAxis)
+        : base(plot, "Vibration RMS (g)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(0.1, imuMaximum), hideRightAxis)
     {
         frameStreamer = CreateStreamer(ImuPlot.FrameColor, "Frame");
         forkStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Fork");
@@ -36,7 +36,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
 
     public void Append(LiveGraphBatch batch)
     {
-        if (batch.ImuMagnitudes.Count == 0)
+        if (batch.ImuVibrationRms.Count == 0)
         {
             return;
         }
@@ -58,7 +58,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
         forkSmoother.Level = SmoothingLevel;
         rearSmoother.Level = SmoothingLevel;
 
-        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Frame, out var frameValues) &&
+        if (batch.ImuVibrationRms.TryGetValue(LiveImuLocation.Frame, out var frameValues) &&
             batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var frameTimes) &&
             frameValues.Count > 0)
         {
@@ -66,7 +66,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
             UpdateRunningMax(frameValues);
         }
 
-        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Fork, out var forkValues) &&
+        if (batch.ImuVibrationRms.TryGetValue(LiveImuLocation.Fork, out var forkValues) &&
             batch.ImuTimes.TryGetValue(LiveImuLocation.Fork, out var forkTimes) &&
             forkValues.Count > 0)
         {
@@ -74,7 +74,7 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
             UpdateRunningMax(forkValues);
         }
 
-        if (batch.ImuMagnitudes.TryGetValue(LiveImuLocation.Rear, out var rearValues) &&
+        if (batch.ImuVibrationRms.TryGetValue(LiveImuLocation.Rear, out var rearValues) &&
             batch.ImuTimes.TryGetValue(LiveImuLocation.Rear, out var rearTimes) &&
             rearValues.Count > 0)
         {

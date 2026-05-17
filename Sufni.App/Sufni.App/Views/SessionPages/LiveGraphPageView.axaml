@@ -52,6 +52,14 @@ mc:Ignorable="d">
                     <RowDefinition>
                         <RowDefinition.Height>
                             <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
+                                <Binding Path="Workspace.PitchRollGraphState" />
+                                <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
+                            </MultiBinding>
+                        </RowDefinition.Height>
+                    </RowDefinition>
+                    <RowDefinition>
+                        <RowDefinition.Height>
+                            <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
                                 <Binding Path="Workspace.SpeedGraphState" />
                                 <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
                             </MultiBinding>
@@ -115,7 +123,24 @@ mc:Ignorable="d">
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
                 </controls:PlaceholderOverlayContainer>
 
-                <controls:PlaceholderOverlayContainer Grid.Row="3" PresentationState="{Binding Workspace.SpeedGraphState}">
+                <controls:PlaceholderOverlayContainer Grid.Row="3" PresentationState="{Binding Workspace.PitchRollGraphState}">
+                    <controls:PlaceholderOverlayContainer.ReadyContent>
+                        <plots:LiveFramePitchRollPlotDesktopView
+                        x:Name="PitchRollPlot"
+                        Margin="0,4,0,0"
+                        GraphBatches="{Binding Workspace.GraphBatches}"
+                        HideRightAxis="True"
+                        MaximumY="{Binding Workspace.PlotRanges.PitchRollMaximum}"
+                        MinimumY="{Binding Workspace.PlotRanges.PitchRollMinimum}"
+                        SmoothingLevel="{Binding Workspace.PlotPreferences.PitchRollSmoothing}"
+                        Timeline="{Binding Workspace.Timeline}" />
+                    </controls:PlaceholderOverlayContainer.ReadyContent>
+                    <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                        <controls:SurfacePlaceholderCard Title="Pitch/roll" Margin="0,4,0,0" />
+                    </controls:PlaceholderOverlayContainer.PlaceholderContent>
+                </controls:PlaceholderOverlayContainer>
+
+                <controls:PlaceholderOverlayContainer Grid.Row="4" PresentationState="{Binding Workspace.SpeedGraphState}">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:TrackSignalPlotDesktopView
                         x:Name="SpeedPlot"
@@ -132,7 +157,7 @@ mc:Ignorable="d">
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
                 </controls:PlaceholderOverlayContainer>
 
-                <controls:PlaceholderOverlayContainer Grid.Row="4" PresentationState="{Binding Workspace.ElevationGraphState}">
+                <controls:PlaceholderOverlayContainer Grid.Row="5" PresentationState="{Binding Workspace.ElevationGraphState}">
                     <controls:PlaceholderOverlayContainer.ReadyContent>
                         <plots:TrackSignalPlotDesktopView
                         x:Name="ElevationPlot"
@@ -148,6 +173,22 @@ mc:Ignorable="d">
                         <controls:SurfacePlaceholderCard Title="Elevation" Margin="0,4,0,0" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
                 </controls:PlaceholderOverlayContainer>
+
+                <controls:SurfacePlaceholderCard
+                Name="NoGraphDataPlaceholder"
+                MinCardHeight="280"
+                Title="No graph data for this session.">
+                    <controls:SurfacePlaceholderCard.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!Workspace.TravelGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.VelocityGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.ImuGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.PitchRollGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.SpeedGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.ElevationGraphState.ReservesLayout" />
+                        </MultiBinding>
+                    </controls:SurfacePlaceholderCard.IsVisible>
+                </controls:SurfacePlaceholderCard>
             </Grid>
 
             <controls:PlaceholderOverlayContainer

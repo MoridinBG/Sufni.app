@@ -86,7 +86,7 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
         }
     }
 
-    public void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> magnitudes)
+    public void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> vibrationRms)
     {
         if (times.Length == 0)
         {
@@ -106,16 +106,45 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                 pendingGraphBatch.ImuTimes[location] = imuTimes;
             }
 
-            if (!pendingGraphBatch.ImuMagnitudes.TryGetValue(location, out var imuMagnitudes))
+            if (!pendingGraphBatch.ImuVibrationRms.TryGetValue(location, out var imuVibrationRms))
             {
-                imuMagnitudes = new List<double>();
-                pendingGraphBatch.ImuMagnitudes[location] = imuMagnitudes;
+                imuVibrationRms = new List<double>();
+                pendingGraphBatch.ImuVibrationRms[location] = imuVibrationRms;
             }
 
             for (var i = 0; i < times.Length; i++)
             {
                 imuTimes.Add(times[i]);
-                imuMagnitudes.Add(magnitudes[i]);
+                imuVibrationRms.Add(vibrationRms[i]);
+            }
+        }
+    }
+
+    public void AppendFramePitchRollSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
+    {
+        if (times.Length == 0)
+        {
+            return;
+        }
+
+        var count = Math.Min(times.Length, Math.Min(pitchDegrees.Length, rollDegrees.Length));
+        if (count == 0)
+        {
+            return;
+        }
+
+        lock (gate)
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                pendingGraphBatch.FramePitchRollTimes.Add(times[i]);
+                pendingGraphBatch.FramePitchDegrees.Add(pitchDegrees[i]);
+                pendingGraphBatch.FrameRollDegrees.Add(rollDegrees[i]);
             }
         }
     }
@@ -211,7 +240,10 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
         double[] frontTravelArr;
         double[] rearTravelArr;
         Dictionary<LiveImuLocation, IReadOnlyList<double>> imuTimesDict;
-        Dictionary<LiveImuLocation, IReadOnlyList<double>> imuMagnitudesDict;
+        Dictionary<LiveImuLocation, IReadOnlyList<double>> imuVibrationRmsDict;
+        double[] framePitchRollTimesArr;
+        double[] framePitchArr;
+        double[] frameRollArr;
         double[]? velocityTimesSnap = null;
         double[]? velocityFrontSnap = null;
         double[]? velocityRearSnap = null;
@@ -235,16 +267,20 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
             rearTravelArr = batchToFlush.RearTravel.ToArray();
 
             imuTimesDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(batchToFlush.ImuTimes.Count);
-            imuMagnitudesDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(batchToFlush.ImuMagnitudes.Count);
+            imuVibrationRmsDict = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(batchToFlush.ImuVibrationRms.Count);
             foreach (var entry in batchToFlush.ImuTimes)
             {
                 imuTimesDict[entry.Key] = entry.Value.ToArray();
             }
 
-            foreach (var entry in batchToFlush.ImuMagnitudes)
+            foreach (var entry in batchToFlush.ImuVibrationRms)
             {
-                imuMagnitudesDict[entry.Key] = entry.Value.ToArray();
+                imuVibrationRmsDict[entry.Key] = entry.Value.ToArray();
             }
+
+            framePitchRollTimesArr = batchToFlush.FramePitchRollTimes.ToArray();
+            framePitchArr = batchToFlush.FramePitchDegrees.ToArray();
+            frameRollArr = batchToFlush.FrameRollDegrees.ToArray();
 
             if (batchCount > 0)
             {
@@ -281,7 +317,10 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                 FrontVelocity: frontVelocity,
                 RearVelocity: rearVelocity,
                 ImuTimes: imuTimesDict,
-                ImuMagnitudes: imuMagnitudesDict);
+                ImuVibrationRms: imuVibrationRmsDict,
+                FramePitchRollTimes: framePitchRollTimesArr,
+                FramePitchDegrees: framePitchArr,
+                FrameRollDegrees: frameRollArr);
 
             graphBatchesSubject.OnNext(batch);
         }
@@ -398,7 +437,10 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
         public List<double> FrontTravel { get; } = new();
         public List<double> RearTravel { get; } = new();
         public Dictionary<LiveImuLocation, List<double>> ImuTimes { get; } = new();
-        public Dictionary<LiveImuLocation, List<double>> ImuMagnitudes { get; } = new();
+        public Dictionary<LiveImuLocation, List<double>> ImuVibrationRms { get; } = new();
+        public List<double> FramePitchRollTimes { get; } = new();
+        public List<double> FramePitchDegrees { get; } = new();
+        public List<double> FrameRollDegrees { get; } = new();
 
         public bool HasContent
         {
@@ -417,7 +459,17 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                     }
                 }
 
-                return false;
+                foreach (var entry in ImuVibrationRms)
+                {
+                    if (entry.Value.Count > 0)
+                    {
+                        return true;
+                    }
+                }
+
+                return FramePitchRollTimes.Count > 0 ||
+                    FramePitchDegrees.Count > 0 ||
+                    FrameRollDegrees.Count > 0;
             }
         }
 
@@ -431,10 +483,14 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                 entry.Value.Clear();
             }
 
-            foreach (var entry in ImuMagnitudes)
+            foreach (var entry in ImuVibrationRms)
             {
                 entry.Value.Clear();
             }
+
+            FramePitchRollTimes.Clear();
+            FramePitchDegrees.Clear();
+            FrameRollDegrees.Clear();
         }
 
         public void AppendFrom(PendingGraphBatch other)
@@ -454,16 +510,20 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
                 values.AddRange(entry.Value);
             }
 
-            foreach (var entry in other.ImuMagnitudes)
+            foreach (var entry in other.ImuVibrationRms)
             {
-                if (!ImuMagnitudes.TryGetValue(entry.Key, out var values))
+                if (!ImuVibrationRms.TryGetValue(entry.Key, out var values))
                 {
                     values = new List<double>();
-                    ImuMagnitudes[entry.Key] = values;
+                    ImuVibrationRms[entry.Key] = values;
                 }
 
                 values.AddRange(entry.Value);
             }
+
+            FramePitchRollTimes.AddRange(other.FramePitchRollTimes);
+            FramePitchDegrees.AddRange(other.FramePitchDegrees);
+            FrameRollDegrees.AddRange(other.FrameRollDegrees);
         }
     }
 }

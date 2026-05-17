@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
+using Sufni.App.Services.Imu;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
 public class ImuPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
 {
-    private const string Title = "IMU Acceleration (g)";
+    private const string Title = "Vibration RMS (g)";
 
     public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
 
@@ -20,83 +21,35 @@ public class ImuPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
             return;
         }
 
-        var imuData = telemetryData.ImuData;
-        var activeLocations = imuData.ActiveLocations;
-        var records = imuData.Records;
-        var locationCount = activeLocations.Count;
-
-        var signals = new Dictionary<byte, List<double>>();
-        foreach (var loc in activeLocations)
-        {
-            signals[loc] = [];
-        }
-
-        // De-interleave records and convert to Gs using metadata
-        for (int i = 0; i < records.Count; i++)
-        {
-            var locIndex = i % locationCount;
-            var locId = activeLocations[locIndex];
-            var record = records[i];
-
-            var meta = imuData.Meta.FirstOrDefault(m => m.LocationId == locId);
-            if (meta == null) continue;
-
-            double accelScale = meta.AccelLsbPerG;
-            if (accelScale == 0) accelScale = 1.0; // Fallback if meta is missing/zero
-
-            double ax = (double)record.Ax / accelScale;
-            double ay = (double)record.Ay / accelScale;
-            double az = (double)record.Az / accelScale;
-
-            // Remove gravity from Z axis
-            az -= 1.0;
-
-            // Calculate magnitude of the linear acceleration
-            double mag = Math.Sqrt(ax * ax + ay * ay + az * az);
-            signals[locId].Add(mag);
-        }
-        double minVal = 0.0;
-        double maxVal = 0.0;
-        bool hasData = false;
+        var displaySeries = ImuDisplaySignalProcessor.ProcessRecorded(telemetryData.ImuData);
+        var maxVal = 0.0;
+        var hasData = false;
         var series = new List<RecordedTimeSeries>();
 
-        foreach (var locId in signals.Keys.OrderBy(k => k))
+        foreach (var vibrationSeries in displaySeries.VibrationSeries.OrderBy(item => item.LocationId))
         {
-            var fullData = signals[locId].ToArray();
-            if (fullData.Length == 0) continue;
+            if (vibrationSeries.RmsG.Length == 0)
+            {
+                continue;
+            }
 
-            if (!hasData)
-            {
-                minVal = fullData.Min();
-                maxVal = fullData.Max();
-                hasData = true;
-            }
-            else
-            {
-                minVal = Math.Min(minVal, fullData.Min());
-                maxVal = Math.Max(maxVal, fullData.Max());
-            }
+            maxVal = Math.Max(maxVal, vibrationSeries.RmsG.Max());
+            hasData = true;
 
             // 0=Frame, 1=Fork (Front), 2=Shock (Rear)
-            var (label, color) = locId switch
+            var (label, color) = vibrationSeries.LocationId switch
             {
                 0 => ("Frame", FrameColor),
                 1 => ("Fork", FrontColor),
                 2 => ("Shock", RearColor),
-                _ => ($"Location {locId}", Colors.Gray)
+                _ => ($"Location {vibrationSeries.LocationId}", Colors.Gray)
             };
             series.Add(new RecordedTimeSeries(
                 label,
                 "g",
                 color,
-                new SampledValues(fullData, imuData.SampleRate),
+                new SampledValues(vibrationSeries.RmsG, telemetryData.ImuData.SampleRate),
                 "0.###"));
-        }
-
-        if (!hasData)
-        {
-            minVal = 0;
-            maxVal = 1;
         }
 
         LoadTimeSeries(new RecordedTimeSeriesData(
@@ -104,7 +57,7 @@ public class ImuPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
             "No IMU data",
             telemetryData.Metadata.Duration,
             series,
-            new RecordedTimeSeriesValueRange(minVal, maxVal),
+            hasData ? new RecordedTimeSeriesValueRange(0, maxVal) : null,
             telemetryData));
     }
 
