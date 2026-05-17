@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -10,10 +11,20 @@ internal sealed class TelemetryBaseRowDivider : Control
 {
     private static readonly IBrush dividerBrush = new SolidColorBrush(Color.Parse("#404040"));
     private bool isDragging;
+    private bool canResizeTargetRow;
     private double dragStartY;
     private double dragStartHeight;
 
     internal TelemetryPlotRow? TargetRow { get; set; }
+    internal bool CanResizeTargetRow
+    {
+        get => canResizeTargetRow;
+        set
+        {
+            canResizeTargetRow = value;
+            IsHitTestVisible = value;
+        }
+    }
 
     public TelemetryBaseRowDivider()
     {
@@ -33,14 +44,15 @@ internal sealed class TelemetryBaseRowDivider : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.FillRectangle(dividerBrush, Bounds);
+        var lineY = Math.Max(0, Bounds.Height - 1);
+        context.FillRectangle(dividerBrush, new Rect(0, lineY, Bounds.Width, 1));
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
 
-        if (TargetRow is null)
+        if (!CanResizeTargetRow || TargetRow is null)
         {
             return;
         }
@@ -56,7 +68,7 @@ internal sealed class TelemetryBaseRowDivider : Control
     {
         base.OnPointerMoved(e);
 
-        if (!isDragging || TargetRow is null)
+        if (!isDragging || !CanResizeTargetRow || TargetRow is null)
         {
             return;
         }
@@ -93,7 +105,7 @@ internal sealed class TelemetryBaseRowDivider : Control
 
     internal void ResetTargetRowToPreferredHeight()
     {
-        if (TargetRow is null)
+        if (!CanResizeTargetRow || TargetRow is null)
         {
             return;
         }
