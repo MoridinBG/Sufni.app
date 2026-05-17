@@ -17,11 +17,17 @@ namespace Sufni.App.Views.Controls;
 
 public sealed class TelemetryPlotRow : UserControl
 {
-    private const double HostedRowTitleLeftInset = 12;
+    private const double HostedRowTitleLeftInsetStep = 16;
+    private const double HeaderHorizontalPadding = 8;
+    private const double HeaderGlyphWidth = 20;
+    private const double ConnectorLineWidth = 2;
+    private const double ConnectorStemInsetFromGlyphLeft = 2;
+    private const double ConnectorGlyphGap = 6;
     private const double HeaderClickMovementThresholdPixels = 6;
     private static readonly IBrush defaultHeaderBackground = new SolidColorBrush(Color.Parse("#1a1f23"));
     private static readonly IBrush dragHeaderBackground = new SolidColorBrush(Color.Parse("#263238"));
     private static readonly IBrush dropTargetHeaderBackground = new SolidColorBrush(Color.Parse("#1F3A46"));
+    private static readonly IBrush headerConnectorBrush = new SolidColorBrush(Color.Parse("#63727A"));
     private static readonly IBrush defaultHostedRowBackground = new SolidColorBrush(Color.Parse("rgb(15, 19, 20)"));
     private static readonly IBrush defaultHostedHeaderBackground = new SolidColorBrush(Color.Parse("#101416"));
     private static readonly Color defaultBasePlotFigureBackground = Color.Parse("#15191C");
@@ -30,6 +36,7 @@ public sealed class TelemetryPlotRow : UserControl
     private static readonly Color defaultHostedPlotDataBackground = Color.Parse("#1A2024");
     private readonly Border rowBorder;
     private readonly Button headerButton;
+    private readonly Grid headerContentGrid;
     private readonly TextBlock chevronText;
     private readonly TextBlock titleText;
     private readonly Grid expandedGrid;
@@ -37,6 +44,9 @@ public sealed class TelemetryPlotRow : UserControl
     private readonly ContentControl plotContentHost;
     private readonly ContentControl placeholderContentHost;
     private readonly StackPanel childRowsHost;
+    private readonly Canvas childConnectorCanvas;
+    private int hierarchyDepth;
+    private double appliedDefaultTitleLeftInset;
     private bool isHeaderClickCandidate;
     private bool isHeaderPointerActive;
     private bool isHeaderDragInProgress;
@@ -202,6 +212,9 @@ public sealed class TelemetryPlotRow : UserControl
     internal bool ReservesLayout => PresentationState.ReservesLayout || ChildRows.Any(row => row.ReservesLayout);
     internal bool IsDragFeedbackVisible => isDragFeedbackVisible;
     internal bool IsDropTargetFeedbackVisible => isDropTargetFeedbackVisible;
+    internal int ChildConnectorSegmentCount => childConnectorCanvas.Children.Count;
+    internal bool HasVisibleChildConnectors => childConnectorCanvas.IsVisible && ChildConnectorSegmentCount > 0;
+    internal double ChildConnectorStartLeft => GetHeaderConnectorLeft();
 
     public TelemetryPlotRow()
     {
@@ -210,7 +223,7 @@ public sealed class TelemetryPlotRow : UserControl
 
         chevronText = new TextBlock
         {
-            Width = 20,
+            Width = HeaderGlyphWidth,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
@@ -220,30 +233,31 @@ public sealed class TelemetryPlotRow : UserControl
             FontWeight = FontWeight.SemiBold,
             TextWrapping = TextWrapping.NoWrap,
         };
+        headerContentGrid = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Star),
+            },
+            Children =
+            {
+                chevronText,
+                titleText,
+            },
+        };
+        Grid.SetColumn(titleText, 1);
 
         headerButton = new Button
         {
-            Padding = new Thickness(8, 0),
+            Padding = new Thickness(HeaderHorizontalPadding, 0),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             Background = defaultHeaderBackground,
             BorderThickness = new Thickness(0),
-            Content = new Grid
-            {
-                ColumnDefinitions =
-                {
-                    new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Star),
-                },
-                Children =
-                {
-                    chevronText,
-                    titleText,
-                },
-            },
+            Content = headerContentGrid,
         };
-        Grid.SetColumn(titleText, 1);
         headerButton.AddHandler<PointerPressedEventArgs>(
             InputElement.PointerPressedEvent,
             OnHeaderPointerPressed,
@@ -265,6 +279,12 @@ public sealed class TelemetryPlotRow : UserControl
             PlaceholderContent = placeholderContentHost,
         };
         childRowsHost = new StackPanel();
+        childConnectorCanvas = new Canvas
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            IsHitTestVisible = false,
+        };
         expandedGrid = new Grid
         {
             RowDefinitions =
@@ -276,9 +296,11 @@ public sealed class TelemetryPlotRow : UserControl
             {
                 plotHost,
                 childRowsHost,
+                childConnectorCanvas,
             },
         };
         Grid.SetRow(childRowsHost, 1);
+        Grid.SetRow(childConnectorCanvas, 1);
 
         rowBorder = new Border
         {
@@ -486,13 +508,15 @@ public sealed class TelemetryPlotRow : UserControl
         childRowsHost.Children.Clear();
         foreach (var row in ChildRows)
         {
-            row.ApplyHostedRowDefaults();
+            row.ApplyHostedRowDefaults(hierarchyDepth + 1);
             childRowsHost.Children.Add(row);
         }
     }
 
-    internal void ApplyHostedRowDefaults()
+    internal void ApplyHostedRowDefaults(int depth = 1)
     {
+        ApplyHierarchyDepth(depth);
+
         if (!IsSet(RowBackgroundProperty))
         {
             RowBackground = defaultHostedRowBackground;
@@ -501,11 +525,6 @@ public sealed class TelemetryPlotRow : UserControl
         if (!IsSet(HeaderBackgroundProperty))
         {
             HeaderBackground = defaultHostedHeaderBackground;
-        }
-
-        if (!IsSet(TitleLeftInsetProperty))
-        {
-            TitleLeftInset = HostedRowTitleLeftInset;
         }
 
         if (!IsSet(PlotFigureBackgroundProperty))
@@ -517,10 +536,14 @@ public sealed class TelemetryPlotRow : UserControl
         {
             PlotDataBackground = defaultHostedPlotDataBackground;
         }
+
+        RebuildChildRows();
     }
 
     internal void ApplyRootRowDefaults()
     {
+        ApplyHierarchyDepth(0);
+
         if (ReferenceEquals(RowBackground, defaultHostedRowBackground))
         {
             ClearValue(RowBackgroundProperty);
@@ -529,11 +552,6 @@ public sealed class TelemetryPlotRow : UserControl
         if (ReferenceEquals(HeaderBackground, defaultHostedHeaderBackground))
         {
             ClearValue(HeaderBackgroundProperty);
-        }
-
-        if (TitleLeftInset == HostedRowTitleLeftInset)
-        {
-            ClearValue(TitleLeftInsetProperty);
         }
 
         if (PlotFigureBackground == defaultHostedPlotFigureBackground)
@@ -547,6 +565,7 @@ public sealed class TelemetryPlotRow : UserControl
         }
 
         UpdateVisualState();
+        RebuildChildRows();
     }
 
     internal bool HasDescendant(TelemetryPlotRow candidate)
@@ -607,11 +626,120 @@ public sealed class TelemetryPlotRow : UserControl
         ApplyPlotBackgrounds(PlotContent);
         childRowsHost.Spacing = ChildRowGap;
         childRowsHost.IsVisible = IsExpanded && ChildRows.Any(row => row.ReservesLayout);
+        UpdateChildConnectorVisuals();
         IsVisible = ReservesLayout;
         Opacity = isDragFeedbackVisible ? 0.72 : 1;
         rowBorder.Background = RowBackground;
         rowBorder.Margin = new Thickness(0);
     }
+
+    private void UpdateChildConnectorVisuals()
+    {
+        childConnectorCanvas.Children.Clear();
+        var visibleChildren = ChildRows.Where(row => row.ReservesLayout).ToArray();
+        var showConnectors = IsExpanded && ReservesLayout && visibleChildren.Length > 0;
+        childConnectorCanvas.IsVisible = showConnectors;
+        if (!showConnectors)
+        {
+            return;
+        }
+
+        foreach (var row in visibleChildren)
+        {
+            var childTop = GetChildTopY(row, visibleChildren);
+            var childHeaderHeight = row.IsExpanded ? row.HeaderHeight : row.CollapsedHeaderHeight;
+            var centerY = childTop + childHeaderHeight / 2;
+            var parentConnectorLeft = GetHeaderConnectorLeft();
+            var childGlyphTarget = row.GetHeaderGlyphLeft() - ConnectorGlyphGap;
+            AddVerticalConnector(parentConnectorLeft, childTop, centerY);
+            AddHorizontalConnector(parentConnectorLeft, childGlyphTarget, centerY);
+        }
+    }
+
+    private double GetChildTopY(TelemetryPlotRow child, TelemetryPlotRow[] visibleChildren)
+    {
+        var offsetY = 0d;
+        foreach (var row in visibleChildren)
+        {
+            if (ReferenceEquals(row, child))
+            {
+                return offsetY;
+            }
+
+            offsetY += row.AllocatedGroupHeight + ChildRowGap;
+        }
+
+        return offsetY;
+    }
+
+    private void AddVerticalConnector(double centerX, double startY, double endY)
+    {
+        var top = Math.Min(startY, endY);
+        var height = Math.Abs(endY - startY);
+        if (height <= 0)
+        {
+            return;
+        }
+
+        AddConnectorSegment(centerX - ConnectorLineWidth / 2, top, ConnectorLineWidth, height);
+    }
+
+    private void AddHorizontalConnector(double startX, double endX, double centerY)
+    {
+        var left = Math.Min(startX, endX);
+        var width = Math.Abs(endX - startX);
+        if (width <= 0)
+        {
+            return;
+        }
+
+        AddConnectorSegment(left, centerY - ConnectorLineWidth / 2, width, ConnectorLineWidth);
+    }
+
+    private void AddConnectorSegment(double left, double top, double width, double height)
+    {
+        var segment = new Border
+        {
+            Width = width,
+            Height = height,
+            Background = headerConnectorBrush,
+            IsHitTestVisible = false,
+        };
+
+        Canvas.SetLeft(segment, left);
+        Canvas.SetTop(segment, top);
+        childConnectorCanvas.Children.Add(segment);
+    }
+
+    private void ApplyHierarchyDepth(int depth)
+    {
+        var previousDefaultInset = appliedDefaultTitleLeftInset;
+        var nextDefaultInset = GetDefaultTitleLeftInset(depth);
+        hierarchyDepth = depth;
+
+        if (!IsSet(TitleLeftInsetProperty) || TitleLeftInset == previousDefaultInset)
+        {
+            if (depth == 0)
+            {
+                ClearValue(TitleLeftInsetProperty);
+            }
+            else
+            {
+                TitleLeftInset = nextDefaultInset;
+            }
+        }
+
+        appliedDefaultTitleLeftInset = nextDefaultInset;
+    }
+
+    private static double GetDefaultTitleLeftInset(int depth)
+        => depth * HostedRowTitleLeftInsetStep;
+
+    private double GetHeaderGlyphLeft()
+        => HeaderHorizontalPadding + TitleLeftInset;
+
+    private double GetHeaderConnectorLeft()
+        => GetHeaderGlyphLeft() + ConnectorStemInsetFromGlyphLeft;
 
     private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs args)
     {

@@ -129,7 +129,7 @@ public class TelemetryPlotRowTests
         await using var mounted = await MountAsync(travel);
         Measure(travel, 400, travel.GetPreferredGroupHeight());
 
-        Assert.Equal(12, velocity.TitleLeftInset);
+        Assert.Equal(16, velocity.TitleLeftInset);
         AssertSolidBrush(Color.Parse("#0F1314"), velocity.RowBackground);
         AssertSolidBrush(Color.Parse("#101416"), velocity.HeaderBackground);
         Assert.Equal(Color.Parse("#101518"), velocity.PlotFigureBackground);
@@ -140,7 +140,39 @@ public class TelemetryPlotRowTests
         var childBorder = Assert.IsType<Border>(velocity.Content);
         Assert.Equal(0, childBorder.Margin.Left);
         var hostedGlyph = velocity.GetVisualDescendants().OfType<TextBlock>().First();
-        Assert.Equal(12, hostedGlyph.Margin.Left);
+        Assert.Equal(16, hostedGlyph.Margin.Left);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_NestedHostedRows_UseProgressiveTitleInsetsAndParentConnectors()
+    {
+        var acceleration = CreateRow("Acceleration");
+        var velocity = CreateRow("Velocity");
+        velocity.ChildRows.Add(acceleration);
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+
+        await using var mounted = await MountAsync(travel);
+        Measure(travel, 400, travel.GetPreferredGroupHeight());
+
+        Assert.Equal(16, velocity.TitleLeftInset);
+        Assert.Equal(32, acceleration.TitleLeftInset);
+        Assert.True(travel.HasVisibleChildConnectors);
+        Assert.True(velocity.HasVisibleChildConnectors);
+        Assert.False(acceleration.HasVisibleChildConnectors);
+        Assert.Equal(2, travel.ChildConnectorSegmentCount);
+        Assert.Equal(2, velocity.ChildConnectorSegmentCount);
+        Assert.True(velocity.ChildConnectorStartLeft > travel.ChildConnectorStartLeft);
+
+        var velocityBorder = Assert.IsType<Border>(velocity.Content);
+        var accelerationBorder = Assert.IsType<Border>(acceleration.Content);
+        Assert.Equal(0, velocityBorder.Margin.Left);
+        Assert.Equal(0, accelerationBorder.Margin.Left);
+
+        travel.IsExpanded = false;
+        Measure(travel, 400, travel.GetPreferredGroupHeight());
+
+        Assert.False(travel.HasVisibleChildConnectors);
     }
 
     [AvaloniaFact]
