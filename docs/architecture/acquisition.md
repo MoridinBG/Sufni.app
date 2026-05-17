@@ -134,7 +134,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 | Rates     | `0x00` | N × (1-byte type + uint16 rate)                                    | Sample rates per stream type                                                                                                                           |
 | Telemetry | `0x01` | N × (uint16 front + uint16 rear)                                   | Suspension encoder data                                                                                                                                |
 | Marker    | `0x02` | (empty)                                                            | Event marker; timestamp derived from current telemetry sample count                                                                                    |
-| Imu       | `0x03` | N × 6 × int16                                                      | Accelerometer (Ax,Ay,Az) + gyroscope (Gx,Gy,Gz)                                                                                                        |
+| Imu       | `0x03` | N × 6 × int16                                                      | Firmware-calibrated bike-frame accelerometer (Ax,Ay,Az) + gyroscope (Gx,Gy,Gz), still in raw count units                                                |
 | ImuMeta   | `0x04` | count(1) + N × (locId(1) + accelLsbPerG(f32) + gyroLsbPerDps(f32)) | IMU calibration per sensor location                                                                                                                    |
 | Gps       | `0x05` | N × 46 bytes                                                       | date(u32 YYYYMMDD) + timeMs(u32) + lat(f64) + lon(f64) + alt(f32) + speed(f32) + heading(f32) + fixMode(u8) + satellites(u8) + epe2d(f32) + epe3d(f32) |
 | Temperature | `0x06` | N × 13 bytes                                                     | timestampUtc(i64) + locationId(u8) + temperatureCelsius(f32)                                                                                           |
@@ -162,7 +162,7 @@ The `Inspect()` path walks every TLV chunk, validating each chunk's declared len
 All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 
 - **`GpsRecord`** — Timestamp (UTC DateTime), Latitude, Longitude, Altitude, Speed (m/s), Heading, FixMode, Satellites, Epe2d/Epe3d (error estimates in meters)
-- **`ImuRecord`** — Ax, Ay, Az (raw int16 acceleration), Gx, Gy, Gz (raw int16 gyroscope)
+- **`ImuRecord`** — Ax, Ay, Az (int16 acceleration counts), Gx, Gy, Gz (int16 gyroscope counts), already bias-corrected and rotated by firmware into bike frame (`X=forward`, `Y=left`, `Z=up`)
 - **`ImuMetaEntry`** — LocationId (sensor position: 0=frame, 1=fork, 2=shock), AccelLsbPerG, GyroLsbPerDps (calibration)
 - **`RawImuData`** — Container: Meta list, SampleRate, Records list, ActiveLocations list
 - **`MarkerData`** — TimestampOffset (seconds from session start)
