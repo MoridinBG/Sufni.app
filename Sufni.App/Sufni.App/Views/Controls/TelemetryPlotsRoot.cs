@@ -8,21 +8,47 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Sufni.App.Models;
 
 namespace Sufni.App.Views.Controls;
 
 public sealed class TelemetryPlotsRoot : UserControl
 {
+    public static readonly StyledProperty<SessionGraphPreferences> GraphPreferencesProperty =
+        AvaloniaProperty.Register<TelemetryPlotsRoot, SessionGraphPreferences>(
+            nameof(GraphPreferences),
+            defaultValue: SessionGraphPreferences.Default);
+
     private const double RootRowDropZoneHeight = 12;
     private readonly ScrollViewer scrollViewer;
     private readonly TelemetryPlotRowsPanel rowsPanel;
     private readonly Border rootDropIndicator;
+    private readonly HashSet<TelemetryPlotRow> watchedRows = [];
     private TelemetryPlotRow? activeDraggedRow;
     private TelemetryPlotRow? activeDropTargetRow;
+    private bool applyingGraphPreferences;
+    private bool publishingGraphPreferences;
 
     public AvaloniaList<TelemetryPlotRow> Rows { get; } = [];
+    public SessionGraphPreferences GraphPreferences
+    {
+        get => GetValue(GraphPreferencesProperty);
+        set => SetValue(GraphPreferencesProperty, value);
+    }
+
     internal bool IsRootDropIndicatorVisible => rootDropIndicator.IsVisible;
     internal double RootDropIndicatorY => rootDropIndicator.Margin.Top;
+
+    static TelemetryPlotsRoot()
+    {
+        GraphPreferencesProperty.Changed.AddClassHandler<TelemetryPlotsRoot>((root, args) =>
+        {
+            if (!root.publishingGraphPreferences && args.NewValue is SessionGraphPreferences preferences)
+            {
+                root.ApplyGraphPreferences(preferences);
+            }
+        });
+    }
 
     public TelemetryPlotsRoot()
     {
@@ -70,9 +96,16 @@ public sealed class TelemetryPlotsRoot : UserControl
         return base.MeasureOverride(availableSize);
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        ApplyGraphPreferences(GraphPreferences);
+    }
+
     private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         RebuildRows();
+        AttachRowListeners();
     }
 
     private void RebuildRows()
@@ -95,6 +128,50 @@ public sealed class TelemetryPlotsRoot : UserControl
         }
 
         rowsPanel.InvalidateMeasure();
+    }
+
+    private void AttachRowListeners()
+    {
+        foreach (var row in watchedRows)
+        {
+            row.PropertyChanged -= OnRowPropertyChanged;
+            row.ChildRows.CollectionChanged -= OnRowChildrenChanged;
+        }
+
+        watchedRows.Clear();
+        foreach (var row in Rows)
+        {
+            AttachRowListeners(row);
+        }
+    }
+
+    private void AttachRowListeners(TelemetryPlotRow row)
+    {
+        if (!watchedRows.Add(row))
+        {
+            return;
+        }
+
+        row.PropertyChanged += OnRowPropertyChanged;
+        row.ChildRows.CollectionChanged += OnRowChildrenChanged;
+        foreach (var childRow in row.ChildRows)
+        {
+            AttachRowListeners(childRow);
+        }
+    }
+
+    private void OnRowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == TelemetryPlotRow.IsExpandedProperty)
+        {
+            PublishGraphPreferences();
+        }
+    }
+
+    private void OnRowChildrenChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        AttachRowListeners();
+        PublishGraphPreferences();
     }
 
     internal bool TryDropDraggedRow(TelemetryPlotRow draggedRow, PointerReleasedEventArgs args)
@@ -218,6 +295,7 @@ public sealed class TelemetryPlotsRoot : UserControl
         row.ApplyRootRowDefaults();
         Rows.Insert(Math.Clamp(targetIndex, 0, Rows.Count), row);
         InvalidateMeasure();
+        PublishGraphPreferences();
         return true;
     }
 
@@ -251,7 +329,150 @@ public sealed class TelemetryPlotsRoot : UserControl
         targetParent.ChildRows.Add(row);
         targetParent.IsExpanded = true;
         InvalidateMeasure();
+        PublishGraphPreferences();
         return true;
+    }
+
+    internal SessionGraphPreferences CaptureGraphPreferences()
+    {
+        return new SessionGraphPreferences(Rows
+            .Select(CreateRowPreferences)
+            .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
+            .ToArray());
+    }
+
+    private static SessionGraphRowPreferences CreateRowPreferences(TelemetryPlotRow row)
+    {
+        return new SessionGraphRowPreferences(
+            row.RowId ?? "",
+            row.IsExpanded,
+            row.ChildRows
+                .Select(CreateRowPreferences)
+                .Where(child => !string.IsNullOrWhiteSpace(child.RowId))
+                .ToArray());
+    }
+
+    private void ApplyGraphPreferences(SessionGraphPreferences? preferences)
+    {
+        if (Rows.Count == 0)
+        {
+            return;
+        }
+
+        preferences ??= SessionGraphPreferences.Default;
+        var allRows = GetAllRows().ToArray();
+        if (!allRows.Any(row => !string.IsNullOrWhiteSpace(row.RowId)))
+        {
+            return;
+        }
+
+        var rowsById = allRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
+            .GroupBy(row => row.RowId!)
+            .ToDictionary(group => group.Key, group => group.First());
+        var usedIds = new HashSet<string>();
+        var rootRows = new List<TelemetryPlotRow>();
+
+        applyingGraphPreferences = true;
+        try
+        {
+            foreach (var row in allRows)
+            {
+                row.ChildRows.Clear();
+            }
+
+            Rows.Clear();
+            rootRows.AddRange(MaterializeRows(preferences.Rows, rowsById, usedIds));
+            AppendMissingDefaultRows(SessionGraphPreferences.Default.Rows, rowsById, usedIds, rootRows, parentRow: null);
+            rootRows.AddRange(allRows.Where(row =>
+                string.IsNullOrWhiteSpace(row.RowId) || !usedIds.Contains(row.RowId)));
+
+            foreach (var row in rootRows)
+            {
+                Rows.Add(row);
+            }
+        }
+        finally
+        {
+            applyingGraphPreferences = false;
+            RebuildRows();
+            AttachRowListeners();
+        }
+    }
+
+    private static IEnumerable<TelemetryPlotRow> MaterializeRows(
+        IEnumerable<SessionGraphRowPreferences> preferences,
+        IReadOnlyDictionary<string, TelemetryPlotRow> rowsById,
+        ISet<string> usedIds)
+    {
+        foreach (var preference in preferences)
+        {
+            if (string.IsNullOrWhiteSpace(preference.RowId) ||
+                !rowsById.TryGetValue(preference.RowId, out var row) ||
+                !usedIds.Add(preference.RowId))
+            {
+                continue;
+            }
+
+            row.IsExpanded = preference.IsExpanded;
+            foreach (var childRow in MaterializeRows(preference.Children, rowsById, usedIds))
+            {
+                row.ChildRows.Add(childRow);
+            }
+
+            yield return row;
+        }
+    }
+
+    private static void AppendMissingDefaultRows(
+        IEnumerable<SessionGraphRowPreferences> preferences,
+        IReadOnlyDictionary<string, TelemetryPlotRow> rowsById,
+        ISet<string> usedIds,
+        ICollection<TelemetryPlotRow> rootRows,
+        TelemetryPlotRow? parentRow)
+    {
+        foreach (var preference in preferences)
+        {
+            if (string.IsNullOrWhiteSpace(preference.RowId) ||
+                !rowsById.TryGetValue(preference.RowId, out var row))
+            {
+                continue;
+            }
+
+            if (!usedIds.Contains(preference.RowId))
+            {
+                usedIds.Add(preference.RowId);
+                row.IsExpanded = preference.IsExpanded;
+                if (parentRow is null)
+                {
+                    rootRows.Add(row);
+                }
+                else
+                {
+                    parentRow.ChildRows.Add(row);
+                }
+            }
+
+            AppendMissingDefaultRows(preference.Children, rowsById, usedIds, rootRows, row);
+        }
+    }
+
+    private void PublishGraphPreferences()
+    {
+        if (applyingGraphPreferences)
+        {
+            return;
+        }
+
+        publishingGraphPreferences = true;
+        try
+        {
+            GraphPreferences = CaptureGraphPreferences();
+        }
+        finally
+        {
+            publishingGraphPreferences = false;
+        }
     }
 
     private bool TryGetRootInsertIndex(Point rowsPanelPoint, out int targetIndex)

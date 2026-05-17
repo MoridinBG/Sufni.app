@@ -519,6 +519,7 @@ public class LiveGraphPlotDesktopViewTests
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
+        public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }
 }

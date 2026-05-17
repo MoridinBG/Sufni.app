@@ -345,13 +345,15 @@ public sealed class AppPreferences : IAppPreferences
         public SessionPlotPreferencesDocument? Plots { get; set; }
         public SessionStatisticsPreferencesDocument? Statistics { get; set; }
         public SessionProcessingPreferencesDocument? Processing { get; set; }
+        public SessionGraphPreferencesDocument? Graph { get; set; }
 
         public SessionPreferences ToModel()
         {
             return new SessionPreferences(
                 Plots?.ToModel() ?? new SessionPlotPreferences(),
                 Statistics?.ToModel() ?? new SessionStatisticsPreferences(),
-                Processing?.ToModel() ?? new SessionProcessingPreferences());
+                Processing?.ToModel() ?? new SessionProcessingPreferences(),
+                Graph?.ToModel() ?? SessionGraphPreferences.Default);
         }
 
         public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
@@ -361,6 +363,7 @@ public sealed class AppPreferences : IAppPreferences
                 Plots = SessionPlotPreferencesDocument.FromModel(preferences.Plots),
                 Statistics = SessionStatisticsPreferencesDocument.FromModel(preferences.Statistics),
                 Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
+                Graph = SessionGraphPreferencesDocument.FromModel(preferences.Graph),
             };
         }
     }
@@ -474,6 +477,65 @@ public sealed class AppPreferences : IAppPreferences
             return new SessionProcessingPreferencesDocument
             {
                 VelocityFilterWindowMilliseconds = preferences.VelocityFilterWindowMilliseconds,
+            };
+        }
+    }
+
+    private sealed class SessionGraphPreferencesDocument
+    {
+        public List<SessionGraphRowPreferencesDocument?>? Rows { get; set; }
+
+        public SessionGraphPreferences ToModel()
+        {
+            var rows = Rows?
+                .Where(row => row is not null)
+                .Select(row => row!.ToModel())
+                .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
+                .ToArray();
+
+            return rows is { Length: > 0 }
+                ? new SessionGraphPreferences(rows)
+                : SessionGraphPreferences.Default;
+        }
+
+        public static SessionGraphPreferencesDocument FromModel(SessionGraphPreferences preferences)
+        {
+            return new SessionGraphPreferencesDocument
+            {
+                Rows = preferences.Rows
+                    .Select(row => (SessionGraphRowPreferencesDocument?)SessionGraphRowPreferencesDocument.FromModel(row))
+                    .ToList(),
+            };
+        }
+    }
+
+    private sealed class SessionGraphRowPreferencesDocument
+    {
+        public string? RowId { get; set; }
+        public bool? IsExpanded { get; set; }
+        public List<SessionGraphRowPreferencesDocument?>? Children { get; set; }
+
+        public SessionGraphRowPreferences ToModel()
+        {
+            return new SessionGraphRowPreferences(
+                RowId ?? "",
+                IsExpanded ?? true,
+                Children?
+                    .Where(child => child is not null)
+                    .Select(child => child!.ToModel())
+                    .Where(child => !string.IsNullOrWhiteSpace(child.RowId))
+                    .ToArray());
+        }
+
+        public static SessionGraphRowPreferencesDocument FromModel(SessionGraphRowPreferences preferences)
+        {
+            return new SessionGraphRowPreferencesDocument
+            {
+                RowId = preferences.RowId,
+                IsExpanded = preferences.IsExpanded,
+                Children = preferences.Children
+                    .Select(child => (SessionGraphRowPreferencesDocument?)FromModel(child))
+                    .ToList(),
             };
         }
     }

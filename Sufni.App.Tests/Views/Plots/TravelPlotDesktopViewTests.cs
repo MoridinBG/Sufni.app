@@ -310,6 +310,7 @@ public class TravelPlotDesktopViewTests
         public SurfacePresentationState SpeedGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
+        public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public int ClearAnalysisRangeCallCount { get; private set; }
         public int SetAnalysisRangeBoundaryCallCount { get; private set; }

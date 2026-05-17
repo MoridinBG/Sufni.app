@@ -264,6 +264,12 @@ public class LiveSessionDetailViewModelTests
         editor.ForkSettings.SpringRate = "550 lb/in";
         editor.PreferencesPage.VelocityPlot.Selected = false;
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+        var graph = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Travel),
+        ]);
+        editor.GraphWorkspace.GraphPreferences = graph;
 
         await editor.SaveCommand.ExecuteAsync(null);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -282,7 +288,8 @@ public class LiveSessionDetailViewModelTests
                 preferences.Plots.Travel &&
                 !preferences.Plots.Velocity &&
                 preferences.Plots.Imu &&
-                preferences.Statistics.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged),
+                preferences.Statistics.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
+                preferences.Graph == graph),
             Arg.Any<CancellationToken>());
         Assert.Equal("Morning lap", editor.Name);
         Assert.Null(editor.TelemetryData);

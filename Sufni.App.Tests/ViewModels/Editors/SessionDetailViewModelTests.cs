@@ -463,6 +463,43 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task GraphPreferenceChange_PersistsWithoutDirtyingSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
+        SetDesktop(true);
+        var graph = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Travel,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                ]),
+        ]);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+
+        editor.GraphPreferences = graph;
+
+        Assert.False(editor.IsDirty);
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(graph, update!(SessionPreferences.Default).Graph);
+    }
+
+    [AvaloniaFact]
     public async Task ProcessingPreferenceCommit_PersistsPreferenceAndRecomputesSession()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);

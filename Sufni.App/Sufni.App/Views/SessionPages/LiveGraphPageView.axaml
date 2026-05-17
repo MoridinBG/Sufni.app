@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Models"
 xmlns:plotModels="clr-namespace:Sufni.App.Plots"
 xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:v="clr-namespace:Sufni.App.Views"
@@ -20,9 +21,13 @@ mc:Ignorable="d">
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
             <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
-                <controls:TelemetryPlotsRoot x:Name="GraphRoot" Margin="-8,0,-8,0">
+                <controls:TelemetryPlotsRoot
+                x:Name="GraphRoot"
+                Margin="-8,0,-8,0"
+                GraphPreferences="{Binding Workspace.GraphPreferences, Mode=TwoWay}">
                     <controls:TelemetryPlotsRoot.Rows>
                         <controls:TelemetryPlotRow
+                        RowId="{x:Static models:TelemetryGraphRowIds.Travel}"
                         Title="Travel (mm)"
                         PresentationState="{Binding Workspace.TravelGraphState}">
                             <controls:TelemetryPlotRow.PlotContent>
@@ -39,6 +44,7 @@ mc:Ignorable="d">
                             </controls:TelemetryPlotRow.PlaceholderContent>
                             <controls:TelemetryPlotRow.ChildRows>
                                 <controls:TelemetryPlotRow
+                                RowId="{x:Static models:TelemetryGraphRowIds.Velocity}"
                                 Title="Velocity (m/s)"
                                 PresentationState="{Binding Workspace.VelocityGraphState}">
                                     <controls:TelemetryPlotRow.PlotContent>
@@ -59,6 +65,7 @@ mc:Ignorable="d">
                         </controls:TelemetryPlotRow>
 
                         <controls:TelemetryPlotRow
+                        RowId="{x:Static models:TelemetryGraphRowIds.Imu}"
                         Title="IMU acceleration (g)"
                         PresentationState="{Binding Workspace.ImuGraphState}">
                             <controls:TelemetryPlotRow.PlotContent>
@@ -76,6 +83,7 @@ mc:Ignorable="d">
                         </controls:TelemetryPlotRow>
 
                         <controls:TelemetryPlotRow
+                        RowId="{x:Static models:TelemetryGraphRowIds.Speed}"
                         Title="GPS speed (km/h)"
                         PresentationState="{Binding Workspace.SpeedGraphState}">
                             <controls:TelemetryPlotRow.PlotContent>
@@ -93,6 +101,7 @@ mc:Ignorable="d">
                             </controls:TelemetryPlotRow.PlaceholderContent>
                             <controls:TelemetryPlotRow.ChildRows>
                                 <controls:TelemetryPlotRow
+                                RowId="{x:Static models:TelemetryGraphRowIds.Elevation}"
                                 Title="Elevation (m)"
                                 PresentationState="{Binding Workspace.ElevationGraphState}">
                                     <controls:TelemetryPlotRow.PlotContent>

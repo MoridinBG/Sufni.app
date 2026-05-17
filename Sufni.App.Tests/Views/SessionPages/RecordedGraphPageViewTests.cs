@@ -88,6 +88,41 @@ public class RecordedGraphPageViewTests
     }
 
     [AvaloniaFact]
+    public async Task RecordedGraphPageView_AppliesStoredGraphPreferences()
+    {
+        var telemetry = TestTelemetryData.Create();
+        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var workspace = new RecordedGraphPageWorkspaceStub(
+            telemetry,
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Ready,
+            speedGraphState: SurfacePresentationState.Ready)
+        {
+            GraphPreferences = new SessionGraphPreferences(
+            [
+                new SessionGraphRowPreferences(TelemetryGraphRowIds.Speed, isExpanded: false),
+                new SessionGraphRowPreferences(
+                    TelemetryGraphRowIds.Imu,
+                    children:
+                    [
+                        new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                    ]),
+            ]),
+        };
+        var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
+
+        await using var mounted = await MountAsync(page);
+
+        var root = GetGraphRoot(mounted.View);
+        Assert.Equal(
+            ["GPS speed (km/h)", "IMU acceleration (g)", "Travel (mm)"],
+            root.Rows.Select(row => row.Title!).ToArray());
+        Assert.False(root.Rows[0].IsExpanded);
+        Assert.Equal(["Elevation (m)"], root.Rows[0].ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Velocity (m/s)"], root.Rows[1].ChildRows.Select(row => row.Title!).ToArray());
+    }
+
+    [AvaloniaFact]
     public async Task RecordedGraphPageView_ShowsPlaceholders_WhenStatesWaiting()
     {
         var workspace = new RecordedGraphPageWorkspaceStub(
@@ -256,6 +291,7 @@ public class RecordedGraphPageViewTests
         public SurfacePresentationState SpeedGraphState { get; } = speedGraphState ?? SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
+        public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)
