@@ -75,6 +75,31 @@ public class TelemetryPlotsRootTests
     }
 
     [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_CollapsedBaseRows_DoNotShowResizeDividers()
+    {
+        var travel = CreateRow("Travel");
+        var imu = CreateRow("IMU");
+        var gps = CreateRow("GPS");
+        travel.IsExpanded = false;
+        imu.IsExpanded = false;
+        gps.IsExpanded = false;
+        var root = CreateRoot(travel, imu, gps);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 200);
+
+        var dividers = root.GetVisualDescendants().OfType<TelemetryBaseRowDivider>().ToArray();
+        Assert.Equal(2, dividers.Length);
+        Assert.All(dividers, divider => Assert.False(divider.IsVisible));
+        Assert.Equal(32, travel.AllocatedGroupHeight);
+        Assert.Equal(32, imu.AllocatedGroupHeight);
+        Assert.Equal(32, gps.AllocatedGroupHeight);
+        Assert.Equal(0, travel.Bounds.Y);
+        Assert.Equal(32, imu.Bounds.Y);
+        Assert.Equal(64, gps.Bounds.Y);
+    }
+
+    [AvaloniaFact]
     public async Task TelemetryPlotsRoot_DividerDoubleClick_ResetsTargetRowToPreferredHeight()
     {
         var travel = CreateRow("Travel");
