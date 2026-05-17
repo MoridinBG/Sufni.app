@@ -15,7 +15,6 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
-    private SessionGraphLayout graphLayout = SessionGraphLayout.Empty;
     private uint? sessionId;
     private bool travelExpected;
     private bool imuExpected;
@@ -74,12 +73,6 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     {
         get => elevationGraphState;
         private set => SetProperty(ref elevationGraphState, value);
-    }
-
-    public SessionGraphLayout GraphLayout
-    {
-        get => graphLayout;
-        private set => SetProperty(ref graphLayout, value);
     }
 
     public LiveSessionGraphWorkspaceViewModel()
@@ -233,11 +226,5 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         ImuGraphState = imuState.ApplyPlotSelection(plotPreferences.Imu);
         SpeedGraphState = speedState.ApplyPlotSelection(plotPreferences.Speed);
         ElevationGraphState = elevationState.ApplyPlotSelection(plotPreferences.Elevation);
-        GraphLayout = SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
     }
 }

@@ -117,7 +117,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SessionGraphLayout graphLayout = SessionGraphLayout.Empty;
     [ObservableProperty] private SurfacePresentationState frontStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
@@ -1241,12 +1240,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         ImuGraphState = recordedImuGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Imu);
         SpeedGraphState = recordedSpeedGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Speed);
         ElevationGraphState = recordedElevationGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Elevation);
-        GraphLayout = SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
     }
 
     private async Task RestoreRecordedPreferencesAsync()

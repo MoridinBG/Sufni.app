@@ -219,22 +219,21 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var grid = view.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(view);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
+        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
         var travelView = view.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
         var velocityView = view.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
         var imuView = view.FindControl<LiveImuPlotDesktopView>("ImuPlot");
 
-        Assert.NotNull(grid);
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
-        Assert.NotEqual(0, grid!.RowDefinitions[0].Height.Value);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[0].Height.GridUnitType);
-        Assert.NotEqual(0, grid.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
-        Assert.Equal(0, grid.RowDefinitions[4].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[4].Height.GridUnitType);
-        Assert.Equal(grid.RowDefinitions[0].Height.Value, grid.RowDefinitions[2].Height.Value);
+        Assert.True(travelRow.IsVisible);
+        Assert.True(velocityRow.IsVisible);
+        Assert.True(imuRow.IsVisible);
+        Assert.Equal(SurfacePresentationState.Hidden, travelRow.PresentationState);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -264,21 +263,14 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var grid = view.FindControl<Grid>("GraphGrid");
-        var firstSplitter = view.FindControl<GridSplitter>("FirstGraphSplitter");
-        var secondSplitter = view.FindControl<GridSplitter>("SecondGraphSplitter");
+        var root = GetGraphRoot(view);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
+        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
 
-        Assert.NotNull(grid);
-        Assert.NotNull(firstSplitter);
-        Assert.NotNull(secondSplitter);
-        Assert.NotEqual(0, grid!.RowDefinitions[0].Height.Value);
-        Assert.NotEqual(0, grid.RowDefinitions[2].Height.Value);
-        Assert.Equal(0, grid.RowDefinitions[4].Height.Value);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[0].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
-        Assert.Equal(grid.RowDefinitions[0].Height.Value, grid.RowDefinitions[2].Height.Value);
-        Assert.True(firstSplitter!.IsVisible);
-        Assert.False(secondSplitter!.IsVisible);
+        Assert.True(travelRow.IsVisible);
+        Assert.False(velocityRow.IsVisible);
+        Assert.True(imuRow.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -304,20 +296,19 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var grid = view.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(view);
+        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
         var imuView = view.FindControl<LiveImuPlotDesktopView>("ImuPlot");
 
-        Assert.NotNull(grid);
         Assert.NotNull(imuView);
-        Assert.Equal(0, grid!.RowDefinitions[4].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, grid.RowDefinitions[4].Height.GridUnitType);
+        Assert.False(imuRow.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
-    public async Task LiveSessionGraphDesktopView_ShowsSplitterBetweenVelocityAndSpeed_WhenImuIsHidden()
+    public async Task LiveSessionGraphDesktopView_ShowsGpsBaseRow_WhenImuIsHidden()
     {
         ViewTestHelpers.EnsurePlotViewStyle();
 
@@ -341,32 +332,25 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var grid = view.FindControl<Grid>("GraphGrid");
-        var firstSplitter = view.FindControl<GridSplitter>("FirstGraphSplitter");
-        var secondSplitter = view.FindControl<GridSplitter>("SecondGraphSplitter");
-        var thirdSplitter = view.FindControl<GridSplitter>("ThirdGraphSplitter");
+        var root = GetGraphRoot(view);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
+        var elevationRow = GetChildRow(gpsRow, "Elevation (m)");
         var speedView = view.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
 
-        Assert.NotNull(grid);
-        Assert.NotNull(firstSplitter);
-        Assert.NotNull(secondSplitter);
-        Assert.NotNull(thirdSplitter);
         Assert.NotNull(speedView);
-        var speedHost = speedView!.GetVisualAncestors().OfType<PlaceholderOverlayContainer>().First();
-        Assert.Equal(4, Grid.GetRow(speedHost));
-        Assert.True(firstSplitter!.IsVisible);
-        Assert.True(secondSplitter!.IsVisible);
-        Assert.False(thirdSplitter!.IsVisible);
-        Assert.Equal(GridUnitType.Star, grid!.RowDefinitions[0].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[2].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Star, grid.RowDefinitions[4].Height.GridUnitType);
+        Assert.True(travelRow.IsVisible);
+        Assert.False(imuRow.IsVisible);
+        Assert.True(gpsRow.IsVisible);
+        Assert.False(elevationRow.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]
-    public async Task LiveSessionGraphDesktopView_ResetVisiblePlotRows_MakesVisibleRowsEqualHeight()
+    public async Task LiveSessionGraphDesktopView_UsesNestedTelemetryRows()
     {
         ViewTestHelpers.EnsurePlotViewStyle();
 
@@ -390,26 +374,33 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var graphGrid = view.FindControl<Grid>("GraphGrid");
-        Assert.NotNull(graphGrid);
+        var root = GetGraphRoot(view);
+        Assert.Equal(
+            ["Travel (mm)", "IMU acceleration (g)", "GPS speed (km/h)"],
+            root.Rows.Select(row => row.Title!).ToArray());
 
-        graphGrid!.RowDefinitions[0].Height = new GridLength(4, GridUnitType.Star);
-        graphGrid.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
-        graphGrid.RowDefinitions[4].Height = new GridLength(2, GridUnitType.Star);
-        graphGrid.RowDefinitions[6].Height = new GridLength(5, GridUnitType.Star);
-        graphGrid.RowDefinitions[8].Height = new GridLength(7, GridUnitType.Star);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
 
-        SessionGraphGridSizing.ResetVisiblePlotRows(graphGrid);
-
-        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[0].Height);
-        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[2].Height);
-        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[4].Height);
-        Assert.Equal(new GridLength(1, GridUnitType.Star), graphGrid.RowDefinitions[6].Height);
-        Assert.Equal(new GridLength(0, GridUnitType.Pixel), graphGrid.RowDefinitions[8].Height);
+        Assert.Equal(["Velocity (m/s)"], travelRow.ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Elevation (m)"], gpsRow.ChildRows.Select(row => row.Title!).ToArray());
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }
+
+    private static TelemetryPlotsRoot GetGraphRoot(LiveSessionGraphDesktopView view)
+    {
+        var root = view.FindControl<TelemetryPlotsRoot>("GraphRoot");
+        Assert.NotNull(root);
+        return root!;
+    }
+
+    private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)
+        => Assert.Single(root.Rows, row => row.Title == title);
+
+    private static TelemetryPlotRow GetChildRow(TelemetryPlotRow row, string title)
+        => Assert.Single(row.ChildRows, child => child.Title == title);
 
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
@@ -491,12 +482,6 @@ public class LiveGraphPlotDesktopViewTests
         public SurfacePresentationState ElevationGraphState { get; } = hasElevationSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }

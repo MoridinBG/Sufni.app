@@ -47,7 +47,7 @@ public class RecordedGraphPageViewTests
         var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
-        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
 
         Assert.NotNull(travelView);
@@ -55,8 +55,12 @@ public class RecordedGraphPageViewTests
         Assert.NotNull(imuView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
-        Assert.NotNull(graphGrid);
         Assert.NotNull(pageScrollViewer);
+        Assert.Equal(
+            ["Travel (mm)", "IMU acceleration (g)", "GPS speed (km/h)"],
+            root.Rows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Velocity (m/s)"], GetBaseRow(root, "Travel (mm)").ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Elevation (m)"], GetBaseRow(root, "GPS speed (km/h)").ChildRows.Select(row => row.Title!).ToArray());
         Assert.True(travelView!.IsVisible);
         Assert.True(velocityView!.IsVisible);
         Assert.True(imuView!.IsVisible);
@@ -80,11 +84,6 @@ public class RecordedGraphPageViewTests
         Assert.True(imuView.HideRightAxis);
         Assert.True(speedView.HideRightAxis);
         Assert.True(elevationView.HideRightAxis);
-        AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 2);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 4);
         Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
     }
 
@@ -128,16 +127,11 @@ public class RecordedGraphPageViewTests
         await using var mounted = await MountAsync(page);
 
         var fallback = mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder");
-        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(mounted.View);
 
         Assert.NotNull(fallback);
-        Assert.NotNull(graphGrid);
         Assert.True(fallback!.IsVisible);
-        Assert.Equal(0, graphGrid!.RowDefinitions[0].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[1].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[2].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[3].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.All(GetRows(root), row => Assert.False(row.IsVisible));
     }
 
     [AvaloniaFact]
@@ -155,17 +149,16 @@ public class RecordedGraphPageViewTests
         await using var mounted = await MountAsync(page);
 
         var fallback = mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder");
-        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(mounted.View);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
+        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
 
         Assert.NotNull(fallback);
-        Assert.NotNull(graphGrid);
         Assert.False(fallback!.IsVisible);
-        Assert.NotEqual(0, graphGrid!.RowDefinitions[0].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[1].Height.Value);
-        Assert.NotEqual(0, graphGrid.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[0].Height.GridUnitType);
-        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[2].Height.GridUnitType);
-        Assert.Equal(graphGrid.RowDefinitions[0].Height.Value, graphGrid.RowDefinitions[2].Height.Value);
+        Assert.True(travelRow.IsVisible);
+        Assert.False(velocityRow.IsVisible);
+        Assert.True(imuRow.IsVisible);
     }
 
     [AvaloniaFact]
@@ -210,13 +203,21 @@ public class RecordedGraphPageViewTests
         return new MountedRecordedGraphPageView(host, view);
     }
 
-    private static void AssertMobileGraphRowHeight(Grid graphGrid, ScrollViewer pageScrollViewer, int row)
+    private static TelemetryPlotsRoot GetGraphRoot(RecordedGraphPageView view)
     {
-        var expected = Math.Max(180, pageScrollViewer.Bounds.Height / 3);
-
-        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[row].Height.GridUnitType);
-        Assert.Equal(expected, graphGrid.RowDefinitions[row].Height.Value, precision: 3);
+        var root = view.FindControl<TelemetryPlotsRoot>("GraphRoot");
+        Assert.NotNull(root);
+        return root!;
     }
+
+    private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)
+        => Assert.Single(root.Rows, row => row.Title == title);
+
+    private static TelemetryPlotRow GetChildRow(TelemetryPlotRow row, string title)
+        => Assert.Single(row.ChildRows, child => child.Title == title);
+
+    private static IReadOnlyList<TelemetryPlotRow> GetRows(TelemetryPlotsRoot root)
+        => root.Rows.Concat(root.Rows.SelectMany(row => row.ChildRows)).ToArray();
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
     {
@@ -254,12 +255,6 @@ public class RecordedGraphPageViewTests
         public SurfacePresentationState ImuGraphState { get; } = imuGraphState;
         public SurfacePresentationState SpeedGraphState { get; } = speedGraphState ?? SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
-        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
