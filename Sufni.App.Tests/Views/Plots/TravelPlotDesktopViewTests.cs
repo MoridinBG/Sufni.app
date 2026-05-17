@@ -282,12 +282,6 @@ public class TravelPlotDesktopViewTests
         public SurfacePresentationState ImuGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState SpeedGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
-        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public int ClearAnalysisRangeCallCount { get; private set; }

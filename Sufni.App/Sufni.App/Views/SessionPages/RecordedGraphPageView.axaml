@@ -21,147 +21,110 @@ mc:Ignorable="d">
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
             <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
-                <Grid x:Name="GraphGrid" Margin="-8,0,-8,0">
-                    <Grid.Resources>
-                        <controls:SurfaceStateToViewportFractionGridLengthConverter x:Key="MobileGraphRowHeightConverter" />
-                    </Grid.Resources>
+                <controls:TelemetryPlotsRoot x:Name="GraphRoot" Margin="-8,0,-8,0">
+                    <controls:TelemetryPlotsRoot.Rows>
+                        <controls:TelemetryPlotRow
+                        Title="Travel (mm)"
+                        PresentationState="{Binding Workspace.TravelGraphState}">
+                            <controls:TelemetryPlotRow.PlotContent>
+                                <plots:TravelPlotDesktopView
+                                Name="Travel"
+                                AnalysisRange="{Binding Workspace.AnalysisRange}"
+                                GraphWorkspace="{Binding Workspace}"
+                                HideRightAxis="True"
+                                MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
+                                SmoothingLevel="{Binding Workspace.PlotPreferences.TravelSmoothing}"
+                                Telemetry="{Binding Workspace.TelemetryData}"
+                                Timeline="{Binding Workspace.Timeline}" />
+                            </controls:TelemetryPlotRow.PlotContent>
+                            <controls:TelemetryPlotRow.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="Travel" />
+                            </controls:TelemetryPlotRow.PlaceholderContent>
+                            <controls:TelemetryPlotRow.ChildRows>
+                                <controls:TelemetryPlotRow
+                                Title="Velocity (m/s)"
+                                PresentationState="{Binding Workspace.VelocityGraphState}">
+                                    <controls:TelemetryPlotRow.PlotContent>
+                                        <plots:VelocityPlotDesktopView
+                                        Name="Velocity"
+                                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                                        GraphWorkspace="{Binding Workspace}"
+                                        HideRightAxis="True"
+                                        MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
+                                        SmoothingLevel="{Binding Workspace.PlotPreferences.VelocitySmoothing}"
+                                        Telemetry="{Binding Workspace.TelemetryData}"
+                                        Timeline="{Binding Workspace.Timeline}" />
+                                    </controls:TelemetryPlotRow.PlotContent>
+                                    <controls:TelemetryPlotRow.PlaceholderContent>
+                                        <controls:SurfacePlaceholderCard Title="Velocity" />
+                                    </controls:TelemetryPlotRow.PlaceholderContent>
+                                </controls:TelemetryPlotRow>
+                            </controls:TelemetryPlotRow.ChildRows>
+                        </controls:TelemetryPlotRow>
 
-                    <Grid.RowDefinitions>
-                        <RowDefinition>
-                            <RowDefinition.Height>
-                                <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
-                                    <Binding Path="Workspace.TravelGraphState" />
-                                    <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
-                                </MultiBinding>
-                            </RowDefinition.Height>
-                        </RowDefinition>
-                        <RowDefinition>
-                            <RowDefinition.Height>
-                                <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
-                                    <Binding Path="Workspace.VelocityGraphState" />
-                                    <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
-                                </MultiBinding>
-                            </RowDefinition.Height>
-                        </RowDefinition>
-                        <RowDefinition>
-                            <RowDefinition.Height>
-                                <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
-                                    <Binding Path="Workspace.ImuGraphState" />
-                                    <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
-                                </MultiBinding>
-                            </RowDefinition.Height>
-                        </RowDefinition>
-                        <RowDefinition>
-                            <RowDefinition.Height>
-                                <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
-                                    <Binding Path="Workspace.SpeedGraphState" />
-                                    <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
-                                </MultiBinding>
-                            </RowDefinition.Height>
-                        </RowDefinition>
-                        <RowDefinition>
-                            <RowDefinition.Height>
-                                <MultiBinding Converter="{StaticResource MobileGraphRowHeightConverter}" ConverterParameter="3">
-                                    <Binding Path="Workspace.ElevationGraphState" />
-                                    <Binding ElementName="PageScrollViewer" Path="Bounds.Height" />
-                                </MultiBinding>
-                            </RowDefinition.Height>
-                        </RowDefinition>
-                    </Grid.RowDefinitions>
+                        <controls:TelemetryPlotRow
+                        Title="IMU acceleration (g)"
+                        PresentationState="{Binding Workspace.ImuGraphState}">
+                            <controls:TelemetryPlotRow.PlotContent>
+                                <plots:ImuPlotDesktopView
+                                Name="Imu"
+                                AnalysisRange="{Binding Workspace.AnalysisRange}"
+                                GraphWorkspace="{Binding Workspace}"
+                                HideRightAxis="True"
+                                MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
+                                SmoothingLevel="{Binding Workspace.PlotPreferences.ImuSmoothing}"
+                                Telemetry="{Binding Workspace.TelemetryData}"
+                                Timeline="{Binding Workspace.Timeline}" />
+                            </controls:TelemetryPlotRow.PlotContent>
+                            <controls:TelemetryPlotRow.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="IMU" />
+                            </controls:TelemetryPlotRow.PlaceholderContent>
+                        </controls:TelemetryPlotRow>
 
-                    <controls:PlaceholderOverlayContainer Grid.Row="0" PresentationState="{Binding Workspace.TravelGraphState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:TravelPlotDesktopView
-                            Name="Travel"
-                            AnalysisRange="{Binding Workspace.AnalysisRange}"
-                            GraphWorkspace="{Binding Workspace}"
-                            HideRightAxis="True"
-                            MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
-                            SmoothingLevel="{Binding Workspace.PlotPreferences.TravelSmoothing}"
-                            Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}" />
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Travel" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
-
-                    <controls:PlaceholderOverlayContainer Grid.Row="1" PresentationState="{Binding Workspace.VelocityGraphState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:VelocityPlotDesktopView
-                            Name="Velocity"
-                            AnalysisRange="{Binding Workspace.AnalysisRange}"
-                            GraphWorkspace="{Binding Workspace}"
-                            HideRightAxis="True"
-                            Margin="0,4,0,0"
-                            MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
-                            SmoothingLevel="{Binding Workspace.PlotPreferences.VelocitySmoothing}"
-                            Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}" />
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Velocity" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
-
-                    <controls:PlaceholderOverlayContainer Grid.Row="2" PresentationState="{Binding Workspace.ImuGraphState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:ImuPlotDesktopView
-                            Name="Imu"
-                            AnalysisRange="{Binding Workspace.AnalysisRange}"
-                            GraphWorkspace="{Binding Workspace}"
-                            HideRightAxis="True"
-                            Margin="0,4,0,0"
-                            MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}"
-                            SmoothingLevel="{Binding Workspace.PlotPreferences.ImuSmoothing}"
-                            Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}" />
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="IMU" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
-
-                    <controls:PlaceholderOverlayContainer Grid.Row="3" PresentationState="{Binding Workspace.SpeedGraphState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:TrackSignalPlotDesktopView
-                            Name="Speed"
-                            AnalysisRange="{Binding Workspace.AnalysisRange}"
-                            GraphWorkspace="{Binding Workspace}"
-                            HideRightAxis="True"
-                            Margin="0,4,0,0"
-                            SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
-                            SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
-                            Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}"
-                            TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                            TrackPoints="{Binding Workspace.TrackPoints}" />
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Speed" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
-
-                    <controls:PlaceholderOverlayContainer Grid.Row="4" PresentationState="{Binding Workspace.ElevationGraphState}">
-                        <controls:PlaceholderOverlayContainer.ReadyContent>
-                            <plots:TrackSignalPlotDesktopView
-                            Name="Elevation"
-                            AnalysisRange="{Binding Workspace.AnalysisRange}"
-                            GraphWorkspace="{Binding Workspace}"
-                            HideRightAxis="True"
-                            Margin="0,4,0,0"
-                            SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
-                            SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
-                            Telemetry="{Binding Workspace.TelemetryData}"
-                            Timeline="{Binding Workspace.Timeline}"
-                            TimelineContext="{Binding Workspace.TrackTimelineContext}"
-                            TrackPoints="{Binding Workspace.TrackPoints}" />
-                        </controls:PlaceholderOverlayContainer.ReadyContent>
-                        <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Margin="0,4,0,0" Title="Elevation" />
-                        </controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    </controls:PlaceholderOverlayContainer>
-                </Grid>
+                        <controls:TelemetryPlotRow
+                        Title="GPS speed (km/h)"
+                        PresentationState="{Binding Workspace.SpeedGraphState}">
+                            <controls:TelemetryPlotRow.PlotContent>
+                                <plots:TrackSignalPlotDesktopView
+                                Name="Speed"
+                                AnalysisRange="{Binding Workspace.AnalysisRange}"
+                                GraphWorkspace="{Binding Workspace}"
+                                HideRightAxis="True"
+                                SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
+                                SmoothingLevel="{Binding Workspace.PlotPreferences.SpeedSmoothing}"
+                                Telemetry="{Binding Workspace.TelemetryData}"
+                                Timeline="{Binding Workspace.Timeline}"
+                                TimelineContext="{Binding Workspace.TrackTimelineContext}"
+                                TrackPoints="{Binding Workspace.TrackPoints}" />
+                            </controls:TelemetryPlotRow.PlotContent>
+                            <controls:TelemetryPlotRow.PlaceholderContent>
+                                <controls:SurfacePlaceholderCard Title="Speed" />
+                            </controls:TelemetryPlotRow.PlaceholderContent>
+                            <controls:TelemetryPlotRow.ChildRows>
+                                <controls:TelemetryPlotRow
+                                Title="Elevation (m)"
+                                PresentationState="{Binding Workspace.ElevationGraphState}">
+                                    <controls:TelemetryPlotRow.PlotContent>
+                                        <plots:TrackSignalPlotDesktopView
+                                        Name="Elevation"
+                                        AnalysisRange="{Binding Workspace.AnalysisRange}"
+                                        GraphWorkspace="{Binding Workspace}"
+                                        HideRightAxis="True"
+                                        SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
+                                        SmoothingLevel="{Binding Workspace.PlotPreferences.ElevationSmoothing}"
+                                        Telemetry="{Binding Workspace.TelemetryData}"
+                                        Timeline="{Binding Workspace.Timeline}"
+                                        TimelineContext="{Binding Workspace.TrackTimelineContext}"
+                                        TrackPoints="{Binding Workspace.TrackPoints}" />
+                                    </controls:TelemetryPlotRow.PlotContent>
+                                    <controls:TelemetryPlotRow.PlaceholderContent>
+                                        <controls:SurfacePlaceholderCard Title="Elevation" />
+                                    </controls:TelemetryPlotRow.PlaceholderContent>
+                                </controls:TelemetryPlotRow>
+                            </controls:TelemetryPlotRow.ChildRows>
+                        </controls:TelemetryPlotRow>
+                    </controls:TelemetryPlotsRoot.Rows>
+                </controls:TelemetryPlotsRoot>
 
                 <controls:SurfacePlaceholderCard
                 Name="NoGraphDataPlaceholder"
