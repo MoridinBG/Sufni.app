@@ -34,8 +34,24 @@ public static class ImuDisplaySignalProcessor
 
     private const double MillisecondsPerSecond = 1000.0;
     private const double MinimumGravityMagnitude = 1e-6;
+    private const double AttitudeAccelMagnitudeMinimumG = 0.85;
+    private const double AttitudeAccelMagnitudeMaximumG = 1.15;
+
+    public static RecordedImuDisplaySeries ProcessRecorded(TelemetryData telemetryData)
+    {
+        return telemetryData.ImuData is { } imuData
+            ? ProcessRecorded(imuData, AttitudeCorrectionContext.CreateRecorded(telemetryData))
+            : new RecordedImuDisplaySeries([], null);
+    }
 
     public static RecordedImuDisplaySeries ProcessRecorded(RawImuData imuData)
+    {
+        return ProcessRecorded(imuData, AttitudeCorrectionContext.Empty);
+    }
+
+    private static RecordedImuDisplaySeries ProcessRecorded(
+        RawImuData imuData,
+        AttitudeCorrectionContext attitudeCorrectionContext)
     {
         if (imuData.SampleRate <= 0 || imuData.Records.Count == 0 || imuData.ActiveLocations.Count == 0)
         {
@@ -59,7 +75,8 @@ public static class ImuDisplaySignalProcessor
                 imuData.SampleRate,
                 meta.AccelLsbPerG,
                 meta.GyroLsbPerDps,
-                includePitchRoll: entry.Key == 0);
+                includePitchRoll: entry.Key == 0,
+                attitudeCorrectionContext);
 
             if (result.RmsG.Length > 0)
             {
@@ -134,12 +151,72 @@ public static class ImuDisplaySignalProcessor
             accel.Z / magnitude);
     }
 
+    internal static bool IsAttitudeAccelerationReliable(AccelVector accel)
+    {
+        var magnitude = accel.Magnitude;
+        return double.IsFinite(magnitude) &&
+            magnitude >= AttitudeAccelMagnitudeMinimumG &&
+            magnitude <= AttitudeAccelMagnitudeMaximumG;
+    }
+
+    internal static double CalculateAttitudeCorrection(
+        AccelVector accel,
+        double dtSeconds,
+        double contextWeight)
+    {
+        if (contextWeight <= 0 || !IsAttitudeAccelerationReliable(accel))
+        {
+            return 0;
+        }
+
+        return LowPassAlpha(dtSeconds, AttitudeCorrectionTimeConstantMilliseconds) * contextWeight;
+    }
+
+    internal static void UpdateAttitude(
+        AccelVector accel,
+        ImuRecord record,
+        double gyroLsbPerDps,
+        double dtSeconds,
+        double correctionWeight,
+        ref bool hasAttitude,
+        ref double pitchDegrees,
+        ref double rollDegrees)
+    {
+        if (!hasAttitude)
+        {
+            var initialAttitude = correctionWeight > 0 && IsAttitudeAccelerationReliable(accel)
+                ? CalculateAttitude(accel)
+                : new AttitudeAngles(0, 0);
+            pitchDegrees = initialAttitude.PitchDegrees;
+            rollDegrees = initialAttitude.RollDegrees;
+            hasAttitude = true;
+            return;
+        }
+
+        var gyroX = record.Gx / gyroLsbPerDps;
+        var gyroY = record.Gy / gyroLsbPerDps;
+        var predictedRoll = rollDegrees + gyroX * dtSeconds;
+        var predictedPitch = pitchDegrees + gyroY * dtSeconds;
+        var correction = CalculateAttitudeCorrection(accel, dtSeconds, correctionWeight);
+        if (correction <= 0)
+        {
+            rollDegrees = predictedRoll;
+            pitchDegrees = predictedPitch;
+            return;
+        }
+
+        var attitude = CalculateAttitude(accel);
+        rollDegrees = predictedRoll + correction * (attitude.RollDegrees - predictedRoll);
+        pitchDegrees = predictedPitch + correction * (attitude.PitchDegrees - predictedPitch);
+    }
+
     internal static LocationProcessResult ProcessLocation(
         IReadOnlyList<TimedImuSample> samples,
         double sampleRateHz,
         double accelLsbPerG,
         double gyroLsbPerDps,
-        bool includePitchRoll)
+        bool includePitchRoll,
+        AttitudeCorrectionContext attitudeCorrectionContext)
     {
         if (samples.Count == 0 || accelLsbPerG <= 0)
         {
@@ -182,23 +259,15 @@ public static class ImuDisplaySignalProcessor
                 continue;
             }
 
-            var attitude = CalculateAttitude(accel);
-            if (!hasAttitude)
-            {
-                pitchDegrees = attitude.PitchDegrees;
-                rollDegrees = attitude.RollDegrees;
-                hasAttitude = true;
-            }
-            else
-            {
-                var gyroX = sample.Record.Gx / gyroLsbPerDps;
-                var gyroY = sample.Record.Gy / gyroLsbPerDps;
-                var predictedRoll = rollDegrees + gyroX * dtSeconds;
-                var predictedPitch = pitchDegrees + gyroY * dtSeconds;
-                var correction = LowPassAlpha(dtSeconds, AttitudeCorrectionTimeConstantMilliseconds);
-                rollDegrees = predictedRoll + correction * (attitude.RollDegrees - predictedRoll);
-                pitchDegrees = predictedPitch + correction * (attitude.PitchDegrees - predictedPitch);
-            }
+            UpdateAttitude(
+                accel,
+                sample.Record,
+                gyroLsbPerDps,
+                dtSeconds,
+                attitudeCorrectionContext.CorrectionWeightAt(sample.Time),
+                ref hasAttitude,
+                ref pitchDegrees,
+                ref rollDegrees);
 
             pitch[i] = pitchDegrees;
             roll[i] = rollDegrees;
@@ -390,25 +459,15 @@ public sealed class LiveImuDisplaySignalProcessor
                     continue;
                 }
 
-                var attitude = ImuDisplaySignalProcessor.CalculateAttitude(accel);
-                if (!hasAttitude)
-                {
-                    pitchDegrees = attitude.PitchDegrees;
-                    rollDegrees = attitude.RollDegrees;
-                    hasAttitude = true;
-                }
-                else
-                {
-                    var gyroX = sample.Record.Gx / gyroLsbPerDps;
-                    var gyroY = sample.Record.Gy / gyroLsbPerDps;
-                    var predictedRoll = rollDegrees + gyroX * dtSeconds;
-                    var predictedPitch = pitchDegrees + gyroY * dtSeconds;
-                    var correction = ImuDisplaySignalProcessor.LowPassAlpha(
-                        dtSeconds,
-                        ImuDisplaySignalProcessor.AttitudeCorrectionTimeConstantMilliseconds);
-                    rollDegrees = predictedRoll + correction * (attitude.RollDegrees - predictedRoll);
-                    pitchDegrees = predictedPitch + correction * (attitude.PitchDegrees - predictedPitch);
-                }
+                ImuDisplaySignalProcessor.UpdateAttitude(
+                    accel,
+                    sample.Record,
+                    gyroLsbPerDps,
+                    dtSeconds,
+                    correctionWeight: 1.0,
+                    ref hasAttitude,
+                    ref pitchDegrees,
+                    ref rollDegrees);
 
                 pitch[i] = pitchDegrees;
                 roll[i] = rollDegrees;
@@ -419,6 +478,79 @@ public sealed class LiveImuDisplaySignalProcessor
                 rms,
                 pitchRollAvailable ? new FramePitchRollSeries(times.ToArray(), pitch, roll) : null);
         }
+    }
+}
+
+internal sealed class AttitudeCorrectionContext
+{
+    public static AttitudeCorrectionContext Empty { get; } = new();
+
+    private const double AirtimePaddingSeconds = 0.10;
+    private const double SuspensionVelocityThresholdMmPerSecond = 300.0;
+
+    private readonly int travelSampleRate;
+    private readonly Suspension? front;
+    private readonly Suspension? rear;
+    private readonly IReadOnlyList<Airtime> airtimes;
+
+    private AttitudeCorrectionContext()
+    {
+        airtimes = [];
+    }
+
+    private AttitudeCorrectionContext(TelemetryData telemetryData)
+    {
+        travelSampleRate = telemetryData.Metadata?.SampleRate ?? 0;
+        front = telemetryData.Front;
+        rear = telemetryData.Rear;
+        airtimes = telemetryData.Airtimes ?? [];
+    }
+
+    public static AttitudeCorrectionContext CreateRecorded(TelemetryData telemetryData)
+    {
+        return new AttitudeCorrectionContext(telemetryData);
+    }
+
+    public double CorrectionWeightAt(double timeSeconds)
+    {
+        if (IsWithinAirtimeWindow(timeSeconds) ||
+            HasHighSuspensionVelocity(front, timeSeconds) ||
+            HasHighSuspensionVelocity(rear, timeSeconds))
+        {
+            return 0;
+        }
+
+        return 1;
+    }
+
+    private bool IsWithinAirtimeWindow(double timeSeconds)
+    {
+        foreach (var airtime in airtimes)
+        {
+            if (timeSeconds >= airtime.Start - AirtimePaddingSeconds &&
+                timeSeconds <= airtime.End + AirtimePaddingSeconds)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool HasHighSuspensionVelocity(Suspension? suspension, double timeSeconds)
+    {
+        if (travelSampleRate <= 0 || suspension is not { Present: true } || suspension.Velocity is not { Length: > 0 } velocity)
+        {
+            return false;
+        }
+
+        var index = (int)Math.Round(timeSeconds * travelSampleRate);
+        if (index < 0 || index >= velocity.Length)
+        {
+            return false;
+        }
+
+        return Math.Abs(velocity[index]) >= SuspensionVelocityThresholdMmPerSecond;
     }
 }
 
