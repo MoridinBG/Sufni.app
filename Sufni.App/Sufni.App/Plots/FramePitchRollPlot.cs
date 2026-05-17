@@ -20,7 +20,7 @@ public sealed class FramePitchRollPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
             return;
         }
 
-        var displaySeries = ImuDisplaySignalProcessor.ProcessRecorded(telemetryData.ImuData);
+        var displaySeries = ImuDisplaySignalProcessor.ProcessRecorded(telemetryData);
         if (displaySeries.FramePitchRoll is not { } pitchRoll || pitchRoll.Times.Length == 0)
         {
             ShowEmptyState(telemetryData.Metadata.Duration);

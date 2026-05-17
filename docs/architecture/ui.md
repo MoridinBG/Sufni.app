@@ -737,7 +737,7 @@ classes.
 
 `ImuPlot` now renders `Vibration RMS (g)`. Firmware emits IMU records in calibrated bike-frame axes (`X=forward`, `Y=left`, `Z=up`) with accel/gyro bias already removed, while the values remain raw counts scaled by `AccelLsbPerG` / `GyroLsbPerDps`. `ImuDisplaySignalProcessor` de-interleaves IMU records by sensor location, converts accelerometer counts to Gs, tracks gravity with a low-pass filter initialized from the incoming bike-frame acceleration, subtracts that gravity estimate from each accelerometer vector, and plots a trailing 200 ms RMS of the dynamic acceleration magnitude. It does not treat the first session samples as rest. Colors remain frame=orange, fork=blue, shock=teal.
 
-`FramePitchRollPlot` is a separate frame-only row. It requires frame accelerometer and gyro scale metadata and fuses the firmware-calibrated frame gyro with accelerometer-derived gravity. Pitch and roll are displayed in degrees relative to the bike-frame calibration (`0,0,+1g` level), not relative to the beginning of the recording.
+`FramePitchRollPlot` is a separate frame-only row. It requires frame accelerometer and gyro scale metadata and fuses the firmware-calibrated frame gyro with accelerometer-derived gravity. The accelerometer correction is accepted only when the acceleration magnitude is gravity-like; recorded plots also suppress that correction during airtime and high suspension-velocity windows derived from processed front/rear travel so impacts and other dynamic riding loads do not immediately drag the attitude estimate. Pitch and roll are displayed in degrees relative to the bike-frame calibration (`0,0,+1g` level), not relative to the beginning of the recording.
 
 ### Desktop vs Mobile
 

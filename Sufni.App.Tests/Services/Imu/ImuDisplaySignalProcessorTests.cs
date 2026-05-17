@@ -57,6 +57,65 @@ public class ImuDisplaySignalProcessorTests
     }
 
     [Fact]
+    public void ProcessRecorded_SkipsAccelerometerCorrection_WhenAccelerationMagnitudeIsNotGravityLike()
+    {
+        var data = CreateRawImuData(
+            activeLocations: [(byte)ImuLocation.Frame],
+            meta: [new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100)],
+            records:
+            [
+                FrameLevel(),
+                new ImuRecord(800, 0, 1000, 0, 1000, 0),
+            ]);
+
+        var result = ImuDisplaySignalProcessor.ProcessRecorded(data);
+
+        Assert.NotNull(result.FramePitchRoll);
+        Assert.Equal(0.0, result.FramePitchRoll!.PitchDegrees[0], precision: 6);
+        Assert.Equal(1.0, result.FramePitchRoll.PitchDegrees[1], precision: 6);
+    }
+
+    [Fact]
+    public void ProcessRecorded_SkipsAccelerometerCorrection_DuringRecordedAirtime()
+    {
+        var telemetry = CreateTelemetryData(
+            records:
+            [
+                FrameLevel(),
+                new ImuRecord(0, 0, 1000, 0, 3000, 0),
+                new ImuRecord(0, 0, 1000, 0, 3000, 0),
+            ],
+            airtimes: [new Airtime { Start = 0.05, End = 0.25 }]);
+
+        var result = ImuDisplaySignalProcessor.ProcessRecorded(telemetry);
+
+        Assert.NotNull(result.FramePitchRoll);
+        Assert.Equal(0.0, result.FramePitchRoll!.PitchDegrees[0], precision: 6);
+        Assert.Equal(3.0, result.FramePitchRoll.PitchDegrees[1], precision: 6);
+        Assert.Equal(6.0, result.FramePitchRoll.PitchDegrees[2], precision: 6);
+    }
+
+    [Fact]
+    public void ProcessRecorded_SkipsAccelerometerCorrection_WhenSuspensionVelocityIsHigh()
+    {
+        var telemetry = CreateTelemetryData(
+            records:
+            [
+                FrameLevel(),
+                new ImuRecord(0, 0, 1000, 0, 3000, 0),
+                new ImuRecord(0, 0, 1000, 0, 3000, 0),
+            ],
+            frontVelocity: [0, 500, 500]);
+
+        var result = ImuDisplaySignalProcessor.ProcessRecorded(telemetry);
+
+        Assert.NotNull(result.FramePitchRoll);
+        Assert.Equal(0.0, result.FramePitchRoll!.PitchDegrees[0], precision: 6);
+        Assert.Equal(3.0, result.FramePitchRoll.PitchDegrees[1], precision: 6);
+        Assert.Equal(6.0, result.FramePitchRoll.PitchDegrees[2], precision: 6);
+    }
+
+    [Fact]
     public void ProcessRecorded_SuppressesPitchRoll_WhenFrameGyroScaleIsInvalid()
     {
         var data = CreateRawImuData(
@@ -127,6 +186,40 @@ public class ImuDisplaySignalProcessorTests
                 new ImuMetaEntry((byte)ImuLocation.Fork, 10, 100),
             ],
             Records = records.ToList(),
+        };
+    }
+
+    private static TelemetryData CreateTelemetryData(
+        IReadOnlyList<ImuRecord> records,
+        IReadOnlyList<Airtime>? airtimes = null,
+        IReadOnlyList<double>? frontVelocity = null)
+    {
+        return new TelemetryData
+        {
+            Metadata = new Metadata
+            {
+                Duration = records.Count / 10.0,
+                SampleRate = 10,
+            },
+            Front = new Suspension
+            {
+                Present = true,
+                Travel = Enumerable.Repeat(0.0, records.Count).ToArray(),
+                Velocity = frontVelocity?.ToArray() ?? Enumerable.Repeat(0.0, records.Count).ToArray(),
+                Strokes = new Strokes(),
+            },
+            Rear = new Suspension
+            {
+                Present = true,
+                Travel = Enumerable.Repeat(0.0, records.Count).ToArray(),
+                Velocity = Enumerable.Repeat(0.0, records.Count).ToArray(),
+                Strokes = new Strokes(),
+            },
+            Airtimes = airtimes?.ToArray() ?? [],
+            ImuData = CreateRawImuData(
+                activeLocations: [(byte)ImuLocation.Frame],
+                meta: [new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100)],
+                records: records),
         };
     }
 
