@@ -1,6 +1,9 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Sufni.App.Presentation;
@@ -23,16 +26,13 @@ public class TelemetryPlotRowTests
         Assert.Equal(212, row.AllocatedGroupHeight);
 
         var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
-        header.Command?.Execute(null);
-        header.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        await ViewTestHelpers.FlushDispatcherAsync();
+        await ClickHeaderAsync(mounted, header);
         Measure(row, 400, row.GetPreferredGroupHeight());
 
         Assert.False(row.IsExpanded);
         Assert.Equal(row.CollapsedHeaderHeight, row.AllocatedGroupHeight);
 
-        header.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        await ViewTestHelpers.FlushDispatcherAsync();
+        await ClickHeaderAsync(mounted, header);
         Measure(row, 400, row.GetPreferredGroupHeight());
 
         Assert.True(row.IsExpanded);
@@ -50,6 +50,40 @@ public class TelemetryPlotRowTests
 
         Assert.False(row.IsVisible);
         Assert.Equal(0, row.AllocatedGroupHeight);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HeaderSpansRowAndUsesPlusMinusGlyphs()
+    {
+        var row = CreateRow("Travel");
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
+        var glyph = row.GetVisualDescendants().OfType<TextBlock>().First();
+        Assert.Equal(400, header.Bounds.Width);
+        Assert.Equal("-", glyph.Text);
+
+        await ClickHeaderAsync(mounted, header, new Point(390, 16));
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        Assert.Equal(400, header.Bounds.Width);
+        Assert.Equal("+", glyph.Text);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HeaderClick_ToleratesSmallPointerMovement()
+    {
+        var row = CreateRow("Travel");
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
+
+        await ClickHeaderAsync(mounted, header, new Point(200, 16), new Point(204, 18));
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        Assert.False(row.IsExpanded);
     }
 
     [AvaloniaFact]
@@ -95,10 +129,34 @@ public class TelemetryPlotRowTests
         await using var mounted = await MountAsync(travel);
         Measure(travel, 400, travel.GetPreferredGroupHeight());
 
-        Assert.Equal(Color.Parse("#171D21"), velocity.PlotFigureBackground);
-        Assert.Equal(Color.Parse("#222A30"), velocity.PlotDataBackground);
-        Assert.Equal(Color.Parse("#171D21"), childPlotView.PlotFigureBackground);
-        Assert.Equal(Color.Parse("#222A30"), childPlotView.PlotDataBackground);
+        Assert.Equal(12, velocity.TitleLeftInset);
+        AssertSolidBrush(Color.Parse("#0E1214"), velocity.RowBackground);
+        AssertSolidBrush(Color.Parse("#101416"), velocity.HeaderBackground);
+        Assert.Equal(Color.Parse("#101518"), velocity.PlotFigureBackground);
+        Assert.Equal(Color.Parse("#1A2024"), velocity.PlotDataBackground);
+        Assert.Equal(Color.Parse("#101518"), childPlotView.PlotFigureBackground);
+        Assert.Equal(Color.Parse("#1A2024"), childPlotView.PlotDataBackground);
+
+        var childBorder = Assert.IsType<Border>(velocity.Content);
+        Assert.Equal(0, childBorder.Margin.Left);
+        var hostedGlyph = velocity.GetVisualDescendants().OfType<TextBlock>().First();
+        Assert.Equal(12, hostedGlyph.Margin.Left);
+    }
+
+    [AvaloniaFact]
+    public void TelemetryPlotRow_DefaultMinimumPlotHeight_KeepsManualResizeReadable()
+    {
+        var row = new TelemetryPlotRow
+        {
+            Title = "Travel",
+            PresentationState = SurfacePresentationState.Ready,
+            PlotContent = new Border(),
+            HeaderHeight = 32,
+            CollapsedHeaderHeight = 32,
+        };
+
+        Assert.Equal(160, row.MinimumPlotHeight);
+        Assert.Equal(192, row.GetMinimumGroupHeight());
     }
 
     private static TelemetryPlotRow CreateRow(string title)
@@ -131,11 +189,40 @@ public class TelemetryPlotRowTests
         row.Arrange(new Rect(0, 0, width, row.AllocatedGroupHeight));
     }
 
-    private sealed class MountedRow(Window host) : IAsyncDisposable
+    private static async Task ClickHeaderAsync(
+        MountedRow mounted,
+        Button header,
+        Point? relativeStart = null,
+        Point? relativeEnd = null)
     {
+        var start = header.TranslatePoint(relativeStart ?? new Point(header.Bounds.Width / 2, header.Bounds.Height / 2), mounted.Host);
+        var end = header.TranslatePoint(relativeEnd ?? relativeStart ?? new Point(header.Bounds.Width / 2, header.Bounds.Height / 2), mounted.Host);
+        Assert.NotNull(start);
+        Assert.NotNull(end);
+
+        mounted.Host.MouseDown(start.Value, MouseButton.Left, RawInputModifiers.None);
+        mounted.Host.MouseUp(end.Value, MouseButton.Left, RawInputModifiers.None);
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    private static void AssertSolidBrush(Color expectedColor, IBrush? brush)
+    {
+        var solidBrush = Assert.IsType<SolidColorBrush>(brush);
+        Assert.Equal(expectedColor, solidBrush.Color);
+    }
+
+    private sealed class MountedRow : IAsyncDisposable
+    {
+        public MountedRow(Window host)
+        {
+            Host = host;
+        }
+
+        public Window Host { get; }
+
         public async ValueTask DisposeAsync()
         {
-            host.Close();
+            Host.Close();
             await ViewTestHelpers.FlushDispatcherAsync();
         }
     }

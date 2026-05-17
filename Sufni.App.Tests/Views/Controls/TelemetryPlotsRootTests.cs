@@ -20,10 +20,10 @@ public class TelemetryPlotsRootTests
         await using var mounted = await MountAsync(root);
         Measure(root, 400, 500);
 
-        Assert.Equal(247, travel.AllocatedGroupHeight);
-        Assert.Equal(247, imu.AllocatedGroupHeight);
-        Assert.Equal(215, travel.AllocatedPlotHeight);
-        Assert.Equal(215, imu.AllocatedPlotHeight);
+        Assert.Equal(250, travel.AllocatedGroupHeight);
+        Assert.Equal(250, imu.AllocatedGroupHeight);
+        Assert.Equal(218, travel.AllocatedPlotHeight);
+        Assert.Equal(218, imu.AllocatedPlotHeight);
     }
 
     [AvaloniaFact]
@@ -38,9 +38,30 @@ public class TelemetryPlotsRootTests
 
         Assert.Equal(212, travel.AllocatedGroupHeight);
         Assert.Equal(212, imu.AllocatedGroupHeight);
-        var contentHeight = travel.AllocatedGroupHeight + imu.AllocatedGroupHeight + TelemetryPlotRowsPanel.BaseRowDividerHeight;
-        Assert.Equal(430, contentHeight);
+        var contentHeight = travel.AllocatedGroupHeight + imu.AllocatedGroupHeight;
+        Assert.Equal(424, contentHeight);
         Assert.True(contentHeight > 300);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_ViewportResize_RecomputesRowHeights()
+    {
+        var travel = CreateRow("Travel");
+        var imu = CreateRow("IMU");
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 500);
+        Assert.Equal(250, travel.AllocatedGroupHeight);
+        Assert.Equal(250, imu.AllocatedGroupHeight);
+
+        Measure(root, 400, 600);
+        Assert.Equal(300, travel.AllocatedGroupHeight);
+        Assert.Equal(300, imu.AllocatedGroupHeight);
+
+        Measure(root, 400, 360);
+        Assert.Equal(212, travel.AllocatedGroupHeight);
+        Assert.Equal(212, imu.AllocatedGroupHeight);
     }
 
     [AvaloniaFact]
@@ -56,7 +77,7 @@ public class TelemetryPlotsRootTests
         Measure(root, 400, 700);
 
         Assert.Equal(travel.AllocatedPlotHeight, velocity.AllocatedPlotHeight);
-        Assert.Equal(194.5, travel.AllocatedPlotHeight);
+        Assert.Equal(196, travel.AllocatedPlotHeight);
     }
 
     [AvaloniaFact]
@@ -75,7 +96,7 @@ public class TelemetryPlotsRootTests
     }
 
     [AvaloniaFact]
-    public async Task TelemetryPlotsRoot_CollapsedBaseRows_DoNotShowResizeDividers()
+    public async Task TelemetryPlotsRoot_CollapsedBaseRows_KeepCompactOverlayDividers()
     {
         var travel = CreateRow("Travel");
         var imu = CreateRow("IMU");
@@ -90,7 +111,8 @@ public class TelemetryPlotsRootTests
 
         var dividers = root.GetVisualDescendants().OfType<TelemetryBaseRowDivider>().ToArray();
         Assert.Equal(2, dividers.Length);
-        Assert.All(dividers, divider => Assert.False(divider.IsVisible));
+        Assert.All(dividers, divider => Assert.True(divider.IsVisible));
+        Assert.All(dividers, divider => Assert.False(divider.IsHitTestVisible));
         Assert.Equal(32, travel.AllocatedGroupHeight);
         Assert.Equal(32, imu.AllocatedGroupHeight);
         Assert.Equal(32, gps.AllocatedGroupHeight);
@@ -111,6 +133,8 @@ public class TelemetryPlotsRootTests
         travel.ManualGroupHeight = 300;
 
         var divider = Assert.Single(root.GetVisualDescendants().OfType<TelemetryBaseRowDivider>());
+        Assert.True(divider.IsVisible);
+        Assert.True(divider.IsHitTestVisible);
         divider.ResetTargetRowToPreferredHeight();
         Measure(root, 400, 500);
 

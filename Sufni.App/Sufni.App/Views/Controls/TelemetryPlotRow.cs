@@ -5,6 +5,8 @@ using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -15,11 +17,16 @@ namespace Sufni.App.Views.Controls;
 
 public sealed class TelemetryPlotRow : UserControl
 {
+    private const double HostedRowTitleLeftInset = 12;
+    private const double HeaderClickMovementThresholdPixels = 6;
     private static readonly IBrush defaultHeaderBackground = new SolidColorBrush(Color.Parse("#1a1f23"));
+    private static readonly IBrush defaultHostedRowBackground = new SolidColorBrush(Color.Parse("rgb(15, 19, 20)"));
+    private static readonly IBrush defaultHostedHeaderBackground = new SolidColorBrush(Color.Parse("#101416"));
     private static readonly Color defaultBasePlotFigureBackground = Color.Parse("#15191C");
     private static readonly Color defaultBasePlotDataBackground = Color.Parse("#20262B");
-    private static readonly Color defaultHostedPlotFigureBackground = Color.Parse("#171D21");
-    private static readonly Color defaultHostedPlotDataBackground = Color.Parse("#222A30");
+    private static readonly Color defaultHostedPlotFigureBackground = Color.Parse("#101518");
+    private static readonly Color defaultHostedPlotDataBackground = Color.Parse("#1A2024");
+    private readonly Border rowBorder;
     private readonly Button headerButton;
     private readonly TextBlock chevronText;
     private readonly TextBlock titleText;
@@ -28,6 +35,8 @@ public sealed class TelemetryPlotRow : UserControl
     private readonly ContentControl plotContentHost;
     private readonly ContentControl placeholderContentHost;
     private readonly StackPanel childRowsHost;
+    private bool isHeaderClickCandidate;
+    private Point headerClickStartPoint;
 
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, string?>(nameof(Title));
@@ -56,7 +65,7 @@ public sealed class TelemetryPlotRow : UserControl
         AvaloniaProperty.Register<TelemetryPlotRow, double>(nameof(PreferredPlotHeight), defaultValue: 180);
 
     public static readonly StyledProperty<double> MinimumPlotHeightProperty =
-        AvaloniaProperty.Register<TelemetryPlotRow, double>(nameof(MinimumPlotHeight), defaultValue: 96);
+        AvaloniaProperty.Register<TelemetryPlotRow, double>(nameof(MinimumPlotHeight), defaultValue: 160);
 
     public static readonly StyledProperty<double> ChildRowGapProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, double>(nameof(ChildRowGap), defaultValue: 4);
@@ -66,6 +75,9 @@ public sealed class TelemetryPlotRow : UserControl
 
     public static readonly StyledProperty<IBrush?> HeaderBackgroundProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, IBrush?>(nameof(HeaderBackground));
+
+    public static readonly StyledProperty<double> TitleLeftInsetProperty =
+        AvaloniaProperty.Register<TelemetryPlotRow, double>(nameof(TitleLeftInset));
 
     public static readonly StyledProperty<Color> PlotFigureBackgroundProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, Color>(
@@ -149,6 +161,12 @@ public sealed class TelemetryPlotRow : UserControl
         set => SetValue(HeaderBackgroundProperty, value);
     }
 
+    public double TitleLeftInset
+    {
+        get => GetValue(TitleLeftInsetProperty);
+        set => SetValue(TitleLeftInsetProperty, value);
+    }
+
     public Color PlotFigureBackground
     {
         get => GetValue(PlotFigureBackgroundProperty);
@@ -170,6 +188,9 @@ public sealed class TelemetryPlotRow : UserControl
 
     public TelemetryPlotRow()
     {
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+        ClipToBounds = true;
+
         chevronText = new TextBlock
         {
             Width = 20,
@@ -186,6 +207,7 @@ public sealed class TelemetryPlotRow : UserControl
         headerButton = new Button
         {
             Padding = new Thickness(8, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             Background = defaultHeaderBackground,
@@ -205,7 +227,18 @@ public sealed class TelemetryPlotRow : UserControl
             },
         };
         Grid.SetColumn(titleText, 1);
-        headerButton.Click += (_, _) => IsExpanded = !IsExpanded;
+        headerButton.AddHandler<PointerPressedEventArgs>(
+            InputElement.PointerPressedEvent,
+            OnHeaderPointerPressed,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        headerButton.PointerMoved += OnHeaderPointerMoved;
+        headerButton.AddHandler<PointerReleasedEventArgs>(
+            InputElement.PointerReleasedEvent,
+            OnHeaderPointerReleased,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        headerButton.PointerCaptureLost += (_, _) => isHeaderClickCandidate = false;
 
         plotContentHost = new ContentControl();
         placeholderContentHost = new ContentControl();
@@ -230,11 +263,13 @@ public sealed class TelemetryPlotRow : UserControl
         };
         Grid.SetRow(childRowsHost, 1);
 
-        Content = new Border
+        rowBorder = new Border
         {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = RowBackground,
             Child = new Grid
             {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 RowDefinitions =
                 {
                     new RowDefinition(GridLength.Auto),
@@ -247,6 +282,7 @@ public sealed class TelemetryPlotRow : UserControl
                 },
             },
         };
+        Content = rowBorder;
         Grid.SetRow(expandedGrid, 1);
 
         ChildRows.CollectionChanged += OnChildRowsChanged;
@@ -264,6 +300,7 @@ public sealed class TelemetryPlotRow : UserControl
                 e.Property == ChildRowGapProperty ||
                 e.Property == RowBackgroundProperty ||
                 e.Property == HeaderBackgroundProperty ||
+                e.Property == TitleLeftInsetProperty ||
                 e.Property == PlotFigureBackgroundProperty ||
                 e.Property == PlotDataBackgroundProperty)
             {
@@ -439,6 +476,21 @@ public sealed class TelemetryPlotRow : UserControl
 
     private void ApplyHostedRowDefaults()
     {
+        if (!IsSet(RowBackgroundProperty))
+        {
+            RowBackground = defaultHostedRowBackground;
+        }
+
+        if (!IsSet(HeaderBackgroundProperty))
+        {
+            HeaderBackground = defaultHostedHeaderBackground;
+        }
+
+        if (!IsSet(TitleLeftInsetProperty))
+        {
+            TitleLeftInset = HostedRowTitleLeftInset;
+        }
+
         if (!IsSet(PlotFigureBackgroundProperty))
         {
             PlotFigureBackground = defaultHostedPlotFigureBackground;
@@ -453,7 +505,8 @@ public sealed class TelemetryPlotRow : UserControl
     private void UpdateVisualState()
     {
         titleText.Text = Title;
-        chevronText.Text = IsExpanded ? "v" : ">";
+        chevronText.Text = IsExpanded ? "-" : "+";
+        chevronText.Margin = new Thickness(TitleLeftInset, 0, 0, 0);
         headerButton.Height = IsExpanded ? HeaderHeight : CollapsedHeaderHeight;
         headerButton.Background = HeaderBackground ?? defaultHeaderBackground;
         expandedGrid.IsVisible = IsExpanded && ReservesLayout;
@@ -466,11 +519,70 @@ public sealed class TelemetryPlotRow : UserControl
         childRowsHost.Spacing = ChildRowGap;
         childRowsHost.IsVisible = IsExpanded && ChildRows.Any(row => row.ReservesLayout);
         IsVisible = ReservesLayout;
+        rowBorder.Background = RowBackground;
+        rowBorder.Margin = new Thickness(0);
+    }
 
-        if (Content is Border border)
+    private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs args)
+    {
+        if (!IsPrimaryPointerPressed(args))
         {
-            border.Background = RowBackground;
+            return;
         }
+
+        isHeaderClickCandidate = true;
+        headerClickStartPoint = args.GetPosition(headerButton);
+        args.Pointer.Capture(headerButton);
+        args.Handled = true;
+    }
+
+    private void OnHeaderPointerMoved(object? sender, PointerEventArgs args)
+    {
+        if (isHeaderClickCandidate && HasExceededHeaderClickMovement(args))
+        {
+            isHeaderClickCandidate = false;
+            args.Pointer.Capture(null);
+        }
+    }
+
+    private void OnHeaderPointerReleased(object? sender, PointerReleasedEventArgs args)
+    {
+        if (!isHeaderClickCandidate)
+        {
+            return;
+        }
+
+        var releasedInsideHeader = IsWithinHeaderBounds(args.GetPosition(headerButton));
+        if (releasedInsideHeader && !HasExceededHeaderClickMovement(args))
+        {
+            IsExpanded = !IsExpanded;
+        }
+
+        isHeaderClickCandidate = false;
+        args.Pointer.Capture(null);
+        args.Handled = true;
+    }
+
+    private bool HasExceededHeaderClickMovement(PointerEventArgs args)
+    {
+        var point = args.GetPosition(headerButton);
+        var delta = point - headerClickStartPoint;
+        return Math.Abs(delta.X) > HeaderClickMovementThresholdPixels ||
+               Math.Abs(delta.Y) > HeaderClickMovementThresholdPixels;
+    }
+
+    private bool IsPrimaryPointerPressed(PointerEventArgs args)
+    {
+        var point = args.GetCurrentPoint(headerButton);
+        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+    }
+
+    private bool IsWithinHeaderBounds(Point point)
+    {
+        return point.X >= 0 &&
+               point.Y >= 0 &&
+               point.X <= headerButton.Bounds.Width &&
+               point.Y <= headerButton.Bounds.Height;
     }
 
     private void ApplyPlotBackgrounds(object? content)
