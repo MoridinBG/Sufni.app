@@ -130,7 +130,7 @@ public class TelemetryPlotRowTests
         Measure(travel, 400, travel.GetPreferredGroupHeight());
 
         Assert.Equal(12, velocity.TitleLeftInset);
-        AssertSolidBrush(Color.Parse("#0E1214"), velocity.RowBackground);
+        AssertSolidBrush(Color.Parse("#0F1314"), velocity.RowBackground);
         AssertSolidBrush(Color.Parse("#101416"), velocity.HeaderBackground);
         Assert.Equal(Color.Parse("#101518"), velocity.PlotFigureBackground);
         Assert.Equal(Color.Parse("#1A2024"), velocity.PlotDataBackground);

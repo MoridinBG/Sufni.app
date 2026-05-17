@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
@@ -139,6 +140,133 @@ public class TelemetryPlotsRootTests
         Measure(root, 400, 500);
 
         Assert.Equal(travel.GetPreferredGroupHeight(), travel.ManualGroupHeight);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_DropHostedRowBetweenRootRows_MakesItRoot()
+    {
+        var velocity = CreateRow("Velocity");
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+        var imu = CreateRow("IMU");
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 500);
+
+        var dropped = root.TryDropDraggedRowAtPoint(velocity, new Point(10, travel.Bounds.Bottom - 1));
+        Measure(root, 400, 500);
+
+        Assert.True(dropped);
+        Assert.Same(travel, root.Rows[0]);
+        Assert.Same(velocity, root.Rows[1]);
+        Assert.Same(imu, root.Rows[2]);
+        Assert.Empty(travel.ChildRows);
+        Assert.Equal(0, velocity.TitleLeftInset);
+        Assert.Null(velocity.RowBackground);
+        Assert.Null(velocity.HeaderBackground);
+        Assert.Equal(Color.Parse("#15191C"), velocity.PlotFigureBackground);
+        Assert.Equal(Color.Parse("#20262B"), velocity.PlotDataBackground);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_DropHostedRowOnHostedHeader_NestsItUnderHostedRow()
+    {
+        var velocity = CreateRow("Velocity");
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+        var elevation = CreateRow("Elevation");
+        var gps = CreateRow("GPS");
+        gps.ChildRows.Add(elevation);
+        var root = CreateRoot(travel, gps);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 700);
+
+        var rowsPanel = Assert.Single(root.GetVisualDescendants().OfType<Panel>(), panel => panel.Name == "RowsPanel");
+        var velocityOrigin = velocity.TranslatePoint(new Point(0, 0), rowsPanel);
+        Assert.NotNull(velocityOrigin);
+
+        var dropped = root.TryDropDraggedRowAtPoint(elevation, velocityOrigin.Value + new Point(10, 16));
+        Measure(root, 400, 700);
+
+        Assert.True(dropped);
+        Assert.Empty(gps.ChildRows);
+        Assert.Same(elevation, Assert.Single(velocity.ChildRows));
+        Assert.Equal(12, elevation.TitleLeftInset);
+        Assert.NotNull(elevation.RowBackground);
+    }
+
+    [AvaloniaFact]
+    public void TelemetryPlotsRoot_MoveRowIntoDescendant_IsIgnored()
+    {
+        var velocity = CreateRow("Velocity");
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+        var root = CreateRoot(travel);
+
+        var moved = root.MoveRowInto(travel, velocity);
+
+        Assert.False(moved);
+        Assert.Same(travel, Assert.Single(root.Rows));
+        Assert.Same(velocity, Assert.Single(travel.ChildRows));
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_DragFeedback_HighlightsHeaderDropTarget()
+    {
+        var velocity = CreateRow("Velocity");
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+        var elevation = CreateRow("Elevation");
+        var gps = CreateRow("GPS");
+        gps.ChildRows.Add(elevation);
+        var root = CreateRoot(travel, gps);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 700);
+
+        var rowsPanel = Assert.Single(root.GetVisualDescendants().OfType<Panel>(), panel => panel.Name == "RowsPanel");
+        var velocityOrigin = velocity.TranslatePoint(new Point(0, 0), rowsPanel);
+        Assert.NotNull(velocityOrigin);
+
+        root.BeginRowDragFeedback(elevation);
+        root.UpdateRowDragFeedbackAtPoint(elevation, velocityOrigin.Value + new Point(10, 16));
+
+        Assert.True(elevation.IsDragFeedbackVisible);
+        Assert.True(velocity.IsDropTargetFeedbackVisible);
+        Assert.False(root.IsRootDropIndicatorVisible);
+
+        root.EndRowDragFeedback(elevation);
+
+        Assert.False(elevation.IsDragFeedbackVisible);
+        Assert.False(velocity.IsDropTargetFeedbackVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_DragFeedback_ShowsRootInsertionLine()
+    {
+        var velocity = CreateRow("Velocity");
+        var travel = CreateRow("Travel");
+        travel.ChildRows.Add(velocity);
+        var imu = CreateRow("IMU");
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 500);
+
+        root.BeginRowDragFeedback(velocity);
+        root.UpdateRowDragFeedbackAtPoint(velocity, new Point(10, travel.Bounds.Bottom - 1));
+
+        Assert.True(velocity.IsDragFeedbackVisible);
+        Assert.True(root.IsRootDropIndicatorVisible);
+        Assert.False(travel.IsDropTargetFeedbackVisible);
+        Assert.True(root.RootDropIndicatorY >= 0);
+
+        root.EndRowDragFeedback(velocity);
+
+        Assert.False(velocity.IsDragFeedbackVisible);
+        Assert.False(root.IsRootDropIndicatorVisible);
     }
 
     private static TelemetryPlotsRoot CreateRoot(params TelemetryPlotRow[] rows)
