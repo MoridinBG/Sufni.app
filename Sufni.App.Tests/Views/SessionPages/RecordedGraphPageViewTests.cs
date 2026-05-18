@@ -42,11 +42,11 @@ public class RecordedGraphPageViewTests
 
         await using var mounted = await MountAsync(page);
 
-        var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
-        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
-        var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
-        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
-        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
+        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
+        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
+        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
+        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
+        var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Elevation");
         var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
 
@@ -240,9 +240,20 @@ public class RecordedGraphPageViewTests
 
     private static TelemetryPlotsRoot GetGraphRoot(RecordedGraphPageView view)
     {
-        var root = view.FindControl<TelemetryPlotsRoot>("GraphRoot");
+        var root = view.GetVisualDescendants()
+            .OfType<TelemetryPlotsRoot>()
+            .SingleOrDefault(root => root.Name == "GraphRoot");
         Assert.NotNull(root);
         return root!;
+    }
+
+    private static T GetNamedVisual<T>(Control root, string name)
+        where T : Control
+    {
+        var rowsView = Assert.Single(root.GetVisualDescendants().OfType<RecordedSessionGraphRowsView>());
+        var visual = rowsView.FindControl<T>(name);
+        Assert.NotNull(visual);
+        return visual!;
     }
 
     private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)

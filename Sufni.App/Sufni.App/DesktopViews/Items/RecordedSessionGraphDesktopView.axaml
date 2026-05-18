@@ -5,114 +5,11 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:models="clr-namespace:Sufni.App.Models"
-xmlns:plotModels="clr-namespace:Sufni.App.Plots"
-xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
 x:DataType="vm:IRecordedSessionGraphWorkspace"
 mc:Ignorable="d">
 
-    <controls:TelemetryPlotsRoot x:Name="GraphRoot" GraphPreferences="{Binding GraphPreferences, Mode=TwoWay}">
-        <controls:TelemetryPlotsRoot.Rows>
-            <controls:TelemetryPlotRow
-            RowId="{x:Static models:TelemetryGraphRowIds.Travel}"
-            Title="Travel (mm)"
-            PresentationState="{Binding TravelGraphState}">
-                <controls:TelemetryPlotRow.PlotContent>
-                    <plots:TravelPlotDesktopView
-                    Name="Travel"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    GraphWorkspace="{Binding}"
-                    SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
-                    Telemetry="{Binding TelemetryData}"
-                    Timeline="{Binding Timeline}" />
-                </controls:TelemetryPlotRow.PlotContent>
-                <controls:TelemetryPlotRow.PlaceholderContent>
-                    <controls:SurfacePlaceholderCard Title="Travel" />
-                </controls:TelemetryPlotRow.PlaceholderContent>
-                <controls:TelemetryPlotRow.ChildRows>
-                    <controls:TelemetryPlotRow
-                    RowId="{x:Static models:TelemetryGraphRowIds.Velocity}"
-                    Title="Velocity (m/s)"
-                    PresentationState="{Binding VelocityGraphState}">
-                        <controls:TelemetryPlotRow.PlotContent>
-                            <plots:VelocityPlotDesktopView
-                            Name="Velocity"
-                            AnalysisRange="{Binding AnalysisRange}"
-                            GraphWorkspace="{Binding}"
-                            SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
-                            Telemetry="{Binding TelemetryData}"
-                            Timeline="{Binding Timeline}" />
-                        </controls:TelemetryPlotRow.PlotContent>
-                        <controls:TelemetryPlotRow.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Velocity" />
-                        </controls:TelemetryPlotRow.PlaceholderContent>
-                    </controls:TelemetryPlotRow>
-                </controls:TelemetryPlotRow.ChildRows>
-            </controls:TelemetryPlotRow>
-
-            <controls:TelemetryPlotRow
-            RowId="{x:Static models:TelemetryGraphRowIds.Imu}"
-            Title="IMU acceleration (g)"
-            PresentationState="{Binding ImuGraphState}">
-                <controls:TelemetryPlotRow.PlotContent>
-                    <plots:ImuPlotDesktopView
-                    Name="Imu"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    GraphWorkspace="{Binding}"
-                    SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
-                    Telemetry="{Binding TelemetryData}"
-                    Timeline="{Binding Timeline}" />
-                </controls:TelemetryPlotRow.PlotContent>
-                <controls:TelemetryPlotRow.PlaceholderContent>
-                    <controls:SurfacePlaceholderCard Title="IMU" />
-                </controls:TelemetryPlotRow.PlaceholderContent>
-            </controls:TelemetryPlotRow>
-
-            <controls:TelemetryPlotRow
-            RowId="{x:Static models:TelemetryGraphRowIds.Speed}"
-            Title="GPS speed (km/h)"
-            PresentationState="{Binding SpeedGraphState}">
-                <controls:TelemetryPlotRow.PlotContent>
-                    <plots:TrackSignalPlotDesktopView
-                    Name="Speed"
-                    AnalysisRange="{Binding AnalysisRange}"
-                    GraphWorkspace="{Binding}"
-                    SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
-                    SmoothingLevel="{Binding PlotPreferences.SpeedSmoothing}"
-                    Telemetry="{Binding TelemetryData}"
-                    Timeline="{Binding Timeline}"
-                    TimelineContext="{Binding TrackTimelineContext}"
-                    TrackPoints="{Binding TrackPoints}" />
-                </controls:TelemetryPlotRow.PlotContent>
-                <controls:TelemetryPlotRow.PlaceholderContent>
-                    <controls:SurfacePlaceholderCard Title="Speed" />
-                </controls:TelemetryPlotRow.PlaceholderContent>
-                <controls:TelemetryPlotRow.ChildRows>
-                    <controls:TelemetryPlotRow
-                    RowId="{x:Static models:TelemetryGraphRowIds.Elevation}"
-                    Title="Elevation (m)"
-                    PresentationState="{Binding ElevationGraphState}">
-                        <controls:TelemetryPlotRow.PlotContent>
-                            <plots:TrackSignalPlotDesktopView
-                            Name="Elevation"
-                            AnalysisRange="{Binding AnalysisRange}"
-                            GraphWorkspace="{Binding}"
-                            SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
-                            SmoothingLevel="{Binding PlotPreferences.ElevationSmoothing}"
-                            Telemetry="{Binding TelemetryData}"
-                            Timeline="{Binding Timeline}"
-                            TimelineContext="{Binding TrackTimelineContext}"
-                            TrackPoints="{Binding TrackPoints}" />
-                        </controls:TelemetryPlotRow.PlotContent>
-                        <controls:TelemetryPlotRow.PlaceholderContent>
-                            <controls:SurfacePlaceholderCard Title="Elevation" />
-                        </controls:TelemetryPlotRow.PlaceholderContent>
-                    </controls:TelemetryPlotRow>
-                </controls:TelemetryPlotRow.ChildRows>
-            </controls:TelemetryPlotRow>
-        </controls:TelemetryPlotsRoot.Rows>
-    </controls:TelemetryPlotsRoot>
+    <controls:RecordedSessionGraphRowsView />
 </UserControl>
