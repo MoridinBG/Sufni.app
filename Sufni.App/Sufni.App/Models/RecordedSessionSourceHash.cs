@@ -21,14 +21,14 @@ public static class RecordedSessionSourceHash
         using var stream = new MemoryStream();
         using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
         {
-            writer.Write(sourceKind.ToStorageValue());
+            writer.Write(sourceKind.StorageValue);
             writer.Write(sourceName);
             writer.Write(schemaVersion);
             writer.Write(payload.Length);
             writer.Write(payload);
         }
 
-        return Convert.ToHexString(SHA256.HashData(stream.ToArray())).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
     }
 
     public static bool Matches(RecordedSessionSource source) =>

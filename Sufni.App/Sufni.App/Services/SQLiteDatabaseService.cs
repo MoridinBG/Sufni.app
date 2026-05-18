@@ -220,103 +220,188 @@ public class SqLiteDatabaseService : IDatabaseService
         return null;
     }
 
+    private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
+
+    private const string SessionHasDataProjection = """
+                                                    CASE
+                                                       WHEN data IS NOT NULL THEN 1
+                                                       ELSE 0
+                                                    END AS has_data
+                                                    """;
+
+    private static readonly string ActiveSessionMetadataProjection = $"""
+                                                                     id,
+                                                                     name,
+                                                                     setup_id,
+                                                                     description,
+                                                                     timestamp,
+                                                                     full_track_id,
+                                                                     {SessionProcessingFingerprintColumn},
+                                                                     front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
+                                                                     rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
+                                                                     updated,
+                                                                     {SessionHasDataProjection}
+                                                                     """;
+
+    private const string ProcessedSessionUpdateAssignments = """
+                                                             name=?,
+                                                             setup_id=?,
+                                                             description=?,
+                                                             timestamp=?,
+                                                             full_track_id=?,
+                                                             session_processing_fingerprint=?,
+                                                             track=?,
+                                                             data=?,
+                                                             front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                                             rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                                             updated=?,
+                                                             deleted=NULL,
+                                                             has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
+                                                             """;
+
+    private const string SessionMetadataSaveUpdateAssignments = """
+                                                                name=?,
+                                                                setup_id=?,
+                                                                description=?,
+                                                                timestamp=?,
+                                                                full_track_id=?,
+                                                                session_processing_fingerprint=?,
+                                                                track=COALESCE(?, track),
+                                                                data=COALESCE(?, data),
+                                                                front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                                                rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                                                updated=?,
+                                                                deleted=NULL,
+                                                                has_data=CASE WHEN COALESCE(?, data) IS NOT NULL THEN 1 ELSE 0 END
+                                                                """;
+
+    private static readonly string UpdateProcessedSessionSql = $"""
+                                                                UPDATE session
+                                                                SET
+                                                                    {ProcessedSessionUpdateAssignments}
+                                                                WHERE
+                                                                    id=?
+                                                                """;
+
+    private static readonly string UpdateProcessedSessionIfUnchangedSql = $"""
+                                                                           UPDATE session
+                                                                           SET
+                                                                               {ProcessedSessionUpdateAssignments}
+                                                                           WHERE
+                                                                               id=? AND updated=?
+                                                                           """;
+
+    private static readonly string UpdateSessionMetadataSaveSql = $"""
+                                                                   UPDATE session
+                                                                   SET
+                                                                       {SessionMetadataSaveUpdateAssignments}
+                                                                   WHERE
+                                                                       id=?
+                                                                   """;
+
+    private const string RemoteSessionMetadataUpdateAssignments = """
+                                                                  name=?,
+                                                                  setup_id=?,
+                                                                  description=?,
+                                                                  timestamp=?,
+                                                                  full_track_id=?,
+                                                                  session_processing_fingerprint=?,
+                                                                  track=?,
+                                                                  front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                                                  rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                                                  updated=?,
+                                                                  client_updated=?,
+                                                                  deleted=?
+                                                                  """;
+
+    private static readonly string UpdateRemoteSessionMetadataSql = $"""
+                                                                     UPDATE session
+                                                                     SET
+                                                                         {RemoteSessionMetadataUpdateAssignments}
+                                                                     WHERE
+                                                                         id=?
+                                                                     """;
+
+    private static string? SerializeTrack(Session session) =>
+        session.Track is null ? null : AppJson.Serialize(session.Track);
+
+    private static object?[] CreateProcessedSessionUpdateValues(Session session) =>
+    [
+        session.Name,
+        session.Setup,
+        session.Description,
+        session.Timestamp,
+        session.FullTrack,
+        session.ProcessingFingerprintJson,
+        SerializeTrack(session),
+        session.ProcessedData,
+        session.FrontSpringRate,
+        session.FrontHighSpeedCompression,
+        session.FrontLowSpeedCompression,
+        session.FrontLowSpeedRebound,
+        session.FrontHighSpeedRebound,
+        session.RearSpringRate,
+        session.RearHighSpeedCompression,
+        session.RearLowSpeedCompression,
+        session.RearLowSpeedRebound,
+        session.RearHighSpeedRebound,
+        session.Updated,
+        session.ProcessedData
+    ];
+
+    private static object?[] CreateProcessedSessionUpdateValues(Session session, long baselineUpdated) =>
+    [
+        .. CreateProcessedSessionUpdateValues(session),
+        session.Id,
+        baselineUpdated
+    ];
+
+    private static object?[] CreateProcessedSessionUpdateValuesWithId(Session session) =>
+    [
+        .. CreateProcessedSessionUpdateValues(session),
+        session.Id
+    ];
+
+    private static object?[] CreateRemoteSessionMetadataValues(
+        Session session,
+        long updated,
+        long clientUpdated) =>
+    [
+        session.Name,
+        session.Setup,
+        session.Description,
+        session.Timestamp,
+        session.FullTrack,
+        session.ProcessingFingerprintJson,
+        SerializeTrack(session),
+        session.FrontSpringRate,
+        session.FrontHighSpeedCompression,
+        session.FrontLowSpeedCompression,
+        session.FrontLowSpeedRebound,
+        session.FrontHighSpeedRebound,
+        session.RearSpringRate,
+        session.RearHighSpeedCompression,
+        session.RearLowSpeedCompression,
+        session.RearLowSpeedRebound,
+        session.RearHighSpeedRebound,
+        updated,
+        clientUpdated,
+        session.Deleted,
+        session.Id
+    ];
+
     private Task<int> UpdateProcessedSessionAsync(Session session)
     {
-        var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
-        const string query = """
-                             UPDATE session
-                             SET
-                                 name=?,
-                                 setup_id=?,
-                                 description=?,
-                                 timestamp=?,
-                                 full_track_id=?,
-                                 session_processing_fingerprint=?,
-                                 track=?,
-                                 data=?,
-                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                 updated=?,
-                                 deleted=NULL,
-                                 has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
-                             WHERE
-                                 id=?
-                             """;
-
-        return connection.ExecuteAsync(query,
-            [
-                session.Name,
-                session.Setup,
-                session.Description,
-                session.Timestamp,
-                session.FullTrack,
-                session.ProcessingFingerprintJson,
-                trackJson,
-                session.ProcessedData,
-                session.FrontSpringRate,
-                session.FrontHighSpeedCompression,
-                session.FrontLowSpeedCompression,
-                session.FrontLowSpeedRebound,
-                session.FrontHighSpeedRebound,
-                session.RearSpringRate,
-                session.RearHighSpeedCompression,
-                session.RearLowSpeedCompression,
-                session.RearLowSpeedRebound,
-                session.RearHighSpeedRebound,
-                session.Updated,
-                session.ProcessedData,
-                session.Id
-            ]);
+        return connection.ExecuteAsync(
+            UpdateProcessedSessionSql,
+            CreateProcessedSessionUpdateValuesWithId(session));
     }
 
     private Task<int> UpdateProcessedSessionIfUnchangedAsync(Session session, long baselineUpdated)
     {
-        var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
-        const string query = """
-                             UPDATE session
-                             SET
-                                 name=?,
-                                 setup_id=?,
-                                 description=?,
-                                 timestamp=?,
-                                 full_track_id=?,
-                                 session_processing_fingerprint=?,
-                                 track=?,
-                                 data=?,
-                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                 updated=?,
-                                 deleted=NULL,
-                                 has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
-                             WHERE
-                                 id=? AND updated=?
-                             """;
-
-        return connection.ExecuteAsync(query,
-            [
-                session.Name,
-                session.Setup,
-                session.Description,
-                session.Timestamp,
-                session.FullTrack,
-                session.ProcessingFingerprintJson,
-                trackJson,
-                session.ProcessedData,
-                session.FrontSpringRate,
-                session.FrontHighSpeedCompression,
-                session.FrontLowSpeedCompression,
-                session.FrontLowSpeedRebound,
-                session.FrontHighSpeedRebound,
-                session.RearSpringRate,
-                session.RearHighSpeedCompression,
-                session.RearLowSpeedCompression,
-                session.RearLowSpeedRebound,
-                session.RearHighSpeedRebound,
-                session.Updated,
-                session.ProcessedData,
-                session.Id,
-                baselineUpdated
-            ]);
+        return connection.ExecuteAsync(
+            UpdateProcessedSessionIfUnchangedSql,
+            CreateProcessedSessionUpdateValues(session, baselineUpdated));
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
@@ -563,28 +648,15 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         await Initialization;
 
-        const string query = """
-                             SELECT
-                                 id,
-                                 name,
-                                 setup_id,
-                                 description,
-                                 timestamp,
-                                 full_track_id,
-                                 session_processing_fingerprint,
-                                 front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
-                                 rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
-                                 updated,
-                                 CASE
-                                    WHEN data IS NOT NULL THEN 1
-                                    ELSE 0
-                                 END AS has_data
-                             FROM
-                                 session
-                             WHERE
-                                 deleted IS NULL
-                             ORDER BY timestamp DESC
-                             """;
+        var query = $"""
+                     SELECT
+                         {ActiveSessionMetadataProjection}
+                     FROM
+                         session
+                     WHERE
+                         deleted IS NULL
+                     ORDER BY timestamp DESC
+                     """;
         var sessions = await connection.QueryAsync<Session>(query);
         return sessions;
     }
@@ -593,27 +665,14 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         await Initialization;
 
-        const string query = """
-                             SELECT
-                                 id,
-                                 name,
-                                 setup_id,
-                                 description,
-                                 timestamp,
-                                 full_track_id,
-                                 session_processing_fingerprint,
-                                 front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
-                                 rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
-                                 updated,
-                                 CASE
-                                    WHEN data IS NOT NULL THEN 1
-                                    ELSE 0
-                                 END AS has_data
-                             FROM
-                                 session
-                             WHERE
-                                 deleted IS NULL AND id = ?
-                             """;
+        var query = $"""
+                     SELECT
+                         {ActiveSessionMetadataProjection}
+                     FROM
+                         session
+                     WHERE
+                         deleted IS NULL AND id = ?
+                     """;
         var sessions = await connection.QueryAsync<Session>(query, id);
         return sessions.Count == 1 ? sessions[0] : null;
     }
@@ -644,15 +703,15 @@ public class SqLiteDatabaseService : IDatabaseService
     {
         await Initialization;
 
-        const string query = """
-                             SELECT
-                                 s.id,
-                                 s.session_processing_fingerprint,
-                                 source.source_hash
-                             FROM session s
-                             LEFT JOIN session_recording_source source ON source.session_id = s.id
-                             WHERE s.deleted IS null
-                             """;
+        var query = $"""
+                     SELECT
+                         s.id,
+                         s.{SessionProcessingFingerprintColumn},
+                         source.source_hash
+                     FROM session s
+                     LEFT JOIN session_recording_source source ON source.session_id = s.id
+                     WHERE s.deleted IS null
+                     """;
         var rows = await connection.QueryAsync<SessionSourceStatusRow>(query);
         return
         [
@@ -707,49 +766,7 @@ public class SqLiteDatabaseService : IDatabaseService
         session.Deleted = null;
         if (existing)
         {
-            var trackJson = session.Track is null ? null : AppJson.Serialize(session.Track);
-            const string query = """
-                                 UPDATE session
-                                 SET
-                                     name=?,
-                                     setup_id=?,
-                                     description=?,
-                                     timestamp=?,
-                                     full_track_id=?,
-                                     session_processing_fingerprint=?,
-                                     track=COALESCE(?, track),
-                                     data=COALESCE(?, data),
-                                     front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                     rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                     updated=?,
-                                     deleted=NULL,
-                                     has_data=CASE WHEN COALESCE(?, data) IS NOT NULL THEN 1 ELSE 0 END
-                                 WHERE
-                                     id=?
-                                 """;
-            await connection.ExecuteAsync(query,
-                [
-                    session.Name,
-                    session.Setup,
-                    session.Description,
-                    session.Timestamp,
-                    session.FullTrack,
-                    session.ProcessingFingerprintJson,
-                    trackJson,
-                    session.ProcessedData,
-                    session.FrontSpringRate,
-                    session.FrontHighSpeedCompression,
-                    session.FrontLowSpeedCompression,
-                    session.FrontLowSpeedRebound,
-                    session.FrontHighSpeedRebound,
-                    session.RearSpringRate,
-                    session.RearHighSpeedCompression,
-                    session.RearLowSpeedCompression,
-                    session.RearLowSpeedRebound,
-                    session.RearHighSpeedRebound,
-                    session.Updated,
-                    session.ProcessedData,
-                    session.Id]);
+            await connection.ExecuteAsync(UpdateSessionMetadataSaveSql, CreateProcessedSessionUpdateValuesWithId(session));
         }
         else
         {
@@ -1160,49 +1177,9 @@ public class SqLiteDatabaseService : IDatabaseService
             return;
         }
 
-        const string query = """
-                             UPDATE session
-                             SET
-                                 name=?,
-                                 setup_id=?,
-                                 description=?,
-                                 timestamp=?,
-                                 full_track_id=?,
-                                 session_processing_fingerprint=?,
-                                 track=?,
-                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                 updated=?,
-                                 client_updated=?,
-                                 deleted=?
-                             WHERE
-                                 id=?
-                             """;
-
-        await connection.ExecuteAsync(query,
-            [
-                session.Name,
-                session.Setup,
-                session.Description,
-                session.Timestamp,
-                session.FullTrack,
-                session.ProcessingFingerprintJson,
-                session.Track is null ? null : AppJson.Serialize(session.Track),
-                session.FrontSpringRate,
-                session.FrontHighSpeedCompression,
-                session.FrontLowSpeedCompression,
-                session.FrontLowSpeedRebound,
-                session.FrontHighSpeedRebound,
-                session.RearSpringRate,
-                session.RearHighSpeedCompression,
-                session.RearLowSpeedCompression,
-                session.RearLowSpeedRebound,
-                session.RearHighSpeedRebound,
-                session.Updated,
-                session.ClientUpdated,
-                session.Deleted,
-                session.Id
-            ]);
+        await connection.ExecuteAsync(
+            UpdateRemoteSessionMetadataSql,
+            CreateRemoteSessionMetadataValues(session, session.Updated, session.ClientUpdated));
     }
 
     private static long GetContentVersion(Synchronizable entity) => entity.ClientUpdated > 0
@@ -1310,49 +1287,9 @@ public class SqLiteDatabaseService : IDatabaseService
 
     private Task MergeSessionMetadataAsync(Session session, long now)
     {
-        const string query = """
-                             UPDATE session
-                             SET
-                                 name=?,
-                                 setup_id=?,
-                                 description=?,
-                                 timestamp=?,
-                                 full_track_id=?,
-                                 session_processing_fingerprint=?,
-                                 track=?,
-                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                 updated=?,
-                                 client_updated=?,
-                                 deleted=?
-                             WHERE
-                                 id=?
-                             """;
-
-        return connection.ExecuteAsync(query,
-            [
-                session.Name,
-                session.Setup,
-                session.Description,
-                session.Timestamp,
-                session.FullTrack,
-                session.ProcessingFingerprintJson,
-                session.Track is null ? null : AppJson.Serialize(session.Track),
-                session.FrontSpringRate,
-                session.FrontHighSpeedCompression,
-                session.FrontLowSpeedCompression,
-                session.FrontLowSpeedRebound,
-                session.FrontHighSpeedRebound,
-                session.RearSpringRate,
-                session.RearHighSpeedCompression,
-                session.RearLowSpeedCompression,
-                session.RearLowSpeedRebound,
-                session.RearHighSpeedRebound,
-                now,
-                session.Updated,
-                session.Deleted,
-                session.Id
-            ]);
+        return connection.ExecuteAsync(
+            UpdateRemoteSessionMetadataSql,
+            CreateRemoteSessionMetadataValues(session, now, session.Updated));
     }
 
     private Task MergeSessionAcceptedContentAsync(Session session, long now, bool isInsert) =>
