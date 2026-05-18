@@ -4,6 +4,7 @@ using System.Reactive.Threading.Tasks;
 using System.Text.Json;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Services;
@@ -64,6 +65,63 @@ public class AppPreferencesTests
             Assert.Equal(layer.Id.ToString("D"), maps.GetProperty("selectedLayerId").GetString());
             Assert.Single(maps.GetProperty("customLayers").EnumerateArray());
             Assert.Empty(Directory.EnumerateFiles(tempDirectory, "*.tmp"));
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_DefaultMode_IsDark_WhenFileIsMissing()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_PersistMode_RoundTripsThroughDiskAndJson()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
+
+            var reloaded = new AppPreferences(preferencesPath);
+            Assert.Equal(SufniThemeMode.Light, await reloaded.Theme.GetModeAsync());
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            Assert.Equal("Light", json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_FallsBackToDark_WhenStoredModeIsUnknown()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            await File.WriteAllTextAsync(preferencesPath, "{\"version\":1,\"theme\":{\"mode\":\"Solarized\"}}");
+            var preferences = new AppPreferences(preferencesPath);
+
+            Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
         }
         finally
         {
@@ -701,6 +759,30 @@ public class AppPreferencesTests
                 });
 
             Assert.Equal(0, emissions);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ApplySyncData_OverridesThemeMode_WhenIncomingUpdatedIsNewer()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
+
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 200,
+                Theme = new ThemePreferencesSyncData { Mode = "Light" },
+            });
+
+            Assert.Equal(SufniThemeMode.Light, await preferences.Theme.GetModeAsync());
         }
         finally
         {

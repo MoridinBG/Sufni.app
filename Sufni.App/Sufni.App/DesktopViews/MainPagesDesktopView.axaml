@@ -4,6 +4,8 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:converters="using:Avalonia.Data.Converters"
+xmlns:theming="clr-namespace:Sufni.App.Theming"
 xmlns:v="clr-namespace:Sufni.App.DesktopViews"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="720"
@@ -26,26 +28,26 @@ mc:Ignorable="d">
             <Setter Property="Height" Value="46" />
         </Style>
         <Style Selector="TabItem:selected">
-            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
         </Style>
         <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
         </Style>
         <Style Selector="TabItem:pointerover:selected /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
         </Style>
         <Style Selector="TabItem /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Height" Value="25" />
             <Setter Property="Margin" Value="0,10,0,0" />
         </Style>
         <Style Selector="TabItem:disabled /template/ Border">
-            <Setter Property="Opacity" Value="0.3" />
+            <Setter Property="Opacity" Value="{StaticResource SufniActionDisabledIconOpacity}" />
         </Style>
         <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
-            <Setter Property="Height" Value="60" />
-            <Setter Property="Width" Value="2" />
+            <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorLengthVertical}" />
+            <Setter Property="Width" Value="{StaticResource SufniSelectionIndicatorThickness}" />
             <Setter Property="HorizontalAlignment" Value="Left" />
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorNavPipe}" />
         </Style>
     </UserControl.Styles>
 
@@ -61,7 +63,7 @@ mc:Ignorable="d">
         <TabControl
         Name="PagesMenu"
         Margin="0,0,0,5"
-        Background="{StaticResource SufniRegion}"
+        Background="{DynamicResource SufniNavRailBackground}"
         SelectedIndex="{Binding SelectedIndex}"
         TabStripPlacement="Left">
             <TabItem Name="SessionTabItem">
@@ -72,7 +74,7 @@ mc:Ignorable="d">
                         Margin="0,2,0,0"
                         Padding="0,0,4,0"
                         HorizontalAlignment="Center"
-                        FontSize="9"
+                        FontSize="{StaticResource SufniTabFontSizeNav}"
                         Text="Sessions" />
                     </StackPanel>
                 </TabItem.Header>
@@ -85,7 +87,7 @@ mc:Ignorable="d">
                         <TextBlock
                         Padding="0,0,4,0"
                         HorizontalAlignment="Center"
-                        FontSize="9"
+                        FontSize="{StaticResource SufniTabFontSizeNav}"
                         Text="Setups" />
                     </StackPanel>
                 </TabItem.Header>
@@ -98,7 +100,7 @@ mc:Ignorable="d">
                         <TextBlock
                         Padding="0,0,4,0"
                         HorizontalAlignment="Center"
-                        FontSize="9"
+                        FontSize="{StaticResource SufniTabFontSizeNav}"
                         Text="Bikes" />
                     </StackPanel>
                 </TabItem.Header>
@@ -111,7 +113,7 @@ mc:Ignorable="d">
                         <TextBlock
                         Padding="0,0,4,0"
                         HorizontalAlignment="Center"
-                        FontSize="9"
+                        FontSize="{StaticResource SufniTabFontSizeNav}"
                         Text="Live" />
                     </StackPanel>
                 </TabItem.Header>
@@ -125,10 +127,10 @@ mc:Ignorable="d">
             <Button Width="50" Classes="embedded">
                 <Button.Styles>
                     <Style Selector="MenuItem">
-                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
                     </Style>
                     <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
-                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
                     </Style>
                 </Button.Styles>
 
@@ -169,6 +171,24 @@ mc:Ignorable="d">
             Command="{Binding OpenClosePairedDevicesListCommand}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </Button>
+
+            <!--  Theme toggle button  -->
+            <Button
+            Name="ThemeToggleButton"
+            Width="50"
+            Classes="embedded"
+            Command="{Binding ToggleThemeCommand}">
+                <Panel>
+                    <Image
+                    Width="18"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
+                    Source="{SvgImage /Assets/fa-sun.svg}" />
+                    <Image
+                    Width="18"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
+                    Source="{SvgImage /Assets/fa-moon.svg}" />
+                </Panel>
+            </Button>
         </StackPanel>
 
         <!--  Paired devices list  -->
@@ -185,7 +205,7 @@ mc:Ignorable="d">
         Name="PairingRequestPanel"
         Margin="50,0,20,25"
         VerticalAlignment="Bottom"
-        Background="{StaticResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniSelectionSurfaceSubtle}"
         ColumnDefinitions="* 35"
         IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
         Opacity="0.9"
@@ -196,7 +216,7 @@ mc:Ignorable="d">
             Grid.Column="0"
             Grid.ColumnSpan="2"
             Margin="10,10,10,10"
-            FontSize="16">
+            FontSize="{StaticResource SufniFontSizeHeading}">
                 <Run Text="Pairing request from " />
                 <LineBreak />
                 <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingName}" />
@@ -218,8 +238,8 @@ mc:Ignorable="d">
             Grid.Row="1"
             Grid.Column="1"
             Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
-            Fill="{StaticResource SufniAccentColor}"
-            Stroke="{StaticResource SufniAccentColor}"
+            Fill="{DynamicResource SufniAccentSpinner}"
+            Stroke="{DynamicResource SufniAccentSpinner}"
             StrokeLineCap="Round" />
         </Grid>
     </Panel>
