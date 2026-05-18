@@ -179,6 +179,37 @@ public class LiveProtocolReaderTests
         Assert.Equal(valid.Latitude, decoded.Latitude);
     }
 
+    [Theory]
+    [InlineData(20260014u)]
+    [InlineData(20261314u)]
+    [InlineData(20260431u)]
+    [InlineData(20250229u)]
+    public void ParseFrame_GpsBatch_SkipsRecordsWithInvalidCalendarDate(uint invalidDate)
+    {
+        var valid = new GpsRecord(
+            Timestamp: new DateTime(2024, 2, 29, 0, 0, 1, DateTimeKind.Utc),
+            Latitude: 48.2082,
+            Longitude: 16.3738,
+            Altitude: 182.5f,
+            Speed: 7.25f,
+            Heading: 128.5f,
+            FixMode: 2,
+            Satellites: 10,
+            Epe2d: 1.1f,
+            Epe3d: 2.2f);
+
+        var frameBytes = CreateGpsBatchFrameWithInvalidLeadingRecord(
+            sequence: 9,
+            sessionId: 88,
+            validRecord: valid,
+            invalidDate: invalidDate);
+
+        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+
+        var decoded = Assert.Single(frame.Records);
+        Assert.Equal(valid.Timestamp, decoded.Timestamp);
+    }
+
     [Fact]
     public void ParseFrame_ReturnsGpsBatchFrame_WithDecodedGpsRecord()
     {
@@ -217,7 +248,11 @@ public class LiveProtocolReaderTests
         return header;
     }
 
-    private static byte[] CreateGpsBatchFrameWithInvalidLeadingRecord(uint sequence, uint sessionId, GpsRecord validRecord)
+    private static byte[] CreateGpsBatchFrameWithInvalidLeadingRecord(
+        uint sequence,
+        uint sessionId,
+        GpsRecord validRecord,
+        uint invalidDate = 0)
     {
         const int records = 2;
         var payload = new byte[LiveProtocolConstants.BatchHeaderSize + records * LiveProtocolConstants.GpsRecordSize];
@@ -227,8 +262,8 @@ public class LiveProtocolReaderTests
         BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(16, 8), 0);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), records);
 
-        // First record: date=0, simulating no-fix firmware output.
-        // Record bytes are already zeroed by allocation.
+        // First record: invalid date, simulating no-fix or impossible firmware output.
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(LiveProtocolConstants.BatchHeaderSize, 4), invalidDate);
 
         var validOffset = LiveProtocolConstants.BatchHeaderSize + LiveProtocolConstants.GpsRecordSize;
         var timestamp = validRecord.Timestamp.ToUniversalTime();

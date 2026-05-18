@@ -120,7 +120,9 @@ coordinators and the composition root. The implementation lives in
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`        | `PairedDeviceSnapshot`          | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`             | `LiveDaqSnapshot`               | `string` |
 
-Each store wraps a `SourceCache<TSnapshot, TKey>` and exposes:
+Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>` for the repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`, `Get(key)`, writer `Upsert`/`Remove`, and load-and-replace refresh flow; concrete stores keep their public read/write interfaces and any domain-specific lookups. `LiveDaqStore` remains separate because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather than database refresh.
+
+Each persisted store exposes:
 
 - `Connect()` — DynamicData change stream consumed by list view models.
 - `Get(key)` — synchronous lookup that returns the current snapshot or
@@ -483,8 +485,10 @@ There are five kinds of view model in the presentation layer:
   The recorded editor subscribes to `IRecordedSessionGraph.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
-  recompute; unrecomputable stale snapshots report an error; processed
-  data arriving for a current session reloads the presentation data.
+  recompute; inactive desktop session tabs defer that prompt until the
+  tab is selected again. Unrecomputable stale snapshots report an
+  error; processed data arriving for a current session reloads the
+  presentation data.
 
 ### Session Sub-Pages
 
@@ -562,10 +566,15 @@ Two pages diverge from that pattern:
   that graph preference through `ISessionPreferences`; live captures
   carry the current live graph preference into
   `SessionCoordinator.SaveLiveCaptureAsync(...)` so the newly saved
-  session opens with the same row layout. Hidden rows are not duplicated
-  in the graph hierarchy preference: plot visibility remains the
-  existing `SessionPlotPreferences` contract, so hidden rows keep their
-  saved hierarchy position and reappear there when re-enabled.
+  session opens with the same row layout. The pure
+  `SessionGraphPreferenceTree` helper owns preference normalization,
+  capture, root moves, child moves, duplicate removal, unknown-row
+  skipping, missing-default appends, and cycle prevention; the Avalonia
+  `TelemetryPlotsRoot` still owns materialization, drag/drop hit
+  testing, brushes, and visual rebuilding. Hidden rows are not
+  duplicated in the graph hierarchy preference: plot visibility remains
+  the existing `SessionPlotPreferences` contract, so hidden rows keep
+  their saved hierarchy position and reappear there when re-enabled.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
@@ -644,7 +653,9 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   registered as singletons via factory delegates that resolve the
   same `IAppPreferences` instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
-  `IRecordedSessionReprocessor`) are also singleton services.
+  `IRecordedSessionReprocessor`) are also singleton services. The
+  recorded-source factory is static and stays in `SessionGraph/`
+  beside the reprocessor.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
   factory delegates that resolve the same instance. This includes
@@ -730,7 +741,9 @@ view.
 
 ## Controls Library
 
-`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
+`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `SearchBarCore`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, `ActivityIndicator`, `BusyOverlay`, graph row controls (`RecordedSessionGraphRowsView`, `LiveSessionGraphRowsView`), statistics hosts (`TravelStatisticsHost`, `StrokeStatisticsHost`, `VelocityStatisticsHost`, `BalanceStatisticsHost`, `VibrationStatisticsHost`), dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `ImportSessionsContentView` is the shared mobile/desktop import body; its wrappers keep shell-specific back/bottom-action behavior. `LinearSensorConfigurationView` is the shared view for the fork/shock linear sensor editors while the concrete view models still create their own sensor payload types. `ActivityIndicator` wraps the current progress-ring package so views do not reference that package directly, and `BusyOverlay` standardizes spinner/tint/message composition without owning busy state. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
+
+Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; it does not reach into the child swipe control's visual tree.
 
 ## Theming
 

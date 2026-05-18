@@ -125,6 +125,47 @@ public class TelemetryFileInspectionMappingTests
         Assert.Equal("00:00:05", file.Duration);
     }
 
+    [Fact]
+    public async Task StorageProviderTelemetryFile_OnImported_MovesToUploadedFolder()
+    {
+        var parent = Substitute.For<IStorageFolder>();
+        var uploaded = Substitute.For<IStorageFolder>();
+        uploaded.Name.Returns("uploaded");
+
+        var storageFile = Substitute.For<IStorageFile>();
+        storageFile.Name.Returns("sample.SST");
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
+        storageFile.MoveAsync(uploaded).Returns(Task.FromResult<IStorageItem?>(storageFile));
+        parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
+
+        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
+
+        await file.OnImported();
+
+        Assert.True(file.Imported);
+        await storageFile.Received(1).MoveAsync(uploaded);
+    }
+
+    [Fact]
+    public async Task StorageProviderTelemetryFile_OnTrashed_Throws_WhenTrashFolderMissing()
+    {
+        var parent = Substitute.For<IStorageFolder>();
+        var uploaded = Substitute.For<IStorageFolder>();
+        uploaded.Name.Returns("uploaded");
+
+        var storageFile = Substitute.For<IStorageFile>();
+        storageFile.Name.Returns("sample.SST");
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
+        parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
+
+        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
+
+        await Assert.ThrowsAsync<Exception>(() => file.OnTrashed());
+        await storageFile.DidNotReceive().MoveAsync(Arg.Any<IStorageFolder>());
+    }
+
     private static byte[] CreateValidV4WithUnknownChunk(int telemetrySampleCount)
     {
         using var ms = new MemoryStream();
@@ -202,5 +243,14 @@ public class TelemetryFileInspectionMappingTests
         }
 
         return ms.ToArray();
+    }
+
+    private static async IAsyncEnumerable<IStorageItem> EnumerateStorageItems(params IStorageItem[] items)
+    {
+        foreach (var item in items)
+        {
+            await Task.Yield();
+            yield return item;
+        }
     }
 }

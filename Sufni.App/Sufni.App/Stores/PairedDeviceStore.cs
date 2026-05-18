@@ -1,6 +1,6 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
-using DynamicData;
 using Sufni.App.Services;
 
 namespace Sufni.App.Stores;
@@ -13,32 +13,12 @@ namespace Sufni.App.Stores;
 /// behind both <see cref="IPairedDeviceStore"/> and
 /// <see cref="IPairedDeviceStoreWriter"/>.
 /// </summary>
-internal sealed class PairedDeviceStore(IDatabaseService databaseService) : IPairedDeviceStoreWriter
+internal sealed class PairedDeviceStore(IDatabaseService databaseService)
+    : SourceCacheStoreBase<PairedDeviceSnapshot, string>(s => s.DeviceId), IPairedDeviceStoreWriter
 {
-    private readonly SourceCache<PairedDeviceSnapshot, string> source = new(s => s.DeviceId);
-
-    public IObservable<IChangeSet<PairedDeviceSnapshot, string>> Connect() => source.Connect();
-
-    public PairedDeviceSnapshot? Get(string deviceId)
-    {
-        var lookup = source.Lookup(deviceId);
-        return lookup.HasValue ? lookup.Value : null;
-    }
-
     public async Task RefreshAsync()
     {
         var devices = await databaseService.GetPairedDevicesAsync();
-        source.Edit(cache =>
-        {
-            cache.Clear();
-            foreach (var device in devices)
-            {
-                cache.AddOrUpdate(PairedDeviceSnapshot.From(device));
-            }
-        });
+        ReplaceWith(devices.Select(PairedDeviceSnapshot.From));
     }
-
-    public void Upsert(PairedDeviceSnapshot snapshot) => source.AddOrUpdate(snapshot);
-
-    public void Remove(string deviceId) => source.RemoveKey(deviceId);
 }

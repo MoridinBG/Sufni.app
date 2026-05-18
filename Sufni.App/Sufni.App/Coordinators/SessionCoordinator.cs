@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -40,7 +39,6 @@ public class SessionCoordinator
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
-    private readonly IProcessingFingerprintService fingerprintService;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
@@ -58,7 +56,6 @@ public class SessionCoordinator
         IShellCoordinator shell,
         IDialogService dialogService,
         IRecordedSessionSourceStoreWriter sourceStore,
-        IProcessingFingerprintService fingerprintService,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionGraph recordedSessionGraph,
         IRecordedSessionReprocessor recordedSessionReprocessor,
@@ -76,7 +73,6 @@ public class SessionCoordinator
         this.shell = shell;
         this.dialogService = dialogService;
         this.sourceStore = sourceStore;
-        this.fingerprintService = fingerprintService;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionGraph = recordedSessionGraph;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
@@ -313,23 +309,7 @@ public class SessionCoordinator
         try
         {
             var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
-            var telemetryData = await backgroundTaskRunner.RunAsync(
-                () => TelemetryData.FromLiveCapture(capture.TelemetryCapture, processingOptions),
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            Track? fullTrack = null;
-            if (telemetryData.GpsData is { Length: > 0 })
-            {
-                fullTrack = await backgroundTaskRunner.RunAsync(
-                    () => Track.FromGpsRecords(telemetryData.GpsData),
-                    cancellationToken);
-
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            var source = CreateLiveCaptureSource(session.Id, capture.TelemetryCapture);
+            var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
             var setup = await databaseService.GetAsync<Setup>(capture.Context.SetupId)
                         ?? throw new InvalidOperationException("Setup is missing.");
             var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
@@ -338,16 +318,26 @@ public class SessionCoordinator
             var bikeSnapshot = BikeSnapshot.From(bike);
             var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
             var sessionSnapshot = SessionSnapshot.From(session);
-            var fingerprint = fingerprintService.CreateCurrent(
+            var domain = new RecordedSessionDomainSnapshot(
                 sessionSnapshot,
                 setupSnapshot,
                 bikeSnapshot,
-                sourceSnapshot);
+                CurrentFingerprint: null,
+                PersistedFingerprint: null,
+                sourceSnapshot,
+                new SessionStaleness.UnknownLegacyFingerprint(),
+                DerivedChangeKind.None);
 
-            session.ProcessedData = telemetryData.BinaryForm;
-            session.ProcessingFingerprintJson = AppJson.Serialize(fingerprint);
+            var reprocessResult = await backgroundTaskRunner.RunAsync(
+                () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
+                cancellationToken);
 
-            var fresh = await databaseService.PutProcessedSessionAsync(session, fullTrack, source);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
+            session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
+
+            var fresh = await databaseService.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
 
             var snapshot = SessionSnapshot.From(fresh);
             await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
@@ -587,34 +577,6 @@ public class SessionCoordinator
         {
             logger.Warning(e, "Failed to delete orphaned track {TrackId} after recomputing session {SessionId}", previousFullTrackId.Value, sessionId);
         }
-    }
-
-    private static RecordedSessionSource CreateLiveCaptureSource(Guid sessionId, LiveTelemetryCapture capture)
-    {
-        const int schemaVersion = 1;
-        var payload = new RecordedLiveCaptureSourcePayload(
-            schemaVersion,
-            capture.Metadata,
-            capture.FrontMeasurements,
-            capture.RearMeasurements,
-            capture.ImuData,
-            capture.GpsData,
-            capture.Markers);
-        var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
-
-        return new RecordedSessionSource
-        {
-            SessionId = sessionId,
-            SourceKind = RecordedSessionSourceKind.LiveCapture,
-            SourceName = capture.Metadata.SourceName,
-            SchemaVersion = schemaVersion,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.LiveCapture,
-                capture.Metadata.SourceName,
-                schemaVersion,
-                payloadBytes),
-            Payload = payloadBytes
-        };
     }
 
     private async Task<TelemetryData?> EnsureTelemetryDataAvailableForLoadAsync(

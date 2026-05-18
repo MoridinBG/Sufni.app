@@ -127,7 +127,6 @@ public partial class App : Application
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<IDialogService>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IProcessingFingerprintService>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionGraph>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),

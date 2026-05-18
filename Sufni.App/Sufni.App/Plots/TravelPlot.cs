@@ -41,7 +41,8 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
             telemetryData.Metadata.Duration,
             series,
             new RecordedTimeSeriesValueRange(maxTravel, 0),
-            telemetryData));
+            telemetryData,
+            ShowLegendWhenSingleSource: true));
     }
 
     protected override void AddTimeSeriesOverlays(RecordedTimeSeriesData data)

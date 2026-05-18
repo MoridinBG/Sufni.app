@@ -28,7 +28,10 @@ public class LinearShockSensorConfigurationViewTests
 
         try
         {
-            var length = view.FindControl<NumericUpDown>("LengthNumericUpDown");
+            var sharedView = view.FindFirstVisual<LinearSensorConfigurationView>();
+            Assert.NotNull(sharedView);
+
+            var length = sharedView!.FindControl<NumericUpDown>("LengthNumericUpDown");
             Assert.NotNull(length);
             Assert.Equal(67.25, Convert.ToDouble(length!.Value));
         }
@@ -56,7 +59,10 @@ public class LinearShockSensorConfigurationViewTests
 
         try
         {
-            var resolution = view.FindControl<NumericUpDown>("ResolutionNumericUpDown");
+            var sharedView = view.FindFirstVisual<LinearSensorConfigurationView>();
+            Assert.NotNull(sharedView);
+
+            var resolution = sharedView!.FindControl<NumericUpDown>("ResolutionNumericUpDown");
             Assert.NotNull(resolution);
             Assert.Equal(16, Convert.ToInt32(resolution!.Value));
         }
@@ -85,8 +91,11 @@ public class LinearShockSensorConfigurationViewTests
 
         try
         {
-            var length = view.FindControl<NumericUpDown>("LengthNumericUpDown");
-            var resolution = view.FindControl<NumericUpDown>("ResolutionNumericUpDown");
+            var sharedView = view.FindFirstVisual<LinearSensorConfigurationView>();
+            Assert.NotNull(sharedView);
+
+            var length = sharedView!.FindControl<NumericUpDown>("LengthNumericUpDown");
+            var resolution = sharedView.FindControl<NumericUpDown>("ResolutionNumericUpDown");
 
             Assert.NotNull(length);
             Assert.NotNull(resolution);

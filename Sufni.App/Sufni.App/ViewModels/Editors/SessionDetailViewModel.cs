@@ -32,6 +32,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// opened session.
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
+    ISessionShellMobileWorkspace,
     IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
 {
     public Guid Id { get; private set; }
@@ -73,9 +74,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool recomputePromptRunning;
     private bool processingPreferenceRecomputeRunning;
     private string? promptedRecomputeSignature;
+    private RecordedSessionDomainSnapshot? deferredDomainWhileInactive;
     private bool reportedNotRecomputableStale;
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
+    private bool hasBeenActivated;
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
@@ -913,6 +916,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return;
         }
 
+        if (ShouldDeferDomainHandling())
+        {
+            deferredDomainWhileInactive = domain;
+            return;
+        }
+
+        deferredDomainWhileInactive = null;
+
         var initial = !observedInitialDomain;
         observedInitialDomain = true;
 
@@ -1640,6 +1651,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         await RequestLoadAsync();
     }
 
+    protected override void OnActivated()
+    {
+        hasBeenActivated = true;
+
+        if (!viewLoaded || deferredDomainWhileInactive is null)
+        {
+            return;
+        }
+
+        var domain = deferredDomainWhileInactive;
+        deferredDomainWhileInactive = null;
+        _ = HandleDomainChangedAsync(domain);
+    }
+
+    private bool ShouldDeferDomainHandling() =>
+        App.Current?.IsDesktop == true &&
+        hasBeenActivated &&
+        !IsTabActive;
+
     private void OnSyncedPreferencesArrived(SessionPreferences prefs)
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -1675,6 +1705,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         loadOperation.Cancel();
         observedInitialDomain = false;
         promptedRecomputeSignature = null;
+        deferredDomainWhileInactive = null;
         DisposeScopedSubscriptions();
     }
 

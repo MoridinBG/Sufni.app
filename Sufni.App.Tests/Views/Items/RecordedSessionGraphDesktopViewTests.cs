@@ -31,9 +31,9 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
-        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
-        var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
+        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
+        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
         var root = GetGraphRoot(mounted.View);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
@@ -71,9 +71,9 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
-        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
-        var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
+        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
+        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
         var root = GetGraphRoot(mounted.View);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
@@ -117,7 +117,7 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
+        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
         var root = GetGraphRoot(mounted.View);
         var imuRow = GetBaseRow(root, "IMU acceleration (g)");
 
@@ -140,7 +140,7 @@ public class RecordedSessionGraphDesktopViewTests
         var imuRow = GetBaseRow(root, "IMU acceleration (g)");
         var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
         var elevationRow = GetChildRow(gpsRow, "Elevation (m)");
-        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
+        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
 
         Assert.NotNull(speedView);
         Assert.True(travelRow.IsVisible);
@@ -217,11 +217,11 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var travelView = mounted.View.FindControl<TravelPlotDesktopView>("Travel");
-        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
-        var imuView = mounted.View.FindControl<ImuPlotDesktopView>("Imu");
-        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Speed");
-        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("Elevation");
+        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
+        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
+        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
+        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
+        var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Elevation");
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
@@ -269,7 +269,7 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var velocityView = mounted.View.FindControl<VelocityPlotDesktopView>("Velocity");
+        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
         Assert.NotNull(velocityView);
         var plot = Assert.Single(velocityView!.GetVisualDescendants().OfType<AvaPlot>());
         workspace.SetAnalysisRange(0.25, 0.75);
@@ -305,9 +305,20 @@ public class RecordedSessionGraphDesktopViewTests
 
     private static TelemetryPlotsRoot GetGraphRoot(RecordedSessionGraphDesktopView view)
     {
-        var root = view.FindControl<TelemetryPlotsRoot>("GraphRoot");
+        var root = view.GetVisualDescendants()
+            .OfType<TelemetryPlotsRoot>()
+            .SingleOrDefault(root => root.Name == "GraphRoot");
         Assert.NotNull(root);
         return root!;
+    }
+
+    private static T GetNamedVisual<T>(Control root, string name)
+        where T : Control
+    {
+        var rowsView = Assert.Single(root.GetVisualDescendants().OfType<RecordedSessionGraphRowsView>());
+        var visual = rowsView.FindControl<T>(name);
+        Assert.NotNull(visual);
+        return visual!;
     }
 
     private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)

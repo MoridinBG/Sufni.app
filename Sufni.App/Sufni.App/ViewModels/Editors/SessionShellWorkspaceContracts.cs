@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -13,6 +14,12 @@ public sealed record TravelHistogramModeOption(TravelHistogramMode Value, string
 public sealed record BalanceDisplacementModeOption(BalanceDisplacementMode Value, string DisplayName, string Description);
 public sealed record BalanceSpeedModeOption(BalanceSpeedMode Value, string DisplayName, string Description);
 public sealed record VelocityAverageModeOption(VelocityAverageMode Value, string DisplayName, string Description);
+
+public interface ISessionShellMobileWorkspace
+{
+    ObservableCollection<PageViewModelBase> Pages { get; }
+    SessionScreenPresentationState ScreenState { get; }
+}
 
 public interface IRecordedSessionGraphWorkspace
 {
