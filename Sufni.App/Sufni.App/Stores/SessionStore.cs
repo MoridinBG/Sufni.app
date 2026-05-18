@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using DynamicData;
@@ -12,14 +13,11 @@ namespace Sufni.App.Stores;
 /// startup and updated by coordinators via
 /// <see cref="ISessionStoreWriter"/>.
 /// </summary>
-internal sealed class SessionStore(IDatabaseService databaseService) : ISessionStoreWriter
+internal sealed class SessionStore(IDatabaseService databaseService)
+    : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id), ISessionStoreWriter
 {
-    private readonly SourceCache<SessionSnapshot, Guid> source = new(s => s.Id);
-
-    public IObservable<IChangeSet<SessionSnapshot, Guid>> Connect() => source.Connect();
-
     public IObservable<SessionSnapshot> Watch(Guid id) =>
-        source.Watch(id)
+        WatchCore(id)
             // Skip Remove events: RefreshAsync clears and repopulates the
             // cache, so a watched session can briefly disappear before the
             // fresh Add arrives. The editor should react only to the current
@@ -27,26 +25,9 @@ internal sealed class SessionStore(IDatabaseService databaseService) : ISessionS
             .Where(c => c.Reason is ChangeReason.Add or ChangeReason.Update)
             .Select(c => c.Current);
 
-    public SessionSnapshot? Get(Guid id)
-    {
-        var lookup = source.Lookup(id);
-        return lookup.HasValue ? lookup.Value : null;
-    }
-
     public async Task RefreshAsync()
     {
         var sessions = await databaseService.GetSessionsAsync();
-        source.Edit(cache =>
-        {
-            cache.Clear();
-            foreach (var session in sessions)
-            {
-                cache.AddOrUpdate(SessionSnapshot.From(session));
-            }
-        });
+        ReplaceWith(sessions.Select(SessionSnapshot.From));
     }
-
-    public void Upsert(SessionSnapshot snapshot) => source.AddOrUpdate(snapshot);
-
-    public void Remove(Guid id) => source.RemoveKey(id);
 }
