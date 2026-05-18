@@ -3,7 +3,6 @@ namespace Sufni.Telemetry;
 public class SstV4TlvParser : ISstParser
 {
     private const int HeaderPayloadSize = 12;
-    private const int HeaderSize = 16;
     private const int ChunkHeaderSize = 3;
     private const int RatesEntrySize = 3;
     private const int TelemetryRecordSize = 4;
@@ -11,14 +10,14 @@ public class SstV4TlvParser : ISstParser
     private const int ImuMetaCountSize = 1;
     private const int ImuMetaEntrySize = 9;
     private const int ImuRecordSize = 12;
-    private const int GpsRecordSize = 46;
+    private const int GpsRecordSize = GpsBinaryRecordDecoder.RecordSize;
     private const int TemperatureRecordSize = 13;
     private const string TrimmedTrailingChunkMessage = "SST v4 chunk extends past end of file; incomplete trailing chunk data was trimmed.";
 
     public SstFileInspection Inspect(BinaryReader reader, byte version)
     {
-        var stream = reader.BaseStream;
-        if (stream.Length - stream.Position < HeaderPayloadSize)
+        var bytes = SstParserBytes.ReadRemainingBytes(reader);
+        if (bytes.Length < HeaderPayloadSize)
         {
             return new MalformedSstFileInspection(
                 Version: version,
@@ -28,21 +27,24 @@ public class SstV4TlvParser : ISstParser
                 Message: "SST v4 header is truncated.");
         }
 
-        _ = reader.ReadUInt32();
-        var timestamp = reader.ReadInt64();
+        var cursor = new SstByteReader(bytes);
+        _ = cursor.ReadUInt32();
+        var timestamp = cursor.ReadInt64();
 
         ushort? sampleRate = null;
         long telemetrySamples = 0;
         var hasUnknown = false;
         string? malformedMessage = null;
 
-        while (stream.Position + ChunkHeaderSize <= stream.Length)
+        while (cursor.Position + ChunkHeaderSize <= cursor.Length)
         {
-            var chunkStart = stream.Position;
-            var typeByte = reader.ReadByte();
-            var declaredLength = reader.ReadUInt16();
-            var bounds = ResolveChunkBounds(stream, chunkStart, declaredLength);
+            var chunkStart = cursor.Position;
+            var typeByte = cursor.ReadByte();
+            var declaredLength = cursor.ReadUInt16();
+            var bounds = ResolveChunkBounds(cursor.Length, chunkStart, declaredLength);
             var length = bounds.EffectivePayloadLength;
+            var payload = bytes.AsSpan(chunkStart + ChunkHeaderSize, length);
+            var payloadReader = new SstByteReader(payload);
 
             if (bounds.IsTrimmed)
             {
@@ -52,7 +54,7 @@ public class SstV4TlvParser : ISstParser
             if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
             {
                 hasUnknown = true;
-                stream.Position = bounds.End;
+                cursor.MoveTo(bounds.End);
                 continue;
             }
 
@@ -74,8 +76,8 @@ public class SstV4TlvParser : ISstParser
                         var entryCount = usableRatesLength / RatesEntrySize;
                         for (int i = 0; i < entryCount; i++)
                         {
-                            var rateType = reader.ReadByte();
-                            var rate = reader.ReadUInt16();
+                            var rateType = payloadReader.ReadByte();
+                            var rate = payloadReader.ReadUInt16();
                             if (rateType == (byte)TlvChunkType.Telemetry)
                                 sampleRate = rate;
                             else if (!Enum.IsDefined(typeof(TlvChunkType), rateType))
@@ -124,7 +126,7 @@ public class SstV4TlvParser : ISstParser
                             "SST v4 IMU metadata chunk length is invalid.");
                     }
 
-                    var imuMetaCount = reader.ReadByte();
+                    var imuMetaCount = payloadReader.ReadByte();
                     if (length != ImuMetaCountSize + imuMetaCount * ImuMetaEntrySize && !bounds.IsTrimmed)
                     {
                         return CreateMalformedInspection(
@@ -174,10 +176,10 @@ public class SstV4TlvParser : ISstParser
                     break;
             }
 
-            stream.Position = bounds.End;
+            cursor.MoveTo(bounds.End);
         }
 
-        if (stream.Position != stream.Length)
+        if (cursor.Position != cursor.Length)
         {
             return CreateMalformedInspection(
                 version,
@@ -204,12 +206,13 @@ public class SstV4TlvParser : ISstParser
 
     public RawTelemetryData Parse(BinaryReader reader, byte version)
     {
-        var stream = reader.BaseStream;
-        if (stream.Length - stream.Position < HeaderPayloadSize)
+        var bytes = SstParserBytes.ReadRemainingBytes(reader);
+        if (bytes.Length < HeaderPayloadSize)
             throw new FormatException("SST v4 header is truncated.");
 
-        _ = reader.ReadUInt32(); // Padding
-        var timestamp = reader.ReadInt64();
+        var cursor = new SstByteReader(bytes);
+        _ = cursor.ReadUInt32(); // Padding
+        var timestamp = cursor.ReadInt64();
 
         var frontList = new List<ushort>();
         var rearList = new List<ushort>();
@@ -221,20 +224,22 @@ public class SstV4TlvParser : ISstParser
         var telemetrySampleCount = 0;
         string? malformedMessage = null;
 
-        while (stream.Position + ChunkHeaderSize <= stream.Length)
+        while (cursor.Position + ChunkHeaderSize <= cursor.Length)
         {
-            var chunkStart = stream.Position;
-            var typeByte = reader.ReadByte();
-            var declaredLength = reader.ReadUInt16();
-            var bounds = ResolveChunkBounds(stream, chunkStart, declaredLength);
+            var chunkStart = cursor.Position;
+            var typeByte = cursor.ReadByte();
+            var declaredLength = cursor.ReadUInt16();
+            var bounds = ResolveChunkBounds(cursor.Length, chunkStart, declaredLength);
             var length = bounds.EffectivePayloadLength;
+            var payload = bytes.AsSpan(chunkStart + ChunkHeaderSize, length);
+            var payloadReader = new SstByteReader(payload);
 
             if (bounds.IsTrimmed)
                 malformedMessage ??= TrimmedTrailingChunkMessage;
 
             if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
             {
-                stream.Position = bounds.End;
+                cursor.MoveTo(bounds.End);
                 continue;
             }
 
@@ -249,8 +254,8 @@ public class SstV4TlvParser : ISstParser
                     var entryCount = usableRatesLength / RatesEntrySize;
                     for (int i = 0; i < entryCount; i++)
                     {
-                        var rTypeByte = reader.ReadByte();
-                        var rRate = reader.ReadUInt16();
+                        var rTypeByte = payloadReader.ReadByte();
+                        var rRate = payloadReader.ReadUInt16();
                         if (Enum.IsDefined(typeof(TlvChunkType), rTypeByte))
                         {
                             rates[(TlvChunkType)rTypeByte] = rRate;
@@ -265,8 +270,8 @@ public class SstV4TlvParser : ISstParser
                     var recordCount = usableTelemetryLength / TelemetryRecordSize;
                     for (int i = 0; i < recordCount; i++)
                     {
-                        frontList.Add(reader.ReadUInt16());
-                        rearList.Add(reader.ReadUInt16());
+                        frontList.Add(payloadReader.ReadUInt16());
+                        rearList.Add(payloadReader.ReadUInt16());
                         telemetrySampleCount++;
                     }
                     break;
@@ -291,7 +296,7 @@ public class SstV4TlvParser : ISstParser
                     }
 
                     imuData = imuData ?? new RawImuData();
-                    var imuMetaCount = reader.ReadByte();
+                    var imuMetaCount = payloadReader.ReadByte();
                     var requiredImuMetaLength = ImuMetaCountSize + imuMetaCount * ImuMetaEntrySize;
                     if (length < requiredImuMetaLength && bounds.IsTrimmed)
                     {
@@ -304,9 +309,9 @@ public class SstV4TlvParser : ISstParser
                     imuData.SampleRate = rates.GetValueOrDefault(TlvChunkType.Imu, (ushort)0);
                     for (int i = 0; i < imuMetaCount; i++)
                     {
-                        var locId = reader.ReadByte();
-                        var accelLsb = reader.ReadSingle();
-                        var gyroLsb = reader.ReadSingle();
+                        var locId = payloadReader.ReadByte();
+                        var accelLsb = payloadReader.ReadSingle();
+                        var gyroLsb = payloadReader.ReadSingle();
                         imuData.Meta.Add(new ImuMetaEntry(locId, accelLsb, gyroLsb));
                         imuData.ActiveLocations.Add(locId);
                     }
@@ -320,12 +325,12 @@ public class SstV4TlvParser : ISstParser
                     var imuRecordCount = usableImuLength / ImuRecordSize;
                     for (int i = 0; i < imuRecordCount; i++)
                     {
-                        var ax = reader.ReadInt16();
-                        var ay = reader.ReadInt16();
-                        var az = reader.ReadInt16();
-                        var gx = reader.ReadInt16();
-                        var gy = reader.ReadInt16();
-                        var gz = reader.ReadInt16();
+                        var ax = payloadReader.ReadInt16();
+                        var ay = payloadReader.ReadInt16();
+                        var az = payloadReader.ReadInt16();
+                        var gx = payloadReader.ReadInt16();
+                        var gy = payloadReader.ReadInt16();
+                        var gz = payloadReader.ReadInt16();
                         imuData.Records.Add(new ImuRecord(ax, ay, az, gx, gy, gz));
                     }
                     break;
@@ -337,33 +342,9 @@ public class SstV4TlvParser : ISstParser
                     var gpsRecordCount = usableGpsLength / GpsRecordSize;
                     for (int i = 0; i < gpsRecordCount; i++)
                     {
-                        var date = reader.ReadUInt32();
-                        var timeMs = reader.ReadUInt32();
-                        var latitude = reader.ReadDouble();
-                        var longitude = reader.ReadDouble();
-                        var altitude = reader.ReadSingle();
-                        var speed = reader.ReadSingle();
-                        var heading = reader.ReadSingle();
-                        var fixMode = reader.ReadByte();
-                        var satellites = reader.ReadByte();
-                        var epe2d = reader.ReadSingle();
-                        var epe3d = reader.ReadSingle();
-
-                        var year = (int)(date / 10000);
-                        var month = (int)(date / 100 % 100);
-                        var day = (int)(date % 100);
-
-                        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31)
-                        {
-                            continue;
-                        }
-
-                        var utcTimestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc)
-                            .AddMilliseconds(timeMs);
-
-                        gpsRecords.Add(new GpsRecord(
-                            utcTimestamp, latitude, longitude, altitude,
-                            speed, heading, fixMode, satellites, epe2d, epe3d));
+                        var record = GpsBinaryRecordDecoder.Decode(payloadReader.ReadBytes(GpsRecordSize));
+                        if (record is not null)
+                            gpsRecords.Add(record);
                     }
                     break;
 
@@ -374,9 +355,9 @@ public class SstV4TlvParser : ISstParser
                     var temperatureRecordCount = usableTemperatureLength / TemperatureRecordSize;
                     for (int i = 0; i < temperatureRecordCount; i++)
                     {
-                        var sampleTimestamp = reader.ReadInt64();
-                        var locationId = reader.ReadByte();
-                        var temperatureCelsius = reader.ReadSingle();
+                        var sampleTimestamp = payloadReader.ReadInt64();
+                        var locationId = payloadReader.ReadByte();
+                        var temperatureCelsius = payloadReader.ReadSingle();
                         temperatureSamples.Add(new TemperatureSample(sampleTimestamp, locationId, temperatureCelsius));
                     }
                     break;
@@ -384,10 +365,10 @@ public class SstV4TlvParser : ISstParser
             }
 
             // Ensure we're at the exact chunk boundary regardless of how many bytes the handler read
-            stream.Position = bounds.End;
+            cursor.MoveTo(bounds.End);
         }
 
-        if (stream.Position != stream.Length)
+        if (cursor.Position != cursor.Length)
             throw new FormatException("SST v4 file ends with an incomplete chunk header.");
 
         var front = frontList.ToArray();
@@ -427,17 +408,17 @@ public class SstV4TlvParser : ISstParser
         return rtd;
     }
 
-    private static ChunkBounds ResolveChunkBounds(Stream stream, long chunkStart, ushort declaredPayloadLength)
+    private static ChunkBounds ResolveChunkBounds(int dataLength, int chunkStart, ushort declaredPayloadLength)
     {
         var declaredEnd = chunkStart + ChunkHeaderSize + declaredPayloadLength;
-        if (declaredEnd <= stream.Length)
+        if (declaredEnd <= dataLength)
         {
             return new ChunkBounds(declaredPayloadLength, declaredEnd, IsTrimmed: false);
         }
 
         var payloadStart = chunkStart + ChunkHeaderSize;
-        var availablePayloadLength = Math.Max(0, stream.Length - payloadStart);
-        return new ChunkBounds((int)availablePayloadLength, stream.Length, IsTrimmed: true);
+        var availablePayloadLength = Math.Max(0, dataLength - payloadStart);
+        return new ChunkBounds(availablePayloadLength, dataLength, IsTrimmed: true);
     }
 
     private static bool TryGetUsablePayloadLength(
@@ -465,7 +446,7 @@ public class SstV4TlvParser : ISstParser
 
     private readonly record struct ChunkBounds(
         int EffectivePayloadLength,
-        long End,
+        int End,
         bool IsTrimmed);
 
     private static MalformedSstFileInspection CreateMalformedInspection(
