@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -31,7 +32,7 @@ public sealed record RecordedTimeSeriesData(
     RecordedTimeSeriesValueRange? ValueRange = null,
     TelemetryData? MarkerSource = null);
 
-public abstract class RecordedTimeSeriesPlot(Plot plot) : TelemetryPlot(plot)
+public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     private readonly List<CursorReadoutSeries> cursorSeries = [];
     private HorizontalSpan? selectedSpan;

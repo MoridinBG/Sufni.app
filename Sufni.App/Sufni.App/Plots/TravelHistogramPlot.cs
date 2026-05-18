@@ -2,11 +2,12 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class TravelHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot(plot)
+public class TravelHistogramPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     public TravelHistogramMode HistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
 

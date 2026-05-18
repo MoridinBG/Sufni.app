@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class TravelPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
+public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
@@ -54,8 +55,8 @@ public class TravelPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
         foreach (var airtime in telemetryData.Airtimes)
         {
             var span = Plot.Add.HorizontalSpan(airtime.Start, airtime.End);
-            span.FillColor = Color.FromHex("d53e4f").WithAlpha(0.2);
-            span.LineStyle.Color = Color.FromHex("#a0a0a0").WithAlpha(0.5);
+            span.FillColor = PlotTheme.Marker.AirtimeFill.ToScottPlotColor();
+            span.LineStyle.Color = PlotTheme.Marker.AirtimeOutline.ToScottPlotColor();
             span.LineStyle.Width = 1.0f;
 
             var timeSpan = airtime.End - airtime.Start;

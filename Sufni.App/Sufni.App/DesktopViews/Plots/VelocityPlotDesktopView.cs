@@ -6,7 +6,7 @@ public class VelocityPlotDesktopView : SufniTelemetryPlotView
 {
     protected override void CreatePlot()
     {
-        SetPlotModel(new VelocityPlot(PlotControl.Plot));
+        SetPlotModel(new VelocityPlot(PlotControl.Plot, CurrentTheme));
         InitializeCursorReadoutInteractions();
     }
 }

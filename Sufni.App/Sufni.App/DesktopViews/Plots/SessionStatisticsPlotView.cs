@@ -124,14 +124,14 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
     {
         TelemetryPlot plotModel = PlotKind switch
         {
-            PlotKind.TravelHistogram => new TravelHistogramPlot(PlotControl.Plot, SuspensionType),
-            PlotKind.TravelFrequencyHistogram => new TravelFrequencyHistogramPlot(PlotControl.Plot, SuspensionType),
-            PlotKind.VelocityHistogram => new VelocityHistogramPlot(PlotControl.Plot, SuspensionType),
-            PlotKind.Balance => new BalancePlot(PlotControl.Plot, BalanceType),
-            PlotKind.StrokeLengthHistogram => new StrokeLengthHistogramPlot(PlotControl.Plot, SuspensionType, BalanceType),
-            PlotKind.StrokeSpeedHistogram => new StrokeSpeedHistogramPlot(PlotControl.Plot, SuspensionType, BalanceType),
-            PlotKind.DeepTravelHistogram => new DeepTravelHistogramPlot(PlotControl.Plot, SuspensionType),
-            PlotKind.VibrationThirds => new VibrationThirdsPlot(PlotControl.Plot, SuspensionType, ImuLocation),
+            PlotKind.TravelHistogram => new TravelHistogramPlot(PlotControl.Plot, SuspensionType, CurrentTheme),
+            PlotKind.TravelFrequencyHistogram => new TravelFrequencyHistogramPlot(PlotControl.Plot, SuspensionType, CurrentTheme),
+            PlotKind.VelocityHistogram => new VelocityHistogramPlot(PlotControl.Plot, SuspensionType, CurrentTheme),
+            PlotKind.Balance => new BalancePlot(PlotControl.Plot, BalanceType, CurrentTheme),
+            PlotKind.StrokeLengthHistogram => new StrokeLengthHistogramPlot(PlotControl.Plot, SuspensionType, BalanceType, CurrentTheme),
+            PlotKind.StrokeSpeedHistogram => new StrokeSpeedHistogramPlot(PlotControl.Plot, SuspensionType, BalanceType, CurrentTheme),
+            PlotKind.DeepTravelHistogram => new DeepTravelHistogramPlot(PlotControl.Plot, SuspensionType, CurrentTheme),
+            PlotKind.VibrationThirds => new VibrationThirdsPlot(PlotControl.Plot, SuspensionType, ImuLocation, CurrentTheme),
             _ => throw new ArgumentOutOfRangeException()
         };
 

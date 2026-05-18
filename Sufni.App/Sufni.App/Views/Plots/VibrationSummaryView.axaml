@@ -11,20 +11,20 @@
             <ControlTemplate>
                 <Border
                     Padding="12,10,12,12"
-                    Background="#20262B"
-                    BorderBrush="#505558"
+                    Background="{DynamicResource SufniSurfaceInputBrush}"
+                    BorderBrush="{DynamicResource SufniLineDefaultBrush}"
                     BorderThickness="0">
                     <StackPanel Spacing="8">
                         <TextBlock
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Foreground="#D0D0D0"
+                            Foreground="{DynamicResource SufniTextPrimaryBrush}"
                             Text="{Binding Title, RelativeSource={RelativeSource TemplatedParent}}" />
 
                         <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="3" ColumnSpacing="10">
                             <Grid.Styles>
                                 <Style Selector="TextBlock">
-                                    <Setter Property="Foreground" Value="#D0D0D0" />
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniTextPrimaryBrush}" />
                                     <Setter Property="FontSize" Value="13" />
                                 </Style>
                             </Grid.Styles>

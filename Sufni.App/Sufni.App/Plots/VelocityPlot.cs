@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class VelocityPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
+public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
