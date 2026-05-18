@@ -50,5 +50,13 @@ public static class SufniThemes
         => variant == ThemeVariant.Light ? Light : Dark;
 
     public static ThemeVariant ToVariant(SufniThemeMode mode)
-        => mode == SufniThemeMode.Light ? ThemeVariant.Light : ThemeVariant.Dark;
+        => mode switch
+        {
+            SufniThemeMode.Light => ThemeVariant.Light,
+            SufniThemeMode.System => ThemeVariant.Default,
+            _ => ThemeVariant.Dark
+        };
+
+    public static SufniThemeMode EffectiveModeFromVariant(ThemeVariant? variant)
+        => variant == ThemeVariant.Light ? SufniThemeMode.Light : SufniThemeMode.Dark;
 }

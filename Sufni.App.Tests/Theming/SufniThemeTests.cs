@@ -29,6 +29,23 @@ public class SufniThemeTests
     }
 
     [Fact]
+    public void SufniThemes_ToVariant_MapsSystemModeToAvaloniaDefault()
+    {
+        Assert.Equal(ThemeVariant.Dark, SufniThemes.ToVariant(SufniThemeMode.Dark));
+        Assert.Equal(ThemeVariant.Light, SufniThemes.ToVariant(SufniThemeMode.Light));
+        Assert.Equal(ThemeVariant.Default, SufniThemes.ToVariant(SufniThemeMode.System));
+    }
+
+    [Fact]
+    public void SufniThemes_EffectiveModeFromVariant_UsesDarkForUnknownOrDefault()
+    {
+        Assert.Equal(SufniThemeMode.Light, SufniThemes.EffectiveModeFromVariant(ThemeVariant.Light));
+        Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(ThemeVariant.Dark));
+        Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(ThemeVariant.Default));
+        Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(null));
+    }
+
+    [Fact]
     public void SufniThemeResourceDictionary_LegacyResources_AreDerivedFromDarkTheme()
     {
         var theme = SufniDarkTheme.Instance;

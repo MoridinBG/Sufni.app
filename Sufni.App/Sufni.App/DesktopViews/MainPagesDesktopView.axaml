@@ -181,12 +181,16 @@ mc:Ignorable="d">
                 <Panel>
                     <Image
                     Width="18"
-                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
+                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
                     Source="{SvgImage /Assets/fa-sun.svg}" />
                     <Image
                     Width="18"
-                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
+                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
                     Source="{SvgImage /Assets/fa-moon.svg}" />
+                    <Image
+                    Width="18"
+                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.System}}"
+                    Source="{SvgImage /Assets/fa-circle-half-stroke.svg}" />
                 </Panel>
             </Button>
         </StackPanel>

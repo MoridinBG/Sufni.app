@@ -35,6 +35,9 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private bool isMenuPaneOpen;
     [ObservableProperty] private bool isPairedDevicesListOpen;
     [ObservableProperty] private SufniThemeMode currentThemeMode;
+    [ObservableProperty] private SufniThemeMode effectiveThemeMode;
+    [ObservableProperty] private SufniThemeMode nextThemeMode;
+    [ObservableProperty] private bool isSystemThemeAvailable;
 
     #endregion
 
@@ -110,7 +113,7 @@ public partial class MainPagesViewModel : ViewModelBase
         // pairing-client coordinator's startup IsPairedAsync probe).
         SyncInProgress = syncCoordinator.IsRunning;
         IsPaired = syncCoordinator.IsPaired;
-        CurrentThemeMode = themeService.Mode;
+        SyncThemeState();
 
         _ = LoadDatabaseContent();
     }
@@ -144,7 +147,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private void OnThemeChanged(object? sender, EventArgs e)
     {
-        CurrentThemeMode = themeService.Mode;
+        SyncThemeState();
     }
 
     #endregion Constructors
@@ -239,6 +242,23 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     #endregion
+
+    private void SyncThemeState()
+    {
+        CurrentThemeMode = themeService.Mode;
+        EffectiveThemeMode = themeService.EffectiveMode;
+        IsSystemThemeAvailable = themeService.IsSystemThemeAvailable;
+        NextThemeMode = ResolveNextThemeMode(CurrentThemeMode, IsSystemThemeAvailable);
+    }
+
+    private static SufniThemeMode ResolveNextThemeMode(SufniThemeMode current, bool systemThemeAvailable)
+        => current switch
+        {
+            SufniThemeMode.Dark => SufniThemeMode.Light,
+            SufniThemeMode.Light when systemThemeAvailable => SufniThemeMode.System,
+            SufniThemeMode.Light => SufniThemeMode.Dark,
+            _ => SufniThemeMode.Dark
+        };
 
     private void PublishGpxImportResult(GpxImportResult result)
     {
