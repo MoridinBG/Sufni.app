@@ -185,6 +185,7 @@ public sealed record SufniPlotTheme(
     SufniPlotAxisTheme Axis,
     SufniPlotLegendTheme Legend,
     SufniPlotMarkerTheme Marker,
+    SufniPlotAnalysisRangeTheme AnalysisRange,
     SufniPlotCursorTheme Cursor,
     Color InPlotLabelText,
     Color ReferenceLine,
@@ -223,6 +224,10 @@ public sealed record SufniPlotMarkerTheme(
     Color Line,
     Color AirtimeFill,
     Color AirtimeOutline);
+
+public sealed record SufniPlotAnalysisRangeTheme(
+    Color SelectedFill,
+    Color PreviewFill);
 
 public sealed record SufniPlotCursorTheme(
     Color Line,

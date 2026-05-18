@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.Behaviors;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -240,6 +241,10 @@ public class TravelPlotDesktopViewTests
                 Telemetry = telemetry,
                 GraphWorkspace = workspace,
             };
+            var feedbackRequestCount = 0;
+            view.AddHandler(
+                HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
+                (_, _) => feedbackRequestCount++);
 
             await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -259,6 +264,7 @@ public class TravelPlotDesktopViewTests
 
             Assert.Equal(1, workspace.SetAnalysisRangeBoundaryCallCount);
             Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
+            Assert.Equal(1, feedbackRequestCount);
             Assert.NotNull(workspace.LastAnalysisRangeBoundary);
             Assert.InRange(workspace.LastAnalysisRangeBoundary.Value, 0, telemetry.Metadata.Duration);
         }

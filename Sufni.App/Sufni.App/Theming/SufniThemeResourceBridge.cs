@@ -250,6 +250,8 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniPlotLegendBorder", theme.Plot.Legend.Border);
         AddColorPair(resources, "SufniPlotLegendText", theme.Plot.Legend.Text);
         AddColorPair(resources, "SufniPlotMarkerLine", theme.Plot.Marker.Line);
+        AddColorPair(resources, "SufniPlotAnalysisRangeSelectedFill", theme.Plot.AnalysisRange.SelectedFill);
+        AddColorPair(resources, "SufniPlotAnalysisRangePreviewFill", theme.Plot.AnalysisRange.PreviewFill);
         AddColorPair(resources, "SufniPlotCursorLine", theme.Plot.Cursor.Line);
         AddColorPair(resources, "SufniPlotCursorTooltipFill", theme.Plot.Cursor.TooltipFill);
         AddColorPair(resources, "SufniPlotCursorTooltipText", theme.Plot.Cursor.TooltipText);

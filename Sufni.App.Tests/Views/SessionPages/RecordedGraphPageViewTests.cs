@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.Behaviors;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -49,6 +50,7 @@ public class RecordedGraphPageViewTests
         var pitchRollView = GetNamedVisual<FramePitchRollPlotDesktopView>(mounted.View, "PitchRoll");
         var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
         var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Elevation");
+        var rowsView = Assert.Single(mounted.View.GetVisualDescendants().OfType<RecordedSessionGraphRowsView>());
         var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
 
@@ -87,6 +89,7 @@ public class RecordedGraphPageViewTests
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
         Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, pitchRollView.MaximumDisplayHz);
+        Assert.True(HapticFeedbackBehavior.GetIsEnabled(rowsView));
         Assert.True(travelView.HideRightAxis);
         Assert.True(velocityView.HideRightAxis);
         Assert.True(imuView.HideRightAxis);

@@ -122,6 +122,26 @@ public class DamperPageViewTests
         Assert.True(rearBands!.IsVisible);
     }
 
+    [AvaloniaFact]
+    public async Task DamperPageView_UsesTallMobileVelocityPlots()
+    {
+        var viewModel = new DamperPageViewModel
+        {
+            FrontHistogramState = SurfacePresentationState.Ready,
+            RearHistogramState = SurfacePresentationState.Ready,
+        };
+
+        await using var mounted = await MountAsync(viewModel);
+
+        var frontHost = mounted.View.FindControl<VelocityStatisticsHost>("FrontVelocityStatisticsHost");
+        var rearHost = mounted.View.FindControl<VelocityStatisticsHost>("RearVelocityStatisticsHost");
+
+        Assert.NotNull(frontHost);
+        Assert.NotNull(rearHost);
+        Assert.Equal(360, frontHost!.PlotHeight);
+        Assert.Equal(360, rearHost!.PlotHeight);
+    }
+
     private static async Task<MountedDamperPageView> MountAsync(DamperPageViewModel viewModel)
     {
         ViewTestHelpers.EnsureViewTestResources();
