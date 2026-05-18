@@ -1,11 +1,10 @@
-﻿<UserControl
+<UserControl
 x:Class="Sufni.App.Views.SessionPages.BalancePageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
 d:DesignHeight="600"
 d:DesignWidth="500"
@@ -62,55 +61,36 @@ mc:Ignorable="d">
                 </StackPanel>
             </StackPanel>
 
-            <controls:PlaceholderOverlayContainer PresentationState="{Binding CompressionPresentationState}">
-                <controls:PlaceholderOverlayContainer.ReadyContent>
-                    <Grid>
-                        <plots:SessionStatisticsPlotView
-                        Name="CompressionBalancePlot"
-                        Height="260"
-                        AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
-                        BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
-                        BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
-                        BalanceType="Compression"
-                        IsVisible="{Binding HasDynamicStatistics}"
-                        PlotKind="Balance"
-                        Telemetry="{Binding StatisticsWorkspace.TelemetryData}" />
+            <controls:BalanceStatisticsHost
+            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+            BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
+            BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
+            BalanceType="Compression"
+            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            MinCardHeight="220"
+            PlaceholderMargin="0,0,0,12"
+            PlotName="CompressionBalancePlot"
+            PlotHeight="260"
+            PresentationState="{Binding CompressionPresentationState}"
+            StaticSource="{Binding CompressionBalance}"
+            StaticSourceName="CompressionBalanceSvg"
+            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+            Title="Compression balance" />
 
-                        <Svg
-                        Name="CompressionBalanceSvg"
-                        IsVisible="{Binding !HasDynamicStatistics}"
-                        Source="{Binding CompressionBalance}" />
-                    </Grid>
-                </controls:PlaceholderOverlayContainer.ReadyContent>
-                <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    <controls:SurfacePlaceholderCard Margin="0,0,0,12" Title="Compression balance" MinCardHeight="220" />
-                </controls:PlaceholderOverlayContainer.PlaceholderContent>
-            </controls:PlaceholderOverlayContainer>
-
-            <controls:PlaceholderOverlayContainer PresentationState="{Binding ReboundPresentationState}">
-                <controls:PlaceholderOverlayContainer.ReadyContent>
-                    <Grid>
-                        <plots:SessionStatisticsPlotView
-                        Name="ReboundBalancePlot"
-                        Height="260"
-                        AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
-                        BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
-                        BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
-                        BalanceType="Rebound"
-                        IsVisible="{Binding HasDynamicStatistics}"
-                        PlotKind="Balance"
-                        Telemetry="{Binding StatisticsWorkspace.TelemetryData}" />
-
-                        <Svg
-                        Name="ReboundBalanceSvg"
-                        IsVisible="{Binding !HasDynamicStatistics}"
-                        Source="{Binding ReboundBalance}" />
-                    </Grid>
-                </controls:PlaceholderOverlayContainer.ReadyContent>
-                <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                    <controls:SurfacePlaceholderCard Title="Rebound balance" MinCardHeight="220" />
-                </controls:PlaceholderOverlayContainer.PlaceholderContent>
-            </controls:PlaceholderOverlayContainer>
+            <controls:BalanceStatisticsHost
+            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+            BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
+            BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
+            BalanceType="Rebound"
+            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            MinCardHeight="220"
+            PlotName="ReboundBalancePlot"
+            PlotHeight="260"
+            PresentationState="{Binding ReboundPresentationState}"
+            StaticSource="{Binding ReboundBalance}"
+            StaticSourceName="ReboundBalanceSvg"
+            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+            Title="Rebound balance" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

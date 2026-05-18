@@ -26,16 +26,16 @@ public class SpringPageViewTests
         await using var mounted = await MountAsync(viewModel);
 
         var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
-        var frontSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("FrontHistogramSvg");
-        var rearSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("RearHistogramSvg");
+        var travelHosts = mounted.View.GetVisualDescendants().OfType<TravelStatisticsHost>().ToArray();
+        var frontHost = travelHosts[0];
+        var rearHost = travelHosts[1];
 
         Assert.Equal(2, hosts.Length);
-        Assert.NotNull(frontSvg);
-        Assert.NotNull(rearSvg);
+        Assert.Equal(2, travelHosts.Length);
         Assert.True(hosts[0].IsVisible);
         Assert.False(hosts[1].IsVisible);
-        Assert.NotNull(frontSvg!.Source);
-        Assert.Null(rearSvg!.Source);
+        Assert.Equal(TestSvg, frontHost.StaticSource);
+        Assert.Null(rearHost.StaticSource);
     }
 
     [AvaloniaFact]
@@ -51,16 +51,16 @@ public class SpringPageViewTests
         await using var mounted = await MountAsync(viewModel);
 
         var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
-        var frontSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("FrontHistogramSvg");
-        var rearSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("RearHistogramSvg");
+        var travelHosts = mounted.View.GetVisualDescendants().OfType<TravelStatisticsHost>().ToArray();
+        var frontHost = travelHosts[0];
+        var rearHost = travelHosts[1];
 
         Assert.Equal(2, hosts.Length);
-        Assert.NotNull(frontSvg);
-        Assert.NotNull(rearSvg);
+        Assert.Equal(2, travelHosts.Length);
         Assert.False(hosts[0].IsVisible);
         Assert.True(hosts[1].IsVisible);
-        Assert.Null(frontSvg!.Source);
-        Assert.NotNull(rearSvg!.Source);
+        Assert.Null(frontHost.StaticSource);
+        Assert.Equal(TestSvg, rearHost.StaticSource);
     }
 
     private static async Task<MountedSpringPageView> MountAsync(SpringPageViewModel viewModel)
