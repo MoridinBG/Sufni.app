@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Services;
@@ -36,6 +37,7 @@ public sealed class AppPreferences : IAppPreferences
 
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
+    public IThemePreferences Theme { get; }
     public IObservable<Unit> SyncDataApplied => syncDataAppliedSubject.AsObservable();
 
     public AppPreferences()
@@ -48,6 +50,7 @@ public sealed class AppPreferences : IAppPreferences
         this.filePath = filePath;
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
+        Theme = new ThemePreferences(this);
     }
 
     private async Task<TResult> ReadAsync<TResult>(Func<AppPreferencesDocument, TResult> read)
@@ -248,12 +251,26 @@ public sealed class AppPreferences : IAppPreferences
         private static string SessionKey(Guid sessionId) => sessionId.ToString("D");
     }
 
+    private sealed class ThemePreferences(AppPreferences owner) : IThemePreferences
+    {
+        public Task<SufniThemeMode> GetModeAsync()
+        {
+            return owner.ReadAsync(document => document.Theme.GetMode());
+        }
+
+        public Task SetModeAsync(SufniThemeMode mode)
+        {
+            return owner.UpdateAsync(document => document.Theme.Mode = mode.ToString());
+        }
+    }
+
     private sealed class AppPreferencesDocument
     {
         public int Version { get; set; } = CurrentVersion;
         public long Updated { get; set; }
         public MapPreferencesDocument Maps { get; set; } = new();
         public SessionPreferencesGroupDocument Session { get; set; } = new();
+        public ThemePreferencesDocument Theme { get; set; } = new();
 
         public AppPreferencesDocument Normalize()
         {
@@ -262,6 +279,7 @@ public sealed class AppPreferences : IAppPreferences
             Maps.CustomLayers ??= [];
             Session ??= new SessionPreferencesGroupDocument();
             Session.Sessions ??= [];
+            Theme ??= new ThemePreferencesDocument();
             return this;
         }
 
@@ -269,7 +287,8 @@ public sealed class AppPreferences : IAppPreferences
         {
             return !string.IsNullOrWhiteSpace(Maps.SelectedLayerId)
                 || Maps.CustomLayers?.Count > 0
-                || Session.Sessions.Count > 0;
+                || Session.Sessions.Count > 0
+                || !string.IsNullOrWhiteSpace(Theme.Mode);
         }
 
         public AppPreferencesSyncData ToSyncData()
@@ -294,6 +313,10 @@ public sealed class AppPreferences : IAppPreferences
                 {
                     Sessions = sessions,
                 },
+                Theme = new ThemePreferencesSyncData
+                {
+                    Mode = Theme.Mode,
+                },
             };
         }
 
@@ -301,6 +324,7 @@ public sealed class AppPreferences : IAppPreferences
         {
             var maps = preferences.Maps ?? new MapPreferencesSyncData();
             var session = preferences.Session ?? new SessionPreferencesSyncData();
+            var theme = preferences.Theme ?? new ThemePreferencesSyncData();
 
             Updated = preferences.Updated > 0
                 ? preferences.Updated
@@ -318,7 +342,23 @@ public sealed class AppPreferences : IAppPreferences
                         pair => (SessionPreferencesDocument?)SessionPreferencesDocument.FromModel(pair.Value))
                     ?? [],
             };
+            Theme = new ThemePreferencesDocument
+            {
+                Mode = theme.Mode,
+            };
             Normalize();
+        }
+    }
+
+    private sealed class ThemePreferencesDocument
+    {
+        public string? Mode { get; set; }
+
+        public SufniThemeMode GetMode()
+        {
+            return Enum.TryParse<SufniThemeMode>(Mode, ignoreCase: false, out var parsed)
+                ? parsed
+                : SufniThemeMode.Dark;
         }
     }
 

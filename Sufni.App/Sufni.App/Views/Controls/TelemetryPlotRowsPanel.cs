@@ -5,12 +5,13 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Views.Controls;
 
 internal sealed class TelemetryPlotRowsPanel : Panel
 {
-    internal const double BaseRowDividerHeight = 6;
+    internal static readonly double BaseRowDividerHeight = SufniThemes.Fallback.Spacing.BaseRowDividerHeight;
     private static readonly TimeSpan RowHeightAnimationDuration = TimeSpan.FromMilliseconds(160);
 
     private readonly Dictionary<TelemetryPlotRow, AnimatedRowHeight> rowHeights = [];

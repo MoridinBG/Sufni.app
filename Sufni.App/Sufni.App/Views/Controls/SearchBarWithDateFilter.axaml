@@ -85,7 +85,7 @@ mc:Ignorable="d">
         Margin="0,0,10,0"
         HorizontalAlignment="Right"
         VerticalAlignment="Center"
-        Foreground="{StaticResource SufniAccentColor}">
+        Foreground="{DynamicResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
             </progRing:ProgressRing.IsActive>
@@ -96,7 +96,7 @@ mc:Ignorable="d">
         Name="DatePickers"
         Grid.Row="1"
         Grid.Column="0"
-        Background="{StaticResource SufniRegion}"
+        Background="{DynamicResource SufniRegion}"
         IsVisible="{Binding DateFilterVisible}">
             <Grid
             Margin="1,0,1,0"

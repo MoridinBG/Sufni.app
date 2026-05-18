@@ -11,12 +11,13 @@
         <mapsui:MapControl Name="MapControl" />
 
         <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                Margin="10" Padding="5"
-                Background="{StaticResource SufniBackground}"
-                CornerRadius="5" Opacity="0.9">
+                Margin="10" Padding="{StaticResource SufniMapOverlayPadding}"
+                Background="{DynamicResource SufniMapOverlaySurface}"
+                CornerRadius="{StaticResource SufniMapOverlayCornerRadius}" Opacity="{StaticResource SufniMapOverlayOpacity}">
             <StackPanel Orientation="Horizontal" Spacing="5">
                 <ComboBox Name="TileProviderComboBox"
                           MinWidth="120"
+                          Foreground="{DynamicResource SufniMapOverlayText}"
                           PlaceholderText="Select Map..."
                           ItemsSource="{Binding AvailableLayers}"
                           SelectedItem="{Binding SelectedLayer, Mode=OneWay}"
@@ -29,6 +30,7 @@
                 </ComboBox>
                 <Button Name="AddCustomTileButton" 
                         Content="+" 
+                        Foreground="{DynamicResource SufniMapOverlayText}"
                         Padding="10,0" 
                         FontWeight="Bold"
                         Command="{Binding AddCustomLayerCommand}"/>

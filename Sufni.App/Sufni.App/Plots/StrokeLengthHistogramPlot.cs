@@ -2,11 +2,12 @@ using System;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class StrokeLengthHistogramPlot(Plot plot, SuspensionType type, BalanceType strokeKind) : TelemetryPlot(plot)
+public class StrokeLengthHistogramPlot(Plot plot, SuspensionType type, BalanceType strokeKind, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {

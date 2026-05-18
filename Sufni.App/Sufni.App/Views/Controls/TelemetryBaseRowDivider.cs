@@ -4,12 +4,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Views.Controls;
 
 internal sealed class TelemetryBaseRowDivider : Control
 {
-    private static readonly IBrush dividerBrush = new SolidColorBrush(Color.Parse("#404040"));
+    private IBrush dividerBrush = SufniThemes.Fallback.GraphRow.DividerBetweenRoots.ToBrush();
+    private IDisposable? themeVariantSubscription;
     private bool isDragging;
     private bool canResizeTargetRow;
     private double dragStartY;
@@ -39,6 +41,26 @@ internal sealed class TelemetryBaseRowDivider : Control
                 args.Handled = true;
             },
             handledEventsToo: true);
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        themeVariantSubscription = this.GetObservable(ThemeVariantScope.ActualThemeVariantProperty)
+            .Subscribe(_ =>
+            {
+                dividerBrush = SufniThemes.FromVariant(ActualThemeVariant).GraphRow.DividerBetweenRoots.ToBrush();
+                InvalidateVisual();
+            });
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        themeVariantSubscription?.Dispose();
+        themeVariantSubscription = null;
+
+        base.OnDetachedFromVisualTree(e);
     }
 
     public override void Render(DrawingContext context)

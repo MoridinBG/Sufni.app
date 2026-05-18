@@ -194,6 +194,9 @@ public sealed class AppPreferencesSyncData
 
     [JsonPropertyName("session")]
     public SessionPreferencesSyncData Session { get; set; } = new();
+
+    [JsonPropertyName("theme")]
+    public ThemePreferencesSyncData Theme { get; set; } = new();
 }
 
 public sealed class MapPreferencesSyncData
@@ -209,4 +212,10 @@ public sealed class SessionPreferencesSyncData
 {
     [JsonPropertyName("sessions")]
     public Dictionary<Guid, SessionPreferences> Sessions { get; set; } = [];
+}
+
+public sealed class ThemePreferencesSyncData
+{
+    [JsonPropertyName("mode")]
+    public string? Mode { get; set; }
 }

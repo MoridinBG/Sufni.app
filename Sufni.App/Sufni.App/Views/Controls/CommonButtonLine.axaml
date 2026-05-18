@@ -11,14 +11,16 @@ x:DataType="vm:TabPageViewModelBase"
 mc:Ignorable="d">
     <Grid
     Margin="0,15,0,5"
-    ColumnDefinitions="auto * auto auto"
-    RowDefinitions="39">
+    ColumnDefinitions="auto * auto auto">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{StaticResource SufniSpacingControlHeightGridLength}" />
+        </Grid.RowDefinitions>
         <Button
         Name="BackButton"
         Grid.Row="0"
         Grid.Column="0"
-        Width="39"
-        Height="39"
+        Width="{StaticResource SufniSpacingControlHeight}"
+        Height="{StaticResource SufniSpacingControlHeight}"
         Margin="0,0,10,0"
         HorizontalContentAlignment="Center"
         VerticalContentAlignment="Center"
@@ -43,8 +45,8 @@ mc:Ignorable="d">
         Name="ResetButton"
         Grid.Row="0"
         Grid.Column="2"
-        Width="39"
-        Height="39"
+        Width="{StaticResource SufniSpacingControlHeight}"
+        Height="{StaticResource SufniSpacingControlHeight}"
         Margin="0,0,5,0"
         HorizontalContentAlignment="Center"
         VerticalContentAlignment="Center"
@@ -58,8 +60,8 @@ mc:Ignorable="d">
         Name="DeleteButton"
         Grid.Row="0"
         Grid.Column="3"
-        Width="39"
-        Height="39"
+        Width="{StaticResource SufniSpacingControlHeight}"
+        Height="{StaticResource SufniSpacingControlHeight}"
         IsEnabled="{Binding CanDeleteItem}"
         HorizontalContentAlignment="Center"
         VerticalContentAlignment="Center">

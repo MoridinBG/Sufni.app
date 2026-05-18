@@ -10,7 +10,7 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:CompileBindings="False"
-    Background="{StaticResource SufniRegion}"
+    Background="{DynamicResource SufniRegion}"
     Focusable="True"
     mc:Ignorable="d">
 
@@ -73,7 +73,7 @@
                     </Style>
                     <Style Selector="Button.tabheader:pressed /template/ ContentPresenter#PART_ContentPresenter">
                         <Setter Property="FontSize" Value="14" />
-                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
                         <Setter Property="Background" Value="Transparent" />
                     </Style>
                     <Style Selector="Button.tabheader:pressed /template/ ContentPresenter#PART_ContentPresenter">
@@ -86,9 +86,9 @@
                     </Style>
                     <Style Selector="Button.tabheader:disabled /template/ ContentPresenter#PART_ContentPresenter">
                         <Setter Property="FontSize" Value="14" />
-                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
                         <Setter Property="Background" Value="Transparent" />
-                        <Setter Property="BorderBrush" Value="{StaticResource SufniAccentColor}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource SufniAccentColor}" />
                         <Setter Property="Padding" Value="0,0,0,8" />
                         <Setter Property="BorderThickness" Value="0,0,0,2" />
                     </Style>
@@ -159,7 +159,7 @@
             <progRing:ProgressRing
                 Width="40"
                 Height="40"
-                Foreground="{StaticResource SufniAccentColor}"
+                Foreground="{DynamicResource SufniAccentColor}"
                 IsActive="True" />
             <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
         </StackPanel>
@@ -169,8 +169,8 @@
             Padding="24"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            Background="{StaticResource SufniBackground}"
-            BorderBrush="{StaticResource SufniBorderBrush}"
+            Background="{DynamicResource SufniBackground}"
+            BorderBrush="{DynamicResource SufniBorderBrush}"
             BorderThickness="1"
             CornerRadius="6"
             IsVisible="{Binding ScreenState.IsError}">

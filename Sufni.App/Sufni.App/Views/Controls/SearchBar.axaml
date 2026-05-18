@@ -15,16 +15,19 @@
 
     <Grid
         Margin="20,0,0,20"
-        ColumnDefinitions="*"
-        RowDefinitions="39">
+        ColumnDefinitions="*">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{StaticResource SufniSearchBarHeightGridLength}" />
+        </Grid.RowDefinitions>
 
         <!--  Search box  -->
         <TextBox
             Name="SearchBox"
             Padding="35,0,0,0"
             VerticalContentAlignment="Center"
-            BorderThickness="0"
-            CornerRadius="5"
+            Background="{DynamicResource SufniSearchBarSurface}"
+            BorderThickness="{StaticResource SufniSearchBarBorderThickness}"
+            CornerRadius="{StaticResource SufniSearchBarCornerRadius}"
             IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
             Text="{Binding SearchText}"
             Watermark="Search ..." />
@@ -81,7 +84,7 @@
             Margin="0,0,10,0"
             HorizontalAlignment="Right"
             VerticalAlignment="Center"
-            Foreground="{StaticResource SufniAccentColor}">
+            Foreground="{DynamicResource SufniAccentSpinner}">
             <progRing:ProgressRing.IsActive>
                 <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
             </progRing:ProgressRing.IsActive>

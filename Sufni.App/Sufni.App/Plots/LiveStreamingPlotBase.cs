@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Plots;
 
@@ -22,8 +23,9 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         int visibleWindowDurationMilliseconds,
         double minimumY,
         double maximumY,
-        bool hideRightAxis)
-        : base(plot)
+        bool hideRightAxis,
+        SufniTheme? theme = null)
+        : base(plot, theme)
     {
         this.title = title;
         this.visibleWindowDurationMilliseconds = visibleWindowDurationMilliseconds;

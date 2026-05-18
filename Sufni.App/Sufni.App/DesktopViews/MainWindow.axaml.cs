@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Styling;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels;
 
 namespace Sufni.App.DesktopViews;
@@ -37,23 +40,43 @@ public class BoolToFontStyleConverter : IValueConverter
     }
 }
 
-public class BoolToColorConverter : IValueConverter
+public class BoolToColorConverter : IMultiValueConverter
 {
-    private static readonly Brush NormalBrush = new SolidColorBrush(Color.Parse("#a0a0a0"));
-    private static readonly Brush DirtyBrush = new SolidColorBrush(Color.Parse("#daa520"));
+    private const string NormalBrushKey = "SufniTabTextBrush";
+    private const string DirtyBrushKey = "SufniStatusWarningBrush";
 
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (value is bool b)
-        {
-            return b ? DirtyBrush : NormalBrush;
-        }
-        return NormalBrush;
+        var isDirty = values.Count > 0 && values[0] is bool b && b;
+        var variant = values.Count > 1 && values[1] is ThemeVariant tv
+            ? tv
+            : Application.Current?.ActualThemeVariant;
+        var key = isDirty ? DirtyBrushKey : NormalBrushKey;
+        return ResolveBrush(key, variant) ?? ResolveFallbackBrush(isDirty, variant);
     }
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    private static IBrush? ResolveBrush(string key, ThemeVariant? variant)
     {
-        throw new NotSupportedException();
+        var app = Application.Current;
+        if (app is null)
+        {
+            return null;
+        }
+
+        return app.TryFindResource(key, variant, out var resource) && resource is IBrush brush
+            ? brush
+            : null;
+    }
+
+    private static IBrush ResolveFallbackBrush(bool isDirty, ThemeVariant? variant)
+    {
+        var theme = SufniThemes.FromVariant(variant);
+        if (isDirty && theme.Status.Warning is { } warning)
+        {
+            return warning.ToBrush();
+        }
+
+        return theme.Tab.Text.ToBrush();
     }
 }
 

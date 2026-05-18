@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Plots;
 
@@ -23,8 +24,8 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
     private double[] rearSmoothingScratch = [];
     private double runningMaxAbs;
 
-    public LiveVelocityPlot(Plot plot, double velocityMaximum, bool hideRightAxis)
-        : base(plot, "Velocity (m/s)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum), hideRightAxis)
+    public LiveVelocityPlot(Plot plot, double velocityMaximum, bool hideRightAxis, SufniTheme? theme = null)
+        : base(plot, "Velocity (m/s)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum), hideRightAxis, theme)
     {
         frontStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Front");
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor, "Rear");
