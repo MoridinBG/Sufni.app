@@ -6,7 +6,7 @@ public class TravelPlotDesktopView : SufniTelemetryPlotView
 {
     protected override void CreatePlot()
     {
-        SetPlotModel(new TravelPlot(PlotControl.Plot));
+        SetPlotModel(new TravelPlot(PlotControl.Plot, CurrentTheme));
         InitializeCursorReadoutInteractions();
     }
 }

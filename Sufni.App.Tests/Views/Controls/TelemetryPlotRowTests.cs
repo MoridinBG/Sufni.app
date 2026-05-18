@@ -5,9 +5,11 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Theming;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Plots;
 
@@ -120,6 +122,7 @@ public class TelemetryPlotRowTests
     [AvaloniaFact]
     public async Task TelemetryPlotRow_DefaultsNestedPlotBackgrounds()
     {
+        var theme = SufniDarkTheme.Instance;
         var childPlotView = new TestPlotView();
         var velocity = CreateRow("Velocity");
         velocity.PlotContent = childPlotView;
@@ -129,18 +132,18 @@ public class TelemetryPlotRowTests
         await using var mounted = await MountAsync(travel);
         Measure(travel, 400, travel.GetPreferredGroupHeight());
 
-        Assert.Equal(16, velocity.TitleLeftInset);
-        AssertSolidBrush(Color.Parse("#0F1314"), velocity.RowBackground);
-        AssertSolidBrush(Color.Parse("#101416"), velocity.HeaderBackground);
-        Assert.Equal(Color.Parse("#101518"), velocity.PlotFigureBackground);
-        Assert.Equal(Color.Parse("#1A2024"), velocity.PlotDataBackground);
-        Assert.Equal(Color.Parse("#101518"), childPlotView.PlotFigureBackground);
-        Assert.Equal(Color.Parse("#1A2024"), childPlotView.PlotDataBackground);
+        Assert.Equal(theme.Spacing.HierarchyIndent, velocity.TitleLeftInset);
+        AssertSolidBrush(theme.GraphRow.HostedLevel1.Container, velocity.RowBackground);
+        AssertSolidBrush(theme.GraphRow.HostedLevel1.Header, velocity.HeaderBackground);
+        Assert.Equal(theme.GraphRow.HostedLevel1.PlotFigure, velocity.PlotFigureBackground);
+        Assert.Equal(theme.GraphRow.HostedLevel1.PlotData, velocity.PlotDataBackground);
+        Assert.Equal(theme.GraphRow.HostedLevel1.PlotFigure, childPlotView.PlotFigureBackground);
+        Assert.Equal(theme.GraphRow.HostedLevel1.PlotData, childPlotView.PlotDataBackground);
 
         var childBorder = Assert.IsType<Border>(velocity.Content);
         Assert.Equal(0, childBorder.Margin.Left);
         var hostedGlyph = velocity.GetVisualDescendants().OfType<TextBlock>().First();
-        Assert.Equal(16, hostedGlyph.Margin.Left);
+        Assert.Equal(theme.Spacing.HierarchyIndent, hostedGlyph.Margin.Left);
     }
 
     [AvaloniaFact]
@@ -173,6 +176,53 @@ public class TelemetryPlotRowTests
         Measure(travel, 400, travel.GetPreferredGroupHeight());
 
         Assert.False(travel.HasVisibleChildConnectors);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HostedRows_UseThemeDepthsAndClampAfterLevelThree()
+    {
+        var theme = SufniDarkTheme.Instance;
+        var level4 = CreateRow("Level 4");
+        var level3 = CreateRow("Level 3");
+        level3.ChildRows.Add(level4);
+        var level2 = CreateRow("Level 2");
+        level2.ChildRows.Add(level3);
+        var level1 = CreateRow("Level 1");
+        level1.ChildRows.Add(level2);
+        var root = CreateRow("Root");
+        root.ChildRows.Add(level1);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, root.GetPreferredGroupHeight());
+
+        AssertRowDepthTheme(level1, theme.GraphRow.HostedLevel1, theme.Spacing.HierarchyIndent);
+        AssertRowDepthTheme(level2, theme.GraphRow.HostedLevel2, theme.Spacing.HierarchyIndent * 2);
+        AssertRowDepthTheme(level3, theme.GraphRow.HostedLevel3Plus, theme.Spacing.HierarchyIndent * 3);
+        AssertRowDepthTheme(level4, theme.GraphRow.HostedLevel3Plus, theme.Spacing.HierarchyIndent * 4);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HostedDefaults_DoNotOverwriteStyledPropertyOverrides()
+    {
+        var rowBackground = new SolidColorBrush(Color.Parse("#123456"));
+        var headerBackground = new SolidColorBrush(Color.Parse("#234567"));
+        var plotFigure = Color.Parse("#345678");
+        var plotData = Color.Parse("#456789");
+        var child = CreateRow("Velocity");
+        child.RowBackground = rowBackground;
+        child.HeaderBackground = headerBackground;
+        child.PlotFigureBackground = plotFigure;
+        child.PlotDataBackground = plotData;
+        var root = CreateRow("Travel");
+        root.ChildRows.Add(child);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, root.GetPreferredGroupHeight());
+
+        Assert.Same(rowBackground, child.RowBackground);
+        Assert.Same(headerBackground, child.HeaderBackground);
+        Assert.Equal(plotFigure, child.PlotFigureBackground);
+        Assert.Equal(plotData, child.PlotDataBackground);
     }
 
     [AvaloniaFact]
@@ -209,6 +259,7 @@ public class TelemetryPlotRowTests
 
     private static async Task<MountedRow> MountAsync(TelemetryPlotRow row)
     {
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         ViewTestHelpers.EnsureViewTestResources();
         var host = await ViewTestHelpers.ShowViewAsync(row);
         return new MountedRow(host);
@@ -241,6 +292,18 @@ public class TelemetryPlotRowTests
     {
         var solidBrush = Assert.IsType<SolidColorBrush>(brush);
         Assert.Equal(expectedColor, solidBrush.Color);
+    }
+
+    private static void AssertRowDepthTheme(
+        TelemetryPlotRow row,
+        SufniGraphRowDepthTheme expectedTheme,
+        double expectedTitleLeftInset)
+    {
+        Assert.Equal(expectedTitleLeftInset, row.TitleLeftInset);
+        AssertSolidBrush(expectedTheme.Container, row.RowBackground);
+        AssertSolidBrush(expectedTheme.Header, row.HeaderBackground);
+        Assert.Equal(expectedTheme.PlotFigure, row.PlotFigureBackground);
+        Assert.Equal(expectedTheme.PlotData, row.PlotDataBackground);
     }
 
     private sealed class MountedRow : IAsyncDisposable

@@ -7,8 +7,8 @@ using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
-using Avalonia.Media;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Views.Controls;
 
@@ -19,7 +19,8 @@ public sealed class TelemetryPlotsRoot : UserControl
             nameof(GraphPreferences),
             defaultValue: SessionGraphPreferences.Default);
 
-    private const double RootRowDropZoneHeight = 12;
+    // RootRowDropZoneHeight is derived from a spacing constant, which is theme-invariant.
+    private static readonly double RootRowDropZoneHeight = SufniThemes.Fallback.Spacing.RootDropZoneHeight;
     private readonly ScrollViewer scrollViewer;
     private readonly TelemetryPlotRowsPanel rowsPanel;
     private readonly Border rootDropIndicator;
@@ -28,6 +29,7 @@ public sealed class TelemetryPlotsRoot : UserControl
     private TelemetryPlotRow? activeDropTargetRow;
     private bool applyingGraphPreferences;
     private bool publishingGraphPreferences;
+    private IDisposable? themeVariantSubscription;
 
     public AvaloniaList<TelemetryPlotRow> Rows { get; } = [];
     public SessionGraphPreferences GraphPreferences
@@ -70,7 +72,7 @@ public sealed class TelemetryPlotsRoot : UserControl
             Height = 3,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.Parse("#2A95D8")),
+            Background = SufniThemes.Fallback.DragDrop.DropPositionIndicator.ToBrush(),
             IsHitTestVisible = false,
             IsVisible = false,
         };
@@ -100,6 +102,18 @@ public sealed class TelemetryPlotsRoot : UserControl
     {
         base.OnAttachedToVisualTree(e);
         ApplyGraphPreferences(GraphPreferences);
+
+        themeVariantSubscription = this.GetObservable(ThemeVariantScope.ActualThemeVariantProperty)
+            .Subscribe(_ =>
+                rootDropIndicator.Background = SufniThemes.FromVariant(ActualThemeVariant).DragDrop.DropPositionIndicator.ToBrush());
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        themeVariantSubscription?.Dispose();
+        themeVariantSubscription = null;
+
+        base.OnDetachedFromVisualTree(e);
     }
 
     private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)

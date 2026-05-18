@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Plots;
 
@@ -24,8 +25,8 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private double[] rearSmoothingScratch = [];
     private double runningMax;
 
-    public LiveImuPlot(Plot plot, double imuMaximum, bool hideRightAxis)
-        : base(plot, "IMU Acceleration (g)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(0.1, imuMaximum), hideRightAxis)
+    public LiveImuPlot(Plot plot, double imuMaximum, bool hideRightAxis, SufniTheme? theme = null)
+        : base(plot, "IMU Acceleration (g)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(0.1, imuMaximum), hideRightAxis, theme)
     {
         frameStreamer = CreateStreamer(ImuPlot.FrameColor, "Frame");
         forkStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Fork");

@@ -10,11 +10,11 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:PairedDeviceListViewModel"
-    Background="{StaticResource SufniRegion}"
+    Background="{DynamicResource SufniRegion}"
     mc:Ignorable="d">
 
     <Grid
-        Background="{StaticResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniBackgroundDisabled}"
         ColumnDefinitions="*"
         RowDefinitions="40 * auto auto">
 

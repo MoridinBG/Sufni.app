@@ -1,11 +1,12 @@
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
+using Sufni.App.Theming;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Plots;
 
-public class LeverageRatioPlot(Plot plot) : SufniPlot(plot)
+public class LeverageRatioPlot(Plot plot, SufniTheme? theme = null) : SufniPlot(plot, theme)
 {
     public void Reset()
     {

@@ -21,6 +21,24 @@ mc:Ignorable="d">
         </Grid.Resources>
 
         <TabStrip Name="TabControl" Grid.Row="0">
+            <TabStrip.Styles>
+                <Style Selector="TabStripItem">
+                    <Setter Property="Foreground" Value="{DynamicResource SufniTabText}" />
+                </Style>
+                <Style Selector="TabStripItem:selected">
+                    <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+                </Style>
+                <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
+                </Style>
+                <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+                </Style>
+                <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
+                    <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+                    <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
+                </Style>
+            </TabStrip.Styles>
 
             <TabStrip.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -31,27 +49,27 @@ mc:Ignorable="d">
             <TabStrip.Items>
                 <TabItem
                 HorizontalAlignment="Center"
-                FontSize="16"
+                FontSize="{StaticResource SufniTabFontSizeStatistics}"
                 Header="Spring rate" />
                 <TabItem
                 HorizontalAlignment="Center"
-                FontSize="16"
+                FontSize="{StaticResource SufniTabFontSizeStatistics}"
                 Header="Strokes" />
                 <TabItem
                 HorizontalAlignment="Center"
-                FontSize="16"
+                FontSize="{StaticResource SufniTabFontSizeStatistics}"
                 Header="Damping" />
                 <TabItem
                 HorizontalAlignment="Center"
-                FontSize="16"
+                FontSize="{StaticResource SufniTabFontSizeStatistics}"
                 Header="Balance" />
                 <TabItem
                 HorizontalAlignment="Center"
-                FontSize="16"
+                FontSize="{StaticResource SufniTabFontSizeStatistics}"
                 Header="Vibration" />
                 <TabItem
                 HorizontalAlignment="Center"
-                FontSize="16"
+                FontSize="{StaticResource SufniTabFontSizeStatistics}"
                 Header="Analysis" />
             </TabStrip.Items>
         </TabStrip>

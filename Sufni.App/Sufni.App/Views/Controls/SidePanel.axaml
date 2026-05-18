@@ -2,8 +2,10 @@
 x:Class="Sufni.App.Views.Controls.SidePanel"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:converters="using:Avalonia.Data.Converters"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:theming="clr-namespace:Sufni.App.Theming"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="450"
 d:DesignWidth="200"
@@ -13,11 +15,11 @@ mc:Ignorable="d">
     <UserControl.Styles>
         <Style Selector="MenuItem">
             <Setter Property="Margin" Value="5,10,0,10" />
-            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
             <Setter Property="Height" Value="30" />
         </Style>
         <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
-            <Setter Property="Foreground" Value="#c0c0c0" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextHover}" />
         </Style>
         <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot">
             <Setter Property="Background" Value="Transparent" />
@@ -28,8 +30,8 @@ mc:Ignorable="d">
     <UserControl.Background>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
             <LinearGradientBrush.GradientStops>
-                <GradientStop Offset="0.7" Color="{StaticResource SufniRegion}" />
-                <GradientStop Offset="1" Color="{StaticResource SufniBackgroundDisabled}" />
+                <GradientStop Offset="0.7" Color="{DynamicResource SufniNavRailBackground}" />
+                <GradientStop Offset="1" Color="{DynamicResource SufniNavRailBackgroundBottom}" />
             </LinearGradientBrush.GradientStops>
         </LinearGradientBrush>
     </UserControl.Background>
@@ -95,6 +97,28 @@ mc:Ignorable="d">
         IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <Separator />
+        <MenuItem
+        Name="ThemeMenuItem"
+        Command="{Binding ToggleThemeCommand}"
+        Header="theme">
+            <MenuItem.Icon>
+                <Panel>
+                    <Image
+                    Width="12"
+                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
+                    Source="{SvgImage /Assets/fa-sun.svg}" />
+                    <Image
+                    Width="12"
+                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
+                    Source="{SvgImage /Assets/fa-moon.svg}" />
+                    <Image
+                    Width="12"
+                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.System}}"
+                    Source="{SvgImage /Assets/fa-circle-half-stroke.svg}" />
+                </Panel>
             </MenuItem.Icon>
         </MenuItem>
     </StackPanel>

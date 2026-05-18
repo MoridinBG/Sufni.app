@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Plots;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 
@@ -297,13 +298,45 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         plotModel.SmoothingLevel = SmoothingLevel;
         plotModel.HideRightAxis = HideRightAxis;
         plotModel.AnalysisRange = AnalysisRange;
-        plotModel.SetBackgroundColors(ToScottPlotColor(PlotFigureBackground), ToScottPlotColor(PlotDataBackground));
+        var (figure, data) = ResolvePlotBackgrounds();
+        plotModel.SetBackgroundColors(figure, data);
     }
 
     private void ApplyPlotBackgroundColors()
     {
-        plot?.SetBackgroundColors(ToScottPlotColor(PlotFigureBackground), ToScottPlotColor(PlotDataBackground));
+        if (plot is null)
+        {
+            return;
+        }
+
+        var (figure, data) = ResolvePlotBackgrounds();
+        plot.SetBackgroundColors(figure, data);
         RefreshPlot();
+    }
+
+    private (ScottPlot.Color Figure, ScottPlot.Color Data) ResolvePlotBackgrounds()
+    {
+        var plotTheme = CurrentTheme.Plot.Root;
+        var figure = IsSet(PlotFigureBackgroundProperty)
+            ? PlotFigureBackground.ToScottPlotColor()
+            : plotTheme.Figure.ToScottPlotColor();
+        var data = IsSet(PlotDataBackgroundProperty)
+            ? PlotDataBackground.ToScottPlotColor()
+            : plotTheme.Data.ToScottPlotColor();
+        return (figure, data);
+    }
+
+    protected override void OnThemeChanged(SufniTheme theme)
+    {
+        if (plot is null)
+        {
+            return;
+        }
+
+        plot.ApplyTheme(theme);
+        // Marker / span / readout colors that are baked at LoadTelemetryData time
+        // need a full reload to repaint with the new palette.
+        RequestReload();
     }
 
     protected abstract bool CanLoadPlotData { get; }

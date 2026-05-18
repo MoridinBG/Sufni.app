@@ -12,6 +12,26 @@ d:DesignWidth="400"
 x:DataType="vm:ISessionSidebarWorkspace"
 mc:Ignorable="d">
 
+    <UserControl.Styles>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="{StaticResource SufniTypographyTabFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabText}" />
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+        </Style>
+        <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
+        </Style>
+        <Style Selector="TabItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+        </Style>
+        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+            <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
+        </Style>
+    </UserControl.Styles>
+
     <TabControl Name="SidebarTabControl">
         <TabItem Name="NotesTab" Header="Notes">
             <Grid RowDefinitions="auto * auto">
@@ -187,8 +207,8 @@ mc:Ignorable="d">
                     <Button
                     Name="ResetButton"
                     Grid.Column="1"
-                    Width="39"
-                    Height="39"
+                    Width="{StaticResource SufniSpacingControlHeight}"
+                    Height="{StaticResource SufniSpacingControlHeight}"
                     Margin="0,0,5,0"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center"

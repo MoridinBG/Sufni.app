@@ -10,7 +10,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ImportSessionsViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -24,22 +24,22 @@ mc:Ignorable="d">
             <Setter Property="BorderThickness" Value="0" />
         </Style>
         <Style Selector="ComboBox.importchoice.import">
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
         </Style>
         <Style Selector="ComboBox.importchoice.import:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
         </Style>
         <Style Selector="ComboBox.importchoice.import:pressed /template/ Border#Background">
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
         </Style>
         <Style Selector="ComboBox.importchoice.trash">
-            <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
         </Style>
         <Style Selector="ComboBox.importchoice.trash:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
         </Style>
         <Style Selector="ComboBox.importchoice.trash:pressed /template/ Border#Background">
-            <Setter Property="Background" Value="{StaticResource SufniDangerColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
         </Style>
     </UserControl.Styles>
 
@@ -87,7 +87,7 @@ mc:Ignorable="d">
         Width="39"
         Height="39"
         HorizontalContentAlignment="Center"
-        BorderBrush="{StaticResource SufniBorderBrush}"
+        BorderBrush="{DynamicResource SufniBorderBrush}"
         Command="{Binding OpenDataStoreCommand}"
         Content="..." />
 
@@ -112,7 +112,7 @@ mc:Ignorable="d">
                         <Expander
                         Margin="0,2,0,1"
                         HorizontalAlignment="Stretch"
-                        Background="{StaticResource SufniRegion}"
+                        Background="{DynamicResource SufniRegion}"
                         IsExpanded="False">
                             <Expander.Header>
                                 <Grid
@@ -306,7 +306,7 @@ mc:Ignorable="d">
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
         IsHitTestVisible="False"
-        Foreground="{StaticResource SufniAccentColor}">
+        Foreground="{DynamicResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="!TelemetryDataStores.Count" />
@@ -325,7 +325,7 @@ mc:Ignorable="d">
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
         FontWeight="Bold"
-        Foreground="{StaticResource SufniAccentColor}"
+        Foreground="{DynamicResource SufniAccentColor}"
         IsHitTestVisible="False"
         IsVisible="{Binding ImportSessionsCommand.IsRunning}"
         Text="{Binding ImportProgressText}" />
@@ -339,7 +339,7 @@ mc:Ignorable="d">
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
         FontWeight="Bold"
-        Foreground="{StaticResource SufniAccentColor}"
+        Foreground="{DynamicResource SufniAccentColor}"
         IsHitTestVisible="False"
         IsVisible="{Binding IsLoadingFiles}"
         Text="Fetching sessions list" />

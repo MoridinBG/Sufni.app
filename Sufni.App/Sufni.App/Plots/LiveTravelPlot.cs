@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Plots;
 
@@ -21,8 +22,8 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
     private double[] rearSmoothingScratch = [];
     private double runningMax;
 
-    public LiveTravelPlot(Plot plot, double travelMaximum, bool hideRightAxis)
-        : base(plot, "Travel (mm)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(1, travelMaximum), hideRightAxis)
+    public LiveTravelPlot(Plot plot, double travelMaximum, bool hideRightAxis, SufniTheme? theme = null)
+        : base(plot, "Travel (mm)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(1, travelMaximum), hideRightAxis, theme)
     {
         frontStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Front");
         rearStreamer = CreateStreamer(TelemetryPlot.RearColor, "Rear");

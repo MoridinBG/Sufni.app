@@ -12,7 +12,7 @@
 
     <Border
         Padding="12,10"
-        Background="{StaticResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniBackgroundDisabled}"
         CornerRadius="6">
         <StackPanel Spacing="4">
             <Grid ColumnDefinitions="* Auto">
@@ -63,7 +63,7 @@
             <TextBlock
                 x:Name="LiveLastErrorTextBlock"
                 FontSize="12"
-                Foreground="{StaticResource SufniDangerColor}"
+                Foreground="{DynamicResource SufniDangerColor}"
                 IsVisible="{Binding ControlState.HasLastError}"
                 Text="{Binding ControlState.LastError}"
                 TextWrapping="Wrap" />
