@@ -54,11 +54,11 @@ public class LiveGraphPageViewTests
             .ToArray();
         var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
-        var travelView = mounted.View.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
-        var velocityView = mounted.View.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
-        var imuView = mounted.View.FindControl<LiveImuPlotDesktopView>("ImuPlot");
-        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
-        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
+        var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(mounted.View, "TravelPlot");
+        var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(mounted.View, "VelocityPlot");
+        var imuView = GetNamedVisual<LiveImuPlotDesktopView>(mounted.View, "ImuPlot");
+        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "SpeedPlot");
+        var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "ElevationPlot");
         Assert.NotNull(pageScrollViewer);
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
@@ -155,9 +155,20 @@ public class LiveGraphPageViewTests
 
     private static TelemetryPlotsRoot GetGraphRoot(LiveGraphPageView view)
     {
-        var root = view.FindControl<TelemetryPlotsRoot>("GraphRoot");
+        var root = view.GetVisualDescendants()
+            .OfType<TelemetryPlotsRoot>()
+            .SingleOrDefault(root => root.Name == "GraphRoot");
         Assert.NotNull(root);
         return root!;
+    }
+
+    private static T GetNamedVisual<T>(Control root, string name)
+        where T : Control
+    {
+        var rowsView = Assert.Single(root.GetVisualDescendants().OfType<LiveSessionGraphRowsView>());
+        var visual = rowsView.FindControl<T>(name);
+        Assert.NotNull(visual);
+        return visual!;
     }
 
     private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)
