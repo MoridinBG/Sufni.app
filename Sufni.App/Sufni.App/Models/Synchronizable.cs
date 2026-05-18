@@ -6,6 +6,8 @@ using SQLite;
 
 namespace Sufni.App.Models;
 
+// Base row shape for data that participates in cross-device sync. Updated and
+// ClientUpdated are merge clocks; Deleted is a soft-delete marker.
 public class Synchronizable
 {
     [JsonPropertyName("id")]
@@ -42,6 +44,8 @@ public class Synchronization
 
 public class SynchronizationData
 {
+    // Wire bundle for one sync exchange. Session blobs and recorded sources
+    // travel through separate endpoints so this stays focused on entity deltas.
     [JsonPropertyName("board")] public List<Board> Boards { get; set; } = [];
     [JsonPropertyName("bike")] public List<Bike> Bikes { get; set; } = [];
     [JsonPropertyName("setup")] public List<Setup> Setups { get; set; } = [];

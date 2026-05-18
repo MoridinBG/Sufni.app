@@ -5,10 +5,14 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.Services.LiveStreaming;
 
+// Lease held by a consumer while it is attached to the shared DAQ connection.
+// Disposing the last lease lets the stream stop and evict itself.
 public interface ILiveDaqSharedStreamLease : IAsyncDisposable
 {
 }
 
+// Shared live connection for one DAQ identity. Multiple tabs/services can
+// consume the same frame stream while configuration changes are serialized.
 public interface ILiveDaqSharedStream : IAsyncDisposable
 {
     string IdentityKey { get; }
