@@ -304,6 +304,11 @@ public sealed class TelemetryPlotsRoot : UserControl
             return false;
         }
 
+        if (!CanMovePreferenceToRoot(row, targetIndex))
+        {
+            return false;
+        }
+
         source.RemoveAt(sourceIndex);
         row.ManualGroupHeight = null;
         row.ApplyRootRowDefaults();
@@ -337,6 +342,11 @@ public sealed class TelemetryPlotsRoot : UserControl
             return false;
         }
 
+        if (!CanMovePreferenceInto(row, targetParent, targetParent.ChildRows.Count))
+        {
+            return false;
+        }
+
         source.RemoveAt(sourceIndex);
         row.ManualGroupHeight = null;
         row.ApplyHostedRowDefaults();
@@ -347,23 +357,42 @@ public sealed class TelemetryPlotsRoot : UserControl
         return true;
     }
 
-    internal SessionGraphPreferences CaptureGraphPreferences()
+    private bool CanMovePreferenceToRoot(TelemetryPlotRow row, int targetIndex)
     {
-        return new SessionGraphPreferences(Rows
-            .Select(CreateRowPreferences)
-            .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
-            .ToArray());
+        if (string.IsNullOrWhiteSpace(row.RowId))
+        {
+            return true;
+        }
+
+        var current = CaptureGraphPreferences();
+        var moved = SessionGraphPreferenceTree.MoveToRoot(current, row.RowId, targetIndex);
+        return !moved.Equals(current);
     }
 
-    private static SessionGraphRowPreferences CreateRowPreferences(TelemetryPlotRow row)
+    private bool CanMovePreferenceInto(TelemetryPlotRow row, TelemetryPlotRow targetParent, int targetIndex)
     {
-        return new SessionGraphRowPreferences(
+        if (string.IsNullOrWhiteSpace(row.RowId) ||
+            string.IsNullOrWhiteSpace(targetParent.RowId))
+        {
+            return true;
+        }
+
+        var current = CaptureGraphPreferences();
+        var moved = SessionGraphPreferenceTree.MoveInto(current, row.RowId, targetParent.RowId, targetIndex);
+        return !moved.Equals(current);
+    }
+
+    internal SessionGraphPreferences CaptureGraphPreferences()
+    {
+        return SessionGraphPreferenceTree.Capture(Rows.Select(CreateRowState));
+    }
+
+    private static SessionGraphPreferenceRowState CreateRowState(TelemetryPlotRow row)
+    {
+        return new SessionGraphPreferenceRowState(
             row.RowId ?? "",
             row.IsExpanded,
-            row.ChildRows
-                .Select(CreateRowPreferences)
-                .Where(child => !string.IsNullOrWhiteSpace(child.RowId))
-                .ToArray());
+            row.ChildRows.Select(CreateRowState).ToArray());
     }
 
     private void ApplyGraphPreferences(SessionGraphPreferences? preferences)
@@ -373,13 +402,17 @@ public sealed class TelemetryPlotsRoot : UserControl
             return;
         }
 
-        preferences ??= SessionGraphPreferences.Default;
         var allRows = GetAllRows().ToArray();
         if (!allRows.Any(row => !string.IsNullOrWhiteSpace(row.RowId)))
         {
             return;
         }
 
+        var normalized = SessionGraphPreferenceTree.Normalize(
+            preferences,
+            allRows
+                .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
+                .Select(row => row.RowId!));
         var rowsById = allRows
             .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
             .GroupBy(row => row.RowId!)
@@ -396,8 +429,7 @@ public sealed class TelemetryPlotsRoot : UserControl
             }
 
             Rows.Clear();
-            rootRows.AddRange(MaterializeRows(preferences.Rows, rowsById, usedIds));
-            AppendMissingDefaultRows(SessionGraphPreferences.Default.Rows, rowsById, usedIds, rootRows, parentRow: null);
+            rootRows.AddRange(MaterializeRows(normalized.Rows, rowsById, usedIds));
             rootRows.AddRange(allRows.Where(row =>
                 string.IsNullOrWhiteSpace(row.RowId) || !usedIds.Contains(row.RowId)));
 
@@ -435,39 +467,6 @@ public sealed class TelemetryPlotsRoot : UserControl
             }
 
             yield return row;
-        }
-    }
-
-    private static void AppendMissingDefaultRows(
-        IEnumerable<SessionGraphRowPreferences> preferences,
-        IReadOnlyDictionary<string, TelemetryPlotRow> rowsById,
-        ISet<string> usedIds,
-        ICollection<TelemetryPlotRow> rootRows,
-        TelemetryPlotRow? parentRow)
-    {
-        foreach (var preference in preferences)
-        {
-            if (string.IsNullOrWhiteSpace(preference.RowId) ||
-                !rowsById.TryGetValue(preference.RowId, out var row))
-            {
-                continue;
-            }
-
-            if (!usedIds.Contains(preference.RowId))
-            {
-                usedIds.Add(preference.RowId);
-                row.IsExpanded = preference.IsExpanded;
-                if (parentRow is null)
-                {
-                    rootRows.Add(row);
-                }
-                else
-                {
-                    parentRow.ChildRows.Add(row);
-                }
-            }
-
-            AppendMissingDefaultRows(preference.Children, rowsById, usedIds, rootRows, row);
         }
     }
 
