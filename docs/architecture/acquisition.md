@@ -23,6 +23,7 @@ graph LR
     Import -->|"FindByBoardId"| SetupStore["ISetupStore"]
     Import -->|"ImportAsync(progress)"| Coord["ImportSessionsCoordinator"]
     Coord --> Runner["IBackgroundTaskRunner"]
+    Coord --> SourceFactory["RecordedSessionSourceFactory"]
     Coord --> Reprocessor["RecordedSessionReprocessor"]
     Coord --> DB["IDatabaseService<br/>PutProcessedSessionAsync"]
     Coord --> SessionStore["ISessionStoreWriter"]
@@ -39,7 +40,7 @@ graph LR
 - `ShouldBeImported` — tri-state nullable bool driving the per-row import action selector (legacy semantics): `false` (default) "Ignore" / leave alone, `true` "Import", `null` "Trash". `ImportSessionsCoordinator` only imports rows with `ShouldBeImported is true` and only trashes rows with `ShouldBeImported is null`.
 - `CanImport` — set from inspection; `false` for malformed files, which forces the action selector to stay disabled.
 - `MalformedMessage`, `HasUnknown` — diagnostic flags surfaced by inspection for the import row UI.
-- `ReadSourceAsync(CancellationToken)` — returns the original recording bytes as `TelemetryFileSource(FileName, SstBytes)`. The coordinator turns those bytes into a persisted `RecordedSessionSource`, then asks the recorded-session reprocessor to derive `TelemetryData`, generated GPS track data, and the processing fingerprint.
+- `ReadSourceAsync(CancellationToken)` — returns the original recording bytes as `TelemetryFileSource(FileName, SstBytes)`. The coordinator passes those bytes through `RecordedSessionSourceFactory.CreateImportedSst(...)`, then asks the recorded-session reprocessor to derive `TelemetryData`, generated GPS track data, and the processing fingerprint.
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
@@ -53,7 +54,7 @@ The import-sessions feature is the canonical worked example of the current bound
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads `IDatabaseService` directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for the welcome-screen create-setup flow.
-- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture, processed telemetry derivation, processing fingerprint creation, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
+- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
 
 ### Mass Storage
 
@@ -61,7 +62,7 @@ The import-sessions feature is the canonical worked example of the current bound
 
 `TelemetryDataStoreService` (`Sufni.App/Sufni.App/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation, one-shot board detection, and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread.
 
-`MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device.
+`MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed, unknown-chunk, start-time, and duration state for the same bytes.
 
 On import, files move to an `uploaded/` subdirectory, which the datastore creates during initialization. On trash, files move to `trash/`; the current local-file implementations expect that directory to already exist, so a missing `trash/` directory is a filesystem error surfaced by the import workflow rather than silently creating it.
 
@@ -84,6 +85,8 @@ Network add / remove handling follows the same split as mass storage: any initia
 
 The view model may ask `IFilesService` for a folder, but it does not construct this datastore directly. Registration lives in `ITelemetryDataStoreService.TryAddStorageProviderAsync(...)`, which owns duplicate detection and returns a sealed `StorageProviderRegistrationResult` (`Added` or `AlreadyOpen`) together with the concrete datastore instance the caller should select. This keeps infrastructure creation out of the view model and makes duplicate handling deterministic.
 
+`StorageProviderTelemetryFile` uses the same `TelemetryFileInspectionMapper` as mass storage for local-file inspection, but keeps Avalonia storage-provider move semantics separate. Its uploaded/trash helper looks for existing `uploaded` and `trash` folders; missing destination folders remain import/trash errors rather than being created implicitly.
+
 ---
 
 ## File Format & Parsing
@@ -100,7 +103,7 @@ graph TD
     V4 --> RawTD
 ```
 
-`RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the magic bytes and version, then dispatches to the appropriate `ISstParser` implementation. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import.
+`RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the magic bytes and version, then dispatches to the appropriate `ISstParser` implementation. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import. V3 and V4 primitive reads use the shared span cursor `SstByteReader`; V4 SST GPS chunks and live GPS batches share `GpsBinaryRecordDecoder` and its 46-byte record-size constant.
 
 Spike elimination is **not** part of the SST parser. The parsers populate the raw `Front` / `Rear` arrays directly; the [Spike Elimination](#spike-elimination) cleanup runs later in `TelemetryData.FromRecording()` via `MeasurementPreprocessor.Process(...)`, once the bike's sensor calibration is known.
 
