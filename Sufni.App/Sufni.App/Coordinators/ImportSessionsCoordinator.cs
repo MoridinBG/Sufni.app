@@ -133,7 +133,7 @@ public class ImportSessionsCoordinator(
 
                         logger.Verbose("Reading source data for {FileName}", telemetryFile.Name);
                         var telemetrySource = await telemetryFile.ReadSourceAsync();
-                        var source = CreateImportedSource(Guid.NewGuid(), telemetrySource);
+                        var source = RecordedSessionSourceFactory.CreateImportedSst(Guid.NewGuid(), telemetrySource);
 
                         var session = new Session(
                             id: source.SessionId,
@@ -195,26 +195,6 @@ public class ImportSessionsCoordinator(
         }
 
         return new SessionImportResult(imported, failures);
-    }
-
-    private static RecordedSessionSource CreateImportedSource(Guid sessionId, TelemetryFileSource telemetrySource)
-    {
-        const int schemaVersion = 1;
-        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(telemetrySource.SstBytes);
-
-        return new RecordedSessionSource
-        {
-            SessionId = sessionId,
-            SourceKind = RecordedSessionSourceKind.ImportedSst,
-            SourceName = telemetrySource.FileName,
-            SchemaVersion = schemaVersion,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                telemetrySource.FileName,
-                schemaVersion,
-                payload),
-            Payload = payload
-        };
     }
 
     private static RecordedSessionDomainSnapshot CreateImportDomain(

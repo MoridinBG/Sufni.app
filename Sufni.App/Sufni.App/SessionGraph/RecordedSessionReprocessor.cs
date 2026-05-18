@@ -1,9 +1,9 @@
 using System;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Security.Cryptography;
 using Sufni.App.Models;
 using Sufni.App.Stores;
 using Sufni.Telemetry;
@@ -80,8 +80,7 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
         BikeData bikeData,
         TelemetryProcessingOptions processingOptions)
     {
-        var json = Encoding.UTF8.GetString(source.Payload);
-        var payload = AppJson.Deserialize<RecordedLiveCaptureSourcePayload>(json)
+        var payload = JsonSerializer.Deserialize(source.Payload, AppJson.Context.RecordedLiveCaptureSourcePayload)
                       ?? throw new JsonException("Recorded live-capture source payload is invalid.");
         var capture = new LiveTelemetryCapture(
             payload.Metadata,
@@ -202,7 +201,7 @@ internal static class TrackContentHash
             writer.WriteEndObject();
         }
 
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream.ToArray())).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
     }
 
     public static bool PointsEqual(Track? left, Track? right)

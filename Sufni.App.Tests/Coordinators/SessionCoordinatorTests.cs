@@ -30,7 +30,6 @@ public class SessionCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-    private readonly IProcessingFingerprintService fingerprintService = Substitute.For<IProcessingFingerprintService>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
@@ -45,13 +44,6 @@ public class SessionCoordinatorTests
         sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
-        fingerprintService
-            .CreateCurrent(
-                Arg.Any<SessionSnapshot>(),
-                Arg.Any<SetupSnapshot>(),
-                Arg.Any<BikeSnapshot>(),
-                Arg.Any<RecordedSessionSourceSnapshot>())
-            .Returns(new ProcessingFingerprint(2, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source"));
     }
 
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
@@ -68,7 +60,6 @@ public class SessionCoordinatorTests
             shell,
             dialogService,
             sourceStore,
-            fingerprintService,
             domainQuery,
             recordedSessionGraph,
             reprocessor,
@@ -205,6 +196,18 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
 
         await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+        await reprocessor.Received(1).ReprocessAsync(
+            Arg.Is<RecordedSessionDomainSnapshot>(domain =>
+                domain.Session.Id == session.Id &&
+                domain.Setup!.Id == capture.Context.SetupId &&
+                domain.Bike!.Id == capture.Context.BikeId &&
+                domain.Source!.SourceKind == RecordedSessionSourceKind.LiveCapture),
+            Arg.Is<RecordedSessionSource>(source =>
+                source.SessionId == session.Id &&
+                source.SourceKind == RecordedSessionSourceKind.LiveCapture &&
+                RecordedSessionSourceHash.Matches(source)),
+            Arg.Any<TelemetryProcessingOptions>(),
+            Arg.Any<CancellationToken>());
         await database.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(saved =>
                 saved.Id == session.Id
@@ -286,6 +289,26 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
+        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        sourceStore.DidNotReceive().Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
+    }
+
+    [Fact]
+    public async Task SaveLiveCaptureAsync_PropagatesCancellation_BeforePersistence()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
+        SeedLiveCaptureDependencies(capture);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationTokenSource.Token));
+
+        await database.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
         sourceStore.DidNotReceive().Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
     }
@@ -1201,5 +1224,30 @@ public class SessionCoordinatorTests
 
         database.GetAsync<Setup>(capture.Context.SetupId).Returns(Task.FromResult(setup));
         database.GetAsync<Bike>(capture.Context.BikeId).Returns(Task.FromResult(bike));
+        reprocessor
+            .ReprocessAsync(
+                Arg.Any<RecordedSessionDomainSnapshot>(),
+                Arg.Any<RecordedSessionSource>(),
+                Arg.Any<TelemetryProcessingOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
+                var source = callInfo.ArgAt<RecordedSessionSource>(1);
+                var processingOptions = callInfo.ArgAt<TelemetryProcessingOptions>(2);
+                var telemetryData = TelemetryData.FromLiveCapture(capture.TelemetryCapture, processingOptions);
+                var fullTrack = telemetryData.GpsData is { Length: > 0 }
+                    ? Track.FromGpsRecords(telemetryData.GpsData)
+                    : null;
+                var fingerprint = new ProcessingFingerprint(
+                    SchemaVersion: 2,
+                    ProcessingVersion: 1,
+                    SetupId: domain.Setup!.Id,
+                    BikeId: domain.Bike!.Id,
+                    TrackProjectionVersion: 1,
+                    DependencyHash: "dependency",
+                    SourceHash: source.SourceHash);
+                return Task.FromResult(new RecordedSessionReprocessResult(telemetryData, fullTrack, fingerprint));
+            });
     }
 }
