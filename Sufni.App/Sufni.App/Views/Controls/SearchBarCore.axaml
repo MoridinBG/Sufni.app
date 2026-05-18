@@ -1,0 +1,99 @@
+<UserControl
+Name="Root"
+x:Class="Sufni.App.Views.Controls.SearchBarCore"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:v="clr-namespace:Sufni.App.Views"
+xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vml:ItemListViewModelBase"
+mc:Ignorable="d">
+
+    <Grid
+    Margin="20,0,0,20"
+    ColumnDefinitions="*">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{Binding #Root.SearchRowHeight}" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  Search box  -->
+        <TextBox
+        Name="SearchBox"
+        Grid.Row="0"
+        Padding="35,0,0,0"
+        VerticalContentAlignment="Center"
+        Background="{Binding $parent[controls:SearchBarCore].SearchBoxBackground}"
+        BorderThickness="{Binding $parent[controls:SearchBarCore].SearchBoxBorderThickness}"
+        CornerRadius="{Binding $parent[controls:SearchBarCore].SearchBoxCornerRadius}"
+        IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
+        Text="{Binding SearchText}"
+        Watermark="Search ..." />
+
+        <!--  Hamburger menu  -->
+        <Button
+        Grid.Row="0"
+        Width="32"
+        HorizontalAlignment="Left"
+        Classes="embedded"
+        Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
+            <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
+        </Button>
+
+        <!--  Close search button  -->
+        <Button
+        Name="CloseButton"
+        Grid.Row="0"
+        Width="30"
+        Margin="0,0,5,0"
+        HorizontalAlignment="Right"
+        Classes="embedded"
+        Command="{Binding ClearSearchTextCommand}"
+        IsVisible="{Binding $parent[controls:SearchBarCore].CloseButtonVisible}">
+            <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+        </Button>
+
+        <!--  Connection indicator  -->
+        <Button
+        Grid.Row="0"
+        Margin="0,0,5,0"
+        HorizontalAlignment="Right"
+        Classes="embedded">
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).IsPaired" />
+                    <Binding Path="!$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
+                    <Binding Path="!#CloseButton.IsVisible" />
+                </MultiBinding>
+            </Button.IsVisible>
+            <Image
+            Width="20"
+            Opacity="0.5"
+            Source="{SvgImage /Assets/fa-link_green.svg}" />
+        </Button>
+
+        <!--  Synchronization indicator  -->
+        <controls:ActivityIndicator
+        Grid.Row="0"
+        Width="15"
+        Height="15"
+        Margin="0,0,10,0"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center"
+        Foreground="{Binding $parent[controls:SearchBarCore].SyncIndicatorForeground}">
+            <controls:ActivityIndicator.IsActive>
+                <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
+            </controls:ActivityIndicator.IsActive>
+        </controls:ActivityIndicator>
+
+        <ContentControl
+        Grid.Row="1"
+        Content="{Binding $parent[controls:SearchBarCore].SecondaryContent}"
+        IsVisible="{Binding $parent[controls:SearchBarCore].SecondaryContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </Grid>
+</UserControl>
