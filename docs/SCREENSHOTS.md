@@ -19,16 +19,23 @@ Key pieces:
 
 | File | Role |
 |------|------|
-| `Infrastructure/ScreenshotApp.axaml` | Application subclass that mirrors `App.axaml` resources and styles |
+| `Infrastructure/ScreenshotApp.axaml` | Application subclass that loads the shared theme resources and mirrors production styles |
 | `Infrastructure/ScreenshotApp.axaml.cs` | Code-behind; loads the AXAML, skips all DI |
 | `Infrastructure/ScreenshotAppBuilder.cs` | Configures `.UseSkia()` + `UseHeadless(UseHeadlessDrawing = false)` |
 
-`ScreenshotApp.axaml` is a standalone copy of every color, brush, and style
-from the production `App.axaml`. It must be kept in sync manually when
-production resources change. It does **not** load `ViewLocator` by default;
-scenarios that need it (because a view resolves child controls through
-`ItemsControl`/`DataTemplate` lookup) register it at runtime — see
-"Resolving Pages Through ViewLocator" below.
+`ScreenshotApp.axaml` loads `SufniThemeResourceDictionary`, the same theme
+resource dictionary used by the production `App.axaml`. Color, brush,
+dimension, and font resources therefore come from the active variant of the
+`SufniTheme` model (`SufniDarkTheme` / `SufniLightTheme`) rather than a
+screenshot-only copy. Screenshots are pinned to the dark variant via
+`RequestedThemeVariant="Dark"` on `ScreenshotApp` so output stays
+deterministic regardless of the developer's persisted preference; remove or
+swap that attribute when capturing a light-theme reference. The screenshot
+app still keeps its own production style includes and global selector styles,
+so those style sections must stay in sync when production styles change. It
+does **not** load `ViewLocator` by default; scenarios that need it (because
+a view resolves child controls through `ItemsControl`/`DataTemplate` lookup)
+register it at runtime — see "Resolving Pages Through ViewLocator" below.
 
 ## Running Screenshots
 
@@ -249,22 +256,30 @@ After running the scenario, open each PNG and check:
 - Conditional sections (visibility bindings) appear or hide as expected.
 - The dark theme and custom resources are applied (not Fluent defaults).
 
-If a section renders as empty or a control shows a fallback, the
-`ScreenshotApp.axaml` may be missing a resource, style, or style include
-that the view depends on. Add it there.
+If a section renders as empty or a control shows a fallback,
+`ScreenshotApp.axaml` may be missing a style or style include that the view
+depends on, or the shared theme bridge may be missing a resource key used by
+production XAML. Add style gaps to `ScreenshotApp.axaml`; add theme resource
+gaps to `SufniThemeResourceBridge`.
 
 ## Keeping ScreenshotApp.axaml in Sync
 
-`ScreenshotApp.axaml` is a standalone copy of the production `App.axaml`
-resources and styles. When the production file changes, update the
-screenshot copy to match. The sections to watch:
+`ScreenshotApp.axaml` shares the same generated theme resources as production
+through `SufniThemeResourceDictionary`. Do not copy color, brush, dimension,
+or font resources into the screenshot app by hand. When the production file
+changes, update the screenshot copy only for style-level changes. The sections
+to watch:
 
-- `Application.Resources` — color and brush definitions.
+- `Application.Resources` — should continue to load the shared theme resource dictionary.
 - `Application.Styles` — `FluentTheme`, `ControlThemes`, style includes
   for plots, progress ring, data grid, and all global selector styles.
 
 If a new style include is added to `App.axaml`, add the same include to
-`ScreenshotApp.axaml`. If a new color resource is added, add it as well.
+`ScreenshotApp.axaml`. If a new theme resource is added, add it to
+`SufniDarkTheme` / `SufniLightTheme` and `SufniThemeResourceBridge` so
+production, tests, and screenshots receive the same value. If a new
+theme-invariant telemetry color is added, put it behind `SufniThemes` rather
+than borrowing it from either variant.
 
 ## Capturing Desktop vs Mobile Variants
 
@@ -414,8 +429,10 @@ failed to load. Check the package reference and version.
 
 ### View renders with Fluent defaults instead of dark theme
 
-`ScreenshotApp.axaml` is missing the resource or style that the view
-depends on. Compare it with `App.axaml` and add the missing entry.
+`ScreenshotApp.axaml` is missing a style include/global style, or the shared
+theme bridge is missing a resource key used by production XAML. Compare the
+screenshot styles with `App.axaml`; compare missing theme resources with
+`SufniThemeResourceBridge`.
 
 ### `Bitmap` constructor throws in Skia mode
 
