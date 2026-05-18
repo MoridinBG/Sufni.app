@@ -4,13 +4,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
     xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
+    xmlns:vmp="clr-namespace:Sufni.App.ViewModels.SessionPages"
     xmlns:vme="clr-namespace:Sufni.App.Views.Editors"
     d:DesignHeight="600"
     d:DesignWidth="500"
-    x:CompileBindings="False"
-    Background="{StaticResource SufniRegion}"
+    x:DataType="vm:ISessionShellMobileWorkspace"
+    Background="{DynamicResource SufniRegion}"
     Focusable="True"
     mc:Ignorable="d">
 
@@ -54,7 +55,7 @@
                 </ItemsControl.ItemsPanel>
 
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vmp:PageViewModelBase">
                         <Button
                             Name="{Binding DisplayName}"
                             Classes="tabheader"
@@ -73,7 +74,7 @@
                     </Style>
                     <Style Selector="Button.tabheader:pressed /template/ ContentPresenter#PART_ContentPresenter">
                         <Setter Property="FontSize" Value="14" />
-                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
                         <Setter Property="Background" Value="Transparent" />
                     </Style>
                     <Style Selector="Button.tabheader:pressed /template/ ContentPresenter#PART_ContentPresenter">
@@ -86,9 +87,9 @@
                     </Style>
                     <Style Selector="Button.tabheader:disabled /template/ ContentPresenter#PART_ContentPresenter">
                         <Setter Property="FontSize" Value="14" />
-                        <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
                         <Setter Property="Background" Value="Transparent" />
-                        <Setter Property="BorderBrush" Value="{StaticResource SufniAccentColor}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource SufniAccentColor}" />
                         <Setter Property="Padding" Value="0,0,0,8" />
                         <Setter Property="BorderThickness" Value="0,0,0,2" />
                     </Style>
@@ -117,7 +118,7 @@
                     </ItemsControl.ItemsPanel>
 
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate>
+                        <DataTemplate x:DataType="vmp:PageViewModelBase">
                             <ContentControl
                                 Width="{Binding $parent[ScrollViewer].Bounds.Width}"
                                 ClipToBounds="True"
@@ -151,26 +152,22 @@
             <v:CommonButtonLine Grid.Row="5" Margin="0,4,0,0" />
         </Grid>
 
-        <StackPanel
+        <v:BusyOverlay
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
+            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IsActive="{Binding ScreenState.IsLoading}"
             IsVisible="{Binding ScreenState.IsLoading}"
-            Spacing="14">
-            <progRing:ProgressRing
-                Width="40"
-                Height="40"
-                Foreground="{StaticResource SufniAccentColor}"
-                IsActive="True" />
-            <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
-        </StackPanel>
+            Message="{Binding ScreenState.Message, TargetNullValue=Loading session data...}"
+            UseStackLayout="True" />
 
         <Border
             MaxWidth="420"
             Padding="24"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            Background="{StaticResource SufniBackground}"
-            BorderBrush="{StaticResource SufniBorderBrush}"
+            Background="{DynamicResource SufniBackground}"
+            BorderBrush="{DynamicResource SufniBorderBrush}"
             BorderThickness="1"
             CornerRadius="6"
             IsVisible="{Binding ScreenState.IsError}">

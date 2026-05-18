@@ -11,7 +11,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="320"
 x:Name="Root"
-x:CompileBindings="False"
+x:DataType="vm:ISessionMediaWorkspace"
 mc:Ignorable="d">
 
     <Grid x:Name="MediaGrid" MinWidth="{Binding MapVideoWidth, TargetNullValue=400}" IsVisible="{Binding HasMediaContent}">
@@ -50,7 +50,7 @@ mc:Ignorable="d">
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
                 DataContext="{Binding MapViewModel}"
-                Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.Timeline}" />
+                Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].((vm:ISessionMediaWorkspace)DataContext).Timeline}" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
                 <controls:SurfacePlaceholderCard Title="Map" />

@@ -1,11 +1,12 @@
 using System;
 using ScottPlot;
 using Sufni.App.Services.Imu;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public sealed class FramePitchRollPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
+public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
     private const string Title = "Frame Pitch/Roll (deg)";
     private const string EmptyMessage = "No frame pitch/roll data";

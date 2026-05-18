@@ -13,7 +13,7 @@ mc:Ignorable="d">
     <Border
     Margin="0,4,0,0"
     Padding="10"
-    BorderBrush="#55606C"
+    BorderBrush="{DynamicResource SufniLineDefaultBrush}"
     BorderThickness="1"
     CornerRadius="6">
         <StackPanel Spacing="8">
@@ -34,7 +34,7 @@ mc:Ignorable="d">
                         <Border
                         Margin="0,0,6,6"
                         Padding="6,4"
-                        BorderBrush="#46515D"
+                        BorderBrush="{DynamicResource SufniLineSubtleBrush}"
                         BorderThickness="1"
                         CornerRadius="4">
                             <StackPanel>

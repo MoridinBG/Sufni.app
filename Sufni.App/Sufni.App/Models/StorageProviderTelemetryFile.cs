@@ -27,7 +27,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     {
         await using var stream = await storageFile.OpenReadAsync();
         var inspection = RawTelemetryData.InspectStream(stream);
-        ApplyInspection(inspection);
+        ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, ResolveFallbackStartTime(storageFile)));
     }
 
     private StorageProviderTelemetryFile(IStorageFile storageFile)
@@ -57,66 +57,43 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     public async Task OnImported()
     {
         Imported = true;
-        var parent = await storageFile.GetParentAsync();
-        var parentItems = parent!.GetItemsAsync();
-        IStorageFolder? uploaded = null;
-        await foreach (var item in parentItems)
-        {
-            if (!item.Name.Equals("uploaded")) continue;
-            uploaded = item as IStorageFolder;
-            break;
-        }
-
-        if (uploaded is null)
-        {
-            throw new Exception("The \"uploaded\" folder could not be accessed.");
-        }
-
-        await storageFile.MoveAsync(uploaded);
+        await MoveToSiblingFolderAsync("uploaded", "The \"uploaded\" folder could not be accessed.");
     }
 
     public async Task OnTrashed()
     {
+        await MoveToSiblingFolderAsync("trash", "The \"trash\" folder could not be accessed.");
+    }
+
+    private async Task MoveToSiblingFolderAsync(string folderName, string missingMessage)
+    {
         var parent = await storageFile.GetParentAsync();
         var parentItems = parent!.GetItemsAsync();
-        IStorageFolder? trash = null;
+        IStorageFolder? target = null;
         await foreach (var item in parentItems)
         {
-            if (!item.Name.Equals("trash")) continue;
-            trash = item as IStorageFolder;
+            if (!item.Name.Equals(folderName, StringComparison.Ordinal)) continue;
+            target = item as IStorageFolder;
             break;
         }
 
-        if (trash is null)
+        if (target is null)
         {
-            throw new Exception("The \"trash\" folder could not be accessed.");
+            throw new Exception(missingMessage);
         }
 
-        await storageFile.MoveAsync(trash);
+        await storageFile.MoveAsync(target);
     }
 
-    private void ApplyInspection(SstFileInspection inspection)
+    private void ApplyInspection(TelemetryFileInspectionState state)
     {
-        switch (inspection)
-        {
-            case ValidSstFileInspection valid:
-                ShouldBeImported = false;
-                Version = valid.Version;
-                StartTime = valid.StartTime;
-                Duration = valid.Duration.ToString(@"hh\:mm\:ss");
-                MalformedMessage = valid.MalformedMessage;
-                CanImport = true;
-                HasUnknown = valid.HasUnknown;
-                break;
-            case MalformedSstFileInspection malformed:
-                ShouldBeImported = false;
-                Version = malformed.Version ?? 0;
-                StartTime = malformed.StartTime ?? ResolveFallbackStartTime(storageFile);
-                Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
-                MalformedMessage = malformed.Message;
-                CanImport = false;
-                break;
-        }
+        ShouldBeImported = state.ShouldBeImported;
+        Version = state.Version;
+        StartTime = state.StartTime;
+        Duration = state.Duration;
+        MalformedMessage = state.MalformedMessage;
+        CanImport = state.CanImport;
+        HasUnknown = state.HasUnknown;
     }
 
     private static DateTime ResolveFallbackStartTime(IStorageFile storageFile)

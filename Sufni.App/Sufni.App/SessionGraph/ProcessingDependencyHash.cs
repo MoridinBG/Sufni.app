@@ -50,7 +50,7 @@ public static class ProcessingDependencyHash
 
         using var stream = new MemoryStream();
         JsonSerializer.Serialize(stream, payload, JsonOptions);
-        return Convert.ToHexString(SHA256.HashData(stream.ToArray())).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
     }
 
     private sealed record DependencyPayload(SetupPayload Setup, BikePayload Bike);

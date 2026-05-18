@@ -19,7 +19,7 @@
                         HorizontalAlignment="Center"
                         VerticalAlignment="Bottom"
                         FontWeight="Bold"
-                        Foreground="#d0d0d0"
+                        Foreground="{DynamicResource SufniTextPrimaryBrush}"
                         Text="Zone %" />
 
                     <!--  Bands  -->
@@ -39,7 +39,7 @@
                             <Styles>
                                 <Style Selector="Border">
                                     <Setter Property="BorderThickness" Value="1,0,1,1" />
-                                    <Setter Property="BorderBrush" Value="#505558" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SufniLineDefaultBrush}" />
                                     <Setter Property="Padding" Value="5" />
                                 </Style>
                                 <Style Selector="TextBlock">
@@ -47,13 +47,14 @@
                                     <Setter Property="VerticalAlignment" Value="Center" />
                                     <Setter Property="FontSize" Value="12" />
                                     <Setter Property="FontWeight" Value="Black" />
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniTextPrimaryBrush}" />
                                 </Style>
                             </Styles>
                         </Grid.Styles>
 
                         <Border
                             Grid.Row="0"
-                            Background="#303030"
+                            Background="{DynamicResource SufniSurfaceItemHoverBrush}"
                             BorderThickness="1,1,1,1">
                             <TextBlock TextAlignment="Center">
                                 <Run Text="HSR:" />
@@ -61,21 +62,21 @@
                                 <Run Text="{Binding Path=HsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
                             </TextBlock>
                         </Border>
-                        <Border Grid.Row="1" Background="#282828">
+                        <Border Grid.Row="1" Background="{DynamicResource SufniSurfaceInputBrush}">
                             <TextBlock TextAlignment="Center">
                                 <Run Text="LSR:" />
                                 <LineBreak />
                                 <Run Text="{Binding Path=LsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
                             </TextBlock>
                         </Border>
-                        <Border Grid.Row="2" Background="#282828">
+                        <Border Grid.Row="2" Background="{DynamicResource SufniSurfaceInputBrush}">
                             <TextBlock TextAlignment="Center">
                                 <Run Text="LSC:" />
                                 <LineBreak />
                                 <Run Text="{Binding Path=LscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
                             </TextBlock>
                         </Border>
-                        <Border Grid.Row="3" Background="#303030">
+                        <Border Grid.Row="3" Background="{DynamicResource SufniSurfaceItemHoverBrush}">
                             <TextBlock TextAlignment="Center">
                                 <Run Text="HSC:" />
                                 <LineBreak />

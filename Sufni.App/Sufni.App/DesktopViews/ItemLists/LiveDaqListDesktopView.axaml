@@ -10,7 +10,7 @@ xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vml:LiveDaqListViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
 
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">

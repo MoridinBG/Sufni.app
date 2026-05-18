@@ -6,6 +6,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
 using Sufni.App.SessionGraphs;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -147,20 +148,46 @@ internal class FixedAutoScaler(double? minX = null, double? maxX = null, double?
 
 public class TelemetryPlot : SufniPlot
 {
-    public static readonly Color FrontColor = Color.FromHex("#3288bd");
-    public static readonly Color RearColor = Color.FromHex("#66c2a5");
-    private static readonly Color markerLineColor = Color.FromHex("#d53e4f").WithAlpha(0.9);
-    private static readonly Color cursorTooltipFillColor = Color.FromHex("#15191C").WithAlpha(0.96);
-    private static readonly Color cursorTooltipTextColor = Color.FromHex("#F0F0F0");
-    private static readonly Color cursorTooltipBorderColor = Color.FromHex("#5A5A5A");
+    // Series colours are invariant across themes by design — front/rear/etc.
+    // encode meaning and must not change with depth or theme variant.
+    public static readonly Color FrontColor = SufniThemes.SignalSeries.SuspensionFront.ToScottPlotColor();
+    public static readonly Color RearColor = SufniThemes.SignalSeries.SuspensionRear.ToScottPlotColor();
+
     private const float MarkerLineWidth = 2.0f;
     private readonly List<IPointerReadoutTarget> pointerReadoutTargets = [];
     private Tooltip? cursorTooltip;
+    private Color markerLineColor;
+    private Color cursorTooltipFillColor;
+    private Color cursorTooltipTextColor;
+    private Color cursorTooltipBorderColor;
 
-    public TelemetryPlot(Plot plot)
-        : base(plot)
+    public TelemetryPlot(Plot plot, SufniTheme? theme = null)
+        : base(plot, theme)
     {
         HideSourceLegend();
+    }
+
+    public override void ApplyTheme(SufniTheme theme)
+    {
+        base.ApplyTheme(theme);
+
+        markerLineColor = PlotTheme.Marker.Line.ToScottPlotColor();
+        cursorTooltipFillColor = PlotTheme.Cursor.TooltipFill.ToScottPlotColor();
+        cursorTooltipTextColor = PlotTheme.Cursor.TooltipText.ToScottPlotColor();
+        cursorTooltipBorderColor = PlotTheme.Cursor.TooltipBorder.ToScottPlotColor();
+
+        if (cursorTooltip is not null)
+        {
+            cursorTooltip.FillColor = cursorTooltipFillColor;
+            cursorTooltip.LabelBackgroundColor = cursorTooltipFillColor;
+            cursorTooltip.LabelFontColor = cursorTooltipTextColor;
+            cursorTooltip.LineColor = cursorTooltipBorderColor;
+        }
+
+        if (!HideRightAxis)
+        {
+            Plot.Axes.Right.TickLabelStyle.ForeColor = PlotTheme.Axis.Tick.ToScottPlotColor();
+        }
     }
 
     public int? MaximumDisplayHz { get; set; }
@@ -170,7 +197,7 @@ public class TelemetryPlot : SufniPlot
 
     protected void ConfigureTimeSeriesFrame(string title, Func<double, string>? timeLabelFormatter = null)
     {
-        Plot.Axes.Title.Label.Text = title;
+        Plot.Axes.Title.Label.Text = string.Empty;
         SetAxisLabels(string.Empty, string.Empty);
         Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
@@ -187,7 +214,7 @@ public class TelemetryPlot : SufniPlot
         }
 
         Plot.Axes.Right.IsVisible = true;
-        Plot.Axes.Right.TickLabelStyle.ForeColor = Color.FromHex("#D0D0D0");
+        Plot.Axes.Right.TickLabelStyle.ForeColor = PlotTheme.Axis.Tick.ToScottPlotColor();
         Plot.Axes.Right.TickLabelStyle.Bold = false;
         Plot.Axes.Right.TickLabelStyle.FontSize = 12;
         Plot.Axes.Right.MajorTickStyle.Length = 0;
@@ -219,11 +246,12 @@ public class TelemetryPlot : SufniPlot
     protected void ShowSourceLegend()
     {
         Plot.ShowLegend(Alignment.LowerRight);
-        Plot.Legend.BackgroundColor = Color.FromHex("#1A1F23");
-        Plot.Legend.OutlineColor = Color.FromHex("#343C42");
+        Plot.Legend.BackgroundColor = PlotTheme.Legend.Background.ToScottPlotColor();
+        Plot.Legend.OutlineColor = PlotTheme.Legend.Border.ToScottPlotColor();
         Plot.Legend.ShadowColor = Colors.Transparent;
-        Plot.Legend.FontColor = Color.FromHex("#D0D0D0");
+        Plot.Legend.FontColor = PlotTheme.Legend.Text.ToScottPlotColor();
         Plot.Legend.FontSize = 12;
+        Plot.Legend.SymbolHeight = 18;
         Plot.Legend.Padding = new PixelPadding(8, 8, 8, 8);
     }
 
@@ -261,7 +289,7 @@ public class TelemetryPlot : SufniPlot
     {
         var line = Plot.Add.VerticalLine(double.NaN);
         line.LineWidth = 1;
-        line.LineColor = Colors.LightGray;
+        line.LineColor = PlotTheme.Cursor.Line.ToScottPlotColor();
         line.IsVisible = isVisible;
         return line;
     }
@@ -276,7 +304,7 @@ public class TelemetryPlot : SufniPlot
         AddMirroredTimeSeriesAxisRules(0, xMaximum, 0, 1);
 
         var text = Plot.Add.Text(message, xMaximum / 2.0, 0.5);
-        text.LabelFontColor = Color.FromHex("#fefefe");
+        text.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
         text.LabelFontSize = 13;
         text.LabelAlignment = Alignment.MiddleCenter;
     }

@@ -13,7 +13,8 @@ public sealed class LiveFramePitchRollPlotDesktopView : LiveGraphPlotDesktopView
         Plot = new LiveFramePitchRollPlot(
             PlotControl.Plot,
             Math.Max(Math.Abs(MinimumY ?? -15), Math.Abs(MaximumY ?? 15)),
-            HideRightAxis);
+            HideRightAxis,
+            CurrentTheme);
         ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();

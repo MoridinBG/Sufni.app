@@ -11,7 +11,7 @@ x:Name="Root"
 x:DataType="controls:SurfacePlaceholderCard"
 mc:Ignorable="d">
 
-    <Border MinHeight="{Binding MinCardHeight, ElementName=Root}" Background="{StaticResource SufniBackground}" BorderBrush="{StaticResource SufniBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12">
+    <Border MinHeight="{Binding MinCardHeight, ElementName=Root}" Background="{DynamicResource SufniBackground}" BorderBrush="{DynamicResource SufniBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12">
         <Grid RowDefinitions="Auto,*">
             <TextBlock FontSize="15" Text="{Binding Title, ElementName=Root}" />
             <Border Grid.Row="1" Margin="0,12,0,0" Background="{Binding PreviewBrush, ElementName=Root}" CornerRadius="3" />

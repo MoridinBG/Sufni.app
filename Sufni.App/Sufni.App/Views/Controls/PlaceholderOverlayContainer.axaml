@@ -5,7 +5,6 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 d:DesignHeight="240"
 d:DesignWidth="320"
 x:Name="Root"
@@ -30,7 +29,7 @@ mc:Ignorable="d">
 
         <Border
         Name="TintOverlay"
-        Background="{Binding OverlayTintBrush, ElementName=Root}"
+        Background="{DynamicResource SufniSurfacePageBrush}"
         IsHitTestVisible="False"
         IsVisible="{Binding PresentationState.ShowOverlay, ElementName=Root}"
         Opacity="{Binding OverlayTintOpacity, ElementName=Root}" />
@@ -42,19 +41,19 @@ mc:Ignorable="d">
         Padding="16,14"
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
-        Background="{StaticResource SufniBackground}"
-        BorderBrush="{StaticResource SufniBorderBrush}"
+        Background="{DynamicResource SufniBackground}"
+        BorderBrush="{DynamicResource SufniBorderBrush}"
         BorderThickness="1"
         CornerRadius="6"
         IsHitTestVisible="False"
         IsVisible="{Binding PresentationState.ShowOverlay, ElementName=Root}">
             <StackPanel Spacing="10">
-                <progRing:ProgressRing
+                <controls:ActivityIndicator
                 Name="ProgressIndicator"
                 Width="36"
                 Height="36"
                 HorizontalAlignment="Center"
-                Foreground="{StaticResource SufniAccentColor}"
+                Foreground="{DynamicResource SufniAccentColor}"
                 IsActive="True"
                 IsVisible="{Binding PresentationState.ShowSpinner, ElementName=Root}" />
 
@@ -63,7 +62,7 @@ mc:Ignorable="d">
                 HorizontalAlignment="Center"
                 FontSize="28"
                 FontWeight="Bold"
-                Foreground="{StaticResource SufniDangerColor}"
+                Foreground="{DynamicResource SufniDangerColor}"
                 IsVisible="{Binding PresentationState.ShowErrorIcon, ElementName=Root}"
                 Text="X" />
 

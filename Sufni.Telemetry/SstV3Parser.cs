@@ -3,13 +3,12 @@ namespace Sufni.Telemetry;
 public class SstV3Parser : ISstParser
 {
     private const int HeaderPayloadSize = 12;
-    private const int HeaderSize = 16;
     private const int TelemetryRecordSize = 4;
 
     public SstFileInspection Inspect(BinaryReader reader, byte version)
     {
-        var stream = reader.BaseStream;
-        if (stream.Length - stream.Position < HeaderPayloadSize)
+        var bytes = SstParserBytes.ReadRemainingBytes(reader);
+        if (bytes.Length < HeaderPayloadSize)
         {
             return new MalformedSstFileInspection(
                 Version: version,
@@ -19,12 +18,13 @@ public class SstV3Parser : ISstParser
                 Message: "SST v3 header is truncated.");
         }
 
-        var sampleRate = reader.ReadUInt16();
-        _ = reader.ReadUInt16();
-        var timestamp = reader.ReadInt64();
+        var cursor = new SstByteReader(bytes);
+        var sampleRate = cursor.ReadUInt16();
+        _ = cursor.ReadUInt16();
+        var timestamp = cursor.ReadInt64();
         var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
 
-        var payloadLength = stream.Length - HeaderSize;
+        var payloadLength = bytes.Length - HeaderPayloadSize;
         if (payloadLength % TelemetryRecordSize != 0)
         {
             return new MalformedSstFileInspection(
@@ -52,15 +52,16 @@ public class SstV3Parser : ISstParser
 
     public RawTelemetryData Parse(BinaryReader reader, byte version)
     {
-        var stream = reader.BaseStream;
-        if (stream.Length - stream.Position < HeaderPayloadSize)
+        var bytes = SstParserBytes.ReadRemainingBytes(reader);
+        if (bytes.Length < HeaderPayloadSize)
             throw new FormatException("SST v3 header is truncated.");
 
-        var sampleRate = reader.ReadUInt16();
-        _ = reader.ReadUInt16(); // padding
-        var timestamp = reader.ReadInt64();
+        var cursor = new SstByteReader(bytes);
+        var sampleRate = cursor.ReadUInt16();
+        _ = cursor.ReadUInt16(); // padding
+        var timestamp = cursor.ReadInt64();
 
-        var payloadLength = stream.Length - HeaderSize;
+        var payloadLength = bytes.Length - HeaderPayloadSize;
         if (payloadLength % TelemetryRecordSize != 0)
             throw new FormatException("SST v3 telemetry payload length is invalid.");
 
@@ -75,8 +76,8 @@ public class SstV3Parser : ISstParser
         var rearPresent = count > 0;
         for (var i = 0; i < count; i++)
         {
-            var rawFront = reader.ReadUInt16();
-            var rawRear = reader.ReadUInt16();
+            var rawFront = cursor.ReadUInt16();
+            var rawRear = cursor.ReadUInt16();
 
             if (i == 0)
             {

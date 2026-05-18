@@ -13,6 +13,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
+using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
@@ -167,6 +168,14 @@ public class SessionShellMobileViewTests
         host.ScreenState = SessionScreenPresentationState.Loading("loading test");
         await using var mounted = await MountAsync(host);
 
+        var busyOverlay = mounted.Shell.GetVisualDescendants()
+            .OfType<BusyOverlay>()
+            .Single();
+        Assert.True(busyOverlay.IsActive);
+        Assert.True(busyOverlay.IsVisible);
+        Assert.True(busyOverlay.UseStackLayout);
+        Assert.Equal("loading test", busyOverlay.Message);
+
         var loadingMessage = mounted.Shell.GetVisualDescendants()
             .OfType<TextBlock>()
             .FirstOrDefault(t => t.Text == "loading test");
@@ -183,6 +192,8 @@ public class SessionShellMobileViewTests
             .FirstOrDefault(t => t.Text == "boom");
         Assert.NotNull(errorHeading);
         Assert.NotNull(errorMessage);
+        Assert.False(busyOverlay.IsActive);
+        Assert.False(busyOverlay.IsVisible);
     }
 
     private static FakeShellHostViewModel CreateHost()
@@ -234,7 +245,7 @@ public class SessionShellMobileViewTests
     }
 }
 
-internal sealed partial class FakeShellHostViewModel : ViewModelBase
+internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionShellMobileWorkspace
 {
     public ObservableCollection<PageViewModelBase> Pages { get; init; } = [];
 

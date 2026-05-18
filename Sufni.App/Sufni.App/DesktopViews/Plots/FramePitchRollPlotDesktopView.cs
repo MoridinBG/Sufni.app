@@ -6,7 +6,7 @@ public class FramePitchRollPlotDesktopView : SufniTelemetryPlotView
 {
     protected override void CreatePlot()
     {
-        SetPlotModel(new FramePitchRollPlot(PlotControl.Plot));
+        SetPlotModel(new FramePitchRollPlot(PlotControl.Plot, CurrentTheme));
         InitializeCursorReadoutInteractions();
     }
 }

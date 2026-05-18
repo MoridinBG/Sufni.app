@@ -13,6 +13,7 @@ using Sufni.App.SessionGraphs;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Views.Plots;
@@ -43,7 +44,7 @@ public class TravelPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal("Travel (mm)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         var signals = plot.Plot.PlottableList.OfType<Signal>().ToArray();
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, signals.Length);
@@ -67,7 +68,7 @@ public class TravelPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal("Travel (mm)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
         Assert.Single(plot.Plot.PlottableList.OfType<Text>());
         Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
@@ -91,6 +92,32 @@ public class TravelPlotDesktopViewTests
         Assert.False(plot.Plot.Axes.Right.IsVisible);
         Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
         Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_AppliesPlotBackgroundProperties()
+    {
+        var view = new TravelPlotDesktopView
+        {
+            PlotFigureBackground = AvaloniaColor.Parse("#101820"),
+            PlotDataBackground = AvaloniaColor.Parse("#203040"),
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = CreateTelemetryData();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.Equal(Color.FromHex("#101820"), plot.Plot.FigureBackground.Color);
+        Assert.Equal(Color.FromHex("#203040"), plot.Plot.DataBackground.Color);
+
+        view.PlotFigureBackground = AvaloniaColor.Parse("#111213");
+        view.PlotDataBackground = AvaloniaColor.Parse("#212223");
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(Color.FromHex("#111213"), plot.Plot.FigureBackground.Color);
+        Assert.Equal(Color.FromHex("#212223"), plot.Plot.DataBackground.Color);
     }
 
     [AvaloniaFact]
@@ -283,14 +310,8 @@ public class TravelPlotDesktopViewTests
         public SurfacePresentationState PitchRollGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState SpeedGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
-        public SessionGraphLayout GraphLayout => SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            PitchRollGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
         public SessionPlotPreferences PlotPreferences { get; } = new();
+        public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public int ClearAnalysisRangeCallCount { get; private set; }
         public int SetAnalysisRangeBoundaryCallCount { get; private set; }

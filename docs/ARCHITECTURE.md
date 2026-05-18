@@ -139,7 +139,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and graph row hierarchy/expanded state is stored per session through app preferences.
 
 Topics in [architecture/ui.md](architecture/ui.md):
 
@@ -166,7 +166,7 @@ Topics in [architecture/ui.md](architecture/ui.md):
 
 ## Plot Rendering
 
-ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time.
+ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/` and `DesktopViews/Plots/`. Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Graph row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
@@ -241,7 +241,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a processed `Session` row, a live-capture recorded source, a processing fingerprint, and an optional generated `Track` from captured GPS.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` creates a live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 

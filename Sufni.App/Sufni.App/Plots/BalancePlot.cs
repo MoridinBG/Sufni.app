@@ -2,11 +2,12 @@ using System;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class BalancePlot(Plot plot, BalanceType type) : TelemetryPlot(plot)
+public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
     public BalanceSpeedMode SpeedMode { get; set; } = BalanceSpeedMode.Both;

@@ -763,7 +763,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                         pendingStartResult?.TrySetResult(
                             new LivePreviewStartResult.Rejected(
                                 startAckFrame.Payload.Result,
-                                startAckFrame.Payload.Result.ToUserMessage()));
+                                startAckFrame.Payload.Result.UserMessage));
                         pendingStartResult = null;
                         startAckAwaitingHeader = null;
                     }
@@ -791,7 +791,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                         pendingStartResult.TrySetResult(
                             new LivePreviewStartResult.Rejected(
                                 errorFrame.Payload.ErrorCode,
-                                errorFrame.Payload.ErrorCode.ToUserMessage()));
+                                errorFrame.Payload.ErrorCode.UserMessage));
                         pendingStartResult = null;
                         startAckAwaitingHeader = null;
                     }

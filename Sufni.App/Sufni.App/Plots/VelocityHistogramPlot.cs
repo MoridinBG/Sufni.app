@@ -4,11 +4,12 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class VelocityHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot(plot)
+public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     private const double VelocityLimit = 2000.0;
     private static readonly IReadOnlyList<Color> palette =

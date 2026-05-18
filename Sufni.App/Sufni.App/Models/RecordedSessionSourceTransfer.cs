@@ -3,11 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace Sufni.App.Models;
 
-/// <summary>
-/// Network transfer shape for a recorded-session source.
-/// It carries the source metadata and payload in the same form needed to
-/// reconstruct the persisted raw-source row on another device.
-/// </summary>
+// Network transfer shape for a recorded-session source. It mirrors the
+// persisted row closely enough for another device to reconstruct it directly.
 public sealed record RecordedSessionSourceTransfer(
     [property: JsonPropertyName("session_id")] Guid SessionId,
     [property: JsonPropertyName("source_kind")] RecordedSessionSourceKind SourceKind,

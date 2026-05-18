@@ -11,6 +11,7 @@ public class SearchBarTests
     [AvaloniaFact]
     public async Task SearchBar_HidesCloseButton_WhenSearchTextIsNull_AndNotFocused()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var control = new SearchBar
         {
             DataContext = new ItemListViewModelBase(),
@@ -18,7 +19,10 @@ public class SearchBarTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
 
-        var closeButton = mounted.Control.FindControl<Button>("CloseButton");
+        var core = mounted.Control.FindFirstVisual<SearchBarCore>();
+        Assert.NotNull(core);
+
+        var closeButton = core!.FindControl<Button>("CloseButton");
 
         Assert.NotNull(closeButton);
         Assert.False(closeButton!.IsVisible);
@@ -27,6 +31,7 @@ public class SearchBarTests
     [AvaloniaFact]
     public async Task SearchBar_BindsSearchText_AndClearsIt()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var viewModel = new ItemListViewModelBase
         {
             SearchText = "shock",
@@ -38,8 +43,11 @@ public class SearchBarTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
 
-        var searchBox = mounted.Control.FindControl<TextBox>("SearchBox");
-        var closeButton = mounted.Control.FindControl<Button>("CloseButton");
+        var core = mounted.Control.FindFirstVisual<SearchBarCore>();
+        Assert.NotNull(core);
+
+        var searchBox = core!.FindControl<TextBox>("SearchBox");
+        var closeButton = core.FindControl<Button>("CloseButton");
 
         Assert.NotNull(searchBox);
         Assert.NotNull(closeButton);

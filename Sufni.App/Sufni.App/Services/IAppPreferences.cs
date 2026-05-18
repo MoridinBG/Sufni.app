@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reactive;
 using System.Threading.Tasks;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Services;
 
@@ -10,6 +11,7 @@ public interface IAppPreferences
 {
     IMapPreferences Map { get; }
     ISessionPreferences Session { get; }
+    IThemePreferences Theme { get; }
     Task<AppPreferencesSyncData?> GetSyncDataAsync(long since);
     Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
 
@@ -25,6 +27,12 @@ public interface IMapPreferences
     Task SetSelectedLayerIdAsync(Guid selectedLayerId);
     Task<IReadOnlyList<TileLayerConfig>> GetCustomLayersAsync();
     Task SetCustomLayersAsync(IReadOnlyList<TileLayerConfig> customLayers);
+}
+
+public interface IThemePreferences
+{
+    Task<SufniThemeMode> GetModeAsync();
+    Task SetModeAsync(SufniThemeMode mode);
 }
 
 public interface ISessionPreferences

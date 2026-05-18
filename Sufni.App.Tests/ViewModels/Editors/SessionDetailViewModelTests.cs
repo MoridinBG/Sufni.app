@@ -463,6 +463,43 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task GraphPreferenceChange_PersistsWithoutDirtyingSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
+        SetDesktop(true);
+        var graph = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Travel,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                ]),
+        ]);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+
+        editor.GraphPreferences = graph;
+
+        Assert.False(editor.IsDirty);
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(graph, update!(SessionPreferences.Default).Graph);
+    }
+
+    [AvaloniaFact]
     public async Task ProcessingPreferenceCommit_PersistsPreferenceAndRecomputesSession()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
@@ -1539,6 +1576,46 @@ public class SessionDetailViewModelTests
 
         Assert.True(editor.IsDirty);
         Assert.Equal("dirty draft", editor.DescriptionText);
+        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task RuntimeDerivedChange_DefersRecomputePrompt_UntilDesktopTabIsActive()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var promptShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                "Recompute this session now?")
+            .Returns(_ =>
+            {
+                promptShown.TrySetResult();
+                return Task.FromResult(false);
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        editor.SetTabActive(true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+
+        editor.SetTabActive(false);
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.DependencyChanged,
+            new SessionStaleness.DependencyHashChanged()));
+        await Task.Yield();
+
+        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+
+        editor.SetTabActive(true);
+        await promptShown.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        await dialogService.Received(1).ShowConfirmationAsync(
+            "Session trail run has to be recomputed",
+            "Recompute this session now?");
         await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 

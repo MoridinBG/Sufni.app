@@ -20,6 +20,8 @@ internal class TelemetryDataStoreComparer : IEqualityComparer<ITelemetryDataStor
     public int GetHashCode(ITelemetryDataStore ds) => ds.Name.GetHashCode();
 }
 
+// A single browseable acquisition source. The UI treats all providers through
+// this contract, whether they are physical DAQ storage or app-managed folders.
 public interface ITelemetryDataStore
 {
     public string Name { get; }

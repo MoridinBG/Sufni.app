@@ -189,6 +189,42 @@ public class SstV4TlvParserTests
     }
 
     [Fact]
+    public void Parse_GpsChunk_SkipsInvalidGpsDateRecords()
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write(Encoding.ASCII.GetBytes("SST"));
+        writer.Write((byte)4);
+        writer.Write((uint)0);
+        writer.Write((long)0);
+
+        writer.Write((byte)TlvChunkType.Rates);
+        writer.Write((ushort)3);
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)1000);
+
+        writer.Write((byte)TlvChunkType.Telemetry);
+        writer.Write((ushort)4);
+        writer.Write((ushort)500);
+        writer.Write((ushort)600);
+
+        writer.Write((byte)TlvChunkType.Gps);
+        writer.Write((ushort)(GpsBinaryRecordDecoder.RecordSize * 2));
+        WriteGpsRecord(writer, date: 20250229, timeMs: 0, latitude: 1, longitude: 2);
+        WriteGpsRecord(writer, date: 20240229, timeMs: 1_000, latitude: 47.123456, longitude: 19.654321);
+
+        ms.Position = 0;
+
+        var result = RawTelemetryData.FromStream(ms);
+
+        var gps = Assert.Single(result.GpsData!);
+        Assert.Equal(new DateTime(2024, 2, 29, 0, 0, 1, DateTimeKind.Utc), gps.Timestamp);
+        Assert.Equal(47.123456, gps.Latitude, 6);
+        Assert.Equal(19.654321, gps.Longitude, 6);
+    }
+
+    [Fact]
     public void Parse_UnknownChunkType_SkipsGracefully()
     {
         // Arrange
@@ -483,5 +519,25 @@ public class SstV4TlvParserTests
         writer.Write(payload);
         ms.Position = 0;
         return ms;
+    }
+
+    private static void WriteGpsRecord(
+        BinaryWriter writer,
+        uint date,
+        uint timeMs,
+        double latitude,
+        double longitude)
+    {
+        writer.Write(date);
+        writer.Write(timeMs);
+        writer.Write(latitude);
+        writer.Write(longitude);
+        writer.Write(150.5f);
+        writer.Write(25.3f);
+        writer.Write(180.0f);
+        writer.Write((byte)2);
+        writer.Write((byte)12);
+        writer.Write(2.5f);
+        writer.Write(3.5f);
     }
 }

@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
+using System.Linq;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views.Controls;
@@ -22,9 +24,14 @@ public class SearchBarWithDateFilterTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
 
-        var searchBox = mounted.Control.FindControl<TextBox>("SearchBox");
-        var closeButton = mounted.Control.FindControl<Button>("CloseButton");
-        var datePickers = mounted.Control.FindControl<Border>("DatePickers");
+        var core = mounted.Control.FindFirstVisual<SearchBarCore>();
+        Assert.NotNull(core);
+
+        var searchBox = core!.FindControl<TextBox>("SearchBox");
+        var closeButton = core.FindControl<Button>("CloseButton");
+        var datePickers = mounted.Control.GetVisualDescendants()
+            .OfType<Border>()
+            .FirstOrDefault(border => border.Name == "DatePickers");
 
         Assert.NotNull(searchBox);
         Assert.NotNull(closeButton);
@@ -55,8 +62,12 @@ public class SearchBarWithDateFilterTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
 
-        var clearFromButton = mounted.Control.FindControl<Button>("ClearFromDateButton");
-        var clearToButton = mounted.Control.FindControl<Button>("ClearToDateButton");
+        var clearFromButton = mounted.Control.GetVisualDescendants()
+            .OfType<Button>()
+            .FirstOrDefault(button => button.Name == "ClearFromDateButton");
+        var clearToButton = mounted.Control.GetVisualDescendants()
+            .OfType<Button>()
+            .FirstOrDefault(button => button.Name == "ClearToDateButton");
 
         Assert.NotNull(clearFromButton);
         Assert.NotNull(clearToButton);

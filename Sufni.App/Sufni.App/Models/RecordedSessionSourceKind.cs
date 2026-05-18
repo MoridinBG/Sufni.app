@@ -18,12 +18,15 @@ public enum RecordedSessionSourceKind
 /// </summary>
 public static class RecordedSessionSourceKindExtensions
 {
-    public static string ToStorageValue(this RecordedSessionSourceKind sourceKind) => sourceKind switch
+    extension(RecordedSessionSourceKind sourceKind)
     {
-        RecordedSessionSourceKind.ImportedSst => "imported_sst",
-        RecordedSessionSourceKind.LiveCapture => "live_capture",
-        _ => throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unknown recorded session source kind.")
-    };
+        public string StorageValue => sourceKind switch
+        {
+            RecordedSessionSourceKind.ImportedSst => "imported_sst",
+            RecordedSessionSourceKind.LiveCapture => "live_capture",
+            _ => throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unknown recorded session source kind.")
+        };
+    }
 
     public static RecordedSessionSourceKind FromStorageValue(string value) => value switch
     {
