@@ -1580,6 +1580,46 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task RuntimeDerivedChange_DefersRecomputePrompt_UntilDesktopTabIsActive()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var promptShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(
+                "Session trail run has to be recomputed",
+                "Recompute this session now?")
+            .Returns(_ =>
+            {
+                promptShown.TrySetResult();
+                return Task.FromResult(false);
+            });
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        editor.SetTabActive(true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+
+        editor.SetTabActive(false);
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.DependencyChanged,
+            new SessionStaleness.DependencyHashChanged()));
+        await Task.Yield();
+
+        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+
+        editor.SetTabActive(true);
+        await promptShown.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        await dialogService.Received(1).ShowConfirmationAsync(
+            "Session trail run has to be recomputed",
+            "Recompute this session now?");
+        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task RuntimeFreshUpdate_ReloadsPresentation_WhenUpdatedSnapshotArrives()
     {
         var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);

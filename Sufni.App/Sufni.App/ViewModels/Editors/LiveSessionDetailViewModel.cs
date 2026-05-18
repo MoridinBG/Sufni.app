@@ -24,6 +24,7 @@ using Sufni.Telemetry;
 namespace Sufni.App.ViewModels.Editors;
 
 public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
+    ISessionShellMobileWorkspace,
     ISessionStatisticsWorkspace,
     ISessionSidebarWorkspace,
     ILiveSessionControlsWorkspace
