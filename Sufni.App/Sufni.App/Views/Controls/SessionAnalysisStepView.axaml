@@ -13,7 +13,7 @@ mc:Ignorable="d">
     <Border
     Margin="0,0,0,8"
     Padding="10"
-    BorderBrush="#55606C"
+    BorderBrush="{DynamicResource SufniLineDefaultBrush}"
     BorderThickness="1"
     CornerRadius="6">
         <StackPanel Spacing="8">
@@ -25,8 +25,8 @@ mc:Ignorable="d">
                 Margin="0,0,8,0"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
-                Background="#26313D"
-                BorderBrush="#55606C"
+                Background="{DynamicResource SufniSelectionSurfaceSubtleBrush}"
+                BorderBrush="{DynamicResource SufniLineDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="13">
                     <TextBlock
@@ -50,7 +50,7 @@ mc:Ignorable="d">
                 Margin="8,0,0,0"
                 Padding="8,3"
                 VerticalAlignment="Center"
-                BorderBrush="#55606C"
+                BorderBrush="{DynamicResource SufniLineDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="4">
                     <TextBlock
@@ -71,7 +71,7 @@ mc:Ignorable="d">
                         <Border
                         Margin="0,0,6,6"
                         Padding="6,4"
-                        BorderBrush="#46515D"
+                        BorderBrush="{DynamicResource SufniLineSubtleBrush}"
                         BorderThickness="1"
                         CornerRadius="4">
                             <StackPanel>
@@ -88,8 +88,8 @@ mc:Ignorable="d">
             <Border
             Name="PrimaryExperimentCard"
             Padding="8"
-            Background="#202832"
-            BorderBrush="#46515D"
+            Background="{DynamicResource SufniSurfaceElevatedBrush}"
+            BorderBrush="{DynamicResource SufniLineSubtleBrush}"
             BorderThickness="1"
             CornerRadius="4"
             IsVisible="{Binding HasPrimaryAdjustment}">
@@ -141,7 +141,7 @@ mc:Ignorable="d">
                             <Border
                             Margin="0,0,0,8"
                             Padding="8"
-                            BorderBrush="#46515D"
+                            BorderBrush="{DynamicResource SufniLineSubtleBrush}"
                             BorderThickness="1"
                             CornerRadius="4">
                                 <StackPanel>
@@ -181,7 +181,7 @@ mc:Ignorable="d">
                                                 <Border
                                                 Margin="0,0,6,6"
                                                 Padding="6,4"
-                                                BorderBrush="#46515D"
+                                                BorderBrush="{DynamicResource SufniLineSubtleBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="4">
                                                     <StackPanel>

@@ -16,7 +16,7 @@ xmlns:vml="using:Sufni.App.ViewModels.LinkageParts"
 d:DesignHeight="600"
 d:DesignWidth="400"
 x:DataType="vm:BikeEditorViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
 
     <UserControl.Styles>
@@ -570,7 +570,7 @@ mc:Ignorable="d">
                 Height="40"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Foreground="{StaticResource SufniAccentColor}">
+                Foreground="{DynamicResource SufniAccentColor}">
                     <progRing:ProgressRing.IsActive>
                         <Binding Path="IsPlotBusy" />
                     </progRing:ProgressRing.IsActive>

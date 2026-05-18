@@ -8,10 +8,10 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:MainViewModel"
-Background="{StaticResource SufniBackgroundDisabled}"
+Background="{DynamicResource SufniBackgroundDisabled}"
 TopLevel.AutoSafeAreaPadding="True"
 mc:Ignorable="d">
-    <Panel Background="{StaticResource SufniRegion}">
+    <Panel Background="{DynamicResource SufniRegion}">
         <ContentControl Name="CurrentViewHost" VerticalAlignment="Stretch" Content="{Binding CurrentView}" />
     </Panel>
 </UserControl>

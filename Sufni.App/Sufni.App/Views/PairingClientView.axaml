@@ -10,7 +10,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:PairingClientViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
 
     <Interaction.Behaviors>
@@ -60,7 +60,7 @@ mc:Ignorable="d">
             Margin="0,0,0,25"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            Foreground="{StaticResource SufniAccentColor}">
+            Foreground="{DynamicResource SufniAccentColor}">
                 <progRing:ProgressRing.IsActive>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                         <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />

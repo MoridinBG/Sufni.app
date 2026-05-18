@@ -57,7 +57,7 @@ mc:Ignorable="d">
         Height="40"
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
-        Foreground="{StaticResource SufniAccentColor}">
+        Foreground="{DynamicResource SufniAccentColor}">
             <progRing:ProgressRing.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="LoadedCommand.IsRunning" />

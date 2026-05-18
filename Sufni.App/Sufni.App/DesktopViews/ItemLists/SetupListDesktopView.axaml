@@ -10,7 +10,7 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:SetupListViewModel"
-    Background="{StaticResource SufniRegion}"
+    Background="{DynamicResource SufniRegion}"
     mc:Ignorable="d">
 
     <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">

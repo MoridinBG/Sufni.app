@@ -12,7 +12,7 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:LiveDaqListViewModel"
-    Background="{StaticResource SufniRegion}"
+    Background="{DynamicResource SufniRegion}"
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
     mc:Ignorable="d">
 
@@ -117,7 +117,7 @@
                             <Separator
                                 Height="1"
                                 Margin="0"
-                                Background="{StaticResource SufniBackgroundDisabled}" />
+                                Background="{DynamicResource SufniBackgroundDisabled}" />
                         </StackPanel>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>

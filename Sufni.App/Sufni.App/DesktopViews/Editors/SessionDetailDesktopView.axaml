@@ -13,7 +13,7 @@ d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
 x:DataType="vm:SessionDetailViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniSurfacePage}"
 Focusable="True"
 mc:Ignorable="d">
 
@@ -29,30 +29,30 @@ mc:Ignorable="d">
     <UserControl.Styles>
         <Style Selector="TabStripItem">
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabText}" />
         </Style>
         <Style Selector="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabText}" />
         </Style>
         <Style Selector="TabStripItem:selected">
-            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
         </Style>
         <Style Selector="TabItem /template/ ContentPresenter">
             <!--  Adjust text vertical position by selected pipe height  -->
             <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
         <Style Selector="TabItem:pointerover /template/ ContentPresenter">
-            <Setter Property="Foreground" Value="{StaticResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabTextHover}" />
         </Style>
         <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
         </Style>
         <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
         </Style>
         <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
-            <Setter Property="Height" Value="2" />
+            <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+            <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
         </Style>
     </UserControl.Styles>
 
@@ -77,11 +77,11 @@ mc:Ignorable="d">
         </editors:SessionShellDesktopView>
 
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" IsVisible="{Binding ScreenState.IsLoading}">
-            <progRing:ProgressRing Width="40" Height="40" Foreground="{StaticResource SufniAccentColor}" IsActive="True" />
+            <progRing:ProgressRing Width="40" Height="40" Foreground="{DynamicResource SufniAccentSpinner}" IsActive="True" />
             <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
         </StackPanel>
 
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{StaticResource SufniBackground}" BorderBrush="{StaticResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
             <StackPanel Spacing="12">
                 <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
                 <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />

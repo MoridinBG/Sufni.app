@@ -10,7 +10,7 @@ d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
 x:DataType="editors:SessionShellDesktopView"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniSurfacePage}"
 mc:Ignorable="d">
 
     <Grid x:Name="RootLayoutGrid" RowDefinitions="* auto *">
