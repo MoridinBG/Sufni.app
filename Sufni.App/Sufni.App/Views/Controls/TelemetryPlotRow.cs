@@ -11,29 +11,21 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Sufni.App.Presentation;
+using Sufni.App.Theming;
 using Sufni.App.Views.Plots;
 
 namespace Sufni.App.Views.Controls;
 
 public sealed class TelemetryPlotRow : UserControl
 {
-    private const double HostedRowTitleLeftInsetStep = 16;
-    private const double HeaderHorizontalPadding = 8;
-    private const double HeaderGlyphWidth = 20;
-    private const double ConnectorLineWidth = 2;
-    private const double ConnectorStemInsetFromGlyphLeft = 2;
-    private const double ConnectorGlyphGap = 6;
     private const double HeaderClickMovementThresholdPixels = 6;
-    private static readonly IBrush defaultHeaderBackground = new SolidColorBrush(Color.Parse("#1a1f23"));
-    private static readonly IBrush dragHeaderBackground = new SolidColorBrush(Color.Parse("#263238"));
-    private static readonly IBrush dropTargetHeaderBackground = new SolidColorBrush(Color.Parse("#1F3A46"));
-    private static readonly IBrush headerConnectorBrush = new SolidColorBrush(Color.Parse("#63727A"));
-    private static readonly IBrush defaultHostedRowBackground = new SolidColorBrush(Color.Parse("rgb(15, 19, 20)"));
-    private static readonly IBrush defaultHostedHeaderBackground = new SolidColorBrush(Color.Parse("#101416"));
-    private static readonly Color defaultBasePlotFigureBackground = Color.Parse("#15191C");
-    private static readonly Color defaultBasePlotDataBackground = Color.Parse("#20262B");
-    private static readonly Color defaultHostedPlotFigureBackground = Color.Parse("#101518");
-    private static readonly Color defaultHostedPlotDataBackground = Color.Parse("#1A2024");
+    // Spacing is theme-invariant; brushes/colors below get rebuilt on variant change.
+    private static readonly SufniSpacingTheme spacing = SufniThemes.Fallback.Spacing;
+    private SufniTheme currentTheme = SufniThemes.Fallback;
+    private IBrush dragHeaderBackground = SufniThemes.Fallback.DragDrop.Header.ToBrush();
+    private IBrush dropTargetHeaderBackground = SufniThemes.Fallback.DragDrop.DropTargetHeader.ToBrush();
+    private IBrush headerConnectorBrush = SufniThemes.Fallback.GraphRow.Connector.ToBrush();
+    private IDisposable? themeVariantSubscription;
     private readonly Border rowBorder;
     private readonly Button headerButton;
     private readonly Grid headerContentGrid;
@@ -53,6 +45,10 @@ public sealed class TelemetryPlotRow : UserControl
     private bool isDragFeedbackVisible;
     private bool isDropTargetFeedbackVisible;
     private Point headerClickStartPoint;
+    private IBrush? appliedDefaultRowBackground;
+    private IBrush? appliedDefaultHeaderBackground;
+    private Color? appliedDefaultPlotFigureBackground;
+    private Color? appliedDefaultPlotDataBackground;
 
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, string?>(nameof(Title));
@@ -101,12 +97,12 @@ public sealed class TelemetryPlotRow : UserControl
     public static readonly StyledProperty<Color> PlotFigureBackgroundProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, Color>(
             nameof(PlotFigureBackground),
-            defaultValue: defaultBasePlotFigureBackground);
+            defaultValue: SufniThemes.Fallback.GraphRow.Root.PlotFigure);
 
     public static readonly StyledProperty<Color> PlotDataBackgroundProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, Color>(
             nameof(PlotDataBackground),
-            defaultValue: defaultBasePlotDataBackground);
+            defaultValue: SufniThemes.Fallback.GraphRow.Root.PlotData);
 
     public string? Title
     {
@@ -223,7 +219,7 @@ public sealed class TelemetryPlotRow : UserControl
 
         chevronText = new TextBlock
         {
-            Width = HeaderGlyphWidth,
+            Width = spacing.HeaderGlyphWidth,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
@@ -250,11 +246,10 @@ public sealed class TelemetryPlotRow : UserControl
 
         headerButton = new Button
         {
-            Padding = new Thickness(HeaderHorizontalPadding, 0),
+            Padding = new Thickness(spacing.HeaderHorizontalPadding, 0),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
-            Background = defaultHeaderBackground,
             BorderThickness = new Thickness(0),
             Content = headerContentGrid,
         };
@@ -347,6 +342,37 @@ public sealed class TelemetryPlotRow : UserControl
                 InvalidateRowLayout();
             }
         };
+        ApplyRowDepthDefaults(currentTheme.GraphRow.Root);
+        UpdateVisualState();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        themeVariantSubscription = this.GetObservable(ThemeVariantScope.ActualThemeVariantProperty)
+            .Subscribe(_ => OnThemeVariantChanged());
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        themeVariantSubscription?.Dispose();
+        themeVariantSubscription = null;
+
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnThemeVariantChanged()
+    {
+        currentTheme = SufniThemes.FromVariant(ActualThemeVariant);
+        dragHeaderBackground = currentTheme.DragDrop.Header.ToBrush();
+        dropTargetHeaderBackground = currentTheme.DragDrop.DropTargetHeader.ToBrush();
+        headerConnectorBrush = currentTheme.GraphRow.Connector.ToBrush();
+
+        var depthTheme = hierarchyDepth == 0
+            ? currentTheme.GraphRow.Root
+            : currentTheme.GraphRow.ByDepth(hierarchyDepth);
+        ApplyRowDepthDefaults(depthTheme);
         UpdateVisualState();
     }
 
@@ -516,56 +542,64 @@ public sealed class TelemetryPlotRow : UserControl
     internal void ApplyHostedRowDefaults(int depth = 1)
     {
         ApplyHierarchyDepth(depth);
-
-        if (!IsSet(RowBackgroundProperty))
-        {
-            RowBackground = defaultHostedRowBackground;
-        }
-
-        if (!IsSet(HeaderBackgroundProperty))
-        {
-            HeaderBackground = defaultHostedHeaderBackground;
-        }
-
-        if (!IsSet(PlotFigureBackgroundProperty))
-        {
-            PlotFigureBackground = defaultHostedPlotFigureBackground;
-        }
-
-        if (!IsSet(PlotDataBackgroundProperty))
-        {
-            PlotDataBackground = defaultHostedPlotDataBackground;
-        }
-
+        ApplyRowDepthDefaults(currentTheme.GraphRow.ByDepth(depth));
         RebuildChildRows();
     }
 
     internal void ApplyRootRowDefaults()
     {
         ApplyHierarchyDepth(0);
-
-        if (ReferenceEquals(RowBackground, defaultHostedRowBackground))
-        {
-            ClearValue(RowBackgroundProperty);
-        }
-
-        if (ReferenceEquals(HeaderBackground, defaultHostedHeaderBackground))
-        {
-            ClearValue(HeaderBackgroundProperty);
-        }
-
-        if (PlotFigureBackground == defaultHostedPlotFigureBackground)
-        {
-            ClearValue(PlotFigureBackgroundProperty);
-        }
-
-        if (PlotDataBackground == defaultHostedPlotDataBackground)
-        {
-            ClearValue(PlotDataBackgroundProperty);
-        }
-
+        ApplyRowDepthDefaults(currentTheme.GraphRow.Root);
         UpdateVisualState();
         RebuildChildRows();
+    }
+
+    private void ApplyRowDepthDefaults(SufniGraphRowDepthTheme rowTheme)
+    {
+        ApplyDefaultRowBackground(rowTheme.Container.ToBrush());
+        ApplyDefaultHeaderBackground(rowTheme.Header.ToBrush());
+        ApplyDefaultPlotFigureBackground(rowTheme.PlotFigure);
+        ApplyDefaultPlotDataBackground(rowTheme.PlotData);
+    }
+
+    private void ApplyDefaultRowBackground(IBrush brush)
+    {
+        if (!IsSet(RowBackgroundProperty) || ReferenceEquals(RowBackground, appliedDefaultRowBackground))
+        {
+            RowBackground = brush;
+        }
+
+        appliedDefaultRowBackground = brush;
+    }
+
+    private void ApplyDefaultHeaderBackground(IBrush brush)
+    {
+        if (!IsSet(HeaderBackgroundProperty) || ReferenceEquals(HeaderBackground, appliedDefaultHeaderBackground))
+        {
+            HeaderBackground = brush;
+        }
+
+        appliedDefaultHeaderBackground = brush;
+    }
+
+    private void ApplyDefaultPlotFigureBackground(Color color)
+    {
+        if (!IsSet(PlotFigureBackgroundProperty) || PlotFigureBackground == appliedDefaultPlotFigureBackground)
+        {
+            PlotFigureBackground = color;
+        }
+
+        appliedDefaultPlotFigureBackground = color;
+    }
+
+    private void ApplyDefaultPlotDataBackground(Color color)
+    {
+        if (!IsSet(PlotDataBackgroundProperty) || PlotDataBackground == appliedDefaultPlotDataBackground)
+        {
+            PlotDataBackground = color;
+        }
+
+        appliedDefaultPlotDataBackground = color;
     }
 
     internal bool HasDescendant(TelemetryPlotRow candidate)
@@ -616,7 +650,7 @@ public sealed class TelemetryPlotRow : UserControl
             ? dropTargetHeaderBackground
             : isDragFeedbackVisible
                 ? dragHeaderBackground
-                : HeaderBackground ?? defaultHeaderBackground;
+                : HeaderBackground;
         expandedGrid.IsVisible = IsExpanded && ReservesLayout;
         plotHost.PresentationState = PresentationState;
         plotHost.Height = HasOwnPlotSlot ? AllocatedPlotHeight : 0;
@@ -628,7 +662,7 @@ public sealed class TelemetryPlotRow : UserControl
         childRowsHost.IsVisible = IsExpanded && ChildRows.Any(row => row.ReservesLayout);
         UpdateChildConnectorVisuals();
         IsVisible = ReservesLayout;
-        Opacity = isDragFeedbackVisible ? 0.72 : 1;
+        Opacity = isDragFeedbackVisible ? currentTheme.DragDrop.FeedbackOpacity : 1;
         rowBorder.Background = RowBackground;
         rowBorder.Margin = new Thickness(0);
     }
@@ -650,7 +684,7 @@ public sealed class TelemetryPlotRow : UserControl
             var childHeaderHeight = row.IsExpanded ? row.HeaderHeight : row.CollapsedHeaderHeight;
             var centerY = childTop + childHeaderHeight / 2;
             var parentConnectorLeft = GetHeaderConnectorLeft();
-            var childGlyphTarget = row.GetHeaderGlyphLeft() - ConnectorGlyphGap;
+            var childGlyphTarget = row.GetHeaderGlyphLeft() - spacing.ConnectorGlyphGap;
             AddVerticalConnector(parentConnectorLeft, childTop, centerY);
             AddHorizontalConnector(parentConnectorLeft, childGlyphTarget, centerY);
         }
@@ -681,7 +715,7 @@ public sealed class TelemetryPlotRow : UserControl
             return;
         }
 
-        AddConnectorSegment(centerX - ConnectorLineWidth / 2, top, ConnectorLineWidth, height);
+        AddConnectorSegment(centerX - spacing.ConnectorLineWidth / 2, top, spacing.ConnectorLineWidth, height);
     }
 
     private void AddHorizontalConnector(double startX, double endX, double centerY)
@@ -693,7 +727,7 @@ public sealed class TelemetryPlotRow : UserControl
             return;
         }
 
-        AddConnectorSegment(left, centerY - ConnectorLineWidth / 2, width, ConnectorLineWidth);
+        AddConnectorSegment(left, centerY - spacing.ConnectorLineWidth / 2, width, spacing.ConnectorLineWidth);
     }
 
     private void AddConnectorSegment(double left, double top, double width, double height)
@@ -733,13 +767,13 @@ public sealed class TelemetryPlotRow : UserControl
     }
 
     private static double GetDefaultTitleLeftInset(int depth)
-        => depth * HostedRowTitleLeftInsetStep;
+        => depth * spacing.HierarchyIndent;
 
     private double GetHeaderGlyphLeft()
-        => HeaderHorizontalPadding + TitleLeftInset;
+        => spacing.HeaderHorizontalPadding + TitleLeftInset;
 
     private double GetHeaderConnectorLeft()
-        => GetHeaderGlyphLeft() + ConnectorStemInsetFromGlyphLeft;
+        => GetHeaderGlyphLeft() + spacing.ConnectorStemInsetFromGlyphLeft;
 
     private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs args)
     {

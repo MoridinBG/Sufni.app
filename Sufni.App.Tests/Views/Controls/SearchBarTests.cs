@@ -11,6 +11,7 @@ public class SearchBarTests
     [AvaloniaFact]
     public async Task SearchBar_HidesCloseButton_WhenSearchTextIsNull_AndNotFocused()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var control = new SearchBar
         {
             DataContext = new ItemListViewModelBase(),
@@ -27,6 +28,7 @@ public class SearchBarTests
     [AvaloniaFact]
     public async Task SearchBar_BindsSearchText_AndClearsIt()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var viewModel = new ItemListViewModelBase
         {
             SearchText = "shock",

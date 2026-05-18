@@ -8,7 +8,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="720"
 d:DesignWidth="640"
 x:DataType="vm:LiveDaqConfigEditorViewModel"
-Background="{StaticResource SufniBackgroundDisabled}"
+Background="{DynamicResource SufniBackgroundDisabled}"
 mc:Ignorable="d">
 
     <Grid RowDefinitions="auto * auto">
@@ -26,7 +26,7 @@ mc:Ignorable="d">
                         <Border
                         Margin="0,0,0,10"
                         Padding="10"
-                        Background="{StaticResource SufniRegion}"
+                        Background="{DynamicResource SufniRegion}"
                         CornerRadius="6">
                             <Grid
                             ColumnDefinitions="150,*"
@@ -73,7 +73,7 @@ mc:Ignorable="d">
                                 Grid.Row="1"
                                 Grid.Column="1"
                                 Margin="0,4,0,0"
-                                Foreground="{StaticResource SufniDangerColor}"
+                                Foreground="{DynamicResource SufniDangerColor}"
                                 IsVisible="{Binding HasValidationMessage}"
                                 Text="{Binding ValidationMessage}"
                                 TextWrapping="Wrap" />
@@ -87,12 +87,12 @@ mc:Ignorable="d">
         <Border
         Grid.Row="2"
         Padding="16,12"
-        Background="{StaticResource SufniBackgroundDisabled}">
+        Background="{DynamicResource SufniBackgroundDisabled}">
             <Grid RowDefinitions="auto auto" RowSpacing="10">
                 <TextBlock
                 Name="SaveErrorTextBlock"
                 Grid.Row="0"
-                Foreground="{StaticResource SufniDangerColor}"
+                Foreground="{DynamicResource SufniDangerColor}"
                 IsVisible="{Binding HasSaveError}"
                 Text="{Binding SaveErrorMessage}"
                 TextWrapping="Wrap" />
