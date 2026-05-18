@@ -1,47 +1,16 @@
-﻿<UserControl
+<UserControl
 x:Class="Sufni.App.DesktopViews.ImportSessionsDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
-xmlns:v="clr-namespace:Sufni.App.Views.Controls"
+xmlns:views="clr-namespace:Sufni.App.Views"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ImportSessionsViewModel"
 Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
-
-    <UserControl.Resources>
-        <v:ImportActionConverter x:Key="ImportActionConverter" />
-        <v:ImportActionMatchConverter x:Key="ImportActionMatchConverter" />
-    </UserControl.Resources>
-
-    <UserControl.Styles>
-        <Style Selector="ComboBox.importchoice">
-            <Setter Property="Width" Value="100" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="ComboBox.importchoice.import">
-            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
-        </Style>
-        <Style Selector="ComboBox.importchoice.import:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
-        </Style>
-        <Style Selector="ComboBox.importchoice.import:pressed /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
-        </Style>
-        <Style Selector="ComboBox.importchoice.trash">
-            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
-        </Style>
-        <Style Selector="ComboBox.importchoice.trash:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
-        </Style>
-        <Style Selector="ComboBox.importchoice.trash:pressed /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
-        </Style>
-    </UserControl.Styles>
 
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="AttachedToVisualTree">
@@ -52,297 +21,36 @@ mc:Ignorable="d">
         </EventTriggerBehavior>
     </Interaction.Behaviors>
 
-    <Grid
-    Margin="20,20,20,10"
-    ColumnDefinitions="auto * auto"
-    RowDefinitions="44 * auto auto 39">
+    <views:ImportSessionsContentView>
+        <views:ImportSessionsContentView.BottomContent>
+            <Grid>
 
-        <!--  Datastore selector  -->
-        <ComboBox
-        Grid.Row="0"
-        Grid.Column="0"
-        Grid.ColumnSpan="2"
-        Margin="0,0,2,0"
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        ItemsSource="{Binding TelemetryDataStores}"
-        SelectedItem="{Binding SelectedDataStore}">
-            <ComboBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding Name}" />
-                </DataTemplate>
-            </ComboBox.ItemTemplate>
+                <!--  Import button  -->
+                <Button
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Command="{Binding ImportSessionsCommand}"
+                Content="process selected" />
 
-            <!--  Attach command to Expanded event  -->
-            <Interaction.Behaviors>
-                <EventTriggerBehavior EventName="GotFocus">
-                    <InvokeCommandAction Command="{Binding ClearNewDataStoresAvailableCommand}" />
-                </EventTriggerBehavior>
-            </Interaction.Behaviors>
-        </ComboBox>
+                <!--  Create Setup button  -->
+                <Button
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Command="{Binding AddSetupCommand}"
+                Content="create setup for this DAQ">
+                    <Button.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="SelectedDataStore" />
+                            <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="SelectedSetup" />
+                        </MultiBinding>
+                    </Button.IsVisible>
+                </Button>
 
-        <Button
-        Grid.Row="0"
-        Grid.Column="2"
-        Width="39"
-        Height="39"
-        HorizontalContentAlignment="Center"
-        BorderBrush="{DynamicResource SufniBorderBrush}"
-        Command="{Binding OpenDataStoreCommand}"
-        Content="..." />
-
-        <Image
-        Grid.Row="0"
-        Grid.Column="1"
-        Height="20"
-        Margin="0,2,40,0"
-        HorizontalAlignment="Right"
-        IsVisible="{Binding NewDataStoresAvailable}"
-        Source="{SvgImage /Assets/fa-circle-exclamation.svg}" />
-
-        <!--  List of SST files in selected datastore  -->
-        <ScrollViewer
-        Grid.Row="1"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Margin="0,5,0,5">
-            <ItemsRepeater ItemsSource="{Binding TelemetryFiles}">
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate>
-                        <Expander
-                        Margin="0,2,0,1"
-                        HorizontalAlignment="Stretch"
-                        Background="{DynamicResource SufniRegion}"
-                        IsExpanded="False">
-                            <Expander.Header>
-                                <Grid
-                                HorizontalAlignment="Stretch"
-                                ColumnDefinitions="auto * auto"
-                                RowDefinitions="* *">
-
-                                    <!--  Import/Trash/Ignore selector  -->
-                                    <ComboBox
-                                    Grid.Row="0"
-                                    Grid.RowSpan="2"
-                                    Grid.Column="0"
-                                    HorizontalAlignment="Left"
-                                    Classes="importchoice"
-                                    Classes.import="{Binding $self.SelectedIndex, Converter={StaticResource ImportActionMatchConverter}, ConverterParameter=Import}"
-                                    Classes.trash="{Binding $self.SelectedIndex, Converter={StaticResource ImportActionMatchConverter}, ConverterParameter=Trash}"
-                                    SelectedIndex="{Binding ShouldBeImported, Converter={StaticResource ImportActionConverter}, Mode=TwoWay}">
-                                        <ComboBox.IsEnabled>
-                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                                <Binding Path="CanImport" />
-                                                <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
-                                            </MultiBinding>
-                                        </ComboBox.IsEnabled>
-                                        <ComboBoxItem Content="Ignore" />
-                                        <ComboBoxItem Content="Import" />
-                                        <ComboBoxItem Content="Trash" />
-                                    </ComboBox>
-
-                                    <!--  Name  -->
-                                    <StackPanel
-                                    Grid.Row="0"
-                                    Grid.RowSpan="2"
-                                    Grid.Column="1"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal">
-                                        <TextBlock
-                                        Margin="2"
-                                        FontWeight="Black"
-                                        Text="{Binding FileName}" />
-                                        <TextBlock
-                                        x:Name="MalformedLabel"
-                                        Margin="4,2,2,2"
-                                        FontWeight="Black"
-                                        Foreground="Orange"
-                                        IsVisible="{Binding MalformedMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                        Text="(Malformed)"
-                                        ToolTip.Tip="{Binding MalformedMessage}" />
-                                    </StackPanel>
-
-                                    <!--  Date  -->
-                                    <TextBlock
-                                    Grid.Row="0"
-                                    Grid.Column="2"
-                                    Margin="2"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Center"
-                                    FontSize="12"
-                                    Text="{Binding StartTime, StringFormat={}{0: yyyy-MM-dd HH:mm}}"
-                                    TextAlignment="Right" />
-
-                                    <!--  Duration  -->
-                                    <TextBlock
-                                    Grid.Row="1"
-                                    Grid.Column="2"
-                                    Margin="2"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Center"
-                                    FontSize="12"
-                                    Text="{Binding Duration, StringFormat=duration: {0}}"
-                                    TextAlignment="Right" />
-                                </Grid>
-                            </Expander.Header>
-                            <Grid
-                            Height="150"
-                            HorizontalAlignment="Stretch"
-                            ColumnDefinitions="auto *"
-                            RowDefinitions="auto auto auto *">
-
-                                <Label
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                VerticalAlignment="Center">
-                                    Name:
-                                </Label>
-                                <TextBox
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Margin="2"
-                                Text="{Binding Name}">
-                                    <TextBox.IsEnabled>
-                                        <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
-                                    </TextBox.IsEnabled>
-                                </TextBox>
-                                <Label
-                                Grid.Row="2"
-                                Grid.Column="0"
-                                VerticalAlignment="Center">
-                                    Description:
-                                </Label>
-                                <TextBox
-                                Grid.Row="2"
-                                Grid.RowSpan="2"
-                                Grid.Column="1"
-                                Margin="2"
-                                VerticalAlignment="Stretch"
-                                AcceptsReturn="True"
-                                Text="{Binding Description}"
-                                TextWrapping="Wrap">
-                                    <TextBox.IsEnabled>
-                                        <Binding Path="!$parent[UserControl].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
-                                    </TextBox.IsEnabled>
-                                </TextBox>
-                            </Grid>
-                        </Expander>
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
-        </ScrollViewer>
-
-        <!--  Notifications  -->
-        <v:NotificationsBar
-        Grid.Row="2"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Margin="2,4"
-        ZIndex="10" />
-
-        <!--  Error messages  -->
-        <v:ErrorMessagesBar
-        Grid.Row="3"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Margin="2,4"
-        ZIndex="10" />
-
-        <!--  Import button  -->
-        <Button
-        Grid.Row="4"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        HorizontalContentAlignment="Center"
-        VerticalContentAlignment="Center"
-        Command="{Binding ImportSessionsCommand}"
-        Content="process selected" />
-
-        <!--  Create Setup button  -->
-        <Button
-        Grid.Row="4"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        HorizontalContentAlignment="Center"
-        VerticalContentAlignment="Center"
-        Command="{Binding AddSetupCommand}"
-        Content="create setup for this DAQ">
-            <Button.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="SelectedDataStore" />
-                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="SelectedSetup" />
-                </MultiBinding>
-            </Button.IsVisible>
-        </Button>
-
-        <!--  Progress ring  -->
-        <Panel
-        Grid.Row="0"
-        Grid.RowSpan="5"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Background="#0d0d0d"
-        IsHitTestVisible="False"
-        Opacity="0.7">
-            <Panel.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="ImportSessionsCommand.IsRunning" />
-                    <Binding Path="IsLoadingFiles" />
-                </MultiBinding>
-            </Panel.IsVisible>
-        </Panel>
-        <progRing:ProgressRing
-        Grid.Row="0"
-        Grid.RowSpan="5"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Width="40"
-        Height="40"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        IsHitTestVisible="False"
-        Foreground="{DynamicResource SufniAccentColor}">
-            <progRing:ProgressRing.IsActive>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="!TelemetryDataStores.Count" />
-                    <Binding Path="ImportSessionsCommand.IsRunning" />
-                    <Binding Path="IsLoadingFiles" />
-                </MultiBinding>
-            </progRing:ProgressRing.IsActive>
-        </progRing:ProgressRing>
-
-        <TextBlock
-        Grid.Row="0"
-        Grid.RowSpan="5"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Margin="0,60,0,0"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        FontWeight="Bold"
-        Foreground="{DynamicResource SufniAccentColor}"
-        IsHitTestVisible="False"
-        IsVisible="{Binding ImportSessionsCommand.IsRunning}"
-        Text="{Binding ImportProgressText}" />
-
-        <TextBlock
-        Grid.Row="0"
-        Grid.RowSpan="5"
-        Grid.Column="0"
-        Grid.ColumnSpan="3"
-        Margin="0,60,0,0"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        FontWeight="Bold"
-        Foreground="{DynamicResource SufniAccentColor}"
-        IsHitTestVisible="False"
-        IsVisible="{Binding IsLoadingFiles}"
-        Text="Fetching sessions list" />
-
-    </Grid>
+            </Grid>
+        </views:ImportSessionsContentView.BottomContent>
+    </views:ImportSessionsContentView>
 </UserControl>

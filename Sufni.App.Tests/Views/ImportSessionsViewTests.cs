@@ -18,6 +18,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.Views;
+using Sufni.App.Views.Controls;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
 
 namespace Sufni.App.Tests.Views;
@@ -127,6 +128,13 @@ public class ImportSessionsViewTests
         Assert.False(importChoice.IsEnabled);
         Assert.NotEmpty(textBoxes);
         Assert.All(textBoxes, textBox => Assert.False(textBox.IsEnabled));
+
+        var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
+        Assert.True(busyOverlay.IsActive);
+        Assert.True(busyOverlay.ShowTint);
+        Assert.True(busyOverlay.ShowMessage);
+        Assert.False(busyOverlay.ShowSecondaryMessage);
+        Assert.Equal(viewModel.ImportProgressText, busyOverlay.Message);
 
         importCompletion.SetResult(new SessionImportResult(
             Array.Empty<SessionSnapshot>(),
