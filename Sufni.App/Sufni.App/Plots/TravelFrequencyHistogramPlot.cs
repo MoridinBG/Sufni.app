@@ -3,11 +3,12 @@ using System.Globalization;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type) : TelemetryPlot(plot)
+public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {

@@ -66,7 +66,7 @@ public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
 
     protected override void CreatePlot()
     {
-        SetPlotModel(new TrackSignalPlot(PlotControl.Plot));
+        SetPlotModel(new TrackSignalPlot(PlotControl.Plot, CurrentTheme));
         InitializeCursorReadoutInteractions();
     }
 

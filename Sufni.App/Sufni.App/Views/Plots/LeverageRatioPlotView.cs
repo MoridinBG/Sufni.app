@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Sufni.App.Plots;
+using Sufni.App.Theming;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Views.Plots;
@@ -49,8 +50,27 @@ public class LeverageRatioPlotView : SufniPlotView
 
     protected override void CreatePlot()
     {
-        plot = new LeverageRatioPlot(PlotControl.Plot);
+        plot = new LeverageRatioPlot(PlotControl.Plot, CurrentTheme);
 
+        if (LeverageRatioData is CoordinateList leverageRatioData)
+        {
+            plot.LoadLeverageRatioData(leverageRatioData);
+        }
+        else
+        {
+            plot.Reset();
+        }
+    }
+
+    protected override void OnThemeChanged(SufniTheme theme)
+    {
+        if (plot is null)
+        {
+            return;
+        }
+
+        plot.ApplyTheme(theme);
+        plot.Clear();
         if (LeverageRatioData is CoordinateList leverageRatioData)
         {
             plot.LoadLeverageRatioData(leverageRatioData);

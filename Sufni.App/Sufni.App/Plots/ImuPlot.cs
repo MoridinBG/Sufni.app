@@ -2,15 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class ImuPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
+public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
     private const string Title = "IMU Acceleration (g)";
 
-    public static readonly Color FrameColor = Color.FromHex("#fc8d59"); // Orange
+    public static readonly Color FrameColor = SufniThemes.SignalSeries.ImuFrame.ToScottPlotColor();
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
