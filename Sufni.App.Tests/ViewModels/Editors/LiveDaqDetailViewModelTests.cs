@@ -96,7 +96,7 @@ public class LiveDaqDetailViewModelTests
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.Header.AcceptedSensorMask.ToStreamMask(),
+                        SelectedSensorMask = started.Header.AcceptedSensorMask.StreamMask,
                     };
                     streamStates.OnNext(currentStreamState);
                 }
@@ -386,7 +386,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result1).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).Header.AcceptedSensorMask.ToStreamMask(),
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).Header.AcceptedSensorMask.StreamMask,
                 };
                 states1.OnNext(state1);
                 return Task.FromResult<LivePreviewStartResult?>(result1);
@@ -398,7 +398,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result2).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).Header.AcceptedSensorMask.ToStreamMask(),
+                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).Header.AcceptedSensorMask.StreamMask,
                 };
                 states2.OnNext(state2);
                 return Task.FromResult<LivePreviewStartResult?>(result2);
