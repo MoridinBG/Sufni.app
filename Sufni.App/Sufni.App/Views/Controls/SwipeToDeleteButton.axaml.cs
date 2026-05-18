@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
@@ -7,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Labs.Controls;
 using Avalonia.Media.Transformation;
 using Avalonia.Svg.Skia;
+using Avalonia.VisualTree;
 using Sufni.App.Behaviors;
 using Sufni.App.ViewModels.Rows;
 
@@ -14,59 +16,130 @@ namespace Sufni.App.Views.Controls;
 
 public partial class SwipeToDeleteButton : UserControl
 {
-    private bool animationPlayed = false;
+    private readonly SwipeToDeleteGestureAdapter gestureAdapter;
 
     public SwipeToDeleteButton()
     {
         InitializeComponent();
-        SwipeButton.Children[2].PropertyChanged += async (s, e) =>
-        {
-            var deleteButton = ((ContentPresenter)SwipeButton.Children[1]).Content as Button;
+        gestureAdapter = new SwipeToDeleteGestureAdapter(
+            SwipeButton,
+            () => Resources["ImageSizeAnimation"] as Animation,
+            () => RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent)));
+        gestureAdapter.Attach();
+    }
+}
 
-            if (e.Property.Name == "RenderTransform" && e.NewValue is TransformOperations ops)
-            {
-                var offset = ops.Operations[0].Matrix.M31;
-                var progress = offset / 64.0; // 64 = deleteButton.Width
-                deleteButton!.Padding = new Thickness(Math.Min(24.0, 24.0 * progress), 0, 0, 0); // 24 = (deleteButton.Width - width(svg)) / 2.0
+internal sealed class SwipeToDeleteGestureAdapter(
+    Swipe swipe,
+    Func<Animation?> deleteIconAnimation,
+    Action requestDeleteThresholdFeedback)
+{
+    private const double DeleteButtonWidth = 64.0;
+    private const double DeleteIconCenteredPadding = 24.0;
+    private bool animationPlayed;
+    private Control? swipeContentSurface;
+    private Button? deleteButton;
+    private Image? deleteIcon;
 
-                if (deleteButton!.Command is null || !deleteButton!.Command!.CanExecute(false))
-                {
-                    return;
-                }
-
-                var trashcan = deleteButton!.Content as Image;
-                trashcan!.Opacity = animationPlayed ? 1.0 : Math.Min(0.5, progress / 2.0);
-
-                if (offset > deleteButton.Width && !animationPlayed)
-                {
-                    RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent));
-                    deleteButton.SetCurrentValue(Avalonia.Svg.Skia.Svg.CssProperty, ".default { fill: #bf312d; }");
-
-                    animationPlayed = true;
-                    var animation = Resources["ImageSizeAnimation"] as Animation;
-                    await animation!.RunAsync(trashcan);
-                }
-                if (offset < deleteButton.Width && animationPlayed)
-                {
-                    animationPlayed = false;
-                    trashcan!.Opacity = 0.5;
-                    deleteButton.SetCurrentValue(Avalonia.Svg.Skia.Svg.CssProperty, ".default { fill: #f0f0f0; }");
-                }
-            }
-        };
+    public void Attach()
+    {
+        swipe.PropertyChanged += OnSwipePropertyChanged;
+        swipe.AttachedToVisualTree += OnSwipeAttachedToVisualTree;
+        ResolveVisualParts();
     }
 
-    public void SwipePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    private void OnSwipeAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        if (e.Property.Name == "SwipeState" && sender is Swipe swipe && e.NewValue is SwipeState.LeftVisible)
+        ResolveVisualParts();
+    }
+
+    private void ResolveVisualParts()
+    {
+        deleteButton = swipe.GetVisualDescendants()
+            .OfType<Button>()
+            .FirstOrDefault(button => button.Name == "DeleteButton");
+        deleteIcon = swipe.GetVisualDescendants()
+            .OfType<Image>()
+            .FirstOrDefault(image => image.Name == "DeleteIcon");
+
+        var contentSurface = swipe.GetVisualDescendants()
+            .OfType<ContentPresenter>()
+            .FirstOrDefault(presenter => presenter.Content is Button { Name: "OpenButton" });
+        if (ReferenceEquals(swipeContentSurface, contentSurface))
         {
-            var vm = swipe.DataContext as ListItemRowViewModelBase;
-            if (vm is not null && vm.UndoableDeleteCommand.CanExecute(false))
+            return;
+        }
+
+        if (swipeContentSurface is not null)
+        {
+            swipeContentSurface.PropertyChanged -= OnSwipeContentPropertyChanged;
+        }
+
+        swipeContentSurface = contentSurface;
+        if (swipeContentSurface is not null)
+        {
+            swipeContentSurface.PropertyChanged += OnSwipeContentPropertyChanged;
+        }
+    }
+
+    private void OnSwipePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        ResolveVisualParts();
+
+        if (e.Property.Name == "SwipeState" && sender is Swipe currentSwipe && e.NewValue is SwipeState.LeftVisible)
+        {
+            if (currentSwipe.DataContext is ListItemRowViewModelBase vm &&
+                vm.UndoableDeleteCommand.CanExecute(false))
             {
                 vm.UndoableDeleteCommand.Execute(false);
             }
 
-            swipe.SwipeState = SwipeState.Hidden;
+            currentSwipe.SwipeState = SwipeState.Hidden;
+        }
+    }
+
+    private async void OnSwipeContentPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property.Name != "RenderTransform" ||
+            e.NewValue is not TransformOperations ops ||
+            ops.Operations.Count == 0)
+        {
+            return;
+        }
+
+        ResolveVisualParts();
+        if (deleteButton is null || deleteIcon is null)
+        {
+            return;
+        }
+
+        var offset = ops.Operations[0].Matrix.M31;
+        var progress = offset / DeleteButtonWidth;
+        deleteButton.Padding = new Thickness(Math.Min(DeleteIconCenteredPadding, DeleteIconCenteredPadding * progress), 0, 0, 0);
+
+        if (deleteButton.Command is null || !deleteButton.Command.CanExecute(false))
+        {
+            return;
+        }
+
+        deleteIcon.Opacity = animationPlayed ? 1.0 : Math.Min(0.5, progress / 2.0);
+
+        if (offset > DeleteButtonWidth && !animationPlayed)
+        {
+            requestDeleteThresholdFeedback();
+            deleteButton.SetCurrentValue(Avalonia.Svg.Skia.Svg.CssProperty, ".default { fill: #bf312d; }");
+
+            animationPlayed = true;
+            if (deleteIconAnimation() is { } animation)
+            {
+                await animation.RunAsync(deleteIcon);
+            }
+        }
+        else if (offset < DeleteButtonWidth && animationPlayed)
+        {
+            animationPlayed = false;
+            deleteIcon.Opacity = 0.5;
+            deleteButton.SetCurrentValue(Avalonia.Svg.Skia.Svg.CssProperty, ".default { fill: #f0f0f0; }");
         }
     }
 }

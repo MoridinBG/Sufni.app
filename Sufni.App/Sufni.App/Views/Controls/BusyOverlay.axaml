@@ -1,0 +1,101 @@
+<UserControl
+Name="Root"
+x:Class="Sufni.App.Views.Controls.BusyOverlay"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+d:DesignHeight="240"
+d:DesignWidth="320"
+x:DataType="controls:BusyOverlay"
+mc:Ignorable="d">
+
+    <Grid IsHitTestVisible="{Binding #Root.ConsumesInput}">
+        <Border
+        Name="TintOverlay"
+        Background="{Binding #Root.TintBackground}"
+        IsVisible="{Binding #Root.ShowTint}"
+        Opacity="{Binding #Root.TintOpacity}" />
+
+        <Grid IsVisible="{Binding #Root.IsActive}">
+            <Grid
+            Name="OverlayContent"
+            IsVisible="{Binding !#Root.UseStackLayout}">
+                <controls:ActivityIndicator
+                Name="BusyIndicator"
+                Width="{Binding #Root.IndicatorSize}"
+                Height="{Binding #Root.IndicatorSize}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Foreground="{Binding #Root.IndicatorForeground}"
+                IsActive="{Binding #Root.IsActive}" />
+
+                <TextBlock
+                Name="BusyMessageText"
+                Margin="{Binding #Root.MessageMargin}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontWeight="{Binding #Root.BusyMessageFontWeight}"
+                Foreground="{Binding #Root.MessageForeground}"
+                IsHitTestVisible="False"
+                IsVisible="{Binding #Root.ShowMessage}"
+                Text="{Binding #Root.Message}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+
+                <TextBlock
+                Name="SecondaryBusyMessageText"
+                Margin="{Binding #Root.MessageMargin}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontWeight="{Binding #Root.BusyMessageFontWeight}"
+                Foreground="{Binding #Root.MessageForeground}"
+                IsHitTestVisible="False"
+                IsVisible="{Binding #Root.ShowSecondaryMessage}"
+                Text="{Binding #Root.SecondaryMessage}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+            </Grid>
+
+            <StackPanel
+            Name="StackContent"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IsVisible="{Binding #Root.UseStackLayout}"
+            Spacing="{Binding #Root.Spacing}">
+                <controls:ActivityIndicator
+                Name="StackBusyIndicator"
+                Width="{Binding #Root.IndicatorSize}"
+                Height="{Binding #Root.IndicatorSize}"
+                HorizontalAlignment="Center"
+                Foreground="{Binding #Root.IndicatorForeground}"
+                IsActive="{Binding #Root.IsActive}" />
+
+                <TextBlock
+                Name="StackBusyMessageText"
+                Margin="{Binding #Root.MessageMargin}"
+                HorizontalAlignment="Center"
+                FontWeight="{Binding #Root.BusyMessageFontWeight}"
+                Foreground="{Binding #Root.MessageForeground}"
+                IsHitTestVisible="False"
+                IsVisible="{Binding #Root.ShowMessage}"
+                Text="{Binding #Root.Message}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+
+                <TextBlock
+                Name="StackSecondaryBusyMessageText"
+                Margin="{Binding #Root.MessageMargin}"
+                HorizontalAlignment="Center"
+                FontWeight="{Binding #Root.BusyMessageFontWeight}"
+                Foreground="{Binding #Root.MessageForeground}"
+                IsHitTestVisible="False"
+                IsVisible="{Binding #Root.ShowSecondaryMessage}"
+                Text="{Binding #Root.SecondaryMessage}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

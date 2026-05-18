@@ -1,0 +1,64 @@
+<UserControl
+x:Name="Root"
+x:Class="Sufni.App.Views.Controls.TravelStatisticsHost"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+d:DesignHeight="450"
+d:DesignWidth="800"
+mc:Ignorable="d">
+
+    <controls:PlaceholderOverlayContainer PresentationState="{Binding #Root.PresentationState}">
+        <controls:PlaceholderOverlayContainer.ReadyContent>
+            <Grid>
+                <Grid IsVisible="{Binding #Root.ShowFrequencyHistogram}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="3*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="2*" />
+                    </Grid.RowDefinitions>
+
+                    <plots:SessionStatisticsPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    PlotKind="TravelHistogram"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}"
+                    TravelHistogramMode="{Binding #Root.TravelHistogramMode}" />
+
+                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+                    <plots:SessionStatisticsPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    Grid.Row="2"
+                    PlotKind="TravelFrequencyHistogram"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </Grid>
+
+                <Grid IsVisible="{Binding !#Root.ShowFrequencyHistogram}">
+                    <plots:SessionStatisticsPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    Height="{Binding #Root.PlotHeight}"
+                    IsVisible="{Binding #Root.HasDynamicStatistics}"
+                    PlotKind="TravelHistogram"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}"
+                    TravelHistogramMode="{Binding #Root.TravelHistogramMode}" />
+
+                    <Svg
+                    IsVisible="{Binding !#Root.HasDynamicStatistics}"
+                    Source="{Binding #Root.StaticSource}" />
+                </Grid>
+            </Grid>
+        </controls:PlaceholderOverlayContainer.ReadyContent>
+        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+            <controls:SurfacePlaceholderCard
+            Margin="{Binding #Root.PlaceholderMargin}"
+            MinCardHeight="{Binding #Root.MinCardHeight}"
+            Title="{Binding #Root.Title}" />
+        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+    </controls:PlaceholderOverlayContainer>
+</UserControl>

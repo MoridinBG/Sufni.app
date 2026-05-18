@@ -1,0 +1,70 @@
+<UserControl
+x:Name="Root"
+x:Class="Sufni.App.Views.Controls.StrokeStatisticsHost"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+d:DesignHeight="450"
+d:DesignWidth="800"
+mc:Ignorable="d">
+
+    <controls:PlaceholderOverlayContainer PresentationState="{Binding #Root.PresentationState}">
+        <controls:PlaceholderOverlayContainer.ReadyContent>
+            <Grid RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="{Binding #Root.CompressionLengthRowHeight}" />
+                    <RowDefinition Height="{Binding #Root.CompressionSpeedRowHeight}" />
+                    <RowDefinition Height="{Binding #Root.ReboundLengthRowHeight}" />
+                    <RowDefinition Height="{Binding #Root.ReboundSpeedRowHeight}" />
+                    <RowDefinition Height="{Binding #Root.DeepTravelRowHeight}" />
+                </Grid.RowDefinitions>
+
+                <plots:SessionStatisticsPlotView
+                AnalysisRange="{Binding #Root.AnalysisRange}"
+                BalanceType="Compression"
+                PlotKind="StrokeLengthHistogram"
+                SuspensionType="{Binding #Root.SuspensionType}"
+                Telemetry="{Binding #Root.Telemetry}" />
+
+                <plots:SessionStatisticsPlotView
+                AnalysisRange="{Binding #Root.AnalysisRange}"
+                Grid.Row="1"
+                BalanceType="Compression"
+                PlotKind="StrokeSpeedHistogram"
+                SuspensionType="{Binding #Root.SuspensionType}"
+                Telemetry="{Binding #Root.Telemetry}" />
+
+                <plots:SessionStatisticsPlotView
+                AnalysisRange="{Binding #Root.AnalysisRange}"
+                Grid.Row="2"
+                BalanceType="Rebound"
+                PlotKind="StrokeLengthHistogram"
+                SuspensionType="{Binding #Root.SuspensionType}"
+                Telemetry="{Binding #Root.Telemetry}" />
+
+                <plots:SessionStatisticsPlotView
+                AnalysisRange="{Binding #Root.AnalysisRange}"
+                Grid.Row="3"
+                BalanceType="Rebound"
+                PlotKind="StrokeSpeedHistogram"
+                SuspensionType="{Binding #Root.SuspensionType}"
+                Telemetry="{Binding #Root.Telemetry}" />
+
+                <plots:SessionStatisticsPlotView
+                AnalysisRange="{Binding #Root.AnalysisRange}"
+                Grid.Row="4"
+                PlotKind="DeepTravelHistogram"
+                SuspensionType="{Binding #Root.SuspensionType}"
+                Telemetry="{Binding #Root.Telemetry}" />
+            </Grid>
+        </controls:PlaceholderOverlayContainer.ReadyContent>
+        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+            <controls:SurfacePlaceholderCard
+            MinCardHeight="{Binding #Root.MinCardHeight}"
+            Title="{Binding #Root.Title}" />
+        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+    </controls:PlaceholderOverlayContainer>
+</UserControl>

@@ -30,7 +30,8 @@ public sealed record RecordedTimeSeriesData(
     double DurationSeconds,
     IReadOnlyList<RecordedTimeSeries> Series,
     RecordedTimeSeriesValueRange? ValueRange = null,
-    TelemetryData? MarkerSource = null);
+    TelemetryData? MarkerSource = null,
+    bool ShowLegendWhenSingleSource = false);
 
 public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
@@ -94,7 +95,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             series.AddToPlot(Plot);
         }
 
-        if (preparedSeries.Length > 1)
+        if (preparedSeries.Length > 1 || data.ShowLegendWhenSingleSource)
         {
             ShowSourceLegend();
         }

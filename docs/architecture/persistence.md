@@ -135,6 +135,8 @@ erDiagram
 
 `SqLiteDatabaseService` (`Sufni.App/Sufni.App/Services/SQLiteDatabaseService.cs`) implements `IDatabaseService` using the sqlite-net API (`sqlite-net-e` package) with WAL mode. The database path uses `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`.
 
+Repeated session SQL inside `SQLiteDatabaseService` is kept behind private projection and bind-value helpers. There is no repository or public query-builder layer: `IDatabaseService` remains the persistence boundary, and the helper extraction does not change transaction boundaries or merge behavior.
+
 Generic operations on any `Synchronizable` subclass:
 
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`

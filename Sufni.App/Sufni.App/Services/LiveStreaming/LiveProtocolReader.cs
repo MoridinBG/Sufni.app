@@ -289,24 +289,9 @@ public sealed class LiveProtocolReader
         var records = new List<GpsRecord>((int)batch.SampleCount);
         for (var offset = 0; offset < recordsData.Length; offset += LiveProtocolConstants.GpsRecordSize)
         {
-            var date = BinaryPrimitives.ReadUInt32LittleEndian(recordsData[offset..(offset + 4)]);
-            var timeMs = BinaryPrimitives.ReadUInt32LittleEndian(recordsData[(offset + 4)..(offset + 8)]);
-            var latitude = BitConverter.ToDouble(recordsData.Slice(offset + 8, 8));
-            var longitude = BitConverter.ToDouble(recordsData.Slice(offset + 16, 8));
-            var altitude = ReadSingleLittleEndian(recordsData[(offset + 24)..(offset + 28)]);
-            var speed = ReadSingleLittleEndian(recordsData[(offset + 28)..(offset + 32)]);
-            var heading = ReadSingleLittleEndian(recordsData[(offset + 32)..(offset + 36)]);
-            var fixMode = recordsData[offset + 36];
-            var satellites = recordsData[offset + 37];
-            var epe2d = ReadSingleLittleEndian(recordsData[(offset + 38)..(offset + 42)]);
-            var epe3d = ReadSingleLittleEndian(recordsData[(offset + 42)..(offset + 46)]);
-
-            if (!TryCreateGpsTimestamp(date, timeMs, out var timestamp))
-            {
-                continue;
-            }
-
-            records.Add(new GpsRecord(timestamp, latitude, longitude, altitude, speed, heading, fixMode, satellites, epe2d, epe3d));
+            var record = GpsBinaryRecordDecoder.Decode(recordsData.Slice(offset, LiveProtocolConstants.GpsRecordSize));
+            if (record is not null)
+                records.Add(record);
         }
 
         return new LiveGpsBatchFrame(header, batch, records);
@@ -365,31 +350,4 @@ public sealed class LiveProtocolReader
         return BitConverter.Int32BitsToSingle(raw);
     }
 
-    // Firmware emits date=0 before the GPS module has a fix. Skip those records
-    // instead of throwing from the DateTime constructor and tearing the stream down.
-    private static bool TryCreateGpsTimestamp(uint date, uint timeMs, out DateTime timestamp)
-    {
-        timestamp = default;
-        if (date == 0)
-        {
-            return false;
-        }
-
-        var year = (int)(date / 10000);
-        var month = (int)(date / 100 % 100);
-        var day = (int)(date % 100);
-
-        if (year is < 1 or > 9999 || month is < 1 or > 12)
-        {
-            return false;
-        }
-
-        if (day < 1 || day > DateTime.DaysInMonth(year, month))
-        {
-            return false;
-        }
-
-        timestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timeMs);
-        return true;
-    }
 }

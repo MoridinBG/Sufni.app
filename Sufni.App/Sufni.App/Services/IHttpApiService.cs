@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 
 namespace Sufni.App.Services;
 
+// Client-side HTTP contract for pairing, entity sync, and session blob/source
+// transfer. Higher-level sync code should not depend on endpoint details.
 public interface IHttpApiService
 {
     public string? ServerUrl { get; set; }

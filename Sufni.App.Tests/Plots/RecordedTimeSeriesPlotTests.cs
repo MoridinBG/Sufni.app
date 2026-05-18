@@ -69,6 +69,7 @@ public class RecordedTimeSeriesPlotTests
             ]));
 
         Assert.True(plot.Legend.IsVisible);
+        Assert.Equal(18, plot.Legend.SymbolHeight);
         Assert.Equal(
             ["Front", "Rear"],
             plot.PlottableList.OfType<Signal>().Select(signal => signal.LegendText).ToArray());

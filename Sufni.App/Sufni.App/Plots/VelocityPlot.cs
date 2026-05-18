@@ -47,6 +47,7 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
             telemetryData.Metadata.Duration,
             series,
             new RecordedTimeSeriesValueRange(minimum, maximum),
-            telemetryData));
+            telemetryData,
+            ShowLegendWhenSingleSource: true));
     }
 }

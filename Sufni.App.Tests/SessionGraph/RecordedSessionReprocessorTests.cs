@@ -3,6 +3,7 @@ using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.SessionGraph;
 
@@ -52,6 +53,72 @@ public class RecordedSessionReprocessorTests
         Assert.Equal("compressed-source.SST", result.TelemetryData.Metadata.SourceName);
         Assert.Equal(3, result.TelemetryData.Metadata.Version);
         Assert.NotEmpty(result.TelemetryData.Front.Travel);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_LiveCaptureSource_RebuildsTelemetryAndGeneratedTrack()
+    {
+        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid()) with
+        {
+            HeadAngle = 63,
+            ForkStroke = 180
+        };
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+        var capture = new LiveTelemetryCapture(
+            Metadata: new Metadata
+            {
+                SourceName = "live",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_700_000_000,
+                Duration = 0.64
+            },
+            BikeData: new BikeData(63, 180, null, measurement => measurement / 10.0, null),
+            FrontMeasurements: Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray(),
+            RearMeasurements: [],
+            ImuData: null,
+            GpsData:
+            [
+                new GpsRecord(
+                    Timestamp: new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
+                    Latitude: 42.6977,
+                    Longitude: 23.3219,
+                    Altitude: 600,
+                    Speed: 10,
+                    Heading: 90,
+                    FixMode: 3,
+                    Satellites: 12,
+                    Epe2d: 0.5f,
+                    Epe3d: 0.8f)
+            ],
+            Markers: []);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture);
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            new SessionStaleness.MissingProcessedData(),
+            DerivedChangeKind.None);
+        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+
+        Assert.Equal("live", result.TelemetryData.Metadata.SourceName);
+        Assert.NotEmpty(result.TelemetryData.Front.Travel);
+        Assert.NotNull(result.GeneratedFullTrack);
+        Assert.Single(result.GeneratedFullTrack.Points);
+        Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
 
     private static byte[] CreateSstV3Bytes()
