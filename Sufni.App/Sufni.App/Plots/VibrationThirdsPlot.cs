@@ -1,10 +1,11 @@
 using System.Collections.Generic;
 using ScottPlot;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation location) : TelemetryPlot(plot)
+public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation location, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     private static readonly Color lowerColor = Color.FromHex(TravelZonePalette.HexColors[1]);
     private static readonly Color middleColor = Color.FromHex(TravelZonePalette.HexColors[4]);

@@ -49,19 +49,14 @@ public class LiveGraphPageViewTests
 
         await using var mounted = await MountAsync(page);
 
-        var hosts = mounted.View.GetVisualDescendants()
-            .OfType<PlaceholderOverlayContainer>()
-            .Where(host => host.Name != "MapHost")
-            .ToArray();
-        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
-        var travelView = mounted.View.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
-        var velocityView = mounted.View.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
-        var imuView = mounted.View.FindControl<LiveImuPlotDesktopView>("ImuPlot");
-        var pitchRollView = mounted.View.FindControl<LiveFramePitchRollPlotDesktopView>("PitchRollPlot");
-        var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
-        var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
-        Assert.NotNull(graphGrid);
+        var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(mounted.View, "TravelPlot");
+        var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(mounted.View, "VelocityPlot");
+        var imuView = GetNamedVisual<LiveImuPlotDesktopView>(mounted.View, "ImuPlot");
+        var pitchRollView = GetNamedVisual<LiveFramePitchRollPlotDesktopView>(mounted.View, "PitchRollPlot");
+        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "SpeedPlot");
+        var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "ElevationPlot");
         Assert.NotNull(pageScrollViewer);
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
@@ -69,19 +64,28 @@ public class LiveGraphPageViewTests
         Assert.NotNull(pitchRollView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
-        Assert.Equal(6, hosts.Length);
-        Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
-        Assert.Equal(SurfacePresentationState.Hidden, hosts[2].PresentationState);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[4].PresentationState.Kind);
-        Assert.Equal(SurfacePresentationState.Hidden, hosts[5].PresentationState);
-        AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 4);
-        Assert.Equal(0, graphGrid!.RowDefinitions[2].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[5].Height.Value);
+        Assert.Equal(
+            ["Travel (mm)", "Vibration RMS (g)", "GPS speed (km/h)"],
+            root.Rows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Velocity (m/s)"], GetBaseRow(root, "Travel (mm)").ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Frame pitch/roll (deg)"], GetBaseRow(root, "Vibration RMS (g)").ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Elevation (m)"], GetBaseRow(root, "GPS speed (km/h)").ChildRows.Select(row => row.Title!).ToArray());
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
+        var pitchRollRow = GetChildRow(imuRow, "Frame pitch/roll (deg)");
+        var speedRow = GetBaseRow(root, "GPS speed (km/h)");
+        var elevationRow = GetChildRow(speedRow, "Elevation (m)");
+        Assert.Equal(SurfacePresentationState.Ready, travelRow.PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, velocityRow.PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, imuRow.PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, pitchRollRow.PresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, speedRow.PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, elevationRow.PresentationState);
+        Assert.True(travelRow.IsVisible);
+        Assert.True(imuRow.IsVisible);
+        Assert.True(speedRow.IsVisible);
+        Assert.False(elevationRow.IsVisible);
         Assert.True(travelView!.HideRightAxis);
         Assert.True(velocityView!.HideRightAxis);
         Assert.True(imuView!.HideRightAxis);
@@ -160,13 +164,29 @@ public class LiveGraphPageViewTests
         return new MountedLiveGraphPageView(host, view);
     }
 
-    private static void AssertMobileGraphRowHeight(Grid graphGrid, ScrollViewer pageScrollViewer, int row)
+    private static TelemetryPlotsRoot GetGraphRoot(LiveGraphPageView view)
     {
-        var expected = Math.Max(180, pageScrollViewer.Bounds.Height / 3);
-
-        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[row].Height.GridUnitType);
-        Assert.Equal(expected, graphGrid.RowDefinitions[row].Height.Value, precision: 3);
+        var root = view.GetVisualDescendants()
+            .OfType<TelemetryPlotsRoot>()
+            .SingleOrDefault(root => root.Name == "GraphRoot");
+        Assert.NotNull(root);
+        return root!;
     }
+
+    private static T GetNamedVisual<T>(Control root, string name)
+        where T : Control
+    {
+        var rowsView = Assert.Single(root.GetVisualDescendants().OfType<LiveSessionGraphRowsView>());
+        var visual = rowsView.FindControl<T>(name);
+        Assert.NotNull(visual);
+        return visual!;
+    }
+
+    private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)
+        => Assert.Single(root.Rows, row => row.Title == title);
+
+    private static TelemetryPlotRow GetChildRow(TelemetryPlotRow row, string title)
+        => Assert.Single(row.ChildRows, child => child.Title == title);
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
     {

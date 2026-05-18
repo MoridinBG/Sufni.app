@@ -99,7 +99,6 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
             Substitute.For<IRecordedSessionSourceStoreWriter>(),
-            Substitute.For<IProcessingFingerprintService>(),
             Substitute.For<IRecordedSessionDomainQuery>(),
             Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<IRecordedSessionReprocessor>(),

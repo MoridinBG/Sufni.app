@@ -52,7 +52,11 @@ public class SessionStatisticsDesktopViewTests
         Assert.False(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
         Assert.False(analysis!.IsVisible);
-        Assert.Equal(2, springRate.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
+        Assert.Equal(
+            2,
+            springRate.GetVisualDescendants()
+                .OfType<TravelStatisticsHost>()
+                .Count(host => host.PresentationState.ReservesLayout && host.ShowFrequencyHistogram));
     }
 
     [AvaloniaFact]
@@ -89,9 +93,13 @@ public class SessionStatisticsDesktopViewTests
         Assert.True(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
         Assert.False(vibration!.IsVisible);
-        Assert.Equal(1, damping.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
-        Assert.Equal(1, damping.GetVisualDescendants().OfType<TravelPercentageLegend>().Count(legend => legend.IsVisible));
-        Assert.Equal(1, damping.GetVisualDescendants().OfType<VelocityBandView>().Count(view => view.IsVisible));
+        var readyDampingHosts = damping.GetVisualDescendants()
+            .OfType<VelocityStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        var frontDampingHost = Assert.Single(readyDampingHosts);
+        Assert.True(frontDampingHost.ShowTravelLegend);
+        Assert.Equal(workspace.DamperPercentages.FrontHscPercentage, frontDampingHost.HscPercentage);
     }
 
     [AvaloniaFact]
@@ -211,7 +219,11 @@ public class SessionStatisticsDesktopViewTests
         Assert.False(damping!.IsVisible);
         Assert.True(balance!.IsVisible);
         Assert.False(vibration!.IsVisible);
-        Assert.Equal(1, balance.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
+        Assert.Equal(
+            1,
+            balance.GetVisualDescendants()
+                .OfType<BalanceStatisticsHost>()
+                .Count(host => host.PresentationState.ReservesLayout));
         Assert.All(
             balance.GetVisualDescendants().OfType<SessionStatisticsPlotView>(),
             plot => Assert.True(plot.IsHitTestVisible));

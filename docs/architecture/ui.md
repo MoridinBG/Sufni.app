@@ -120,7 +120,9 @@ coordinators and the composition root. The implementation lives in
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`        | `PairedDeviceSnapshot`          | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`             | `LiveDaqSnapshot`               | `string` |
 
-Each store wraps a `SourceCache<TSnapshot, TKey>` and exposes:
+Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>` for the repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`, `Get(key)`, writer `Upsert`/`Remove`, and load-and-replace refresh flow; concrete stores keep their public read/write interfaces and any domain-specific lookups. `LiveDaqStore` remains separate because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather than database refresh.
+
+Each persisted store exposes:
 
 - `Connect()` — DynamicData change stream consumed by list view models.
 - `Get(key)` — synchronous lookup that returns the current snapshot or
@@ -483,8 +485,10 @@ There are five kinds of view model in the presentation layer:
   The recorded editor subscribes to `IRecordedSessionGraph.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
-  recompute; unrecomputable stale snapshots report an error; processed
-  data arriving for a current session reloads the presentation data.
+  recompute; inactive desktop session tabs defer that prompt until the
+  tab is selected again. Unrecomputable stale snapshots report an
+  error; processed data arriving for a current session reloads the
+  presentation data.
 
 ### Session Sub-Pages
 
@@ -532,15 +536,46 @@ they write to the page from analysis result handlers.
 Two pages diverge from that pattern:
 
 - **Graph pages** wrap the editor's graph workspace and a shared
-  media workspace and forward bindings to plot rows. The recorded and
-  live graph pages each split into independent Travel, Velocity, IMU
-  vibration RMS, Frame Pitch/Roll, Speed, and Elevation rows whose
-  visibility is controlled by `TravelGraphState` /
-  `VelocityGraphState` / `ImuGraphState` /
-  `PitchRollGraphState` / `SpeedGraphState` /
-  `ElevationGraphState` on the workspace
+  media workspace and forward bindings into a reusable
+  `TelemetryPlotsRoot`. The root owns a vertical `ScrollViewer` and a
+  collapsible row hierarchy rather than a fixed graph grid:
+  Travel hosts Velocity, IMU vibration RMS hosts Frame Pitch/Roll, and
+  GPS speed hosts Elevation. Desktop graph roots live inside the graph/statistics
+  splitter region and grow visible base rows once all preferred row
+  content fits; mobile graph roots are measured by the page scroll and
+  report preferred content height. Rows are draggable from their
+  headers within that hierarchy: dropping on another row appends the
+  dragged row to that row's children, while dropping in the divider
+  band between root rows makes the dragged row a root row at that
+  position. Row visibility is still controlled
+  by `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
+  `PitchRollGraphState` / `SpeedGraphState` / `ElevationGraphState`
+  on the workspace
   (recorded: on the editor itself, projected onto the workspace; live:
-  directly on `LiveSessionGraphWorkspaceViewModel`).
+  directly on `LiveSessionGraphWorkspaceViewModel`). Hosted row titles
+  are progressively inset by hierarchy depth. Expanded parent rows draw
+  short connector branches in the child-row band, starting at each
+  direct child row's top edge and stopping before that child row's
+  header glyph; those branches disappear with the parent's expanded
+  content. The guides stay in the left title/glyph gutter, avoid the
+  glyph text itself, and do not enter plot chrome or shift plot
+  content, so graph data remains vertically aligned across parent and
+  hosted rows.
+  The row hierarchy and each row's expanded/collapsed state are stored
+  in `SessionPreferences.Graph` as stable row IDs. For recorded
+  sessions, `SessionDetailViewModel.GraphPreferences` loads and writes
+  that graph preference through `ISessionPreferences`; live captures
+  carry the current live graph preference into
+  `SessionCoordinator.SaveLiveCaptureAsync(...)` so the newly saved
+  session opens with the same row layout. The pure
+  `SessionGraphPreferenceTree` helper owns preference normalization,
+  capture, root moves, child moves, duplicate removal, unknown-row
+  skipping, missing-default appends, and cycle prevention; the Avalonia
+  `TelemetryPlotsRoot` still owns materialization, drag/drop hit
+  testing, brushes, and visual rebuilding. Hidden rows are not
+  duplicated in the graph hierarchy preference: plot visibility remains
+  the existing `SessionPlotPreferences` contract, so hidden rows keep
+  their saved hierarchy position and reappear there when re-enabled.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
@@ -619,7 +654,9 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   registered as singletons via factory delegates that resolve the
   same `IAppPreferences` instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
-  `IRecordedSessionReprocessor`) are also singleton services.
+  `IRecordedSessionReprocessor`) are also singleton services. The
+  recorded-source factory is static and stays in `SessionGraph/`
+  beside the reprocessor.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
   factory delegates that resolve the same instance. This includes
@@ -705,15 +742,37 @@ view.
 
 ## Controls Library
 
-`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
+`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `SearchBarCore`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, `ActivityIndicator`, `BusyOverlay`, graph row controls (`RecordedSessionGraphRowsView`, `LiveSessionGraphRowsView`), statistics hosts (`TravelStatisticsHost`, `StrokeStatisticsHost`, `VelocityStatisticsHost`, `BalanceStatisticsHost`, `VibrationStatisticsHost`), dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `ImportSessionsContentView` is the shared mobile/desktop import body; its wrappers keep shell-specific back/bottom-action behavior. `LinearSensorConfigurationView` is the shared view for the fork/shock linear sensor editors while the concrete view models still create their own sensor payload types. `ActivityIndicator` wraps the current progress-ring package so views do not reference that package directly, and `BusyOverlay` standardizes spinner/tint/message composition without owning busy state. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
+
+Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; it does not reach into the child swipe control's visual tree.
+
+## Theming
+
+Two `SufniTheme` instances live in `Sufni.App/Sufni.App/Theming/`: `SufniDarkTheme` and `SufniLightTheme`. Each is a record-shaped snapshot of every color and dimension grouped by role — surfaces, text, lines, actions, status, selection, tabs, nav rail, lists, search bars, map overlays, splitters, fields, drag/drop, recorded graph rows, plots, series, typography, and spacing. Color tokens use `Avalonia.Media.Color`; ScottPlot code converts them through `SufniColorExtensions.ToScottPlotColor()`. The model names the semantic role first; raw hex values belong in the theme files rather than in views or plot classes. Series/travel-zone colors are deliberately identical across the two themes — they encode signal meaning (front/rear/IMU sources) and must not depth-shift. The map overlay panel follows the active theme (dark `Surface.Input` in dark, light `Surface.Elevated` in light) so the chrome around the Mapsui map matches the rest of the UI; its 0.9 opacity keeps both palettes legible over the underlying tile imagery.
+
+`SufniThemeResourceBridge` splits its keys into two populators. `PopulateRoot(...)` writes variant-invariant tokens (spacing, typography, dimensions, opacities, font sizes, and the FluentTheme overlay constants) to the root dictionary. `PopulateVariant(..., theme)` writes every color, brush, and legacy FluentTheme override (`ButtonBackground`, `TextControlBackground*`, `ComboBox*`, `CalendarDatePicker*`, `ExpanderHeader*`, `FlyoutPresenter*`) into a per-variant child dictionary. `SufniThemeResourceDictionary` registers those child dictionaries under `ThemeDictionaries[ThemeVariant.Dark]` and `[ThemeVariant.Light]`, so Avalonia's variant resolution does the lookup. New XAML should prefer role resources such as `SufniFieldLabel`, `SufniTabIndicator`, `SufniMapOverlaySurface`, `SufniGraphRowRootHeader`, and `SufniPlotGridMajor`, and should use `DynamicResource` (not `StaticResource`) for any variant-sensitive key so the binding re-resolves when the variant flips.
+
+`SufniThemes` is the theme resolver. It maps `SufniThemeMode` / `ThemeVariant` to `SufniDarkTheme` or `SufniLightTheme`, exposes `ToVariant(...)` for applying a mode to Avalonia (`System` maps to `ThemeVariant.Default`), and owns variant-invariant telemetry colors through `SignalSeries` / `TravelZoneRamp`. Code that needs signal colors should use those invariant accessors instead of borrowing values from the dark theme.
+
+`IThemeService` (`Theming/IThemeService.cs`, implemented by `ThemeService`) owns the current `SufniThemeMode`, exposes `EffectiveMode` for the active light/dark palette, exposes a `Current` snapshot of that effective `SufniTheme`, raises `ThemeChanged`, and offers `ToggleAsync` / `SetAsync(mode)` / `InitializeAsync`. `System` mode is available only when Avalonia platform settings expose a concrete `PlatformThemeVariant.Light` or `.Dark`; otherwise the service normalizes `System` back to `Dark` and the UI presents only the existing dark/light cycle. `SetAsync` applies on the UI thread *first* (sets `Application.Current.RequestedThemeVariant`, raises `ThemeChanged`) and then persists via `IThemePreferences.SetModeAsync` so a failing apply does not corrupt the persisted choice. The service also subscribes to `IAppPreferences.SyncDataApplied` so an inbound sync from another device flips the live variant rather than silently rewriting the document. `ThemeBootstrap.ApplyPersistedVariant(...)` is invoked from `App.Initialize()` *before* `AvaloniaXamlLoader.Load(this)` and does a synchronous `JsonDocument` read of `theme.mode` from `app-preferences.json` to set `Application.RequestedThemeVariant` ahead of the first XAML resolution — that avoids the default-then-persisted flash at startup.
+
+Non-DI consumers do not use a mutable global current theme. Avalonia controls that own theme-derived state resolve `SufniThemes.FromVariant(ActualThemeVariant)` when attached and whenever `ThemeVariantScope.ActualThemeVariantProperty` changes. `SufniPlotView` exposes a `protected virtual void OnThemeChanged(SufniTheme)` hook that subclasses override to call `plot.ApplyTheme(theme)` and optionally `RequestReload()` so overlays baked at `LoadTelemetryData` time (airtime spans, marker lines, cursor tooltips) repaint with the new palette. The plot models accept an optional `SufniTheme` at construction; views pass their resolved current theme, while direct test/service construction falls back to `SufniThemes.Fallback`. `TelemetryPlotRow`, `TelemetryPlotsRoot`, and `TelemetryBaseRowDivider` use the same variant-resolution path for their drag-feedback, drop-target, connector, and divider brushes.
+
+Selection and disabled visuals are separate contracts. Selection resources (`SufniSelection*`) identify the active or chosen item through subtle surfaces and indicators. Disabled resources (`SufniActionDisabled*`, `SufniTextDisabled`, and disabled field borders) describe unavailable actions or input. Avoid reusing disabled colors to mean selected state, hover state, or low priority text.
+
+Recorded graph row depth styling is owned by the theme. `TelemetryPlotRow` reads `GraphRow.ByDepth(...)` and `Plot.ByDepth(...)` so root, hosted level 1, hosted level 2, and hosted level 3+ rows can have different container, header, figure, and data-area defaults while keeping plot series colors stable. Drag feedback, drop targets, hierarchy connector lines, root drop zones, and base-row dividers also come from theme drag/drop and spacing tokens.
+
+The desktop sidebar (`MainPagesDesktopView`) and the mobile menu drawer (`SidePanel`) both expose a theme-cycle button bound to `MainPagesViewModel.ToggleThemeCommand`. The displayed icon is chosen by `ObjectConverters.Equal` against `NextThemeMode`: sun for light, moon for dark, and a half-circle system icon when the next available option is `System`. `MainPagesViewModel` mirrors `CurrentThemeMode`, `EffectiveThemeMode`, `NextThemeMode`, and `IsSystemThemeAvailable` from `IThemeService.ThemeChanged`; when system mode is unavailable, `NextThemeMode` never becomes `System`, so only the existing light/dark icons appear. Cross-device sync persists the mode through `ThemePreferencesSyncData` carried inside `AppPreferencesSyncData` so the variant follows the user between paired devices.
+
+Map overlay theming stops at the app chrome around Mapsui. The status overlay in `MapView.axaml` uses `SufniMapOverlay*` resources for surface, opacity, padding, corner radius, and text. Map tiles, tracks, and geometry styling remain owned by the map/track rendering layer rather than by Avalonia control resources.
 
 ## Data Visualization
 
 ### Plot Hierarchy
 
-`SufniPlot` (`Sufni.App/Sufni.App/Plots/SufniPlot.cs`) is the base class providing dark theme styling (background `#15191C`, data area `#20262B`, grid `#505558`, labels `#D0D0D0`). It also patches a ScottPlot horizontal line rendering issue.
+`SufniPlot` (`Sufni.App/Sufni.App/Plots/SufniPlot.cs`) is the base class applying the ScottPlot side of the active `SufniTheme` snapshot: figure/data backgrounds, grid lines, axes, labels, reference lines, and in-plot label colors. Its constructor accepts a theme snapshot and exposes `public virtual void ApplyTheme(SufniTheme theme)` so the plot view can re-push theme state on a runtime variant flip. `SetBackgroundColors(...)` is still used by graph rows to adjust base vs hosted row backgrounds. It also patches a ScottPlot horizontal line rendering issue.
 
-`TelemetryPlot` (`Sufni.App/Sufni.App/Plots/TelemetryPlot.cs`) extends `SufniPlot` for time-series data with front (blue `#3288bd`) and rear (teal `#66c2a5`) color conventions. It defines `LockedVerticalSoftLockedHorizontalRule` — an axis rule that locks the Y range but allows X panning/zooming within the session duration.
+`TelemetryPlot` (`Sufni.App/Sufni.App/Plots/TelemetryPlot.cs`) extends `SufniPlot` for time-series data with theme-owned marker, cursor, legend, and right-axis color conventions, and overrides `ApplyTheme` to rebuild any existing cursor tooltip with the new palette. Series colors (front/rear/IMU/GPS) and the `TravelZonePalette` are intentionally theme-invariant — they encode signal meaning — so static series fields read from `SufniThemes.SignalSeries` / `TravelZoneRamp`. Graph row titles are owned by `TelemetryPlotRow` headers, so time-series ScottPlot titles are intentionally empty while axes, ticks, legends, overlays, and readouts remain inside ScottPlot. It defines `LockedVerticalSoftLockedHorizontalRule` — an axis rule that locks the Y range but allows X panning/zooming within the session duration.
 
 The table below is a quick orientation for the main plot families. The
 more complete and lower-level rendering reference is

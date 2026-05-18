@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
@@ -13,9 +14,10 @@ public enum TrackSignalKind
     Elevation
 }
 
-public class TrackSignalPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
+public class TrackSignalPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {
-    private static readonly Color gpsQualityReadoutColor = Color.FromHex("#d0d6da");
+    private static readonly SufniSeriesTheme seriesTheme = SufniThemes.SignalSeries;
+    private static readonly Color gpsQualityReadoutColor = seriesTheme.GpsQuality.ToScottPlotColor();
     private readonly List<TrackSignalSample> cursorSamples = [];
     private TrackSignalKind loadedKind;
 
@@ -40,7 +42,12 @@ public class TrackSignalPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
             .ToArray();
         cursorSamples.AddRange(samples);
 
-        var signalColor = Color.FromHex("#ffffbf");
+        var signalColor = kind switch
+        {
+            TrackSignalKind.Speed => seriesTheme.GpsSpeed.ToScottPlotColor(),
+            TrackSignalKind.Elevation => seriesTheme.GpsElevation.ToScottPlotColor(),
+            _ => seriesTheme.GpsSpeed.ToScottPlotColor()
+        };
         var (label, unit, format) = kind switch
         {
             TrackSignalKind.Speed => ("Speed", "km/h", "0.#"),

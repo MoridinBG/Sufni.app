@@ -77,7 +77,7 @@ public class SessionDetailDesktopViewTests
         Assert.Equal(2, travelPlot.Plot.PlottableList.OfType<Signal>().Count());
         Assert.Equal(2, velocityPlot.Plot.PlottableList.OfType<Signal>().Count());
         Assert.NotEmpty(imuPlot.Plot.PlottableList.OfType<Signal>());
-        Assert.Equal("Frame Pitch/Roll (deg)", pitchRollPlot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(pitchRollPlot.Plot.Axes.Title.Label.Text);
     }
 
     [AvaloniaFact]

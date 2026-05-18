@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -14,6 +15,12 @@ public sealed record BalanceDisplacementModeOption(BalanceDisplacementMode Value
 public sealed record BalanceSpeedModeOption(BalanceSpeedMode Value, string DisplayName, string Description);
 public sealed record VelocityAverageModeOption(VelocityAverageMode Value, string DisplayName, string Description);
 
+public interface ISessionShellMobileWorkspace
+{
+    ObservableCollection<PageViewModelBase> Pages { get; }
+    SessionScreenPresentationState ScreenState { get; }
+}
+
 public interface IRecordedSessionGraphWorkspace
 {
     TelemetryData? TelemetryData { get; }
@@ -26,8 +33,8 @@ public interface IRecordedSessionGraphWorkspace
     SurfacePresentationState PitchRollGraphState { get; }
     SurfacePresentationState SpeedGraphState { get; }
     SurfacePresentationState ElevationGraphState { get; }
-    SessionGraphLayout GraphLayout { get; }
     SessionPlotPreferences PlotPreferences { get; }
+    SessionGraphPreferences GraphPreferences { get; set; }
     SessionTimelineLinkViewModel Timeline { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
@@ -97,8 +104,8 @@ public interface ILiveSessionGraphWorkspace
     SurfacePresentationState PitchRollGraphState { get; }
     SurfacePresentationState SpeedGraphState { get; }
     SurfacePresentationState ElevationGraphState { get; }
-    SessionGraphLayout GraphLayout { get; }
     SessionPlotPreferences PlotPreferences { get; }
+    SessionGraphPreferences GraphPreferences { get; set; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 

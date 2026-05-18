@@ -12,7 +12,7 @@
     d:DesignHeight="450"
     d:DesignWidth="800"
     x:DataType="vm:MainWindowViewModel"
-    Background="{StaticResource SufniRegion}"
+    Background="{DynamicResource SufniSurfacePage}"
     Icon="/Assets/sufni-icon.png"
     mc:Ignorable="d">
 
@@ -28,7 +28,7 @@
     </Window.KeyBindings>
 
     <SplitView
-        CompactPaneLength="51"
+        CompactPaneLength="{StaticResource SufniNavRailPaneCompactWidth}"
         DisplayMode="CompactInline"
         IsPaneOpen="True"
         OpenPaneLength="450">
@@ -36,7 +36,7 @@
         <!--  Left pane with item lists  -->
         <SplitView.Pane>
             <ContentControl
-                BorderBrush="{StaticResource SufniBackgroundDisabled}"
+                BorderBrush="{DynamicResource SufniNavRailBorderRight}"
                 BorderThickness="0,0,1,0"
                 Content="{Binding MainPagesViewModel}" />
         </SplitView.Pane>
@@ -52,19 +52,18 @@
 
                 <TabStrip.Styles>
                     <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="{StaticResource SufniItemBackgroundPointerOver}" />
+                        <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
                     </Style>
                     <Style Selector="TabStripItem:selected /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+                        <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
                     </Style>
                     <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="{StaticResource SufniBackgroundDisabled}" />
+                        <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
                     </Style>
                     <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
-                        <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
-                        <Setter Property="Height" Value="2" />
-                        <!--  Adjust for padding in Border#PART_LayoutRoot  -->
-                        <Setter Property="Margin" Value="-12,0,-12,0" />
+                        <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+                        <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
+                        <Setter Property="Margin" Value="{StaticResource SufniTabIndicatorBleedMargin}" />
                     </Style>
                 </TabStrip.Styles>
 
@@ -72,13 +71,20 @@
                     <DataTemplate>
                         <Grid Margin="10,0,0,0" ColumnDefinitions="* auto">
                             <TextBlock
+                                x:Name="TabHeaderText"
                                 Grid.Column="0"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                FontSize="16"
+                                FontSize="{StaticResource SufniTabFontSizeWindow}"
                                 FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
-                                Foreground="{Binding IsDirty, Converter={StaticResource BoolToColorConverter}}"
-                                Text="{Binding Name}" />
+                                Text="{Binding Name}">
+                                <TextBlock.Foreground>
+                                    <MultiBinding Converter="{StaticResource BoolToColorConverter}">
+                                        <Binding Path="IsDirty" />
+                                        <Binding ElementName="TabHeaderText" Path="ActualThemeVariant" />
+                                    </MultiBinding>
+                                </TextBlock.Foreground>
+                            </TextBlock>
                             <Button
                                 Grid.Column="1"
                                 Margin="5,3,0,0"

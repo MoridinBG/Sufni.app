@@ -8,6 +8,7 @@ using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.SessionGraphs;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
 
@@ -25,8 +26,17 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     private long lastRevision;
     private int pendingSampleMargin = DefaultPendingSampleMargin;
     private PendingGraphBatchBuffer pendingGraphBatches = new();
+    private LiveStreamingPlotBase? plot;
 
-    public LiveStreamingPlotBase? Plot { get; protected set; }
+    public LiveStreamingPlotBase? Plot
+    {
+        get => plot;
+        protected set
+        {
+            plot = value;
+            ApplyPlotBackgroundColors(refresh: false);
+        }
+    }
 
     public static readonly StyledProperty<IObservable<LiveGraphBatch>?> GraphBatchesProperty =
         AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, IObservable<LiveGraphBatch>?>(nameof(GraphBatches));
@@ -125,6 +135,11 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                     Plot?.SetHideRightAxis(HideRightAxis);
                     RefreshPlot();
                     break;
+
+                case nameof(PlotFigureBackground):
+                case nameof(PlotDataBackground):
+                    ApplyPlotBackgroundColors(refresh: true);
+                    break;
             }
         };
 
@@ -211,6 +226,32 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         Plot.Reset();
         RefreshPlot();
         UpdateTimelineRange();
+    }
+
+    private void ApplyPlotBackgroundColors(bool refresh)
+    {
+        if (Plot is null)
+        {
+            return;
+        }
+
+        var plotTheme = CurrentTheme.Plot.Root;
+        var figure = IsSet(PlotFigureBackgroundProperty)
+            ? PlotFigureBackground.ToScottPlotColor()
+            : plotTheme.Figure.ToScottPlotColor();
+        var data = IsSet(PlotDataBackgroundProperty)
+            ? PlotDataBackground.ToScottPlotColor()
+            : plotTheme.Data.ToScottPlotColor();
+        Plot.SetBackgroundColors(figure, data);
+        if (refresh)
+        {
+            RefreshPlot();
+        }
+    }
+
+    protected override void OnThemeChanged(SufniTheme theme)
+    {
+        Plot?.ApplyTheme(theme);
     }
 
     private void HandleGraphBatch(LiveGraphBatch batch)

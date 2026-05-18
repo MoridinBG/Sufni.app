@@ -12,7 +12,7 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:SessionListViewModel"
-    Background="{StaticResource SufniRegion}"
+    Background="{DynamicResource SufniListRowSurface}"
     mc:Ignorable="d">
 
     <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">

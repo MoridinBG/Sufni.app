@@ -4,6 +4,7 @@ using System.Reactive.Threading.Tasks;
 using System.Text.Json;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Services;
@@ -64,6 +65,85 @@ public class AppPreferencesTests
             Assert.Equal(layer.Id.ToString("D"), maps.GetProperty("selectedLayerId").GetString());
             Assert.Single(maps.GetProperty("customLayers").EnumerateArray());
             Assert.Empty(Directory.EnumerateFiles(tempDirectory, "*.tmp"));
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_DefaultMode_IsDark_WhenFileIsMissing()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_PersistMode_RoundTripsThroughDiskAndJson()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
+
+            var reloaded = new AppPreferences(preferencesPath);
+            Assert.Equal(SufniThemeMode.Light, await reloaded.Theme.GetModeAsync());
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            Assert.Equal("Light", json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_PersistSystemMode_RoundTripsThroughDiskAndJson()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            await preferences.Theme.SetModeAsync(SufniThemeMode.System);
+
+            var reloaded = new AppPreferences(preferencesPath);
+            Assert.Equal(SufniThemeMode.System, await reloaded.Theme.GetModeAsync());
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            Assert.Equal("System", json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ThemePreferences_FallsBackToDark_WhenStoredModeIsUnknown()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            await File.WriteAllTextAsync(preferencesPath, "{\"version\":1,\"theme\":{\"mode\":\"Solarized\"}}");
+            var preferences = new AppPreferences(preferencesPath);
+
+            Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
         }
         finally
         {
@@ -262,6 +342,62 @@ public class AppPreferencesTests
                 .GetProperty(sessionId.ToString("D"))
                 .GetProperty("processing");
             Assert.Equal(250, processing.GetProperty("velocityFilterWindowMilliseconds").GetInt32());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task SessionPreferences_UpdateRecorded_PersistsGraphHierarchyAndExpansion()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        var graph = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Imu,
+                isExpanded: false,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                ]),
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Travel,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Speed, isExpanded: false),
+                ]),
+        ]);
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+            {
+                Graph = graph,
+            });
+
+            var reloaded = new AppPreferences(preferencesPath);
+            var stored = await reloaded.Session.GetRecordedAsync(sessionId);
+
+            Assert.Equal(graph, stored.Graph);
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            var rows = json.RootElement
+                .GetProperty("session")
+                .GetProperty("sessions")
+                .GetProperty(sessionId.ToString("D"))
+                .GetProperty("graph")
+                .GetProperty("rows");
+
+            Assert.Equal(TelemetryGraphRowIds.Imu, rows[0].GetProperty("rowId").GetString());
+            Assert.False(rows[0].GetProperty("isExpanded").GetBoolean());
+            Assert.Equal(TelemetryGraphRowIds.Velocity, rows[0].GetProperty("children")[0].GetProperty("rowId").GetString());
+            Assert.Equal(TelemetryGraphRowIds.Travel, rows[1].GetProperty("rowId").GetString());
+            Assert.False(rows[1].GetProperty("children")[0].GetProperty("isExpanded").GetBoolean());
         }
         finally
         {
@@ -653,6 +789,30 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task ApplySyncData_OverridesThemeMode_WhenIncomingUpdatedIsNewer()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
+
+            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+            {
+                Updated = 200,
+                Theme = new ThemePreferencesSyncData { Mode = "Light" },
+            });
+
+            Assert.Equal(SufniThemeMode.Light, await preferences.Theme.GetModeAsync());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task ObserveRecorded_DistinctUntilChanged_SquashesIdenticalRefresh()
     {
         var (tempDirectory, preferencesPath) = CreatePreferencesPath();
@@ -721,6 +881,10 @@ public class AppPreferencesTests
                             {
                                 TravelSmoothing = PlotSmoothingLevel.Strong,
                             },
+                            Graph = new SessionGraphPreferences(
+                            [
+                                new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
+                            ]),
                         },
                     },
                 },
@@ -733,6 +897,7 @@ public class AppPreferencesTests
         Assert.Equal(42, roundTripped!.AppPreferences!.Updated);
         Assert.Equal(selectedLayerId, roundTripped.AppPreferences.Maps.SelectedLayerId);
         Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].Plots.TravelSmoothing);
+        Assert.False(roundTripped.AppPreferences.Session.Sessions[sessionId].Graph.Rows[0].IsExpanded);
     }
 
     private static void AssertDefaultSessionPreferences(SessionPreferences preferences)
@@ -740,11 +905,13 @@ public class AppPreferencesTests
         Assert.True(preferences.Plots.Travel);
         Assert.True(preferences.Plots.Velocity);
         Assert.True(preferences.Plots.Imu);
+        Assert.True(preferences.Plots.PitchRoll);
         Assert.True(preferences.Plots.Speed);
         Assert.True(preferences.Plots.Elevation);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.TravelSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.VelocitySmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ImuSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.PitchRollSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.SpeedSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ElevationSmoothing);
         Assert.Equal(TravelHistogramMode.ActiveSuspension, preferences.Statistics.TravelHistogramMode);
@@ -754,6 +921,13 @@ public class AppPreferencesTests
         Assert.Equal(
             TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
             preferences.Processing.VelocityFilterWindowMilliseconds);
+        Assert.Equal(
+            [TelemetryGraphRowIds.Travel, TelemetryGraphRowIds.Imu, TelemetryGraphRowIds.Speed],
+            preferences.Graph.Rows.Select(row => row.RowId).ToArray());
+        Assert.Equal([TelemetryGraphRowIds.Velocity], preferences.Graph.Rows[0].Children.Select(row => row.RowId).ToArray());
+        Assert.Equal([TelemetryGraphRowIds.PitchRoll], preferences.Graph.Rows[1].Children.Select(row => row.RowId).ToArray());
+        Assert.Equal([TelemetryGraphRowIds.Elevation], preferences.Graph.Rows[2].Children.Select(row => row.RowId).ToArray());
+        Assert.All(preferences.Graph.Rows, row => Assert.True(row.IsExpanded));
     }
 
     private static (string TempDirectory, string PreferencesPath) CreatePreferencesPath()

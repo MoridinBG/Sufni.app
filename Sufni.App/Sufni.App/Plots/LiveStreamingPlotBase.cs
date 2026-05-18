@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Plots;
 
@@ -22,8 +23,9 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         int visibleWindowDurationMilliseconds,
         double minimumY,
         double maximumY,
-        bool hideRightAxis)
-        : base(plot)
+        bool hideRightAxis,
+        SufniTheme? theme = null)
+        : base(plot, theme)
     {
         this.title = title;
         this.visibleWindowDurationMilliseconds = visibleWindowDurationMilliseconds;
@@ -60,7 +62,7 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
 
-    protected DataStreamer CreateStreamer(Color color, string legendText)
+    protected LivePlotChannel CreateChannel(Color color, string legendText)
     {
         var streamer = Plot.Add.DataStreamer(Capacity);
         streamer.ViewScrollLeft();
@@ -68,7 +70,7 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         streamer.Color = color;
         streamer.LineWidth = 2;
         streamer.LegendText = legendText;
-        return streamer;
+        return new LivePlotChannel(streamer);
     }
 
     public void SetVerticalLimits(double minimumY, double maximumY)
@@ -162,7 +164,11 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
 
     public virtual void Reset()
     {
-        ClearStreamers();
+        foreach (var channel in Channels)
+        {
+            channel.Reset();
+        }
+
         hasTiming = false;
         latestTimeSeconds = 0;
         CursorLine.Position = double.NaN;
@@ -171,7 +177,7 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
 
-    protected abstract void ClearStreamers();
+    protected abstract IEnumerable<LivePlotChannel> Channels { get; }
 
     private double CoordinateToTime(double coordinate)
     {
@@ -205,4 +211,30 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
     private double VisibleWindowDurationSeconds => hasTiming
         ? Math.Min(latestTimeSeconds, visibleWindowDurationMilliseconds / 1000.0)
         : 0;
+
+    protected sealed class LivePlotChannel(DataStreamer streamer)
+    {
+        private readonly TelemetryDisplayStreamingSmoother smoother = new();
+        private double[] smoothingScratch = [];
+
+        public void Append(
+            IReadOnlyList<double> times,
+            IReadOnlyList<double> values,
+            PlotSmoothingLevel smoothingLevel)
+        {
+            if (values.Count == 0)
+            {
+                return;
+            }
+
+            smoother.Level = smoothingLevel;
+            streamer.AddRange(smoother.Apply(times, values, ref smoothingScratch));
+        }
+
+        public void Reset()
+        {
+            smoother.Reset();
+            streamer.Clear(double.NaN);
+        }
+    }
 }

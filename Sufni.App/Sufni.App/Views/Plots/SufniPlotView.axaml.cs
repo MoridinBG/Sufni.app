@@ -7,6 +7,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Threading;
 using ScottPlot;
+using Sufni.App.Theming;
+using AvaloniaColor = Avalonia.Media.Color;
 
 namespace Sufni.App.Views.Plots;
 
@@ -17,9 +19,33 @@ public abstract class SufniPlotView : TemplatedControl
     private AxisLimits? pinchStartLimits;
     private Coordinates? pinchOrigin;
     private bool viewportChangeQueued;
+    private IDisposable? themeVariantSubscription;
 
     protected SufniAvaPlot PlotControl => avaPlot!;
     protected bool HasPlotControl => avaPlot is not null;
+    protected SufniTheme CurrentTheme => SufniThemes.FromVariant(ActualThemeVariant);
+
+    public static readonly StyledProperty<AvaloniaColor> PlotFigureBackgroundProperty =
+        AvaloniaProperty.Register<SufniPlotView, AvaloniaColor>(
+            nameof(PlotFigureBackground),
+            SufniThemes.Fallback.Plot.Root.Figure);
+
+    public AvaloniaColor PlotFigureBackground
+    {
+        get => GetValue(PlotFigureBackgroundProperty);
+        set => SetValue(PlotFigureBackgroundProperty, value);
+    }
+
+    public static readonly StyledProperty<AvaloniaColor> PlotDataBackgroundProperty =
+        AvaloniaProperty.Register<SufniPlotView, AvaloniaColor>(
+            nameof(PlotDataBackground),
+            SufniThemes.Fallback.Plot.Root.Data);
+
+    public AvaloniaColor PlotDataBackground
+    {
+        get => GetValue(PlotDataBackgroundProperty);
+        set => SetValue(PlotDataBackgroundProperty, value);
+    }
 
     public void RefreshPlot() => avaPlot?.Refresh();
 
@@ -49,9 +75,33 @@ public abstract class SufniPlotView : TemplatedControl
         avaPlot.Plot.RenderManager.AxisLimitsChanged += (_, _) => NotifyViewportChanged();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        themeVariantSubscription = this.GetObservable(ThemeVariantScope.ActualThemeVariantProperty)
+            .Subscribe(_ =>
+            {
+                OnThemeChanged(CurrentTheme);
+                RefreshPlot();
+            });
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        themeVariantSubscription?.Dispose();
+        themeVariantSubscription = null;
+
+        base.OnDetachedFromVisualTree(e);
+    }
+
     protected abstract void CreatePlot();
 
     protected virtual void OnViewportChanged()
+    {
+    }
+
+    protected virtual void OnThemeChanged(SufniTheme theme)
     {
     }
 

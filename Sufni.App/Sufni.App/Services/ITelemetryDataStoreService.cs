@@ -8,6 +8,8 @@ using Avalonia.Platform.Storage;
 
 namespace Sufni.App.Services;
 
+// Aggregates every current telemetry source and owns the browse lifecycle that
+// keeps mass-storage, network, and user-selected stores visible to the UI.
 public interface ITelemetryDataStoreService
 {
     public ObservableCollection<ITelemetryDataStore> DataStores { get; }
@@ -15,14 +17,8 @@ public interface ITelemetryDataStoreService
     public void StartBrowse();
     public void StopBrowse();
 
-    /// <summary>
-    /// One-shot probe for a mass-storage DAQ at this instant. Iterates
-    /// the OS drives, finds the first one with a <c>BOARDID</c> file at
-    /// the root, and returns its derived board id. Returns <c>null</c>
-    /// if no DAQ drive is currently mounted. Pure read — does not touch
-    /// the <see cref="DataStores"/> collection or the browse state, and
-    /// does not create any side-effect directories on the drive.
-    /// </summary>
+    // One-shot mass-storage probe for setup flows. It reads mounted drives
+    // without mutating DataStores, browse state, or DAQ-side directories.
     public Task<Guid?> DetectConnectedBoardIdAsync(CancellationToken cancellationToken = default);
 
     public Task<IReadOnlyList<ITelemetryFile>> LoadFilesAsync(

@@ -12,7 +12,7 @@ d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
 x:DataType="vm:LiveSessionDetailViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 Focusable="True"
 mc:Ignorable="d">
 
@@ -50,11 +50,11 @@ mc:Ignorable="d">
         </editors:SessionShellDesktopView>
 
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" IsVisible="{Binding ScreenState.IsLoading}">
-            <progRing:ProgressRing Width="40" Height="40" Foreground="{StaticResource SufniAccentColor}" IsActive="True" />
+            <progRing:ProgressRing Width="40" Height="40" Foreground="{DynamicResource SufniAccentColor}" IsActive="True" />
             <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
         </StackPanel>
 
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{StaticResource SufniBackground}" BorderBrush="{StaticResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniBackground}" BorderBrush="{DynamicResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
             <StackPanel Spacing="12">
                 <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
                 <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />

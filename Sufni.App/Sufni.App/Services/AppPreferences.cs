@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Services;
@@ -36,6 +37,7 @@ public sealed class AppPreferences : IAppPreferences
 
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
+    public IThemePreferences Theme { get; }
     public IObservable<Unit> SyncDataApplied => syncDataAppliedSubject.AsObservable();
 
     public AppPreferences()
@@ -48,6 +50,7 @@ public sealed class AppPreferences : IAppPreferences
         this.filePath = filePath;
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
+        Theme = new ThemePreferences(this);
     }
 
     private async Task<TResult> ReadAsync<TResult>(Func<AppPreferencesDocument, TResult> read)
@@ -248,12 +251,26 @@ public sealed class AppPreferences : IAppPreferences
         private static string SessionKey(Guid sessionId) => sessionId.ToString("D");
     }
 
+    private sealed class ThemePreferences(AppPreferences owner) : IThemePreferences
+    {
+        public Task<SufniThemeMode> GetModeAsync()
+        {
+            return owner.ReadAsync(document => document.Theme.GetMode());
+        }
+
+        public Task SetModeAsync(SufniThemeMode mode)
+        {
+            return owner.UpdateAsync(document => document.Theme.Mode = mode.ToString());
+        }
+    }
+
     private sealed class AppPreferencesDocument
     {
         public int Version { get; set; } = CurrentVersion;
         public long Updated { get; set; }
         public MapPreferencesDocument Maps { get; set; } = new();
         public SessionPreferencesGroupDocument Session { get; set; } = new();
+        public ThemePreferencesDocument Theme { get; set; } = new();
 
         public AppPreferencesDocument Normalize()
         {
@@ -262,6 +279,7 @@ public sealed class AppPreferences : IAppPreferences
             Maps.CustomLayers ??= [];
             Session ??= new SessionPreferencesGroupDocument();
             Session.Sessions ??= [];
+            Theme ??= new ThemePreferencesDocument();
             return this;
         }
 
@@ -269,7 +287,8 @@ public sealed class AppPreferences : IAppPreferences
         {
             return !string.IsNullOrWhiteSpace(Maps.SelectedLayerId)
                 || Maps.CustomLayers?.Count > 0
-                || Session.Sessions.Count > 0;
+                || Session.Sessions.Count > 0
+                || !string.IsNullOrWhiteSpace(Theme.Mode);
         }
 
         public AppPreferencesSyncData ToSyncData()
@@ -294,6 +313,10 @@ public sealed class AppPreferences : IAppPreferences
                 {
                     Sessions = sessions,
                 },
+                Theme = new ThemePreferencesSyncData
+                {
+                    Mode = Theme.Mode,
+                },
             };
         }
 
@@ -301,6 +324,7 @@ public sealed class AppPreferences : IAppPreferences
         {
             var maps = preferences.Maps ?? new MapPreferencesSyncData();
             var session = preferences.Session ?? new SessionPreferencesSyncData();
+            var theme = preferences.Theme ?? new ThemePreferencesSyncData();
 
             Updated = preferences.Updated > 0
                 ? preferences.Updated
@@ -318,7 +342,23 @@ public sealed class AppPreferences : IAppPreferences
                         pair => (SessionPreferencesDocument?)SessionPreferencesDocument.FromModel(pair.Value))
                     ?? [],
             };
+            Theme = new ThemePreferencesDocument
+            {
+                Mode = theme.Mode,
+            };
             Normalize();
+        }
+    }
+
+    private sealed class ThemePreferencesDocument
+    {
+        public string? Mode { get; set; }
+
+        public SufniThemeMode GetMode()
+        {
+            return Enum.TryParse<SufniThemeMode>(Mode, ignoreCase: false, out var parsed)
+                ? parsed
+                : SufniThemeMode.Dark;
         }
     }
 
@@ -345,13 +385,15 @@ public sealed class AppPreferences : IAppPreferences
         public SessionPlotPreferencesDocument? Plots { get; set; }
         public SessionStatisticsPreferencesDocument? Statistics { get; set; }
         public SessionProcessingPreferencesDocument? Processing { get; set; }
+        public SessionGraphPreferencesDocument? Graph { get; set; }
 
         public SessionPreferences ToModel()
         {
             return new SessionPreferences(
                 Plots?.ToModel() ?? new SessionPlotPreferences(),
                 Statistics?.ToModel() ?? new SessionStatisticsPreferences(),
-                Processing?.ToModel() ?? new SessionProcessingPreferences());
+                Processing?.ToModel() ?? new SessionProcessingPreferences(),
+                Graph?.ToModel() ?? SessionGraphPreferences.Default);
         }
 
         public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
@@ -361,6 +403,7 @@ public sealed class AppPreferences : IAppPreferences
                 Plots = SessionPlotPreferencesDocument.FromModel(preferences.Plots),
                 Statistics = SessionStatisticsPreferencesDocument.FromModel(preferences.Statistics),
                 Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
+                Graph = SessionGraphPreferencesDocument.FromModel(preferences.Graph),
             };
         }
     }
@@ -370,11 +413,13 @@ public sealed class AppPreferences : IAppPreferences
         public bool? Travel { get; set; }
         public bool? Velocity { get; set; }
         public bool? Imu { get; set; }
+        public bool? PitchRoll { get; set; }
         public bool? Speed { get; set; }
         public bool? Elevation { get; set; }
         public string? TravelSmoothing { get; set; }
         public string? VelocitySmoothing { get; set; }
         public string? ImuSmoothing { get; set; }
+        public string? PitchRollSmoothing { get; set; }
         public string? SpeedSmoothing { get; set; }
         public string? ElevationSmoothing { get; set; }
 
@@ -384,9 +429,11 @@ public sealed class AppPreferences : IAppPreferences
                 Travel: Travel ?? true,
                 Velocity: Velocity ?? true,
                 Imu: Imu ?? true,
+                PitchRoll: PitchRoll ?? true,
                 TravelSmoothing: ParseEnum(TravelSmoothing, PlotSmoothingLevel.Off),
                 VelocitySmoothing: ParseEnum(VelocitySmoothing, PlotSmoothingLevel.Off),
                 ImuSmoothing: ParseEnum(ImuSmoothing, PlotSmoothingLevel.Off),
+                PitchRollSmoothing: ParseEnum(PitchRollSmoothing, PlotSmoothingLevel.Off),
                 Speed: Speed ?? true,
                 Elevation: Elevation ?? true,
                 SpeedSmoothing: ParseEnum(SpeedSmoothing, PlotSmoothingLevel.Off),
@@ -400,11 +447,13 @@ public sealed class AppPreferences : IAppPreferences
                 Travel = preferences.Travel,
                 Velocity = preferences.Velocity,
                 Imu = preferences.Imu,
+                PitchRoll = preferences.PitchRoll,
                 Speed = preferences.Speed,
                 Elevation = preferences.Elevation,
                 TravelSmoothing = preferences.TravelSmoothing.ToString(),
                 VelocitySmoothing = preferences.VelocitySmoothing.ToString(),
                 ImuSmoothing = preferences.ImuSmoothing.ToString(),
+                PitchRollSmoothing = preferences.PitchRollSmoothing.ToString(),
                 SpeedSmoothing = preferences.SpeedSmoothing.ToString(),
                 ElevationSmoothing = preferences.ElevationSmoothing.ToString(),
             };
@@ -474,6 +523,65 @@ public sealed class AppPreferences : IAppPreferences
             return new SessionProcessingPreferencesDocument
             {
                 VelocityFilterWindowMilliseconds = preferences.VelocityFilterWindowMilliseconds,
+            };
+        }
+    }
+
+    private sealed class SessionGraphPreferencesDocument
+    {
+        public List<SessionGraphRowPreferencesDocument?>? Rows { get; set; }
+
+        public SessionGraphPreferences ToModel()
+        {
+            var rows = Rows?
+                .Where(row => row is not null)
+                .Select(row => row!.ToModel())
+                .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
+                .ToArray();
+
+            return rows is { Length: > 0 }
+                ? new SessionGraphPreferences(rows)
+                : SessionGraphPreferences.Default;
+        }
+
+        public static SessionGraphPreferencesDocument FromModel(SessionGraphPreferences preferences)
+        {
+            return new SessionGraphPreferencesDocument
+            {
+                Rows = preferences.Rows
+                    .Select(row => (SessionGraphRowPreferencesDocument?)SessionGraphRowPreferencesDocument.FromModel(row))
+                    .ToList(),
+            };
+        }
+    }
+
+    private sealed class SessionGraphRowPreferencesDocument
+    {
+        public string? RowId { get; set; }
+        public bool? IsExpanded { get; set; }
+        public List<SessionGraphRowPreferencesDocument?>? Children { get; set; }
+
+        public SessionGraphRowPreferences ToModel()
+        {
+            return new SessionGraphRowPreferences(
+                RowId ?? "",
+                IsExpanded ?? true,
+                Children?
+                    .Where(child => child is not null)
+                    .Select(child => child!.ToModel())
+                    .Where(child => !string.IsNullOrWhiteSpace(child.RowId))
+                    .ToArray());
+        }
+
+        public static SessionGraphRowPreferencesDocument FromModel(SessionGraphRowPreferences preferences)
+        {
+            return new SessionGraphRowPreferencesDocument
+            {
+                RowId = preferences.RowId,
+                IsExpanded = preferences.IsExpanded,
+                Children = preferences.Children
+                    .Select(child => (SessionGraphRowPreferencesDocument?)FromModel(child))
+                    .ToList(),
             };
         }
     }

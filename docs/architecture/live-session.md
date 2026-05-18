@@ -37,10 +37,8 @@ graph LR
     Service -->|"Snapshots"| DetailVM["LiveSessionDetailViewModel"]
     GraphPipe -->|"GraphBatches"| DetailVM
     DetailVM --> Coord["SessionCoordinator<br/>SaveLiveCaptureAsync"]
-    Coord --> Telemetry["TelemetryData.FromLiveCapture"]
-    Coord --> Track["Track.FromGpsRecords"]
-    Coord --> Source["RecordedSessionSource<br/>live_capture"]
-    Coord --> Fingerprint["ProcessingFingerprintService"]
+    Coord --> Source["RecordedSessionSourceFactory<br/>live_capture"]
+    Coord --> Reprocessor["RecordedSessionReprocessor<br/>telemetry + track + fingerprint"]
     Coord --> DB["IDatabaseService<br/>PutProcessedSessionAsync"]
     Coord --> Prefs["ISessionPreferences<br/>UpdateRecordedAsync"]
     Coord --> Store["SessionStore<br/>Upsert"]
@@ -81,9 +79,8 @@ User presses Save
       -> snapshot all four buffers under lock
         -> background BuildCapture -> LiveTelemetryCapture
     -> SessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
-      -> TelemetryData.FromLiveCapture
-      -> optional Track.FromGpsRecords
-      -> RecordedSessionSource(live_capture) + processing fingerprint
+      -> RecordedSessionSourceFactory.CreateLiveCapture
+      -> RecordedSessionReprocessor.ReprocessAsync
       -> databaseService.PutProcessedSessionAsync(session, track, source)
       -> ISessionPreferences.UpdateRecordedAsync(sessionId, preferences)
       -> SessionStore.Upsert(snapshot) + RecordedSessionSourceStore.Upsert(source)
@@ -220,18 +217,16 @@ LiveSessionDetailViewModel.SaveImplementation
   -> session = new Session(name, description, setup, capture timestamp)
        with fork/shock spring + damping settings copied from NotesPage
   -> sessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
-       1. TelemetryData.FromLiveCapture (background runner)
-       2. if telemetry has GPS data:
-            track = await Track.FromGpsRecords(...)
-       3. source = RecordedSessionSource(live_capture JSON payload)
-       4. fingerprint = ProcessingFingerprintService.CreateCurrent(...)
-       5. session.ProcessedData = telemetryData.BinaryForm
-       6. session.ProcessingFingerprintJson = fingerprint JSON
-       7. fresh = databaseService.PutProcessedSessionAsync(session, track, source)
-       8. snapshot = SessionSnapshot.From(fresh)
-       9. sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences)
-      10. sessionStore.Upsert(snapshot)
-      11. recordedSessionSourceStore.Upsert(source snapshot)
+       1. source = RecordedSessionSourceFactory.CreateLiveCapture(...)
+       2. RecordedSessionReprocessor.ReprocessAsync(...)
+          -> telemetryData + optional generated track + fingerprint
+       3. session.ProcessedData = telemetryData.BinaryForm
+       4. session.ProcessingFingerprintJson = fingerprint JSON
+       5. fresh = databaseService.PutProcessedSessionAsync(session, track, source)
+       6. snapshot = SessionSnapshot.From(fresh)
+       7. sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences)
+       8. sessionStore.Upsert(snapshot)
+       9. recordedSessionSourceStore.Upsert(source snapshot)
        -> LiveSessionSaveResult.Saved(SessionId, Updated)
             | LiveSessionSaveResult.Failed(ErrorMessage)
   -> on Saved: liveSessionService.ResetCaptureAsync
@@ -239,7 +234,7 @@ LiveSessionDetailViewModel.SaveImplementation
   -> on Failed: append to ErrorMessages
 ```
 
-`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. The recorded source payload stores capture metadata, raw front/rear measurements, IMU data, GPS data, and markers; it does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
+`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear measurements, IMU data, GPS data, and markers; it does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
 
 `SessionPreferences` (built from `PreferencesPage` plus the per-mode statistics pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and statistics choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `sessionCoordinator.OpenEditAsync`.
 

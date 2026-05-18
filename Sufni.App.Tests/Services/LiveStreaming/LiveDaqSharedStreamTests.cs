@@ -580,7 +580,7 @@ public class LiveDaqSharedStreamTests
             {
                 RejectNextStartPreview = false;
                 return Task.FromResult<LivePreviewStartResult>(
-                    new LivePreviewStartResult.Rejected(RejectErrorCode, RejectErrorCode.ToUserMessage()));
+                    new LivePreviewStartResult.Rejected(RejectErrorCode, RejectErrorCode.UserMessage));
             }
 
             var acceptedSensorMask = AcceptedSensorMask ?? request.RequestedSensorMask;
@@ -591,7 +591,7 @@ public class LiveDaqSharedStreamTests
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
                     new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0),
-                    new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, acceptedSensorMask.ToStreamMask()))));
+                    new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, acceptedSensorMask.StreamMask))));
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveSessionHeaderFrame(
                     new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.SessionHeader, 0, 0),

@@ -18,7 +18,7 @@ public class FramePitchRollPlotTests
         sut.LoadTelemetryData(CreateTelemetryDataWithFramePitchRoll());
 
         Assert.NotNull(sut.CursorLine);
-        Assert.Equal("Frame Pitch/Roll (deg)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Title.Label.Text);
         Assert.Equal(
             ["Pitch", "Roll"],
             plot.PlottableList.OfType<Signal>().Select(signal => signal.LegendText).ToArray());
@@ -49,7 +49,7 @@ public class FramePitchRollPlotTests
             sampleRate: 10));
 
         Assert.Null(sut.CursorLine);
-        Assert.Equal("Frame Pitch/Roll (deg)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Title.Label.Text);
         Assert.Empty(plot.PlottableList.OfType<Signal>());
         Assert.Single(plot.PlottableList.OfType<Text>());
     }

@@ -32,6 +32,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// opened session.
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
+    ISessionShellMobileWorkspace,
     IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
 {
     public Guid Id { get; private set; }
@@ -73,11 +74,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool recomputePromptRunning;
     private bool processingPreferenceRecomputeRunning;
     private string? promptedRecomputeSignature;
+    private RecordedSessionDomainSnapshot? deferredDomainWhileInactive;
     private bool reportedNotRecomputableStale;
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
+    private bool hasBeenActivated;
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
+    private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -96,6 +100,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         get => plotPreferences;
         private set => SetProperty(ref plotPreferences, value);
+    }
+
+    public SessionGraphPreferences GraphPreferences
+    {
+        get => graphPreferences;
+        set
+        {
+            if (!SetProperty(ref graphPreferences, value))
+            {
+                return;
+            }
+
+            recordedPreferences = recordedPreferences with { Graph = value };
+            PersistRecordedPreferenceChangeIfEnabled(current => current with { Graph = value });
+        }
     }
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
@@ -119,7 +138,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState pitchRollGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SessionGraphLayout graphLayout = SessionGraphLayout.Empty;
     [ObservableProperty] private SurfacePresentationState frontStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
@@ -916,6 +934,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return;
         }
 
+        if (ShouldDeferDomainHandling())
+        {
+            deferredDomainWhileInactive = domain;
+            return;
+        }
+
+        deferredDomainWhileInactive = null;
+
         var initial = !observedInitialDomain;
         observedInitialDomain = true;
 
@@ -1271,13 +1297,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         PitchRollGraphState = recordedPitchRollGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.PitchRoll);
         SpeedGraphState = recordedSpeedGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Speed);
         ElevationGraphState = recordedElevationGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Elevation);
-        GraphLayout = SessionGraphLayout.Create(
-            TravelGraphState,
-            VelocityGraphState,
-            ImuGraphState,
-            PitchRollGraphState,
-            SpeedGraphState,
-            ElevationGraphState);
     }
 
     private async Task RestoreRecordedPreferencesAsync()
@@ -1302,6 +1321,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         recordedPreferences = preferences;
         PlotPreferences = preferences.Plots;
+        GraphPreferences = preferences.Graph;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);
@@ -1661,6 +1681,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         await RequestLoadAsync();
     }
 
+    protected override void OnActivated()
+    {
+        hasBeenActivated = true;
+
+        if (!viewLoaded || deferredDomainWhileInactive is null)
+        {
+            return;
+        }
+
+        var domain = deferredDomainWhileInactive;
+        deferredDomainWhileInactive = null;
+        _ = HandleDomainChangedAsync(domain);
+    }
+
+    private bool ShouldDeferDomainHandling() =>
+        App.Current?.IsDesktop == true &&
+        hasBeenActivated &&
+        !IsTabActive;
+
     private void OnSyncedPreferencesArrived(SessionPreferences prefs)
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -1696,6 +1735,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         loadOperation.Cancel();
         observedInitialDomain = false;
         promptedRecomputeSignature = null;
+        deferredDomainWhileInactive = null;
         DisposeScopedSubscriptions();
     }
 

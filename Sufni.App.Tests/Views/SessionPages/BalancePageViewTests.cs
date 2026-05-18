@@ -48,7 +48,9 @@ public class BalancePageViewTests
         await using var mounted = await MountAsync(viewModel);
 
         var hosts = mounted.View.GetVisualDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
-        var compressionSvg = mounted.View.FindControl<Avalonia.Svg.Skia.Svg>("CompressionBalanceSvg");
+        var compressionSvg = mounted.View.GetVisualDescendants()
+            .OfType<Avalonia.Svg.Skia.Svg>()
+            .SingleOrDefault(svg => svg.Source is not null);
 
         Assert.Equal(2, hosts.Length);
         Assert.True(hosts[0].IsVisible);

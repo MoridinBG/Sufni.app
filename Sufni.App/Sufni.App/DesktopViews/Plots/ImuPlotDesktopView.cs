@@ -6,7 +6,7 @@ public class ImuPlotDesktopView : SufniTelemetryPlotView
 {
     protected override void CreatePlot()
     {
-        SetPlotModel(new ImuPlot(PlotControl.Plot));
+        SetPlotModel(new ImuPlot(PlotControl.Plot, CurrentTheme));
         InitializeCursorReadoutInteractions();
     }
 }

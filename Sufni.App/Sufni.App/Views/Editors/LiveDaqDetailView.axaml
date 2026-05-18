@@ -10,7 +10,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="800"
 d:DesignWidth="420"
 x:DataType="vm:LiveDaqDetailViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
 
     <Interaction.Behaviors>
@@ -30,7 +30,7 @@ mc:Ignorable="d">
                 <Border
                 Name="SetupCard"
                 Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
+                Background="{DynamicResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="4">
                         <TextBlock
@@ -59,7 +59,7 @@ mc:Ignorable="d">
                 <Border
                 Name="ConnectionCard"
                 Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
+                Background="{DynamicResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="8">
                         <TextBlock
@@ -73,7 +73,7 @@ mc:Ignorable="d">
                         Text="{Binding Endpoint}" />
                         <TextBlock
                         Name="LastErrorTextBlock"
-                        Foreground="{StaticResource SufniDangerColor}"
+                        Foreground="{DynamicResource SufniDangerColor}"
                         IsVisible="{Binding Snapshot.HasLastError}"
                         Text="{Binding Snapshot.LastError}" />
                         <TextBlock
@@ -104,7 +104,7 @@ mc:Ignorable="d">
                 <Border
                 Name="RequestedRatesCard"
                 Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
+                Background="{DynamicResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="10">
                         <TextBlock
@@ -162,7 +162,7 @@ mc:Ignorable="d">
                 <Border
                 Name="AcceptedSessionCard"
                 Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
+                Background="{DynamicResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="6">
                         <TextBlock
@@ -186,7 +186,7 @@ mc:Ignorable="d">
                     <Border
                     Name="TravelCard"
                     Padding="14"
-                    Background="{StaticResource SufniBackgroundDisabled}"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
                     CornerRadius="8">
                         <StackPanel Spacing="8">
                             <TextBlock
@@ -200,13 +200,13 @@ mc:Ignorable="d">
                             Text="{Binding Snapshot.Travel.SampleDelayText}" />
                             <Border
                             Padding="10"
-                            Background="{StaticResource SufniRegion}"
+                            Background="{DynamicResource SufniRegion}"
                             CornerRadius="6">
                                 <TextBlock Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
                             </Border>
                             <Border
                             Padding="10"
-                            Background="{StaticResource SufniRegion}"
+                            Background="{DynamicResource SufniRegion}"
                             CornerRadius="6">
                                 <TextBlock Name="RearTravelTextBlock" Text="{Binding RearTravelText}" />
                             </Border>
@@ -217,7 +217,7 @@ mc:Ignorable="d">
                     <Border
                     Name="ImuCard"
                     Padding="14"
-                    Background="{StaticResource SufniBackgroundDisabled}"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
                     CornerRadius="8">
                         <StackPanel Spacing="8">
                             <TextBlock
@@ -239,7 +239,7 @@ mc:Ignorable="d">
                                         <Border
                                         Margin="0,0,0,8"
                                         Padding="10"
-                                        Background="{StaticResource SufniRegion}"
+                                        Background="{DynamicResource SufniRegion}"
                                         CornerRadius="6">
                                             <StackPanel Spacing="4">
                                                 <TextBlock
@@ -284,7 +284,7 @@ mc:Ignorable="d">
                     <Border
                     Name="GpsCard"
                     Padding="14"
-                    Background="{StaticResource SufniBackgroundDisabled}"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
                     CornerRadius="8">
                         <StackPanel Spacing="8">
                             <TextBlock
@@ -307,7 +307,7 @@ mc:Ignorable="d">
                 <Border
                 Name="DeviceManagementCard"
                 Padding="14"
-                Background="{StaticResource SufniBackgroundDisabled}"
+                Background="{DynamicResource SufniBackgroundDisabled}"
                 CornerRadius="8">
                     <StackPanel Spacing="10">
                         <TextBlock

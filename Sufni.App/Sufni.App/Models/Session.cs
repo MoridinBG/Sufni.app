@@ -61,6 +61,8 @@ public class Session : Synchronizable
 
     [JsonIgnore]
     [Column("data")]
+    // Local processed-cache blob. HasProcessedData stays in the row so sync can
+    // find missing blobs and transfer them through patch endpoints.
     public byte[]? ProcessedData
     {
         get => processedData;

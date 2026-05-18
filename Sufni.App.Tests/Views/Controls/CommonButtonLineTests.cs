@@ -18,6 +18,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_SaveButton_BindsConfiguredCommand()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var viewModel = new TestEditorViewModel(canSave: () => false);
         var view = new CommonButtonLine
         {
@@ -45,6 +46,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_SaveButton_CommandCanExecuteReflectsCurrentState()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var viewModel = new TestEditorViewModel(canSave: () => true);
         var view = new CommonButtonLine
         {
@@ -72,6 +74,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_SaveButton_InvokesSaveCommand()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var saveInvoked = false;
         var viewModel = new TestEditorViewModel(onSave: () => saveInvoked = true);
         var view = new CommonButtonLine
@@ -101,6 +104,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_BackButton_InvokesBackCommand()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var shell = Substitute.For<IShellCoordinator>();
         var viewModel = new TestEditorViewModel(shell: shell);
         var view = new CommonButtonLine
@@ -130,6 +134,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_ResetButton_TracksCanExecuteChanges()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var canReset = false;
         var viewModel = new TestEditorViewModel(canReset: () => canReset);
         var view = new CommonButtonLine
@@ -164,6 +169,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_DeleteButton_TracksCanExecuteChanges()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var canDelete = false;
         var viewModel = new TestEditorViewModel(canDelete: () => canDelete);
         var view = new CommonButtonLine
@@ -197,6 +203,7 @@ public class CommonButtonLineTests
     [AvaloniaFact]
     public async Task CommonButtonLine_DeleteFlyout_BindsDeleteConfirmationContent()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         bool? navigateBack = null;
         var viewModel = new TestEditorViewModel(onDelete: value => navigateBack = value);
         var view = new CommonButtonLine

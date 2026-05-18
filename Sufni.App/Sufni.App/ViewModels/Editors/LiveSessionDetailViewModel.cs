@@ -25,6 +25,7 @@ using Sufni.Telemetry;
 namespace Sufni.App.ViewModels.Editors;
 
 public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
+    ISessionShellMobileWorkspace,
     ISessionStatisticsWorkspace,
     ISessionSidebarWorkspace,
     ILiveSessionControlsWorkspace
@@ -524,7 +525,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 SelectedBalanceDisplacementMode,
                 SelectedBalanceSpeedMode,
                 SelectedSessionAnalysisTargetProfile),
-            PreferencesPage.CreateProcessingPreferences());
+            PreferencesPage.CreateProcessingPreferences(),
+            graphWorkspace.GraphPreferences);
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)

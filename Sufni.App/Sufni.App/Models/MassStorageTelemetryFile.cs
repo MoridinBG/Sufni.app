@@ -28,7 +28,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
         using var stream = File.Open(this.fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
         var inspection = RawTelemetryData.InspectStream(stream);
-        ApplyInspection(inspection, fileInfo.LastWriteTime);
+        ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, fileInfo.LastWriteTime));
         Name = fileInfo.Name;
         Description = $"Imported from {fileInfo.Name}";
     }
@@ -54,28 +54,14 @@ public class MassStorageTelemetryFile : ITelemetryFile
         return Task.CompletedTask;
     }
 
-    private void ApplyInspection(SstFileInspection inspection, DateTime fallbackStartTime)
+    private void ApplyInspection(TelemetryFileInspectionState state)
     {
-        switch (inspection)
-        {
-            case ValidSstFileInspection valid:
-                ShouldBeImported = false;
-                Version = valid.Version;
-                StartTime = valid.StartTime;
-                Duration = valid.Duration.ToString(@"hh\:mm\:ss");
-                MalformedMessage = valid.MalformedMessage;
-                CanImport = true;
-                HasUnknown = valid.HasUnknown;
-                break;
-            case MalformedSstFileInspection malformed:
-                ShouldBeImported = false;
-                Version = malformed.Version ?? 0;
-                StartTime = malformed.StartTime ?? fallbackStartTime;
-                Duration = malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown";
-                MalformedMessage = malformed.Message;
-                CanImport = false;
-                HasUnknown = false;
-                break;
-        }
+        ShouldBeImported = state.ShouldBeImported;
+        Version = state.Version;
+        StartTime = state.StartTime;
+        Duration = state.Duration;
+        MalformedMessage = state.MalformedMessage;
+        CanImport = state.CanImport;
+        HasUnknown = state.HasUnknown;
     }
 }

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
-using ScottPlot.Plottables;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Plots;
 
@@ -13,15 +13,11 @@ public sealed class LiveFramePitchRollPlot : LiveStreamingPlotBase
     private const int RenderCapacitySamples = 1024;
     private const int VisibleWindowDurationMilliseconds = 1024;
 
-    private readonly DataStreamer pitchStreamer;
-    private readonly DataStreamer rollStreamer;
-    private readonly TelemetryDisplayStreamingSmoother pitchSmoother = new();
-    private readonly TelemetryDisplayStreamingSmoother rollSmoother = new();
-    private double[] pitchSmoothingScratch = [];
-    private double[] rollSmoothingScratch = [];
+    private readonly LivePlotChannel pitchChannel;
+    private readonly LivePlotChannel rollChannel;
     private double runningMaxAbs;
 
-    public LiveFramePitchRollPlot(Plot plot, double pitchRollMaximum, bool hideRightAxis)
+    public LiveFramePitchRollPlot(Plot plot, double pitchRollMaximum, bool hideRightAxis, SufniTheme? theme = null)
         : base(
             plot,
             "Frame Pitch/Roll (deg)",
@@ -29,10 +25,11 @@ public sealed class LiveFramePitchRollPlot : LiveStreamingPlotBase
             VisibleWindowDurationMilliseconds,
             -Math.Max(Floor, pitchRollMaximum),
             Math.Max(Floor, pitchRollMaximum),
-            hideRightAxis)
+            hideRightAxis,
+            theme)
     {
-        pitchStreamer = CreateStreamer(TelemetryPlot.FrontColor, "Pitch");
-        rollStreamer = CreateStreamer(TelemetryPlot.RearColor, "Roll");
+        pitchChannel = CreateChannel(TelemetryPlot.FrontColor, "Pitch");
+        rollChannel = CreateChannel(TelemetryPlot.RearColor, "Roll");
         ShowSourceLegend();
         ApplyAutoLimits();
     }
@@ -47,11 +44,9 @@ public sealed class LiveFramePitchRollPlot : LiveStreamingPlotBase
         }
 
         UpdateTiming(batch.FramePitchRollTimes);
-        pitchSmoother.Level = SmoothingLevel;
-        rollSmoother.Level = SmoothingLevel;
 
-        pitchStreamer.AddRange(pitchSmoother.Apply(batch.FramePitchRollTimes, batch.FramePitchDegrees, ref pitchSmoothingScratch));
-        rollStreamer.AddRange(rollSmoother.Apply(batch.FramePitchRollTimes, batch.FrameRollDegrees, ref rollSmoothingScratch));
+        pitchChannel.Append(batch.FramePitchRollTimes, batch.FramePitchDegrees, SmoothingLevel);
+        rollChannel.Append(batch.FramePitchRollTimes, batch.FrameRollDegrees, SmoothingLevel);
         UpdateRunningMaxAbs(batch.FramePitchDegrees);
         UpdateRunningMaxAbs(batch.FrameRollDegrees);
         ApplyAutoLimits();
@@ -60,16 +55,17 @@ public sealed class LiveFramePitchRollPlot : LiveStreamingPlotBase
     public override void Reset()
     {
         runningMaxAbs = 0;
-        pitchSmoother.Reset();
-        rollSmoother.Reset();
         ApplyAutoLimits();
         base.Reset();
     }
 
-    protected override void ClearStreamers()
+    protected override IEnumerable<LivePlotChannel> Channels
     {
-        pitchStreamer.Clear(double.NaN);
-        rollStreamer.Clear(double.NaN);
+        get
+        {
+            yield return pitchChannel;
+            yield return rollChannel;
+        }
     }
 
     private void UpdateRunningMaxAbs(IReadOnlyList<double> values)

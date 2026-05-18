@@ -9,6 +9,7 @@ using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views;
@@ -35,6 +36,12 @@ public partial class App : Application
 
     public override void Initialize()
     {
+        // Read the persisted theme mode before XAML loads so the first frame
+        // renders the right variant. Without this, the user briefly sees the
+        // dark variant set in App.axaml before the theme service applies the
+        // persisted choice.
+        ThemeBootstrap.ApplyPersistedVariant(this);
+
         AvaloniaXamlLoader.Load(this);
 
 #if DEBUG
@@ -80,6 +87,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<IDatabaseService, SqLiteDatabaseService>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
+        ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
         ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
         ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
@@ -119,7 +127,6 @@ public partial class App : Application
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<IDialogService>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IProcessingFingerprintService>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionGraph>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
@@ -167,6 +174,7 @@ public partial class App : Application
             sp.GetRequiredService<TrackCoordinator>(),
             sp.GetRequiredService<SyncCoordinator>(),
             sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<IThemeService>(),
             sp.GetRequiredService<BikeListViewModel>(),
             sp.GetRequiredService<SessionListViewModel>(),
             sp.GetRequiredService<SetupListViewModel>(),
@@ -186,6 +194,13 @@ public partial class App : Application
         {
             DataTemplates.Add(Services.GetRequiredService<ViewLocator>());
         }
+
+        // Resolve the theme service early so its constructor reads the
+        // bootstrap-applied RequestedThemeVariant. InitializeAsync reconciles
+        // against the persisted JSON if it diverges (e.g. file written after
+        // ThemeBootstrap ran).
+        var themeService = Services.GetRequiredService<IThemeService>();
+        _ = themeService.InitializeAsync();
 
         // Coordinators with constructor-time event subscriptions are
         // eagerly resolved here so the subscriptions are wired before any
