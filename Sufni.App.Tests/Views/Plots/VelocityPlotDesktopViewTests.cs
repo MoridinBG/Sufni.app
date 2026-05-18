@@ -32,7 +32,7 @@ public class VelocityPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mountedVelocity.View);
-        Assert.Equal("Velocity (m/s)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
         Assert.True(plot.Plot.Axes.Right.IsVisible);
@@ -55,7 +55,7 @@ public class VelocityPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mountedVelocity.View);
-        Assert.Equal("Velocity (m/s)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
         Assert.Single(plot.Plot.PlottableList.OfType<Text>());
         Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);

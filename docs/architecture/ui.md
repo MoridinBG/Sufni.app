@@ -532,13 +532,40 @@ they write to the page from analysis result handlers.
 Two pages diverge from that pattern:
 
 - **Graph pages** wrap the editor's graph workspace and a shared
-  media workspace and forward bindings to plot rows. The recorded and
-  live graph pages each split into independent Travel, Velocity, IMU,
-  Speed, and Elevation rows whose visibility is controlled by
-  `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
+  media workspace and forward bindings into a reusable
+  `TelemetryPlotsRoot`. The root owns a vertical `ScrollViewer` and a
+  collapsible row hierarchy rather than a fixed five-slot graph grid:
+  Travel hosts Velocity, IMU is its own base row, and GPS speed hosts
+  Elevation. Desktop graph roots live inside the graph/statistics
+  splitter region and grow visible base rows once all preferred row
+  content fits; mobile graph roots are measured by the page scroll and
+  report preferred content height. Rows are draggable from their
+  headers within that hierarchy: dropping on another row appends the
+  dragged row to that row's children, while dropping in the divider
+  band between root rows makes the dragged row a root row at that
+  position. Row visibility is still controlled
+  by `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
   `SpeedGraphState` / `ElevationGraphState` on the workspace
   (recorded: on the editor itself, projected onto the workspace; live:
-  directly on `LiveSessionGraphWorkspaceViewModel`).
+  directly on `LiveSessionGraphWorkspaceViewModel`). Hosted row titles
+  are progressively inset by hierarchy depth. Expanded parent rows draw
+  short connector branches in the child-row band, starting at each
+  direct child row's top edge and stopping before that child row's
+  header glyph; those branches disappear with the parent's expanded
+  content. The guides stay in the left title/glyph gutter, avoid the
+  glyph text itself, and do not enter plot chrome or shift plot
+  content, so graph data remains vertically aligned across parent and
+  hosted rows.
+  The row hierarchy and each row's expanded/collapsed state are stored
+  in `SessionPreferences.Graph` as stable row IDs. For recorded
+  sessions, `SessionDetailViewModel.GraphPreferences` loads and writes
+  that graph preference through `ISessionPreferences`; live captures
+  carry the current live graph preference into
+  `SessionCoordinator.SaveLiveCaptureAsync(...)` so the newly saved
+  session opens with the same row layout. Hidden rows are not duplicated
+  in the graph hierarchy preference: plot visibility remains the
+  existing `SessionPlotPreferences` contract, so hidden rows keep their
+  saved hierarchy position and reappear there when re-enabled.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
@@ -709,9 +736,9 @@ view.
 
 ### Plot Hierarchy
 
-`SufniPlot` (`Sufni.App/Sufni.App/Plots/SufniPlot.cs`) is the base class providing dark theme styling (background `#15191C`, data area `#20262B`, grid `#505558`, labels `#D0D0D0`). It also patches a ScottPlot horizontal line rendering issue.
+`SufniPlot` (`Sufni.App/Sufni.App/Plots/SufniPlot.cs`) is the base class providing dark theme styling (background `#15191C`, data area `#20262B`, grid `#505558`, labels `#D0D0D0`) and a `SetBackgroundColors(...)` hook used by graph rows to adjust base vs hosted row backgrounds. It also patches a ScottPlot horizontal line rendering issue.
 
-`TelemetryPlot` (`Sufni.App/Sufni.App/Plots/TelemetryPlot.cs`) extends `SufniPlot` for time-series data with front (blue `#3288bd`) and rear (teal `#66c2a5`) color conventions. It defines `LockedVerticalSoftLockedHorizontalRule` — an axis rule that locks the Y range but allows X panning/zooming within the session duration.
+`TelemetryPlot` (`Sufni.App/Sufni.App/Plots/TelemetryPlot.cs`) extends `SufniPlot` for time-series data with front (blue `#3288bd`) and rear (teal `#66c2a5`) color conventions. Graph row titles are owned by `TelemetryPlotRow` headers, so time-series ScottPlot titles are intentionally empty while axes, ticks, legends, overlays, and readouts remain inside ScottPlot. It defines `LockedVerticalSoftLockedHorizontalRule` — an axis rule that locks the Y range but allows X panning/zooming within the session duration.
 
 The table below is a quick orientation for the main plot families. The
 more complete and lower-level rendering reference is

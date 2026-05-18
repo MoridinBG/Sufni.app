@@ -270,6 +270,62 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task SessionPreferences_UpdateRecorded_PersistsGraphHierarchyAndExpansion()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+        var sessionId = Guid.NewGuid();
+        var graph = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Imu,
+                isExpanded: false,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                ]),
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Travel,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Speed, isExpanded: false),
+                ]),
+        ]);
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+
+            await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+            {
+                Graph = graph,
+            });
+
+            var reloaded = new AppPreferences(preferencesPath);
+            var stored = await reloaded.Session.GetRecordedAsync(sessionId);
+
+            Assert.Equal(graph, stored.Graph);
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            var rows = json.RootElement
+                .GetProperty("session")
+                .GetProperty("sessions")
+                .GetProperty(sessionId.ToString("D"))
+                .GetProperty("graph")
+                .GetProperty("rows");
+
+            Assert.Equal(TelemetryGraphRowIds.Imu, rows[0].GetProperty("rowId").GetString());
+            Assert.False(rows[0].GetProperty("isExpanded").GetBoolean());
+            Assert.Equal(TelemetryGraphRowIds.Velocity, rows[0].GetProperty("children")[0].GetProperty("rowId").GetString());
+            Assert.Equal(TelemetryGraphRowIds.Travel, rows[1].GetProperty("rowId").GetString());
+            Assert.False(rows[1].GetProperty("children")[0].GetProperty("isExpanded").GetBoolean());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task SessionPreferences_UpdateRecorded_SerializesConcurrentUpdates()
     {
         var (tempDirectory, preferencesPath) = CreatePreferencesPath();
@@ -721,6 +777,10 @@ public class AppPreferencesTests
                             {
                                 TravelSmoothing = PlotSmoothingLevel.Strong,
                             },
+                            Graph = new SessionGraphPreferences(
+                            [
+                                new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
+                            ]),
                         },
                     },
                 },
@@ -733,6 +793,7 @@ public class AppPreferencesTests
         Assert.Equal(42, roundTripped!.AppPreferences!.Updated);
         Assert.Equal(selectedLayerId, roundTripped.AppPreferences.Maps.SelectedLayerId);
         Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].Plots.TravelSmoothing);
+        Assert.False(roundTripped.AppPreferences.Session.Sessions[sessionId].Graph.Rows[0].IsExpanded);
     }
 
     private static void AssertDefaultSessionPreferences(SessionPreferences preferences)
@@ -754,6 +815,12 @@ public class AppPreferencesTests
         Assert.Equal(
             TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
             preferences.Processing.VelocityFilterWindowMilliseconds);
+        Assert.Equal(
+            [TelemetryGraphRowIds.Travel, TelemetryGraphRowIds.Imu, TelemetryGraphRowIds.Speed],
+            preferences.Graph.Rows.Select(row => row.RowId).ToArray());
+        Assert.Equal([TelemetryGraphRowIds.Velocity], preferences.Graph.Rows[0].Children.Select(row => row.RowId).ToArray());
+        Assert.Equal([TelemetryGraphRowIds.Elevation], preferences.Graph.Rows[2].Children.Select(row => row.RowId).ToArray());
+        Assert.All(preferences.Graph.Rows, row => Assert.True(row.IsExpanded));
     }
 
     private static (string TempDirectory, string PreferencesPath) CreatePreferencesPath()

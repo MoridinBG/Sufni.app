@@ -503,7 +503,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 SelectedBalanceDisplacementMode,
                 SelectedBalanceSpeedMode,
                 SelectedSessionAnalysisTargetProfile),
-            PreferencesPage.CreateProcessingPreferences());
+            PreferencesPage.CreateProcessingPreferences(),
+            graphWorkspace.GraphPreferences);
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)

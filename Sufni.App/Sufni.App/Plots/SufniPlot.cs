@@ -22,6 +22,9 @@ public class FixedHorizontalLine : HorizontalLine
 
 public class SufniPlot
 {
+    public static readonly Color DefaultFigureBackgroundColor = Color.FromHex("#15191C");
+    public static readonly Color DefaultDataBackgroundColor = Color.FromHex("#20262B");
+
     protected Plot Plot { get; }
 
     protected enum LabelLinePosition
@@ -34,8 +37,7 @@ public class SufniPlot
     {
         Plot = plot;
 
-        Plot.FigureBackground.Color = Color.FromHex("#15191C");
-        Plot.DataBackground.Color = Color.FromHex("#20262B");
+        SetBackgroundColors(DefaultFigureBackgroundColor, DefaultDataBackgroundColor);
         Plot.Grid.MajorLineColor = Color.FromHex("#505558");
         Plot.Grid.MinorLineColor = Color.FromHex("#505558");
         Plot.Axes.Color(Color.FromHex("#505558"));
@@ -74,6 +76,12 @@ public class SufniPlot
     {
         Plot.Clear();
         Plot.Axes.Rules.Clear();
+    }
+
+    public void SetBackgroundColors(Color figureBackground, Color dataBackground)
+    {
+        Plot.FigureBackground.Color = figureBackground;
+        Plot.DataBackground.Color = dataBackground;
     }
 
     public string GetSvgXml(int width, int height) => Plot.GetSvgXml(width, height);

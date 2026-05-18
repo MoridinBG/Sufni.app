@@ -22,7 +22,7 @@ public class ImuPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal("IMU Acceleration (g)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Equal(2, plot.Plot.PlottableList.OfType<Signal>().Count());
         Assert.True(plot.Plot.Axes.Right.IsVisible);
@@ -41,7 +41,7 @@ public class ImuPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal("IMU Acceleration (g)", plot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
         Assert.Empty(plot.Plot.PlottableList.OfType<VerticalLine>());
         Assert.Single(plot.Plot.PlottableList.OfType<Text>());
