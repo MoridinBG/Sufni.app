@@ -48,7 +48,7 @@ mc:Ignorable="d">
         Margin="10,0,10,0"
         HorizontalAlignment="Stretch"
         Background="#1a1e21" />
-        <labs:Swipe Name="SwipeButton" PropertyChanged="SwipePropertyChanged">
+        <labs:Swipe Name="SwipeButton">
             <labs:Swipe.Content>
                 <Button
                 Name="OpenButton"
@@ -76,6 +76,7 @@ mc:Ignorable="d">
             <labs:Swipe.Left>
                 <DataTemplate>
                     <Button
+                    Name="DeleteButton"
                     Width="64"
                     Height="48"
                     Padding="0"
@@ -85,6 +86,7 @@ mc:Ignorable="d">
                     Command="{Binding $parent[labs:Swipe].((vm:ListItemRowViewModelBase)DataContext).UndoableDeleteCommand}"
                     Svg.Css=".default { fill: #f0f0f0; }">
                         <Image
+                        Name="DeleteIcon"
                         Width="16"
                         Height="16"
                         Source="{SvgImage /Assets/fa-trash-can.svg}" />
