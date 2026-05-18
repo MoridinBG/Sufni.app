@@ -45,12 +45,13 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     public void SetAnalysisRange(TelemetryTimeRange? range)
     {
         selectedSpan = SetSpan(selectedSpan, range?.StartSeconds, range?.EndSeconds,
-            FrontColor.WithAlpha(0.16));
+            PlotTheme.AnalysisRange.SelectedFill.ToScottPlotColor());
     }
 
     public void SetPreviewRange(double? startSeconds, double? endSeconds)
     {
-        previewSpan = SetSpan(previewSpan, startSeconds, endSeconds, Colors.LightGray.WithAlpha(0.12));
+        previewSpan = SetSpan(previewSpan, startSeconds, endSeconds,
+            PlotTheme.AnalysisRange.PreviewFill.ToScottPlotColor());
     }
 
     protected override void SetCursorLinePosition(double position)

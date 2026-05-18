@@ -33,6 +33,7 @@ mc:Ignorable="d">
             </StackPanel>
 
             <controls:VelocityStatisticsHost
+            Name="FrontVelocityStatisticsHost"
             AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
             HasDynamicStatistics="{Binding HasDynamicStatistics}"
             HscPercentage="{Binding FrontHscPercentage}"
@@ -41,7 +42,7 @@ mc:Ignorable="d">
             LsrPercentage="{Binding FrontLsrPercentage}"
             MinCardHeight="220"
             PlaceholderMargin="0,0,0,12"
-            PlotHeight="260"
+            PlotHeight="360"
             PresentationState="{Binding FrontPresentationState}"
             StaticSource="{Binding FrontVelocityHistogram}"
             SuspensionType="Front"
@@ -50,6 +51,7 @@ mc:Ignorable="d">
             VelocityAverageMode="{Binding StatisticsWorkspace.SelectedVelocityAverageMode}" />
 
             <controls:VelocityStatisticsHost
+            Name="RearVelocityStatisticsHost"
             AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
             HasDynamicStatistics="{Binding HasDynamicStatistics}"
             HscPercentage="{Binding RearHscPercentage}"
@@ -57,7 +59,7 @@ mc:Ignorable="d">
             LscPercentage="{Binding RearLscPercentage}"
             LsrPercentage="{Binding RearLsrPercentage}"
             MinCardHeight="220"
-            PlotHeight="260"
+            PlotHeight="360"
             PresentationState="{Binding RearPresentationState}"
             StaticSource="{Binding RearVelocityHistogram}"
             SuspensionType="Rear"

@@ -105,31 +105,31 @@ public static class SufniLightTheme
                 Container: surface.Page,
                 Header: surface.Elevated,
                 PlotFigure: surface.Page,
-                PlotData: surface.Input),
+                PlotData: C("#E8EDF2")),
             HostedLevel1: new SufniGraphRowDepthTheme(
                 Container: C("#D8DCE0"),
                 Header: C("#D4D8DC"),
                 PlotFigure: C("#DCE0E4"),
-                PlotData: C("#E4E8EC")),
+                PlotData: C("#DCE2E8")),
             HostedLevel2: new SufniGraphRowDepthTheme(
                 Container: C("#CCD0D4"),
                 Header: C("#C8CCD0"),
                 PlotFigure: C("#D0D4D8"),
-                PlotData: C("#DCE0E4")),
+                PlotData: C("#D4DAE0")),
             HostedLevel3Plus: new SufniGraphRowDepthTheme(
                 Container: C("#C0C4C8"),
                 Header: C("#BCC0C4"),
                 PlotFigure: C("#C4C8CC"),
-                PlotData: C("#D2D6DA")),
+                PlotData: C("#CAD0D6")),
             Connector: C("#9CA0A4"),
             DividerBetweenRoots: line.Divider);
         var travelZone = SufniThemes.TravelZoneRamp;
         var series = SufniThemes.SignalSeries;
         var plot = new SufniPlotTheme(
-            Root: new SufniPlotDepthTheme(C("#E4E8EC"), C("#F2F4F6")),
-            HostedLevel1: new SufniPlotDepthTheme(C("#DCE0E4"), C("#E4E8EC")),
-            HostedLevel2: new SufniPlotDepthTheme(C("#D0D4D8"), C("#DCE0E4")),
-            HostedLevel3Plus: new SufniPlotDepthTheme(C("#C4C8CC"), C("#D2D6DA")),
+            Root: new SufniPlotDepthTheme(C("#E4E8EC"), C("#E8EDF2")),
+            HostedLevel1: new SufniPlotDepthTheme(C("#DCE0E4"), C("#DCE2E8")),
+            HostedLevel2: new SufniPlotDepthTheme(C("#D0D4D8"), C("#D4DAE0")),
+            HostedLevel3Plus: new SufniPlotDepthTheme(C("#C4C8CC"), C("#CAD0D6")),
             Grid: new SufniPlotGridTheme(C("#B0B5BA"), C("#D6DADF")),
             Axis: new SufniPlotAxisTheme(C("#B0B5BA"), text.Primary, text.Primary),
             Legend: new SufniPlotLegendTheme(surface.Elevated, line.Subtle, text.Primary),
@@ -137,6 +137,9 @@ public static class SufniLightTheme
                 Line: C("#D53E4F").WithAlpha(0.9),
                 AirtimeFill: C("#D53E4F").WithAlpha(0.2),
                 AirtimeOutline: text.Secondary.WithAlpha(0.5)),
+            AnalysisRange: new SufniPlotAnalysisRangeTheme(
+                SelectedFill: series.SuspensionFront.WithAlpha(0.2),
+                PreviewFill: action.AccentPrimary.WithAlpha(0.24)),
             Cursor: new SufniPlotCursorTheme(
                 Line: text.Secondary,
                 TooltipFill: surface.Page.WithAlpha(0.96),
@@ -179,7 +182,7 @@ public static class SufniLightTheme
             RootDropZoneHeight: 12);
         var palette = new SufniPalette(
             PageSurface: surface.Page,
-            PlotDataArea: surface.Input,
+            PlotDataArea: plot.Root.Data,
             ElevatedSurface: surface.Elevated,
             FrontSeries: series.SuspensionFront,
             RearSeries: series.SuspensionRear,

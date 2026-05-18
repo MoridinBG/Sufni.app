@@ -137,6 +137,9 @@ public static class SufniDarkTheme
                 Line: C("#D53E4F").WithAlpha(0.9),
                 AirtimeFill: C("#D53E4F").WithAlpha(0.2),
                 AirtimeOutline: text.Secondary.WithAlpha(0.5)),
+            AnalysisRange: new SufniPlotAnalysisRangeTheme(
+                SelectedFill: series.SuspensionFront.WithAlpha(0.16),
+                PreviewFill: C("#D6DDE4").WithAlpha(0.12)),
             Cursor: new SufniPlotCursorTheme(
                 Line: C("#C8C8C8"),
                 TooltipFill: surface.Page.WithAlpha(0.96),

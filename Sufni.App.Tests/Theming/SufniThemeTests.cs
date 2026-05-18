@@ -29,6 +29,16 @@ public class SufniThemeTests
     }
 
     [Fact]
+    public void SufniLightTheme_PlotDataBackgrounds_AreDarkerThanInputSurface()
+    {
+        var theme = SufniLightTheme.Instance;
+
+        Assert.Equal(Color.Parse("#E8EDF2"), theme.GraphRow.Root.PlotData);
+        Assert.Equal(theme.GraphRow.Root.PlotData, theme.Plot.Root.Data);
+        Assert.Equal(theme.Plot.Root.Data, theme.Palette.PlotDataArea);
+    }
+
+    [Fact]
     public void SufniThemes_ToVariant_MapsSystemModeToAvaloniaDefault()
     {
         Assert.Equal(ThemeVariant.Dark, SufniThemes.ToVariant(SufniThemeMode.Dark));
@@ -105,6 +115,19 @@ public class SufniThemeTests
         Assert.Equal(theme.Selection.SurfaceSubtle, selectionSurface);
         Assert.Equal(theme.Surface.InputDisabled, disabledSurface);
         Assert.Equal(selectionSurface, disabledSurface);
+    }
+
+    [Fact]
+    public void SufniThemeResourceDictionary_PlotAnalysisRangeResources_AreDerivedFromTheme()
+    {
+        var resources = new SufniThemeResourceDictionary();
+        var dark = ResolveVariant(resources, ThemeVariant.Dark);
+        var light = ResolveVariant(resources, ThemeVariant.Light);
+
+        Assert.Equal(SufniDarkTheme.Instance.Plot.AnalysisRange.SelectedFill, dark["SufniPlotAnalysisRangeSelectedFill"]);
+        AssertSolidBrush(SufniDarkTheme.Instance.Plot.AnalysisRange.PreviewFill, dark["SufniPlotAnalysisRangePreviewFillBrush"]);
+        Assert.Equal(SufniLightTheme.Instance.Plot.AnalysisRange.SelectedFill, light["SufniPlotAnalysisRangeSelectedFill"]);
+        AssertSolidBrush(SufniLightTheme.Instance.Plot.AnalysisRange.PreviewFill, light["SufniPlotAnalysisRangePreviewFillBrush"]);
     }
 
     [Fact]

@@ -2,6 +2,8 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
 using Sufni.App.Plots;
+using Sufni.App.Theming;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -110,7 +112,38 @@ public class RecordedTimeSeriesPlotTests
         Assert.Contains("Speed: 6.9 km/h", tooltip.LabelText);
     }
 
-    private sealed class TestRecordedTimeSeriesPlot(Plot plot) : RecordedTimeSeriesPlot(plot)
+    [Fact]
+    public void RangeSpans_UseThemeAnalysisRangeColors()
+    {
+        var plot = new Plot();
+        var theme = SufniLightTheme.Instance;
+        var sut = new TestRecordedTimeSeriesPlot(plot, theme);
+
+        sut.LoadForTest(new RecordedTimeSeriesData(
+            "Travel (mm)",
+            "No travel data",
+            DurationSeconds: 1.5,
+            Series:
+            [
+                new RecordedTimeSeries(
+                    "Front",
+                    "mm",
+                    TelemetryPlot.FrontColor,
+                    new SampledValues([0, 25, 50, 75], SampleRate: 2),
+                    "0.#")
+            ]));
+
+        sut.SetAnalysisRange(new TelemetryTimeRange(0.25, 0.75));
+        sut.SetPreviewRange(0.5, 1.0);
+
+        var spans = plot.PlottableList.OfType<HorizontalSpan>().ToArray();
+        var selectedSpan = Assert.Single(spans, span => span.X1 == 0.25 && span.X2 == 0.75);
+        var previewSpan = Assert.Single(spans, span => span.X1 == 0.5 && span.X2 == 1.0);
+        Assert.Equal(theme.Plot.AnalysisRange.SelectedFill.ToScottPlotColor(), selectedSpan.FillColor);
+        Assert.Equal(theme.Plot.AnalysisRange.PreviewFill.ToScottPlotColor(), previewSpan.FillColor);
+    }
+
+    private sealed class TestRecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
     {
         public void LoadForTest(RecordedTimeSeriesData data)
         {

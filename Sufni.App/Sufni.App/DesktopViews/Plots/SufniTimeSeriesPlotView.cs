@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Sufni.App.Behaviors;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Theming;
@@ -409,6 +410,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         GraphWorkspace.SetAnalysisRangeBoundary(mobileAnalysisRangeLongPressSeconds);
+        RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent));
         suppressGraphClickClear = true;
         isGraphClickCandidate = false;
         RefreshPlot();
