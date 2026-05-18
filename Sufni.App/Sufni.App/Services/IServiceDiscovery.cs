@@ -29,6 +29,8 @@ public class ServiceAnnouncementEventArgs : EventArgs
     public ServiceAnnouncement Announcement { private set; get; }
 }
 
+// Discovery adapter for platform-specific service browsing. Shared code only
+// observes announcements; Bonjour/socket details stay behind implementations.
 public interface IServiceDiscovery
 {
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceAdded;
