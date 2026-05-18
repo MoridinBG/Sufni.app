@@ -251,7 +251,8 @@ public class TelemetryPlot : SufniPlot
         Plot.Legend.ShadowColor = Colors.Transparent;
         Plot.Legend.FontColor = PlotTheme.Legend.Text.ToScottPlotColor();
         Plot.Legend.FontSize = 12;
-        Plot.Legend.Padding = new PixelPadding(8, 8, 10, 14);
+        Plot.Legend.SymbolHeight = 18;
+        Plot.Legend.Padding = new PixelPadding(8, 8, 8, 8);
     }
 
     protected void HideSourceLegend()
