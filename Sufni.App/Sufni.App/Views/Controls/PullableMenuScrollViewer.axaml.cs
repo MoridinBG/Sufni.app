@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.Globalization;
-using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
@@ -73,8 +73,8 @@ public partial class PullableMenuScrollViewer : UserControl
         // Use ScrollViewer.ScrollChanged to determine TopContainer's visibility.
         AddHandlersForTopContainer();
 
-        // PanGestures are not recognized on a ScrollViewer if it contains labs:Swipe
-        // items, so we handle the pull with ScrollGestures, ...
+        // Touch pulls are delivered as ScrollGestures on this surface, so handle
+        // them separately from the mouse PanGesture path below.
         AddHandlersForTouchPull();
 
         // ... but pulling down with the mouse is not recognized as a ScrollGesture, so
@@ -310,13 +310,16 @@ public partial class PullableMenuScrollViewer : UserControl
         Container.Margin = new Thickness(0, -PullMenu.Bounds.Height - 20, 0, 0);
         Scroll.Height = Bounds.Height - TopContainer.Bounds.Height;
 
-        new Thread(() => 
+        _ = ClearPullTransitionsAfterDelayAsync();
+    }
+
+    private async Task ClearPullTransitionsAfterDelayAsync()
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            Thread.Sleep(200);
-            Dispatcher.UIThread.Post(new Action(() => {
-                Scroll.Transitions!.Clear();
-                Container.Transitions!.Clear();
-            }));
-        }).Start();
+            Scroll.Transitions!.Clear();
+            Container.Transitions!.Clear();
+        });
     }
 }
