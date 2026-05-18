@@ -23,7 +23,7 @@ public static class LiveProtocolConstants
     public const int BatchHeaderSize = 28;
     public const int TravelRecordSize = 4;
     public const int ImuRecordSize = 12;
-    public const int GpsRecordSize = 46;
+    public const int GpsRecordSize = GpsBinaryRecordDecoder.RecordSize;
     public const int SessionStatsPayloadSize = 28;
     public const int IdentifyAckPayloadSize = 8;
 }
@@ -255,52 +255,67 @@ public static class LiveProtocolHelpers
         return locations;
     }
 
-    public static string ToDisplayName(this LiveImuLocation location) => location switch
+    extension(LiveImuLocation location)
     {
-        LiveImuLocation.Frame => "Frame",
-        LiveImuLocation.Fork => "Fork",
-        LiveImuLocation.Rear => "Rear",
-        _ => location.ToString(),
-    };
+        public string DisplayName => location switch
+        {
+            LiveImuLocation.Frame => "Frame",
+            LiveImuLocation.Fork => "Fork",
+            LiveImuLocation.Rear => "Rear",
+            _ => location.ToString(),
+        };
+    }
 
-    public static string ToDisplayName(this LiveSensorInstanceMask sensor) => sensor switch
+    extension(LiveSensorInstanceMask sensor)
     {
-        LiveSensorInstanceMask.ForkTravel => "fork travel",
-        LiveSensorInstanceMask.ShockTravel => "shock travel",
-        LiveSensorInstanceMask.FrameImu => "frame IMU",
-        LiveSensorInstanceMask.ForkImu => "fork IMU",
-        LiveSensorInstanceMask.RearImu => "rear IMU",
-        LiveSensorInstanceMask.Gps => "GPS",
-        _ => sensor.ToString(),
-    };
+        public string DisplayName => sensor switch
+        {
+            LiveSensorInstanceMask.ForkTravel => "fork travel",
+            LiveSensorInstanceMask.ShockTravel => "shock travel",
+            LiveSensorInstanceMask.FrameImu => "frame IMU",
+            LiveSensorInstanceMask.ForkImu => "fork IMU",
+            LiveSensorInstanceMask.RearImu => "rear IMU",
+            LiveSensorInstanceMask.Gps => "GPS",
+            _ => sensor.ToString(),
+        };
+    }
 
     public static IReadOnlyList<string> GetSensorInstanceDisplayNames(LiveSensorInstanceMask mask)
     {
         var names = new List<string>(6);
-        if (mask.HasFlag(LiveSensorInstanceMask.ForkTravel)) names.Add(LiveSensorInstanceMask.ForkTravel.ToDisplayName());
-        if (mask.HasFlag(LiveSensorInstanceMask.ShockTravel)) names.Add(LiveSensorInstanceMask.ShockTravel.ToDisplayName());
-        if (mask.HasFlag(LiveSensorInstanceMask.FrameImu)) names.Add(LiveSensorInstanceMask.FrameImu.ToDisplayName());
-        if (mask.HasFlag(LiveSensorInstanceMask.ForkImu)) names.Add(LiveSensorInstanceMask.ForkImu.ToDisplayName());
-        if (mask.HasFlag(LiveSensorInstanceMask.RearImu)) names.Add(LiveSensorInstanceMask.RearImu.ToDisplayName());
-        if (mask.HasFlag(LiveSensorInstanceMask.Gps)) names.Add(LiveSensorInstanceMask.Gps.ToDisplayName());
+        if (mask.HasFlag(LiveSensorInstanceMask.ForkTravel)) names.Add(LiveSensorInstanceMask.ForkTravel.DisplayName);
+        if (mask.HasFlag(LiveSensorInstanceMask.ShockTravel)) names.Add(LiveSensorInstanceMask.ShockTravel.DisplayName);
+        if (mask.HasFlag(LiveSensorInstanceMask.FrameImu)) names.Add(LiveSensorInstanceMask.FrameImu.DisplayName);
+        if (mask.HasFlag(LiveSensorInstanceMask.ForkImu)) names.Add(LiveSensorInstanceMask.ForkImu.DisplayName);
+        if (mask.HasFlag(LiveSensorInstanceMask.RearImu)) names.Add(LiveSensorInstanceMask.RearImu.DisplayName);
+        if (mask.HasFlag(LiveSensorInstanceMask.Gps)) names.Add(LiveSensorInstanceMask.Gps.DisplayName);
         return names;
     }
 
-    public static LiveSensorMask ToStreamMask(this LiveSensorInstanceMask mask)
+    extension(LiveSensorInstanceMask mask)
     {
-        var streamMask = LiveSensorMask.None;
-        if ((mask & LiveSensorInstanceMask.Travel) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Travel;
-        if ((mask & LiveSensorInstanceMask.Imu) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Imu;
-        if ((mask & LiveSensorInstanceMask.Gps) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Gps;
-        return streamMask;
+        public LiveSensorMask StreamMask
+        {
+            get
+            {
+                var streamMask = LiveSensorMask.None;
+                if ((mask & LiveSensorInstanceMask.Travel) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Travel;
+                if ((mask & LiveSensorInstanceMask.Imu) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Imu;
+                if ((mask & LiveSensorInstanceMask.Gps) != LiveSensorInstanceMask.None) streamMask |= LiveSensorMask.Gps;
+                return streamMask;
+            }
+        }
     }
 
-    public static string ToUserMessage(this LiveStartErrorCode errorCode) => errorCode switch
+    extension(LiveStartErrorCode errorCode)
     {
-        LiveStartErrorCode.Ok => "Live preview started.",
-        LiveStartErrorCode.InvalidRequest => "Live preview request was invalid.",
-        LiveStartErrorCode.Busy => "Live preview is busy. Recording or another live session may already be active.",
-        LiveStartErrorCode.NoSensorsStarted => "None of the requested sensors could start.",
-        _ => $"The device rejected live preview with error code {(int)errorCode}.",
-    };
+        public string UserMessage => errorCode switch
+        {
+            LiveStartErrorCode.Ok => "Live preview started.",
+            LiveStartErrorCode.InvalidRequest => "Live preview request was invalid.",
+            LiveStartErrorCode.Busy => "Live preview is busy. Recording or another live session may already be active.",
+            LiveStartErrorCode.NoSensorsStarted => "None of the requested sensors could start.",
+            _ => $"The device rejected live preview with error code {(int)errorCode}.",
+        };
+    }
 }
