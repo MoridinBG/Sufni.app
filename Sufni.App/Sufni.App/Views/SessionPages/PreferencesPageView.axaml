@@ -96,6 +96,28 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
+            Name="PitchRollPlotCheckBox"
+            Content="{Binding PitchRollPlot.DisplayName}"
+            IsChecked="{Binding PitchRollPlot.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding PitchRollPlot.Available}" />
+
+            <ComboBox
+            Name="PitchRollPlotSmoothingComboBox"
+            Grid.Column="1"
+            IsEnabled="{Binding PitchRollPlot.Available}"
+            ItemsSource="{Binding SmoothingOptions}"
+            SelectedValue="{Binding PitchRollPlot.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,120">
+            <CheckBox
             Name="SpeedPlotCheckBox"
             Content="{Binding SpeedPlot.DisplayName}"
             IsChecked="{Binding SpeedPlot.Selected, Mode=TwoWay}"

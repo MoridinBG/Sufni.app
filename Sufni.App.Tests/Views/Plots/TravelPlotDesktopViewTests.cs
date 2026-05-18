@@ -307,6 +307,7 @@ public class TravelPlotDesktopViewTests
         public SurfacePresentationState TravelGraphState => SurfacePresentationState.Ready;
         public SurfacePresentationState VelocityGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ImuGraphState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState PitchRollGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState SpeedGraphState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();

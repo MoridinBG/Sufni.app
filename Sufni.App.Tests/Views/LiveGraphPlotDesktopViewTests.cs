@@ -29,7 +29,7 @@ public class LiveGraphPlotDesktopViewTests
         ViewTestHelpers.EnsurePlotViewStyle();
 
         var batches = new Subject<LiveGraphBatch>();
-        var workspace = new StubLiveSessionGraphWorkspace(batches);
+        var workspace = new StubLiveSessionGraphWorkspace(batches, hasPitchRollSection: true);
         var view = new LiveSessionGraphDesktopView
         {
             DataContext = workspace
@@ -47,27 +47,33 @@ public class LiveGraphPlotDesktopViewTests
         var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(view, "TravelPlot");
         var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(view, "VelocityPlot");
         var imuView = GetNamedVisual<LiveImuPlotDesktopView>(view, "ImuPlot");
+        var pitchRollView = GetNamedVisual<LiveFramePitchRollPlotDesktopView>(view, "PitchRollPlot");
 
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(pitchRollView);
 
         batches.OnNext(CreateBatch(revision: 1));
-        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!);
+        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!, pitchRollView!);
 
         var travelPlot = GetRenderedPlot(travelView!);
         var velocityPlot = GetRenderedPlot(velocityView!);
         var imuPlot = GetRenderedPlot(imuView!);
+        var pitchRollPlot = GetRenderedPlot(pitchRollView!);
 
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
+        Assert.All(pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
         Assert.Empty(travelPlot.Plot.Axes.Title.Label.Text);
         Assert.Empty(velocityPlot.Plot.Axes.Title.Label.Text);
         Assert.Empty(imuPlot.Plot.Axes.Title.Label.Text);
+        Assert.Empty(pitchRollPlot.Plot.Axes.Title.Label.Text);
         Assert.True(travelPlot.Plot.Legend.IsVisible);
         Assert.True(velocityPlot.Plot.Legend.IsVisible);
         Assert.True(imuPlot.Plot.Legend.IsVisible);
+        Assert.True(pitchRollPlot.Plot.Legend.IsVisible);
         Assert.Equal(
             ["Front", "Rear"],
             travelPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
@@ -77,15 +83,21 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Equal(
             ["Frame", "Fork", "Shock"],
             imuPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
+        Assert.Equal(
+            ["Pitch", "Roll"],
+            pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
         Assert.Empty(travelPlot.Plot.Axes.Bottom.Label.Text);
         Assert.Empty(travelPlot.Plot.Axes.Left.Label.Text);
         Assert.Empty(velocityPlot.Plot.Axes.Bottom.Label.Text);
         Assert.Empty(velocityPlot.Plot.Axes.Left.Label.Text);
         Assert.Empty(imuPlot.Plot.Axes.Bottom.Label.Text);
         Assert.Empty(imuPlot.Plot.Axes.Left.Label.Text);
+        Assert.Empty(pitchRollPlot.Plot.Axes.Bottom.Label.Text);
+        Assert.Empty(pitchRollPlot.Plot.Axes.Left.Label.Text);
         Assert.True(travelPlot.Plot.Axes.Right.IsVisible);
         Assert.True(velocityPlot.Plot.Axes.Right.IsVisible);
         Assert.True(imuPlot.Plot.Axes.Right.IsVisible);
+        Assert.True(pitchRollPlot.Plot.Axes.Right.IsVisible);
         // Live plots auto-size around the largest value seen so far (with 10% headroom),
         // falling back to a per-metric floor when running max is below it.
         Assert.Equal(13.2, travelPlot.Plot.Axes.Left.Max, precision: 4);
@@ -94,22 +106,29 @@ public class LiveGraphPlotDesktopViewTests
         Assert.Equal(-1.122, velocityPlot.Plot.Axes.Left.Min, precision: 4);
         Assert.Equal(1.65, imuPlot.Plot.Axes.Left.Max, precision: 4);
         Assert.Equal(0, imuPlot.Plot.Axes.Left.Min);
+        Assert.Equal(5, pitchRollPlot.Plot.Axes.Left.Max);
+        Assert.Equal(-5, pitchRollPlot.Plot.Axes.Left.Min);
         Assert.Equal(travelPlot.Plot.Axes.Left.Min, travelPlot.Plot.Axes.Right.Min, precision: 6);
         Assert.Equal(travelPlot.Plot.Axes.Left.Max, travelPlot.Plot.Axes.Right.Max, precision: 6);
         Assert.Equal(velocityPlot.Plot.Axes.Left.Min, velocityPlot.Plot.Axes.Right.Min, precision: 6);
         Assert.Equal(velocityPlot.Plot.Axes.Left.Max, velocityPlot.Plot.Axes.Right.Max, precision: 6);
         Assert.Equal(imuPlot.Plot.Axes.Left.Min, imuPlot.Plot.Axes.Right.Min, precision: 6);
         Assert.Equal(imuPlot.Plot.Axes.Left.Max, imuPlot.Plot.Axes.Right.Max, precision: 6);
+        Assert.Equal(pitchRollPlot.Plot.Axes.Left.Min, pitchRollPlot.Plot.Axes.Right.Min, precision: 6);
+        Assert.Equal(pitchRollPlot.Plot.Axes.Left.Max, pitchRollPlot.Plot.Axes.Right.Max, precision: 6);
 
         batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
-        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!);
+        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!, pitchRollView!);
 
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
+        Assert.All(pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
         // After a reset batch the running max clears, so axes shrink back to the floor.
         Assert.Equal(5, travelPlot.Plot.Axes.Left.Max);
         Assert.Equal(0.5, velocityPlot.Plot.Axes.Left.Max);
         Assert.Equal(-0.5, velocityPlot.Plot.Axes.Left.Min);
         Assert.Equal(1, imuPlot.Plot.Axes.Left.Max);
+        Assert.Equal(5, pitchRollPlot.Plot.Axes.Left.Max);
+        Assert.Equal(-5, pitchRollPlot.Plot.Axes.Left.Min);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -258,7 +277,7 @@ public class LiveGraphPlotDesktopViewTests
         var root = GetGraphRoot(view);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
         var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(view, "TravelPlot");
         var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(view, "VelocityPlot");
         var imuView = GetNamedVisual<LiveImuPlotDesktopView>(view, "ImuPlot");
@@ -302,7 +321,7 @@ public class LiveGraphPlotDesktopViewTests
         var root = GetGraphRoot(view);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
 
         Assert.True(travelRow.IsVisible);
         Assert.False(velocityRow.IsVisible);
@@ -333,7 +352,7 @@ public class LiveGraphPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var root = GetGraphRoot(view);
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
         var imuView = GetNamedVisual<LiveImuPlotDesktopView>(view, "ImuPlot");
 
         Assert.NotNull(imuView);
@@ -370,7 +389,7 @@ public class LiveGraphPlotDesktopViewTests
 
         var root = GetGraphRoot(view);
         var travelRow = GetBaseRow(root, "Travel (mm)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
         var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
         var elevationRow = GetChildRow(gpsRow, "Elevation (m)");
         var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(view, "SpeedPlot");
@@ -412,13 +431,15 @@ public class LiveGraphPlotDesktopViewTests
 
         var root = GetGraphRoot(view);
         Assert.Equal(
-            ["Travel (mm)", "IMU acceleration (g)", "GPS speed (km/h)"],
+            ["Travel (mm)", "Vibration RMS (g)", "GPS speed (km/h)"],
             root.Rows.Select(row => row.Title!).ToArray());
 
         var travelRow = GetBaseRow(root, "Travel (mm)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
         var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
 
         Assert.Equal(["Velocity (m/s)"], travelRow.ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Frame pitch/roll (deg)"], imuRow.ChildRows.Select(row => row.Title!).ToArray());
         Assert.Equal(["Elevation (m)"], gpsRow.ChildRows.Select(row => row.Title!).ToArray());
 
         host.Close();
@@ -482,10 +503,17 @@ public class LiveGraphPlotDesktopViewTests
             {
                 [LiveImuLocation.Frame] = [times[^1]],
             },
-            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
+            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
             {
                 [LiveImuLocation.Frame] = [1.5],
-            });
+            },
+            FramePitchRollTimes: times,
+            FramePitchDegrees: Enumerable.Range(startOffset, sampleCount)
+                .Select(index => 1.0 + index)
+                .ToArray(),
+            FrameRollDegrees: Enumerable.Range(startOffset, sampleCount)
+                .Select(index => -1.0 - index)
+                .ToArray());
     }
 
     private static async Task FlushGraphBatchesAsync(params LiveGraphPlotDesktopViewBase[] views)
@@ -503,6 +531,7 @@ public class LiveGraphPlotDesktopViewTests
         bool hasTravelSection = true,
         bool hasVelocitySection = true,
         bool hasImuSection = true,
+        bool hasPitchRollSection = false,
         bool hasSpeedSection = false,
         bool hasElevationSection = false) : ILiveSessionGraphWorkspace
     {
@@ -521,6 +550,9 @@ public class LiveGraphPlotDesktopViewTests
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SurfacePresentationState ImuGraphState { get; } = hasImuSection
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState PitchRollGraphState { get; } = hasPitchRollSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SurfacePresentationState SpeedGraphState { get; } = hasSpeedSection

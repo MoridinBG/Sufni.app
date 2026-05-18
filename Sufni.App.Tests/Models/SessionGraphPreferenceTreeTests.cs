@@ -14,6 +14,7 @@ public class SessionGraphPreferenceTreeTests
                 TelemetryGraphRowIds.Travel,
                 TelemetryGraphRowIds.Velocity,
                 TelemetryGraphRowIds.Imu,
+                TelemetryGraphRowIds.PitchRoll,
                 TelemetryGraphRowIds.Speed,
                 TelemetryGraphRowIds.Elevation
             ]);
@@ -43,6 +44,7 @@ public class SessionGraphPreferenceTreeTests
                 TelemetryGraphRowIds.Travel,
                 TelemetryGraphRowIds.Velocity,
                 TelemetryGraphRowIds.Imu,
+                TelemetryGraphRowIds.PitchRoll,
                 TelemetryGraphRowIds.Speed,
                 TelemetryGraphRowIds.Elevation
             ]);
@@ -57,7 +59,12 @@ public class SessionGraphPreferenceTreeTests
                 TelemetryGraphRowIds.Travel,
                 isExpanded: false,
                 Row(TelemetryGraphRowIds.Velocity)),
-            Row(TelemetryGraphRowIds.Imu)
+            Row(
+                TelemetryGraphRowIds.Imu,
+                children:
+                [
+                    Row(TelemetryGraphRowIds.PitchRoll)
+                ])
         ], normalized.Rows);
     }
 

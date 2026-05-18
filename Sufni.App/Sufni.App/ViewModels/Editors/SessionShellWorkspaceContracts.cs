@@ -30,6 +30,7 @@ public interface IRecordedSessionGraphWorkspace
     SurfacePresentationState TravelGraphState { get; }
     SurfacePresentationState VelocityGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }
+    SurfacePresentationState PitchRollGraphState { get; }
     SurfacePresentationState SpeedGraphState { get; }
     SurfacePresentationState ElevationGraphState { get; }
     SessionPlotPreferences PlotPreferences { get; }
@@ -100,6 +101,7 @@ public interface ILiveSessionGraphWorkspace
     SurfacePresentationState TravelGraphState { get; }
     SurfacePresentationState VelocityGraphState { get; }
     SurfacePresentationState ImuGraphState { get; }
+    SurfacePresentationState PitchRollGraphState { get; }
     SurfacePresentationState SpeedGraphState { get; }
     SurfacePresentationState ElevationGraphState { get; }
     SessionPlotPreferences PlotPreferences { get; }
@@ -110,14 +112,17 @@ public interface ILiveSessionGraphWorkspace
 public sealed record LiveSessionPlotRanges(
     double TravelMaximum,
     double VelocityMaximum,
-    double ImuMaximum)
+    double ImuMaximum,
+    double PitchRollMaximum = 15)
 {
     public double VelocityMinimum => -VelocityMaximum;
+    public double PitchRollMinimum => -PitchRollMaximum;
 
     public static readonly LiveSessionPlotRanges Default = new(
         TravelMaximum: 1,
         VelocityMaximum: 5,
-        ImuMaximum: 5);
+        ImuMaximum: 5,
+        PitchRollMaximum: 15);
 }
 
 public interface ILiveSessionControlsWorkspace

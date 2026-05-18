@@ -51,7 +51,7 @@ graph LR
 Shared stream emits LiveProtocolFrame
   -> LiveSessionService.HandleFrame
     -> LiveTravelBatchFrame  -> AppendOnlyChunkBuffer<ushort> (front/rear) + LiveDisplayUpdate.Travel
-    -> LiveImuBatchFrame     -> AppendOnlyChunkBuffer<ImuRecord>          + LiveDisplayUpdate.Imu
+    -> LiveImuBatchFrame     -> AppendOnlyChunkBuffer<ImuRecord>          + LiveDisplayUpdate.Imu (vibration RMS + frame pitch/roll)
     -> LiveGpsBatchFrame     -> AppendOnlyChunkBuffer<GpsRecord> + projected TrackPoint[]
     -> LiveSessionStatsFrame -> latest queue/dropped counters
 
@@ -60,7 +60,7 @@ Display loop (Task.Run)
     -> ILiveGraphPipeline.AppendTravelSamples / AppendImuSamples
       -> recent travel lists + pending batch lists
         -> PeriodicTimer flush -> Savitzky-Golay velocity over recent 127 ms window
-          -> LiveGraphBatch (Travel/Velocity/IMU) -> Subject<LiveGraphBatch>
+          -> LiveGraphBatch (Travel/Velocity/IMU/Pitch-Roll) -> Subject<LiveGraphBatch>
             -> LiveSessionDetailViewModel.QueueGraphBatchRefresh
               -> LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence
     -> projected TrackPoint[] updates drive Speed/Elevation graph rows
@@ -111,7 +111,7 @@ The live-session service holds a configuration lock on the shared stream for the
 
 ### Frame Handlers
 
-`HandleFrame` dispatches by the four data-bearing frame types. Travel and IMU batches accumulate raw samples into the chunk buffers under the gate, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). Drops increment `graphBatchesCoalesced` / `graphSamplesDiscarded` on the published drop counters. GPS frames append raw records and project `TrackPoint`s incrementally, falling back to a full re-projection when an out-of-order timestamp is observed. `LiveSessionStatsFrame` only refreshes the queue-depth and dropped-batch counters surfaced in `LiveSessionControlState`.
+`HandleFrame` dispatches by the four data-bearing frame types. Travel and IMU batches accumulate raw samples into the chunk buffers under the gate, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). IMU display values are derived by `LiveImuDisplaySignalProcessor`: firmware has already bias-corrected and rotated IMU readings into the bike frame, so per-location vibration RMS uses dynamic acceleration after low-pass gravity removal without waiting for a session-start rest window, and optional frame pitch/roll fuses frame accelerometer plus gyro data relative to the bike-frame calibration while accepting accelerometer correction only from gravity-like samples. The raw-count `ImuRecord` capture buffer is unchanged and remains the saved source of truth. Drops increment `graphBatchesCoalesced` / `graphSamplesDiscarded` on the published drop counters. GPS frames append raw records and project `TrackPoint`s incrementally, falling back to a full re-projection when an out-of-order timestamp is observed. `LiveSessionStatsFrame` only refreshes the queue-depth and dropped-batch counters surfaced in `LiveSessionControlState`.
 
 The travel handler is also where `CanSave` flips from `false` to `true` (>= 5 samples on either travel channel) and where the first saveable-capture snapshot is published so the tab's save command becomes enabled.
 
@@ -151,14 +151,15 @@ This shape is what makes the recording side cheap: each `LiveTravelBatchFrame` a
 
 **Purpose.** The DataStreamer-backed live plots want batches of samples at a steady cadence, not a callback per inbound frame. The pipeline collects appended samples into a `PendingGraphBatch` and flushes once per timer tick, which gives the UI a predictable refresh rate and lets the velocity filter run over a stable window snapshot.
 
-**Threading.** The pipeline owns one `Subject<LiveGraphBatch>`, one shared lock, and one flush loop task started by `Start()`. `AppendTravelSamples` and `AppendImuSamples` are called from the display-loop task off the UI thread; they take the lock just long enough to push into the pending lists and update the recent travel window. `FlushPendingGraphBatch` (also off the UI thread, run from the periodic-timer loop) swaps the pending batch out under the lock, snapshots the recent travel arrays, then computes velocity and emits the batch outside the lock. A flush failure copies the unflushed work back into the pending batch under the lock and re-raises. `Reset` clears state, bumps the revision, and emits a single `LiveGraphBatch.Empty` so subscribers can drop their plot data; `DisposeAsync` cancels the flush loop and completes the subject.
+**Threading.** The pipeline owns one `Subject<LiveGraphBatch>`, one shared lock, and one flush loop task started by `Start()`. `AppendTravelSamples`, `AppendImuSamples`, and `AppendFramePitchRollSamples` are called from the display-loop task off the UI thread; they take the lock just long enough to push into the pending lists and update the recent travel window. `FlushPendingGraphBatch` (also off the UI thread, run from the periodic-timer loop) swaps the pending batch out under the lock, snapshots the recent travel arrays, then computes velocity and emits the batch outside the lock. A flush failure copies the unflushed work back into the pending batch under the lock and re-raises. `Reset` clears state, bumps the revision, and emits a single `LiveGraphBatch.Empty` so subscribers can drop their plot data; `DisposeAsync` cancels the flush loop and completes the subject.
 
 **Batch shape.** `LiveGraphBatch` (defined in `LiveSessionPresentation.cs`) carries:
 
 - `Revision` — monotonically increasing across appends and resets, so consumers can filter stale batches.
 - `TravelTimes`, `FrontTravel`, `RearTravel` — exactly the samples appended since the previous flush.
 - `VelocityTimes`, `FrontVelocity`, `RearVelocity` — velocity samples aligned with the same travel times for that batch only. Velocity is computed by running a Savitzky-Golay filter over the recent travel snapshot. The filter window targets 51 ms, is converted to an odd sample count from the observed sample period, and falls back to NaN if fewer than five samples are available or the snapshot contains a NaN. The cached `SavitzkyGolay` instance is keyed on the chosen window size and lives entirely on the flush-loop thread.
-- `ImuTimes`, `ImuMagnitudes` — per-`LiveImuLocation` series of times and accelerometer magnitudes, again only for samples appended since the previous flush.
+- `ImuTimes`, `ImuVibrationRms` — per-`LiveImuLocation` series of times and rolling vibration RMS values, again only for samples appended since the previous flush.
+- `FramePitchRollTimes`, `FramePitchDegrees`, `FrameRollDegrees` — frame-only pitch/roll samples for the same flush window. They are empty when frame IMU accelerometer or gyro data is unavailable.
 
 `LiveSessionService` exposes `graphPipeline.GraphBatches` directly through its `GraphBatches` property, so `LiveSessionDetailViewModel` subscribes to the pipeline output without going through the service's snapshot subject.
 
@@ -191,8 +192,8 @@ The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it
 The view model wires together five things and owns no transport state:
 
 1. **Subscribes to `ILiveSessionService.Snapshots`** through `QueuePresentationRefresh`, which stashes the latest snapshot under a gate and lets a `DispatcherTimer` (`SessionGraphSettings.LiveUiRefreshIntervalMs`) project it into bindings via `ApplyPresentation`. This applies the session header to graph and media workspaces, recomputes statistics surface state, drives the timestamp, refreshes the control state, and queues the spring/damper/balance bake.
-2. **Subscribes to `ILiveSessionService.GraphBatches`** through `QueueGraphBatchRefresh`, which collapses presence flags onto the UI thread and calls `LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence` so each row's `SurfacePresentationState` reflects whether any travel or IMU data has arrived. Plot availability is recomputed from the latest accepted `LiveSessionHeader` (travel from `AcceptedTravelHz`, IMU from `AcceptedImuHz` plus active locations) and forwarded into `PreferencesPage.ApplyPlotAvailability`.
-3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damper pages. `BalancePage` is constructed by the view model but inserted into `Pages` only while balance presentation is available or the layout needs to reserve the page. Travel/Velocity/IMU/Speed/Elevation plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
+2. **Subscribes to `ILiveSessionService.GraphBatches`** through `QueueGraphBatchRefresh`, which collapses presence flags onto the UI thread and calls `LiveSessionGraphWorkspaceViewModel.ApplyGraphDataPresence` so each row's `SurfacePresentationState` reflects whether any travel, IMU vibration RMS, or frame pitch/roll data has arrived. Plot availability is recomputed from the latest accepted `LiveSessionHeader` (travel from `AcceptedTravelHz`, IMU from `AcceptedImuHz` plus active locations, pitch/roll from accepted frame IMU with valid scales) and forwarded into `PreferencesPage.ApplyPlotAvailability`.
+3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damper pages. `BalancePage` is constructed by the view model but inserted into `Pages` only while balance presentation is available or the layout needs to reserve the page. Travel/Velocity/IMU/Pitch-Roll/Speed/Elevation plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
 4. **Bakes statistics** — when a fresh `TelemetryData` arrives in a snapshot, `MaybeQueueBake` runs `ISessionPresentationService.BuildCachePresentation(...)` on the background runner and posts the resulting SVGs back onto the spring/damper/balance pages, mirroring the recorded-session bake. Older bakes are cancelled on each new arrival.
 5. **Drives the capture lifecycle** — `Loaded` calls `liveSessionService.EnsureAttachedAsync()`, `Unloaded` cancels the bake, `CloseImplementation` disposes the service. `ResetImplementation` calls `ResetCaptureAsync` and clears the statistics pages. `SaveImplementation` is the recording-side save entry point (see [Save Flow](#save-flow)).
 

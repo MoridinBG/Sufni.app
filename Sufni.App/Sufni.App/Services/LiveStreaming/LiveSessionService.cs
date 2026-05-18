@@ -10,6 +10,7 @@ using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraphs;
 using Sufni.App.Services;
+using Sufni.App.Services.Imu;
 using Sufni.Telemetry;
 using Serilog;
 
@@ -65,9 +66,11 @@ internal sealed class LiveSessionService : ILiveSessionService
         public sealed record Imu(
             long Epoch,
             IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> Times,
-            IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> Magnitudes) : LiveDisplayUpdate(Epoch)
+            IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> VibrationRms,
+            FramePitchRollSeries? FramePitchRoll) : LiveDisplayUpdate(Epoch)
         {
-            public override int SampleCount => Times.Values.Sum(series => series.Count);
+            public override int SampleCount => Times.Values.Sum(series => series.Count) +
+                (FramePitchRoll?.Times.Length ?? 0);
         }
     }
 
@@ -76,6 +79,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ILiveGraphPipeline graphPipeline;
+    private readonly LiveImuDisplaySignalProcessor imuDisplaySignalProcessor = new();
     private readonly object gate = new();
     private readonly object displayQueueGate = new();
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshotsSubject = new(LiveSessionPresentationSnapshot.Empty);
@@ -249,6 +253,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             rearMeasurements.Clear();
             imuRecords.Clear();
             gpsRecords.Clear();
+            imuDisplaySignalProcessor.Reset();
             statisticsTelemetry = null;
             damperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
             sessionTrackPoints = [];
@@ -399,6 +404,11 @@ internal sealed class LiveSessionService : ILiveSessionService
                 }
                 else
                 {
+                    if (sessionHeader is null || nextHeader.SessionId != sessionHeader.SessionId)
+                    {
+                        imuDisplaySignalProcessor.Reset();
+                    }
+
                     sessionHeader = nextHeader;
                 }
             }
@@ -529,12 +539,12 @@ internal sealed class LiveSessionService : ILiveSessionService
         var tickCount = (int)frame.Batch.SampleCount;
         var recordsPerTick = activeLocations.Count;
         var perLocationTimes = new double[recordsPerTick][];
-        var perLocationMagnitudes = new double[recordsPerTick][];
+        var perLocationRecords = new ImuRecord[recordsPerTick][];
         var perLocationCounts = new int[recordsPerTick];
         for (var locationIndex = 0; locationIndex < recordsPerTick; locationIndex++)
         {
             perLocationTimes[locationIndex] = new double[tickCount];
-            perLocationMagnitudes[locationIndex] = new double[tickCount];
+            perLocationRecords[locationIndex] = new ImuRecord[tickCount];
         }
 
         for (var tickIndex = 0; tickIndex < tickCount; tickIndex++)
@@ -553,24 +563,36 @@ internal sealed class LiveSessionService : ILiveSessionService
                 var location = activeLocations[locationIndex];
                 var nextIndex = perLocationCounts[locationIndex]++;
                 perLocationTimes[locationIndex][nextIndex] = timeOffset;
-                perLocationMagnitudes[locationIndex][nextIndex] =
-                    ConvertImuMagnitude(frame.Records[recordIndex], location, sessionHeader.ImuCalibrationScales);
+                perLocationRecords[locationIndex][nextIndex] = frame.Records[recordIndex];
             }
         }
 
-        var imuTimes = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(activeLocations.Count);
-        var imuMagnitudes = new Dictionary<LiveImuLocation, IReadOnlyList<double>>(activeLocations.Count);
+        var inputSeries = new List<LiveImuDisplayInputSeries>(activeLocations.Count);
         for (var locationIndex = 0; locationIndex < activeLocations.Count; locationIndex++)
         {
             var location = activeLocations[locationIndex];
             var sampleCount = perLocationCounts[locationIndex];
-            imuTimes[location] = TrimSeries(perLocationTimes[locationIndex], sampleCount);
-            imuMagnitudes[location] = TrimSeries(perLocationMagnitudes[locationIndex], sampleCount);
+            inputSeries.Add(new LiveImuDisplayInputSeries(
+                location,
+                TrimSeries(perLocationTimes[locationIndex], sampleCount),
+                TrimSeries(perLocationRecords[locationIndex], sampleCount),
+                sessionHeader.ImuCalibrationScales.GetAccelScale(location),
+                sessionHeader.ImuCalibrationScales.GetGyroScale(location)));
         }
 
-        return new LiveDisplayUpdate.Imu(displayEpoch, imuTimes, imuMagnitudes);
+        var displaySeries = imuDisplaySignalProcessor.ProcessBatch(inputSeries, sessionHeader.AcceptedImuHz);
+        if (displaySeries.VibrationTimes.Count == 0 && displaySeries.FramePitchRoll is null)
+        {
+            return null;
+        }
 
-        static IReadOnlyList<double> TrimSeries(double[] values, int count)
+        return new LiveDisplayUpdate.Imu(
+            displayEpoch,
+            displaySeries.VibrationTimes,
+            displaySeries.VibrationRms,
+            displaySeries.FramePitchRoll);
+
+        static IReadOnlyList<T> TrimSeries<T>(T[] values, int count)
         {
             if (count == values.Length)
             {
@@ -579,10 +601,10 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             if (count == 0)
             {
-                return Array.Empty<double>();
+                return Array.Empty<T>();
             }
 
-            var trimmed = new double[count];
+            var trimmed = new T[count];
             Array.Copy(values, trimmed, count);
             return trimmed;
         }
@@ -749,14 +771,22 @@ internal sealed class LiveSessionService : ILiveSessionService
                     case LiveDisplayUpdate.Imu imu:
                         foreach (var entry in imu.Times)
                         {
-                            if (!imu.Magnitudes.TryGetValue(entry.Key, out var magnitudes))
+                            if (!imu.VibrationRms.TryGetValue(entry.Key, out var vibrationRms))
                             {
                                 continue;
                             }
 
                             var times = entry.Value as double[] ?? entry.Value.ToArray();
-                            var magnitudeValues = magnitudes as double[] ?? magnitudes.ToArray();
-                            graphPipeline.AppendImuSamples(entry.Key, times, magnitudeValues);
+                            var vibrationValues = vibrationRms as double[] ?? vibrationRms.ToArray();
+                            graphPipeline.AppendImuSamples(entry.Key, times, vibrationValues);
+                        }
+
+                        if (imu.FramePitchRoll is { } pitchRoll)
+                        {
+                            graphPipeline.AppendFramePitchRollSamples(
+                                pitchRoll.Times,
+                                pitchRoll.PitchDegrees,
+                                pitchRoll.RollDegrees);
                         }
                         break;
                 }
@@ -1046,20 +1076,6 @@ internal sealed class LiveSessionService : ILiveSessionService
         return maxTravel is double finiteMaxTravel
             ? Math.Clamp(travel, 0, finiteMaxTravel)
             : travel;
-    }
-
-    private static double ConvertImuMagnitude(ImuRecord record, LiveImuLocation location, LiveImuCalibrationScales scales)
-    {
-        var accelScale = scales.GetAccelScale(location);
-        if (accelScale == 0)
-        {
-            return double.NaN;
-        }
-
-        var ax = record.Ax / accelScale;
-        var ay = record.Ay / accelScale;
-        var az = record.Az / accelScale - 1.0;
-        return Math.Sqrt(ax * ax + ay * ay + az * az);
     }
 
     private double ToSampleOffsetSecondsLocked(ulong sampleMonotonicUs)

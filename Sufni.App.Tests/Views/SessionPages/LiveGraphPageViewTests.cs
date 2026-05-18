@@ -35,6 +35,7 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         workspace.VelocityGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live velocity data."));
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.PitchRollGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live pitch/roll data."));
         workspace.SpeedGraphState.Returns(SurfacePresentationState.WaitingForData("Waiting for live speed data."));
         workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.TrackPoints.Returns(
@@ -48,39 +49,47 @@ public class LiveGraphPageViewTests
 
         await using var mounted = await MountAsync(page);
 
-        var hosts = mounted.View.GetVisualDescendants()
-            .OfType<PlaceholderOverlayContainer>()
-            .Where(host => host.Name != "MapHost")
-            .ToArray();
         var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
         var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(mounted.View, "TravelPlot");
         var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(mounted.View, "VelocityPlot");
         var imuView = GetNamedVisual<LiveImuPlotDesktopView>(mounted.View, "ImuPlot");
+        var pitchRollView = GetNamedVisual<LiveFramePitchRollPlotDesktopView>(mounted.View, "PitchRollPlot");
         var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "SpeedPlot");
         var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "ElevationPlot");
         Assert.NotNull(pageScrollViewer);
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(pitchRollView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
         Assert.Equal(
-            ["Travel (mm)", "IMU acceleration (g)", "GPS speed (km/h)"],
+            ["Travel (mm)", "Vibration RMS (g)", "GPS speed (km/h)"],
             root.Rows.Select(row => row.Title!).ToArray());
         Assert.Equal(["Velocity (m/s)"], GetBaseRow(root, "Travel (mm)").ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Frame pitch/roll (deg)"], GetBaseRow(root, "Vibration RMS (g)").ChildRows.Select(row => row.Title!).ToArray());
         Assert.Equal(["Elevation (m)"], GetBaseRow(root, "GPS speed (km/h)").ChildRows.Select(row => row.Title!).ToArray());
-        Assert.Equal(3, hosts.Length);
-        Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[2].PresentationState.Kind);
-        Assert.True(GetBaseRow(root, "Travel (mm)").IsVisible);
-        Assert.False(GetBaseRow(root, "IMU acceleration (g)").IsVisible);
-        Assert.True(GetBaseRow(root, "GPS speed (km/h)").IsVisible);
-        Assert.False(GetChildRow(GetBaseRow(root, "GPS speed (km/h)"), "Elevation (m)").IsVisible);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
+        var pitchRollRow = GetChildRow(imuRow, "Frame pitch/roll (deg)");
+        var speedRow = GetBaseRow(root, "GPS speed (km/h)");
+        var elevationRow = GetChildRow(speedRow, "Elevation (m)");
+        Assert.Equal(SurfacePresentationState.Ready, travelRow.PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, velocityRow.PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, imuRow.PresentationState);
+        Assert.Equal(SurfaceStateKind.WaitingForData, pitchRollRow.PresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, speedRow.PresentationState.Kind);
+        Assert.Equal(SurfacePresentationState.Hidden, elevationRow.PresentationState);
+        Assert.True(travelRow.IsVisible);
+        Assert.True(imuRow.IsVisible);
+        Assert.True(speedRow.IsVisible);
+        Assert.False(elevationRow.IsVisible);
         Assert.True(travelView!.HideRightAxis);
         Assert.True(velocityView!.HideRightAxis);
         Assert.True(imuView!.HideRightAxis);
+        Assert.True(pitchRollView!.HideRightAxis);
         Assert.True(speedView!.HideRightAxis);
         Assert.True(elevationView!.HideRightAxis);
     }
@@ -95,6 +104,7 @@ public class LiveGraphPageViewTests
         workspace.TravelGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.VelocityGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        workspace.PitchRollGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
         workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
 
@@ -116,6 +126,7 @@ public class LiveGraphPageViewTests
         graphWorkspace.TravelGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.VelocityGraphState.Returns(SurfacePresentationState.Ready);
         graphWorkspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
+        graphWorkspace.PitchRollGraphState.Returns(SurfacePresentationState.Hidden);
         graphWorkspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
         graphWorkspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
         var mediaWorkspace = CreateMediaWorkspace(

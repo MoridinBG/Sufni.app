@@ -117,7 +117,7 @@ public class LiveSessionServiceTests
             TimeSpan.FromSeconds(2));
         var imuBatch = WaitForGraphBatchAsync(
             service.GraphBatches,
-            batch => batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 1,
+            batch => batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 50,
             TimeSpan.FromSeconds(2));
 
         await service.EnsureAttachedAsync();
@@ -373,7 +373,7 @@ public class LiveSessionServiceTests
                 && batch.FrontVelocity.Count == 0
                 && batch.RearVelocity.Count == 0
                 && batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var times)
-                && times.Count == 1,
+                && times.Count == 50,
             TimeSpan.FromSeconds(2));
 
         await service.EnsureAttachedAsync();
@@ -465,7 +465,11 @@ public class LiveSessionServiceTests
             }
         }
 
-        public void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> magnitudes)
+        public void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> vibrationRms)
+        {
+        }
+
+        public void AppendFramePitchRollSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
         {
         }
 
@@ -558,13 +562,24 @@ public class LiveSessionServiceTests
 
     private LiveImuBatchFrame CreateImuBatchFrame()
     {
+        const int tickCount = 50;
+
         return new LiveImuBatchFrame(
             Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.ImuBatch, 0, 2),
-            Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, sessionHeader.SessionStartMonotonicUs, 1),
-            Records:
-            [
-                new ImuRecord(0, 0, 16384, 0, 0, 0),
-            ]);
+            Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, sessionHeader.SessionStartMonotonicUs, tickCount),
+            Records: CreateRestImuRecords(tickCount));
+    }
+
+    private static ImuRecord[] CreateRestImuRecords(int tickCount)
+    {
+        var records = new ImuRecord[tickCount * 2];
+        for (var index = 0; index < tickCount; index++)
+        {
+            records[index * 2] = new ImuRecord(0, 0, 16384, 0, 0, 0);
+            records[index * 2 + 1] = new ImuRecord(0, 0, 8192, 0, 0, 0);
+        }
+
+        return records;
     }
 
     private LiveGpsBatchFrame CreateGpsBatchFrame(

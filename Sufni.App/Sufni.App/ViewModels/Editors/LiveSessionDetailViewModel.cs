@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -470,6 +471,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         PreferencesPage.TravelPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.VelocityPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.PitchRollPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
         PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
     }
@@ -489,9 +491,28 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var travelAvailable = sessionHeader is { AcceptedTravelHz: > 0 };
         var imuAvailable = sessionHeader is { AcceptedImuHz: > 0 } &&
                            sessionHeader.GetActiveImuLocations().Count > 0;
+        var pitchRollAvailable = HasLiveFramePitchRollSource(sessionHeader);
         var gpsAvailable = sessionHeader is { AcceptedGpsFixHz: > 0 };
 
-        PreferencesPage.ApplyPlotAvailability(travelAvailable, travelAvailable, gpsAvailable, gpsAvailable, imuAvailable);
+        PreferencesPage.ApplyPlotAvailability(
+            travelAvailable,
+            travelAvailable,
+            imuAvailable,
+            pitchRollAvailable,
+            gpsAvailable,
+            gpsAvailable);
+    }
+
+    private static bool HasLiveFramePitchRollSource(LiveSessionHeader? sessionHeader)
+    {
+        if (sessionHeader is not { AcceptedImuHz: > 0 })
+        {
+            return false;
+        }
+
+        return sessionHeader.GetActiveImuLocations().Contains(LiveImuLocation.Frame) &&
+            sessionHeader.ImuCalibrationScales.GetAccelScale(LiveImuLocation.Frame) > 0 &&
+            sessionHeader.ImuCalibrationScales.GetGyroScale(LiveImuLocation.Frame) > 0;
     }
 
     private SessionPreferences CreateCurrentSessionPreferences()
@@ -569,7 +590,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return new LiveSessionPlotRanges(
             TravelMaximum: Math.Max(1, travelMaximum),
             VelocityMaximum: 5,
-            ImuMaximum: 5);
+            ImuMaximum: 5,
+            PitchRollMaximum: 15);
     }
 
     private static SurfacePresentationState CreateStatisticsState(
@@ -658,7 +680,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         if (presence.HasAnyData)
         {
-            graphWorkspace.ApplyGraphDataPresence(presence.HasTravelData, presence.HasImuData);
+            graphWorkspace.ApplyGraphDataPresence(
+                presence.HasTravelData,
+                presence.HasImuData,
+                presence.HasPitchRollData);
         }
     }
 
@@ -951,9 +976,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 
-    private readonly record struct GraphBatchPresence(bool HasTravelData, bool HasImuData)
+    private readonly record struct GraphBatchPresence(bool HasTravelData, bool HasImuData, bool HasPitchRollData)
     {
-        public bool HasAnyData => HasTravelData || HasImuData;
+        public bool HasAnyData => HasTravelData || HasImuData || HasPitchRollData;
 
         public static GraphBatchPresence FromBatch(LiveGraphBatch batch)
         {
@@ -964,12 +989,21 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     || batch.VelocityTimes.Count > 0
                     || batch.FrontVelocity.Count > 0
                     || batch.RearVelocity.Count > 0,
-                HasImuData: HasAnyImuData(batch));
+                HasImuData: HasAnyImuData(batch),
+                HasPitchRollData: HasAnyPitchRollData(batch));
         }
 
         public GraphBatchPresence Combine(GraphBatchPresence other) => new(
             HasTravelData || other.HasTravelData,
-            HasImuData || other.HasImuData);
+            HasImuData || other.HasImuData,
+            HasPitchRollData || other.HasPitchRollData);
+
+        private static bool HasAnyPitchRollData(LiveGraphBatch batch)
+        {
+            return batch.FramePitchRollTimes.Count > 0 ||
+                batch.FramePitchDegrees.Count > 0 ||
+                batch.FrameRollDegrees.Count > 0;
+        }
 
         private static bool HasAnyImuData(LiveGraphBatch batch)
         {
@@ -981,7 +1015,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 }
             }
 
-            foreach (var series in batch.ImuMagnitudes.Values)
+            foreach (var series in batch.ImuVibrationRms.Values)
             {
                 if (series.Count > 0)
                 {

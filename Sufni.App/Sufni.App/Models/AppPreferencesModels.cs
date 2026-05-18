@@ -50,9 +50,11 @@ public sealed record SessionPlotPreferences(
     [property: JsonPropertyName("travel")] bool Travel = true,
     [property: JsonPropertyName("velocity")] bool Velocity = true,
     [property: JsonPropertyName("imu")] bool Imu = true,
+    [property: JsonPropertyName("pitch_roll")] bool PitchRoll = true,
     [property: JsonPropertyName("travel_smoothing")] PlotSmoothingLevel TravelSmoothing = PlotSmoothingLevel.Off,
     [property: JsonPropertyName("velocity_smoothing")] PlotSmoothingLevel VelocitySmoothing = PlotSmoothingLevel.Off,
     [property: JsonPropertyName("imu_smoothing")] PlotSmoothingLevel ImuSmoothing = PlotSmoothingLevel.Off,
+    [property: JsonPropertyName("pitch_roll_smoothing")] PlotSmoothingLevel PitchRollSmoothing = PlotSmoothingLevel.Off,
     [property: JsonPropertyName("speed")] bool Speed = true,
     [property: JsonPropertyName("elevation")] bool Elevation = true,
     [property: JsonPropertyName("speed_smoothing")] PlotSmoothingLevel SpeedSmoothing = PlotSmoothingLevel.Off,
@@ -117,7 +119,12 @@ public sealed record SessionGraphPreferences
                 [
                     new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
                 ]),
-            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu),
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Imu,
+                children:
+                [
+                    new SessionGraphRowPreferences(TelemetryGraphRowIds.PitchRoll),
+                ]),
             new SessionGraphRowPreferences(
                 TelemetryGraphRowIds.Speed,
                 children:
@@ -180,6 +187,7 @@ public static class TelemetryGraphRowIds
     public const string Travel = "travel";
     public const string Velocity = "velocity";
     public const string Imu = "imu";
+    public const string PitchRoll = "pitch_roll";
     public const string Speed = "speed";
     public const string Elevation = "elevation";
 }

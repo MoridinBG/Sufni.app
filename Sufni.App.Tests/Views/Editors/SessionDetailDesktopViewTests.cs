@@ -67,14 +67,17 @@ public class SessionDetailDesktopViewTests
         var travelView = mounted.View.GetVisualDescendants().OfType<TravelPlotDesktopView>().Single();
         var velocityView = mounted.View.GetVisualDescendants().OfType<VelocityPlotDesktopView>().Single();
         var imuView = mounted.View.GetVisualDescendants().OfType<ImuPlotDesktopView>().Single();
+        var pitchRollView = mounted.View.GetVisualDescendants().OfType<FramePitchRollPlotDesktopView>().Single();
 
         var travelPlot = PlotViewTestSupport.GetRenderedPlot(travelView);
         var velocityPlot = PlotViewTestSupport.GetRenderedPlot(velocityView);
         var imuPlot = PlotViewTestSupport.GetRenderedPlot(imuView);
+        var pitchRollPlot = PlotViewTestSupport.GetRenderedPlot(pitchRollView);
 
         Assert.Equal(2, travelPlot.Plot.PlottableList.OfType<Signal>().Count());
         Assert.Equal(2, velocityPlot.Plot.PlottableList.OfType<Signal>().Count());
         Assert.NotEmpty(imuPlot.Plot.PlottableList.OfType<Signal>());
+        Assert.Empty(pitchRollPlot.Plot.Axes.Title.Label.Text);
     }
 
     [AvaloniaFact]
@@ -97,8 +100,8 @@ public class SessionDetailDesktopViewTests
             .Where(control => control.Name == "ProgressIndicator" && control.IsVisible)
             .ToArray();
 
-        Assert.Equal(3, graphHosts.Length);
-        Assert.Equal(3, progressIndicators.Length);
+        Assert.Equal(4, graphHosts.Length);
+        Assert.Equal(4, progressIndicators.Length);
     }
 
     [AvaloniaFact]

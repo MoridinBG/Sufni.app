@@ -7,6 +7,34 @@ namespace Sufni.App.Tests.ViewModels.SessionPages;
 public class PreferencesPageViewModelTests
 {
     [Fact]
+    public void CreatePlotPreferences_RoundTripsPitchRollSelectionAndSmoothing()
+    {
+        var viewModel = new PreferencesPageViewModel();
+
+        viewModel.ApplyPlotPreferences(new SessionPlotPreferences(
+            Travel: true,
+            Velocity: true,
+            Imu: true,
+            PitchRoll: false,
+            PitchRollSmoothing: PlotSmoothingLevel.Strong));
+        viewModel.ApplyPlotAvailability(
+            travelAvailable: true,
+            velocityAvailable: true,
+            imuAvailable: true,
+            pitchRollAvailable: false,
+            speedAvailable: true,
+            elevationAvailable: true);
+
+        var preferences = viewModel.CreatePlotPreferences();
+
+        Assert.False(viewModel.PitchRollPlot.Selected);
+        Assert.False(viewModel.PitchRollPlot.Available);
+        Assert.Equal(PlotSmoothingLevel.Strong, viewModel.PitchRollPlot.SelectedSmoothing);
+        Assert.False(preferences.PitchRoll);
+        Assert.Equal(PlotSmoothingLevel.Strong, preferences.PitchRollSmoothing);
+    }
+
+    [Fact]
     public void ApplyProcessingPreferences_ClampsSliderValueAndUpdatesDisplay()
     {
         var viewModel = new PreferencesPageViewModel();

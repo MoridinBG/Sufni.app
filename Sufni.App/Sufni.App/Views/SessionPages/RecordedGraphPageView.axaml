@@ -34,6 +34,7 @@ mc:Ignorable="d">
                             <Binding Path="!Workspace.TravelGraphState.ReservesLayout" />
                             <Binding Path="!Workspace.VelocityGraphState.ReservesLayout" />
                             <Binding Path="!Workspace.ImuGraphState.ReservesLayout" />
+                            <Binding Path="!Workspace.PitchRollGraphState.ReservesLayout" />
                             <Binding Path="!Workspace.SpeedGraphState.ReservesLayout" />
                             <Binding Path="!Workspace.ElevationGraphState.ReservesLayout" />
                         </MultiBinding>
