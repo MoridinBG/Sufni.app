@@ -1,32 +1,13 @@
 using System.Diagnostics;
-using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models.SensorConfigurations;
 
 namespace Sufni.App.ViewModels.SensorConfigurations;
 
-public partial class LinearShockSensorConfigurationViewModel : SensorConfigurationViewModel
+public partial class LinearShockSensorConfigurationViewModel : LinearSensorConfigurationViewModelBase
 {
     private LinearShockSensorConfiguration sensorConfiguration;
 
-    #region Observable properties
-
-    [ObservableProperty] private double? length;
-    [ObservableProperty] private int? resolution;
-
-    #endregion Observable properties
-
     #region SensorConfigurationViewModel overrides
-
-    public override void EvaluateDirtiness()
-    {
-        IsDirty = !MathUtils.AreEqual(Length, sensorConfiguration.Length) ||
-                  Resolution != sensorConfiguration.Resolution;
-    }
-
-    public override bool CanSave()
-    {
-        return Length is not null && Resolution is not null;
-    }
 
     public override void Save()
     {
@@ -40,7 +21,7 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
             Type = Type,
         };
 
-        EvaluateDirtiness();
+        AcceptSavedLinearValues(sensorConfiguration.Length, sensorConfiguration.Resolution);
     }
 
     public override string ToJson()
@@ -73,8 +54,7 @@ public partial class LinearShockSensorConfigurationViewModel : SensorConfigurati
             ? SensorType.LinearShockStroke
             : SensorType.LinearShock;
         sensorConfiguration = configuration;
-        Length = configuration.Length;
-        Resolution = configuration.Resolution;
+        LoadLinearValues(configuration.Length, configuration.Resolution);
     }
 
     #endregion Constructors
