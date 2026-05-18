@@ -241,7 +241,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` materializes a processed `Session` row, a live-capture recorded source, a processing fingerprint, and an optional generated `Track` from captured GPS.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` creates a live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 
