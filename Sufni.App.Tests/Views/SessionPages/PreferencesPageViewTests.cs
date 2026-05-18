@@ -17,41 +17,48 @@ public class PreferencesPageViewTests
             Travel: false,
             Velocity: true,
             Imu: false,
+            PitchRoll: false,
             Speed: true,
             Elevation: false,
             TravelSmoothing: PlotSmoothingLevel.Light,
             VelocitySmoothing: PlotSmoothingLevel.Strong,
             ImuSmoothing: PlotSmoothingLevel.Off,
+            PitchRollSmoothing: PlotSmoothingLevel.Light,
             SpeedSmoothing: PlotSmoothingLevel.Strong,
             ElevationSmoothing: PlotSmoothingLevel.Light));
         viewModel.ApplyPlotAvailability(
             travelAvailable: true,
             velocityAvailable: false,
+            imuAvailable: true,
+            pitchRollAvailable: false,
             speedAvailable: true,
-            elevationAvailable: false,
-            imuAvailable: true);
+            elevationAvailable: false);
 
         await using var mounted = await MountAsync(viewModel);
 
         var travelCheckBox = mounted.View.FindControl<CheckBox>("TravelPlotCheckBox");
         var velocityCheckBox = mounted.View.FindControl<CheckBox>("VelocityPlotCheckBox");
         var imuCheckBox = mounted.View.FindControl<CheckBox>("ImuPlotCheckBox");
+        var pitchRollCheckBox = mounted.View.FindControl<CheckBox>("PitchRollPlotCheckBox");
         var speedCheckBox = mounted.View.FindControl<CheckBox>("SpeedPlotCheckBox");
         var elevationCheckBox = mounted.View.FindControl<CheckBox>("ElevationPlotCheckBox");
         var travelSmoothingComboBox = mounted.View.FindControl<ComboBox>("TravelPlotSmoothingComboBox");
         var velocitySmoothingComboBox = mounted.View.FindControl<ComboBox>("VelocityPlotSmoothingComboBox");
         var imuSmoothingComboBox = mounted.View.FindControl<ComboBox>("ImuPlotSmoothingComboBox");
+        var pitchRollSmoothingComboBox = mounted.View.FindControl<ComboBox>("PitchRollPlotSmoothingComboBox");
         var speedSmoothingComboBox = mounted.View.FindControl<ComboBox>("SpeedPlotSmoothingComboBox");
         var elevationSmoothingComboBox = mounted.View.FindControl<ComboBox>("ElevationPlotSmoothingComboBox");
 
         Assert.NotNull(travelCheckBox);
         Assert.NotNull(velocityCheckBox);
         Assert.NotNull(imuCheckBox);
+        Assert.NotNull(pitchRollCheckBox);
         Assert.NotNull(speedCheckBox);
         Assert.NotNull(elevationCheckBox);
         Assert.NotNull(travelSmoothingComboBox);
         Assert.NotNull(velocitySmoothingComboBox);
         Assert.NotNull(imuSmoothingComboBox);
+        Assert.NotNull(pitchRollSmoothingComboBox);
         Assert.NotNull(speedSmoothingComboBox);
         Assert.NotNull(elevationSmoothingComboBox);
         Assert.False(travelCheckBox!.IsChecked);
@@ -66,6 +73,10 @@ public class PreferencesPageViewTests
         Assert.True(imuCheckBox.IsEnabled);
         Assert.Equal(PlotSmoothingLevel.Off, imuSmoothingComboBox!.SelectedValue);
         Assert.True(imuSmoothingComboBox.IsEnabled);
+        Assert.False(pitchRollCheckBox!.IsChecked);
+        Assert.False(pitchRollCheckBox.IsEnabled);
+        Assert.Equal(PlotSmoothingLevel.Light, pitchRollSmoothingComboBox!.SelectedValue);
+        Assert.False(pitchRollSmoothingComboBox.IsEnabled);
         Assert.True(speedCheckBox!.IsChecked);
         Assert.True(speedCheckBox.IsEnabled);
         Assert.Equal(PlotSmoothingLevel.Strong, speedSmoothingComboBox!.SelectedValue);
@@ -88,11 +99,13 @@ public class PreferencesPageViewTests
                 Travel: true,
                 Velocity: true,
                 Imu: true,
+                PitchRoll: false,
                 Speed: false,
                 Elevation: false,
                 TravelSmoothing: PlotSmoothingLevel.Strong,
                 VelocitySmoothing: PlotSmoothingLevel.Strong,
                 ImuSmoothing: PlotSmoothingLevel.Light,
+                PitchRollSmoothing: PlotSmoothingLevel.Light,
                 SpeedSmoothing: PlotSmoothingLevel.Off,
                 ElevationSmoothing: PlotSmoothingLevel.Light),
             viewModel.CreatePlotPreferences());

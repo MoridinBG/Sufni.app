@@ -150,9 +150,11 @@ public class LiveSessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
         Assert.True(editor.PreferencesPage.TravelPlot.Available);
         Assert.True(editor.PreferencesPage.VelocityPlot.Available);
         Assert.True(editor.PreferencesPage.ImuPlot.Available);
+        Assert.True(editor.PreferencesPage.PitchRollPlot.Available);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
@@ -177,11 +179,13 @@ public class LiveSessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
 
         graphBatches.OnNext(CreateImuOnlyBatch(revision: 2));
         await WaitForUiRefreshAsync();
 
         Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
     }
 
     [AvaloniaFact]
@@ -205,6 +209,7 @@ public class LiveSessionDetailViewModelTests
         Assert.True(editor.GraphWorkspace.TravelGraphState.IsReady);
         Assert.True(editor.GraphWorkspace.VelocityGraphState.IsHidden);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
     }
 
     [AvaloniaFact]
@@ -993,7 +998,10 @@ public class LiveSessionDetailViewModelTests
             FrontVelocity: [100.0, 110.0],
             RearVelocity: [90.0, 100.0],
             ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
-            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>());
+            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
+            FramePitchRollTimes: [],
+            FramePitchDegrees: [],
+            FrameRollDegrees: []);
     }
 
     private static LiveGraphBatch CreateImuOnlyBatch(long revision)
@@ -1010,9 +1018,12 @@ public class LiveSessionDetailViewModelTests
             {
                 [LiveImuLocation.Frame] = [0.0, 0.01],
             },
-            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
+            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
             {
                 [LiveImuLocation.Frame] = [1.0, 1.5],
-            });
+            },
+            FramePitchRollTimes: [],
+            FramePitchDegrees: [],
+            FrameRollDegrees: []);
     }
 }

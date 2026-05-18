@@ -30,9 +30,10 @@ public class SessionSidebarDesktopViewTests
         workspace.PreferencesPage.ApplyPlotAvailability(
             travelAvailable: true,
             velocityAvailable: false,
+            imuAvailable: true,
+            pitchRollAvailable: true,
             speedAvailable: true,
-            elevationAvailable: true,
-            imuAvailable: true);
+            elevationAvailable: true);
 
         await using var mounted = await MountAsync(workspace);
 

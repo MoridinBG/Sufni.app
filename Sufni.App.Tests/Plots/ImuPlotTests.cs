@@ -11,7 +11,7 @@ namespace Sufni.App.Tests.Plots;
 public class ImuPlotTests
 {
     [Fact]
-    public void LoadTelemetryData_AddsOneSignalPerActiveLocationWithMetadata()
+    public void LoadTelemetryData_AddsOneVibrationSeriesPerActiveLocationWithMetadata()
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);

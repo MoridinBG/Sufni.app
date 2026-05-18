@@ -37,7 +37,7 @@ public class RecordedSessionGraphDesktopViewTests
         var root = GetGraphRoot(mounted.View);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
 
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
@@ -77,7 +77,7 @@ public class RecordedSessionGraphDesktopViewTests
         var root = GetGraphRoot(mounted.View);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
 
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
@@ -101,7 +101,7 @@ public class RecordedSessionGraphDesktopViewTests
         var root = GetGraphRoot(mounted.View);
         var travelRow = GetBaseRow(root, "Travel (mm)");
         var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
 
         Assert.True(travelRow.IsVisible);
         Assert.False(velocityRow.IsVisible);
@@ -119,7 +119,7 @@ public class RecordedSessionGraphDesktopViewTests
 
         var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
         var root = GetGraphRoot(mounted.View);
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
 
         Assert.NotNull(imuView);
         Assert.True(imuView!.IsVisible);
@@ -137,7 +137,7 @@ public class RecordedSessionGraphDesktopViewTests
 
         var root = GetGraphRoot(mounted.View);
         var travelRow = GetBaseRow(root, "Travel (mm)");
-        var imuRow = GetBaseRow(root, "IMU acceleration (g)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
         var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
         var elevationRow = GetChildRow(gpsRow, "Elevation (m)");
         var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
@@ -162,13 +162,15 @@ public class RecordedSessionGraphDesktopViewTests
 
         var root = GetGraphRoot(mounted.View);
         Assert.Equal(
-            ["Travel (mm)", "IMU acceleration (g)", "GPS speed (km/h)"],
+            ["Travel (mm)", "Vibration RMS (g)", "GPS speed (km/h)"],
             root.Rows.Select(row => row.Title!).ToArray());
 
         var travelRow = GetBaseRow(root, "Travel (mm)");
+        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
         var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
 
         Assert.Equal(["Velocity (m/s)"], travelRow.ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Frame pitch/roll (deg)"], imuRow.ChildRows.Select(row => row.Title!).ToArray());
         Assert.Equal(["Elevation (m)"], gpsRow.ChildRows.Select(row => row.Title!).ToArray());
     }
 
@@ -198,10 +200,10 @@ public class RecordedSessionGraphDesktopViewTests
 
         var root = GetGraphRoot(mounted.View);
         Assert.Equal(
-            ["IMU acceleration (g)", "Travel (mm)", "GPS speed (km/h)"],
+            ["Vibration RMS (g)", "Travel (mm)", "GPS speed (km/h)"],
             root.Rows.Select(row => row.Title!).ToArray());
         Assert.False(root.Rows[0].IsExpanded);
-        Assert.Equal(["Velocity (m/s)"], root.Rows[0].ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Velocity (m/s)", "Frame pitch/roll (deg)"], root.Rows[0].ChildRows.Select(row => row.Title!).ToArray());
         Assert.Equal(["Elevation (m)"], root.Rows[2].ChildRows.Select(row => row.Title!).ToArray());
     }
 
@@ -212,6 +214,7 @@ public class RecordedSessionGraphDesktopViewTests
         telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(
             telemetry,
+            pitchRollGraphState: SurfacePresentationState.Ready,
             speedGraphState: SurfacePresentationState.Ready,
             elevationGraphState: SurfacePresentationState.Ready);
 
@@ -220,11 +223,13 @@ public class RecordedSessionGraphDesktopViewTests
         var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
         var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
         var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
+        var pitchRollView = GetNamedVisual<FramePitchRollPlotDesktopView>(mounted.View, "PitchRoll");
         var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
         var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Elevation");
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
+        Assert.NotNull(pitchRollView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
         SufniTimeSeriesPlotView[] plotViews =
@@ -232,6 +237,7 @@ public class RecordedSessionGraphDesktopViewTests
             travelView!,
             velocityView!,
             imuView!,
+            pitchRollView!,
             speedView!,
             elevationView!
         ];
@@ -332,6 +338,7 @@ public class RecordedSessionGraphDesktopViewTests
         SurfacePresentationState? travelGraphState = null,
         SurfacePresentationState? velocityGraphState = null,
         SurfacePresentationState? imuGraphState = null,
+        SurfacePresentationState? pitchRollGraphState = null,
         SurfacePresentationState? speedGraphState = null,
         SurfacePresentationState? elevationGraphState = null) :
         IRecordedSessionGraphWorkspace,
@@ -362,6 +369,7 @@ public class RecordedSessionGraphDesktopViewTests
         public SurfacePresentationState TravelGraphState => travelGraphState ?? CreateTravelState(TelemetryData);
         public SurfacePresentationState VelocityGraphState => velocityGraphState ?? TravelGraphState;
         public SurfacePresentationState ImuGraphState => imuGraphState ?? CreateImuState(TelemetryData);
+        public SurfacePresentationState PitchRollGraphState { get; } = pitchRollGraphState ?? SurfacePresentationState.Hidden;
         public IReadOnlyList<TrackPoint>? TrackPoints { get; } =
         [
             new TrackPoint(0, 0, 0, 100, 5),

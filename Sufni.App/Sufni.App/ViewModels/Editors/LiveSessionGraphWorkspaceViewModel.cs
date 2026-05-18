@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Linq;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -13,14 +14,17 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
     private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState pitchRollGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
     private uint? sessionId;
     private bool travelExpected;
     private bool imuExpected;
+    private bool pitchRollExpected;
     private bool gpsExpected;
     private bool hasTravelData;
     private bool hasImuData;
+    private bool hasPitchRollData;
     private IReadOnlyList<TrackPoint> trackPoints = [];
     private TrackTimeRange? trackTimelineContext;
     private SessionPlotPreferences plotPreferences = new();
@@ -65,6 +69,12 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         private set => SetProperty(ref imuGraphState, value);
     }
 
+    public SurfacePresentationState PitchRollGraphState
+    {
+        get => pitchRollGraphState;
+        private set => SetProperty(ref pitchRollGraphState, value);
+    }
+
     public SurfacePresentationState VelocityGraphState
     {
         get => velocityGraphState;
@@ -105,9 +115,11 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
             sessionId = null;
             travelExpected = false;
             imuExpected = false;
+            pitchRollExpected = false;
             gpsExpected = false;
             hasTravelData = false;
             hasImuData = false;
+            hasPitchRollData = false;
             TrackPoints = [];
             TrackTimelineContext = null;
             RefreshStates();
@@ -117,13 +129,16 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         var sessionChanged = sessionId != sessionHeader.SessionId;
         sessionId = sessionHeader.SessionId;
         travelExpected = sessionHeader.AcceptedTravelHz > 0;
-        imuExpected = sessionHeader.AcceptedImuHz > 0 && sessionHeader.GetActiveImuLocations().Count > 0;
+        var activeImuLocations = sessionHeader.GetActiveImuLocations();
+        imuExpected = sessionHeader.AcceptedImuHz > 0 && activeImuLocations.Count > 0;
+        pitchRollExpected = HasFramePitchRollSource(sessionHeader, activeImuLocations);
         gpsExpected = sessionHeader.AcceptedGpsFixHz > 0;
 
         if (sessionChanged)
         {
             hasTravelData = false;
             hasImuData = false;
+            hasPitchRollData = false;
             TrackPoints = [];
             TrackTimelineContext = null;
         }
@@ -133,7 +148,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
 
     public void ApplyGraphBatch(LiveGraphBatch batch)
     {
-        ApplyGraphDataPresence(HasTravelData(batch), HasImuData(batch));
+        ApplyGraphDataPresence(HasTravelData(batch), HasImuData(batch), HasPitchRollData(batch));
     }
 
     public void ApplyPlotPreferences(SessionPlotPreferences preferences)
@@ -142,7 +157,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         RefreshStates();
     }
 
-    public void ApplyGraphDataPresence(bool hasTravelData, bool hasImuData)
+    public void ApplyGraphDataPresence(bool hasTravelData, bool hasImuData, bool hasPitchRollData)
     {
         if (!this.hasTravelData && hasTravelData)
         {
@@ -152,6 +167,11 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         if (!this.hasImuData && hasImuData)
         {
             this.hasImuData = true;
+        }
+
+        if (!this.hasPitchRollData && hasPitchRollData)
+        {
+            this.hasPitchRollData = true;
         }
 
         RefreshStates();
@@ -184,7 +204,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
             }
         }
 
-        foreach (var series in batch.ImuMagnitudes.Values)
+        foreach (var series in batch.ImuVibrationRms.Values)
         {
             if (series.Count > 0)
             {
@@ -193,6 +213,21 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         }
 
         return false;
+    }
+
+    private static bool HasPitchRollData(LiveGraphBatch batch)
+    {
+        return batch.FramePitchRollTimes.Count > 0 ||
+            batch.FramePitchDegrees.Count > 0 ||
+            batch.FrameRollDegrees.Count > 0;
+    }
+
+    private static bool HasFramePitchRollSource(LiveSessionHeader sessionHeader, IReadOnlyList<LiveImuLocation> activeImuLocations)
+    {
+        return sessionHeader.AcceptedImuHz > 0 &&
+            activeImuLocations.Contains(LiveImuLocation.Frame) &&
+            sessionHeader.ImuCalibrationScales.GetAccelScale(LiveImuLocation.Frame) > 0 &&
+            sessionHeader.ImuCalibrationScales.GetGyroScale(LiveImuLocation.Frame) > 0;
     }
 
     private void RefreshStates()
@@ -215,6 +250,12 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
                 ? SurfacePresentationState.Ready
                 : SurfacePresentationState.WaitingForData("Waiting for live IMU data.");
 
+        var pitchRollState = !pitchRollExpected
+            ? SurfacePresentationState.Hidden
+            : hasPitchRollData
+                ? SurfacePresentationState.Ready
+                : SurfacePresentationState.WaitingForData("Waiting for live pitch/roll data.");
+
         var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(TrackPoints);
         var speedState = !gpsExpected
             ? SurfacePresentationState.Hidden
@@ -232,6 +273,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         TravelGraphState = travelState.ApplyPlotSelection(plotPreferences.Travel);
         VelocityGraphState = velocityState.ApplyPlotSelection(plotPreferences.Velocity);
         ImuGraphState = imuState.ApplyPlotSelection(plotPreferences.Imu);
+        PitchRollGraphState = pitchRollState.ApplyPlotSelection(plotPreferences.PitchRoll);
         SpeedGraphState = speedState.ApplyPlotSelection(plotPreferences.Speed);
         ElevationGraphState = elevationState.ApplyPlotSelection(plotPreferences.Elevation);
     }

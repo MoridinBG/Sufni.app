@@ -94,7 +94,7 @@ public class RecordedTimeSeriesPlotTests
                     "Speed",
                     "km/h",
                     Color.FromHex("#ffffbf"),
-                    new ExplicitValues([0, 0.001, 0.002], [0, 9, 0]),
+                    new ExplicitValues([0, 0.1, 0.2], [0, 9, 0]),
                     "0.#")
             ]));
 
@@ -103,11 +103,11 @@ public class RecordedTimeSeriesPlotTests
         Assert.Empty(plot.PlottableList.OfType<Signal>());
         Assert.NotNull(sut.CursorLine);
 
-        sut.SetCursorPositionWithReadout(0.001);
+        sut.SetCursorPositionWithReadout(0.1);
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
-        Assert.Contains("Speed: 3 km/h", tooltip.LabelText);
+        Assert.Contains("Speed: 6.9 km/h", tooltip.LabelText);
     }
 
     private sealed class TestRecordedTimeSeriesPlot(Plot plot) : RecordedTimeSeriesPlot(plot)

@@ -436,7 +436,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             && batch.FrontVelocity.Count == 0
             && batch.RearVelocity.Count == 0
             && batch.ImuTimes.Count == 0
-            && batch.ImuMagnitudes.Count == 0;
+            && batch.ImuVibrationRms.Count == 0
+            && batch.FramePitchRollTimes.Count == 0
+            && batch.FramePitchDegrees.Count == 0
+            && batch.FrameRollDegrees.Count == 0;
     }
 
     private sealed class PendingGraphBatchBuffer
@@ -494,7 +497,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         private readonly List<double> frontVelocity = [];
         private readonly List<double> rearVelocity = [];
         private readonly Dictionary<LiveImuLocation, List<double>> imuTimes = [];
-        private readonly Dictionary<LiveImuLocation, List<double>> imuMagnitudes = [];
+        private readonly Dictionary<LiveImuLocation, List<double>> imuVibrationRms = [];
+        private readonly List<double> framePitchRollTimes = [];
+        private readonly List<double> framePitchDegrees = [];
+        private readonly List<double> frameRollDegrees = [];
 
         private long revision;
 
@@ -505,7 +511,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             || frontVelocity.Count > 0
             || rearVelocity.Count > 0
             || HasDictionaryContent(imuTimes)
-            || HasDictionaryContent(imuMagnitudes);
+            || HasDictionaryContent(imuVibrationRms)
+            || framePitchRollTimes.Count > 0
+            || framePitchDegrees.Count > 0
+            || frameRollDegrees.Count > 0;
 
         public void Append(LiveGraphBatch batch)
         {
@@ -517,7 +526,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             frontVelocity.AddRange(batch.FrontVelocity);
             rearVelocity.AddRange(batch.RearVelocity);
             AppendDictionary(imuTimes, batch.ImuTimes);
-            AppendDictionary(imuMagnitudes, batch.ImuMagnitudes);
+            AppendDictionary(imuVibrationRms, batch.ImuVibrationRms);
+            framePitchRollTimes.AddRange(batch.FramePitchRollTimes);
+            framePitchDegrees.AddRange(batch.FramePitchDegrees);
+            frameRollDegrees.AddRange(batch.FrameRollDegrees);
         }
 
         public void TrimToNewest(int sampleLimit)
@@ -529,7 +541,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             TrimListToNewest(frontVelocity, sampleLimit);
             TrimListToNewest(rearVelocity, sampleLimit);
             TrimDictionaryToNewest(imuTimes, sampleLimit);
-            TrimDictionaryToNewest(imuMagnitudes, sampleLimit);
+            TrimDictionaryToNewest(imuVibrationRms, sampleLimit);
+            TrimListToNewest(framePitchRollTimes, sampleLimit);
+            TrimListToNewest(framePitchDegrees, sampleLimit);
+            TrimListToNewest(frameRollDegrees, sampleLimit);
         }
 
         public LiveGraphBatch ToBatch()
@@ -543,7 +558,10 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                 FrontVelocity: frontVelocity.ToArray(),
                 RearVelocity: rearVelocity.ToArray(),
                 ImuTimes: CloneDictionary(imuTimes),
-                ImuMagnitudes: CloneDictionary(imuMagnitudes));
+                ImuVibrationRms: CloneDictionary(imuVibrationRms),
+                FramePitchRollTimes: framePitchRollTimes.ToArray(),
+                FramePitchDegrees: framePitchDegrees.ToArray(),
+                FrameRollDegrees: frameRollDegrees.ToArray());
         }
 
         private static void AppendDictionary(

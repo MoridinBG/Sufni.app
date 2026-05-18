@@ -95,10 +95,13 @@ public class LiveSessionDetailDesktopViewTests
             {
                 [LiveImuLocation.Frame] = [0.0, 0.01],
             },
-            ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
+            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
             {
                 [LiveImuLocation.Frame] = [1.0, 1.5],
-            }));
+            },
+            FramePitchRollTimes: [],
+            FramePitchDegrees: [],
+            FrameRollDegrees: []));
 
         return new LiveSessionDetailViewModel(
             CreateSessionContext(),

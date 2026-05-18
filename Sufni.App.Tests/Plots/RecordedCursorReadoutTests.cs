@@ -55,7 +55,7 @@ public class RecordedCursorReadoutTests
     }
 
     [Fact]
-    public void ImuPlot_SetCursorPositionWithReadout_ShowsActiveLocationMagnitudes()
+    public void ImuPlot_SetCursorPositionWithReadout_ShowsActiveLocationVibrationRms()
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
@@ -65,8 +65,8 @@ public class RecordedCursorReadoutTests
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
-        Assert.Contains("Frame: 1 g", tooltip.LabelText);
-        Assert.Contains("Fork: 2 g", tooltip.LabelText);
+        Assert.Contains("Frame: 0.414 g", tooltip.LabelText);
+        Assert.Contains("Fork: 1.236 g", tooltip.LabelText);
     }
 
     [Fact]

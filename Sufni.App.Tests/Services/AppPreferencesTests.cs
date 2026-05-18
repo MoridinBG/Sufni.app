@@ -905,11 +905,13 @@ public class AppPreferencesTests
         Assert.True(preferences.Plots.Travel);
         Assert.True(preferences.Plots.Velocity);
         Assert.True(preferences.Plots.Imu);
+        Assert.True(preferences.Plots.PitchRoll);
         Assert.True(preferences.Plots.Speed);
         Assert.True(preferences.Plots.Elevation);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.TravelSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.VelocitySmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ImuSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.PitchRollSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.SpeedSmoothing);
         Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ElevationSmoothing);
         Assert.Equal(TravelHistogramMode.ActiveSuspension, preferences.Statistics.TravelHistogramMode);
@@ -923,6 +925,7 @@ public class AppPreferencesTests
             [TelemetryGraphRowIds.Travel, TelemetryGraphRowIds.Imu, TelemetryGraphRowIds.Speed],
             preferences.Graph.Rows.Select(row => row.RowId).ToArray());
         Assert.Equal([TelemetryGraphRowIds.Velocity], preferences.Graph.Rows[0].Children.Select(row => row.RowId).ToArray());
+        Assert.Equal([TelemetryGraphRowIds.PitchRoll], preferences.Graph.Rows[1].Children.Select(row => row.RowId).ToArray());
         Assert.Equal([TelemetryGraphRowIds.Elevation], preferences.Graph.Rows[2].Children.Select(row => row.RowId).ToArray());
         Assert.All(preferences.Graph.Rows, row => Assert.True(row.IsExpanded));
     }

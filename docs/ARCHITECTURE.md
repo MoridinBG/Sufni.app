@@ -159,7 +159,7 @@ Topics in [architecture/ui.md](architecture/ui.md):
 - [Controls Library](architecture/ui.md#controls-library) — reusable controls in `Views/Controls/` and `DesktopViews/Controls/`
 - [Data Visualization](architecture/ui.md#data-visualization) — `SufniPlot` / `TelemetryPlot` base classes
   - [Plot Hierarchy](architecture/ui.md#plot-hierarchy) — quick orientation for the main plot families
-  - [IMU Plot](architecture/ui.md#imu-plot) — per-location magnitude calculation
+  - [IMU Plot](architecture/ui.md#imu-plot) — vibration RMS and frame pitch/roll derivation
   - [Desktop vs Mobile](architecture/ui.md#desktop-vs-mobile) — extended desktop layouts vs stacked mobile views
 
 ---

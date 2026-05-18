@@ -72,7 +72,7 @@ public class LiveGraphPipelineTests
         var front = BuildLinearTravel(sampleCount, startValue: 10);
         var rear = BuildLinearTravel(sampleCount, startValue: 20);
         var imuTimes = new[] { times[^1] };
-        var imuMagnitudes = new[] { 9.81 };
+        var imuVibrationRms = new[] { 9.81 };
 
         var batchTask = WaitForBatchAsync(
             pipeline,
@@ -81,7 +81,7 @@ public class LiveGraphPipelineTests
                 && values.Count == 1);
 
         pipeline.AppendTravelSamples(times, front, rear);
-        pipeline.AppendImuSamples(LiveImuLocation.Frame, imuTimes, imuMagnitudes);
+        pipeline.AppendImuSamples(LiveImuLocation.Frame, imuTimes, imuVibrationRms);
 
         var batch = await batchTask;
 
@@ -89,7 +89,7 @@ public class LiveGraphPipelineTests
         Assert.Equal(sampleCount, batch.FrontVelocity.Count);
         Assert.Equal(sampleCount, batch.RearVelocity.Count);
         Assert.Single(batch.ImuTimes[LiveImuLocation.Frame]);
-        Assert.Equal(9.81, batch.ImuMagnitudes[LiveImuLocation.Frame][0]);
+        Assert.Equal(9.81, batch.ImuVibrationRms[LiveImuLocation.Frame][0]);
         var expectedVelocitySamples = times.Count(time => times[^1] - time < MaxVelocityContextMilliseconds / 1000.0);
         Assert.All(batch.FrontVelocity.Take(sampleCount - expectedVelocitySamples), value => Assert.True(double.IsNaN(value)));
         Assert.All(batch.FrontVelocity.Skip(sampleCount - expectedVelocitySamples), value => Assert.False(double.IsNaN(value)));
@@ -103,7 +103,7 @@ public class LiveGraphPipelineTests
         pipeline.Start();
 
         var times = new[] { 0.0 };
-        var magnitudes = new[] { 1.5 };
+        var vibrationRms = new[] { 1.5 };
 
         var batchTask = WaitForBatchAsync(
             pipeline,
@@ -111,7 +111,7 @@ public class LiveGraphPipelineTests
                 && batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var list)
                 && list.Count == 1);
 
-        pipeline.AppendImuSamples(LiveImuLocation.Frame, times, magnitudes);
+        pipeline.AppendImuSamples(LiveImuLocation.Frame, times, vibrationRms);
 
         var batch = await batchTask;
 
@@ -121,7 +121,36 @@ public class LiveGraphPipelineTests
         Assert.Empty(batch.FrontVelocity);
         Assert.Empty(batch.RearVelocity);
         Assert.Single(batch.ImuTimes[LiveImuLocation.Frame]);
-        Assert.Equal(1.5, batch.ImuMagnitudes[LiveImuLocation.Frame][0]);
+        Assert.Equal(1.5, batch.ImuVibrationRms[LiveImuLocation.Frame][0]);
+    }
+
+    [Fact]
+    public async Task AppendFramePitchRollSamples_OnlyPitchRoll_FlushesWithEmptyTravel()
+    {
+        await using var pipeline = CreatePipeline();
+        pipeline.Start();
+
+        var times = new[] { 0.0, 0.01 };
+        var pitch = new[] { 1.0, 1.5 };
+        var roll = new[] { -2.0, -2.5 };
+
+        var batchTask = WaitForBatchAsync(
+            pipeline,
+            batch => batch.TravelTimes.Count == 0
+                && batch.FramePitchRollTimes.Count == 2);
+
+        pipeline.AppendFramePitchRollSamples(times, pitch, roll);
+
+        var batch = await batchTask;
+
+        Assert.Empty(batch.TravelTimes);
+        Assert.Empty(batch.FrontTravel);
+        Assert.Empty(batch.RearTravel);
+        Assert.Empty(batch.FrontVelocity);
+        Assert.Empty(batch.RearVelocity);
+        Assert.Equal(times, batch.FramePitchRollTimes);
+        Assert.Equal(pitch, batch.FramePitchDegrees);
+        Assert.Equal(roll, batch.FrameRollDegrees);
     }
 
     [Fact]
@@ -167,6 +196,7 @@ public class LiveGraphPipelineTests
             pipeline,
             batch => batch.TravelTimes.Count == 0
                 && batch.ImuTimes.Count == 0
+                && batch.FramePitchRollTimes.Count == 0
                 && batch.Revision > firstBatch.Revision);
 
         pipeline.Reset();

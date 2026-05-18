@@ -60,7 +60,7 @@ mc:Ignorable="d">
 
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Imu}"
-            Title="IMU acceleration (g)"
+            Title="Vibration RMS (g)"
             PresentationState="{Binding ImuGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
                     <plots:ImuPlotDesktopView
@@ -76,6 +76,27 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.PlaceholderContent>
                     <controls:SurfacePlaceholderCard Title="IMU" />
                 </controls:TelemetryPlotRow.PlaceholderContent>
+                <controls:TelemetryPlotRow.ChildRows>
+                    <controls:TelemetryPlotRow
+                    RowId="{x:Static models:TelemetryGraphRowIds.PitchRoll}"
+                    Title="Frame pitch/roll (deg)"
+                    PresentationState="{Binding PitchRollGraphState}">
+                        <controls:TelemetryPlotRow.PlotContent>
+                            <plots:FramePitchRollPlotDesktopView
+                            Name="PitchRoll"
+                            AnalysisRange="{Binding AnalysisRange}"
+                            GraphWorkspace="{Binding}"
+                            HideRightAxis="{Binding #Root.HideRightAxis}"
+                            MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
+                            SmoothingLevel="{Binding PlotPreferences.PitchRollSmoothing}"
+                            Telemetry="{Binding TelemetryData}"
+                            Timeline="{Binding Timeline}" />
+                        </controls:TelemetryPlotRow.PlotContent>
+                        <controls:TelemetryPlotRow.PlaceholderContent>
+                            <controls:SurfacePlaceholderCard Title="Pitch/roll" />
+                        </controls:TelemetryPlotRow.PlaceholderContent>
+                    </controls:TelemetryPlotRow>
+                </controls:TelemetryPlotRow.ChildRows>
             </controls:TelemetryPlotRow>
 
             <controls:TelemetryPlotRow

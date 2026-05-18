@@ -413,11 +413,13 @@ public sealed class AppPreferences : IAppPreferences
         public bool? Travel { get; set; }
         public bool? Velocity { get; set; }
         public bool? Imu { get; set; }
+        public bool? PitchRoll { get; set; }
         public bool? Speed { get; set; }
         public bool? Elevation { get; set; }
         public string? TravelSmoothing { get; set; }
         public string? VelocitySmoothing { get; set; }
         public string? ImuSmoothing { get; set; }
+        public string? PitchRollSmoothing { get; set; }
         public string? SpeedSmoothing { get; set; }
         public string? ElevationSmoothing { get; set; }
 
@@ -427,9 +429,11 @@ public sealed class AppPreferences : IAppPreferences
                 Travel: Travel ?? true,
                 Velocity: Velocity ?? true,
                 Imu: Imu ?? true,
+                PitchRoll: PitchRoll ?? true,
                 TravelSmoothing: ParseEnum(TravelSmoothing, PlotSmoothingLevel.Off),
                 VelocitySmoothing: ParseEnum(VelocitySmoothing, PlotSmoothingLevel.Off),
                 ImuSmoothing: ParseEnum(ImuSmoothing, PlotSmoothingLevel.Off),
+                PitchRollSmoothing: ParseEnum(PitchRollSmoothing, PlotSmoothingLevel.Off),
                 Speed: Speed ?? true,
                 Elevation: Elevation ?? true,
                 SpeedSmoothing: ParseEnum(SpeedSmoothing, PlotSmoothingLevel.Off),
@@ -443,11 +447,13 @@ public sealed class AppPreferences : IAppPreferences
                 Travel = preferences.Travel,
                 Velocity = preferences.Velocity,
                 Imu = preferences.Imu,
+                PitchRoll = preferences.PitchRoll,
                 Speed = preferences.Speed,
                 Elevation = preferences.Elevation,
                 TravelSmoothing = preferences.TravelSmoothing.ToString(),
                 VelocitySmoothing = preferences.VelocitySmoothing.ToString(),
                 ImuSmoothing = preferences.ImuSmoothing.ToString(),
+                PitchRollSmoothing = preferences.PitchRollSmoothing.ToString(),
                 SpeedSmoothing = preferences.SpeedSmoothing.ToString(),
                 ElevationSmoothing = preferences.ElevationSmoothing.ToString(),
             };

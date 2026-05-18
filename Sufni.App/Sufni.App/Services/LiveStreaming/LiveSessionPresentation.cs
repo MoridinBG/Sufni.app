@@ -15,7 +15,10 @@ public sealed record LiveGraphBatch(
     IReadOnlyList<double> FrontVelocity,
     IReadOnlyList<double> RearVelocity,
     IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> ImuTimes,
-    IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> ImuMagnitudes)
+    IReadOnlyDictionary<LiveImuLocation, IReadOnlyList<double>> ImuVibrationRms,
+    IReadOnlyList<double> FramePitchRollTimes,
+    IReadOnlyList<double> FramePitchDegrees,
+    IReadOnlyList<double> FrameRollDegrees)
 {
     public static readonly LiveGraphBatch Empty = new(
         Revision: 0,
@@ -26,7 +29,10 @@ public sealed record LiveGraphBatch(
         FrontVelocity: [],
         RearVelocity: [],
         ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
-        ImuMagnitudes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>());
+        ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
+        FramePitchRollTimes: [],
+        FramePitchDegrees: [],
+        FrameRollDegrees: []);
 }
 
 public abstract record LiveSessionStreamPresentation
