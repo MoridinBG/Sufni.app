@@ -25,8 +25,8 @@ public interface IRecordedSessionGraphWorkspace
     SurfacePresentationState ImuGraphState { get; }
     SurfacePresentationState SpeedGraphState { get; }
     SurfacePresentationState ElevationGraphState { get; }
-    SessionGraphLayout GraphLayout { get; }
     SessionPlotPreferences PlotPreferences { get; }
+    SessionGraphPreferences GraphPreferences { get; set; }
     SessionTimelineLinkViewModel Timeline { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
@@ -95,8 +95,8 @@ public interface ILiveSessionGraphWorkspace
     SurfacePresentationState ImuGraphState { get; }
     SurfacePresentationState SpeedGraphState { get; }
     SurfacePresentationState ElevationGraphState { get; }
-    SessionGraphLayout GraphLayout { get; }
     SessionPlotPreferences PlotPreferences { get; }
+    SessionGraphPreferences GraphPreferences { get; set; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 

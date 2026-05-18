@@ -28,7 +28,7 @@ public class RecordedTimeSeriesPlotTests
             ]));
 
         var signal = Assert.Single(plot.PlottableList.OfType<Signal>());
-        Assert.Equal("Travel (mm)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Title.Label.Text);
         Assert.Same(plot.Axes.Bottom, signal.Axes.XAxis);
         Assert.Same(plot.Axes.Left, signal.Axes.YAxis);
         Assert.Equal("Front", signal.LegendText);

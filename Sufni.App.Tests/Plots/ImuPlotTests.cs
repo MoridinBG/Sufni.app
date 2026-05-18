@@ -19,7 +19,7 @@ public class ImuPlotTests
         sut.LoadTelemetryData(CreateTelemetryDataWithImu());
 
         Assert.NotNull(sut.CursorLine);
-        Assert.Equal("IMU Acceleration (g)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Title.Label.Text);
         Assert.Equal(2, plot.PlottableList.OfType<Signal>().Count());
         Assert.True(plot.Legend.IsVisible);
         Assert.Equal(
@@ -59,7 +59,7 @@ public class ImuPlotTests
         sut.LoadTelemetryData(CreateTelemetryData());
 
         Assert.Null(sut.CursorLine);
-        Assert.Equal("IMU Acceleration (g)", plot.Axes.Title.Label.Text);
+        Assert.Empty(plot.Axes.Title.Label.Text);
         Assert.Empty(plot.PlottableList.OfType<Signal>());
         Assert.Equal(2, plot.Axes.Rules.Count);
         Assert.Single(plot.PlottableList.OfType<Text>());

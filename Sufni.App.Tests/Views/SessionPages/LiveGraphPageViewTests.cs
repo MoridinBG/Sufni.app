@@ -52,31 +52,32 @@ public class LiveGraphPageViewTests
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.Name != "MapHost")
             .ToArray();
-        var graphGrid = mounted.View.FindControl<Grid>("GraphGrid");
+        var root = GetGraphRoot(mounted.View);
         var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
         var travelView = mounted.View.FindControl<LiveTravelPlotDesktopView>("TravelPlot");
         var velocityView = mounted.View.FindControl<LiveVelocityPlotDesktopView>("VelocityPlot");
         var imuView = mounted.View.FindControl<LiveImuPlotDesktopView>("ImuPlot");
         var speedView = mounted.View.FindControl<TrackSignalPlotDesktopView>("SpeedPlot");
         var elevationView = mounted.View.FindControl<TrackSignalPlotDesktopView>("ElevationPlot");
-        Assert.NotNull(graphGrid);
         Assert.NotNull(pageScrollViewer);
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
         Assert.NotNull(speedView);
         Assert.NotNull(elevationView);
-        Assert.Equal(5, hosts.Length);
+        Assert.Equal(
+            ["Travel (mm)", "IMU acceleration (g)", "GPS speed (km/h)"],
+            root.Rows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Velocity (m/s)"], GetBaseRow(root, "Travel (mm)").ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(["Elevation (m)"], GetBaseRow(root, "GPS speed (km/h)").ChildRows.Select(row => row.Title!).ToArray());
+        Assert.Equal(3, hosts.Length);
         Assert.Equal(SurfacePresentationState.Ready, hosts[0].PresentationState);
         Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
-        Assert.Equal(SurfacePresentationState.Hidden, hosts[2].PresentationState);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
-        Assert.Equal(SurfacePresentationState.Hidden, hosts[4].PresentationState);
-        AssertMobileGraphRowHeight(graphGrid!, pageScrollViewer!, 0);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 1);
-        AssertMobileGraphRowHeight(graphGrid, pageScrollViewer, 3);
-        Assert.Equal(0, graphGrid!.RowDefinitions[2].Height.Value);
-        Assert.Equal(0, graphGrid.RowDefinitions[4].Height.Value);
+        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[2].PresentationState.Kind);
+        Assert.True(GetBaseRow(root, "Travel (mm)").IsVisible);
+        Assert.False(GetBaseRow(root, "IMU acceleration (g)").IsVisible);
+        Assert.True(GetBaseRow(root, "GPS speed (km/h)").IsVisible);
+        Assert.False(GetChildRow(GetBaseRow(root, "GPS speed (km/h)"), "Elevation (m)").IsVisible);
         Assert.True(travelView!.HideRightAxis);
         Assert.True(velocityView!.HideRightAxis);
         Assert.True(imuView!.HideRightAxis);
@@ -152,13 +153,18 @@ public class LiveGraphPageViewTests
         return new MountedLiveGraphPageView(host, view);
     }
 
-    private static void AssertMobileGraphRowHeight(Grid graphGrid, ScrollViewer pageScrollViewer, int row)
+    private static TelemetryPlotsRoot GetGraphRoot(LiveGraphPageView view)
     {
-        var expected = Math.Max(180, pageScrollViewer.Bounds.Height / 3);
-
-        Assert.Equal(GridUnitType.Pixel, graphGrid.RowDefinitions[row].Height.GridUnitType);
-        Assert.Equal(expected, graphGrid.RowDefinitions[row].Height.Value, precision: 3);
+        var root = view.FindControl<TelemetryPlotsRoot>("GraphRoot");
+        Assert.NotNull(root);
+        return root!;
     }
+
+    private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)
+        => Assert.Single(root.Rows, row => row.Title == title);
+
+    private static TelemetryPlotRow GetChildRow(TelemetryPlotRow row, string title)
+        => Assert.Single(row.ChildRows, child => child.Title == title);
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
     {
