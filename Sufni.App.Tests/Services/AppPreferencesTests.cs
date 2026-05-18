@@ -112,6 +112,28 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task ThemePreferences_PersistSystemMode_RoundTripsThroughDiskAndJson()
+    {
+        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
+
+        try
+        {
+            var preferences = new AppPreferences(preferencesPath);
+            await preferences.Theme.SetModeAsync(SufniThemeMode.System);
+
+            var reloaded = new AppPreferences(preferencesPath);
+            Assert.Equal(SufniThemeMode.System, await reloaded.Theme.GetModeAsync());
+
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+            Assert.Equal("System", json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task ThemePreferences_FallsBackToDark_WhenStoredModeIsUnknown()
     {
         var (tempDirectory, preferencesPath) = CreatePreferencesPath();

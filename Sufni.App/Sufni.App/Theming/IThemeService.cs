@@ -7,7 +7,9 @@ namespace Sufni.App.Theming;
 public interface IThemeService
 {
     SufniThemeMode Mode { get; }
+    SufniThemeMode EffectiveMode { get; }
     SufniTheme Current { get; }
+    bool IsSystemThemeAvailable { get; }
 
     event EventHandler? ThemeChanged;
 

@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Sufni.App.Services;
@@ -16,7 +17,8 @@ public sealed class ThemeService : IThemeService, IDisposable
     public ThemeService(IAppPreferences appPreferences)
     {
         themePreferences = appPreferences.Theme;
-        Mode = ResolveModeFromApplication();
+        IsSystemThemeAvailable = ResolveSystemThemeAvailable();
+        Mode = NormalizeMode(ResolveModeFromApplication(IsSystemThemeAvailable));
 
         // Inbound sync writes the new mode to the document but does not invoke
         // SetAsync, so without this we'd persist the new value yet keep
@@ -26,7 +28,11 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     public SufniThemeMode Mode { get; private set; }
 
-    public SufniTheme Current => SufniThemes.FromMode(Mode);
+    public SufniThemeMode EffectiveMode => ResolveEffectiveMode(Mode);
+
+    public SufniTheme Current => SufniThemes.FromMode(EffectiveMode);
+
+    public bool IsSystemThemeAvailable { get; private set; }
 
     public event EventHandler? ThemeChanged;
 
@@ -37,8 +43,10 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private async Task ReconcileWithPersistedAsync()
     {
-        var persisted = await themePreferences.GetModeAsync();
-        if (persisted == Mode)
+        RefreshSystemThemeAvailability();
+
+        var persisted = NormalizeMode(await themePreferences.GetModeAsync());
+        if (persisted == Mode && IsRequestedVariantApplied(persisted))
         {
             return;
         }
@@ -58,21 +66,34 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     public Task ToggleAsync()
     {
-        var next = Mode == SufniThemeMode.Light
-            ? SufniThemeMode.Dark
-            : SufniThemeMode.Light;
+        RefreshSystemThemeAvailability();
+
+        var next = Mode switch
+        {
+            SufniThemeMode.Dark => SufniThemeMode.Light,
+            SufniThemeMode.Light when IsSystemThemeAvailable => SufniThemeMode.System,
+            SufniThemeMode.Light => SufniThemeMode.Dark,
+            _ => SufniThemeMode.Dark
+        };
+
         return SetAsync(next);
     }
 
     public async Task SetAsync(SufniThemeMode mode)
     {
-        if (mode == Mode)
+        RefreshSystemThemeAvailability();
+        mode = NormalizeMode(mode);
+        if (mode == Mode && IsRequestedVariantApplied(mode))
         {
             return;
         }
 
+        var previousMode = Mode;
         await ApplyOnUiThreadAsync(mode);
-        await themePreferences.SetModeAsync(mode);
+        if (mode != previousMode)
+        {
+            await themePreferences.SetModeAsync(mode);
+        }
     }
 
     private async Task ApplyOnUiThreadAsync(SufniThemeMode mode)
@@ -88,6 +109,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private void Apply(SufniThemeMode mode)
     {
+        mode = NormalizeMode(mode);
         Mode = mode;
 
         var app = Application.Current;
@@ -99,11 +121,49 @@ public sealed class ThemeService : IThemeService, IDisposable
         ThemeChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static SufniThemeMode ResolveModeFromApplication()
+    private SufniThemeMode NormalizeMode(SufniThemeMode mode)
+        => mode == SufniThemeMode.System && !IsSystemThemeAvailable
+            ? SufniThemeMode.Dark
+            : mode;
+
+    private SufniThemeMode ResolveEffectiveMode(SufniThemeMode mode)
+    {
+        if (mode != SufniThemeMode.System)
+        {
+            return mode;
+        }
+
+        return SufniThemes.EffectiveModeFromVariant(Application.Current?.ActualThemeVariant);
+    }
+
+    private void RefreshSystemThemeAvailability()
+    {
+        IsSystemThemeAvailable = ResolveSystemThemeAvailable();
+    }
+
+    private static bool ResolveSystemThemeAvailable()
+    {
+        var platformSettings = Application.Current?.PlatformSettings;
+        if (platformSettings is null)
+        {
+            return false;
+        }
+
+        var variant = platformSettings.GetColorValues().ThemeVariant;
+        return variant == PlatformThemeVariant.Light || variant == PlatformThemeVariant.Dark;
+    }
+
+    private static bool IsRequestedVariantApplied(SufniThemeMode mode)
+        => Application.Current?.RequestedThemeVariant == SufniThemes.ToVariant(mode);
+
+    private static SufniThemeMode ResolveModeFromApplication(bool systemThemeAvailable)
     {
         var variant = Application.Current?.RequestedThemeVariant;
-        return variant == ThemeVariant.Light
-            ? SufniThemeMode.Light
-            : SufniThemeMode.Dark;
+        return variant switch
+        {
+            { } value when value == ThemeVariant.Light => SufniThemeMode.Light,
+            { } value when value == ThemeVariant.Default && systemThemeAvailable => SufniThemeMode.System,
+            _ => SufniThemeMode.Dark
+        };
     }
 }

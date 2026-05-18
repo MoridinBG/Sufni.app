@@ -8,8 +8,8 @@ namespace Sufni.App.Theming;
 
 // One-shot synchronous read of the persisted theme mode, run from
 // App.Initialize() before XAML loads. Without this, the first frame renders
-// the dark variant declared in App.axaml and then snaps to the persisted
-// variant once IThemeService.InitializeAsync completes, causing a visible flash.
+// the default variant and then snaps to the persisted variant once
+// IThemeService.InitializeAsync completes, causing a visible flash.
 public static class ThemeBootstrap
 {
     public static void ApplyPersistedVariant(Application application)
