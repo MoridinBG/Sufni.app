@@ -9,6 +9,7 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Views.ItemLists;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
 
@@ -37,6 +38,8 @@ internal static class MainPagesViewModelTestFactory
         sessionStore.RefreshAsync().Returns(Task.CompletedTask);
         recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
         pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+        var themeService = Substitute.For<IThemeService>();
+        themeService.Mode.Returns(SufniThemeMode.Dark);
         return new MainPagesViewModel(
             bikeStore,
             setupStore,
@@ -47,6 +50,7 @@ internal static class MainPagesViewModelTestFactory
             trackCoordinator,
             syncCoordinator,
             shell,
+            themeService,
             CreateBikeListPage(),
             CreateSessionListPage(),
             CreateSetupListPage(),

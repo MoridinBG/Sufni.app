@@ -11,7 +11,7 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="720"
 d:DesignWidth="500"
 x:DataType="vm:MainPagesViewModel"
-Background="{StaticResource SufniRegion}"
+Background="{DynamicResource SufniRegion}"
 mc:Ignorable="d">
     <UserControl.Styles>
         <!--  Tabs  -->
@@ -35,7 +35,7 @@ mc:Ignorable="d">
             <Setter Property="Height" Value="2" />
             <Setter Property="Width" Value="60" />
             <Setter Property="VerticalAlignment" Value="Top" />
-            <Setter Property="Background" Value="{StaticResource SufniAccentColor}" />
+            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
         </Style>
     </UserControl.Styles>
 
@@ -61,7 +61,7 @@ mc:Ignorable="d">
                     Name="PagesTabControl"
                     Grid.Column="0"
                     Grid.ColumnSpan="3"
-                    Background="{StaticResource SufniBackgroundDisabled}"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
                     SelectedIndex="{Binding SelectedIndex}"
                     TabStripPlacement="Bottom">
                         <TabControl.ItemsPanel>

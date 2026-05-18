@@ -6,6 +6,7 @@ using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels.ItemLists;
 
 namespace Sufni.App.ViewModels;
@@ -21,6 +22,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly TrackCoordinator trackCoordinator;
     private readonly SyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
+    private readonly IThemeService themeService;
     private readonly ItemListViewModelBase[] primaryPages;
     private ItemListViewModelBase? activePrimaryPage;
 
@@ -32,6 +34,7 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private bool isPaired;
     [ObservableProperty] private bool isMenuPaneOpen;
     [ObservableProperty] private bool isPairedDevicesListOpen;
+    [ObservableProperty] private SufniThemeMode currentThemeMode;
 
     #endregion
 
@@ -56,6 +59,7 @@ public partial class MainPagesViewModel : ViewModelBase
         TrackCoordinator trackCoordinator,
         SyncCoordinator syncCoordinator,
         IShellCoordinator shell,
+        IThemeService themeService,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
@@ -74,6 +78,7 @@ public partial class MainPagesViewModel : ViewModelBase
         this.trackCoordinator = trackCoordinator;
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
+        this.themeService = themeService;
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
@@ -98,11 +103,14 @@ public partial class MainPagesViewModel : ViewModelBase
         syncCoordinator.IsPairedChanged += OnSyncIsPairedChanged;
         syncCoordinator.CanSyncChanged += OnSyncCanSyncChanged;
 
+        themeService.ThemeChanged += OnThemeChanged;
+
         // Seed the mirrors from the coordinator's current state in case
         // any of them already changed before construction (e.g. the
         // pairing-client coordinator's startup IsPairedAsync probe).
         SyncInProgress = syncCoordinator.IsRunning;
         IsPaired = syncCoordinator.IsPaired;
+        CurrentThemeMode = themeService.Mode;
 
         _ = LoadDatabaseContent();
     }
@@ -132,6 +140,11 @@ public partial class MainPagesViewModel : ViewModelBase
     private void OnSyncCanSyncChanged(object? sender, EventArgs e)
     {
         SyncCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        CurrentThemeMode = themeService.Mode;
     }
 
     #endregion Constructors
@@ -217,6 +230,12 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         var result = await trackCoordinator.ImportGpxAsync();
         PublishGpxImportResult(result);
+    }
+
+    [RelayCommand]
+    private async Task ToggleTheme()
+    {
+        await themeService.ToggleAsync();
     }
 
     #endregion
