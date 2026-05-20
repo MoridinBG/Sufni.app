@@ -131,6 +131,19 @@ public class SufniThemeTests
     }
 
     [Fact]
+    public void SufniThemeResourceDictionary_ImportActionRowResources_AreSubtleActionColors()
+    {
+        var resources = new SufniThemeResourceDictionary();
+        var dark = ResolveVariant(resources, ThemeVariant.Dark);
+        var light = ResolveVariant(resources, ThemeVariant.Light);
+
+        Assert.Equal(SufniDarkTheme.Instance.Action.AccentPrimary.WithAlpha(0.33), dark["SufniImportActionImportRow"]);
+        AssertSolidBrush(SufniDarkTheme.Instance.Action.Danger.WithAlpha(0.33), dark["SufniImportActionTrashRowBrush"]);
+        Assert.Equal(SufniLightTheme.Instance.Action.AccentPrimary.WithAlpha(0.33), light["SufniImportActionImportRow"]);
+        AssertSolidBrush(SufniLightTheme.Instance.Action.Danger.WithAlpha(0.33), light["SufniImportActionTrashRowBrush"]);
+    }
+
+    [Fact]
     public void SufniThemeResourceDictionary_FluentOverrides_ExistInBothVariantDictionaries()
     {
         var resources = new SufniThemeResourceDictionary();

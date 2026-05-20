@@ -49,6 +49,42 @@ public class ImportSessionsViewTests
         await AssertMalformedLabelTooltipAsync(() => new ImportSessionsDesktopView());
     }
 
+    [AvaloniaFact]
+    public async Task ImportSessionsView_ActionSelection_TintsEntireRow()
+    {
+        await AssertActionSelectionTintsEntireRowAsync(() => new ImportSessionsView());
+    }
+
+    [AvaloniaFact]
+    public async Task ImportSessionsDesktopView_ActionSelection_TintsEntireRow()
+    {
+        await AssertActionSelectionTintsEntireRowAsync(() => new ImportSessionsDesktopView());
+    }
+
+    [AvaloniaFact]
+    public async Task ImportSessionsView_NoDataStores_ShowsStatusWithoutTint()
+    {
+        await AssertNoDataStoresShowsStatusWithoutTintAsync(() => new ImportSessionsView());
+    }
+
+    [AvaloniaFact]
+    public async Task ImportSessionsDesktopView_NoDataStores_ShowsStatusWithoutTint()
+    {
+        await AssertNoDataStoresShowsStatusWithoutTintAsync(() => new ImportSessionsDesktopView());
+    }
+
+    [AvaloniaFact]
+    public async Task ImportSessionsView_LoadingFiles_ShowsStatusWithoutTint()
+    {
+        await AssertLoadingFilesShowsStatusWithoutTintAsync(() => new ImportSessionsView());
+    }
+
+    [AvaloniaFact]
+    public async Task ImportSessionsDesktopView_LoadingFiles_ShowsStatusWithoutTint()
+    {
+        await AssertLoadingFilesShowsStatusWithoutTintAsync(() => new ImportSessionsDesktopView());
+    }
+
     private static async Task AssertEditorsDisabledWhileImportRunsAsync(Func<UserControl> createView)
     {
         using var _ = new TestSynchronizationContextScope();
@@ -131,7 +167,7 @@ public class ImportSessionsViewTests
 
         var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
         Assert.True(busyOverlay.IsActive);
-        Assert.True(busyOverlay.ShowTint);
+        Assert.False(busyOverlay.ShowTint);
         Assert.True(busyOverlay.ShowMessage);
         Assert.False(busyOverlay.ShowSecondaryMessage);
         Assert.Equal(viewModel.ImportProgressText, busyOverlay.Message);
@@ -209,6 +245,204 @@ public class ImportSessionsViewTests
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 
+    private static async Task AssertActionSelectionTintsEntireRowAsync(Func<UserControl> createView)
+    {
+        using var _ = new TestSynchronizationContextScope();
+        EnsureImportViewResources();
+
+        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
+        var filesService = Substitute.For<IFilesService>();
+        var shell = Substitute.For<IShellCoordinator>();
+        var dialogService = Substitute.For<IDialogService>();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
+        var setupStore = Substitute.For<ISetupStore>();
+
+        var dataStores = new ObservableCollection<ITelemetryDataStore>();
+        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
+
+        telemetryDataStoreService.DataStores.Returns(dataStores);
+        setupStore.Connect().Returns(setupCache.Connect());
+        setupStore.FindByBoardId(Arg.Any<Guid>())
+            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
+
+        var dataStore = CreateDataStore();
+        var file = CreateTelemetryFile("lap", shouldBeImported: false);
+        dataStores.Add(dataStore);
+
+        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+
+        var viewModel = new ImportSessionsViewModel(
+            telemetryDataStoreService,
+            filesService,
+            shell,
+            dialogService,
+            setupCoordinator,
+            importSessionsCoordinator,
+            setupStore);
+
+        var view = createView();
+        view.DataContext = viewModel;
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = view
+        };
+
+        host.Show();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        var row = view.GetVisualDescendants().OfType<Expander>().First();
+        var rowHeader = view.GetLogicalDescendants().OfType<Grid>()
+            .First(grid => grid.Classes.Contains("importactionrowheader"));
+        var importChoice = view.GetLogicalDescendants().OfType<ComboBox>()
+            .First(combo => combo.Classes.Contains("importchoice"));
+
+        Assert.DoesNotContain("import", row.Classes);
+        Assert.DoesNotContain("trash", row.Classes);
+
+        importChoice.SelectedIndex = 1;
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.Contains("import", row.Classes);
+        Assert.DoesNotContain("trash", row.Classes);
+        AssertSolidBrush(Colors.Transparent, row.Background);
+        AssertSolidBrush(Colors.Black, row.BorderBrush);
+        AssertSolidBrush(Colors.Transparent, rowHeader.Background);
+        AssertSolidBrush(Colors.Transparent, importChoice.Background);
+        AssertSolidBrush(Colors.Transparent, importChoice.BorderBrush);
+        Assert.Equal(new Thickness(0), importChoice.BorderThickness);
+
+        importChoice.SelectedIndex = 2;
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.DoesNotContain("import", row.Classes);
+        Assert.Contains("trash", row.Classes);
+        AssertSolidBrush(Colors.Transparent, row.Background);
+        AssertSolidBrush(Colors.Black, row.BorderBrush);
+        AssertSolidBrush(Colors.Transparent, rowHeader.Background);
+        AssertSolidBrush(Colors.Transparent, importChoice.Background);
+        AssertSolidBrush(Colors.Transparent, importChoice.BorderBrush);
+        Assert.Equal(new Thickness(0), importChoice.BorderThickness);
+
+        host.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    private static async Task AssertNoDataStoresShowsStatusWithoutTintAsync(Func<UserControl> createView)
+    {
+        using var _ = new TestSynchronizationContextScope();
+        EnsureImportViewResources();
+
+        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
+        var filesService = Substitute.For<IFilesService>();
+        var shell = Substitute.For<IShellCoordinator>();
+        var dialogService = Substitute.For<IDialogService>();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
+        var setupStore = Substitute.For<ISetupStore>();
+
+        telemetryDataStoreService.DataStores.Returns(new ObservableCollection<ITelemetryDataStore>());
+        setupStore.Connect().Returns(new SourceCache<SetupSnapshot, Guid>(s => s.Id).Connect());
+
+        var viewModel = new ImportSessionsViewModel(
+            telemetryDataStoreService,
+            filesService,
+            shell,
+            dialogService,
+            setupCoordinator,
+            importSessionsCoordinator,
+            setupStore);
+
+        var view = createView();
+        view.DataContext = viewModel;
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = view
+        };
+
+        host.Show();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
+        Assert.True(busyOverlay.IsActive);
+        Assert.False(busyOverlay.ShowTint);
+        Assert.False(busyOverlay.ShowMessage);
+        Assert.True(busyOverlay.ShowSecondaryMessage);
+        Assert.Equal("Fetching sessions list", busyOverlay.SecondaryMessage);
+        Assert.True(busyOverlay.FindControl<ActivityIndicator>("BusyIndicator")!.IsActive);
+
+        host.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    private static async Task AssertLoadingFilesShowsStatusWithoutTintAsync(Func<UserControl> createView)
+    {
+        using var _ = new TestSynchronizationContextScope();
+        EnsureImportViewResources();
+
+        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
+        var filesService = Substitute.For<IFilesService>();
+        var shell = Substitute.For<IShellCoordinator>();
+        var dialogService = Substitute.For<IDialogService>();
+        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
+        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
+        var setupStore = Substitute.For<ISetupStore>();
+
+        var dataStores = new ObservableCollection<ITelemetryDataStore>();
+        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
+        var dataStore = CreateDataStore();
+        var pendingFiles = new TaskCompletionSource<IReadOnlyList<ITelemetryFile>>();
+
+        telemetryDataStoreService.DataStores.Returns(dataStores);
+        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(pendingFiles.Task);
+        setupStore.Connect().Returns(setupCache.Connect());
+        setupStore.FindByBoardId(Arg.Any<Guid>())
+            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
+
+        dataStores.Add(dataStore);
+
+        var viewModel = new ImportSessionsViewModel(
+            telemetryDataStoreService,
+            filesService,
+            shell,
+            dialogService,
+            setupCoordinator,
+            importSessionsCoordinator,
+            setupStore);
+
+        var view = createView();
+        view.DataContext = viewModel;
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = view
+        };
+
+        host.Show();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
+        Assert.True(busyOverlay.IsActive);
+        Assert.False(busyOverlay.ShowTint);
+        Assert.False(busyOverlay.ShowMessage);
+        Assert.True(busyOverlay.ShowSecondaryMessage);
+        Assert.Equal("Fetching sessions list", busyOverlay.SecondaryMessage);
+        Assert.True(busyOverlay.FindControl<ActivityIndicator>("BusyIndicator")!.IsActive);
+
+        pendingFiles.SetResult(Array.Empty<ITelemetryFile>());
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        host.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
     private static void EnsureImportViewResources()
     {
         var resources = Application.Current?.Resources
@@ -219,5 +453,13 @@ public class ImportSessionsViewTests
         resources["SufniRegion"] = Brushes.Gray;
         resources["SufniBorderBrush"] = Brushes.Black;
         resources["SufniAccentColor"] = Brushes.CornflowerBlue;
+        resources["SufniImportActionImportRowBrush"] = new SolidColorBrush(Colors.CornflowerBlue);
+        resources["SufniImportActionTrashRowBrush"] = new SolidColorBrush(Colors.IndianRed);
+    }
+
+    private static void AssertSolidBrush(Color expectedColor, IBrush? actualBrush)
+    {
+        var brush = Assert.IsAssignableFrom<ISolidColorBrush>(actualBrush);
+        Assert.Equal(expectedColor, brush.Color);
     }
 }

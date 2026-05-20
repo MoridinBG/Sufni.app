@@ -188,6 +188,8 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniAccentSpinner", theme.Action.AccentAliases.Spinner);
         AddColorPair(resources, "SufniDanger", theme.Action.Danger);
         AddColorPair(resources, "SufniDangerDark", theme.Action.DangerDark);
+        AddColorPair(resources, "SufniImportActionImportRow", theme.Action.AccentPrimary.WithAlpha(0.33));
+        AddColorPair(resources, "SufniImportActionTrashRow", theme.Action.Danger.WithAlpha(0.33));
         AddOptionalColorPair(resources, "SufniStatusSuccess", theme.Status.Success);
         AddOptionalColorPair(resources, "SufniStatusWarning", theme.Status.Warning);
         AddOptionalColorPair(resources, "SufniStatusInfo", theme.Status.Info);
