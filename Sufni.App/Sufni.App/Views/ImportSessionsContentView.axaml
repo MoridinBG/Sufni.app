@@ -14,31 +14,89 @@ mc:Ignorable="d">
 
     <UserControl.Resources>
         <v:ImportActionConverter x:Key="ImportActionConverter" />
-        <v:ImportActionMatchConverter x:Key="ImportActionMatchConverter" />
     </UserControl.Resources>
 
     <UserControl.Styles>
+        <Style Selector="Expander.importactionrow">
+            <Setter Property="Background" Value="{DynamicResource SufniRegion}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Expander.importactionrow /template/ ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource SufniRegion}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+        </Style>
+        <Style Selector="Expander.importactionrow:pointerover /template/ ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource SufniRegion}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+        </Style>
+        <Style Selector="Expander.importactionrow.import">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander.importactionrow.import:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander.importactionrow.import /template/ ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource SufniImportActionImportRowBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+        </Style>
+        <Style Selector="Expander.importactionrow.import:pointerover /template/ ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource SufniImportActionImportRowBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+        </Style>
+        <Style Selector="Grid.importactionrowheader.import">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander.importactionrow.trash">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander.importactionrow.trash:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander.importactionrow.trash /template/ ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource SufniImportActionTrashRowBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+        </Style>
+        <Style Selector="Expander.importactionrow.trash:pointerover /template/ ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource SufniImportActionTrashRowBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+        </Style>
+        <Style Selector="Grid.importactionrowheader.trash">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
         <Style Selector="ComboBox.importchoice">
             <Setter Property="Width" Value="100" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
-        <Style Selector="ComboBox.importchoice.import">
-            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
+        <Style Selector="ComboBox.importchoice:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="ComboBox.importchoice.import:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
+        <Style Selector="ComboBox.importchoice:pressed">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="ComboBox.importchoice.import:pressed /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniAccentColor}" />
+        <Style Selector="ComboBox.importchoice:disabled">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="ComboBox.importchoice.trash">
-            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
+        <Style Selector="ComboBox.importchoice /template/ Border#Background">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="ComboBox.importchoice.trash:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
+        <Style Selector="ComboBox.importchoice:pointerover /template/ Border#Background">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="ComboBox.importchoice.trash:pressed /template/ Border#Background">
-            <Setter Property="Background" Value="{DynamicResource SufniDangerColor}" />
+        <Style Selector="ComboBox.importchoice:pressed /template/ Border#Background">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="ComboBox.importchoice:disabled /template/ Border#Background">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
     </UserControl.Styles>
 
@@ -102,23 +160,25 @@ mc:Ignorable="d">
                         <Expander
                         Margin="0,2,0,1"
                         HorizontalAlignment="Stretch"
-                        Background="{DynamicResource SufniRegion}"
+                        Classes="importactionrow"
                         IsExpanded="False">
                             <Expander.Header>
                                 <Grid
                                 HorizontalAlignment="Stretch"
+                                Classes="importactionrowheader"
                                 ColumnDefinitions="auto * auto"
                                 RowDefinitions="* *">
 
                                     <!--  Import/Trash/Ignore selector  -->
                                     <ComboBox
+                                    x:Name="ActionSelector"
                                     Grid.Row="0"
                                     Grid.RowSpan="2"
                                     Grid.Column="0"
                                     HorizontalAlignment="Left"
                                     Classes="importchoice"
-                                    Classes.import="{Binding $self.SelectedIndex, Converter={StaticResource ImportActionMatchConverter}, ConverterParameter=Import}"
-                                    Classes.trash="{Binding $self.SelectedIndex, Converter={StaticResource ImportActionMatchConverter}, ConverterParameter=Trash}"
+                                    Loaded="ActionSelector_OnLoaded"
+                                    SelectionChanged="ActionSelector_OnSelectionChanged"
                                     SelectedIndex="{Binding ShouldBeImported, Converter={StaticResource ImportActionConverter}, Mode=TwoWay}">
                                         <ComboBox.IsEnabled>
                                             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -285,15 +345,7 @@ mc:Ignorable="d">
         Message="{Binding ImportProgressText}"
         MessageForeground="{DynamicResource SufniAccentColor}"
         MessageMargin="0,60,0,0"
-        SecondaryMessage="Fetching sessions list"
-        TintBackground="#0d0d0d"
-        TintOpacity="0.7">
-            <v:BusyOverlay.ShowTint>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="ImportSessionsCommand.IsRunning" />
-                    <Binding Path="IsLoadingFiles" />
-                </MultiBinding>
-            </v:BusyOverlay.ShowTint>
+        SecondaryMessage="Fetching sessions list">
             <v:BusyOverlay.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="!TelemetryDataStores.Count" />
@@ -305,7 +357,10 @@ mc:Ignorable="d">
                 <Binding Path="ImportSessionsCommand.IsRunning" />
             </v:BusyOverlay.ShowMessage>
             <v:BusyOverlay.ShowSecondaryMessage>
-                <Binding Path="IsLoadingFiles" />
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="!TelemetryDataStores.Count" />
+                    <Binding Path="IsLoadingFiles" />
+                </MultiBinding>
             </v:BusyOverlay.ShowSecondaryMessage>
         </v:BusyOverlay>
 

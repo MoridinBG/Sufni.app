@@ -1,5 +1,9 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 
 namespace Sufni.App.Views;
 
@@ -26,5 +30,49 @@ public partial class ImportSessionsContentView : UserControl
     public ImportSessionsContentView()
     {
         InitializeComponent();
+    }
+
+    private void ActionSelector_OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        UpdateImportActionRow(sender as ComboBox);
+    }
+
+    private void ActionSelector_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdateImportActionRow(sender as ComboBox);
+    }
+
+    private static void UpdateImportActionRow(ComboBox? selector)
+    {
+        if (selector is null)
+        {
+            return;
+        }
+
+        var selectedIndex = selector.SelectedIndex;
+
+        var row = selector.GetLogicalAncestors().OfType<Expander>().FirstOrDefault()
+            ?? selector.FindAncestorOfType<Expander>();
+        if (row is not null)
+        {
+            SetActionClasses(row, selectedIndex);
+        }
+
+        var header = selector.GetLogicalAncestors()
+            .OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("importactionrowheader"))
+            ?? selector.GetVisualAncestors()
+            .OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("importactionrowheader"));
+        if (header is not null)
+        {
+            SetActionClasses(header, selectedIndex);
+        }
+    }
+
+    private static void SetActionClasses(Control control, int selectedIndex)
+    {
+        control.Classes.Set("import", selectedIndex == 1);
+        control.Classes.Set("trash", selectedIndex == 2);
     }
 }
