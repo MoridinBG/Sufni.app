@@ -178,6 +178,26 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task TravelPlotDesktopView_CullsCollidingAirtimeLabelsAfterTelemetryLoad()
+    {
+        var view = new TravelPlotDesktopView();
+        var telemetry = CreateTelemetryData(duration: 10);
+        telemetry.Airtimes =
+        [
+            new Airtime { Start = 1.90, End = 2.10 },
+            new Airtime { Start = 1.75, End = 2.25 },
+        ];
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = telemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.Equal([false, true], GetAirtimeLabels(plot.Plot).Select(label => label.IsVisible).ToArray());
+    }
+
+    [AvaloniaFact]
     public async Task TravelPlotDesktopView_ClearsAndReloadsTelemetryWhileHidden()
     {
         var view = new TravelPlotDesktopView();
@@ -302,6 +322,23 @@ public class TravelPlotDesktopViewTests
     private sealed class TestSubscription(Action dispose) : IDisposable
     {
         public void Dispose() => dispose();
+    }
+
+    private static Text[] GetAirtimeLabels(Plot plot)
+    {
+        return plot.PlottableList
+            .OfType<Text>()
+            .Where(text => ReadTextLabels(text).Any(label => label.Contains("s air")))
+            .ToArray();
+    }
+
+    private static IEnumerable<string> ReadTextLabels(Text text)
+    {
+        return text.GetType()
+            .GetProperties()
+            .Where(property => property.PropertyType == typeof(string))
+            .Select(property => property.GetValue(text) as string)
+            .Where(label => !string.IsNullOrWhiteSpace(label))!;
     }
 
     private sealed class RecordedSessionGraphWorkspaceStub(TelemetryData telemetryData) : IRecordedSessionGraphWorkspace
