@@ -425,7 +425,11 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
                     session.Description,
                     session.Timestamp,
                     session.HasProcessedData,
-                    domain.Staleness));
+                    domain.Staleness,
+                    session.DurationSeconds,
+                    session.DistanceMeters,
+                    session.AscentMeters,
+                    session.DescentMeters));
 
                 if (watches.TryGetValue(session.Id, out var watch))
                 {
