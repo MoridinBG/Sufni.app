@@ -139,7 +139,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and graph row hierarchy/expanded state is stored per session through app preferences.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and graph row hierarchy/expanded state is stored per session through app preferences.
 
 Topics in [architecture/ui.md](architecture/ui.md):
 
@@ -180,7 +180,7 @@ Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 ## Maps & GPS Tracks
 
-GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists and syncs the user's tile choice and custom layers.
+GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source, and the same projected points feed nullable session summary distance/ascent/descent metrics for the grouped session list. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists and syncs the user's tile choice and custom layers.
 
 Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
@@ -262,7 +262,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 
 ## Persistence & Serialization
 
-SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata, processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
+SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata includes nullable summary metrics (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`), while processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
