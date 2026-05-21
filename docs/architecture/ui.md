@@ -142,10 +142,11 @@ metadata-only snapshots that are not edited through that flow, such as
 `LiveDaqSnapshot`, `PairedDeviceSnapshot`, and
 `RecordedSessionSourceSnapshot`, do not expose an editor baseline.
 
-`SessionSnapshot` is metadata-only: it carries `HasProcessedData`
-and `ProcessingFingerprintJson`, but not the MessagePack telemetry
-BLOB and not the raw recorded source. Those large payloads stay in
-SQLite and are loaded on demand.
+`SessionSnapshot` is metadata-only: it carries `HasProcessedData`,
+`ProcessingFingerprintJson`, and the nullable list-summary metrics
+(`DurationSeconds`, `DistanceMeters`, `AscentMeters`, `DescentMeters`),
+but not the MessagePack telemetry BLOB and not the raw recorded source.
+Those large payloads stay in SQLite and are loaded on demand.
 
 `SessionStore` additionally exposes `Watch(Guid)`, a low-level per-id
 observable filtered to `Add`/`Update` change reasons. Recorded-session
@@ -188,9 +189,12 @@ surfaces:
 
 - `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`
   records for the session list. `SessionListViewModel` filters and
-  sorts this stream directly; `SessionRowViewModel` displays `(Stale)`
-  when the summary is stale and `(No Raw)` when the processed data may
-  exist but the raw source is unavailable.
+  sorts this stream, then projects the visible rows into local-date
+  groups that can be expanded and collapsed. `SessionRowViewModel`
+  displays `(Stale)` when the summary is stale and `(No Raw)` when the
+  processed data may exist but the raw source is unavailable; it also
+  exposes current-culture title, time-of-day, and subtitle strings for the
+  grouped desktop and mobile list templates.
 - `WatchSession(sessionId)` — a replaying observable of
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
@@ -390,9 +394,13 @@ There are five kinds of view model in the presentation layer:
   the only place that holds references to multiple page view models
   at once; this is the explicit "view composition" carve-out from the
   no-VM-on-VM rule. It keeps observable mirrors of `SyncCoordinator`'s
-  `IsRunning` / `IsPaired` and forwards `SyncCompleted` / `SyncFailed`
-  notifications to the active page, but it owns no workflows of its
-  own. The triggering of the initial store refresh
+  `IsRunning` / `IsPaired` / progress snapshot and forwards
+  `SyncCompleted` / `SyncFailed` notifications to the active page, but
+  it owns no workflows of its own. Mobile binds those mirrors to a
+  blocking shell-level `BusyOverlay`; desktop binds them to the
+  paired-devices surface, using a panel overlay when the paired-devices
+  list is open and a spinner in the paired-devices button when it is
+  closed. The triggering of the initial store refresh
   (`LoadDatabaseContent`) also lives here so the database load happens
   exactly once after the shell is constructed.
 
@@ -431,8 +439,10 @@ There are five kinds of view model in the presentation layer:
   `SessionListViewModel` follows the same projection shape but uses
   `IRecordedSessionGraph.ConnectSessions()` instead of
   `ISessionStore.Connect()`, so rows include processed-data presence,
-  staleness, and raw-source availability without each row doing its
-  own store lookups.
+  staleness, raw-source availability, and summary metrics without each
+  row doing its own store lookups. It keeps the flat `Items` collection
+  for compatibility and exposes `DateGroups` as the grouped list surface
+  used by the desktop sidebar and mobile pull-menu scroll view.
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,
@@ -449,8 +459,11 @@ There are five kinds of view model in the presentation layer:
   online/offline presentation.
   `SessionRowViewModel` wraps `RecordedSessionSummary` rather than
   `SessionSnapshot`; it keeps the unadorned `BaseName`, appends
-  `(Stale)` or `(No Raw)` to the display name when appropriate, and
-  exposes flags the view can style independently of the text.
+  `(Stale)` or `(No Raw)` to the display name when appropriate, formats
+  the always-visible row timestamp as local time only because the group
+  header owns the date, formats the optional subtitle from unit-labelled
+  duration plus GPS distance/ascent/descent, and exposes flags the view
+  can style independently of the text.
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
   `SetupEditorViewModel`, `SessionDetailViewModel`,
@@ -742,7 +755,7 @@ view.
 
 ## Controls Library
 
-`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `SearchBarCore`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, `ActivityIndicator`, `BusyOverlay`, graph row controls (`RecordedSessionGraphRowsView`, `LiveSessionGraphRowsView`), statistics hosts (`TravelStatisticsHost`, `StrokeStatisticsHost`, `VelocityStatisticsHost`, `BalanceStatisticsHost`, `VibrationStatisticsHost`), dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `ImportSessionsContentView` is the shared mobile/desktop import body; its wrappers keep shell-specific back/bottom-action behavior. `LinearSensorConfigurationView` is the shared view for the fork/shock linear sensor editors while the concrete view models still create their own sensor payload types. `ActivityIndicator` wraps the current progress-ring package so views do not reference that package directly, and `BusyOverlay` standardizes spinner/tint/message composition without owning busy state. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
+`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `SearchBarCore`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, `ActivityIndicator`, `BusyOverlay`, graph row controls (`RecordedSessionGraphRowsView`, `LiveSessionGraphRowsView`), statistics hosts (`TravelStatisticsHost`, `StrokeStatisticsHost`, `VelocityStatisticsHost`, `BalanceStatisticsHost`, `VibrationStatisticsHost`), dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `ImportSessionsContentView` is the shared mobile/desktop import body; its wrappers keep shell-specific back/bottom-action behavior. `LinearSensorConfigurationView` is the shared view for the fork/shock linear sensor editors while the concrete view models still create their own sensor payload types. `ActivityIndicator` wraps the current progress-ring package so views do not reference that package directly, and `BusyOverlay` standardizes spinner/tint/message/progress composition without owning busy state. Search bars show paired connection state only; sync activity is surfaced by the mobile shell overlay or desktop paired-devices surface. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
 
 Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; it does not reach into the child swipe control's visual tree.
 
