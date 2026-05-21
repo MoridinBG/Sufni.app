@@ -519,6 +519,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         LoadPlotData(plot);
         ApplyTimelineCursor();
         ApplyTimelineRange();
+        OnPlotDataLoaded();
         RefreshPlot();
+    }
+
+    protected virtual void OnPlotDataLoaded()
+    {
     }
 }
