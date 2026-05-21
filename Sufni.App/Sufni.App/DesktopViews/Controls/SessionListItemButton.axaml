@@ -13,58 +13,93 @@
     <StackPanel>
         <Button
             Name="Button"
-            Height="48"
-            Padding="10,0,10,0"
+            MinHeight="58"
+            Padding="12,7"
             HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
             VerticalContentAlignment="Center"
             Classes="item"
             Command="{Binding OpenPageCommand}"
             CommandParameter="{Binding}"
             CornerRadius="0">
-            <Grid HorizontalAlignment="Stretch" ColumnDefinitions="25 25 auto * auto 40">
-                <Button
-                    Name="DeleteButton"
+            <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto auto auto" ColumnSpacing="10">
+                <StackPanel
                     Grid.Column="0"
-                    Padding="0"
-                    HorizontalAlignment="Left"
-                    Classes="embedded"
-                    Command="{Binding UndoableDeleteCommand}"
-                    IsVisible="{Binding #Button.IsPointerOver}"
-                    Svg.Css=".default { fill: #bf312d; }"
-                    ToolTip.Tip="Delete">
-                    <Image
-                        Width="16"
-                        Height="16"
-                        Source="{SvgImage /Assets/fa-trash-can.svg}" />
-                </Button>
-                <Button
-                    Name="RecalculateButton"
+                    VerticalAlignment="Center"
+                    Spacing="2">
+                    <TextBlock
+                        Name="TitleTextBlock"
+                        Foreground="{DynamicResource SufniTextPrimary}"
+                        MaxLines="1"
+                        Text="{Binding TitleText}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Name="SubtitleTextBlock"
+                        FontSize="{StaticResource SufniFontSizeCaption}"
+                        Foreground="{DynamicResource SufniTextSecondary}"
+                        IsVisible="{Binding HasSubtitleText}"
+                        MaxLines="1"
+                        Text="{Binding SubtitleText}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock
+                    Name="TimestampTextBlock"
                     Grid.Column="1"
-                    Padding="0"
-                    HorizontalAlignment="Left"
-                    Classes="embedded"
-                    Command="{Binding RecalculateCommand}"
-                    IsVisible="{Binding #Button.IsPointerOver}"
-                    ToolTip.Tip="Recalculate">
-                    <Image
-                        Width="16"
-                        Height="16"
-                        Source="{SvgImage /Assets/fa-sync-alt.svg}" />
-                </Button>
-                <TextBlock Grid.Column="2" Text="{Binding Name}" />
-                <TextBlock Grid.Column="4" Text="{Binding Timestamp}" />
+                    VerticalAlignment="Center"
+                    FontSize="{StaticResource SufniFontSizeCaption}"
+                    Foreground="{DynamicResource SufniTextSecondary}"
+                    Text="{Binding TimestampText}"
+                    TextAlignment="Right" />
                 <Image
-                    Grid.Column="5"
+                    Grid.Column="2"
                     Width="16"
                     Height="16"
+                    VerticalAlignment="Center"
                     IsVisible="{Binding !IsComplete}"
                     Opacity="0.5"
+                    Svg.Css="{DynamicResource SufniIconSecondarySvgCss}"
                     Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}" />
+                <StackPanel
+                    Grid.Column="3"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding #Button.IsPointerOver}"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        Name="RecalculateButton"
+                        Width="24"
+                        Height="24"
+                        Padding="0"
+                        Classes="embedded"
+                        Command="{Binding RecalculateCommand}"
+                        Svg.Css="{DynamicResource SufniIconSecondarySvgCss}"
+                        ToolTip.Tip="Recalculate">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+                    </Button>
+                    <Button
+                        Name="DeleteButton"
+                        Width="24"
+                        Height="24"
+                        Padding="0"
+                        Classes="embedded dangerous"
+                        Command="{Binding UndoableDeleteCommand}"
+                        Svg.Css="{DynamicResource SufniDangerSvgCss}"
+                        ToolTip.Tip="Delete">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Button>
         <Separator
             Height="1"
             Margin="0"
-            Background="{DynamicResource SufniBackgroundDisabled}" />
+            Background="{DynamicResource SufniListRowDivider}" />
     </StackPanel>
 </UserControl>

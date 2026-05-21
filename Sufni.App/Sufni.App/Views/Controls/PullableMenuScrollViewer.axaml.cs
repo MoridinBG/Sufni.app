@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
@@ -57,9 +58,12 @@ public partial class PullableMenuScrollViewer : UserControl
     private double totalPulled;
     private double sameDirectionTotalScrolled;
     private int? selectedIndex;
+    private IDataTemplate? defaultItemTemplate;
+
     public PullableMenuScrollViewer()
     {
         InitializeComponent();
+        defaultItemTemplate = ItemsRepeater.ItemTemplate;
         Scroll.Transitions = [];
         Container.Transitions = [];
         TopContainer.Transitions = [];
@@ -103,6 +107,16 @@ public partial class PullableMenuScrollViewer : UserControl
         get => this.GetValue(ItemsProperty);
         set => SetValue(ItemsProperty, value);
     }
+
+    public static readonly StyledProperty<IDataTemplate?> ItemTemplateProperty =
+        AvaloniaProperty.Register<PullableMenuScrollViewer, IDataTemplate?>(nameof(ItemTemplate));
+
+    public IDataTemplate? ItemTemplate
+    {
+        get => this.GetValue(ItemTemplateProperty);
+        set => SetValue(ItemTemplateProperty, value);
+    }
+
     public static readonly StyledProperty<IEnumerable> MenuItemsProperty =
             AvaloniaProperty.Register<PullableMenuScrollViewer, IEnumerable>(nameof(MenuItems));
 
@@ -122,6 +136,16 @@ public partial class PullableMenuScrollViewer : UserControl
     }
 
     #endregion
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == ItemTemplateProperty)
+        {
+            ItemsRepeater.ItemTemplate = ItemTemplate ?? defaultItemTemplate;
+        }
+    }
 
     private void HandlePartiallyVisibleTopContainer(object? sender, RoutedEventArgs eventArgs)
     {
