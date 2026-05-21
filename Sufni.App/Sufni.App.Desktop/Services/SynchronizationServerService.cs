@@ -62,6 +62,8 @@ public class SynchronizationServerService : ISynchronizationServerService
     private Task Initialization { get; }
 
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
+    public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
+    public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
     public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionSourceDataArrived;
@@ -305,6 +307,48 @@ public class SynchronizationServerService : ISynchronizationServerService
         return builder.Build();
     }
 
+    private IResult RunSyncActivity(
+        SynchronizationProgressSnapshot progress,
+        Func<Task<IResult>> action)
+    {
+        return new SynchronizationActivityResult(this, progress, action);
+    }
+
+    private static SynchronizationProgressSnapshot SyncActivity(
+        SynchronizationPhase phase,
+        string message) =>
+        new(phase, message, CurrentStep: 0, TotalSteps: 0, IsDeterminate: false);
+
+    private void RaiseSyncActivityStarted(SynchronizationProgressSnapshot progress)
+    {
+        SyncActivityStarted?.Invoke(this, new SynchronizationActivityEventArgs(progress));
+    }
+
+    private void RaiseSyncActivityEnded(SynchronizationProgressSnapshot progress)
+    {
+        SyncActivityEnded?.Invoke(this, new SynchronizationActivityEventArgs(progress));
+    }
+
+    private sealed class SynchronizationActivityResult(
+        SynchronizationServerService owner,
+        SynchronizationProgressSnapshot progress,
+        Func<Task<IResult>> action) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            owner.RaiseSyncActivityStarted(progress);
+            try
+            {
+                var result = await action();
+                await result.ExecuteAsync(httpContext);
+            }
+            finally
+            {
+                owner.RaiseSyncActivityEnded(progress);
+            }
+        }
+    }
+
     #endregion Private methods
 
     #region Public methods
@@ -431,150 +475,190 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok();
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] async ([FromQuery] long since, ClaimsPrincipal user) =>
+            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] ([FromQuery] long since, ClaimsPrincipal user) =>
             {
-                var data = await databaseService.GetSynchronizationDataAsync(since);
-                data.AppPreferences = await appPreferences.GetSyncDataAsync(since);
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
+                    async () =>
+                    {
+                        var data = await databaseService.GetSynchronizationDataAsync(since);
+                        data.AppPreferences = await appPreferences.GetSyncDataAsync(since);
 
-                logger.Verbose(
-                    "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
-                    since,
-                    data.Boards.Count,
-                    data.Bikes.Count,
-                    data.Setups.Count,
-                    data.Sessions.Count,
-                    data.Tracks.Count,
-                    data.AppPreferences is not null);
+                        logger.Verbose(
+                            "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+                            since,
+                            data.Boards.Count,
+                            data.Bikes.Count,
+                            data.Setups.Count,
+                            data.Sessions.Count,
+                            data.Tracks.Count,
+                            data.AppPreferences is not null);
 
-                return Results.Ok(data);
+                        return Results.Ok(data);
+                    });
             });
 
-            app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+            app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
             {
-                logger.Verbose(
-                    "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
-                    data.Boards.Count,
-                    data.Bikes.Count,
-                    data.Setups.Count,
-                    data.Sessions.Count,
-                    data.Tracks.Count,
-                    data.AppPreferences is not null);
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.ReceivingChanges, "Receiving remote changes"),
+                    async () =>
+                    {
+                        logger.Verbose(
+                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+                            data.Boards.Count,
+                            data.Bikes.Count,
+                            data.Setups.Count,
+                            data.Sessions.Count,
+                            data.Tracks.Count,
+                            data.AppPreferences is not null);
 
-                await databaseService.MergeAllAsync(data);
-                await appPreferences.ApplySyncDataAsync(data.AppPreferences);
+                        await databaseService.MergeAllAsync(data);
+                        await appPreferences.ApplySyncDataAsync(data.AppPreferences);
 
-                SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
-                return Results.NoContent();
+                        SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
+                        return Results.NoContent();
+                    });
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, [Authorize] async (ClaimsPrincipal user) =>
+            app.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, [Authorize] (ClaimsPrincipal user) =>
             {
-                var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
-                logger.Verbose("Synchronization incomplete-session query returned {SessionCount} sessions", incompleteSessions.Count);
-                return Results.Ok(incompleteSessions);
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.CheckingIncompleteSessions, "Checking missing session data"),
+                    async () =>
+                    {
+                        var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
+                        logger.Verbose("Synchronization incomplete-session query returned {SessionCount} sessions", incompleteSessions.Count);
+                        return Results.Ok(incompleteSessions);
+                    });
             });
 
-            app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, ClaimsPrincipal user) =>
             {
-                var data = await databaseService.GetSessionRawPsstAsync(id);
-                if (data is null)
-                {
-                    logger.Warning("Session data download failed because session {SessionId} was not found", id);
-                    return Results.NotFound(new { msg = "Session does not exist!" });
-                }
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.ServingSessionData, "Serving session data"),
+                    async () =>
+                    {
+                        var data = await databaseService.GetSessionRawPsstAsync(id);
+                        if (data is null)
+                        {
+                            logger.Warning("Session data download failed because session {SessionId} was not found", id);
+                            return Results.NotFound(new { msg = "Session does not exist!" });
+                        }
 
-                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.Length);
-                var name = $"{id}.psst";
+                        logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.Length);
+                        var name = $"{id}.psst";
 
-                return Results.File(
-                    fileContents: data,
-                    contentType: "application/octet-stream",
-                    fileDownloadName: name
-                );
+                        return Results.File(
+                            fileContents: data,
+                            contentType: "application/octet-stream",
+                            fileDownloadName: name
+                        );
+                    });
             });
 
-            app.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            app.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
             {
-                await using var memoryStream = new MemoryStream();
-                await request.BodyReader.CopyToAsync(memoryStream);
-                var data = memoryStream.ToArray();
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.ReceivingSessionData, "Receiving session data"),
+                    async () =>
+                    {
+                        await using var memoryStream = new MemoryStream();
+                        await request.BodyReader.CopyToAsync(memoryStream);
+                        var data = memoryStream.ToArray();
 
-                try
-                {
-                    await databaseService.PatchSessionPsstAsync(id, data);
-                }
-                catch (Exception ex)
-                {
-                    logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);
-                    return Results.NotFound();
-                }
+                        try
+                        {
+                            await databaseService.PatchSessionPsstAsync(id, data);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);
+                            return Results.NotFound();
+                        }
 
-                logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, data.Length);
-                SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
-                return Results.NoContent();
+                        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, data.Length);
+                        SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
+                        return Results.NoContent();
+                    });
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, [Authorize] async (ClaimsPrincipal user) =>
+            app.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, [Authorize] (ClaimsPrincipal user) =>
             {
-                var incompleteSources = await databaseService.GetSessionIdsMissingRecordedSourceAsync();
-                logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
-                return Results.Ok(incompleteSources);
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.CheckingIncompleteSessionSources, "Checking missing recorded sources"),
+                    async () =>
+                    {
+                        var incompleteSources = await databaseService.GetSessionIdsMissingRecordedSourceAsync();
+                        logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
+                        return Results.Ok(incompleteSources);
+                    });
             });
 
-            app.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            app.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, ClaimsPrincipal user) =>
             {
-                var source = await databaseService.GetRecordedSessionSourceAsync(id);
-                if (source is null)
-                {
-                    logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
-                    return Results.NotFound(new { msg = "Recorded source does not exist!" });
-                }
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.ServingSessionSourceData, "Serving recorded source data"),
+                    async () =>
+                    {
+                        var source = await databaseService.GetRecordedSessionSourceAsync(id);
+                        if (source is null)
+                        {
+                            logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
+                            return Results.NotFound(new { msg = "Recorded source does not exist!" });
+                        }
 
-                logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
-                return Results.Ok(new RecordedSessionSourceTransfer(
-                    source.SessionId,
-                    source.SourceKind,
-                    source.SourceName,
-                    source.SchemaVersion,
-                    source.SourceHash,
-                    source.Payload));
+                        logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
+                        return Results.Ok(new RecordedSessionSourceTransfer(
+                            source.SessionId,
+                            source.SourceKind,
+                            source.SourceName,
+                            source.SchemaVersion,
+                            source.SourceHash,
+                            source.Payload));
+                    });
             });
 
-            app.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            app.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
             {
-                var transfer = await request.ReadFromJsonAsync(AppJson.Context.RecordedSessionSourceTransfer);
-                if (transfer is null)
-                {
-                    logger.Warning("Recorded source patch failed because request JSON was empty for {SessionId}", id);
-                    return Results.BadRequest();
-                }
+                return RunSyncActivity(
+                    SyncActivity(SynchronizationPhase.ReceivingSessionSourceData, "Receiving recorded source data"),
+                    async () =>
+                    {
+                        var transfer = await request.ReadFromJsonAsync(AppJson.Context.RecordedSessionSourceTransfer);
+                        if (transfer is null)
+                        {
+                            logger.Warning("Recorded source patch failed because request JSON was empty for {SessionId}", id);
+                            return Results.BadRequest();
+                        }
 
-                if (transfer.SessionId != id)
-                {
-                    logger.Warning("Recorded source patch rejected because route id {RouteSessionId} did not match payload id {PayloadSessionId}", id, transfer.SessionId);
-                    return Results.BadRequest();
-                }
+                        if (transfer.SessionId != id)
+                        {
+                            logger.Warning("Recorded source patch rejected because route id {RouteSessionId} did not match payload id {PayloadSessionId}", id, transfer.SessionId);
+                            return Results.BadRequest();
+                        }
 
-                if (!RecordedSessionSourceHash.Matches(transfer))
-                {
-                    return Results.BadRequest();
-                }
+                        if (!RecordedSessionSourceHash.Matches(transfer))
+                        {
+                            return Results.BadRequest();
+                        }
 
-                var source = new RecordedSessionSource
-                {
-                    SessionId = transfer.SessionId,
-                    SourceKind = transfer.SourceKind,
-                    SourceName = transfer.SourceName,
-                    SchemaVersion = transfer.SchemaVersion,
-                    SourceHash = transfer.SourceHash,
-                    Payload = transfer.Payload
-                };
+                        var source = new RecordedSessionSource
+                        {
+                            SessionId = transfer.SessionId,
+                            SourceKind = transfer.SourceKind,
+                            SourceName = transfer.SourceName,
+                            SchemaVersion = transfer.SchemaVersion,
+                            SourceHash = transfer.SourceHash,
+                            Payload = transfer.Payload
+                        };
 
-                await databaseService.PutRecordedSessionSourceAsync(source);
+                        await databaseService.PutRecordedSessionSourceAsync(source);
 
-                logger.Verbose("Patched recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
-                SessionSourceDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
-                return Results.NoContent();
+                        logger.Verbose("Patched recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
+                        SessionSourceDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
+                        return Results.NoContent();
+                    });
             });
 
             await app.StartAsync();

@@ -31,6 +31,9 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] private bool databaseLoaded;
     [ObservableProperty] private int selectedIndex;
     [ObservableProperty] private bool syncInProgress;
+    [ObservableProperty] private string syncProgressText = string.Empty;
+    [ObservableProperty] private double syncProgressValue;
+    [ObservableProperty] private bool syncProgressIsIndeterminate = true;
     [ObservableProperty] private bool isPaired;
     [ObservableProperty] private bool isMenuPaneOpen;
     [ObservableProperty] private bool isPairedDevicesListOpen;
@@ -105,6 +108,7 @@ public partial class MainPagesViewModel : ViewModelBase
         syncCoordinator.IsRunningChanged += OnSyncIsRunningChanged;
         syncCoordinator.IsPairedChanged += OnSyncIsPairedChanged;
         syncCoordinator.CanSyncChanged += OnSyncCanSyncChanged;
+        syncCoordinator.ProgressChanged += OnSyncProgressChanged;
 
         themeService.ThemeChanged += OnThemeChanged;
 
@@ -113,6 +117,7 @@ public partial class MainPagesViewModel : ViewModelBase
         // pairing-client coordinator's startup IsPairedAsync probe).
         SyncInProgress = syncCoordinator.IsRunning;
         IsPaired = syncCoordinator.IsPaired;
+        SyncProgressState();
         SyncThemeState();
 
         _ = LoadDatabaseContent();
@@ -133,6 +138,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private void OnSyncIsRunningChanged(object? sender, EventArgs e)
     {
         SyncInProgress = syncCoordinator.IsRunning;
+        SyncProgressState();
     }
 
     private void OnSyncIsPairedChanged(object? sender, EventArgs e)
@@ -143,6 +149,11 @@ public partial class MainPagesViewModel : ViewModelBase
     private void OnSyncCanSyncChanged(object? sender, EventArgs e)
     {
         SyncCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnSyncProgressChanged(object? sender, EventArgs e)
+    {
+        SyncProgressState();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -193,6 +204,14 @@ public partial class MainPagesViewModel : ViewModelBase
         }
 
         activePrimaryPage = nextPage;
+    }
+
+    private void SyncProgressState()
+    {
+        var currentProgress = syncCoordinator.Progress;
+        SyncProgressText = currentProgress?.Message ?? (SyncInProgress ? "Syncing" : string.Empty);
+        SyncProgressValue = currentProgress?.Fraction ?? 0;
+        SyncProgressIsIndeterminate = currentProgress is null || !currentProgress.IsDeterminate;
     }
 
     #endregion

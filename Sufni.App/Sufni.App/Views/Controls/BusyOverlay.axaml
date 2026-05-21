@@ -56,6 +56,20 @@ mc:Ignorable="d">
                 Text="{Binding #Root.SecondaryMessage}"
                 TextAlignment="Center"
                 TextWrapping="Wrap" />
+
+                <ProgressBar
+                Name="BusyProgressBar"
+                Width="180"
+                Height="4"
+                Margin="0,100,0,0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Foreground="{Binding #Root.IndicatorForeground}"
+                IsIndeterminate="{Binding #Root.IsProgressIndeterminate}"
+                IsVisible="{Binding #Root.ShowProgress}"
+                Maximum="1"
+                Minimum="0"
+                Value="{Binding #Root.ProgressValue}" />
             </Grid>
 
             <StackPanel
@@ -95,6 +109,17 @@ mc:Ignorable="d">
                 Text="{Binding #Root.SecondaryMessage}"
                 TextAlignment="Center"
                 TextWrapping="Wrap" />
+
+                <ProgressBar
+                Name="StackBusyProgressBar"
+                Width="220"
+                Height="4"
+                Foreground="{Binding #Root.IndicatorForeground}"
+                IsIndeterminate="{Binding #Root.IsProgressIndeterminate}"
+                IsVisible="{Binding #Root.ShowProgress}"
+                Maximum="1"
+                Minimum="0"
+                Value="{Binding #Root.ProgressValue}" />
             </StackPanel>
         </Grid>
     </Grid>

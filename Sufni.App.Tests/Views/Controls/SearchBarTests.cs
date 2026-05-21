@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
+using System.Linq;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views.Controls;
@@ -60,5 +62,22 @@ public class SearchBarTests
         Assert.Null(viewModel.SearchText);
         Assert.False(viewModel.DateFilterVisible);
         Assert.False(closeButton.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SearchBarCore_DoesNotRenderSyncActivityIndicator()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var control = new SearchBar
+        {
+            DataContext = new ItemListViewModelBase(),
+        };
+
+        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
+
+        var core = mounted.Control.FindFirstVisual<SearchBarCore>();
+        Assert.NotNull(core);
+
+        Assert.Empty(core!.GetVisualDescendants().OfType<ActivityIndicator>());
     }
 }

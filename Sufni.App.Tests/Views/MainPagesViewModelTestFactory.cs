@@ -22,6 +22,7 @@ internal static class MainPagesViewModelTestFactory
         TrackCoordinator? trackCoordinator = null,
         IRecordedSessionSourceStore? recordedSessionSourceStore = null,
         IThemeService? themeService = null,
+        SyncCoordinator? syncCoordinator = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
         var bikeStore = Substitute.For<IBikeStore>();
@@ -31,7 +32,7 @@ internal static class MainPagesViewModelTestFactory
         var pairedDeviceStore = Substitute.For<IPairedDeviceStore>();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
-        var syncCoordinator = TestCoordinatorSubstitutes.Sync();
+        syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         var shell = Substitute.For<IShellCoordinator>();
 
         bikeStore.RefreshAsync().Returns(Task.CompletedTask);

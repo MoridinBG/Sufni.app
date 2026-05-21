@@ -30,6 +30,15 @@ public partial class BusyOverlay : UserControl
     public static readonly StyledProperty<bool> ShowSecondaryMessageProperty =
         AvaloniaProperty.Register<BusyOverlay, bool>(nameof(ShowSecondaryMessage));
 
+    public static readonly StyledProperty<bool> ShowProgressProperty =
+        AvaloniaProperty.Register<BusyOverlay, bool>(nameof(ShowProgress));
+
+    public static readonly StyledProperty<double> ProgressValueProperty =
+        AvaloniaProperty.Register<BusyOverlay, double>(nameof(ProgressValue));
+
+    public static readonly StyledProperty<bool> IsProgressIndeterminateProperty =
+        AvaloniaProperty.Register<BusyOverlay, bool>(nameof(IsProgressIndeterminate));
+
     public static readonly StyledProperty<IBrush?> TintBackgroundProperty =
         AvaloniaProperty.Register<BusyOverlay, IBrush?>(nameof(TintBackground));
 
@@ -100,6 +109,24 @@ public partial class BusyOverlay : UserControl
     {
         get => GetValue(ShowSecondaryMessageProperty);
         set => SetValue(ShowSecondaryMessageProperty, value);
+    }
+
+    public bool ShowProgress
+    {
+        get => GetValue(ShowProgressProperty);
+        set => SetValue(ShowProgressProperty, value);
+    }
+
+    public double ProgressValue
+    {
+        get => GetValue(ProgressValueProperty);
+        set => SetValue(ProgressValueProperty, value);
+    }
+
+    public bool IsProgressIndeterminate
+    {
+        get => GetValue(IsProgressIndeterminateProperty);
+        set => SetValue(IsProgressIndeterminateProperty, value);
     }
 
     public IBrush? TintBackground
