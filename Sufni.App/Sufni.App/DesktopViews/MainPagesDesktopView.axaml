@@ -2,6 +2,7 @@
 x:Class="Sufni.App.DesktopViews.MainPagesDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:converters="using:Avalonia.Data.Converters"
@@ -169,7 +170,34 @@ mc:Ignorable="d">
             Width="50"
             Classes="embedded"
             Command="{Binding OpenClosePairedDevicesListCommand}">
-                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+                <Panel>
+                    <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}">
+                        <Image.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                <Binding Path="!SyncInProgress" />
+                                <Binding Path="IsPairedDevicesListOpen" />
+                            </MultiBinding>
+                        </Image.IsVisible>
+                    </Image>
+                    <controls:ActivityIndicator
+                    Name="PairedDevicesSyncIndicator"
+                    Width="18"
+                    Height="18"
+                    Foreground="{DynamicResource SufniAccentColor}">
+                        <controls:ActivityIndicator.IsActive>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="SyncInProgress" />
+                                <Binding Path="!IsPairedDevicesListOpen" />
+                            </MultiBinding>
+                        </controls:ActivityIndicator.IsActive>
+                        <controls:ActivityIndicator.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="SyncInProgress" />
+                                <Binding Path="!IsPairedDevicesListOpen" />
+                            </MultiBinding>
+                        </controls:ActivityIndicator.IsVisible>
+                    </controls:ActivityIndicator>
+                </Panel>
             </Button>
 
             <!--  Theme toggle button  -->
@@ -196,13 +224,31 @@ mc:Ignorable="d">
         </StackPanel>
 
         <!--  Paired devices list  -->
-        <ContentControl
+        <Grid
+        Name="PairedDevicesPanel"
         Height="300"
         Margin="50,0,20,25"
         VerticalAlignment="Bottom"
-        Content="{Binding PairedDevicesPage}"
         IsVisible="{Binding IsPairedDevicesListOpen}"
-        Opacity="0.9" />
+        Opacity="0.9">
+            <ContentControl Content="{Binding PairedDevicesPage}" />
+            <controls:BusyOverlay
+            Name="DesktopSyncBusyOverlay"
+            BusyMessageFontWeight="Bold"
+            ConsumesInput="False"
+            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IsActive="{Binding SyncInProgress}"
+            IsProgressIndeterminate="{Binding SyncProgressIsIndeterminate}"
+            IsVisible="{Binding SyncInProgress}"
+            Message="{Binding SyncProgressText}"
+            MessageForeground="{DynamicResource SufniAccentColor}"
+            ProgressValue="{Binding SyncProgressValue}"
+            ShowProgress="{Binding SyncInProgress}"
+            ShowTint="True"
+            TintBackground="{DynamicResource SufniSelectionSurfaceSubtle}"
+            TintOpacity="0.85"
+            UseStackLayout="True" />
+        </Grid>
 
         <!--  New pairing request  -->
         <Grid

@@ -62,6 +62,25 @@ public class BusyOverlayTests
         Assert.Equal("Loading session data...", mounted.View.FindControl<TextBlock>("StackBusyMessageText")!.Text);
     }
 
+    [AvaloniaFact]
+    public async Task BusyOverlay_ShowsProgressBar_WhenRequested()
+    {
+        await using var mounted = await MountAsync(new BusyOverlay
+        {
+            IsActive = true,
+            UseStackLayout = true,
+            ShowProgress = true,
+            ProgressValue = 0.5,
+        });
+
+        var progressBar = mounted.View.FindControl<ProgressBar>("StackBusyProgressBar");
+
+        Assert.NotNull(progressBar);
+        Assert.True(progressBar!.IsVisible);
+        Assert.Equal(0.5, progressBar.Value);
+        Assert.False(progressBar.IsIndeterminate);
+    }
+
     private static async Task<MountedBusyOverlay> MountAsync(BusyOverlay view)
     {
         ViewTestHelpers.EnsureViewTestResources();

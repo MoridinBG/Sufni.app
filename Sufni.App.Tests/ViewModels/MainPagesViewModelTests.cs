@@ -1,5 +1,9 @@
+using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.Services;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Views;
 using Sufni.App.Stores;
 using Sufni.App.Theming;
@@ -125,4 +129,47 @@ public class MainPagesViewModelTests
 
         await themeService.Received(1).ToggleAsync();
     }
+
+    [AvaloniaFact]
+    public async Task SyncProgressState_MirrorsCoordinatorProgress()
+    {
+        var server = new TestSynchronizationServerService();
+        var syncCoordinator = CreateSyncCoordinator(server);
+        var viewModel = MainPagesViewModelTestFactory.Create(syncCoordinator: syncCoordinator);
+        var progress = new SynchronizationProgressSnapshot(
+            SynchronizationPhase.ReceivingChanges,
+            "Receiving remote changes",
+            CurrentStep: 0,
+            TotalSteps: 0,
+            IsDeterminate: false);
+
+        server.RaiseSyncActivityStarted(progress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.True(viewModel.SyncInProgress);
+        Assert.Equal("Receiving remote changes", viewModel.SyncProgressText);
+        Assert.Equal(1.0 / 6, viewModel.SyncProgressValue, precision: 6);
+        Assert.False(viewModel.SyncProgressIsIndeterminate);
+
+        server.RaiseSyncActivityEnded(progress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.False(viewModel.SyncInProgress);
+        Assert.Equal(string.Empty, viewModel.SyncProgressText);
+        Assert.Equal(0, viewModel.SyncProgressValue);
+    }
+
+    private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
+        new(
+            Substitute.For<IBikeStoreWriter>(),
+            Substitute.For<ISetupStoreWriter>(),
+            Substitute.For<ISessionStoreWriter>(),
+            Substitute.For<IRecordedSessionSourceStore>(),
+            Substitute.For<IPairedDeviceStoreWriter>(),
+            synchronizationClientService: null,
+            pairingClientCoordinator: null,
+            synchronizationServerService: server,
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
+            inboundActivityIdleGrace: TimeSpan.Zero);
+
 }
