@@ -67,7 +67,6 @@ mc:Ignorable="d">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).IsPaired" />
-                    <Binding Path="!$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
                     <Binding Path="!#CloseButton.IsVisible" />
                 </MultiBinding>
             </Button.IsVisible>
@@ -76,20 +75,6 @@ mc:Ignorable="d">
             Opacity="0.5"
             Source="{SvgImage /Assets/fa-link_green.svg}" />
         </Button>
-
-        <!--  Synchronization indicator  -->
-        <controls:ActivityIndicator
-        Grid.Row="0"
-        Width="15"
-        Height="15"
-        Margin="0,0,10,0"
-        HorizontalAlignment="Right"
-        VerticalAlignment="Center"
-        Foreground="{Binding $parent[controls:SearchBarCore].SyncIndicatorForeground}">
-            <controls:ActivityIndicator.IsActive>
-                <Binding Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).SyncInProgress" />
-            </controls:ActivityIndicator.IsActive>
-        </controls:ActivityIndicator>
 
         <ContentControl
         Grid.Row="1"

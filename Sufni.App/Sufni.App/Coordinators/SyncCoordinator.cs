@@ -11,6 +11,8 @@ public class SyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
     private static readonly TimeSpan ServerDiscoveryTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan DefaultInboundActivityIdleGrace = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan FinalInboundActivityIdleGrace = TimeSpan.FromSeconds(2);
 
     private readonly IBikeStoreWriter bikeStore;
     private readonly ISetupStoreWriter setupStore;
@@ -19,8 +21,16 @@ public class SyncCoordinator
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly TimeSpan inboundActivityIdleGrace;
+    private readonly TimeSpan finalInboundActivityIdleGrace;
 
     private bool isRunning;
+    private bool outboundSyncRunning;
+    private bool inboundSyncRunning;
+    private int inboundActivityDepth;
+    private int inboundIdleGeneration;
+    private SynchronizationProgressSnapshot? progress;
 
     public bool IsRunning
     {
@@ -36,10 +46,21 @@ public class SyncCoordinator
 
     public bool IsPaired => pairingClientCoordinator?.IsPaired ?? false;
     public bool CanSync => !IsRunning && IsPaired;
+    public SynchronizationProgressSnapshot? Progress
+    {
+        get => progress;
+        private set
+        {
+            if (progress == value) return;
+            progress = value;
+            ProgressChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     public event EventHandler? IsRunningChanged;
     public event EventHandler? IsPairedChanged;
     public event EventHandler? CanSyncChanged;
+    public event EventHandler? ProgressChanged;
     public event EventHandler<SyncCompletedEventArgs>? SyncCompleted;
     public event EventHandler<SyncFailedEventArgs>? SyncFailed;
 
@@ -50,7 +71,11 @@ public class SyncCoordinator
         IRecordedSessionSourceStore recordedSessionSourceStore,
         IPairedDeviceStoreWriter pairedDeviceStore,
         ISynchronizationClientService? synchronizationClientService = null,
-        IPairingClientCoordinator? pairingClientCoordinator = null)
+        IPairingClientCoordinator? pairingClientCoordinator = null,
+        ISynchronizationServerService? synchronizationServerService = null,
+        IBackgroundTaskRunner? backgroundTaskRunner = null,
+        TimeSpan? inboundActivityIdleGrace = null,
+        TimeSpan? finalInboundActivityIdleGrace = null)
     {
         this.bikeStore = bikeStore;
         this.setupStore = setupStore;
@@ -59,6 +84,9 @@ public class SyncCoordinator
         this.pairedDeviceStore = pairedDeviceStore;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
+        this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
+        this.inboundActivityIdleGrace = inboundActivityIdleGrace ?? DefaultInboundActivityIdleGrace;
+        this.finalInboundActivityIdleGrace = finalInboundActivityIdleGrace ?? FinalInboundActivityIdleGrace;
 
         if (pairingClientCoordinator is not null)
         {
@@ -68,6 +96,12 @@ public class SyncCoordinator
                 CanSyncChanged?.Invoke(this, EventArgs.Empty);
             };
             pairingClientCoordinator.PairingConfirmed += (_, _) => _ = SyncAllAsync();
+        }
+
+        if (synchronizationServerService is not null)
+        {
+            synchronizationServerService.SyncActivityStarted += OnSyncActivityStarted;
+            synchronizationServerService.SyncActivityEnded += OnSyncActivityEnded;
         }
     }
 
@@ -87,11 +121,18 @@ public class SyncCoordinator
         }
 
         logger.Information("Starting synchronization");
-        IsRunning = true;
+        SetOutboundSyncRunning(true);
         try
         {
             if (pairingClientCoordinator is not null)
             {
+                Progress = new SynchronizationProgressSnapshot(
+                    SynchronizationPhase.ResolvingServer,
+                    "Finding sync server",
+                    CurrentStep: 1,
+                    TotalSteps: 8,
+                    IsDeterminate: true);
+
                 var serverUrl = await pairingClientCoordinator.ResolveServerUrlAsync(ServerDiscoveryTimeout);
                 if (serverUrl is null)
                 {
@@ -101,9 +142,16 @@ public class SyncCoordinator
             }
 
             logger.Verbose("Running remote synchronization phases");
-            await synchronizationClientService.SyncAll();
+            await backgroundTaskRunner.RunAsync(() =>
+                synchronizationClientService.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress)));
 
             logger.Verbose("Refreshing local stores after synchronization");
+            Progress = new SynchronizationProgressSnapshot(
+                SynchronizationPhase.RefreshingLocalStores,
+                "Refreshing local lists",
+                CurrentStep: 8,
+                TotalSteps: 8,
+                IsDeterminate: true);
             await RefreshStoresOnUiThreadAsync();
 
             logger.Information("Synchronization completed");
@@ -116,9 +164,161 @@ public class SyncCoordinator
         }
         finally
         {
-            IsRunning = false;
+            if (!inboundSyncRunning)
+            {
+                Progress = null;
+            }
+
+            SetOutboundSyncRunning(false);
         }
     }
+
+    private void ReportOutboundServiceProgress(SynchronizationProgressSnapshot snapshot)
+    {
+        SetProgressOnUiThread(snapshot with
+        {
+            CurrentStep = snapshot.CurrentStep + 1,
+            TotalSteps = 8
+        });
+    }
+
+    private void SetProgressOnUiThread(SynchronizationProgressSnapshot? snapshot)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Progress = snapshot;
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => Progress = snapshot);
+    }
+
+    private void SetOutboundSyncRunning(bool value)
+    {
+        outboundSyncRunning = value;
+        UpdateIsRunning();
+    }
+
+    private void SetInboundSyncRunning(bool value)
+    {
+        inboundSyncRunning = value;
+        UpdateIsRunning();
+    }
+
+    private void UpdateIsRunning()
+    {
+        IsRunning = outboundSyncRunning || inboundSyncRunning;
+    }
+
+    private void OnSyncActivityStarted(object? sender, SynchronizationActivityEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            inboundIdleGeneration++;
+            inboundActivityDepth++;
+            SetInboundSyncRunning(true);
+            Progress = NormalizeInboundProgress(e.Progress);
+        });
+    }
+
+    private void OnSyncActivityEnded(object? sender, SynchronizationActivityEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (inboundActivityDepth > 0)
+            {
+                inboundActivityDepth--;
+            }
+
+            if (inboundActivityDepth > 0)
+            {
+                return;
+            }
+
+            ScheduleInboundActivityIdleClear(GetInboundActivityIdleGrace());
+        });
+    }
+
+    private void ScheduleInboundActivityIdleClear(TimeSpan idleGrace)
+    {
+        var generation = ++inboundIdleGeneration;
+        if (idleGrace <= TimeSpan.Zero)
+        {
+            ClearInboundActivityIfIdle(generation);
+            return;
+        }
+
+        _ = ClearInboundActivityAfterDelayAsync(generation, idleGrace);
+    }
+
+    private async Task ClearInboundActivityAfterDelayAsync(int generation, TimeSpan idleGrace)
+    {
+        await Task.Delay(idleGrace);
+        await Dispatcher.UIThread.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
+    }
+
+    private void ClearInboundActivityIfIdle(int generation)
+    {
+        if (generation != inboundIdleGeneration || inboundActivityDepth > 0)
+        {
+            return;
+        }
+
+        SetInboundSyncRunning(false);
+        if (!outboundSyncRunning)
+        {
+            Progress = null;
+        }
+    }
+
+    private TimeSpan GetInboundActivityIdleGrace()
+    {
+        return Progress is { IsDeterminate: true, CurrentStep: >= 5 }
+            ? finalInboundActivityIdleGrace
+            : inboundActivityIdleGrace;
+    }
+
+    private static SynchronizationProgressSnapshot NormalizeInboundProgress(SynchronizationProgressSnapshot progress) =>
+        progress.Phase switch
+        {
+            SynchronizationPhase.ReceivingChanges => InboundProgress(
+                progress,
+                "Receiving remote changes",
+                currentStep: 1),
+            SynchronizationPhase.ServingChanges => InboundProgress(
+                progress,
+                "Serving remote changes",
+                currentStep: 2),
+            SynchronizationPhase.CheckingIncompleteSessions or SynchronizationPhase.ReceivingSessionData => InboundProgress(
+                progress,
+                "Receiving session data",
+                currentStep: 3),
+            SynchronizationPhase.ServingSessionData => InboundProgress(
+                progress,
+                "Serving session data",
+                currentStep: 4),
+            SynchronizationPhase.CheckingIncompleteSessionSources or SynchronizationPhase.ReceivingSessionSourceData => InboundProgress(
+                progress,
+                "Receiving recorded sources",
+                currentStep: 5),
+            SynchronizationPhase.ServingSessionSourceData => InboundProgress(
+                progress,
+                "Serving recorded sources",
+                currentStep: 6),
+            _ => progress
+        };
+
+    private static SynchronizationProgressSnapshot InboundProgress(
+        SynchronizationProgressSnapshot progress,
+        string message,
+        int currentStep) =>
+        progress with
+        {
+            Message = message,
+            CurrentStep = currentStep,
+            TotalSteps = 6,
+            IsDeterminate = true
+        };
 
     private async Task RefreshStoresOnUiThreadAsync()
     {
@@ -138,6 +338,15 @@ public class SyncCoordinator
         await sessionStore.RefreshAsync();
         await recordedSessionSourceStore.RefreshAsync();
         await pairedDeviceStore.RefreshAsync();
+    }
+
+    private sealed class SyncProgressReporter(Action<SynchronizationProgressSnapshot> report)
+        : IProgress<SynchronizationProgressSnapshot>
+    {
+        public void Report(SynchronizationProgressSnapshot value)
+        {
+            report(value);
+        }
     }
 }
 

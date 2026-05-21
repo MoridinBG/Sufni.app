@@ -394,9 +394,13 @@ There are five kinds of view model in the presentation layer:
   the only place that holds references to multiple page view models
   at once; this is the explicit "view composition" carve-out from the
   no-VM-on-VM rule. It keeps observable mirrors of `SyncCoordinator`'s
-  `IsRunning` / `IsPaired` and forwards `SyncCompleted` / `SyncFailed`
-  notifications to the active page, but it owns no workflows of its
-  own. The triggering of the initial store refresh
+  `IsRunning` / `IsPaired` / progress snapshot and forwards
+  `SyncCompleted` / `SyncFailed` notifications to the active page, but
+  it owns no workflows of its own. Mobile binds those mirrors to a
+  blocking shell-level `BusyOverlay`; desktop binds them to the
+  paired-devices surface, using a panel overlay when the paired-devices
+  list is open and a spinner in the paired-devices button when it is
+  closed. The triggering of the initial store refresh
   (`LoadDatabaseContent`) also lives here so the database load happens
   exactly once after the shell is constructed.
 
@@ -751,7 +755,7 @@ view.
 
 ## Controls Library
 
-`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `SearchBarCore`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, `ActivityIndicator`, `BusyOverlay`, graph row controls (`RecordedSessionGraphRowsView`, `LiveSessionGraphRowsView`), statistics hosts (`TravelStatisticsHost`, `StrokeStatisticsHost`, `VelocityStatisticsHost`, `BalanceStatisticsHost`, `VibrationStatisticsHost`), dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `ImportSessionsContentView` is the shared mobile/desktop import body; its wrappers keep shell-specific back/bottom-action behavior. `LinearSensorConfigurationView` is the shared view for the fork/shock linear sensor editors while the concrete view models still create their own sensor payload types. `ActivityIndicator` wraps the current progress-ring package so views do not reference that package directly, and `BusyOverlay` standardizes spinner/tint/message composition without owning busy state. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
+`Sufni.App/Sufni.App/Views/Controls/` contains reusable UI components: `SearchBar`, `SearchBarWithDateFilter`, `SearchBarCore`, `EditableTitle`, `SwipeToDeleteButton`, `PullableMenuScrollViewer`, `PinInput`, `SidePanel`, `NotificationsBar`, `ErrorMessagesBar`, `ActivityIndicator`, `BusyOverlay`, graph row controls (`RecordedSessionGraphRowsView`, `LiveSessionGraphRowsView`), statistics hosts (`TravelStatisticsHost`, `StrokeStatisticsHost`, `VelocityStatisticsHost`, `BalanceStatisticsHost`, `VibrationStatisticsHost`), dialog windows (`OkCancelDialogWindow`, `YesNoCancelDialogWindow`), and `CommonButtonLine`. `ImportSessionsContentView` is the shared mobile/desktop import body; its wrappers keep shell-specific back/bottom-action behavior. `LinearSensorConfigurationView` is the shared view for the fork/shock linear sensor editors while the concrete view models still create their own sensor payload types. `ActivityIndicator` wraps the current progress-ring package so views do not reference that package directly, and `BusyOverlay` standardizes spinner/tint/message/progress composition without owning busy state. Search bars show paired connection state only; sync activity is surfaced by the mobile shell overlay or desktop paired-devices surface. `CommonButtonLine` binds against `TabPageViewModelBase`, while the desktop-specific row controls (`DesktopViews/Controls/DeletableListItemButton`, `PairedDeviceListItemButton`) bind against `ListItemRowViewModelBase` so the shared button surface stays consistent across entity families. `LiveDaqListItemButton` is a separate desktop control that binds against `LiveDaqRowViewModel` directly because live DAQ rows are not deletable and need online/offline presentation.
 
 Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; it does not reach into the child swipe control's visual tree.
 

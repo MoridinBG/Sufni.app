@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 using Serilog;
@@ -157,7 +158,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSourceIds.Count);
     }
 
-    public async Task SyncAll()
+    public async Task SyncAll(IProgress<SynchronizationProgressSnapshot>? progress = null)
     {
         try
         {
@@ -165,12 +166,12 @@ public class SynchronizationClientService : ISynchronizationClientService
 
             logger.Verbose("Starting synchronization client run with last sync time {LastSyncTime}", lastSyncTime);
 
-            await PushLocalChanges(lastSyncTime);
-            await PullRemoteChanges(lastSyncTime);
-            await PushIncompleteSessions();
-            await PullIncompleteSessions();
-            await PushIncompleteSessionSources();
-            await PullIncompleteSessionSources();
+            await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(lastSyncTime));
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, () => PullRemoteChanges(lastSyncTime));
+            await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, PushIncompleteSessions);
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, PullIncompleteSessions);
+            await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, PullIncompleteSessionSources);
 
             await databaseService.UpdateLastSyncTimeAsync(SyncStateKey);
             logger.Verbose("Synchronization client run completed");
@@ -180,6 +181,31 @@ public class SynchronizationClientService : ISynchronizationClientService
             logger.Error(exception, "Synchronization client run failed");
             throw;
         }
+    }
+
+    private static async Task RunPhaseAsync(
+        IProgress<SynchronizationProgressSnapshot>? progress,
+        SynchronizationPhase phase,
+        string message,
+        int currentStep,
+        Func<Task> action)
+    {
+        ReportProgress(progress, phase, message, currentStep);
+        await action();
+    }
+
+    private static void ReportProgress(
+        IProgress<SynchronizationProgressSnapshot>? progress,
+        SynchronizationPhase phase,
+        string message,
+        int currentStep)
+    {
+        progress?.Report(new SynchronizationProgressSnapshot(
+            phase,
+            message,
+            currentStep,
+            TotalSteps: 6,
+            IsDeterminate: true));
     }
 
     private static RecordedSessionSourceTransfer ToTransfer(RecordedSessionSource source) => new(

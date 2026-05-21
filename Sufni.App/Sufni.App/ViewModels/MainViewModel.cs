@@ -11,6 +11,7 @@ public partial class MainViewModel : ViewModelBase, IMainViewShellHost
     #region Observable properties
 
     [ObservableProperty] private ViewModelBase currentView;
+    public MainPagesViewModel MainPagesViewModel { get; }
 
     #endregion Observable properties
 
@@ -18,6 +19,7 @@ public partial class MainViewModel : ViewModelBase, IMainViewShellHost
 
     public MainViewModel(MainPagesViewModel mainPagesViewModel)
     {
+        MainPagesViewModel = mainPagesViewModel;
         CurrentView = mainPagesViewModel;
     }
 

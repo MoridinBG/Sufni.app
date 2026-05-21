@@ -1,8 +1,9 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 
 namespace Sufni.App.Services;
 
 public interface ISynchronizationClientService
 {
-    public Task SyncAll();
+    public Task SyncAll(IProgress<SynchronizationProgressSnapshot>? progress = null);
 }
