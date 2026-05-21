@@ -18,6 +18,10 @@ erDiagram
         text name
         text description
         int timestamp
+        real duration_seconds
+        real distance_meters
+        real ascent_meters
+        real descent_meters
         text setup_id FK
         blob data
         int has_data
@@ -146,12 +150,12 @@ Generic operations on any `Synchronizable` subclass:
 
 Session-specific operations split metadata, processed data, and recording source handling:
 
-- `PutSessionAsync()` — updates session metadata columns, the processing fingerprint, and stamps `Updated`/`Deleted` like `PutAsync`. The `data` blob and `track` cache are written via `COALESCE(?, existing)`: if `session.ProcessedData` or `session.Track` is null, the existing derived payload is preserved.
-- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data` and `session_processing_fingerprint`, and optionally inserts/replaces the matching `RecordedSessionSource`. When no new full track is supplied and the session has no existing `full_track_id`, it links the session to an active track whose `[start_time, end_time]` window contains the session timestamp. If any write fails, the session, generated track, and source write roll back together.
+- `PutSessionAsync()` — updates session metadata columns, the processing fingerprint, and stamps `Updated`/`Deleted` like `PutAsync`. The `data` blob, `track` cache, and nullable summary metrics are written via `COALESCE(?, existing)`: if `session.ProcessedData`, `session.Track`, or a summary value is null, the existing derived payload is preserved.
+- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data` and `session_processing_fingerprint`, derives `duration_seconds` from `TelemetryData.Metadata.Duration`, derives GPS distance/ascent/descent from the generated or session-window `TrackPoint` list when available, and optionally inserts/replaces the matching `RecordedSessionSource`. When no new full track is supplied and the session has no existing `full_track_id`, it links the session to an active track whose `[start_time, end_time]` window contains the session timestamp. If any write fails, the session, generated track, and source write roll back together.
 - `PutProcessedSessionIfUnchangedAsync(session, newFullTrack, source, baselineUpdated)` — the optimistic-concurrency variant used by recorded-session recompute. It runs the same processed-session / optional full-track / optional source transaction only when the current `session.updated` still equals `baselineUpdated`; on conflict it returns `null` and rolls back any generated track/source writes.
 - `FindTrackByTimeRangeAsync(startTime, endTime)` — returns the active track whose cached `start_time` and `end_time` exactly match the supplied values. GPX import uses this to skip already-imported tracks before writing.
-- `PatchSessionPsstAsync(id, bytes)` — updates only the `data` column (and sets `has_data = 1`)
-- `PatchSessionTrackAsync(id, points)` — updates the cached session-window `track` JSON and stamps `updated`
+- `PatchSessionPsstAsync(id, bytes)` — updates the `data` column, refreshes `duration_seconds` from the patched blob, preserves existing GPS metrics unless a cached session-window track can be recalculated, and sets `has_data = 1`
+- `PatchSessionTrackAsync(id, points)` — updates the cached session-window `track` JSON, refreshes GPS distance/ascent/descent from the supplied projected points, and stamps `updated`
 - `GetSessionPsstAsync(id)` — deserializes MessagePack blob to `TelemetryData`
 - `GetSessionRawPsstAsync(id)` — returns the raw MessagePack blob for sync transfer
 - `GetRecordedSessionSourcesAsync()` / `GetRecordedSessionSourceAsync(id)` — load recorded-source rows or one full source payload
@@ -184,4 +188,4 @@ The merge cases, in evaluation order:
 
 This gives local client changes precedence in conflicts while accepting remote deletes that are newer than the local content.
 
-Session merge accepts metadata, track linkage/cache JSON, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or the raw recording source through `SynchronizationData`. Those payloads are synchronized by the session-data and recorded-source endpoints described in [Cross-Device Synchronization](sync.md).
+Session merge accepts metadata, nullable summary metrics (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`), track linkage/cache JSON, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or the raw recording source through `SynchronizationData`. Those payloads are synchronized by the session-data and recorded-source endpoints described in [Cross-Device Synchronization](sync.md).

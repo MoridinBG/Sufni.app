@@ -3,6 +3,7 @@ using SQLite;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Services;
 
@@ -179,6 +180,10 @@ public class SQLiteDatabaseServiceTests
             var sourceColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session_recording_source)");
 
             Assert.Contains(sessionColumns, column => column.Name == "session_processing_fingerprint");
+            Assert.Contains(sessionColumns, column => column.Name == "duration_seconds");
+            Assert.Contains(sessionColumns, column => column.Name == "distance_meters");
+            Assert.Contains(sessionColumns, column => column.Name == "ascent_meters");
+            Assert.Contains(sessionColumns, column => column.Name == "descent_meters");
             Assert.Contains(sourceColumns, column => column.Name == "session_id");
             Assert.Contains(sourceColumns, column => column.Name == "source_kind");
             Assert.Contains(sourceColumns, column => column.Name == "source_name");
@@ -242,6 +247,56 @@ public class SQLiteDatabaseServiceTests
             var columns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(session)");
 
             Assert.Contains(columns, column => column.Name == "session_processing_fingerprint");
+            Assert.Contains(columns, column => column.Name == "duration_seconds");
+            Assert.Contains(columns, column => column.Name == "distance_meters");
+            Assert.Contains(columns, column => column.Name == "ascent_meters");
+            Assert.Contains(columns, column => column.Name == "descent_meters");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Initialization_BackfillsSessionSummaryMetrics_FromProcessedDataAndSessionTrack()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "summary-backfill.db");
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var firstRun = new SqLiteDatabaseService(databasePath);
+            _ = await firstRun.GetSessionsAsync();
+
+            using (var connection = new SQLiteConnection(databasePath))
+            {
+                connection.Insert(new Session(sessionId, "legacy", "desc", null, 100)
+                {
+                    ProcessedData = CreateTelemetryBlob(65),
+                    Track =
+                    [
+                        new TrackPoint(100, 0, 0, 10),
+                        new TrackPoint(101, 3, 4, 14),
+                        new TrackPoint(102, 6, 8, 10)
+                    ],
+                    Updated = 1
+                });
+            }
+
+            var secondRun = new SqLiteDatabaseService(databasePath);
+            var session = await secondRun.GetSessionAsync(sessionId);
+
+            Assert.NotNull(session);
+            Assert.Equal(65, session!.DurationSeconds);
+            Assert.InRange(session.DistanceMeters!.Value, 9.98, 10.0);
+            Assert.Equal(4, session.AscentMeters);
+            Assert.Equal(4, session.DescentMeters);
         }
         finally
         {
@@ -364,6 +419,54 @@ public class SQLiteDatabaseServiceTests
                 database.PutRecordedSessionSourceAsync(source));
 
             Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionAsync_PersistsSessionSummaryMetrics()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "processed-session-summary.db");
+        var sessionId = Guid.NewGuid();
+        var track = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points =
+            [
+                new TrackPoint(100, 0, 0, 10),
+                new TrackPoint(101, 3, 4, 14),
+                new TrackPoint(102, 6, 8, 10)
+            ]
+        };
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            var session = new Session(sessionId, "processed", "desc", null, 100)
+            {
+                ProcessedData = CreateTelemetryBlob(65)
+            };
+
+            var persisted = await database.PutProcessedSessionAsync(session, track, source: null);
+            var loaded = await database.GetSessionAsync(sessionId);
+
+            Assert.Equal(65, persisted.DurationSeconds);
+            Assert.InRange(persisted.DistanceMeters!.Value, 9.98, 10.0);
+            Assert.Equal(4, persisted.AscentMeters);
+            Assert.Equal(4, persisted.DescentMeters);
+            Assert.NotNull(loaded);
+            Assert.Equal(65, loaded!.DurationSeconds);
+            Assert.InRange(loaded.DistanceMeters!.Value, 9.98, 10.0);
+            Assert.Equal(4, loaded.AscentMeters);
+            Assert.Equal(4, loaded.DescentMeters);
         }
         finally
         {
@@ -807,6 +910,43 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
+    public async Task PatchSessionPsstAsync_UpdatesDurationSummaryMetric()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "session-psst-summary-patch.db");
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+            {
+                DistanceMeters = 10,
+                AscentMeters = 4,
+                DescentMeters = 2
+            });
+
+            await database.PatchSessionPsstAsync(sessionId, CreateTelemetryBlob(65));
+
+            var session = await database.GetSessionAsync(sessionId);
+
+            Assert.NotNull(session);
+            Assert.Equal(65, session!.DurationSeconds);
+            Assert.Equal(10, session.DistanceMeters);
+            Assert.Equal(4, session.AscentMeters);
+            Assert.Equal(2, session.DescentMeters);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PatchSessionPsstAsync_FlipsHasProcessedData_ForChangedSessionQueries()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
@@ -873,6 +1013,10 @@ public class SQLiteDatabaseServiceTests
                     new TrackPoint(1235, 2, 2, 101)
                 ],
                 ProcessingFingerprintJson = """{"remote":true}""",
+                DurationSeconds = 65,
+                DistanceMeters = 10,
+                AscentMeters = 4,
+                DescentMeters = 2,
                 FrontSpringRate = "50",
                 RearSpringRate = "60",
                 Updated = 99,
@@ -909,6 +1053,10 @@ public class SQLiteDatabaseServiceTests
             Assert.Equal(1234, session.Timestamp);
             Assert.Equal(trackId, session.FullTrack);
             Assert.Equal("""{"remote":true}""", session.ProcessingFingerprintJson);
+            Assert.Equal(65, session.DurationSeconds);
+            Assert.Equal(10, session.DistanceMeters);
+            Assert.Equal(4, session.AscentMeters);
+            Assert.Equal(2, session.DescentMeters);
             Assert.Equal(99, session.Updated);
             Assert.Equal("50", session.FrontSpringRate);
             Assert.Equal("60", session.RearSpringRate);
@@ -966,6 +1114,10 @@ public class SQLiteDatabaseServiceTests
                             new TrackPoint(1235, 2, 2, 101)
                         ],
                         ProcessingFingerprintJson = """{"remote":true}""",
+                        DurationSeconds = 65,
+                        DistanceMeters = 10,
+                        AscentMeters = 4,
+                        DescentMeters = 2,
                         FrontSpringRate = "50",
                         RearSpringRate = "60",
                         Updated = 99,
@@ -986,6 +1138,10 @@ public class SQLiteDatabaseServiceTests
             Assert.Equal(1234, session.Timestamp);
             Assert.Equal(trackId, session.FullTrack);
             Assert.Equal("""{"remote":true}""", session.ProcessingFingerprintJson);
+            Assert.Equal(65, session.DurationSeconds);
+            Assert.Equal(10, session.DistanceMeters);
+            Assert.Equal(4, session.AscentMeters);
+            Assert.Equal(2, session.DescentMeters);
             Assert.Equal("50", session.FrontSpringRate);
             Assert.Equal("60", session.RearSpringRate);
             Assert.True(session.HasProcessedData);
@@ -1310,6 +1466,7 @@ public class SQLiteDatabaseServiceTests
             {
                 connection.Insert(new Session(sessionId, "session", "desc", null, 100)
                 {
+                    DurationSeconds = 65,
                     Updated = 1,
                     ClientUpdated = 1
                 });
@@ -1330,6 +1487,10 @@ public class SQLiteDatabaseServiceTests
             Assert.NotNull(after);
             Assert.NotNull(track);
             Assert.Equal(2, track!.Count);
+            Assert.Equal(65, after!.DurationSeconds);
+            Assert.InRange(after.DistanceMeters!.Value, 1.41, 1.42);
+            Assert.Equal(0, after.AscentMeters);
+            Assert.Equal(0, after.DescentMeters);
             Assert.True(after!.Updated > before!.Updated);
         }
         finally
@@ -1609,6 +1770,18 @@ public class SQLiteDatabaseServiceTests
             new TrackPoint(101, 2, 2, 11)
         ]
     };
+
+    private static byte[] CreateTelemetryBlob(double durationSeconds) => new TelemetryData
+    {
+        Metadata = new Metadata
+        {
+            SourceName = "source.SST",
+            Version = 4,
+            SampleRate = 100,
+            Timestamp = 100,
+            Duration = durationSeconds
+        }
+    }.BinaryForm;
 
     private sealed class TableColumnInfo
     {

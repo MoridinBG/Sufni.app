@@ -96,7 +96,7 @@ internal static class TrackPointSeries
             : null;
     }
 
-    private static double CalculateHaversineDistance(TrackPointGeoCoordinate first, TrackPointGeoCoordinate second)
+    public static double CalculateHaversineDistance(TrackPointGeoCoordinate first, TrackPointGeoCoordinate second)
     {
         var firstLatitude = ToRadians(first.Latitude);
         var secondLatitude = ToRadians(second.Latitude);

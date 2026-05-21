@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Linq;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -27,12 +29,15 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
+    private readonly Dictionary<SessionDateGroupKey, bool> dateGroupExpansionState = [];
 
     #endregion Private fields
 
     #region Observable properties
 
     public ReadOnlyObservableCollection<SessionRowViewModel> Items => sessionRows;
+
+    public ObservableCollection<SessionDateGroupViewModel> DateGroups { get; } = [];
 
     #endregion Observable properties
 
@@ -51,6 +56,9 @@ public partial class SessionListViewModel : ItemListViewModelBase
                 out sessionRows,
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
             .Subscribe();
+
+        ((INotifyCollectionChanged)sessionRows).CollectionChanged += OnSessionRowsChanged;
+        SynchronizeDateGroups();
 
         // Push a fresh predicate to our filter subject whenever the
         // search text or date-filter bounds change.
@@ -150,6 +158,71 @@ public partial class SessionListViewModel : ItemListViewModelBase
                 ErrorMessages.Add($"Session could not be recalculated: {failed.ErrorMessage}");
                 break;
         }
+    }
+
+    private void OnSessionRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        SynchronizeDateGroups();
+    }
+
+    private void SynchronizeDateGroups()
+    {
+        foreach (var group in DateGroups)
+        {
+            dateGroupExpansionState[group.Key] = group.IsExpanded;
+        }
+
+        var groups = sessionRows
+            .GroupBy(row => row.DateGroupKey)
+            .OrderByDescending(group => group.Key.Date ?? DateOnly.MinValue)
+            .Select(group => (Key: group.Key, Rows: group.ToList()))
+            .ToList();
+        var desiredKeys = groups.Select(group => group.Key).ToHashSet();
+
+        for (var index = DateGroups.Count - 1; index >= 0; index--)
+        {
+            if (!desiredKeys.Contains(DateGroups[index].Key))
+            {
+                DateGroups.RemoveAt(index);
+            }
+        }
+
+        for (var desiredIndex = 0; desiredIndex < groups.Count; desiredIndex++)
+        {
+            var group = groups[desiredIndex];
+            var existingIndex = IndexOfDateGroup(group.Key);
+            SessionDateGroupViewModel groupViewModel;
+
+            if (existingIndex >= 0)
+            {
+                groupViewModel = DateGroups[existingIndex];
+                if (existingIndex != desiredIndex)
+                {
+                    DateGroups.Move(existingIndex, desiredIndex);
+                }
+            }
+            else
+            {
+                var isExpanded = !dateGroupExpansionState.TryGetValue(group.Key, out var storedExpanded) || storedExpanded;
+                groupViewModel = new SessionDateGroupViewModel(group.Key, isExpanded);
+                DateGroups.Insert(desiredIndex, groupViewModel);
+            }
+
+            groupViewModel.SetRows(group.Rows);
+        }
+    }
+
+    private int IndexOfDateGroup(SessionDateGroupKey key)
+    {
+        for (var index = 0; index < DateGroups.Count; index++)
+        {
+            if (DateGroups[index].Key == key)
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     #endregion Private methods
