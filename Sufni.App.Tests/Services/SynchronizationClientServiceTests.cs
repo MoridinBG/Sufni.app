@@ -142,6 +142,31 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
+    public async Task SyncAll_ReportsSixServicePhaseProgress_WhenProgressIsProvided()
+    {
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        var events = new List<SynchronizationProgressSnapshot>();
+
+        await CreateService().SyncAll(new ProgressCapture(events));
+
+        Assert.Equal(
+            [
+                SynchronizationPhase.PushingLocalChanges,
+                SynchronizationPhase.PullingRemoteChanges,
+                SynchronizationPhase.PushingIncompleteSessions,
+                SynchronizationPhase.PullingIncompleteSessions,
+                SynchronizationPhase.PushingIncompleteSessionSources,
+                SynchronizationPhase.PullingIncompleteSessionSources,
+            ],
+            events.Select(e => e.Phase).ToArray());
+        Assert.All(events, e => Assert.True(e.IsDeterminate));
+        Assert.All(events, e => Assert.Equal(6, e.TotalSteps));
+        Assert.Equal([1, 2, 3, 4, 5, 6], events.Select(e => e.CurrentStep).ToArray());
+    }
+
+    [Fact]
     public async Task SyncAll_PushesMissingRecordedSourcesToServer()
     {
         var source = CreateRecordedSource();
@@ -248,5 +273,13 @@ public class SynchronizationClientServiceTests
                 payload),
             Payload = payload
         };
+    }
+
+    private sealed class ProgressCapture(List<SynchronizationProgressSnapshot> events) : IProgress<SynchronizationProgressSnapshot>
+    {
+        public void Report(SynchronizationProgressSnapshot value)
+        {
+            events.Add(value);
+        }
     }
 }
