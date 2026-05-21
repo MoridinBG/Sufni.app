@@ -31,7 +31,11 @@ public sealed record SessionSnapshot(
     uint? RearLowSpeedCompression,
     uint? RearLowSpeedRebound,
     uint? RearHighSpeedRebound,
-    long Updated)
+    long Updated,
+    double? DurationSeconds = null,
+    double? DistanceMeters = null,
+    double? AscentMeters = null,
+    double? DescentMeters = null)
 {
     public static SessionSnapshot From(Session session) => new(
         session.Id,
@@ -52,5 +56,9 @@ public sealed record SessionSnapshot(
         session.RearLowSpeedCompression,
         session.RearLowSpeedRebound,
         session.RearHighSpeedRebound,
-        session.Updated);
+        session.Updated,
+        session.DurationSeconds,
+        session.DistanceMeters,
+        session.AscentMeters,
+        session.DescentMeters);
 }

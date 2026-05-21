@@ -15,6 +15,12 @@
     Background="{DynamicResource SufniListRowSurface}"
     mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <DataTemplate x:Key="SessionDateGroupDesktopRowTemplate">
+            <c:SessionListItemButton />
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
 
         <!--  Search bar  -->
@@ -44,10 +50,10 @@
             Grid.Row="1"
             Grid.Column="0"
             Grid.ColumnSpan="2">
-            <ItemsRepeater ItemsSource="{Binding Items}">
+            <ItemsRepeater ItemsSource="{Binding DateGroups}">
                 <ItemsRepeater.ItemTemplate>
-                    <DataTemplate>
-                        <c:SessionListItemButton />
+                    <DataTemplate x:DataType="vml:SessionDateGroupViewModel">
+                        <controls:SessionDateGroupView RowTemplate="{StaticResource SessionDateGroupDesktopRowTemplate}" />
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>

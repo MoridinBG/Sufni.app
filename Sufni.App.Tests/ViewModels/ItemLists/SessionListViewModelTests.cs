@@ -1,3 +1,4 @@
+using System.Globalization;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
@@ -207,7 +208,8 @@ public class SessionListViewModelTests
             var row = Assert.Single(viewModel.Items);
             Assert.True(row.IsStale);
             Assert.Equal("Alpine", row.BaseName);
-            Assert.Equal("Alpine (Stale)", row.Name);
+            Assert.Equal("Alpine", row.Name);
+            Assert.Equal("Alpine (Stale)", row.TitleText);
 
             viewModel.SearchText = "Stale";
             Assert.Empty(viewModel.Items);
@@ -234,13 +236,173 @@ public class SessionListViewModelTests
             Assert.False(row.IsStale);
             Assert.True(row.HasNoRawSource);
             Assert.Equal("Alpine", row.BaseName);
-            Assert.Equal("Alpine (No Raw)", row.Name);
+            Assert.Equal("Alpine", row.Name);
+            Assert.Equal("Alpine (No Raw)", row.TitleText);
 
             viewModel.SearchText = "No Raw";
             Assert.Empty(viewModel.Items);
 
             viewModel.SearchText = "rough";
             Assert.Single(viewModel.Items);
+        }
+    }
+
+    [Fact]
+    public void DateGroups_GroupRowsByLocalDateDescending_WithNoDateLast()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var newest = CreateSummary("newest", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15));
+            var sameDay = CreateSummary("same day", timestamp: ToUnixSeconds(2026, 5, 20, 16, 30));
+            var older = CreateSummary("older", timestamp: ToUnixSeconds(2026, 5, 19, 8, 0));
+            var undated = CreateSummary("undated");
+            sessionCache.AddOrUpdate(newest);
+            sessionCache.AddOrUpdate(sameDay);
+            sessionCache.AddOrUpdate(older);
+            sessionCache.AddOrUpdate(undated);
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+
+            Assert.Equal(3, viewModel.DateGroups.Count);
+            Assert.Equal(new DateOnly(2026, 5, 20), viewModel.DateGroups[0].Key.Date);
+            Assert.Equal(new DateOnly(2026, 5, 19), viewModel.DateGroups[1].Key.Date);
+            Assert.Equal(SessionDateGroupKey.NoDate, viewModel.DateGroups[2].Key);
+            Assert.Equal(2, viewModel.DateGroups[0].Items.Count);
+            Assert.Single(viewModel.DateGroups[2].Items);
+            Assert.All(viewModel.DateGroups, group => Assert.True(group.IsExpanded));
+        }
+    }
+
+    [Fact]
+    public void DateGroups_PreserveExistingGroupAndRowsCollection_WhenRowsChange()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            sessionCache.AddOrUpdate(CreateSummary("Morning", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var group = Assert.Single(viewModel.DateGroups);
+            var rows = group.Items;
+
+            sessionCache.AddOrUpdate(CreateSummary("Afternoon", timestamp: ToUnixSeconds(2026, 5, 20, 16, 30)));
+
+            var updatedGroup = Assert.Single(viewModel.DateGroups);
+            Assert.Same(group, updatedGroup);
+            Assert.Same(rows, updatedGroup.Items);
+            Assert.Equal(2, updatedGroup.Items.Count);
+        }
+    }
+
+    [Fact]
+    public void DateGroups_PreserveCollapsedState_WhenFilteringRemovesAndRestoresGroup()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            sessionCache.AddOrUpdate(CreateSummary("Alpine", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
+            sessionCache.AddOrUpdate(CreateSummary("Valley", timestamp: ToUnixSeconds(2026, 5, 19, 8, 0)));
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            viewModel.DateGroups[0].ToggleExpandedCommand.Execute(null);
+
+            Assert.False(viewModel.DateGroups[0].IsExpanded);
+
+            viewModel.SearchText = "Valley";
+            Assert.Single(viewModel.DateGroups);
+            Assert.Equal(new DateOnly(2026, 5, 19), viewModel.DateGroups[0].Key.Date);
+
+            viewModel.SearchText = null;
+            Assert.Equal(2, viewModel.DateGroups.Count);
+            Assert.Equal(new DateOnly(2026, 5, 20), viewModel.DateGroups[0].Key.Date);
+            Assert.False(viewModel.DateGroups[0].IsExpanded);
+        }
+    }
+
+    [Fact]
+    public void RequestRowDelete_RemovesEmptyDateGroupDuringUndoWindow()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary("delete", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15));
+            sessionCache.AddOrUpdate(summary);
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            Assert.Single(viewModel.DateGroups);
+
+            viewModel.Items[0].UndoableDeleteCommand.Execute(null);
+
+            Assert.Empty(viewModel.Items);
+            Assert.Empty(viewModel.DateGroups);
+
+            viewModel.PendingDeletes[0].UndoDeleteCommand.Execute(null);
+            Assert.Single(viewModel.DateGroups);
+        }
+    }
+
+    [Fact]
+    public void RowPresentation_FormatsTitleTimestampAndGroupKey()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var timestamp = ToUnixSeconds(2026, 5, 20, 9, 15);
+            var summary = CreateSummary(
+                name: "Alpine",
+                timestamp: timestamp,
+                staleness: new SessionStaleness.DependencyHashChanged());
+            sessionCache.AddOrUpdate(summary);
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var row = Assert.Single(viewModel.Items);
+            var expectedTimestamp = row.Timestamp!.Value.ToString(
+                CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern,
+                CultureInfo.CurrentCulture);
+
+            Assert.Equal("Alpine (Stale)", row.TitleText);
+            Assert.Equal(expectedTimestamp, row.TimestampText);
+            Assert.Equal(new DateOnly(2026, 5, 20), row.DateGroupKey.Date);
+            Assert.Empty(row.SubtitleText);
+        }
+    }
+
+    [Fact]
+    public void RowPresentation_FormatsSubtitleFromSummaryMetrics()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(
+                name: "Metrics",
+                durationSeconds: 65,
+                distanceMeters: 987,
+                ascentMeters: 12.4,
+                descentMeters: 4.2);
+            sessionCache.AddOrUpdate(summary);
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var row = Assert.Single(viewModel.Items);
+
+            Assert.Equal("1m 05s | 987 m | +12 m / -4 m", row.SubtitleText);
+            Assert.True(row.HasSubtitleText);
+        }
+    }
+
+    [Fact]
+    public void RowPresentation_OmitsGpsSubtitle_WhenOnlyDurationIsKnown()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            sessionCache.AddOrUpdate(CreateSummary(name: "Duration", durationSeconds: 3725));
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var row = Assert.Single(viewModel.Items);
+
+            Assert.Equal("1h 02m", row.SubtitleText);
+            Assert.True(row.HasSubtitleText);
         }
     }
 
@@ -256,12 +418,27 @@ public class SessionListViewModelTests
         string name,
         string description = "",
         long updated = 1,
-        SessionStaleness? staleness = null) => new(
+        long? timestamp = null,
+        SessionStaleness? staleness = null,
+        double? durationSeconds = null,
+        double? distanceMeters = null,
+        double? ascentMeters = null,
+        double? descentMeters = null) => new(
         Guid.NewGuid(),
         updated,
         name,
         description,
-        Timestamp: null,
+        Timestamp: timestamp,
         HasProcessedData: true,
-        staleness ?? new SessionStaleness.Current());
+        staleness ?? new SessionStaleness.Current(),
+        DurationSeconds: durationSeconds,
+        DistanceMeters: distanceMeters,
+        AscentMeters: ascentMeters,
+        DescentMeters: descentMeters);
+
+    private static long ToUnixSeconds(int year, int month, int day, int hour, int minute)
+    {
+        var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
+        return new DateTimeOffset(local).ToUnixTimeSeconds();
+    }
 }

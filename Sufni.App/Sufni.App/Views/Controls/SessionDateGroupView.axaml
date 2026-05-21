@@ -1,0 +1,67 @@
+<UserControl
+    x:Class="Sufni.App.Views.Controls.SessionDateGroupView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
+    Name="Root"
+    d:DesignHeight="200"
+    d:DesignWidth="500"
+    x:DataType="vml:SessionDateGroupViewModel"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <Button
+            Name="DateGroupHeaderButton"
+            MinHeight="{Binding #Root.HeaderMinHeight}"
+            Padding="{Binding #Root.HeaderPadding}"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            VerticalContentAlignment="Center"
+            Background="{DynamicResource SufniSurfaceInput}"
+            BorderBrush="{DynamicResource SufniListRowDivider}"
+            BorderThickness="0,1,0,1"
+            Command="{Binding ToggleExpandedCommand}"
+            CornerRadius="0">
+            <Grid ColumnDefinitions="18 *" ColumnSpacing="8">
+                <Path
+                    Name="DateGroupCollapsedGlyph"
+                    Grid.Column="0"
+                    Width="7"
+                    Height="12"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Data="M 1,0 L 7,6 L 1,12 Z"
+                    Fill="{DynamicResource SufniTextSecondaryBrush}"
+                    IsVisible="{Binding !IsExpanded}"
+                    Stretch="Uniform" />
+                <Path
+                    Name="DateGroupExpandedGlyph"
+                    Grid.Column="0"
+                    Width="12"
+                    Height="7"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Data="M 0,1 L 12,1 L 6,7 Z"
+                    Fill="{DynamicResource SufniTextSecondaryBrush}"
+                    IsVisible="{Binding IsExpanded}"
+                    Stretch="Uniform" />
+                <TextBlock
+                    Name="DateGroupHeaderText"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontSize="{StaticResource SufniFontSizeSmall}"
+                    FontWeight="SemiBold"
+                    Foreground="{DynamicResource SufniTextPrimary}"
+                    Text="{Binding HeaderText}"
+                    TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Button>
+        <ItemsRepeater
+            Name="DateGroupItemsRepeater"
+            Margin="18,0,0,0"
+            IsVisible="{Binding IsExpanded}"
+            ItemsSource="{Binding Items}" />
+    </StackPanel>
+</UserControl>
