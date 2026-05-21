@@ -142,10 +142,11 @@ metadata-only snapshots that are not edited through that flow, such as
 `LiveDaqSnapshot`, `PairedDeviceSnapshot`, and
 `RecordedSessionSourceSnapshot`, do not expose an editor baseline.
 
-`SessionSnapshot` is metadata-only: it carries `HasProcessedData`
-and `ProcessingFingerprintJson`, but not the MessagePack telemetry
-BLOB and not the raw recorded source. Those large payloads stay in
-SQLite and are loaded on demand.
+`SessionSnapshot` is metadata-only: it carries `HasProcessedData`,
+`ProcessingFingerprintJson`, and the nullable list-summary metrics
+(`DurationSeconds`, `DistanceMeters`, `AscentMeters`, `DescentMeters`),
+but not the MessagePack telemetry BLOB and not the raw recorded source.
+Those large payloads stay in SQLite and are loaded on demand.
 
 `SessionStore` additionally exposes `Watch(Guid)`, a low-level per-id
 observable filtered to `Add`/`Update` change reasons. Recorded-session
@@ -188,9 +189,12 @@ surfaces:
 
 - `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`
   records for the session list. `SessionListViewModel` filters and
-  sorts this stream directly; `SessionRowViewModel` displays `(Stale)`
-  when the summary is stale and `(No Raw)` when the processed data may
-  exist but the raw source is unavailable.
+  sorts this stream, then projects the visible rows into local-date
+  groups that can be expanded and collapsed. `SessionRowViewModel`
+  displays `(Stale)` when the summary is stale and `(No Raw)` when the
+  processed data may exist but the raw source is unavailable; it also
+  exposes current-culture title, time-of-day, and subtitle strings for the
+  grouped desktop and mobile list templates.
 - `WatchSession(sessionId)` — a replaying observable of
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
@@ -431,8 +435,10 @@ There are five kinds of view model in the presentation layer:
   `SessionListViewModel` follows the same projection shape but uses
   `IRecordedSessionGraph.ConnectSessions()` instead of
   `ISessionStore.Connect()`, so rows include processed-data presence,
-  staleness, and raw-source availability without each row doing its
-  own store lookups.
+  staleness, raw-source availability, and summary metrics without each
+  row doing its own store lookups. It keeps the flat `Items` collection
+  for compatibility and exposes `DateGroups` as the grouped list surface
+  used by the desktop sidebar and mobile pull-menu scroll view.
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,
@@ -449,8 +455,11 @@ There are five kinds of view model in the presentation layer:
   online/offline presentation.
   `SessionRowViewModel` wraps `RecordedSessionSummary` rather than
   `SessionSnapshot`; it keeps the unadorned `BaseName`, appends
-  `(Stale)` or `(No Raw)` to the display name when appropriate, and
-  exposes flags the view can style independently of the text.
+  `(Stale)` or `(No Raw)` to the display name when appropriate, formats
+  the always-visible row timestamp as local time only because the group
+  header owns the date, formats the optional subtitle from unit-labelled
+  duration plus GPS distance/ascent/descent, and exposes flags the view
+  can style independently of the text.
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
   `SetupEditorViewModel`, `SessionDetailViewModel`,
