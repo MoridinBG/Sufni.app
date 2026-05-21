@@ -103,7 +103,7 @@ public class SufniPlot
         Plot.Axes.Left.Label.Text = left;
     }
 
-    protected void AddLabel(string content, double x, double y, int xoffset, int yoffset, Alignment alignment = Alignment.LowerLeft)
+    protected Text AddLabel(string content, double x, double y, int xoffset, int yoffset, Alignment alignment = Alignment.LowerLeft)
     {
         var text = Plot.Add.Text(content, x, y);
         text.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
@@ -111,6 +111,7 @@ public class SufniPlot
         text.LabelAlignment = alignment;
         text.LabelOffsetX = xoffset;
         text.LabelOffsetY = yoffset;
+        return text;
     }
 
     protected void AddLabelWithHorizontalLine(string content, double position, LabelLinePosition linePosition)
