@@ -67,7 +67,9 @@
                 Name="Scroll"
                 Grid.Row="1"
                 VerticalAlignment="Bottom">
-                <ItemsRepeater ItemsSource="{Binding $parent[v:PullableMenuScrollViewer].Items}">
+                <ItemsRepeater
+                    Name="ItemsRepeater"
+                    ItemsSource="{Binding $parent[v:PullableMenuScrollViewer].Items}">
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate>
                             <StackPanel>

@@ -59,7 +59,9 @@ public class SqLiteDatabaseService : IDatabaseService
             await connection.EnableWriteAheadLoggingAsync();
             await CreateTablesAsync();
             await EnsureSessionProcessingFingerprintColumnAsync();
+            await EnsureSessionSummaryMetricColumnsAsync();
             await BackfillRearSuspensionKindAsync();
+            await BackfillSessionSummaryMetricsAsync();
 
             var cleanupSummary = await Cleanup();
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
@@ -109,9 +111,85 @@ public class SqLiteDatabaseService : IDatabaseService
         await connection.ExecuteAsync("ALTER TABLE session ADD COLUMN session_processing_fingerprint TEXT");
     }
 
+    private async Task EnsureSessionSummaryMetricColumnsAsync()
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
+        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var columnName in SessionSummaryMetricColumnNames)
+        {
+            if (!columnNames.Contains(columnName))
+            {
+                await connection.ExecuteAsync($"ALTER TABLE session ADD COLUMN {columnName} REAL");
+            }
+        }
+    }
+
     private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
         "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND (rear_suspension_kind IS NULL OR rear_suspension_kind = ?)",
         [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
+
+    private async Task BackfillSessionSummaryMetricsAsync()
+    {
+        var sessions = await connection.QueryAsync<Session>(
+            """
+            SELECT
+                id,
+                timestamp,
+                duration_seconds,
+                distance_meters,
+                ascent_meters,
+                descent_meters,
+                full_track_id,
+                track,
+                data
+            FROM session
+            WHERE
+                deleted IS NULL
+                AND data IS NOT NULL
+                AND (
+                    duration_seconds IS NULL
+                    OR distance_meters IS NULL
+                    OR ascent_meters IS NULL
+                    OR descent_meters IS NULL
+                )
+            """);
+
+        foreach (var session in sessions)
+        {
+            var previousMetrics = new SessionSummaryMetrics(
+                session.DurationSeconds,
+                session.DistanceMeters,
+                session.AscentMeters,
+                session.DescentMeters);
+
+            await ApplySessionSummaryMetricsAsync(session, generatedFullTrack: null);
+
+            if (previousMetrics.DurationSeconds == session.DurationSeconds &&
+                previousMetrics.DistanceMeters == session.DistanceMeters &&
+                previousMetrics.AscentMeters == session.AscentMeters &&
+                previousMetrics.DescentMeters == session.DescentMeters)
+            {
+                continue;
+            }
+
+            await connection.ExecuteAsync(
+                """
+                UPDATE session
+                SET
+                    duration_seconds=?,
+                    distance_meters=?,
+                    ascent_meters=?,
+                    descent_meters=?
+                WHERE id=?
+                """,
+                session.DurationSeconds,
+                session.DistanceMeters,
+                session.AscentMeters,
+                session.DescentMeters,
+                session.Id);
+        }
+    }
 
     private AsyncTableQuery<T> Table<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
     {
@@ -222,6 +300,14 @@ public class SqLiteDatabaseService : IDatabaseService
 
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
 
+    private static readonly string[] SessionSummaryMetricColumnNames =
+    [
+        "duration_seconds",
+        "distance_meters",
+        "ascent_meters",
+        "descent_meters"
+    ];
+
     private const string SessionHasDataProjection = """
                                                     CASE
                                                        WHEN data IS NOT NULL THEN 1
@@ -235,6 +321,10 @@ public class SqLiteDatabaseService : IDatabaseService
                                                                      setup_id,
                                                                      description,
                                                                      timestamp,
+                                                                     duration_seconds,
+                                                                     distance_meters,
+                                                                     ascent_meters,
+                                                                     descent_meters,
                                                                      full_track_id,
                                                                      {SessionProcessingFingerprintColumn},
                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
@@ -248,6 +338,10 @@ public class SqLiteDatabaseService : IDatabaseService
                                                              setup_id=?,
                                                              description=?,
                                                              timestamp=?,
+                                                             duration_seconds=?,
+                                                             distance_meters=?,
+                                                             ascent_meters=?,
+                                                             descent_meters=?,
                                                              full_track_id=?,
                                                              session_processing_fingerprint=?,
                                                              track=?,
@@ -264,6 +358,10 @@ public class SqLiteDatabaseService : IDatabaseService
                                                                 setup_id=?,
                                                                 description=?,
                                                                 timestamp=?,
+                                                                duration_seconds=COALESCE(?, duration_seconds),
+                                                                distance_meters=COALESCE(?, distance_meters),
+                                                                ascent_meters=COALESCE(?, ascent_meters),
+                                                                descent_meters=COALESCE(?, descent_meters),
                                                                 full_track_id=?,
                                                                 session_processing_fingerprint=?,
                                                                 track=COALESCE(?, track),
@@ -304,6 +402,10 @@ public class SqLiteDatabaseService : IDatabaseService
                                                                   setup_id=?,
                                                                   description=?,
                                                                   timestamp=?,
+                                                                  duration_seconds=?,
+                                                                  distance_meters=?,
+                                                                  ascent_meters=?,
+                                                                  descent_meters=?,
                                                                   full_track_id=?,
                                                                   session_processing_fingerprint=?,
                                                                   track=?,
@@ -331,6 +433,10 @@ public class SqLiteDatabaseService : IDatabaseService
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.DurationSeconds,
+        session.DistanceMeters,
+        session.AscentMeters,
+        session.DescentMeters,
         session.FullTrack,
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
@@ -371,6 +477,10 @@ public class SqLiteDatabaseService : IDatabaseService
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.DurationSeconds,
+        session.DistanceMeters,
+        session.AscentMeters,
+        session.DescentMeters,
         session.FullTrack,
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
@@ -389,6 +499,86 @@ public class SqLiteDatabaseService : IDatabaseService
         session.Deleted,
         session.Id
     ];
+
+    private static double? ReadProcessedDurationSeconds(byte[]? processedData)
+    {
+        if (processedData is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return TelemetryData.FromBinary(processedData).Metadata?.Duration;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task ApplySessionSummaryMetricsAsync(Session session, Track? generatedFullTrack)
+    {
+        var durationSeconds = ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds;
+        var points = await GetMetricTrackPointsAsync(session, generatedFullTrack, durationSeconds);
+        var metrics = SessionSummaryMetricsCalculator.Calculate(durationSeconds, points);
+
+        session.DurationSeconds = metrics.DurationSeconds;
+        session.DistanceMeters = metrics.DistanceMeters;
+        session.AscentMeters = metrics.AscentMeters;
+        session.DescentMeters = metrics.DescentMeters;
+    }
+
+    private async Task<IReadOnlyList<TrackPoint>?> GetMetricTrackPointsAsync(
+        Session session,
+        Track? generatedFullTrack,
+        double? durationSeconds)
+    {
+        if (session.Track is { Count: > 0 })
+        {
+            return session.Track;
+        }
+
+        if (generatedFullTrack?.Points is { Count: > 0 } generatedPoints)
+        {
+            return generatedPoints;
+        }
+
+        return await TryGenerateSessionTrackFromFullTrackAsync(session.FullTrack, session.Timestamp, durationSeconds);
+    }
+
+    private async Task<List<TrackPoint>?> TryGenerateSessionTrackFromFullTrackAsync(
+        Guid? fullTrackId,
+        long? timestamp,
+        double? durationSeconds)
+    {
+        if (!fullTrackId.HasValue ||
+            !timestamp.HasValue ||
+            durationSeconds is not { } duration ||
+            !double.IsFinite(duration) ||
+            duration <= 0)
+        {
+            return null;
+        }
+
+        var fullTrack = await connection.Table<Track>()
+            .Where(track => track.Id == fullTrackId.Value && track.Deleted == null)
+            .FirstOrDefaultAsync();
+        if (fullTrack is null || !fullTrack.HasPoints)
+        {
+            return null;
+        }
+
+        var start = timestamp.Value;
+        var end = start + (int)Math.Ceiling(duration);
+        if (fullTrack.StartTime > start || fullTrack.EndTime < end)
+        {
+            return null;
+        }
+
+        var points = fullTrack.GenerateSessionTrack(start, end);
+        return points.Count == 0 ? null : points;
+    }
 
     private Task<int> UpdateProcessedSessionAsync(Session session)
     {
@@ -842,6 +1032,8 @@ public class SqLiteDatabaseService : IDatabaseService
                 session.FullTrack = await FindTrackContainingTimestampAsync(session.Timestamp.Value);
             }
 
+            await ApplySessionSummaryMetricsAsync(session, newFullTrack);
+
             var existingSession = await EntityExistsAsync<Session>(session.Id);
             session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             session.Deleted = null;
@@ -914,7 +1106,29 @@ public class SqLiteDatabaseService : IDatabaseService
             throw new Exception($"Session {id} does not exist.");
         }
 
-        await connection.ExecuteAsync("UPDATE session SET data=?, has_data=1 WHERE id=?", [data, id]);
+        session.ProcessedData = data;
+        var durationSeconds = ReadProcessedDurationSeconds(data) ?? session.DurationSeconds;
+        var metrics = SessionSummaryMetricsCalculator.Calculate(durationSeconds, session.Track);
+        var hasTrackPoints = session.Track is { Count: > 0 };
+
+        await connection.ExecuteAsync(
+            """
+            UPDATE session
+            SET
+                data=?,
+                duration_seconds=?,
+                distance_meters=?,
+                ascent_meters=?,
+                descent_meters=?,
+                has_data=1
+            WHERE id=?
+            """,
+            data,
+            metrics.DurationSeconds,
+            hasTrackPoints ? metrics.DistanceMeters : session.DistanceMeters,
+            hasTrackPoints ? metrics.AscentMeters : session.AscentMeters,
+            hasTrackPoints ? metrics.DescentMeters : session.DescentMeters,
+            id);
     }
 
     public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points)
@@ -929,9 +1143,31 @@ public class SqLiteDatabaseService : IDatabaseService
             throw new Exception($"Session {id} does not exist.");
         }
 
+        session.Track = points;
+        var metrics = SessionSummaryMetricsCalculator.Calculate(
+            ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds,
+            points);
         var pointsJson = AppJson.Serialize(points);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        await connection.ExecuteAsync("UPDATE session SET track=?, updated=? WHERE id=?", [pointsJson, now, id]);
+        await connection.ExecuteAsync(
+            """
+            UPDATE session
+            SET
+                track=?,
+                duration_seconds=?,
+                distance_meters=?,
+                ascent_meters=?,
+                descent_meters=?,
+                updated=?
+            WHERE id=?
+            """,
+            pointsJson,
+            metrics.DurationSeconds,
+            metrics.DistanceMeters,
+            metrics.AscentMeters,
+            metrics.DescentMeters,
+            now,
+            id);
     }
 
     public async Task<SessionCache?> GetSessionCacheAsync(Guid sessionId)
