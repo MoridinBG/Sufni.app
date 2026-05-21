@@ -141,26 +141,25 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and graph row hierarchy/expanded state is stored per session through app preferences.
 
-Topics in [architecture/ui.md](architecture/ui.md):
+Presentation-layer topics:
 
 - [Architectural Invariants](architecture/ui.md#architectural-invariants) — what each role owns
 - [Layered Architecture](architecture/ui.md#layered-architecture) — diagram and dependency rules
 - [Threading & Lifecycle](architecture/ui.md#threading--lifecycle) — UI vs background ownership, `Loaded`/`Unloaded` discipline
   - [Cancellation & Result Coherence](architecture/ui.md#cancellation--result-coherence) — cancellation as neutral exit, stale-result guards
-- [Stores](architecture/ui.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`; snapshot model and conflict baseline
-- [Recorded Session Graph](architecture/ui.md#recorded-session-graph) — `IRecordedSessionGraph`, summaries, domain snapshots, staleness, and recompute inputs
-- [Coordinators](architecture/ui.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
 - [Result Shapes](architecture/ui.md#result-shapes) — sealed `Saved`/`Conflict`/`Failed` records and similar service outcomes
-- [Queries](architecture/ui.md#queries) — dependency, known-board, and recorded-session domain query patterns
-- [View Models](architecture/ui.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
 - [Testing Boundaries](architecture/ui.md#testing-boundaries) — what each layer's tests assert
-- [Dependency Injection](architecture/ui.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
-- [Navigation](architecture/ui.md#navigation) — `IShellCoordinator`, mobile back-stack vs desktop tab model
-- [Controls Library](architecture/ui.md#controls-library) — reusable controls in `Views/Controls/` and `DesktopViews/Controls/`
-- [Data Visualization](architecture/ui.md#data-visualization) — `SufniPlot` / `TelemetryPlot` base classes
-  - [Plot Hierarchy](architecture/ui.md#plot-hierarchy) — quick orientation for the main plot families
-  - [IMU Plot](architecture/ui.md#imu-plot) — vibration RMS and frame pitch/roll derivation
-  - [Desktop vs Mobile](architecture/ui.md#desktop-vs-mobile) — extended desktop layouts vs stacked mobile views
+- [Stores](architecture/ui-state.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`; snapshot model and conflict baseline
+- [Recorded Session Graph](architecture/ui-state.md#recorded-session-graph) — `IRecordedSessionGraph`, summaries, domain snapshots, staleness, and recompute inputs
+- [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
+- [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
+- [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
+- [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, mobile back-stack vs desktop tab model
+- [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
+  - [Session Sub-Pages](architecture/ui-view-models.md#session-sub-pages) — recorded/live session tab composition and graph-page preferences
+- [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Views/Controls/` and `DesktopViews/Controls/`
+- [Theming](architecture/theming.md#theming) — theme snapshots, resource bridge, runtime theme service, and theme ownership
+- [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, desktop/mobile plot hosting
 
 ---
 
@@ -171,6 +170,7 @@ ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Aval
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 - [Layering](architecture/plot-rendering.md#layering) — plot classes as adapters over ScottPlot, view ownership
+- [Desktop vs Mobile Hosting](architecture/plot-rendering.md#desktop-vs-mobile-hosting) — extended desktop layouts vs stacked mobile views
 - [Class Hierarchy](architecture/plot-rendering.md#class-hierarchy) — `SufniPlot` / `TelemetryPlot` / `LiveStreamingPlotBase`
 - [Concrete Plots](architecture/plot-rendering.md#concrete-plots) — Travel / Velocity / Strokes / Balance / IMU / Leverage / Live families
 - [Display-Time Pipeline](architecture/plot-rendering.md#display-time-pipeline) — downsampling, smoothing windows, mobile `MaximumDisplayHz`
