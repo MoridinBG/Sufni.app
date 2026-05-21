@@ -38,7 +38,7 @@ The shared project carries two parallel view folders:
 
 The `ViewLocator` (`Sufni.App/Sufni.App/ViewLocator.cs`) holds two dictionaries keyed by view-model type — a shared `ViewFactories` and a desktop-only `DesktopViewFactories`. On desktop the locator checks the desktop dictionary first and falls back to the shared one; on mobile only the shared dictionary is consulted. View models that need a desktop-specific layout simply have an entry in both dictionaries (e.g. `BikeEditorViewModel` → `BikeEditorView` on mobile, `BikeEditorDesktopView` on desktop). Where the same view model has both, the two views share a small UserControl base (e.g. `MainPagesViewBase`) only when the code-behind is shared — there is no general "two-view base class" requirement.
 
-`Views/Controls/` holds reusable controls that bind against shared view-model bases (`CommonButtonLine` against `TabPageViewModelBase`, etc.). `DesktopViews/Controls/` holds the desktop-only row controls (`DeletableListItemButton`, `PairedDeviceListItemButton`, `LiveDaqListItemButton`) that are wired up only inside desktop list views. See [UI § Controls Library](ui.md#controls-library).
+`Views/Controls/` holds reusable controls that bind against shared view-model bases (`CommonButtonLine` against `TabPageViewModelBase`, etc.). `DesktopViews/Controls/` holds the desktop-only row controls (`DeletableListItemButton`, `PairedDeviceListItemButton`, `LiveDaqListItemButton`) that are wired up only inside desktop list views. See [Controls Library](controls.md#controls-library).
 
 ## The `IsDesktop` Flag
 
@@ -66,14 +66,14 @@ Both shells satisfy the same `IShellCoordinator` interface but back it with very
 | Initial view        | `WelcomeScreenViewModel` is added as the first tab                           | `MainPagesViewModel` is the root; no welcome screen              |
 | Hardware back       | n/a                                                                          | `TopLevel.BackRequested` wired in `App` to `OpenPreviousView()`  |
 
-The full coordinator surface and rules live in [UI § Navigation](ui.md#navigation). Page lifecycle implications — `Loaded` / `Unloaded` for browse leases and store subscriptions — apply identically on both shells; see [UI § Threading & Lifecycle](ui.md#threading--lifecycle).
+The full coordinator surface and rules live in [UI Workflows § Navigation](ui-workflows.md#navigation). Page lifecycle implications — `Loaded` / `Unloaded` for browse leases and store subscriptions — apply identically on both shells; see [UI § Threading & Lifecycle](ui.md#threading--lifecycle).
 
 ## Desktop-Only Surface
 
 Desktop builds add the following beyond the shared registrations. None of these types or interfaces are referenced from mobile-platform heads.
 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
-- **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the desktop pairing UI and provides a `StartServerAsync()` passthrough. See [UI § Coordinators](ui.md#coordinators).
+- **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the desktop pairing UI and provides a `StartServerAsync()` passthrough. See [UI Workflows § Coordinators](ui-workflows.md#coordinators).
 - **Inbound sync coordinator**: `IInboundSyncCoordinator` is a marker interface whose implementation subscribes to `SynchronizationDataArrived` and writes incoming bikes / setups into their stores. Sessions and paired devices have their own dedicated coordinators so each store keeps exactly one writer.
 - **Desktop-shaped Live DAQ surfaces**: the live preview / live session feature itself is shared (see [Live DAQ Streaming](live-streaming.md)), and device-management commands are available from the shared diagnostics view model on both shells. Desktop heads provide extended layouts via `DesktopViews/Editors/LiveDaqDetailDesktopView` and `LiveSessionDetailDesktopView`.
 - **Welcome screen**: instantiated only by `MainWindowViewModel` as the first tab; mobile boots straight into `MainPagesViewModel`.
@@ -100,7 +100,7 @@ The shared DI container is `App.ServiceCollection` (a static `IServiceCollection
 1. The **platform head's `Program.cs` / `MainActivity` / `AppDelegate`** runs first and registers platform abstractions (`ISecureStorage`, `IServiceDiscovery`, optionally `IHapticFeedback`, `IFriendlyNameProvider`) plus the platform's sync side. Desktop heads call into `DesktopAppBootstrapper.RegisterDesktopSync(...)`; mobile heads register the sync client and pairing client coordinator inline.
 2. **`App.OnFrameworkInitializationCompleted`** then registers the shared graph (services, stores, queries, coordinators, view models), records `IsDesktop`, builds the provider, and eagerly resolves the coordinators that subscribe to events at construction time.
 
-The shell registration is one of the few places `OnFrameworkInitializationCompleted` itself branches by lifetime: `IClassicDesktopStyleApplicationLifetime` adds `DesktopShellCoordinator`, `ISingleViewApplicationLifetime` adds `MobileShellCoordinator`. The eager resolution at the end of `OnFrameworkInitializationCompleted` also branches: mobile resolves `IPairingClientCoordinator`; desktop resolves `IPairingServerCoordinator` and `IInboundSyncCoordinator`. The full registration list — including stores, coordinators, and view models — is in [UI § Dependency Injection](ui.md#dependency-injection).
+The shell registration is one of the few places `OnFrameworkInitializationCompleted` itself branches by lifetime: `IClassicDesktopStyleApplicationLifetime` adds `DesktopShellCoordinator`, `ISingleViewApplicationLifetime` adds `MobileShellCoordinator`. The eager resolution at the end of `OnFrameworkInitializationCompleted` also branches: mobile resolves `IPairingClientCoordinator`; desktop resolves `IPairingServerCoordinator` and `IInboundSyncCoordinator`. The full registration list — including stores, coordinators, and view models — is in [UI Workflows § Dependency Injection](ui-workflows.md#dependency-injection).
 
 `MainPagesViewModel` is constructed via an explicit factory because two of its dependencies (`PairingClientViewModel`, `PairingServerViewModel`) are platform-specific optionals; the factory uses `sp.GetService<...>()` rather than `sp.GetRequiredService<...>()` for those.
 
@@ -124,7 +124,7 @@ The headless test app (`Sufni.App.Tests/Infrastructure/TestApp.cs`) is a subclas
 
 The places where the same workflow takes a meaningfully different desktop vs mobile path are deliberately small:
 
-- **Session detail load**. `SessionDetailViewModel` calls `SessionCoordinator.LoadDesktopDetailAsync(...)` on desktop and `LoadMobileDetailAsync(...)` on mobile. The mobile path consults a `session_cache` row first, fetches missing telemetry from the paired desktop server transparently if the local blob is absent, and projects a smaller presentation; the desktop path always loads the full telemetry blob locally. See [UI § Coordinators](ui.md#coordinators) for the coordinator entry points and [Persistence § Schema](persistence.md#schema) for the `session_cache` row.
+- **Session detail load**. `SessionDetailViewModel` calls `SessionCoordinator.LoadDesktopDetailAsync(...)` on desktop and `LoadMobileDetailAsync(...)` on mobile. The mobile path consults a `session_cache` row first, fetches missing telemetry from the paired desktop server transparently if the local blob is absent, and projects a smaller presentation; the desktop path always loads the full telemetry blob locally. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) for the coordinator entry points and [Persistence § Schema](persistence.md#schema) for the `session_cache` row.
 - **Sync direction**. Desktop hosts the server, mobile drives the client. There is no peer-to-peer mode and no path that runs both on one device. See [Sync](sync.md).
 - **Editor presentation**. Desktop opens editors as additional `TabPageViewModelBase` tabs that can coexist with the list page; mobile pushes the editor onto the back stack and pops it on save / cancel. The same `IShellCoordinator` calls drive both.
 - **Dialogs**. `DialogService` shows tile-layer and live-DAQ-config dialogs as standalone Avalonia `Window`s on desktop and as in-tree overlays anchored on `MainView` on mobile. Close-confirmation dialogs use the desktop `Window` form on both shells when an owner window is set.
