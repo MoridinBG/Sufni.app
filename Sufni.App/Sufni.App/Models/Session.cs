@@ -39,6 +39,22 @@ public class Session : Synchronizable
     [Column("timestamp")]
     public long? Timestamp { get; set; }
 
+    [JsonPropertyName("duration_seconds"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("duration_seconds")]
+    public double? DurationSeconds { get; set; }
+
+    [JsonPropertyName("distance_meters"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("distance_meters")]
+    public double? DistanceMeters { get; set; }
+
+    [JsonPropertyName("ascent_meters"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("ascent_meters")]
+    public double? AscentMeters { get; set; }
+
+    [JsonPropertyName("descent_meters"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("descent_meters")]
+    public double? DescentMeters { get; set; }
+
     [JsonPropertyName("full_track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [Column("full_track_id")]
     public Guid? FullTrack { get; set; }

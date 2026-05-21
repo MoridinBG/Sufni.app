@@ -1195,6 +1195,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
             HasProcessedData = snapshot.HasProcessedData,
             Updated = snapshot.Updated,
+            DurationSeconds = snapshot.DurationSeconds,
+            DistanceMeters = snapshot.DistanceMeters,
+            AscentMeters = snapshot.AscentMeters,
+            DescentMeters = snapshot.DescentMeters,
         };
         return s;
     }
@@ -1497,6 +1501,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
             HasProcessedData = IsComplete,
             FullTrack = session.FullTrack,
+            DurationSeconds = session.DurationSeconds,
+            DistanceMeters = session.DistanceMeters,
+            AscentMeters = session.AscentMeters,
+            DescentMeters = session.DescentMeters,
         };
 
         var result = await sessionCoordinator.SaveAsync(newSession, BaselineUpdated);

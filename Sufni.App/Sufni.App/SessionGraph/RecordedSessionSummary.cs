@@ -15,4 +15,8 @@ public sealed record RecordedSessionSummary(
     string Description,
     long? Timestamp,
     bool HasProcessedData,
-    SessionStaleness Staleness);
+    SessionStaleness Staleness,
+    double? DurationSeconds = null,
+    double? DistanceMeters = null,
+    double? AscentMeters = null,
+    double? DescentMeters = null);
