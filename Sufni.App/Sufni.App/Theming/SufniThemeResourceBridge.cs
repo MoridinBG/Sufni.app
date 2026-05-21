@@ -170,6 +170,7 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniTextSecondary", theme.Text.Secondary);
         AddColorPair(resources, "SufniTextHover", theme.Text.Hover);
         AddColorPair(resources, "SufniTextDisabled", theme.Text.Disabled);
+        SetSvgFillCss(resources, "SufniIconSecondarySvgCss", theme.Text.Secondary);
 
         AddColorPair(resources, "SufniLineSubtle", theme.Line.Subtle);
         AddColorPair(resources, "SufniLineDefault", theme.Line.Default);
@@ -188,6 +189,7 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniAccentSpinner", theme.Action.AccentAliases.Spinner);
         AddColorPair(resources, "SufniDanger", theme.Action.Danger);
         AddColorPair(resources, "SufniDangerDark", theme.Action.DangerDark);
+        SetSvgFillCss(resources, "SufniDangerSvgCss", theme.Action.Danger);
         AddColorPair(resources, "SufniImportActionImportRow", theme.Action.AccentPrimary.WithAlpha(0.33));
         AddColorPair(resources, "SufniImportActionTrashRow", theme.Action.Danger.WithAlpha(0.33));
         AddOptionalColorPair(resources, "SufniStatusSuccess", theme.Status.Success);
@@ -317,4 +319,7 @@ public static class SufniThemeResourceBridge
 
     private static void SetBrush(ResourceDictionary resources, string key, Color color)
         => resources[key] = color.ToBrush();
+
+    private static void SetSvgFillCss(ResourceDictionary resources, string key, Color color)
+        => resources[key] = $"path {{ fill: #{color.R:X2}{color.G:X2}{color.B:X2}; }} .default {{ fill: #{color.R:X2}{color.G:X2}{color.B:X2}; }}";
 }

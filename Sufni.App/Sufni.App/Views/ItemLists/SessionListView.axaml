@@ -16,6 +16,18 @@
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
     mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <DataTemplate x:Key="SessionDateGroupMobileRowTemplate">
+            <StackPanel>
+                <controls:SessionSwipeActionButton />
+                <Separator
+                    Height="1"
+                    Margin="0"
+                    Background="{DynamicResource SufniListRowDivider}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
 
         <!--  List of Sessions  -->
@@ -23,11 +35,19 @@
             Grid.Row="1"
             Grid.Column="0"
             Margin="0,15,0,5"
-            Items="{Binding Items}"
+            Items="{Binding DateGroups}"
             MenuItems="{Binding MenuItems}">
             <controls:PullableMenuScrollViewer.TopContent>
                 <controls:SearchBarWithDateFilter />
             </controls:PullableMenuScrollViewer.TopContent>
+            <controls:PullableMenuScrollViewer.ItemTemplate>
+                <DataTemplate x:DataType="vml:SessionDateGroupViewModel">
+                    <controls:SessionDateGroupView
+                        HeaderMinHeight="42"
+                        HeaderPadding="20,8,12,8"
+                        RowTemplate="{StaticResource SessionDateGroupMobileRowTemplate}" />
+                </DataTemplate>
+            </controls:PullableMenuScrollViewer.ItemTemplate>
         </controls:PullableMenuScrollViewer>
 
         <!--  Notifications  -->

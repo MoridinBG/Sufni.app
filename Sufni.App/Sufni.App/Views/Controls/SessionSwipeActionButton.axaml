@@ -1,0 +1,117 @@
+﻿<UserControl
+    x:Class="Sufni.App.Views.Controls.SessionSwipeActionButton"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:labs="clr-namespace:Avalonia.Labs.Controls;assembly=Avalonia.Labs.Controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:SessionRowViewModel"
+    mc:Ignorable="d">
+
+    <UserControl.Styles>
+        <Style Selector="Button.session-swipe-action">
+            <Setter Property="Background" Value="{DynamicResource SufniListRowSurfaceHover}" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Button.session-swipe-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SufniListRowSurfaceHover}" />
+        </Style>
+        <Style Selector="Button.session-swipe-action:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SufniSurfaceInputPressed}" />
+        </Style>
+    </UserControl.Styles>
+
+    <labs:Swipe Name="SwipeButton">
+        <labs:Swipe.Content>
+            <Button
+                Name="OpenButton"
+                MinHeight="58"
+                Padding="30,7,12,7"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                Classes="item"
+                Command="{Binding OpenPageCommand}"
+                CommandParameter="{Binding}"
+                CornerRadius="0">
+                <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto auto" ColumnSpacing="10">
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock
+                            Name="TitleTextBlock"
+                            Foreground="{DynamicResource SufniTextPrimary}"
+                            MaxLines="1"
+                            Text="{Binding TitleText}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            Name="SubtitleTextBlock"
+                            FontSize="{StaticResource SufniFontSizeCaption}"
+                            Foreground="{DynamicResource SufniTextSecondary}"
+                            IsVisible="{Binding HasSubtitleText}"
+                            MaxLines="1"
+                            Text="{Binding SubtitleText}"
+                            TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock
+                        Name="TimestampTextBlock"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        FontSize="{StaticResource SufniFontSizeCaption}"
+                        Foreground="{DynamicResource SufniTextSecondary}"
+                        Text="{Binding TimestampText}"
+                        TextAlignment="Right" />
+                    <Image
+                        Name="IncompleteStatusIcon"
+                        Grid.Column="2"
+                        Width="16"
+                        Height="16"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding !IsComplete}"
+                        Opacity="0.5"
+                        Svg.Css="{DynamicResource SufniIconSecondarySvgCss}"
+                        Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}" />
+                </Grid>
+            </Button>
+        </labs:Swipe.Content>
+        <labs:Swipe.Left>
+            <DataTemplate>
+                <Button
+                    Name="RecalculateSwipeButton"
+                    Width="72"
+                    MinHeight="58"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Classes="session-swipe-action"
+                    Command="{Binding $parent[labs:Swipe].((vm:SessionRowViewModel)DataContext).RecalculateCommand}"
+                    Svg.Css="{DynamicResource SufniIconSecondarySvgCss}">
+                    <Image
+                        Width="16"
+                        Height="16"
+                        Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+                </Button>
+            </DataTemplate>
+        </labs:Swipe.Left>
+        <labs:Swipe.Right>
+            <DataTemplate>
+                <Button
+                    Name="DeleteSwipeButton"
+                    Width="72"
+                    MinHeight="58"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Classes="session-swipe-action dangerous"
+                    Command="{Binding $parent[labs:Swipe].((vm:SessionRowViewModel)DataContext).UndoableDeleteCommand}"
+                    Svg.Css="{DynamicResource SufniDangerSvgCss}">
+                    <Image
+                        Width="16"
+                        Height="16"
+                        Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                </Button>
+            </DataTemplate>
+        </labs:Swipe.Right>
+    </labs:Swipe>
+</UserControl>
