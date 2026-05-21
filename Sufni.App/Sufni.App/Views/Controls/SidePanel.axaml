@@ -108,15 +108,15 @@ mc:Ignorable="d">
                 <Panel>
                     <Image
                     Width="12"
-                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
                     Source="{SvgImage /Assets/fa-sun.svg}" />
                     <Image
                     Width="12"
-                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
                     Source="{SvgImage /Assets/fa-moon.svg}" />
                     <Image
                     Width="12"
-                    IsVisible="{Binding NextThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.System}}"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.System}}"
                     Source="{SvgImage /Assets/fa-circle-half-stroke.svg}" />
                 </Panel>
             </MenuItem.Icon>
