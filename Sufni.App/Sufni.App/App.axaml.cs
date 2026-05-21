@@ -45,7 +45,10 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
 
 #if DEBUG
-        this.AttachDeveloperTools();
+        if (!OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid())
+        {
+            this.AttachDeveloperTools();
+        }
 #endif
     }
 
