@@ -319,6 +319,7 @@ public class RecordedGraphPageViewTests
         public SurfacePresentationState ElevationGraphState { get; } = elevationGraphState ?? SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
+        public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)

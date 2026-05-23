@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia;
 using Avalonia.Input;
+using ScottPlot;
 using ScottPlot.Avalonia;
 using ScottPlot.Interactivity.UserActionResponses;
 
@@ -14,12 +15,43 @@ public class SufniAvaPlot : AvaPlot
     public bool IsPointInDataArea(Point point)
     {
         var dataRect = Plot.LastRender.DataRect;
+        var pixel = ToScottPlotPixel(point);
         var left = Math.Min(dataRect.Left, dataRect.Right);
         var right = Math.Max(dataRect.Left, dataRect.Right);
         var top = Math.Min(dataRect.Top, dataRect.Bottom);
         var bottom = Math.Max(dataRect.Top, dataRect.Bottom);
 
-        return point.X >= left && point.X <= right && point.Y >= top && point.Y <= bottom;
+        return pixel.X >= left && pixel.X <= right && pixel.Y >= top && pixel.Y <= bottom;
+    }
+
+    public Pixel ToScottPlotPixel(Point point)
+    {
+        var (scaleX, scaleY) = GetRenderScale();
+        return new Pixel((float)(point.X * scaleX), (float)(point.Y * scaleY));
+    }
+
+    public ScottPlot.PixelSize GetScottPlotPixelSize()
+    {
+        var figureRect = Plot.LastRender.FigureRect;
+        if (figureRect.HasArea)
+        {
+            return figureRect.Size;
+        }
+
+        return new ScottPlot.PixelSize((float)Math.Max(1, Bounds.Width), (float)Math.Max(1, Bounds.Height));
+    }
+
+    private (double X, double Y) GetRenderScale()
+    {
+        var figureRect = Plot.LastRender.FigureRect;
+        if (!figureRect.HasArea || Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return (1, 1);
+        }
+
+        return (
+            Math.Abs(figureRect.Width) / Bounds.Width,
+            Math.Abs(figureRect.Height) / Bounds.Height);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
