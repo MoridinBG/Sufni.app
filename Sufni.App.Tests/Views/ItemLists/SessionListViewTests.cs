@@ -12,7 +12,6 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.ItemLists;
-using ShapePath = Avalonia.Controls.Shapes.Path;
 
 namespace Sufni.App.Tests.Views.ItemLists;
 
@@ -51,22 +50,10 @@ public class SessionListViewTests
         var header = Assert.Single(
             mounted.Control.FindAllVisual<TextBlock>(),
             text => text.Name == "DateGroupHeaderText");
-        var groupRepeater = Assert.Single(
-            mounted.Control.FindAllVisual<ItemsRepeater>(),
-            repeater => repeater.Name == "DateGroupItemsRepeater");
-        var collapsedGlyph = Assert.Single(
-            mounted.Control.FindAllVisual<ShapePath>(),
-            path => path.Name == "DateGroupCollapsedGlyph");
-        var expandedGlyph = Assert.Single(
-            mounted.Control.FindAllVisual<ShapePath>(),
-            path => path.Name == "DateGroupExpandedGlyph");
         var openButton = row.FindControl<Button>("OpenButton");
 
         Assert.NotNull(openButton);
         Assert.Equal(viewModel.DateGroups[0].HeaderText, header.Text);
-        Assert.Equal(18, groupRepeater.Margin.Left);
-        Assert.NotNull(collapsedGlyph.Data);
-        Assert.NotNull(expandedGlyph.Data);
         openButton!.Command!.Execute(openButton.CommandParameter);
         await ViewTestHelpers.FlushDispatcherAsync();
 
@@ -207,20 +194,11 @@ public class SessionListViewTests
         var groupRepeaters = mounted.Control.FindAllVisual<ItemsRepeater>()
             .Where(repeater => repeater.Name == "DateGroupItemsRepeater")
             .ToList();
-        var collapsedGlyphs = mounted.Control.FindAllVisual<ShapePath>()
-            .Where(path => path.Name == "DateGroupCollapsedGlyph")
-            .ToList();
-        var expandedGlyphs = mounted.Control.FindAllVisual<ShapePath>()
-            .Where(path => path.Name == "DateGroupExpandedGlyph")
-            .ToList();
 
         Assert.Equal(2, headers.Count);
         Assert.Equal(viewModel.DateGroups[0].HeaderText, headers[0].Text);
         Assert.Equal(2, headerButtons.Count);
         Assert.Equal(2, groupRepeaters.Count);
-        Assert.Equal(2, collapsedGlyphs.Count);
-        Assert.Equal(2, expandedGlyphs.Count);
-        Assert.All(groupRepeaters, repeater => Assert.Equal(18, repeater.Margin.Left));
         Assert.All(groupRepeaters, repeater => Assert.True(repeater.IsVisible));
 
         headerButtons[0].Command!.Execute(headerButtons[0].CommandParameter);

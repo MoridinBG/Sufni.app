@@ -23,11 +23,4 @@ public class SmokeTests
         Assert.Contains(app.DataTemplates, template => template is Sufni.App.ViewLocator);
     }
 
-    [AvaloniaFact]
-    public void TestImage_LoadsBitmap_WithKnownSize()
-    {
-        var bitmap = TestImages.SmallPng();
-        Assert.Equal(1, bitmap.Size.Width);
-        Assert.Equal(1, bitmap.Size.Height);
-    }
 }

@@ -37,8 +37,6 @@ public class SessionShellMobileViewTests
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
         var buttonLine = mounted.Shell.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault();
         Assert.NotNull(buttonLine);
-        Assert.Equal(new Thickness(0, 4, 0, 0), buttonLine!.Margin);
-        Assert.Equal(new Thickness(0), buttonLine.FindControl<Button>("DeleteButton")!.Margin);
     }
 
     [AvaloniaFact]

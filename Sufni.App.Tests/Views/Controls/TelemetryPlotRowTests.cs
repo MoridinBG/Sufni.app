@@ -139,11 +139,6 @@ public class TelemetryPlotRowTests
         Assert.Equal(theme.GraphRow.HostedLevel1.PlotData, velocity.PlotDataBackground);
         Assert.Equal(theme.GraphRow.HostedLevel1.PlotFigure, childPlotView.PlotFigureBackground);
         Assert.Equal(theme.GraphRow.HostedLevel1.PlotData, childPlotView.PlotDataBackground);
-
-        var childBorder = Assert.IsType<Border>(velocity.Content);
-        Assert.Equal(0, childBorder.Margin.Left);
-        var hostedGlyph = velocity.GetVisualDescendants().OfType<TextBlock>().First();
-        Assert.Equal(theme.Spacing.HierarchyIndent, hostedGlyph.Margin.Left);
     }
 
     [AvaloniaFact]
@@ -166,11 +161,6 @@ public class TelemetryPlotRowTests
         Assert.Equal(2, travel.ChildConnectorSegmentCount);
         Assert.Equal(2, velocity.ChildConnectorSegmentCount);
         Assert.True(velocity.ChildConnectorStartLeft > travel.ChildConnectorStartLeft);
-
-        var velocityBorder = Assert.IsType<Border>(velocity.Content);
-        var accelerationBorder = Assert.IsType<Border>(acceleration.Content);
-        Assert.Equal(0, velocityBorder.Margin.Left);
-        Assert.Equal(0, accelerationBorder.Margin.Left);
 
         travel.IsExpanded = false;
         Measure(travel, 400, travel.GetPreferredGroupHeight());

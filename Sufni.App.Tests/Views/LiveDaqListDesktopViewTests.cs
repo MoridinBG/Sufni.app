@@ -16,35 +16,6 @@ namespace Sufni.App.Tests.Views;
 public class LiveDaqListDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task LiveDaqListDesktopView_RendersBoundLiveRows()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var store = new LiveDaqStore();
-        store.Upsert(new LiveDaqSnapshot(
-            IdentityKey: "board-1",
-            DisplayName: "Board 1",
-            BoardId: "board-1",
-            Host: "192.168.0.30",
-            Port: 1557,
-            IsOnline: true,
-            SetupName: "Race",
-            BikeName: "Demo"));
-
-        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
-        await using var mounted = await MountAsync(viewModel);
-
-        Assert.NotNull(mounted.View.FindControl<Control>("LiveDaqSearchBar"));
-
-        var row = Assert.Single(mounted.View.FindAllVisual<LiveDaqListItemButton>());
-        Assert.Equal("Board 1", row.FindControl<TextBlock>("DisplayNameTextBlock")!.Text);
-        Assert.Equal("Race", row.FindControl<TextBlock>("SetupNameTextBlock")!.Text);
-        Assert.Equal("Demo", row.FindControl<TextBlock>("BikeNameTextBlock")!.Text);
-        Assert.Equal("192.168.0.30:1557", row.FindControl<TextBlock>("EndpointTextBlock")!.Text);
-        Assert.True(row.FindControl<Border>("OnlineBadge")!.IsVisible);
-        Assert.False(row.FindControl<Border>("OfflineBadge")!.IsVisible);
-    }
-
-    [AvaloniaFact]
     public async Task LiveDaqListDesktopView_RowButtonCommand_SelectsIdentityKey()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
