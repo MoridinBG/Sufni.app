@@ -5,12 +5,12 @@ using Serilog;
 
 namespace Sufni.App.Services;
 
-// Shares one keyed browse session across multiple feature consumers by using
+// Shares one keyed DAQ browse session across multiple feature consumers by using
 // disposable leases rather than global start/stop ownership.
-internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery) : ILiveDaqBrowseOwner
+internal sealed class DaqBrowseOwner([FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery) : IDaqBrowseOwner
 {
     private const string ServiceType = "_gosst._tcp";
-    private static readonly ILogger logger = Log.ForContext<LiveDaqBrowseOwner>();
+    private static readonly ILogger logger = Log.ForContext<DaqBrowseOwner>();
 
     private readonly object gate = new();
     private int leaseCount;
@@ -22,14 +22,14 @@ internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDi
         {
             if (!isBrowseStarted)
             {
-                logger.Verbose("Starting live DAQ browse");
+                logger.Verbose("Starting DAQ browse");
                 try
                 {
                     serviceDiscovery.StartBrowse(ServiceType);
                 }
                 catch (Exception ex)
                 {
-                    logger.Warning(ex, "Live DAQ browse start failed; attempting compensating stop");
+                    logger.Warning(ex, "DAQ browse start failed; attempting compensating stop");
                     try
                     {
                         serviceDiscovery.StopBrowse();
@@ -63,16 +63,16 @@ internal sealed class LiveDaqBrowseOwner([FromKeyedServices("gosst")] IServiceDi
             leaseCount--;
             if (leaseCount == 0 && isBrowseStarted)
             {
-                logger.Verbose("Stopping live DAQ browse");
+                logger.Verbose("Stopping DAQ browse");
                 isBrowseStarted = false;
                 serviceDiscovery.StopBrowse();
             }
         }
     }
 
-    private sealed class BrowseLease(LiveDaqBrowseOwner owner) : IDisposable
+    private sealed class BrowseLease(DaqBrowseOwner owner) : IDisposable
     {
-        private LiveDaqBrowseOwner? owner = owner;
+        private DaqBrowseOwner? owner = owner;
 
         public void Dispose()
         {
