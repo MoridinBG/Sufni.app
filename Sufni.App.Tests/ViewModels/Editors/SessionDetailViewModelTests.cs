@@ -976,6 +976,37 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_OnMobile_FromCacheWithoutTelemetry_HidesExtendedStatistics()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+            "front-travel",
+            "rear-travel",
+            "front-velocity",
+            "rear-velocity",
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            false),
+            null,
+            null);
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+        var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
+        var damperPage = editor.Pages.OfType<DamperPageViewModel>().Single();
+
+        Assert.True(springPage.FrontHistogramState.IsReady);
+        Assert.True(damperPage.FrontHistogramState.IsReady);
+        Assert.True(editor.FrontStatisticsState.IsHidden);
+        Assert.True(editor.RearStatisticsState.IsHidden);
+        Assert.True(editor.SessionAnalysis.State.IsHidden);
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_OnMobile_AppliesTrackPresentationToMapState()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);

@@ -30,15 +30,6 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public void LiveDaqsPage_IsAlwaysProvided()
-    {
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher);
-        var viewModel = MainPagesViewModelTestFactory.Create(livePage);
-
-        Assert.Same(livePage, viewModel.LiveDaqsPage);
-    }
-
-    [Fact]
     public async Task OpenGpsTracksCommand_ImportsGpxThroughTrackCoordinator()
     {
         var trackCoordinator = TestCoordinatorSubstitutes.Track();

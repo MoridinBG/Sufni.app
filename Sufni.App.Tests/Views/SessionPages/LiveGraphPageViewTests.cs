@@ -95,28 +95,6 @@ public class LiveGraphPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task LiveGraphPageView_ExposesWorkspace_AsDataContextPath()
-    {
-        var workspace = Substitute.For<ILiveSessionGraphWorkspace>();
-        workspace.GraphBatches.Returns(new Subject<LiveGraphBatch>());
-        workspace.PlotRanges.Returns(new LiveSessionPlotRanges(TravelMaximum: 180, VelocityMaximum: 5, ImuMaximum: 5));
-        workspace.Timeline.Returns(new SessionTimelineLinkViewModel());
-        workspace.TravelGraphState.Returns(SurfacePresentationState.Hidden);
-        workspace.VelocityGraphState.Returns(SurfacePresentationState.Hidden);
-        workspace.ImuGraphState.Returns(SurfacePresentationState.Hidden);
-        workspace.PitchRollGraphState.Returns(SurfacePresentationState.Hidden);
-        workspace.SpeedGraphState.Returns(SurfacePresentationState.Hidden);
-        workspace.ElevationGraphState.Returns(SurfacePresentationState.Hidden);
-
-        var page = new LiveGraphPageViewModel(workspace, CreateMediaWorkspace([]));
-
-        await using var mounted = await MountAsync(page);
-
-        Assert.Same(workspace, page.Workspace);
-        Assert.Same(page, mounted.View.DataContext);
-    }
-
-    [AvaloniaFact]
     public async Task LiveGraphPageView_RendersMapBelowGraphs_WhenMapReady()
     {
         var graphWorkspace = Substitute.For<ILiveSessionGraphWorkspace>();

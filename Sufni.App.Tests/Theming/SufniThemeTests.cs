@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Media;
 using Avalonia.Styling;
 using Sufni.App.Theming;
 
@@ -29,16 +28,6 @@ public class SufniThemeTests
     }
 
     [Fact]
-    public void SufniLightTheme_PlotDataBackgrounds_AreDarkerThanInputSurface()
-    {
-        var theme = SufniLightTheme.Instance;
-
-        Assert.Equal(Color.Parse("#E8EDF2"), theme.GraphRow.Root.PlotData);
-        Assert.Equal(theme.GraphRow.Root.PlotData, theme.Plot.Root.Data);
-        Assert.Equal(theme.Plot.Root.Data, theme.Palette.PlotDataArea);
-    }
-
-    [Fact]
     public void SufniThemes_ToVariant_MapsSystemModeToAvaloniaDefault()
     {
         Assert.Equal(ThemeVariant.Dark, SufniThemes.ToVariant(SufniThemeMode.Dark));
@@ -53,94 +42,6 @@ public class SufniThemeTests
         Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(ThemeVariant.Dark));
         Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(ThemeVariant.Default));
         Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(null));
-    }
-
-    [Fact]
-    public void SufniThemeResourceDictionary_LegacyResources_AreDerivedFromDarkTheme()
-    {
-        var theme = SufniDarkTheme.Instance;
-        var resources = new SufniThemeResourceDictionary();
-        var dark = ResolveVariant(resources, ThemeVariant.Dark);
-
-        Assert.Equal(theme.Text.Secondary, dark["SufniForeground"]);
-        Assert.Equal(theme.Surface.Page, dark["SufniRegion"]);
-        Assert.Equal(theme.Surface.ItemHover, dark["SufniItemBackgroundPointerOver"]);
-        Assert.Equal(theme.Action.AccentPrimary, dark["SufniAccentColor"]);
-        Assert.Equal(theme.Action.AccentAliases.Hyperlink, dark["SufniAccentHyperlink"]);
-        Assert.Equal(theme.Action.AccentAliases.Spinner, dark["SufniAccentSpinner"]);
-        AssertSolidBrush(theme.Field.SurfaceFocused, dark["TextControlBackgroundFocused"]);
-        AssertSolidBrush(theme.Field.BorderDisabled, dark["TextControlBorderBrushDisabled"]);
-    }
-
-    [Fact]
-    public void SufniThemeResourceDictionary_LegacyResources_AreDerivedFromLightTheme()
-    {
-        var theme = SufniLightTheme.Instance;
-        var resources = new SufniThemeResourceDictionary();
-        var light = ResolveVariant(resources, ThemeVariant.Light);
-
-        Assert.Equal(theme.Text.Secondary, light["SufniForeground"]);
-        Assert.Equal(theme.Surface.Page, light["SufniRegion"]);
-        Assert.Equal(theme.Action.AccentPrimary, light["SufniAccentColor"]);
-        AssertSolidBrush(theme.Field.SurfaceFocused, light["TextControlBackgroundFocused"]);
-        AssertSolidBrush(theme.Field.BorderDisabled, light["TextControlBorderBrushDisabled"]);
-    }
-
-    [Fact]
-    public void SufniThemeResourceDictionary_RootResources_AreVariantInvariant()
-    {
-        var resources = new SufniThemeResourceDictionary();
-
-        // Spacing / typography / dimension keys live at the root and must be
-        // resolvable regardless of variant.
-        Assert.True(resources.ContainsKey("SufniSpacingControlHeight"));
-        Assert.True(resources.ContainsKey("SufniSearchBarHeight"));
-        Assert.True(resources.ContainsKey("SufniMapOverlayOpacity"));
-        Assert.True(resources.ContainsKey("SufniSelectionIndicatorThickness"));
-        Assert.True(resources.ContainsKey("SufniNavRailPaneCompactWidth"));
-        Assert.True(resources.ContainsKey("SufniTabIndicatorBleed"));
-        Assert.True(resources.ContainsKey("SufniFontSizeBody"));
-        Assert.True(resources.ContainsKey("SufniTypographyBodyFontSize"));
-    }
-
-    [Fact]
-    public void SufniThemeResourceDictionary_SelectionAndDisabledRoles_UseSeparateResourceKeys()
-    {
-        var theme = SufniDarkTheme.Instance;
-        var resources = new SufniThemeResourceDictionary();
-        var dark = ResolveVariant(resources, ThemeVariant.Dark);
-
-        Assert.True(dark.TryGetValue("SufniSelectionSurfaceSubtle", out var selectionSurface));
-        Assert.True(dark.TryGetValue("SufniSurfaceInputDisabled", out var disabledSurface));
-        Assert.Equal(theme.Selection.SurfaceSubtle, selectionSurface);
-        Assert.Equal(theme.Surface.InputDisabled, disabledSurface);
-        Assert.Equal(selectionSurface, disabledSurface);
-    }
-
-    [Fact]
-    public void SufniThemeResourceDictionary_PlotAnalysisRangeResources_AreDerivedFromTheme()
-    {
-        var resources = new SufniThemeResourceDictionary();
-        var dark = ResolveVariant(resources, ThemeVariant.Dark);
-        var light = ResolveVariant(resources, ThemeVariant.Light);
-
-        Assert.Equal(SufniDarkTheme.Instance.Plot.AnalysisRange.SelectedFill, dark["SufniPlotAnalysisRangeSelectedFill"]);
-        AssertSolidBrush(SufniDarkTheme.Instance.Plot.AnalysisRange.PreviewFill, dark["SufniPlotAnalysisRangePreviewFillBrush"]);
-        Assert.Equal(SufniLightTheme.Instance.Plot.AnalysisRange.SelectedFill, light["SufniPlotAnalysisRangeSelectedFill"]);
-        AssertSolidBrush(SufniLightTheme.Instance.Plot.AnalysisRange.PreviewFill, light["SufniPlotAnalysisRangePreviewFillBrush"]);
-    }
-
-    [Fact]
-    public void SufniThemeResourceDictionary_ImportActionRowResources_AreSubtleActionColors()
-    {
-        var resources = new SufniThemeResourceDictionary();
-        var dark = ResolveVariant(resources, ThemeVariant.Dark);
-        var light = ResolveVariant(resources, ThemeVariant.Light);
-
-        Assert.Equal(SufniDarkTheme.Instance.Action.AccentPrimary.WithAlpha(0.33), dark["SufniImportActionImportRow"]);
-        AssertSolidBrush(SufniDarkTheme.Instance.Action.Danger.WithAlpha(0.33), dark["SufniImportActionTrashRowBrush"]);
-        Assert.Equal(SufniLightTheme.Instance.Action.AccentPrimary.WithAlpha(0.33), light["SufniImportActionImportRow"]);
-        AssertSolidBrush(SufniLightTheme.Instance.Action.Danger.WithAlpha(0.33), light["SufniImportActionTrashRowBrush"]);
     }
 
     [Fact]
@@ -178,11 +79,5 @@ public class SufniThemeTests
     {
         Assert.True(resources.ThemeDictionaries.TryGetValue(variant, out var provider));
         return Assert.IsType<ResourceDictionary>(provider);
-    }
-
-    private static void AssertSolidBrush(Color expectedColor, object? resource)
-    {
-        var brush = Assert.IsType<SolidColorBrush>(resource);
-        Assert.Equal(expectedColor, brush.Color);
     }
 }

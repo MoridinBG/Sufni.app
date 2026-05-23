@@ -50,24 +50,6 @@ public class SessionDetailViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionDetailView_HidesExtendedStatistics_WhenCachedTelemetryIsUnavailable()
-    {
-        var context = new SessionDetailViewTestContext();
-
-        await using var mounted = await context.MountMobileAsync(
-            loadResult: context.CreateMobileLoadedState(includeTelemetry: false));
-
-        var springPage = mounted.Editor.Pages.OfType<SpringPageViewModel>().Single();
-        var damperPage = mounted.Editor.Pages.OfType<DamperPageViewModel>().Single();
-
-        Assert.True(springPage.FrontHistogramState.IsReady);
-        Assert.True(damperPage.FrontHistogramState.IsReady);
-        Assert.True(mounted.Editor.FrontStatisticsState.IsHidden);
-        Assert.True(mounted.Editor.RearStatisticsState.IsHidden);
-        Assert.True(mounted.Editor.SessionAnalysis.State.IsHidden);
-    }
-
-    [AvaloniaFact]
     public async Task SessionDetailView_ReplacesMobileShellWithScreenError_WhenLoadFails()
     {
         var context = new SessionDetailViewTestContext();
