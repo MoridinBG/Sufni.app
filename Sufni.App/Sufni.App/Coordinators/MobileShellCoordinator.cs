@@ -24,7 +24,7 @@ public sealed class MobileShellCoordinator(Func<IMainViewShellHost> mainViewProv
 
     // On mobile a list page and an editor for one of its rows are not on
     // the back stack at the same time, so there is nothing to close.
-    public void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase
+    public void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase
     {
     }
 

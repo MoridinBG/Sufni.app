@@ -10,7 +10,7 @@ using Sufni.App.Services.Management;
 
 namespace Sufni.App.ViewModels.Editors;
 
-public sealed partial class LiveDaqConfigEditorViewModel : ViewModelBase
+public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject
 {
     private readonly DaqConfigDocument document;
     private readonly Func<byte[], CancellationToken, Task<DaqManagementResult>> uploadAsync;

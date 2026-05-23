@@ -25,6 +25,7 @@ public class ImportSessionsCoordinator(
     IRecordedSessionSourceStoreWriter sourceStore,
     IShellCoordinator shell,
     IBackgroundTaskRunner backgroundTaskRunner,
+    IUiThreadDispatcher uiThreadDispatcher,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
     Func<ImportSessionsViewModel> importSessionsResolver)
@@ -74,7 +75,7 @@ public class ImportSessionsCoordinator(
         IProgress<SessionImportEvent>? progress)
     {
         var imported = new List<SessionSnapshot>();
-        var failures = new List<(string FileName, string ErrorMessage)>();
+        var failures = new List<SessionImportFailure>();
 
         logger.Verbose("Loading setup {SetupId} for session import", setupId);
         var setup = await databaseService.GetAsync<Setup>(setupId)
@@ -126,8 +127,11 @@ public class ImportSessionsCoordinator(
                                 "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
                                 telemetryFile.Name,
                                 malformedMessage);
-                            failures.Add((telemetryFile.Name, malformedMessage));
-                            progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, malformedMessage));
+                            failures.Add(new SessionImportFailure(
+                                telemetryFile.Name,
+                                malformedMessage,
+                                SessionImportFailureOperation.Import));
+                            progress?.Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, malformedMessage));
                             continue;
                         }
 
@@ -156,16 +160,22 @@ public class ImportSessionsCoordinator(
                         await telemetryFile.OnImported();
 
                         var snapshot = SessionSnapshot.From(persisted);
-                        sessionStore.Upsert(snapshot);
-                        sourceStore.Upsert(RecordedSessionSourceSnapshot.From(source));
+                        await uiThreadDispatcher.InvokeAsync(() =>
+                        {
+                            sessionStore.Upsert(snapshot);
+                            sourceStore.Upsert(RecordedSessionSourceSnapshot.From(source));
+                        });
                         imported.Add(snapshot);
                         progress?.Report(new SessionImportEvent.Imported(snapshot));
                     }
                     catch (Exception e)
                     {
                         logger.Warning(e, "Failed to import telemetry file {FileName}", telemetryFile.Name);
-                        failures.Add((telemetryFile.Name, e.Message));
-                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
+                        failures.Add(new SessionImportFailure(
+                            telemetryFile.Name,
+                            e.Message,
+                            SessionImportFailureOperation.Import));
+                        progress?.Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, e.Message));
                     }
                 }
                 else if (telemetryFile.ShouldBeImported is null)
@@ -180,8 +190,11 @@ public class ImportSessionsCoordinator(
                     catch (Exception e)
                     {
                         logger.Warning(e, "Failed to trash telemetry file {FileName}", telemetryFile.Name);
-                        failures.Add((telemetryFile.Name, e.Message));
-                        progress?.Report(new SessionImportEvent.Failed(telemetryFile.Name, e.Message));
+                        failures.Add(new SessionImportFailure(
+                            telemetryFile.Name,
+                            e.Message,
+                            SessionImportFailureOperation.Trash));
+                        progress?.Report(new SessionImportEvent.TrashFailed(telemetryFile.Name, e.Message));
                     }
                 }
             }
@@ -219,13 +232,25 @@ public class ImportSessionsCoordinator(
 
 public sealed record SessionImportResult(
     IReadOnlyList<SessionSnapshot> Imported,
-    IReadOnlyList<(string FileName, string ErrorMessage)> Failures);
+    IReadOnlyList<SessionImportFailure> Failures);
+
+public enum SessionImportFailureOperation
+{
+    Import,
+    Trash,
+}
+
+public sealed record SessionImportFailure(
+    string FileName,
+    string ErrorMessage,
+    SessionImportFailureOperation Operation);
 
 public abstract record SessionImportEvent
 {
     private SessionImportEvent() { }
 
     public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
-    public sealed record Failed(string FileName, string ErrorMessage) : SessionImportEvent;
+    public sealed record ImportFailed(string FileName, string ErrorMessage) : SessionImportEvent;
+    public sealed record TrashFailed(string FileName, string ErrorMessage) : SessionImportEvent;
     public sealed record Progress(int Current, int Total) : SessionImportEvent;
 }

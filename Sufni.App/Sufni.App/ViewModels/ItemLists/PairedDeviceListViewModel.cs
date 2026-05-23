@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using DynamicData;
 using Sufni.App.Coordinators;
+using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -36,7 +37,9 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     public PairedDeviceListViewModel(
         IPairedDeviceStore pairedDeviceStore,
-        PairedDeviceCoordinator pairedDeviceCoordinator)
+        PairedDeviceCoordinator pairedDeviceCoordinator,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.pairedDeviceStore = pairedDeviceStore;
         this.pairedDeviceCoordinator = pairedDeviceCoordinator;

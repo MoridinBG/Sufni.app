@@ -14,7 +14,7 @@ public enum Immutability
     Modifiable
 }
 
-public partial class JointViewModel : ViewModelBase, IPoint
+public partial class JointViewModel : ObservableObject, IPoint
 {
     public Immutability Immutability { get; private set; }
     public bool ShowFlyout { get; set; }

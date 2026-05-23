@@ -83,6 +83,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ViewLocator>();
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
+        ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ISessionAnalysisService>(_ => new SessionAnalysisService());
@@ -129,6 +130,7 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<IUiThreadDispatcher>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionGraph>(),
@@ -137,14 +139,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
-        ServiceCollection.AddSingleton<ILiveDaqBrowseOwner, LiveDaqBrowseOwner>();
+        ServiceCollection.AddSingleton<IDaqBrowseOwner, DaqBrowseOwner>();
         ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
         ServiceCollection.AddSingleton<Func<ILiveDaqClient>>(_ => static () => new LiveDaqClient());
         ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
         ServiceCollection.AddSingleton<LiveGraphPipelineFactory>();
         ServiceCollection.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
-        ServiceCollection.AddSingleton<LiveProfilingLaunchService>();
         ServiceCollection.AddSingleton<LiveDaqCoordinator>();
         ServiceCollection.AddSingleton<PairedDeviceStore>();
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
@@ -158,6 +159,7 @@ public partial class App : Application
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
                 sp.GetRequiredService<IShellCoordinator>(),
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
+                sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
@@ -184,6 +186,7 @@ public partial class App : Application
             sp.GetRequiredService<LiveDaqListViewModel>(),
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
+            sp.GetRequiredService<IUiThreadDispatcher>(),
             sp.GetService<PairingClientViewModel>(),
             sp.GetService<PairingServerViewModel>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
@@ -241,20 +244,6 @@ public partial class App : Application
                 dialogService.SetOwner(desktop.MainWindow);
                 dialogService.SetOverlayHost(desktop.MainWindow);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
-                if (LiveProfilingLaunchService.IsEnabled)
-                {
-                    desktop.MainWindow.Opened += async (_, _) =>
-                    {
-                        try
-                        {
-                            await Services!.GetRequiredService<LiveProfilingLaunchService>().LaunchFromEnvironmentAsync();
-                        }
-                        catch
-                        {
-                            // The profiling service already logs and writes a console marker.
-                        }
-                    };
-                }
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
@@ -269,7 +258,7 @@ public partial class App : Application
                 singleViewPlatform.MainView.Loaded += (_, _) =>
                 {
                     var topLevel = TopLevel.GetTopLevel(singleViewPlatform.MainView);
-                    Debug.Assert(topLevel is not null); // TODO: use null-conditional assignment after switch to .net 10
+                    Debug.Assert(topLevel is not null);
                     topLevel.BackRequested += (_, e) =>
                     {
                         mainViewModel.OpenPreviousView();

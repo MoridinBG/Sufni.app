@@ -22,8 +22,9 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         BikeCoordinator bikeCoordinator,
         SetupCoordinator setupCoordinator,
         ImportSessionsCoordinator importSessionsCoordinator,
-        IFilesService filesService)
-        : base(shell, dialogService)
+        IFilesService filesService,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.setupCoordinator = setupCoordinator;
