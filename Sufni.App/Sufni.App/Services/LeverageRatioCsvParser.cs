@@ -28,7 +28,8 @@ public static class LeverageRatioCsvParser
         var lines = ReadNonEmptyLines(normalized);
         if (lines.Count == 0)
         {
-            return new LeverageRatioParseResult.Invalid([new LeverageRatioParseError(null, "CSV is empty.")]);
+            return new LeverageRatioParseResult.Invalid(
+                [new LeverageRatioParseError(LeverageRatioParseErrorCode.Empty, null, "CSV is empty.")]);
         }
 
         List<LeverageRatioParseError> errors = [];
@@ -37,7 +38,10 @@ public static class LeverageRatioCsvParser
 
         if (!HasValidHeader(headerLine, delimiter))
         {
-            errors.Add(new LeverageRatioParseError(headerLineNumber, "Required CSV header is shock_travel_mm,wheel_travel_mm."));
+            errors.Add(new LeverageRatioParseError(
+                LeverageRatioParseErrorCode.InvalidHeader,
+                headerLineNumber,
+                "Required CSV header is shock_travel_mm,wheel_travel_mm."));
         }
 
         List<LeverageRatioPoint> points = [];
@@ -48,7 +52,10 @@ public static class LeverageRatioCsvParser
             var columns = line.Split(delimiter);
             if (columns.Length != 2)
             {
-                errors.Add(new LeverageRatioParseError(lineNumber, "Each data row must contain exactly two columns."));
+                errors.Add(new LeverageRatioParseError(
+                    LeverageRatioParseErrorCode.InvalidColumnCount,
+                    lineNumber,
+                    "Each data row must contain exactly two columns."));
                 continue;
             }
 
@@ -56,19 +63,28 @@ public static class LeverageRatioCsvParser
             var wheelText = columns[1].Trim();
             if (shockText.Contains(',') || wheelText.Contains(','))
             {
-                errors.Add(new LeverageRatioParseError(lineNumber, "Decimal comma is not supported; use '.' as the decimal separator."));
+                errors.Add(new LeverageRatioParseError(
+                    LeverageRatioParseErrorCode.DecimalComma,
+                    lineNumber,
+                    "Decimal comma is not supported; use '.' as the decimal separator."));
                 continue;
             }
 
             if (!double.TryParse(shockText, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var shockTravel))
             {
-                errors.Add(new LeverageRatioParseError(lineNumber, "Shock travel must be a valid number."));
+                errors.Add(new LeverageRatioParseError(
+                    LeverageRatioParseErrorCode.InvalidShockTravel,
+                    lineNumber,
+                    "Shock travel must be a valid number."));
                 continue;
             }
 
             if (!double.TryParse(wheelText, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var wheelTravel))
             {
-                errors.Add(new LeverageRatioParseError(lineNumber, "Wheel travel must be a valid number."));
+                errors.Add(new LeverageRatioParseError(
+                    LeverageRatioParseErrorCode.InvalidWheelTravel,
+                    lineNumber,
+                    "Wheel travel must be a valid number."));
                 continue;
             }
 
@@ -81,7 +97,7 @@ public static class LeverageRatioCsvParser
             int? lineNumber = error.PointIndex is int pointIndex && pointIndex >= 0 && pointIndex < pointLineNumbers.Count
                 ? pointLineNumbers[pointIndex]
                 : null;
-            errors.Add(new LeverageRatioParseError(lineNumber, error.Message));
+            errors.Add(new LeverageRatioParseError(ToParseErrorCode(error.Code), lineNumber, error.Message));
         }
 
         if (errors.Count > 0)
@@ -120,6 +136,19 @@ public static class LeverageRatioCsvParser
                string.Equals(columns[0], ShockTravelHeader, StringComparison.OrdinalIgnoreCase) &&
                string.Equals(columns[1], WheelTravelHeader, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static LeverageRatioParseErrorCode ToParseErrorCode(LeverageRatioValidationErrorCode code)
+    {
+        return code switch
+        {
+            LeverageRatioValidationErrorCode.TooFewPoints => LeverageRatioParseErrorCode.TooFewPoints,
+            LeverageRatioValidationErrorCode.NegativeInitialShockTravel => LeverageRatioParseErrorCode.NegativeInitialShockTravel,
+            LeverageRatioValidationErrorCode.DuplicateShockTravel => LeverageRatioParseErrorCode.DuplicateShockTravel,
+            LeverageRatioValidationErrorCode.NonIncreasingShockTravel => LeverageRatioParseErrorCode.NonIncreasingShockTravel,
+            LeverageRatioValidationErrorCode.DecreasingWheelTravel => LeverageRatioParseErrorCode.DecreasingWheelTravel,
+            _ => LeverageRatioParseErrorCode.ValidationFailed,
+        };
+    }
 }
 
 public abstract record LeverageRatioParseResult
@@ -131,4 +160,23 @@ public abstract record LeverageRatioParseResult
     public sealed record Invalid(IReadOnlyList<LeverageRatioParseError> Errors) : LeverageRatioParseResult;
 }
 
-public sealed record LeverageRatioParseError(int? LineNumber, string Message);
+public enum LeverageRatioParseErrorCode
+{
+    Empty,
+    InvalidHeader,
+    InvalidColumnCount,
+    DecimalComma,
+    InvalidShockTravel,
+    InvalidWheelTravel,
+    TooFewPoints,
+    NegativeInitialShockTravel,
+    DuplicateShockTravel,
+    NonIncreasingShockTravel,
+    DecreasingWheelTravel,
+    ValidationFailed,
+}
+
+public sealed record LeverageRatioParseError(
+    LeverageRatioParseErrorCode Code,
+    int? LineNumber,
+    string Message);

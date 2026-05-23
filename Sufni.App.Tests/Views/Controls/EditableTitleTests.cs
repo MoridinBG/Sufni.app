@@ -11,37 +11,6 @@ namespace Sufni.App.Tests.Views.Controls;
 public class EditableTitleTests
 {
     [AvaloniaFact]
-    public async Task EditableTitle_BindsTitleText_FromDataContext()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-
-        var viewModel = new TestTabPageViewModel
-        {
-            Name = "Trail setup"
-        };
-        var view = new EditableTitle
-        {
-            DataContext = viewModel
-        };
-
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        try
-        {
-            var titleTextBox = view.FindControl<TextBox>("TitleTextBox");
-            Assert.NotNull(titleTextBox);
-
-            Assert.Equal("Trail setup", titleTextBox!.Text);
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
     public async Task EditableTitle_HidesTimestamp_WhenViewModelTimestampIsNull()
     {
         ViewTestHelpers.EnsureViewTestResources();

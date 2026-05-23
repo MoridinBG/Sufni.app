@@ -46,6 +46,32 @@ public enum SessionAnalysisStepId
     Balance = 4,
 }
 
+public enum SessionAnalysisFindingId
+{
+    Unknown = 0,
+    FullSessionAnalysis,
+    ShortSelectedRange,
+    NoStrokeStatistics,
+    OneEndMissingStrokeData,
+    BalanceUnavailable,
+    LowStrokeCount,
+    ShallowTravelUse,
+    RepeatedBottomouts,
+    DeepTravelUse,
+    DynamicSagMismatch,
+    ReboundPacking,
+    SupportBeforeReboundDiagnosis,
+    ResistingImpacts,
+    ReboundSlowForProfileContext,
+    ReboundFastForProfileContext,
+    CompressionSpeedsSubdued,
+    CompressionSpeedsHigh,
+    BalanceContextLimited,
+    BalanceSlopesDiverge,
+    VibrationNotUsedForRecommendations,
+    VibrationContext,
+}
+
 public enum AdjustmentComponent
 {
     AirPressure,
@@ -113,6 +139,23 @@ public sealed record SessionAnalysisFinding(
     IReadOnlyList<SessionAnalysisEvidence> Evidence,
     IReadOnlyList<Adjustment> Adjustments)
 {
+    public SessionAnalysisFindingId Id { get; init; } = SessionAnalysisFindingId.Unknown;
+
+    public SessionAnalysisFinding(
+        SessionAnalysisFindingId id,
+        SessionAnalysisCategory category,
+        SessionAnalysisSeverity severity,
+        SessionAnalysisConfidence confidence,
+        string title,
+        string observation,
+        string recommendation,
+        IReadOnlyList<SessionAnalysisEvidence> evidence,
+        IReadOnlyList<Adjustment> adjustments)
+        : this(category, severity, confidence, title, observation, recommendation, evidence, adjustments)
+    {
+        Id = id;
+    }
+
     public SessionAnalysisFinding(
         SessionAnalysisCategory category,
         SessionAnalysisSeverity severity,
@@ -122,6 +165,19 @@ public sealed record SessionAnalysisFinding(
         string recommendation,
         IReadOnlyList<SessionAnalysisEvidence> evidence)
         : this(category, severity, confidence, title, observation, recommendation, evidence, [])
+    {
+    }
+
+    public SessionAnalysisFinding(
+        SessionAnalysisFindingId id,
+        SessionAnalysisCategory category,
+        SessionAnalysisSeverity severity,
+        SessionAnalysisConfidence confidence,
+        string title,
+        string observation,
+        string recommendation,
+        IReadOnlyList<SessionAnalysisEvidence> evidence)
+        : this(id, category, severity, confidence, title, observation, recommendation, evidence, [])
     {
     }
 }

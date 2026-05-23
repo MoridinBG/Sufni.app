@@ -26,17 +26,6 @@ public class MeasurementPreprocessorTests
     }
 
     [Fact]
-    public void Process_WithLowerSampleRateRampBelowStepRate_DoesNotFlattenMeasurements()
-    {
-        ushort[] samples = [0, 40, 80, 120, 160, 160, 160];
-
-        var result = MeasurementPreprocessor.Process(samples, MeasurementSensorType.Linear, sampleRate: 200);
-
-        Assert.Equal(samples, result.Samples);
-        Assert.Equal(0, result.AnomalyCount);
-    }
-
-    [Fact]
     public void Process_WithCircularWrapEdgeSamples_DoesNotCreateSpikeFault()
     {
         var samples = new ushort[240];

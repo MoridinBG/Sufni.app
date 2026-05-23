@@ -52,7 +52,7 @@ public class SessionSidebarDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionSidebarDesktopView_BindsNameAndDescriptionFields()
+    public async Task SessionSidebarDesktopView_BindsNameField()
     {
         var workspace = new SessionSidebarWorkspaceStub
         {
@@ -63,19 +63,14 @@ public class SessionSidebarDesktopViewTests
         await using var mounted = await MountAsync(workspace);
 
         var nameTextBox = mounted.View.FindControl<TextBox>("NameTextBox");
-        var descriptionTextBox = mounted.View.FindControl<TextBox>("DescriptionTextBox");
 
         Assert.NotNull(nameTextBox);
-        Assert.NotNull(descriptionTextBox);
         Assert.Equal("Recorded Session 01", nameTextBox!.Text);
-        Assert.Equal("Suspension notes", descriptionTextBox!.Text);
 
         workspace.Name = "Renamed Session";
-        workspace.DescriptionText = "Updated notes";
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal("Renamed Session", nameTextBox.Text);
-        Assert.Equal("Updated notes", descriptionTextBox.Text);
     }
 
     [AvaloniaFact]

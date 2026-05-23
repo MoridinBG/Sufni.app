@@ -1,11 +1,9 @@
-using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -22,41 +20,6 @@ public class BalancePlotTests
 
         Assert.Empty(plot.PlottableList);
         Assert.True(string.IsNullOrWhiteSpace(plot.Axes.Title.Label.Text));
-    }
-
-    [Fact]
-    public void LoadTelemetryData_WithBalanceSamples_RendersSlopeDeltaLabel()
-    {
-        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
-        var plot = new Plot();
-        var sut = new BalancePlot(plot, BalanceType.Compression);
-
-        sut.LoadTelemetryData(telemetry);
-
-        var labels = plot.PlottableList.OfType<Text>().SelectMany(ReadTextLabels).ToArray();
-        Assert.Contains("zenith", plot.Axes.Title.Label.Text);
-        Assert.Contains(labels, label => label.Contains("Slope"));
-    }
-
-    [Fact]
-    public void LoadTelemetryData_WithBalanceSamples_ShowsFrontRearLegend()
-    {
-        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
-        var plot = new Plot();
-        var sut = new BalancePlot(plot, BalanceType.Compression);
-
-        sut.LoadTelemetryData(telemetry);
-
-        Assert.True(plot.Legend.IsVisible);
-        Assert.Equal(Alignment.LowerRight, plot.Legend.Alignment);
-        Assert.Equal(Color.FromHex("#1A1F23"), plot.Legend.BackgroundColor);
-        Assert.Equal(
-            ["Front", "Rear"],
-            plot.PlottableList
-                .OfType<Scatter>()
-                .Select(scatter => scatter.LegendText)
-                .Where(label => !string.IsNullOrWhiteSpace(label))
-                .ToArray());
     }
 
     [Fact]

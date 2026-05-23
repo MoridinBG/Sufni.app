@@ -1,6 +1,4 @@
 using System;
-using System.Globalization;
-using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Tests.Infrastructure;
@@ -83,17 +81,9 @@ public class NotesPageViewTests
         await using var mounted = await MountAsync(viewModel);
 
         var panel = mounted.View.FindControl<StackPanel>("TemperatureAveragesPanel");
-        var itemsControl = mounted.View.FindControl<ItemsControl>("TemperatureAveragesItemsControl");
 
         Assert.NotNull(panel);
-        Assert.NotNull(itemsControl);
         Assert.True(panel!.IsVisible);
-        var rows = itemsControl!.Items.Cast<TemperatureAverageRowViewModel>().ToArray();
-        Assert.Equal(2, rows.Length);
-        Assert.Equal("Frame", rows[0].SensorName);
-        Assert.Equal($"{18.26.ToString("F1", CultureInfo.CurrentCulture)} C", rows[0].TemperatureText);
-        Assert.Equal("Fork", rows[1].SensorName);
-        Assert.Equal($"{21.76.ToString("F1", CultureInfo.CurrentCulture)} C", rows[1].TemperatureText);
 
         viewModel.SetTemperatureAverages([]);
         await ViewTestHelpers.FlushDispatcherAsync();

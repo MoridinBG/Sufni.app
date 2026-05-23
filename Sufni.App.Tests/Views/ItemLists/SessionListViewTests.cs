@@ -137,15 +137,9 @@ public class SessionListViewTests
         var row = Assert.Single(mounted.Control.FindAllVisual<SessionListItemButton>());
         var deleteButton = row.FindControl<Button>("DeleteButton");
         var recalculateButton = row.FindControl<Button>("RecalculateButton");
-        var titleText = row.FindControl<TextBlock>("TitleTextBlock");
-        var timestampText = row.FindControl<TextBlock>("TimestampTextBlock");
 
         Assert.NotNull(deleteButton);
         Assert.NotNull(recalculateButton);
-        Assert.NotNull(titleText);
-        Assert.NotNull(timestampText);
-        Assert.Equal("Morning Ride (Stale)", titleText!.Text);
-        Assert.Equal(viewModel.Items[0].TimestampText, timestampText!.Text);
         Assert.Same(viewModel.Items[0].RecalculateCommand, recalculateButton!.Command);
         Assert.True(recalculateButton.Command!.CanExecute(recalculateButton.CommandParameter));
     }

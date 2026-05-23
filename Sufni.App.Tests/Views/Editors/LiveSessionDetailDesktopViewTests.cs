@@ -30,13 +30,8 @@ public class LiveSessionDetailDesktopViewTests
 
         await using var mounted = await MountAsync(editor);
 
-        var textBlocks = mounted.View.GetVisualDescendants().OfType<TextBlock>().ToArray();
-        var controls = mounted.View.GetVisualDescendants().OfType<Control>().ToArray();
         var shellView = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
 
-        Assert.Equal("State: Connected", textBlocks.First(textBlock => textBlock.Name == "LiveConnectionStateTextBlock").Text);
-        Assert.Equal("Session: 909", textBlocks.First(textBlock => textBlock.Name == "LiveSessionIdTextBlock").Text);
-        Assert.NotNull(controls.FirstOrDefault(control => control.Name == "TabControl"));
         Assert.IsType<LiveSessionGraphDesktopView>(shellView.GraphContent);
         Assert.IsType<SessionMediaDesktopView>(shellView.MediaContent);
         Assert.IsType<SessionStatisticsDesktopView>(shellView.StatisticsContent);

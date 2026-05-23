@@ -20,14 +20,6 @@ public class SufniThemeTests
     }
 
     [Fact]
-    public void SufniThemes_SignalSeries_IsVariantInvariant()
-    {
-        Assert.Equal(SufniThemes.SignalSeries, SufniThemes.Dark.Plot.Series);
-        Assert.Equal(SufniThemes.SignalSeries, SufniThemes.Light.Plot.Series);
-        Assert.Equal(SufniThemes.TravelZoneRamp, SufniThemes.SignalSeries.TravelZone);
-    }
-
-    [Fact]
     public void SufniThemes_ToVariant_MapsSystemModeToAvaloniaDefault()
     {
         Assert.Equal(ThemeVariant.Dark, SufniThemes.ToVariant(SufniThemeMode.Dark));

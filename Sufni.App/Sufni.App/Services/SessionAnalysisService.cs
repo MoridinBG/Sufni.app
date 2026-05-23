@@ -135,7 +135,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
     {
         return finding.Category == SessionAnalysisCategory.TravelUse ||
                (finding.Category == SessionAnalysisCategory.Balance &&
-                finding.Title.Equals("Dynamic sag mismatch", StringComparison.Ordinal));
+                finding.Id == SessionAnalysisFindingId.DynamicSagMismatch);
     }
 
     private static bool IsForkFinding(SessionAnalysisFinding finding)
@@ -153,7 +153,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
     private static bool IsBalanceStepFinding(SessionAnalysisFinding finding)
     {
         return finding.Category == SessionAnalysisCategory.Balance &&
-               !finding.Title.Equals("Dynamic sag mismatch", StringComparison.Ordinal);
+               finding.Id != SessionAnalysisFindingId.DynamicSagMismatch;
     }
 
     private static string? FindingSide(SessionAnalysisFinding finding)
@@ -311,6 +311,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         if (context.Request.AnalysisRange is null)
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.FullSessionAnalysis,
                 SessionAnalysisCategory.DataQuality,
                 SessionAnalysisSeverity.Watch,
                 SessionAnalysisConfidence.Low,
@@ -322,6 +323,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         else if (context.Request.AnalysisRange.Value.DurationSeconds < ShortRangeSeconds)
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.ShortSelectedRange,
                 SessionAnalysisCategory.DataQuality,
                 SessionAnalysisSeverity.Watch,
                 SessionAnalysisConfidence.Low,
@@ -336,6 +338,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         if (!frontHasStrokeData && !rearHasStrokeData)
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.NoStrokeStatistics,
                 SessionAnalysisCategory.DataQuality,
                 SessionAnalysisSeverity.Watch,
                 SessionAnalysisConfidence.Low,
@@ -350,6 +353,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         {
             var missingSide = frontHasStrokeData ? "rear" : "front";
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.OneEndMissingStrokeData,
                 SessionAnalysisCategory.DataQuality,
                 SessionAnalysisSeverity.Info,
                 SessionAnalysisConfidence.Low,
@@ -363,6 +367,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
             !TelemetryStatistics.HasBalanceData(telemetryData, BalanceType.Rebound, context.BalanceOptions))
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.BalanceUnavailable,
                 SessionAnalysisCategory.DataQuality,
                 SessionAnalysisSeverity.Info,
                 SessionAnalysisConfidence.Low,
@@ -417,6 +422,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         if (side.StrokeCount < MinimumUsefulStrokeCount)
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.LowStrokeCount,
                 SessionAnalysisCategory.DataQuality,
                 SessionAnalysisSeverity.Info,
                 SessionAnalysisConfidence.Low,
@@ -446,6 +452,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     2),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.ShallowTravelUse,
                 SessionAnalysisCategory.TravelUse,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
@@ -495,6 +502,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                         2),
                 ];
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.RepeatedBottomouts,
                 SessionAnalysisCategory.TravelUse,
                 bottomoutSeverity.Value,
                 CreateConfidence(context, side),
@@ -529,6 +537,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     2),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.DeepTravelUse,
                 SessionAnalysisCategory.TravelUse,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
@@ -579,6 +588,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                 2),
         };
         findings.Add(new SessionAnalysisFinding(
+            SessionAnalysisFindingId.DynamicSagMismatch,
             SessionAnalysisCategory.Balance,
             SessionAnalysisSeverity.Watch,
             CreateConfidence(context, front, rear),
@@ -633,6 +643,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     2),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.ReboundPacking,
                 SessionAnalysisCategory.Packing,
                 SessionAnalysisSeverity.Action,
                 CreateConfidence(context, side),
@@ -683,6 +694,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                         2),
                 ];
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.SupportBeforeReboundDiagnosis,
                 SessionAnalysisCategory.Packing,
                 bottomoutSeverity!.Value,
                 CreateConfidence(context, side),
@@ -719,6 +731,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     2),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.ResistingImpacts,
                 SessionAnalysisCategory.Packing,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
@@ -760,6 +773,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     1),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.ReboundSlowForProfileContext,
                 category,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
@@ -782,6 +796,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     1),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.ReboundFastForProfileContext,
                 category,
                 SessionAnalysisSeverity.Watch,
                 CreateConfidence(context, side),
@@ -810,6 +825,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     1),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.CompressionSpeedsSubdued,
                 category,
                 SessionAnalysisSeverity.Info,
                 CreateConfidence(context, side),
@@ -832,6 +848,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                     1),
             };
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.CompressionSpeedsHigh,
                 category,
                 SessionAnalysisSeverity.Info,
                 CreateConfidence(context, side),
@@ -861,6 +878,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         if (HasAnyBalanceData(telemetryData, context) && hasLimitedBalanceContext)
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.BalanceContextLimited,
                 SessionAnalysisCategory.Balance,
                 SessionAnalysisSeverity.Info,
                 CreateConfidence(context, front, rear),
@@ -908,6 +926,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
                 CreateBalanceAdjustment(balanceType, slowerSnapshot, context),
             };
         findings.Add(new SessionAnalysisFinding(
+            SessionAnalysisFindingId.BalanceSlopesDiverge,
             SessionAnalysisCategory.Balance,
             severity,
             context.Request.AnalysisRange is null ? SessionAnalysisConfidence.Low : SessionAnalysisConfidence.Medium,
@@ -991,6 +1010,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         if (!addedComparableVibration && telemetryData.ImuData is { Records.Count: > 0 })
         {
             findings.Add(new SessionAnalysisFinding(
+                SessionAnalysisFindingId.VibrationNotUsedForRecommendations,
                 SessionAnalysisCategory.Vibration,
                 SessionAnalysisSeverity.Info,
                 SessionAnalysisConfidence.Low,
@@ -1007,6 +1027,7 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         VibrationStats vibration)
     {
         return new SessionAnalysisFinding(
+            SessionAnalysisFindingId.VibrationContext,
             SessionAnalysisCategory.Vibration,
             SessionAnalysisSeverity.Info,
             SessionAnalysisConfidence.Low,

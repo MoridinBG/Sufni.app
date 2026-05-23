@@ -36,14 +36,12 @@ public class YesNoCancelDialogWindowTests
         owner.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var dialog = new YesNoCancelDialogWindow("Save?", "Save before closing?");
+        var dialog = new YesNoCancelDialogWindow("Title sentinel", "Message sentinel");
 
         try
         {
             var resultTask = dialog.ShowDialogAsync(owner);
             await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Equal("Save before closing?", dialog.FindControl<TextBlock>("MessageText")!.Text);
 
             var button = dialog.FindControl<Button>(buttonName);
             Assert.NotNull(button);

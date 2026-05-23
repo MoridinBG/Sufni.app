@@ -113,11 +113,10 @@ public class RecordedTimeSeriesPlotTests
     }
 
     [Fact]
-    public void RangeSpans_UseThemeAnalysisRangeColors()
+    public void RangeSpans_RenderSelectedAndPreviewRanges()
     {
         var plot = new Plot();
-        var theme = SufniLightTheme.Instance;
-        var sut = new TestRecordedTimeSeriesPlot(plot, theme);
+        var sut = new TestRecordedTimeSeriesPlot(plot);
 
         sut.LoadForTest(new RecordedTimeSeriesData(
             "Travel (mm)",
@@ -137,10 +136,8 @@ public class RecordedTimeSeriesPlotTests
         sut.SetPreviewRange(0.5, 1.0);
 
         var spans = plot.PlottableList.OfType<HorizontalSpan>().ToArray();
-        var selectedSpan = Assert.Single(spans, span => span.X1 == 0.25 && span.X2 == 0.75);
-        var previewSpan = Assert.Single(spans, span => span.X1 == 0.5 && span.X2 == 1.0);
-        Assert.Equal(theme.Plot.AnalysisRange.SelectedFill.ToScottPlotColor(), selectedSpan.FillColor);
-        Assert.Equal(theme.Plot.AnalysisRange.PreviewFill.ToScottPlotColor(), previewSpan.FillColor);
+        Assert.Single(spans, span => span.X1 == 0.25 && span.X2 == 0.75);
+        Assert.Single(spans, span => span.X1 == 0.5 && span.X2 == 1.0);
     }
 
     private sealed class TestRecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)

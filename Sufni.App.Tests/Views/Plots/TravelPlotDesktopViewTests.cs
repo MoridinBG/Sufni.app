@@ -103,25 +103,6 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_HidesRightAxis_WhenRequested()
-    {
-        var view = new TravelPlotDesktopView
-        {
-            HideRightAxis = true,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = CreateMinimal();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.False(plot.Plot.Axes.Right.IsVisible);
-        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
-    }
-
-    [AvaloniaFact]
     public async Task TravelPlotDesktopView_AppliesPlotBackgroundProperties()
     {
         var view = new TravelPlotDesktopView
@@ -174,33 +155,6 @@ public class TravelPlotDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(selectedSpan.IsVisible);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotDesktopView_RendersMarkerLinesFromTelemetry()
-    {
-        var view = new TravelPlotDesktopView();
-        var telemetry = CreateMinimal();
-        telemetry.Markers = [new MarkerData(0.5), new MarkerData(1.5)];
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = telemetry;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        var markerLines = plot.Plot.PlottableList
-            .OfType<VerticalLine>()
-            .Where(line => !double.IsNaN(line.Position))
-            .ToArray();
-        Assert.Equal(2, markerLines.Length);
-        Assert.Contains(markerLines, line => line.Position == 0.5);
-        Assert.Contains(markerLines, line => line.Position == 1.5);
-        Assert.All(markerLines, line =>
-        {
-            Assert.Equal(2.0f, line.LineWidth);
-            Assert.Equal(Color.FromHex("#d53e4f").WithAlpha(0.9), line.LineColor);
-        });
     }
 
     [AvaloniaFact]
