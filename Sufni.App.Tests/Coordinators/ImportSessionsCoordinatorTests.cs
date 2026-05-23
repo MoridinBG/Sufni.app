@@ -639,13 +639,6 @@ public class ImportSessionsCoordinatorTests
         return (setup, bike);
     }
 
-    private static byte[] CreatePsst(params GpsRecord[] gpsRecords)
-    {
-        var telemetryData = CreateMinimal();
-        telemetryData.GpsData = gpsRecords.Length > 0 ? gpsRecords : null;
-        return telemetryData.BinaryForm;
-    }
-
     /// <summary>
     /// `IProgress<T>.Report` is void — using a capture list lets tests
     /// assert on the sequence of progress events synchronously without

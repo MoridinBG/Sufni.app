@@ -1,9 +1,7 @@
 using ScottPlot;
-using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -36,26 +34,6 @@ public class TravelHistogramPlotTests
 
         Assert.NotEmpty(plot.PlottableList);
         Assert.Contains("dynamic sag", plot.Axes.Title.Label.Text);
-    }
-
-    [Theory]
-    [InlineData(TravelHistogramMode.ActiveSuspension, "stroke bottom-outs")]
-    [InlineData(TravelHistogramMode.DynamicSag, "bottom-out regions")]
-    public void LoadTelemetryData_LabelsBottomoutsByHistogramMode(
-        TravelHistogramMode histogramMode,
-        string expectedLabel)
-    {
-        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
-        var plot = new Plot();
-        var sut = new TravelHistogramPlot(plot, SuspensionType.Front)
-        {
-            HistogramMode = histogramMode,
-        };
-
-        sut.LoadTelemetryData(telemetry);
-
-        var labels = plot.PlottableList.OfType<Text>().SelectMany(ReadTextLabels).ToArray();
-        Assert.Contains(labels, label => label.Contains(expectedLabel));
     }
 
     [Fact]

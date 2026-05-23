@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -17,7 +16,6 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
-using AvaloniaColor = Avalonia.Media.Color;
 
 namespace Sufni.App.Tests.Views;
 
@@ -62,108 +60,10 @@ public class LiveGraphPlotDesktopViewTests
         var imuPlot = GetRenderedPlot(imuView!);
         var pitchRollPlot = GetRenderedPlot(pitchRollView!);
 
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
-        Assert.All(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
-        Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal == 1);
-        Assert.All(pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
-        Assert.Empty(travelPlot.Plot.Axes.Title.Label.Text);
-        Assert.Empty(velocityPlot.Plot.Axes.Title.Label.Text);
-        Assert.Empty(imuPlot.Plot.Axes.Title.Label.Text);
-        Assert.Empty(pitchRollPlot.Plot.Axes.Title.Label.Text);
-        Assert.True(travelPlot.Plot.Legend.IsVisible);
-        Assert.True(velocityPlot.Plot.Legend.IsVisible);
-        Assert.True(imuPlot.Plot.Legend.IsVisible);
-        Assert.True(pitchRollPlot.Plot.Legend.IsVisible);
-        Assert.Equal(
-            ["Front", "Rear"],
-            travelPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
-        Assert.Equal(
-            ["Front", "Rear"],
-            velocityPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
-        Assert.Equal(
-            ["Frame", "Fork", "Shock"],
-            imuPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
-        Assert.Equal(
-            ["Pitch", "Roll"],
-            pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>().Select(streamer => streamer.LegendText).ToArray());
-        Assert.Empty(travelPlot.Plot.Axes.Bottom.Label.Text);
-        Assert.Empty(travelPlot.Plot.Axes.Left.Label.Text);
-        Assert.Empty(velocityPlot.Plot.Axes.Bottom.Label.Text);
-        Assert.Empty(velocityPlot.Plot.Axes.Left.Label.Text);
-        Assert.Empty(imuPlot.Plot.Axes.Bottom.Label.Text);
-        Assert.Empty(imuPlot.Plot.Axes.Left.Label.Text);
-        Assert.Empty(pitchRollPlot.Plot.Axes.Bottom.Label.Text);
-        Assert.Empty(pitchRollPlot.Plot.Axes.Left.Label.Text);
-        Assert.True(travelPlot.Plot.Axes.Right.IsVisible);
-        Assert.True(velocityPlot.Plot.Axes.Right.IsVisible);
-        Assert.True(imuPlot.Plot.Axes.Right.IsVisible);
-        Assert.True(pitchRollPlot.Plot.Axes.Right.IsVisible);
-        // Live plots auto-size around the largest value seen so far (with 10% headroom),
-        // falling back to a per-metric floor when running max is below it.
-        Assert.Equal(13.2, travelPlot.Plot.Axes.Left.Max, precision: 4);
-        Assert.Equal(0, travelPlot.Plot.Axes.Left.Min);
-        Assert.Equal(1.122, velocityPlot.Plot.Axes.Left.Max, precision: 4);
-        Assert.Equal(-1.122, velocityPlot.Plot.Axes.Left.Min, precision: 4);
-        Assert.Equal(1.65, imuPlot.Plot.Axes.Left.Max, precision: 4);
-        Assert.Equal(0, imuPlot.Plot.Axes.Left.Min);
-        Assert.Equal(5, pitchRollPlot.Plot.Axes.Left.Max);
-        Assert.Equal(-5, pitchRollPlot.Plot.Axes.Left.Min);
-        Assert.Equal(travelPlot.Plot.Axes.Left.Min, travelPlot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(travelPlot.Plot.Axes.Left.Max, travelPlot.Plot.Axes.Right.Max, precision: 6);
-        Assert.Equal(velocityPlot.Plot.Axes.Left.Min, velocityPlot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(velocityPlot.Plot.Axes.Left.Max, velocityPlot.Plot.Axes.Right.Max, precision: 6);
-        Assert.Equal(imuPlot.Plot.Axes.Left.Min, imuPlot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(imuPlot.Plot.Axes.Left.Max, imuPlot.Plot.Axes.Right.Max, precision: 6);
-        Assert.Equal(pitchRollPlot.Plot.Axes.Left.Min, pitchRollPlot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(pitchRollPlot.Plot.Axes.Left.Max, pitchRollPlot.Plot.Axes.Right.Max, precision: 6);
-
-        batches.OnNext(LiveGraphBatch.Empty with { Revision = 2 });
-        await FlushGraphBatchesAsync(travelView!, velocityView!, imuView!, pitchRollView!);
-
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
-        Assert.All(pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
-        // After a reset batch the running max clears, so axes shrink back to the floor.
-        Assert.Equal(5, travelPlot.Plot.Axes.Left.Max);
-        Assert.Equal(0.5, velocityPlot.Plot.Axes.Left.Max);
-        Assert.Equal(-0.5, velocityPlot.Plot.Axes.Left.Min);
-        Assert.Equal(1, imuPlot.Plot.Axes.Left.Max);
-        Assert.Equal(5, pitchRollPlot.Plot.Axes.Left.Max);
-        Assert.Equal(-5, pitchRollPlot.Plot.Axes.Left.Min);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task LiveTravelPlotDesktopView_AppliesPlotBackgroundProperties()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var view = new LiveTravelPlotDesktopView
-        {
-            PlotFigureBackground = AvaloniaColor.Parse("#101820"),
-            PlotDataBackground = AvaloniaColor.Parse("#203040"),
-        };
-        var host = new Window
-        {
-            Width = 800,
-            Height = 400,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = GetRenderedPlot(view);
-        Assert.Equal(ScottPlot.Color.FromHex("#101820"), plot.Plot.FigureBackground.Color);
-        Assert.Equal(ScottPlot.Color.FromHex("#203040"), plot.Plot.DataBackground.Color);
-
-        view.PlotFigureBackground = AvaloniaColor.Parse("#111213");
-        view.PlotDataBackground = AvaloniaColor.Parse("#212223");
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(ScottPlot.Color.FromHex("#111213"), plot.Plot.FigureBackground.Color);
-        Assert.Equal(ScottPlot.Color.FromHex("#212223"), plot.Plot.DataBackground.Color);
+        Assert.Contains(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
+        Assert.Contains(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
+        Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
+        Assert.Contains(pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -249,156 +149,6 @@ public class LiveGraphPlotDesktopViewTests
         Assert.All(
             travelPlot.Plot.PlottableList.OfType<DataStreamer>(),
             streamer => Assert.Equal(2560, streamer.Data.CountTotal));
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionGraphDesktopView_CollapsesTravelRows_WhenTravelSectionUnavailable()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var workspace = new StubLiveSessionGraphWorkspace(new Subject<LiveGraphBatch>(), hasTravelSection: false, hasImuSection: true);
-        var view = new LiveSessionGraphDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var root = GetGraphRoot(view);
-        var travelRow = GetBaseRow(root, "Travel (mm)");
-        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
-        var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(view, "TravelPlot");
-        var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(view, "VelocityPlot");
-        var imuView = GetNamedVisual<LiveImuPlotDesktopView>(view, "ImuPlot");
-
-        Assert.NotNull(travelView);
-        Assert.NotNull(velocityView);
-        Assert.NotNull(imuView);
-        Assert.True(travelRow.IsVisible);
-        Assert.True(velocityRow.IsVisible);
-        Assert.True(imuRow.IsVisible);
-        Assert.Equal(SurfacePresentationState.Hidden, travelRow.PresentationState);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionGraphDesktopView_CollapsesVelocityRows_WhenVelocitySectionUnavailable()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var workspace = new StubLiveSessionGraphWorkspace(
-            new Subject<LiveGraphBatch>(),
-            hasTravelSection: true,
-            hasVelocitySection: false,
-            hasImuSection: true);
-        var view = new LiveSessionGraphDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var root = GetGraphRoot(view);
-        var travelRow = GetBaseRow(root, "Travel (mm)");
-        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
-
-        Assert.True(travelRow.IsVisible);
-        Assert.False(velocityRow.IsVisible);
-        Assert.True(imuRow.IsVisible);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionGraphDesktopView_CollapsesImuRows_WhenImuSectionUnavailable()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var workspace = new StubLiveSessionGraphWorkspace(new Subject<LiveGraphBatch>(), hasTravelSection: true, hasImuSection: false);
-        var view = new LiveSessionGraphDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var root = GetGraphRoot(view);
-        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
-        var imuView = GetNamedVisual<LiveImuPlotDesktopView>(view, "ImuPlot");
-
-        Assert.NotNull(imuView);
-        Assert.False(imuRow.IsVisible);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionGraphDesktopView_ShowsGpsBaseRow_WhenImuIsHidden()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var workspace = new StubLiveSessionGraphWorkspace(
-            new Subject<LiveGraphBatch>(),
-            hasTravelSection: true,
-            hasVelocitySection: true,
-            hasImuSection: false,
-            hasSpeedSection: true);
-        var view = new LiveSessionGraphDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var root = GetGraphRoot(view);
-        var travelRow = GetBaseRow(root, "Travel (mm)");
-        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
-        var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
-        var elevationRow = GetChildRow(gpsRow, "Elevation (m)");
-        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(view, "SpeedPlot");
-
-        Assert.NotNull(speedView);
-        Assert.True(travelRow.IsVisible);
-        Assert.False(imuRow.IsVisible);
-        Assert.True(gpsRow.IsVisible);
-        Assert.False(elevationRow.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();

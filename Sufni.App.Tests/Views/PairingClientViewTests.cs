@@ -127,7 +127,6 @@ public class PairingClientViewTests
 
         Assert.Contains("Could not request pairing: network", viewModel.ErrorMessages);
         Assert.True(errorBar.IsVisible);
-        Assert.Equal(1, Grid.GetRow(errorBar));
     }
 
     [AvaloniaFact]

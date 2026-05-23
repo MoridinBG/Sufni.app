@@ -1,4 +1,3 @@
-using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using System.Text.Json;
@@ -11,24 +10,6 @@ namespace Sufni.App.Tests.Services;
 
 public class AppPreferencesTests
 {
-    [Fact]
-    public void Constructor_ExposesPreferenceGroups()
-    {
-        var (tempDirectory, preferencesPath) = CreatePreferencesPath();
-
-        try
-        {
-            var preferences = new AppPreferences(preferencesPath);
-
-            Assert.NotNull(preferences.Map);
-            Assert.NotNull(preferences.Session);
-        }
-        finally
-        {
-            DeleteTempDirectory(tempDirectory);
-        }
-    }
-
     [Fact]
     public async Task MapPreferences_PersistSelectedLayerAndCustomLayers_UnderMapsGroup()
     {

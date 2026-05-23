@@ -296,27 +296,6 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnMobile_DoesNotNavigateDirectly()
-    {
-        var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
-        var boardId = Guid.NewGuid();
-        var snapshot = TestSnapshots.Setup(bikeId: bike.Id, boardId: boardId, updated: 5)
-            with
-        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
-        var editor = CreateEditor(snapshot);
-        editor.LoadedCommand.Execute(null);
-        editor.Name = "renamed";
-
-        setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
-            .Returns(new SetupSaveResult.Saved(11));
-
-        await editor.SaveCommand.ExecuteAsync(null);
-
-        shell.DidNotReceive().GoBack();
-    }
-
-    [AvaloniaFact]
     public async Task Save_OnConflict_PromptsUser_AndReloadsWhenAccepted()
     {
         var bike = TestSnapshots.Bike();

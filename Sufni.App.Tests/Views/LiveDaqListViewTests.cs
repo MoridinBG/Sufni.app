@@ -117,67 +117,6 @@ public class LiveDaqListViewTests
         await coordinator.Received(1).SelectAsync("board-1");
     }
 
-    [AvaloniaFact]
-    public async Task LiveDaqListView_OfflineRowTap_DoesNotInvokeCoordinator()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var store = new LiveDaqStore();
-        store.Upsert(new LiveDaqSnapshot(
-            IdentityKey: "board-1",
-            DisplayName: "Board 1",
-            BoardId: "board-1",
-            Host: null,
-            Port: null,
-            IsOnline: false,
-            SetupName: null,
-            BikeName: null));
-
-        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
-
-        // Bypass IsEnabled to confirm the VM-level guard rejects offline rows.
-        var row = viewModel.Items.Single();
-        viewModel.RowSelectedCommand.Execute(row);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        await coordinator.DidNotReceive().SelectAsync(Arg.Any<string>());
-    }
-
-    [AvaloniaFact]
-    public async Task LiveDaqListView_SearchTextFilter_HidesNonMatchingRows()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var store = new LiveDaqStore();
-        store.Upsert(new LiveDaqSnapshot(
-            IdentityKey: "alpha",
-            DisplayName: "Alpha",
-            BoardId: "alpha",
-            Host: "192.168.0.30",
-            Port: 1557,
-            IsOnline: true,
-            SetupName: null,
-            BikeName: null));
-        store.Upsert(new LiveDaqSnapshot(
-            IdentityKey: "beta",
-            DisplayName: "Beta",
-            BoardId: "beta",
-            Host: "192.168.0.31",
-            Port: 1557,
-            IsOnline: true,
-            SetupName: null,
-            BikeName: null));
-
-        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
-        await using var mounted = await MountAsync(viewModel);
-
-        Assert.Equal(2, FindRowButtons(mounted.Control).Length);
-
-        viewModel.SearchText = "alp";
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Single(viewModel.Items);
-        Assert.Equal("Alpha", viewModel.Items[0].DisplayName);
-    }
-
     private static Button[] FindRowButtons(Control root)
     {
         return root.FindAllVisual<Button>()

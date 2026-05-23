@@ -41,20 +41,7 @@ public class MobileShellCoordinatorTests
     // ----- OpenOrFocus -----
 
     [Fact]
-    public void OpenOrFocus_AlwaysInvokesFactory_AndForwardsNewInstance()
-    {
-        var newView = new TestViewModel();
-        var coordinator = CreateCoordinator();
-
-        coordinator.OpenOrFocus<TestViewModel>(
-            match: _ => true,
-            create: () => newView);
-
-        host.Received(1).OpenView(newView);
-    }
-
-    [Fact]
-    public void OpenOrFocus_DoesNotConsultMatchPredicate_OrInspectAnyExistingState()
+    public void OpenOrFocus_AlwaysInvokesFactoryWithoutConsultingMatch_AndForwardsNewInstance()
     {
         var newView = new TestViewModel();
         var matchInvoked = false;

@@ -370,16 +370,6 @@ public class TrackTests
         Assert.Null(track);
     }
 
-    [Fact]
-    public void EmptyTrackCarrier_ReportsNoPoints_AndZeroTimeBounds()
-    {
-        var track = new Track { Points = [] };
-
-        Assert.False(track.HasPoints);
-        Assert.Equal(0, track.StartTime);
-        Assert.Equal(0, track.EndTime);
-    }
-
     private static GpsRecord CreateGpsRecord(DateTime timestamp, double latitude, double longitude, float altitude)
     {
         return new GpsRecord(

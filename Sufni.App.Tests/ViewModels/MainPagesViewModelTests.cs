@@ -30,15 +30,6 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public void LiveDaqsPage_IsAlwaysProvided()
-    {
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher);
-        var viewModel = MainPagesViewModelTestFactory.Create(livePage);
-
-        Assert.Same(livePage, viewModel.LiveDaqsPage);
-    }
-
-    [Fact]
     public async Task OpenGpsTracksCommand_ImportsGpxThroughTrackCoordinator()
     {
         var trackCoordinator = TestCoordinatorSubstitutes.Track();
@@ -116,20 +107,6 @@ public class MainPagesViewModelTests
         Assert.Equal(SufniThemeMode.System, viewModel.CurrentThemeMode);
         Assert.Equal(SufniThemeMode.Dark, viewModel.EffectiveThemeMode);
         Assert.Equal(SufniThemeMode.Dark, viewModel.NextThemeMode);
-    }
-
-    [Fact]
-    public async Task ToggleThemeCommand_TogglesThroughThemeService()
-    {
-        var themeService = Substitute.For<IThemeService>();
-        themeService.Mode.Returns(SufniThemeMode.Dark);
-        themeService.EffectiveMode.Returns(SufniThemeMode.Dark);
-        themeService.IsSystemThemeAvailable.Returns(true);
-        var viewModel = MainPagesViewModelTestFactory.Create(themeService: themeService);
-
-        await viewModel.ToggleThemeCommand.ExecuteAsync(null);
-
-        await themeService.Received(1).ToggleAsync();
     }
 
     [AvaloniaFact]

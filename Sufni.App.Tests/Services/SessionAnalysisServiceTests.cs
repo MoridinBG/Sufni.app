@@ -62,7 +62,7 @@ public class SessionAnalysisServiceTests
             finding.Category == SessionAnalysisCategory.TravelUse &&
             finding.Severity == SessionAnalysisSeverity.Action);
 
-        var shallowTravel = Assert.Single(result.Findings, finding => finding.Title == "Fork travel use is shallow");
+        var shallowTravel = Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.ShallowTravelUse);
         var adjustment = Assert.Single(shallowTravel.Adjustments, adjustment =>
             adjustment.Component == AdjustmentComponent.AirPressure &&
             adjustment.Direction == AdjustmentDirection.Remove);
@@ -82,7 +82,7 @@ public class SessionAnalysisServiceTests
         Assert.Equal(
             [SessionAnalysisStepId.Sag, SessionAnalysisStepId.Fork, SessionAnalysisStepId.Rear, SessionAnalysisStepId.Balance],
             result.Steps.Select(step => step.Id));
-        Assert.Contains(result.DataQualityFindings, finding => finding.Title == "Full session analysis");
+        Assert.Contains(result.DataQualityFindings, finding => finding.Id == SessionAnalysisFindingId.FullSessionAnalysis);
         var sag = Assert.Single(result.Steps, step => step.Id == SessionAnalysisStepId.Sag);
         Assert.True(sag.HasIssue);
         Assert.NotNull(sag.PrimaryAdjustment);
@@ -103,7 +103,7 @@ public class SessionAnalysisServiceTests
             finding.Severity == SessionAnalysisSeverity.Action &&
             finding.Evidence.Any(evidence => evidence.Label == "Stroke bottomouts" && evidence.Value == "6"));
         AssertAdjustment(
-            Assert.Single(result.Findings, finding => finding.Title == "Rear bottomed repeatedly"),
+            Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.RepeatedBottomouts),
             AdjustmentComponent.Tokens,
             AdjustmentDirection.Add,
             "Rear");
@@ -118,7 +118,7 @@ public class SessionAnalysisServiceTests
 
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange, profile: SessionAnalysisTargetProfile.Enduro));
 
-        var finding = Assert.Single(result.Findings, finding => finding.Title == "Fork is riding deep");
+        var finding = Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.DeepTravelUse);
         AssertAdjustment(finding, AdjustmentComponent.AirPressure, AdjustmentDirection.Add, "Fork");
         AssertAdjustment(finding, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open, "Fork");
     }
@@ -135,7 +135,7 @@ public class SessionAnalysisServiceTests
         Assert.Contains(result.Findings, finding => finding.Category == SessionAnalysisCategory.Packing);
         Assert.DoesNotContain(result.Findings, finding => finding.Category == SessionAnalysisCategory.ForkDamping);
 
-        var finding = Assert.Single(result.Findings, finding => finding.Title == "Fork may be resisting impacts");
+        var finding = Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.ResistingImpacts);
         AssertAdjustment(finding, AdjustmentComponent.HighSpeedCompression, AdjustmentDirection.Open, "Fork");
         AssertAdjustment(finding, AdjustmentComponent.AirPressure, AdjustmentDirection.Remove, "Fork");
     }
@@ -154,7 +154,7 @@ public class SessionAnalysisServiceTests
             finding.Severity == SessionAnalysisSeverity.Action &&
             finding.Evidence.Any(evidence => evidence.Label == "Rebound p95"));
 
-        var finding = Assert.Single(result.Findings, finding => finding.Title == "Fork rebound packing is plausible");
+        var finding = Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.ReboundPacking);
         AssertAdjustment(finding, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open, "Fork");
         AssertAdjustment(finding, AdjustmentComponent.LowSpeedRebound, AdjustmentDirection.Open, "Fork");
     }
@@ -173,22 +173,22 @@ public class SessionAnalysisServiceTests
             finding.Severity == SessionAnalysisSeverity.Action &&
             finding.Evidence.Any(evidence => evidence.Label == "Stroke bottomouts" && evidence.Value == "6"));
 
-        var finding = Assert.Single(result.Findings, finding => finding.Title == "Fork needs support before rebound diagnosis");
+        var finding = Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.SupportBeforeReboundDiagnosis);
         AssertAdjustment(finding, AdjustmentComponent.Tokens, AdjustmentDirection.Add, "Fork");
         AssertAdjustment(finding, AdjustmentComponent.AirPressure, AdjustmentDirection.Add, "Fork");
     }
 
     [Theory]
-    [InlineData(900, 1900, 36, 5, "Fork rebound is slow for profile context", AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open)]
-    [InlineData(3500, 1900, 36, 22, "Fork rebound is fast for profile context", AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Close)]
-    [InlineData(1900, 1000, 5, 22, "Fork compression speeds are subdued", AdjustmentComponent.LowSpeedCompression, AdjustmentDirection.Open)]
-    [InlineData(1900, 6500, 36, 22, "Fork compression speeds are high", AdjustmentComponent.HighSpeedCompression, AdjustmentDirection.Close)]
+    [InlineData(900, 1900, 36, 5, SessionAnalysisFindingId.ReboundSlowForProfileContext, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open)]
+    [InlineData(3500, 1900, 36, 22, SessionAnalysisFindingId.ReboundFastForProfileContext, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Close)]
+    [InlineData(1900, 1000, 5, 22, SessionAnalysisFindingId.CompressionSpeedsSubdued, AdjustmentComponent.LowSpeedCompression, AdjustmentDirection.Open)]
+    [InlineData(1900, 6500, 36, 22, SessionAnalysisFindingId.CompressionSpeedsHigh, AdjustmentComponent.HighSpeedCompression, AdjustmentDirection.Close)]
     public void Analyze_AttachesSideDampingAdjustments(
         double reboundBaseSpeed,
         double compressionBaseSpeed,
         double compressionSlope,
         double reboundSlope,
-        string title,
+        SessionAnalysisFindingId findingId,
         AdjustmentComponent component,
         AdjustmentDirection direction)
     {
@@ -204,7 +204,7 @@ public class SessionAnalysisServiceTests
 
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange, profile: SessionAnalysisTargetProfile.Trail));
 
-        AssertAdjustment(Assert.Single(result.Findings, finding => finding.Title == title), component, direction, "Fork");
+        AssertAdjustment(Assert.Single(result.Findings, finding => finding.Id == findingId), component, direction, "Fork");
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class SessionAnalysisServiceTests
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange, damperPercentages: damperPercentages));
 
         AssertAdjustment(
-            Assert.Single(result.Findings, finding => finding.Title == "Fork travel use is shallow"),
+            Assert.Single(result.Findings, finding => finding.Id == SessionAnalysisFindingId.ShallowTravelUse),
             AdjustmentComponent.HighSpeedCompression,
             AdjustmentDirection.Open,
             "Fork");

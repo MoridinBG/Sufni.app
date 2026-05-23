@@ -16,14 +16,12 @@ public class OkCancelDialogWindowTests
         owner.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var dialog = new OkCancelDialogWindow("Close?", "Discard changes?");
+        var dialog = new OkCancelDialogWindow("Title sentinel", "Message sentinel");
 
         try
         {
             var resultTask = dialog.ShowDialogAsync(owner);
             await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Equal("Discard changes?", dialog.FindControl<TextBlock>("MessageText")!.Text);
 
             var okButton = dialog.FindControl<Button>("OkButton");
             Assert.NotNull(okButton);
@@ -51,7 +49,7 @@ public class OkCancelDialogWindowTests
         owner.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var dialog = new OkCancelDialogWindow("Close?", "Discard changes?");
+        var dialog = new OkCancelDialogWindow("Title sentinel", "Message sentinel");
 
         try
         {

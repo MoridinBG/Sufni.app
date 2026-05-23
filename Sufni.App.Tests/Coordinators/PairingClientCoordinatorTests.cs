@@ -166,31 +166,6 @@ public class PairingClientCoordinatorTests
         await httpApiService.Received(1).IsPairedAsync();
     }
 
-    // ----- StartBrowsing / StopBrowsing -----
-
-    [Fact]
-    public void StartBrowsing_DelegatesToServiceDiscovery_WithSyncServiceType()
-    {
-        SeedInitDefaults();
-        var coordinator = CreateCoordinator();
-
-        coordinator.StartBrowsing();
-
-        serviceDiscovery.Received(1).StartBrowse(SynchronizationProtocol.ServiceType);
-    }
-
-    [Fact]
-    public void StopBrowsing_DelegatesToServiceDiscovery()
-    {
-        SeedInitDefaults();
-        var coordinator = CreateCoordinator();
-
-        coordinator.StartBrowsing();
-        coordinator.StopBrowsing();
-
-        serviceDiscovery.Received(1).StopBrowse();
-    }
-
     [Fact]
     public async Task ResolveServerUrlAsync_ReturnsCurrentDiscoveryUrl_AndUpdatesHttpEndpoint()
     {

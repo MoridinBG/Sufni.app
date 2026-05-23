@@ -12,7 +12,6 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.SessionPages;
-using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Views.Items;
 
@@ -38,16 +37,10 @@ public class SessionSidebarDesktopViewTests
         await using var mounted = await MountAsync(workspace);
 
         var tabControl = mounted.View.FindControl<TabControl>("SidebarTabControl");
-        var notesTab = mounted.View.FindControl<TabItem>("NotesTab");
         var preferencesTab = mounted.View.FindControl<TabItem>("PreferencesTab");
 
         Assert.NotNull(tabControl);
-        Assert.NotNull(notesTab);
         Assert.NotNull(preferencesTab);
-        Assert.Equal("Notes", notesTab!.Header);
-        Assert.Equal("Preferences", preferencesTab!.Header);
-        Assert.NotNull(mounted.View.FindControl<TextBox>("NameTextBox"));
-        Assert.NotNull(mounted.View.FindControl<TextBox>("DescriptionTextBox"));
 
         preferencesTab!.IsSelected = true;
         tabControl!.SelectedItem = preferencesTab;
@@ -59,7 +52,7 @@ public class SessionSidebarDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionSidebarDesktopView_BindsNameAndDescriptionFields()
+    public async Task SessionSidebarDesktopView_BindsNameField()
     {
         var workspace = new SessionSidebarWorkspaceStub
         {
@@ -70,48 +63,14 @@ public class SessionSidebarDesktopViewTests
         await using var mounted = await MountAsync(workspace);
 
         var nameTextBox = mounted.View.FindControl<TextBox>("NameTextBox");
-        var descriptionTextBox = mounted.View.FindControl<TextBox>("DescriptionTextBox");
 
         Assert.NotNull(nameTextBox);
-        Assert.NotNull(descriptionTextBox);
         Assert.Equal("Recorded Session 01", nameTextBox!.Text);
-        Assert.Equal("Suspension notes", descriptionTextBox!.Text);
 
         workspace.Name = "Renamed Session";
-        workspace.DescriptionText = "Updated notes";
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal("Renamed Session", nameTextBox.Text);
-        Assert.Equal("Updated notes", descriptionTextBox.Text);
-    }
-
-    [AvaloniaFact]
-    public async Task SessionSidebarDesktopView_ShowsTemperatureAverages_WhenPresent()
-    {
-        var workspace = new SessionSidebarWorkspaceStub();
-        workspace.NotesPage.SetTemperatureAverages(
-        [
-            new TemperatureAverage(0, 18.26),
-            new TemperatureAverage(2, 24.76)
-        ]);
-
-        await using var mounted = await MountAsync(workspace);
-
-        var panel = mounted.View.FindControl<StackPanel>("TemperatureAveragesPanel");
-        var itemsControl = mounted.View.FindControl<ItemsControl>("TemperatureAveragesItemsControl");
-
-        Assert.NotNull(panel);
-        Assert.NotNull(itemsControl);
-        Assert.True(panel!.IsVisible);
-        var rows = itemsControl!.Items.Cast<TemperatureAverageRowViewModel>().ToArray();
-        Assert.Equal(2, rows.Length);
-        Assert.Equal("Frame", rows[0].SensorName);
-        Assert.Equal("Rear", rows[1].SensorName);
-
-        workspace.NotesPage.SetTemperatureAverages([]);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(panel.IsVisible);
     }
 
     [AvaloniaFact]

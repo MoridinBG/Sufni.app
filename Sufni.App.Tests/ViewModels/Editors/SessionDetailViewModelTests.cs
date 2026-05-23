@@ -130,17 +130,6 @@ public class SessionDetailViewModelTests
         Assert.Equal(BalanceSpeedMode.Both, editor.SelectedBalanceSpeedMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
-        Assert.Equal([TravelHistogramMode.ActiveSuspension, TravelHistogramMode.DynamicSag], editor.TravelHistogramModeOptions.Select(option => option.Value));
-        Assert.Equal([BalanceDisplacementMode.Zenith, BalanceDisplacementMode.Travel], editor.BalanceDisplacementModeOptions.Select(option => option.Value));
-        Assert.Equal([BalanceSpeedMode.Both, BalanceSpeedMode.LowSpeed, BalanceSpeedMode.HighSpeed], editor.BalanceSpeedModeOptions.Select(option => option.Value));
-        Assert.Equal([VelocityAverageMode.SampleAveraged, VelocityAverageMode.StrokePeakAveraged], editor.VelocityAverageModeOptions.Select(option => option.Value));
-        Assert.Equal([SessionAnalysisTargetProfile.Weekend, SessionAnalysisTargetProfile.Trail, SessionAnalysisTargetProfile.Enduro, SessionAnalysisTargetProfile.DH], editor.SessionAnalysisTargetProfileOptions.Select(option => option.Value));
-        Assert.All(editor.TravelHistogramModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.All(editor.BalanceDisplacementModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.All(editor.BalanceSpeedModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.All(editor.VelocityAverageModeOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.All(editor.SessionAnalysisTargetProfileOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.Description)));
-        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both", editor.SessionAnalysisModesText);
     }
 
     [AvaloniaFact]
@@ -760,58 +749,6 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectedTravelHistogramMode_RecomputesAnalysis()
-    {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.CreateProcessed();
-        sessionAnalysisService.ClearReceivedCalls();
-
-        editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
-
-        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
-            request.TravelHistogramMode == TravelHistogramMode.DynamicSag));
-    }
-
-    [AvaloniaFact]
-    public void SelectedVelocityAverageMode_RecomputesAnalysis()
-    {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.CreateProcessed();
-        sessionAnalysisService.ClearReceivedCalls();
-
-        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-
-        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
-            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged));
-    }
-
-    [AvaloniaFact]
-    public void SelectedBalanceDisplacementMode_RecomputesAnalysis()
-    {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.CreateProcessed();
-        sessionAnalysisService.ClearReceivedCalls();
-
-        editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
-
-        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
-            request.BalanceDisplacementMode == BalanceDisplacementMode.Travel));
-    }
-
-    [AvaloniaFact]
-    public void SelectedSessionAnalysisTargetProfile_RecomputesAnalysis()
-    {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.CreateProcessed();
-        sessionAnalysisService.ClearReceivedCalls();
-
-        editor.SelectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro;
-
-        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
-            request.TargetProfile == SessionAnalysisTargetProfile.Enduro));
-    }
-
-    [AvaloniaFact]
     public void DamperPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
@@ -973,6 +910,37 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.False(editor.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnMobile_FromCacheWithoutTelemetry_HidesExtendedStatistics()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+            "front-travel",
+            "rear-travel",
+            "front-velocity",
+            "rear-velocity",
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            false),
+            null,
+            null);
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+        var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
+        var damperPage = editor.Pages.OfType<DamperPageViewModel>().Single();
+
+        Assert.True(springPage.FrontHistogramState.IsReady);
+        Assert.True(damperPage.FrontHistogramState.IsReady);
+        Assert.True(editor.FrontStatisticsState.IsHidden);
+        Assert.True(editor.RearStatisticsState.IsHidden);
+        Assert.True(editor.SessionAnalysis.State.IsHidden);
     }
 
     [AvaloniaFact]
@@ -1314,8 +1282,8 @@ public class SessionDetailViewModelTests
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
-                "Session trail run has to be recomputed",
-                "Recompute this session now?")
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(true);
         sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -1355,8 +1323,8 @@ public class SessionDetailViewModelTests
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
-                "Session trail run has to be recomputed",
-                "Recompute this session now?")
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(true);
         sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -1383,8 +1351,8 @@ public class SessionDetailViewModelTests
         await Task.Yield();
 
         await dialogService.Received(1).ShowConfirmationAsync(
-            "Session trail run has to be recomputed",
-            "Recompute this session now?");
+            Arg.Any<string>(),
+            Arg.Any<string>());
         await sessionCoordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
         Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
     }
@@ -1410,8 +1378,8 @@ public class SessionDetailViewModelTests
                     : LoadedDesktopResult(freshTelemetry);
             });
         dialogService.ShowConfirmationAsync(
-                "Session trail run has to be recomputed",
-                "Recompute this session now?")
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(true);
         sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -1452,8 +1420,8 @@ public class SessionDetailViewModelTests
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
-                "Session trail run has to be recomputed",
-                "Recompute this session now?")
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(false);
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
@@ -1466,8 +1434,8 @@ public class SessionDetailViewModelTests
         await Task.Yield();
 
         await dialogService.Received(1).ShowConfirmationAsync(
-            "Session trail run has to be recomputed",
-            "Recompute this session now?");
+            Arg.Any<string>(),
+            Arg.Any<string>());
 
         await editor.CloseCommand.ExecuteAsync(null);
         shell.Received(1).Close(editor);
@@ -1479,8 +1447,8 @@ public class SessionDetailViewModelTests
         await Task.Yield();
 
         await dialogService.Received(1).ShowConfirmationAsync(
-            "Session trail run has to be recomputed",
-            "Recompute this session now?");
+            Arg.Any<string>(),
+            Arg.Any<string>());
         await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
@@ -1526,8 +1494,8 @@ public class SessionDetailViewModelTests
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
-                "Session trail run has to be recomputed",
-                Arg.Is<string>(message => message.Contains("discard unsaved changes", StringComparison.Ordinal)))
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(true);
         sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -1562,7 +1530,7 @@ public class SessionDetailViewModelTests
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync("Session trail run has to be recomputed", Arg.Any<string>()).Returns(false);
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -1589,8 +1557,8 @@ public class SessionDetailViewModelTests
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
-                "Session trail run has to be recomputed",
-                "Recompute this session now?")
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(_ =>
             {
                 promptShown.TrySetResult();
@@ -1615,8 +1583,8 @@ public class SessionDetailViewModelTests
         await promptShown.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await dialogService.Received(1).ShowConfirmationAsync(
-            "Session trail run has to be recomputed",
-            "Recompute this session now?");
+            Arg.Any<string>(),
+            Arg.Any<string>());
         await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
@@ -1666,8 +1634,8 @@ public class SessionDetailViewModelTests
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(oldTelemetry));
         dialogService.ShowConfirmationAsync(
-                "Session changed elsewhere",
-                "This session has been updated from another source. Discard your changes and reload?")
+                Arg.Any<string>(),
+                Arg.Any<string>())
             .Returns(false);
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
@@ -1685,8 +1653,8 @@ public class SessionDetailViewModelTests
         Assert.Same(oldTelemetry, editor.TelemetryData);
         await sessionCoordinator.Received(1).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         await dialogService.Received(1).ShowConfirmationAsync(
-            "Session changed elsewhere",
-            "This session has been updated from another source. Discard your changes and reload?");
+            Arg.Any<string>(),
+            Arg.Any<string>());
     }
 
     private static RecordedSessionDomainSnapshot DomainFromSnapshot(

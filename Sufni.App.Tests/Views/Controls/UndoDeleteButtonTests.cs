@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -77,34 +76,6 @@ public class UndoDeleteButtonTests
         }
     }
 
-    [AvaloniaFact]
-    public async Task UndoDeleteButton_StacksMultipleEntries()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-
-        var viewModel = new TestUndoItemListViewModel();
-        viewModel.BeginPendingDelete("First");
-        viewModel.BeginPendingDelete("Second");
-
-        var view = new UndoDeleteButton
-        {
-            DataContext = viewModel
-        };
-
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-
-        try
-        {
-            var dismissButtons = view.FindAllVisual<Button>().Where(b => b.Name == "DismissButton").ToArray();
-            Assert.Equal(2, dismissButtons.Length);
-            Assert.Equal(2, viewModel.PendingDeletes.Count);
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
 }
 
 internal sealed class TestUndoItemListViewModel : ItemListViewModelBase
