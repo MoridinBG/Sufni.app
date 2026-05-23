@@ -57,6 +57,8 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
         set => SetProperty(ref graphPreferences, value);
     }
 
+    public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
+
     public SurfacePresentationState TravelGraphState
     {
         get => travelGraphState;
