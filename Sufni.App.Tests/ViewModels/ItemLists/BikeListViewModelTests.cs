@@ -9,6 +9,8 @@ namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class BikeListViewModelTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
     [Fact]
     public async Task FinalizeDelete_KeepsBikeHidden_WhileDeleteInProgress()
     {
@@ -26,7 +28,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery);
+        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -60,7 +62,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery);
+        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);

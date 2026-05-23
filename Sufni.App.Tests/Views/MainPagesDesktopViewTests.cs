@@ -24,7 +24,7 @@ public class MainPagesDesktopViewTests
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
 
         var viewModel = MainPagesViewModelTestFactory.Create(
-            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator));
+            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher()));
 
         var view = new MainPagesDesktopView
         {
@@ -65,7 +65,7 @@ public class MainPagesDesktopViewTests
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
 
-        var pairingViewModel = new PairingServerViewModel(pairingCoordinator)
+        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher())
         {
             PairingPin = "123456",
             RequestingDisplayName = "Phone",
@@ -97,7 +97,7 @@ public class MainPagesDesktopViewTests
         var syncCoordinator = CreateSyncCoordinator(server);
         var viewModel = MainPagesViewModelTestFactory.Create(
             syncCoordinator: syncCoordinator,
-            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator));
+            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher()));
         var view = new MainPagesDesktopView
         {
             DataContext = viewModel

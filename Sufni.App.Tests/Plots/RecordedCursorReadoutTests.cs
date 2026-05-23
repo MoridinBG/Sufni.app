@@ -2,7 +2,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
 using Sufni.App.Plots;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -13,7 +13,7 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new TravelPlot(plot);
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
 
         sut.SetCursorPositionWithReadout(0.5);
 
@@ -34,7 +34,7 @@ public class RecordedCursorReadoutTests
         {
             SourceVisibility = visibility,
         };
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
 
         sut.SetCursorPositionWithReadout(0.5);
 
@@ -49,7 +49,7 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new TravelPlot(plot);
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
 
         sut.SetCursorPositionWithReadout(1.5);
 
@@ -64,7 +64,7 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new VelocityPlot(plot);
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
 
         sut.SetCursorPositionWithReadout(0.5);
 
@@ -79,7 +79,7 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
-        sut.LoadTelemetryData(CreateTelemetryDataWithImu());
+        sut.LoadTelemetryData(CreateWithImu());
 
         sut.SetCursorPositionWithReadout(0);
 
@@ -188,7 +188,7 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new TravelPlot(plot);
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
         sut.SetCursorPositionWithReadout(0.5);
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
 
@@ -202,7 +202,7 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
 
         sut.SetCursorPositionWithReadout(0.5);
 

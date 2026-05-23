@@ -21,7 +21,8 @@ public class SetupCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
-    IDialogService dialogService)
+    IDialogService dialogService,
+    IUiThreadDispatcher uiThreadDispatcher)
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
@@ -43,7 +44,8 @@ public class SetupCoordinator(
             bikeCoordinator,
             this,
             shell,
-            dialogService)
+            dialogService,
+            uiThreadDispatcher)
         {
             IsDirty = true
         };
@@ -73,7 +75,8 @@ public class SetupCoordinator(
                 bikeCoordinator,
                 this,
                 shell,
-                dialogService));
+                dialogService,
+                uiThreadDispatcher));
         return Task.CompletedTask;
     }
 
@@ -137,7 +140,7 @@ public class SetupCoordinator(
         try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
         catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
 
-        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId);
+        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId, forgetRestoreHistory: true);
         setupStore.Remove(setupId);
 
         logger.Information("Setup delete completed for {SetupId}", setupId);

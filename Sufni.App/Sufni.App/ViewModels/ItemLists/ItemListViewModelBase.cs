@@ -3,17 +3,17 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
 /// <summary>
 /// Shared search-bar / date-filter / menu-item state for the entity
-/// list view models. After Slice 3 every concrete list owns its own
-/// store-backed projection and exposes it via a `new` shadow on
-/// <c>Items</c>; the base contributes only the cross-cutting filter
-/// state and the menu-item collection.
+/// list view models. Every concrete list owns its own store-backed
+/// projection; the base contributes only the cross-cutting filter state
+/// and the menu-item collection.
 ///
-/// The base also owns the pending-delete UX (3-second undo window).
+/// The base also owns the pending-delete UX (5-second undo window).
 /// Each row deletion produces its own <see cref="PendingDeleteEntryViewModel"/>
 /// in <see cref="PendingDeletes"/>; the entries stack independently and
 /// each runs its own timer. Subclasses install their own pending state,
@@ -41,6 +41,11 @@ public partial class ItemListViewModelBase : ViewModelBase
     public ObservableCollection<PendingDeleteEntryViewModel> PendingDeletes { get; } = [];
 
     #endregion Observable properties
+
+    public ItemListViewModelBase(IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
+    {
+    }
 
     #region Property change handlers
 
@@ -82,7 +87,7 @@ public partial class ItemListViewModelBase : ViewModelBase
     #region Pending-delete helpers
 
     /// <summary>
-    /// Start a fresh 3-second undo window for one row. The supplied
+    /// Start a fresh 5-second undo window for one row. The supplied
     /// <paramref name="finalize"/> runs on timer expiry or when the
     /// entry's dismiss button is tapped; <paramref name="onUndone"/>
     /// runs when the entry's undo button is tapped. Caller is

@@ -4,7 +4,7 @@ using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -77,7 +77,7 @@ public class SessionStatisticsPlotViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Null(mounted.View.PlotAnalysisRange);

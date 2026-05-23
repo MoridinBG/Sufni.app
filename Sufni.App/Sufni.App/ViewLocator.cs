@@ -88,6 +88,12 @@ public class ViewLocator : IDataTemplate
 
     public bool Match(object? data)
     {
-        return data is ViewModelBase;
+        if (data is null) return false;
+
+        var isDesktop = App.Current?.IsDesktop == true;
+        var viewModelType = data.GetType();
+        return data is ViewModelBase ||
+               ViewFactories.ContainsKey(viewModelType) ||
+               (isDesktop && DesktopViewFactories.ContainsKey(viewModelType));
     }
 }

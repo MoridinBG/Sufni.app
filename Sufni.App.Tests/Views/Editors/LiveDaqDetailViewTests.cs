@@ -250,7 +250,8 @@ public class LiveDaqDetailViewTests
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
             knownBoardsQuery,
-            new LiveDaqStore())
+            new LiveDaqStore(),
+            new InlineUiThreadDispatcher())
         {
             Snapshot = LiveDaqUiSnapshot.Empty
         };

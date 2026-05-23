@@ -8,7 +8,8 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
 
 namespace Sufni.App.Tests.ViewModels;
 
@@ -21,6 +22,7 @@ public class ImportSessionsViewModelTests
     private readonly SetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
     private readonly ImportSessionsCoordinator importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
     private readonly ISetupStore setupStore = Substitute.For<ISetupStore>();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
     private readonly ObservableCollection<ITelemetryDataStore> dataStores = [];
     private readonly SourceCache<SetupSnapshot, Guid> setupCache = new(s => s.Id);
@@ -37,7 +39,7 @@ public class ImportSessionsViewModelTests
                 Arg.Any<IProgress<SessionImportEvent>?>())
             .Returns(Task.FromResult(new SessionImportResult(
                 Array.Empty<SessionSnapshot>(),
-                Array.Empty<(string FileName, string ErrorMessage)>())));
+                Array.Empty<SessionImportFailure>())));
 
         setupStore.Connect().Returns(setupCache.Connect());
         setupStore.FindByBoardId(Arg.Any<Guid>())
@@ -51,7 +53,8 @@ public class ImportSessionsViewModelTests
         dialogService,
         setupCoordinator,
         importSessionsCoordinator,
-        setupStore);
+        setupStore,
+        uiThreadDispatcher);
 
     [Fact]
     public void SelectingNull_ClearsFilesAndSetup_WithoutClearingNewDataStoresAvailable()
@@ -266,10 +269,10 @@ public class ImportSessionsViewModelTests
             {
                 var progress = callInfo.ArgAt<IProgress<SessionImportEvent>?>(2);
                 progress?.Report(new SessionImportEvent.Imported(TestSnapshots.Session(name: "lap")));
-                progress?.Report(new SessionImportEvent.Failed("broken.SST", "boom"));
+                progress?.Report(new SessionImportEvent.ImportFailed("broken.SST", "boom"));
                 return Task.FromResult(new SessionImportResult(
                     Array.Empty<SessionSnapshot>(),
-                    new[] { ("broken.SST", "boom") }));
+                    new[] { new SessionImportFailure("broken.SST", "boom", SessionImportFailureOperation.Import) }));
             });
 
         var viewModel = CreateViewModel();
@@ -310,7 +313,7 @@ public class ImportSessionsViewModelTests
                 capturedTexts.Add(viewModel.ImportProgressText);
                 return Task.FromResult(new SessionImportResult(
                     Array.Empty<SessionSnapshot>(),
-                    Array.Empty<(string FileName, string ErrorMessage)>()));
+                    Array.Empty<SessionImportFailure>()));
             });
 
         viewModel.SelectedDataStore = dataStore;
@@ -342,7 +345,7 @@ public class ImportSessionsViewModelTests
                 Arg.Any<IProgress<SessionImportEvent>?>())
             .Returns(Task.FromResult(new SessionImportResult(
                 new[] { TestSnapshots.Session() },
-                new[] { ("broken.SST", "boom") })));
+                new[] { new SessionImportFailure("broken.SST", "boom", SessionImportFailureOperation.Import) })));
 
         var viewModel = CreateViewModel();
         viewModel.SelectedDataStore = dataStore;

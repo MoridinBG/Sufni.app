@@ -3,7 +3,8 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
 using Sufni.App.Plots;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -12,7 +13,7 @@ public class TravelVelocityLegendTests
     [Fact]
     public void TravelPlot_LoadTelemetryData_ShowsLegend_WhenOnlyFrontSourceIsPresent()
     {
-        var telemetry = CreateTelemetryData();
+        var telemetry = CreateMinimal();
         telemetry.Rear.Present = false;
         var plot = new Plot();
         var sut = new TravelPlot(plot);
@@ -28,7 +29,7 @@ public class TravelVelocityLegendTests
     [Fact]
     public void VelocityPlot_LoadTelemetryData_ShowsLegend_WhenOnlyRearSourceIsPresent()
     {
-        var telemetry = CreateTelemetryData();
+        var telemetry = CreateMinimal();
         telemetry.Front.Present = false;
         var plot = new Plot();
         var sut = new VelocityPlot(plot);
@@ -50,7 +51,7 @@ public class TravelVelocityLegendTests
         {
             SourceVisibility = visibility,
         };
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
         var front = Assert.Single(plot.PlottableList.OfType<Signal>(), signal => signal.LegendText == "Front");
         var rear = Assert.Single(plot.PlottableList.OfType<Signal>(), signal => signal.LegendText == "Rear");
         var plotSize = new PixelSize(500, 300);
@@ -69,38 +70,27 @@ public class TravelVelocityLegendTests
         Assert.True(visibility.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Front));
     }
 
-    private static Pixel GetLegendItemCenter(Plot plot, IPlottable plottable, PixelSize plotSize)
+    [Fact]
+    public void TravelPlot_SourceVisibilityNull_DisablesInteractiveLegendAndRestoresSources()
     {
-        plot.RenderInMemory((int)plotSize.Width, (int)plotSize.Height);
-        using var paint = Paint.NewDisposablePaint();
-        var dataRect = plot.LastRender.DataRect.HasArea
-            ? plot.LastRender.DataRect
-            : plotSize.ToPixelRect();
-        var layout = plot.Legend.GetLayout(dataRect.Size, paint);
-        var legendRect = layout.LegendRect.AlignedInside(dataRect, plot.Legend.Alignment);
-        var itemCount = layout.LegendItems.Length;
-
-        for (var index = 0; index < itemCount; index++)
+        var visibility = new TelemetrySourceVisibilityStore();
+        var plot = new Plot();
+        var sut = new TravelPlot(plot)
         {
-            if (!ReferenceEquals(layout.LegendItems[index].Plottable, plottable))
-            {
-                continue;
-            }
+            SourceVisibility = visibility,
+        };
+        sut.LoadTelemetryData(CreateMinimal());
+        var rear = Assert.Single(plot.PlottableList.OfType<Signal>(), signal => signal.LegendText == "Rear");
+        var plotSize = new PixelSize(500, 300);
 
-            var rowHeight = legendRect.Height / itemCount;
-            return new Pixel(
-                (legendRect.Left + legendRect.Right) / 2,
-                legendRect.Top + rowHeight * index + rowHeight / 2);
-        }
+        Assert.True(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, rear, plotSize), plotSize));
+        Assert.False(rear.IsVisible);
 
-        throw new InvalidOperationException("Legend item was not found.");
+        sut.SourceVisibility = null;
+
+        Assert.True(rear.IsVisible);
+        Assert.False(plot.Legend.ShowItemsFromHiddenPlottables);
+        Assert.False(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, rear, plotSize), plotSize));
     }
 
-    private static void AssertAxisLimitsEqual(AxisLimits expected, AxisLimits actual)
-    {
-        Assert.Equal(expected.Left, actual.Left, precision: 8);
-        Assert.Equal(expected.Right, actual.Right, precision: 8);
-        Assert.Equal(expected.Bottom, actual.Bottom, precision: 8);
-        Assert.Equal(expected.Top, actual.Top, precision: 8);
-    }
 }

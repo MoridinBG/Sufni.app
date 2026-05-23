@@ -59,6 +59,7 @@ graph TB
         SyncSvc["ISynchronization*Service"]
         DSSSvc["ITelemetryDataStoreService"]
         BgSvc["IBackgroundTaskRunner"]
+        UiSvc["IUiThreadDispatcher"]
     end
 
     Shell --> Coords
@@ -91,6 +92,7 @@ Thread ownership is explicit:
 
 - The UI thread is reserved for bound-property updates, `ObservableCollection` mutation, notifications, native picker interaction, and lightweight read-store lookups.
 - Filesystem work, network work, datastore enumeration, SST parsing, PSST generation, and similar slow operations must cross an explicit background boundary (`IBackgroundTaskRunner` or a service-owned equivalent) before they run.
+- Code paths that need a testable UI-thread boundary use `IUiThreadDispatcher`; view/control code and Avalonia UI primitives such as `DispatcherTimer` may still use Avalonia's dispatcher directly. Dispatcher instances are supplied by the composition root and tests; view models do not construct Avalonia dispatcher services themselves. This keeps injected coordinator/view-model work testable while preserving Avalonia ownership at the edge.
 - Services may still use UI-thread primitives for cadence or collection ownership (for example `DispatcherTimer`), but only the UI-bound collection mutation belongs back on the UI thread.
 - Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`.
 - Prefer generated async-command state such as `Command.IsRunning` as the busy-state source of truth instead of maintaining duplicate booleans.
@@ -147,8 +149,9 @@ running.
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
 and for small sealed event hierarchies such as `SessionImportEvent`
-(`Imported` / `Failed` / `Progress(Current, Total)`) when a
-long-running workflow streams progress back to the UI.
+(`Imported` / `ImportFailed` / `TrashFailed` /
+`Progress(Current, Total)`) when a long-running workflow streams
+progress back to the UI.
 
 ## Testing Boundaries
 

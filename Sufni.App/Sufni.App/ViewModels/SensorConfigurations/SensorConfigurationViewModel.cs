@@ -6,7 +6,7 @@ using Sufni.App.ViewModels.LinkageParts;
 
 namespace Sufni.App.ViewModels.SensorConfigurations;
 
-public abstract partial class SensorConfigurationViewModel : ViewModelBase
+public abstract partial class SensorConfigurationViewModel : ObservableObject
 {
     public SensorType Type { get; protected set; }
 

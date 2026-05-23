@@ -36,7 +36,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 {
     private static readonly ILogger logger = Log.ForContext<TelemetryDataStoreService>();
     private readonly IServiceDiscovery serviceDiscovery;
-    private readonly ILiveDaqBrowseOwner browseOwner;
+    private readonly IDaqBrowseOwner browseOwner;
     private readonly IDaqManagementService daqManagementService;
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -189,7 +189,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 
     public TelemetryDataStoreService(
         [FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery,
-        ILiveDaqBrowseOwner browseOwner,
+        IDaqBrowseOwner browseOwner,
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
         IBackgroundTaskRunner backgroundTaskRunner)

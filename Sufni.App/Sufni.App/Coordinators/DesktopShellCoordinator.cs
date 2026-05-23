@@ -19,17 +19,22 @@ public sealed class DesktopShellCoordinator(Func<IMainWindowShellHost> mainWindo
     {
         if (view is TabPageViewModelBase tab)
         {
-            mainWindowProvider().CloseTabPage(tab);
+            mainWindowProvider().CloseTabPage(tab, rememberForRestore: true);
         }
     }
 
-    public void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase
+    public void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase
     {
         var window = mainWindowProvider();
         var existing = window.Tabs.OfType<T>().FirstOrDefault(match);
+        if (forgetRestoreHistory)
+        {
+            window.ForgetTabHistory(match);
+        }
+
         if (existing is TabPageViewModelBase tab)
         {
-            window.CloseTabPage(tab);
+            window.CloseTabPage(tab, rememberForRestore: !forgetRestoreHistory);
         }
     }
 

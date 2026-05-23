@@ -7,6 +7,7 @@ namespace Sufni.App.Tests.Coordinators;
 public class MobileShellCoordinatorTests
 {
     private readonly IMainViewShellHost host = Substitute.For<IMainViewShellHost>();
+    private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
     private MobileShellCoordinator CreateCoordinator() => new(() => host);
 
@@ -16,7 +17,13 @@ public class MobileShellCoordinatorTests
     /// SUT's dependency — the SUT depends on `IMainViewShellHost`,
     /// which is substituted separately.
     /// </summary>
-    private sealed class TestViewModel : ViewModelBase;
+    private sealed class TestViewModel : ViewModelBase
+    {
+        public TestViewModel()
+            : base(TestDispatcher)
+        {
+        }
+    }
 
     // ----- Open -----
 

@@ -29,7 +29,7 @@ public class MapViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(layers);
 
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
         {
             SelectedLayer = layerB,
         };
@@ -78,7 +78,7 @@ public class MapViewTests
         var dialogService = Substitute.For<IDialogService>();
         dialogService.ShowAddTileLayerDialogAsync().Returns(Task.FromResult<TileLayerConfig?>(customLayer));
 
-        var viewModel = new MapViewModel(tileLayerService, dialogService)
+        var viewModel = new MapViewModel(tileLayerService, dialogService, new InlineUiThreadDispatcher())
         {
             SelectedLayer = initialLayer,
         };
@@ -121,7 +121,7 @@ public class MapViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
         {
             SessionTrackPoints = []
         };
@@ -237,7 +237,7 @@ public class MapViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
-        return new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        return new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
         {
             SessionTrackPoints =
             [

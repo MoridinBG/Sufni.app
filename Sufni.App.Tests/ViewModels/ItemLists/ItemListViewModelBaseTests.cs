@@ -28,6 +28,11 @@ public class ItemListViewModelBaseTests
 
     private sealed class TestItemListViewModel : ItemListViewModelBase
     {
+        public TestItemListViewModel()
+            : base(new InlineUiThreadDispatcher())
+        {
+        }
+
         public void BeginPendingDelete(Func<Task> finalize)
         {
             StartUndoWindow("test", finalize, () => { });

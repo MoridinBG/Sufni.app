@@ -38,6 +38,7 @@ public class SessionCoordinator
     private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionGraph recordedSessionGraph;
@@ -55,6 +56,7 @@ public class SessionCoordinator
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         IDialogService dialogService,
+        IUiThreadDispatcher uiThreadDispatcher,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionGraph recordedSessionGraph,
@@ -72,6 +74,7 @@ public class SessionCoordinator
         this.sessionPreferences = sessionPreferences;
         this.shell = shell;
         this.dialogService = dialogService;
+        this.uiThreadDispatcher = uiThreadDispatcher;
         this.sourceStore = sourceStore;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionGraph = recordedSessionGraph;
@@ -102,7 +105,8 @@ public class SessionCoordinator
                 tileLayerService,
                 shell,
                 dialogService,
-                sessionPreferences));
+                sessionPreferences,
+                uiThreadDispatcher));
         return Task.CompletedTask;
     }
 
@@ -539,7 +543,7 @@ public class SessionCoordinator
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
 
-        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId);
+        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);

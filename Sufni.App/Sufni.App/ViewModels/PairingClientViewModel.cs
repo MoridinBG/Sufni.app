@@ -1,10 +1,10 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
@@ -31,7 +31,9 @@ public partial class PairingClientViewModel : ViewModelBase
 
     public PairingClientViewModel(
         IPairingClientCoordinator coordinator,
-        IShellCoordinator shell)
+        IShellCoordinator shell,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.coordinator = coordinator;
         this.shell = shell;
@@ -51,17 +53,17 @@ public partial class PairingClientViewModel : ViewModelBase
 
     private void OnDisplayNameChanged(object? sender, EventArgs e)
     {
-        Dispatcher.UIThread.InvokeAsync(() => DisplayName = coordinator.DisplayName);
+        UiThreadDispatcher.InvokeAsync(() => DisplayName = coordinator.DisplayName);
     }
 
     private void OnServerUrlChanged(object? sender, EventArgs e)
     {
-        Dispatcher.UIThread.InvokeAsync(() => ServerUrl = coordinator.ServerUrl);
+        UiThreadDispatcher.InvokeAsync(() => ServerUrl = coordinator.ServerUrl);
     }
 
     private void OnIsPairedChanged(object? sender, EventArgs e)
     {
-        Dispatcher.UIThread.InvokeAsync(() => IsPaired = coordinator.IsPaired);
+        UiThreadDispatcher.InvokeAsync(() => IsPaired = coordinator.IsPaired);
     }
 
     #endregion Private methods

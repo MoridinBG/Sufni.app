@@ -15,12 +15,14 @@ public class SocketServiceDiscovery : IServiceDiscovery
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceRemoved;
 
     private readonly ServiceBrowser browser = new();
+    private readonly SocketServiceDiscoveryEndpointCache endpointCache = new();
 
     public SocketServiceDiscovery()
     {
         browser.ServiceAdded += (sender, args) =>
         {
-            var connectableAddress = TryConnect(args.Announcement.Addresses.ToArray(), args.Announcement.Port);
+            var announcedAddresses = args.Announcement.Addresses.ToArray();
+            var connectableAddress = TryConnect(announcedAddresses, args.Announcement.Port);
             if (connectableAddress is null)
             {
                 logger.Verbose(
@@ -29,6 +31,7 @@ public class SocketServiceDiscovery : IServiceDiscovery
                 return;
             }
 
+            endpointCache.Add(announcedAddresses, args.Announcement.Port, connectableAddress);
             var announcement = new ServiceAnnouncement(connectableAddress, args.Announcement.Port);
             logger.Verbose(
                 "Discovered socket service endpoint {Address}:{Port}",
@@ -39,10 +42,18 @@ public class SocketServiceDiscovery : IServiceDiscovery
 
         browser.ServiceRemoved += (sender, args) =>
         {
-            var announcement = new ServiceAnnouncement(args.Announcement.Addresses[0], args.Announcement.Port);
+            if (!endpointCache.TryRemove(args.Announcement.Addresses, args.Announcement.Port, out var removedAddress))
+            {
+                logger.Verbose(
+                    "Ignoring removed socket service on port {Port} because no matching added endpoint was emitted",
+                    args.Announcement.Port);
+                return;
+            }
+
+            var announcement = new ServiceAnnouncement(removedAddress, args.Announcement.Port);
             logger.Verbose(
                 "Removed socket service endpoint {Address}:{Port}",
-                args.Announcement.Addresses[0],
+                removedAddress,
                 args.Announcement.Port);
             ServiceRemoved?.Invoke(sender, new ServiceAnnouncementEventArgs(announcement));
         };

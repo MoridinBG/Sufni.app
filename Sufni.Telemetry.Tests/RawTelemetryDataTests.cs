@@ -1,4 +1,3 @@
-using System.Text;
 using Sufni.Telemetry;
 
 namespace Sufni.Telemetry.Tests;
@@ -8,18 +7,7 @@ public class RawTelemetryDataTests
     [Fact]
     public void FromStream_V3File_RoutesToV3Parser()
     {
-        // Arrange
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)3);
-        writer.Write((ushort)1000);
-        writer.Write((ushort)0); // padding
-        writer.Write((long)99999);
-        writer.Write((ushort)100); // Front
-        writer.Write((ushort)200); // Rear
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV3Stream(timestamp: 99999, samples: [(100, 200)]);
 
         // Act
         var result = RawTelemetryData.FromStream(ms);
@@ -36,27 +24,10 @@ public class RawTelemetryDataTests
     [Fact]
     public void FromStream_V4File_RoutesToTlvParser()
     {
-        // Arrange
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0); // padding
-        writer.Write((long)88888);
-
-        // Telemetry rate
-        writer.Write((byte)0x00);
-        writer.Write((ushort)3);
-        writer.Write((byte)0x01);
-        writer.Write((ushort)1000);
-
-        // Minimal telemetry chunk
-        writer.Write((byte)0x01);
-        writer.Write((ushort)4);
-        writer.Write((ushort)123);
-        writer.Write((ushort)456);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            88888,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((123, 456)));
 
         // Act
         var result = RawTelemetryData.FromStream(ms);
@@ -70,17 +41,7 @@ public class RawTelemetryDataTests
     [Fact]
     public void FromStream_V3File_Preserves64BitTimestamp()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)3);
-        writer.Write((ushort)1000);
-        writer.Write((ushort)0);
-        writer.Write(3_000_000_000L);
-        writer.Write((ushort)100);
-        writer.Write((ushort)200);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV3Stream(timestamp: 3_000_000_000L, samples: [(100, 200)]);
 
         var result = RawTelemetryData.FromStream(ms);
 
@@ -90,22 +51,10 @@ public class RawTelemetryDataTests
     [Fact]
     public void FromStream_V4File_Preserves64BitTimestamp()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write(3_000_000_000L);
-        writer.Write((byte)0x00);
-        writer.Write((ushort)3);
-        writer.Write((byte)0x01);
-        writer.Write((ushort)1000);
-        writer.Write((byte)0x01);
-        writer.Write((ushort)4);
-        writer.Write((ushort)123);
-        writer.Write((ushort)456);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            3_000_000_000L,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((123, 456)));
 
         var result = RawTelemetryData.FromStream(ms);
 
@@ -115,34 +64,13 @@ public class RawTelemetryDataTests
     [Fact]
     public void FromStream_V3File_PreservesSamplesForProcessingStage()
     {
-        // Arrange
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)3);
-        writer.Write((ushort)1000);
-        writer.Write((ushort)0); // padding
-        writer.Write((long)0);
-
         // Spike: 100, 100, 100, 2000, 2000, 2000, 100, 100, 100...
         // The detector looks for sudden jumps.
-        for (int i = 0; i < 100; i++)
-        {
-            writer.Write((ushort)100); // Stable baseline
-            writer.Write((ushort)100);
-        }
-
-        // Sudden jump (Spike)
-        writer.Write((ushort)2000);
-        writer.Write((ushort)2000);
-
-        for (int i = 0; i < 100; i++)
-        {
-            writer.Write((ushort)100);
-            writer.Write((ushort)100);
-        }
-
-        ms.Position = 0;
+        var samples = Enumerable.Repeat(((ushort)100, (ushort)100), 100)
+            .Append(((ushort)2000, (ushort)2000))
+            .Concat(Enumerable.Repeat(((ushort)100, (ushort)100), 100))
+            .ToArray();
+        using var ms = SstTestFiles.CreateV3Stream(timestamp: 0, samples: samples);
 
         // Act
         var result = RawTelemetryData.FromStream(ms);

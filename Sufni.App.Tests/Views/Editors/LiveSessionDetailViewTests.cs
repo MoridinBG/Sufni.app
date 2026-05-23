@@ -129,7 +129,8 @@ public class LiveSessionDetailViewTests
             backgroundTaskRunner,
             tileLayerService,
             shell,
-            dialogService)
+            dialogService,
+            new InlineUiThreadDispatcher())
         {
             Name = "Live Session 01",
         };

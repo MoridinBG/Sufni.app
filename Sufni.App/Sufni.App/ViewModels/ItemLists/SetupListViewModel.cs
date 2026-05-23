@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Sufni.App.Coordinators;
+using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -37,7 +38,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     public SetupListViewModel(
         ISetupStore setupStore,
-        SetupCoordinator setupCoordinator)
+        SetupCoordinator setupCoordinator,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;

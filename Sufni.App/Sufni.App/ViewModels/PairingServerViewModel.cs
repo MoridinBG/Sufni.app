@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,8 +11,8 @@ namespace Sufni.App.ViewModels;
 
 public partial class PairingServerViewModel : ViewModelBase
 {
-    private readonly System.Timers.Timer timer = new(1000);
     private readonly IPairingServerCoordinator coordinator;
+    private CancellationTokenSource? pairingCountdownCancellation;
 
     #region Observable properties
 
@@ -37,7 +39,10 @@ public partial class PairingServerViewModel : ViewModelBase
 
     #region Constructors
 
-    public PairingServerViewModel(IPairingServerCoordinator coordinator)
+    public PairingServerViewModel(
+        IPairingServerCoordinator coordinator,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.coordinator = coordinator;
 
@@ -45,25 +50,15 @@ public partial class PairingServerViewModel : ViewModelBase
         // which can fire more than once per VM lifetime. This VM is a
         // desktop singleton, so the constructor runs exactly once and is
         // the right level for these subscriptions and the timer hookup.
-        timer.Elapsed += (_, _) =>
-        {
-            Remaining -= 1.0 / SynchronizationProtocol.PinTtlSeconds;
-            if (!(Remaining <= 0)) return;
-            PairingPin = null;
-            timer.Stop();
-        };
-
         coordinator.PairingRequested += (_, e) =>
         {
-            PairingPin = e.Pin;
-            RequestingId = e.DeviceId;
-            RequestingDisplayName = e.DisplayName;
-            Remaining = 0.999;
-            timer.Start();
+            UiThreadDispatcher.Post(() =>
+                StartPairingRequest(e.Pin, e.DeviceId, e.DisplayName));
         };
 
         // Hide the panel displaying the PIN when the pairing is done.
-        coordinator.PairingConfirmed += (_, _) => PairingPin = null;
+        coordinator.PairingConfirmed += (_, _) =>
+            UiThreadDispatcher.Post(ClearPairingRequest);
     }
 
     #endregion Constructors
@@ -80,4 +75,60 @@ public partial class PairingServerViewModel : ViewModelBase
     }
 
     #endregion Commands
+
+    #region Private methods
+
+    private void StartPairingRequest(string pin, string deviceId, string? displayName)
+    {
+        PairingPin = pin;
+        RequestingId = deviceId;
+        RequestingDisplayName = displayName;
+        Remaining = 0.999;
+        RestartPairingCountdown();
+    }
+
+    private void ClearPairingRequest()
+    {
+        PairingPin = null;
+        CancelPairingCountdown();
+    }
+
+    private void RestartPairingCountdown()
+    {
+        CancelPairingCountdown();
+        pairingCountdownCancellation = new CancellationTokenSource();
+        _ = RunPairingCountdownAsync(pairingCountdownCancellation.Token);
+    }
+
+    private void CancelPairingCountdown()
+    {
+        pairingCountdownCancellation?.Cancel();
+        pairingCountdownCancellation?.Dispose();
+        pairingCountdownCancellation = null;
+    }
+
+    private async Task RunPairingCountdownAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(1000, cancellationToken);
+                await UiThreadDispatcher.InvokeAsync(() =>
+                {
+                    Remaining -= 1.0 / SynchronizationProtocol.PinTtlSeconds;
+                    if (Remaining <= 0)
+                    {
+                        ClearPairingRequest();
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer PIN or a successful pairing.
+        }
+    }
+
+    #endregion Private methods
 }

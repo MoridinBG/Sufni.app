@@ -12,7 +12,7 @@ public class SessionPresentationServiceTests
     [Fact]
     public void BuildCachePresentation_FrontOnly_RendersFrontOnlyAndOmitsBalance()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: false);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: false);
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
@@ -30,7 +30,7 @@ public class SessionPresentationServiceTests
     [Fact]
     public void BuildCachePresentation_RearOnly_RendersRearOnlyAndOmitsBalance()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: false, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: false, rearPresent: true);
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
@@ -48,7 +48,7 @@ public class SessionPresentationServiceTests
     [Fact]
     public void BuildCachePresentation_FrontAndRear_RendersBalanceAndPercentages()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
@@ -135,7 +135,7 @@ public class SessionPresentationServiceTests
 
     private static Sufni.Telemetry.TelemetryData CreateTelemetryWithSingleBalanceSamplePerSide()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         telemetry.Front.Strokes = new Sufni.Telemetry.Strokes
         {
@@ -186,7 +186,7 @@ public class SessionPresentationServiceTests
 
     private static Sufni.Telemetry.TelemetryData CreateTelemetryWithoutStrokes()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         telemetry.Front.Strokes = new Sufni.Telemetry.Strokes
         {

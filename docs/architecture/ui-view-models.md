@@ -170,12 +170,13 @@ There are five kinds of view model in the presentation layer:
 models that `SessionDetailViewModel` (recorded sessions) and
 `LiveSessionDetailViewModel` (live captures) compose into a
 swipe/tab UI. They share a tiny base, `PageViewModelBase`, which
-extends `ViewModelBase` and adds two members: an immutable
+extends `ObservableObject` and adds two members: an immutable
 `DisplayName` used as the tab header, and an `[ObservableProperty]
 bool Selected` that the shell view (`SessionShellMobileView`) toggles
-when the user navigates between tabs. Pages do not own commands or
-shell navigation — the editor is still the `TabPageViewModelBase` and
-keeps the `Save` / `Reset` / `Close` surface.
+when the user navigates between tabs. Pages do not own commands,
+notification bars, or shell navigation — the editor is still the
+`TabPageViewModelBase` and keeps the `Save` / `Reset` / `Close`
+surface.
 
 Each editor exposes an `ObservableCollection<PageViewModelBase>
 Pages` that the shell view binds against for both the tab header
@@ -289,4 +290,8 @@ implementation, and the `OpenPreviousPageCommand` that delegates to
 `ObservableObject` and contributes the notification / error-message
 collections plus the 3-second auto-hide timer that pauses on pointer
 hover. Navigation surface belongs to `IShellCoordinator`, not
-`ViewModelBase`.
+`ViewModelBase`; small projection-only view models such as session
+pages, sensor-configuration rows, and linkage parts use
+`ObservableObject` directly when they do not need the shared
+notification/error surface. `ViewLocator` still maps those known
+projection view models through its explicit view-factory table.

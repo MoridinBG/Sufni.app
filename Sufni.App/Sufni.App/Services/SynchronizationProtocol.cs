@@ -9,7 +9,6 @@ public static class SynchronizationProtocol
     public const string EndpointPairConfirm = "/pair/confirm";
     public const string EndpointPairRefresh = "/pair/refresh";
     public const string EndpointPairUnpair = "/pair/unpair";
-    public const string EndpointPairStatus = "/pair/status";
     public const string EndpointSyncPush = "/sync/push";
     public const string EndpointSyncPull = "/sync/pull";
     public const string EndpointSessionIncomplete = "/session/incomplete";

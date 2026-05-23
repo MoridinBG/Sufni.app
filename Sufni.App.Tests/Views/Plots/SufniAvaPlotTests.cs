@@ -10,6 +10,7 @@ using ScottPlot;
 using ScottPlot.Interactivity.UserActionResponses;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Plots;
+using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -149,14 +150,6 @@ public class SufniAvaPlotTests
         }
 
         return rawModifiers;
-    }
-
-    private static void AssertAxisLimitsEqual(AxisLimits expected, AxisLimits actual)
-    {
-        Assert.Equal(expected.Left, actual.Left, precision: 8);
-        Assert.Equal(expected.Right, actual.Right, precision: 8);
-        Assert.Equal(expected.Bottom, actual.Bottom, precision: 8);
-        Assert.Equal(expected.Top, actual.Top, precision: 8);
     }
 
     private sealed class TestSufniAvaPlot : SufniAvaPlot

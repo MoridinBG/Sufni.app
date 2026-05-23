@@ -10,7 +10,7 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.ViewModels.LinkageParts;
 
-public partial class LinkViewModel : ViewModelBase
+public partial class LinkViewModel : ObservableObject
 {
     public double? PixelsToMillimeters { get; set; }
     public bool IsImmutable => Name == "Shock";

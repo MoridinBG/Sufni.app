@@ -34,7 +34,11 @@ public partial class MapViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<TileLayerConfig> AvailableLayers => tileLayerService.AvailableLayers;
 
-    public MapViewModel(ITileLayerService tileLayerService, IDialogService dialogService)
+    public MapViewModel(
+        ITileLayerService tileLayerService,
+        IDialogService dialogService,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.tileLayerService = tileLayerService;
         this.dialogService = dialogService;

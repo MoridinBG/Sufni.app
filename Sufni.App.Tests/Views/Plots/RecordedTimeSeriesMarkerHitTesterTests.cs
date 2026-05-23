@@ -9,7 +9,7 @@ public class RecordedTimeSeriesMarkerHitTesterTests
     [Fact]
     public void TryGetHitMarkerSeconds_ReturnsMarkerInsideThreshold()
     {
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.Metadata.Duration = 2;
         telemetry.Markers = [new MarkerData(0.5), new MarkerData(1.5)];
 
@@ -26,7 +26,7 @@ public class RecordedTimeSeriesMarkerHitTesterTests
     [Fact]
     public void TryGetHitMarkerSeconds_ClampsMarkersToTelemetryDuration()
     {
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.Metadata.Duration = 2;
         telemetry.Markers = [new MarkerData(3)];
 
@@ -43,7 +43,7 @@ public class RecordedTimeSeriesMarkerHitTesterTests
     [Fact]
     public void TryGetHitMarkerSeconds_IgnoresInvalidAndOutOfRangeMarkers()
     {
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.Metadata.Duration = 2;
         telemetry.Markers = [new MarkerData(double.NaN), new MarkerData(1.5)];
 

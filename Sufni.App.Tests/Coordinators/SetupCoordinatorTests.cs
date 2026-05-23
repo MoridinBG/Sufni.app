@@ -21,9 +21,10 @@ public class SetupCoordinatorTests
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
     private SetupCoordinator CreateCoordinator() => new(
-        setupStore, bikeStore, bikeCoordinator, database, telemetry, filesService, backgroundTaskRunner, shell, dialogService);
+        setupStore, bikeStore, bikeCoordinator, database, telemetry, filesService, backgroundTaskRunner, shell, dialogService, uiThreadDispatcher);
 
     // ----- OpenCreateAsync -----
 
@@ -249,7 +250,7 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Setup>(snapshot.Id);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SetupEditorViewModel, bool>>());
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<SetupEditorViewModel, bool>>(), forgetRestoreHistory: true);
         setupStore.Received(1).Remove(snapshot.Id);
     }
 
