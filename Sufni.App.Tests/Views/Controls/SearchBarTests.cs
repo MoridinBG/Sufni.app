@@ -64,20 +64,4 @@ public class SearchBarTests
         Assert.False(closeButton.IsVisible);
     }
 
-    [AvaloniaFact]
-    public async Task SearchBarCore_DoesNotRenderSyncActivityIndicator()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        var control = new SearchBar
-        {
-            DataContext = new ItemListViewModelBase(new InlineUiThreadDispatcher()),
-        };
-
-        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
-
-        var core = mounted.Control.FindFirstVisual<SearchBarCore>();
-        Assert.NotNull(core);
-
-        Assert.Empty(core!.GetVisualDescendants().OfType<ActivityIndicator>());
-    }
 }

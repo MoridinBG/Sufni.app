@@ -36,11 +36,6 @@ public class BikeEditorViewModelTests
         return new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher);
     }
 
-    private void SetDesktop(bool isDesktop)
-    {
-        TestApp.SetIsDesktop(isDesktop);
-    }
-
     private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
         new(leverageRatioData, new CoordinateList([], []));
 
@@ -450,18 +445,6 @@ public class BikeEditorViewModelTests
         Assert.False(editor.IsDirty);
 
         editor.Name = "after";
-
-        Assert.True(editor.SaveCommand.CanExecute(null));
-    }
-
-    [AvaloniaFact]
-    public void EditingHeadAngle_FlipsIsDirtyTrue()
-    {
-        var snapshot = TestSnapshots.Bike();
-        var editor = CreateEditor(snapshot);
-        Assert.False(editor.IsDirty);
-
-        editor.HeadAngle = snapshot.HeadAngle + 1;
 
         Assert.True(editor.SaveCommand.CanExecute(null));
     }

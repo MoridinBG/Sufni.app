@@ -9,7 +9,7 @@ namespace Sufni.App.Tests.Models;
 public class ModelJsonTests
 {
     [Fact]
-    public void BikeToJson_ExcludesSynchronizationFields_AndKeepsIndentedExportShape()
+    public void BikeToJson_ExcludesSynchronizationFields()
     {
         var bike = new Bike(Guid.NewGuid(), "exported bike")
         {
@@ -29,7 +29,6 @@ public class ModelJsonTests
         Assert.False(root.TryGetProperty("updated", out _));
         Assert.False(root.TryGetProperty("client_updated", out _));
         Assert.False(root.TryGetProperty("deleted", out _));
-        Assert.Contains("\n  \"head_angle\"", json);
     }
 
     [Fact]

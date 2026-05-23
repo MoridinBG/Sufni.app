@@ -14,7 +14,9 @@ This document narrows that standard for views specifically.
 - [Purpose](#purpose)
 - [Core Standard](#core-standard)
 - [What View Tests Own](#what-view-tests-own)
+- [When Not To Write A View Test](#when-not-to-write-a-view-test)
 - [Choosing The Right Unit](#choosing-the-right-unit)
+- [Do Not Retest Child Ownership](#do-not-retest-child-ownership)
 - [Headless Baseline](#headless-baseline)
 - [Resources, Styles, And DataTemplates](#resources-styles-and-datatemplates)
 - [Data Contexts And Fixtures](#data-contexts-and-fixtures)
@@ -51,7 +53,7 @@ View tests should cover:
 - command wiring and control interactions that belong to the view surface
 - resource, style, and template wiring required for the view to render in headless tests
 - desktop versus mobile parity when the XAML differs
-- structural composition when the view chooses between reusable subviews or templates
+- structural composition when the view owns a real choice between reusable subviews or templates
 
 View tests should not cover:
 
@@ -59,6 +61,26 @@ View tests should not cover:
 - persistence, parsing, or service behavior
 - pixel-perfect styling details unless there is a concrete regression risk
 - internal sequencing that is not observable from the mounted view
+- static child controls declared directly in XAML, unless that child is the user-visible contract or the exact wiring has regressed before
+
+## When Not To Write A View Test
+
+Do not add a view test just because a control, binding, or layout element exists.
+A view test should protect a user-visible behavior or a view-owned composition
+decision.
+
+Prefer no direct view test when:
+
+- the view is static XAML with direct one-way bindings and no distinct converters, validation, commands, visibility, or selection behavior
+- the same state, formatting, command, or workflow is already covered by a view-model, coordinator, service, or child-view test
+- the assertion would mostly inventory labels, margins, colors, names, child counts, or visual-tree shape
+- desktop and mobile variants differ only by layout, not by binding path, command path, content selection, or lifecycle behavior
+- the test would mainly verify Avalonia, a source generator, or a third-party control rather than app behavior
+
+If the only reason for the test is "this should keep rendering", prefer a
+small smoke test at the owning composition boundary. Do not expand it into a
+field-by-field or child-by-child inventory unless there is a specific regression
+risk.
 
 ## Choosing The Right Unit
 
@@ -66,9 +88,27 @@ Prefer the smallest view unit that owns the behavior.
 
 - Reusable subviews should usually get isolated tests with a lightweight data context.
 - Composed views should test their own bindings, structure, and content switching without re-testing child controls that already have their own coverage.
-- When desktop and mobile views differ in XAML, test both relevant variants and focus on the behavioral difference the user can observe.
+- When desktop and mobile views differ in XAML, test both relevant variants only for observable differences. Do not duplicate common binding tests across both variants unless the binding path, command path, template, or lifecycle behavior actually differs.
 
 This keeps failures local and avoids duplicating the same assertions across layers.
+
+## Do Not Retest Child Ownership
+
+When a reusable subview has its own tests, composed parent views should not repeat that subview's internal bindings, enabled states, layout, or simple value projection. Parent views prove composition decisions; child views prove child internals.
+
+Parent views may test:
+
+- that the correct child view or template is selected
+- that the child is shown or hidden for parent-owned state
+- that a parent-owned command or command parameter reaches the child surface
+- one representative smoke path when the child has no isolated coverage
+
+Parent views should not test:
+
+- every bound field inside the child
+- static presence of expected child controls
+- the same binding once in mobile and once in desktop when both use the same data context and only layout differs
+- child labels, spacing, or control names that the parent does not own
 
 ## Headless Baseline
 
@@ -134,6 +174,12 @@ Prefer expected and plausible unexpected cases in pairs, for example:
 - a selector shows the bound selected item when the source is populated, and clears selection when the underlying bound value is missing
 - a desktop variant includes an inline action while the mobile variant intentionally delegates that action to a shared bottom button line
 
+For static forms with many similar fields, one representative binding test is usually enough. Add more only when fields use different converters, templates, commands, validation, formatting, or availability rules.
+
+For repeated field sets, cover the distinct binding behavior, not every field.
+For example, one text binding and one numeric binding can be enough for a form
+whose remaining fields use the same binding mode and no extra logic.
+
 ## Interaction Strategy
 
 Choose the assertion surface that is most reliable for the behavior you are testing.
@@ -164,6 +210,7 @@ When a feature has separate desktop and mobile views, treat the XAML split as pa
 - Cover both variants when the structure differs.
 - Assert the behavior that differs, not just that the files are different.
 - Prefer one or two focused tests per divergence: different shared subview usage, different button placement, different template content, or different content composition.
+- Do not duplicate common binding, text, or command assertions in both variants when the observable contract is the same.
 
 The value is in catching regressions where one variant drifts from the intended UI contract.
 
@@ -185,6 +232,10 @@ These are test-environment constraints. Design the test around them rather than 
 
 - Re-testing view model logic that already belongs in a view-model test.
 - Asserting exact visual-tree shape when the user-visible contract is simpler.
+- Asserting that static XAML children exist when no parent-owned behavior depends on them.
+- Asserting labels, margins, colors, or child counts without a known regression risk or explicit visual contract.
+- Repeating a reusable child view's binding assertions in a composed parent view.
+- Duplicating the same binding assertion in desktop and mobile variants when only layout differs.
 - Looking up controls by index or incidental nesting.
 - Over-mocking collections, templates, or other framework behavior that should be exercised for real.
 - Opening popups or dropdowns just to prove structure that can be verified through the bound template more directly.
@@ -211,24 +262,29 @@ Avoid vague names such as:
 When adding or changing a view:
 
 1. Decide whether the behavior belongs to the view or to the view model.
-2. Add stable control names if the test will need direct access.
-3. Reuse or add small helpers for mounting, dispatcher flushes, resources, templates, and simple view-model stubs.
-4. Test reusable subviews in isolation first when they have their own behavior.
-5. Test composed views for their own bindings, platform-specific structure, and content switching.
-6. Run the focused headless tests while iterating.
-7. Run the affected test project before considering the change complete.
+2. Name the regression class the view test would catch; if it is only inventory, skip it.
+3. Add stable control names if the test will need direct access.
+4. Reuse or add small helpers for mounting, dispatcher flushes, resources, templates, and simple view-model stubs.
+5. Test reusable subviews in isolation first when they have their own behavior.
+6. Test composed views for their own bindings, platform-specific structure, and content switching.
+7. Run the focused headless tests while iterating.
+8. Run the affected test project before considering the change complete.
 
 ## Default Checklist
 
 Before finishing a view change, ask:
 
 - Did I test one mounted view through its public surface?
+- Can I name the meaningful regression this test catches?
 - Did I cover the expected state and a plausible unexpected state where that adds value?
+- Did I choose the smallest view that owns the behavior?
 - Did I provide the resources, styles, and templates the view needs in headless mode?
 - Did I prefer named controls over fragile tree traversal?
 - Did I flush the dispatcher after the interactions that matter?
 - Did I assert command or binding behavior at the most reliable headless surface?
-- Did I cover both platform variants if the XAML differs?
+- Did I cover both platform variants only when their observable behavior differs?
+- Did I avoid inventorying static labels, margins, child controls, or visual-tree shape?
 - Did I avoid duplicating view-model logic or styling details that are not the view test's responsibility?
+- Did I avoid repeating child view coverage or another copy of the same binding pattern?
 
 If the answer is yes across that set, the test is usually shaped correctly for this repository.

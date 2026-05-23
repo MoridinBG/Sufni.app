@@ -2,13 +2,11 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
-using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Editors;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Tests.Views.Plots;
 using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Editors;
@@ -57,30 +55,6 @@ public class SessionDetailDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionDetailDesktopView_LoadsRecordedPlots_AfterDesktopTelemetryArrives()
-    {
-        var context = new SessionDetailViewTestContext();
-
-        await using var mounted = await context.MountDesktopAsync(
-            loadResult: context.CreateDesktopLoadedState(includeImu: true));
-
-        var travelView = mounted.View.GetVisualDescendants().OfType<TravelPlotDesktopView>().Single();
-        var velocityView = mounted.View.GetVisualDescendants().OfType<VelocityPlotDesktopView>().Single();
-        var imuView = mounted.View.GetVisualDescendants().OfType<ImuPlotDesktopView>().Single();
-        var pitchRollView = mounted.View.GetVisualDescendants().OfType<FramePitchRollPlotDesktopView>().Single();
-
-        var travelPlot = PlotViewTestSupport.GetRenderedPlot(travelView);
-        var velocityPlot = PlotViewTestSupport.GetRenderedPlot(velocityView);
-        var imuPlot = PlotViewTestSupport.GetRenderedPlot(imuView);
-        var pitchRollPlot = PlotViewTestSupport.GetRenderedPlot(pitchRollView);
-
-        Assert.Equal(2, travelPlot.Plot.PlottableList.OfType<Signal>().Count());
-        Assert.Equal(2, velocityPlot.Plot.PlottableList.OfType<Signal>().Count());
-        Assert.NotEmpty(imuPlot.Plot.PlottableList.OfType<Signal>());
-        Assert.Empty(pitchRollPlot.Plot.Axes.Title.Label.Text);
-    }
-
-    [AvaloniaFact]
     public async Task SessionDetailDesktopView_ShowsGraphPlaceholders_WhenDesktopTelemetryIsPending()
     {
         var context = new SessionDetailViewTestContext();
@@ -117,6 +91,5 @@ public class SessionDetailDesktopViewTests
 
         Assert.NotNull(errorText);
         Assert.False(shell.IsVisible);
-        Assert.Equal("Could not load session data: boom", errorText!.Text);
     }
 }

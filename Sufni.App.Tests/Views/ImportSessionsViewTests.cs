@@ -33,21 +33,9 @@ public class ImportSessionsViewTests
     }
 
     [AvaloniaFact]
-    public async Task ImportSessionsDesktopView_DisablesEditors_WhileImportRuns()
-    {
-        await AssertEditorsDisabledWhileImportRunsAsync(() => new ImportSessionsDesktopView());
-    }
-
-    [AvaloniaFact]
     public async Task ImportSessionsView_MalformedLabel_ShowsTooltipReason()
     {
         await AssertMalformedLabelTooltipAsync(() => new ImportSessionsView());
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsDesktopView_MalformedLabel_ShowsTooltipReason()
-    {
-        await AssertMalformedLabelTooltipAsync(() => new ImportSessionsDesktopView());
     }
 
     [AvaloniaFact]
@@ -57,33 +45,15 @@ public class ImportSessionsViewTests
     }
 
     [AvaloniaFact]
-    public async Task ImportSessionsDesktopView_ActionSelection_TintsEntireRow()
-    {
-        await AssertActionSelectionTintsEntireRowAsync(() => new ImportSessionsDesktopView());
-    }
-
-    [AvaloniaFact]
     public async Task ImportSessionsView_NoDataStores_ShowsStatusWithoutTint()
     {
         await AssertNoDataStoresShowsStatusWithoutTintAsync(() => new ImportSessionsView());
     }
 
     [AvaloniaFact]
-    public async Task ImportSessionsDesktopView_NoDataStores_ShowsStatusWithoutTint()
-    {
-        await AssertNoDataStoresShowsStatusWithoutTintAsync(() => new ImportSessionsDesktopView());
-    }
-
-    [AvaloniaFact]
     public async Task ImportSessionsView_LoadingFiles_ShowsStatusWithoutTint()
     {
         await AssertLoadingFilesShowsStatusWithoutTintAsync(() => new ImportSessionsView());
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsDesktopView_LoadingFiles_ShowsStatusWithoutTint()
-    {
-        await AssertLoadingFilesShowsStatusWithoutTintAsync(() => new ImportSessionsDesktopView());
     }
 
     private static async Task AssertEditorsDisabledWhileImportRunsAsync(Func<UserControl> createView)

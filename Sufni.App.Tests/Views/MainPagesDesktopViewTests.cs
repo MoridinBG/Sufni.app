@@ -15,48 +15,6 @@ namespace Sufni.App.Tests.Views;
 public class MainPagesDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task MainPagesDesktopView_RendersAllPrimaryTabs_AndReflectsSelectedIndex()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
-
-        var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
-
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher()));
-
-        var view = new MainPagesDesktopView
-        {
-            DataContext = viewModel
-        };
-
-        await using var mounted = await MountAsync(view);
-
-        var pagesMenu = mounted.View.FindControl<TabControl>("PagesMenu");
-        var sessionsTab = mounted.View.FindControl<TabItem>("SessionTabItem");
-        var setupsTab = mounted.View.FindControl<TabItem>("BikeSetupsTabItem");
-        var bikesTab = mounted.View.FindControl<TabItem>("BikesTabItem");
-        var liveTab = mounted.View.FindControl<TabItem>("LiveDaqsTabItem");
-
-        Assert.NotNull(pagesMenu);
-        Assert.NotNull(sessionsTab);
-        Assert.NotNull(setupsTab);
-        Assert.NotNull(bikesTab);
-        Assert.NotNull(liveTab);
-        Assert.True(sessionsTab!.IsVisible);
-        Assert.True(setupsTab!.IsVisible);
-        Assert.True(bikesTab!.IsVisible);
-        Assert.True(liveTab!.IsVisible);
-
-        pagesMenu!.SelectedIndex = 3;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(3, viewModel.SelectedIndex);
-        Assert.Equal(3, pagesMenu.SelectedIndex);
-    }
-
-    [AvaloniaFact]
     public async Task MainPagesDesktopView_ShowsPairingRequestPanel_WhenPairingPinExists()
     {
         ViewTestHelpers.EnsureViewTestResources();

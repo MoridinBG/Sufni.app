@@ -4,7 +4,19 @@ using System.Linq;
 
 namespace Sufni.Kinematics;
 
-public sealed record LeverageRatioValidationError(int? PointIndex, string Message);
+public enum LeverageRatioValidationErrorCode
+{
+    TooFewPoints,
+    NegativeInitialShockTravel,
+    DuplicateShockTravel,
+    NonIncreasingShockTravel,
+    DecreasingWheelTravel,
+}
+
+public sealed record LeverageRatioValidationError(
+    LeverageRatioValidationErrorCode Code,
+    int? PointIndex,
+    string Message);
 
 public sealed class LeverageRatioValidationException : Exception
 {
@@ -26,7 +38,10 @@ public static class LeverageRatioValidation
         List<LeverageRatioValidationError> errors = [];
         if (points.Count < 2)
         {
-            errors.Add(new LeverageRatioValidationError(null, "At least two points are required."));
+            errors.Add(new LeverageRatioValidationError(
+                LeverageRatioValidationErrorCode.TooFewPoints,
+                null,
+                "At least two points are required."));
         }
 
         if (points.Count == 0)
@@ -36,7 +51,10 @@ public static class LeverageRatioValidation
 
         if (points[0].ShockTravelMm < 0)
         {
-            errors.Add(new LeverageRatioValidationError(0, "Shock travel must be zero or greater."));
+            errors.Add(new LeverageRatioValidationError(
+                LeverageRatioValidationErrorCode.NegativeInitialShockTravel,
+                0,
+                "Shock travel must be zero or greater."));
         }
 
         for (var index = 1; index < points.Count; index++)
@@ -45,16 +63,25 @@ public static class LeverageRatioValidation
             var current = points[index];
             if (current.ShockTravelMm == previous.ShockTravelMm)
             {
-                errors.Add(new LeverageRatioValidationError(index, "Shock travel must increase monotonically; duplicate values are not allowed."));
+                errors.Add(new LeverageRatioValidationError(
+                    LeverageRatioValidationErrorCode.DuplicateShockTravel,
+                    index,
+                    "Shock travel must increase monotonically; duplicate values are not allowed."));
             }
             else if (current.ShockTravelMm < previous.ShockTravelMm)
             {
-                errors.Add(new LeverageRatioValidationError(index, "Shock travel must increase monotonically."));
+                errors.Add(new LeverageRatioValidationError(
+                    LeverageRatioValidationErrorCode.NonIncreasingShockTravel,
+                    index,
+                    "Shock travel must increase monotonically."));
             }
 
             if (current.WheelTravelMm < previous.WheelTravelMm)
             {
-                errors.Add(new LeverageRatioValidationError(index, "Wheel travel must not decrease."));
+                errors.Add(new LeverageRatioValidationError(
+                    LeverageRatioValidationErrorCode.DecreasingWheelTravel,
+                    index,
+                    "Wheel travel must not decrease."));
             }
         }
 

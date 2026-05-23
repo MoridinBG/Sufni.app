@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
-using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
@@ -39,15 +37,12 @@ public class SessionStatisticsDesktopViewTests
         var damping = mounted.View.FindControl<Grid>("Damping");
         var balance = mounted.View.FindControl<Grid>("Balance");
         var analysis = mounted.View.FindControl<Grid>("Analysis");
-        var contentHost = mounted.View.FindControl<ItemsControl>("StatisticsContentHost");
 
         Assert.NotNull(springRate);
         Assert.NotNull(damping);
         Assert.NotNull(balance);
         Assert.NotNull(analysis);
-        Assert.NotNull(contentHost);
 
-        Assert.Equal(new Thickness(16, 16, 16, 0), contentHost!.Margin);
         Assert.True(springRate!.IsVisible);
         Assert.False(damping!.IsVisible);
         Assert.False(balance!.IsVisible);
@@ -103,167 +98,6 @@ public class SessionStatisticsDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionStatisticsDesktopView_ShowsOnlyStrokesHosts_WhenStrokesTabSelected()
-    {
-        var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            hasFrontStatistics: true,
-            hasRearStatistics: true,
-            hasCompressionBalanceTelemetry: false,
-            hasReboundBalanceTelemetry: false);
-
-        await using var mounted = await MountAsync(workspace);
-
-        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
-        var springRate = mounted.View.FindControl<Grid>("SpringRate");
-        var strokes = mounted.View.FindControl<Grid>("Strokes");
-        var damping = mounted.View.FindControl<Grid>("Damping");
-        var balance = mounted.View.FindControl<Grid>("Balance");
-        var vibration = mounted.View.FindControl<Grid>("Vibration");
-
-        Assert.NotNull(tabControl);
-        Assert.NotNull(springRate);
-        Assert.NotNull(strokes);
-        Assert.NotNull(damping);
-        Assert.NotNull(balance);
-        Assert.NotNull(vibration);
-
-        tabControl!.SelectedIndex = 1;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(springRate!.IsVisible);
-        Assert.True(strokes!.IsVisible);
-        Assert.False(damping!.IsVisible);
-        Assert.False(balance!.IsVisible);
-        Assert.False(vibration!.IsVisible);
-
-        // Strokes is wrapped in a ScrollViewer whose visual children aren't realized
-        // off-screen, so traverse the logical tree to find the placeholder hosts.
-        var hosts = strokes.GetLogicalDescendants().OfType<PlaceholderOverlayContainer>().ToArray();
-        Assert.Equal(2, hosts.Length);
-        Assert.Equal(2, hosts.Count(host => host.IsVisible));
-    }
-
-    [AvaloniaFact]
-    public async Task SessionStatisticsDesktopView_ShowsOnlyAvailableVibrationHosts_WhenVibrationTabSelected()
-    {
-        var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            hasFrontStatistics: false,
-            hasRearStatistics: false,
-            hasCompressionBalanceTelemetry: false,
-            hasReboundBalanceTelemetry: false,
-            hasFrontForkVibration: true,
-            hasFrontFrameVibration: false,
-            hasRearForkVibration: true,
-            hasRearFrameVibration: false);
-
-        await using var mounted = await MountAsync(workspace);
-
-        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
-        var springRate = mounted.View.FindControl<Grid>("SpringRate");
-        var strokes = mounted.View.FindControl<Grid>("Strokes");
-        var damping = mounted.View.FindControl<Grid>("Damping");
-        var balance = mounted.View.FindControl<Grid>("Balance");
-        var vibration = mounted.View.FindControl<Grid>("Vibration");
-
-        Assert.NotNull(tabControl);
-        Assert.NotNull(springRate);
-        Assert.NotNull(strokes);
-        Assert.NotNull(damping);
-        Assert.NotNull(balance);
-        Assert.NotNull(vibration);
-
-        tabControl!.SelectedIndex = 4;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(springRate!.IsVisible);
-        Assert.False(strokes!.IsVisible);
-        Assert.False(damping!.IsVisible);
-        Assert.False(balance!.IsVisible);
-        Assert.True(vibration!.IsVisible);
-        Assert.Equal(2, vibration.GetLogicalDescendants().OfType<PlaceholderOverlayContainer>().Count(host => host.IsVisible));
-    }
-
-    [AvaloniaFact]
-    public async Task SessionStatisticsDesktopView_ShowsOnlyAvailableBalanceHosts_WhenBalanceTabSelected()
-    {
-        var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            hasFrontStatistics: true,
-            hasRearStatistics: true,
-            hasCompressionBalanceTelemetry: true,
-            hasReboundBalanceTelemetry: false);
-
-        await using var mounted = await MountAsync(workspace);
-
-        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
-        var springRate = mounted.View.FindControl<Grid>("SpringRate");
-        var strokes = mounted.View.FindControl<Grid>("Strokes");
-        var damping = mounted.View.FindControl<Grid>("Damping");
-        var balance = mounted.View.FindControl<Grid>("Balance");
-        var vibration = mounted.View.FindControl<Grid>("Vibration");
-
-        Assert.NotNull(tabControl);
-        Assert.NotNull(springRate);
-        Assert.NotNull(strokes);
-        Assert.NotNull(damping);
-        Assert.NotNull(balance);
-        Assert.NotNull(vibration);
-
-        tabControl!.SelectedIndex = 3;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(springRate!.IsVisible);
-        Assert.False(strokes!.IsVisible);
-        Assert.False(damping!.IsVisible);
-        Assert.True(balance!.IsVisible);
-        Assert.False(vibration!.IsVisible);
-        Assert.Equal(
-            1,
-            balance.GetVisualDescendants()
-                .OfType<BalanceStatisticsHost>()
-                .Count(host => host.PresentationState.ReservesLayout));
-        Assert.All(
-            balance.GetVisualDescendants().OfType<SessionStatisticsPlotView>(),
-            plot => Assert.True(plot.IsHitTestVisible));
-    }
-
-    [AvaloniaFact]
-    public async Task SessionStatisticsDesktopView_ShowsAnalysisTab_AndHidesOtherContent_WhenSelected()
-    {
-        var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            hasFrontStatistics: true,
-            hasRearStatistics: true,
-            hasCompressionBalanceTelemetry: true,
-            hasReboundBalanceTelemetry: true);
-
-        await using var mounted = await MountAsync(workspace);
-
-        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
-        var springRate = mounted.View.FindControl<Grid>("SpringRate");
-        var strokes = mounted.View.FindControl<Grid>("Strokes");
-        var damping = mounted.View.FindControl<Grid>("Damping");
-        var balance = mounted.View.FindControl<Grid>("Balance");
-        var vibration = mounted.View.FindControl<Grid>("Vibration");
-        var analysis = mounted.View.FindControl<Grid>("Analysis");
-
-        Assert.NotNull(tabControl);
-        Assert.Equal(6, tabControl!.Items.Count);
-
-        tabControl.SelectedIndex = 5;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(springRate!.IsVisible);
-        Assert.False(strokes!.IsVisible);
-        Assert.False(damping!.IsVisible);
-        Assert.False(balance!.IsVisible);
-        Assert.False(vibration!.IsVisible);
-        Assert.True(analysis!.IsVisible);
-    }
-
-    [AvaloniaFact]
     public async Task SessionStatisticsDesktopView_AnalysisTab_BindsFindingsAndTargetProfile()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
@@ -280,9 +114,20 @@ public class SessionStatisticsDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var analysis = mounted.View.FindControl<Grid>("Analysis");
+        var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+        var damping = mounted.View.FindControl<Grid>("Damping");
+        var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
         var analysisView = analysis!.GetVisualDescendants().OfType<SessionAnalysisView>().Single();
         var profileComboBox = analysisView.FindControl<ComboBox>("SessionAnalysisTargetProfileComboBox");
 
+        Assert.False(springRate!.IsVisible);
+        Assert.False(strokes!.IsVisible);
+        Assert.False(damping!.IsVisible);
+        Assert.False(balance!.IsVisible);
+        Assert.False(vibration!.IsVisible);
+        Assert.True(analysis!.IsVisible);
         Assert.NotNull(profileComboBox);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, profileComboBox!.SelectedValue);
 
@@ -313,44 +158,15 @@ public class SessionStatisticsDesktopViewTests
         await using var mounted = await MountAsync(workspace);
 
         var travelMode = mounted.View.FindControl<ComboBox>("TravelHistogramModeComboBox");
-        var velocityAverageMode = mounted.View.FindControl<ComboBox>("VelocityAverageModeComboBox");
-        var balanceMode = mounted.View.FindControl<ComboBox>("BalanceDisplacementModeComboBox");
-        var balanceSpeedMode = mounted.View.FindControl<ComboBox>("BalanceSpeedModeComboBox");
 
         Assert.NotNull(travelMode);
-        Assert.NotNull(velocityAverageMode);
-        Assert.NotNull(balanceMode);
-        Assert.NotNull(balanceSpeedMode);
 
         Assert.Equal(TravelHistogramMode.ActiveSuspension, travelMode!.SelectedValue);
-        Assert.Equal(VelocityAverageMode.SampleAveraged, velocityAverageMode!.SelectedValue);
-        Assert.Equal(BalanceDisplacementMode.Zenith, balanceMode!.SelectedValue);
-        Assert.Equal(BalanceSpeedMode.Both, balanceSpeedMode!.SelectedValue);
-        Assert.Equal(
-            "Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.",
-            ToolTip.GetTip(travelMode));
-        Assert.Equal(
-            "Sample-averaged uses all stroke samples. Stroke-peak average uses one peak-speed event per stroke.",
-            ToolTip.GetTip(velocityAverageMode));
-        Assert.Equal(
-            "Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.",
-            ToolTip.GetTip(balanceMode));
-        Assert.Equal(
-            "Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.",
-            ToolTip.GetTip(balanceSpeedMode));
-        Assert.Equal(new Thickness(0, 0, 10, 8), travelMode.Margin);
-        Assert.Equal(new Thickness(0, 0, 69, 8), velocityAverageMode.Margin);
 
         travelMode.SelectedValue = TravelHistogramMode.DynamicSag;
-        velocityAverageMode.SelectedValue = VelocityAverageMode.StrokePeakAveraged;
-        balanceMode.SelectedValue = BalanceDisplacementMode.Travel;
-        balanceSpeedMode.SelectedValue = BalanceSpeedMode.HighSpeed;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, workspace.SelectedVelocityAverageMode);
-        Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
-        Assert.Equal(BalanceSpeedMode.HighSpeed, workspace.SelectedBalanceSpeedMode);
     }
 
     private static async Task<MountedSessionStatisticsDesktopView> MountAsync(SessionStatisticsWorkspaceStub workspace)

@@ -473,20 +473,4 @@ public class SyncCoordinatorTests
         Assert.Null(coordinator.Progress);
     }
 
-    // ----- Constructor tolerates null pairing -----
-
-    [Fact]
-    public void Constructor_DoesNotSubscribe_WhenPairingCoordinatorIsNull()
-    {
-        var coordinator = new SyncCoordinator(
-            bikeStore, setupStore, sessionStore, recordedSessionSourceStore, pairedDeviceStore,
-            synchronizationClientService: syncClient,
-            pairingClientCoordinator: null,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero);
-
-        Assert.False(coordinator.IsPaired);
-        Assert.False(coordinator.CanSync);
-    }
-
 }

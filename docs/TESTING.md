@@ -17,6 +17,32 @@ For Avalonia headless view tests and view-specific testing guidance, see [VIEW-T
 
 In this repository, that means the SUT is usually one view model, one coordinator, one service, one view, or one utility with real logic.
 
+## Test Value Gate
+
+Before adding a test, identify the regression class it protects against.
+The answer should be a behavior or contract that matters if it breaks, not just
+an implementation detail that changed.
+
+Good tests usually fail when:
+
+- data is parsed, persisted, synchronized, imported, exported, or transformed incorrectly
+- stale, canceled, conflicting, partial, or failed work leaves incoherent state behind
+- a command or public operation returns the wrong result or causes the wrong observable side effect
+- a compatibility, migration, serialization, or wire-format contract changes unexpectedly
+- a reusable workflow diverges from its expected success, failure, conflict, or recovery path
+- a previous real regression could return
+
+Weak tests usually fail only when implementation inventory changes:
+
+- a constructor assigns a field or property
+- a plain DTO, record, snapshot, or generated observable property copies a value
+- static labels, margins, child control names, or visual-tree shape are rearranged
+- one layer repeats behavior already covered by the unit that owns it
+- the test mostly verifies framework behavior or a third-party control
+
+If a weak test seems necessary, write a short comment naming the real regression risk.
+If that risk cannot be named, do not add the test.
+
 ## Input Selection
 
 Tests should use two kinds of inputs:
@@ -149,6 +175,8 @@ They should not cover:
 
 - complex workflow logic that is already better expressed in a view model test
 - pixel-perfect styling details unless there is a concrete regression risk
+- reusable child view behavior that is already covered by that child view's own tests
+- static child controls declared directly in XAML unless their presence is the parent view's contract
 
 ### Model And Utility Tests
 
@@ -187,6 +215,10 @@ Code that usually does not need direct tests includes:
 - constants
 - trivial getters and setters
 - obvious pass-through code with no branching, translation, or meaningful state change
+- record, snapshot, or DTO copying where no normalization, preservation rule, or compatibility contract is involved
+- generated observable-property plumbing where the source generator owns the behavior
+- static UI copy, spacing, resource keys, and control inventories unless they are part of a documented contract or known regression
+- resource or theme key inventories unless missing keys caused a real rendering regression or the resource bridge itself is the behavior under test
 
 ## Optimistic Concurrency
 
@@ -206,6 +238,11 @@ This mechanism is shared across editor save flows and should be treated as a sta
 - Artificial tests that exist only to reach a private helper path instead of exercising a real public behavior.
 - Large multi-assertion tests that validate several unrelated behaviors at once.
 - Hard-coding fragile message text or exception text.
+- Inventory tests that assert constructors, field copies, labels, margins, control names, or child counts without proving a meaningful behavior.
+- Tests whose only assertion is that a static XAML child exists.
+- Tests that repeat the same binding contract in both a parent view and a child view.
+- Tests that duplicate the same common behavior in desktop and mobile variants when only layout differs.
+- Model tests that only verify property copying unless preserving raw invalid state is an intentional domain contract.
 
 ## Cancellation And Result Coherence
 
@@ -258,18 +295,24 @@ When changing production code:
 
 1. Decide which single unit owns the behavior.
 2. Add or update tests in that layer first when practical.
-3. Add cross-layer tests only when there is clear value, not as routine duplication.
-4. Run focused tests while iterating.
-5. Run the affected test project before considering the change complete.
+3. Check whether the same behavior is already covered in that owning unit or in a smaller child unit.
+4. Add cross-layer tests only when there is clear value, not as routine duplication.
+5. Run focused tests while iterating.
+6. Run the affected test project before considering the change complete.
 
 ## Default Checklist
 
 Before finishing a change, ask:
 
 - Did I test one unit through its public interface?
+- Did I choose the unit that owns the behavior?
+- Is the same behavior already covered in that unit or a smaller child unit?
 - Did I cover the expected case and a plausible unexpected case where that adds value?
 - Did I cover the failure or conflict branch if it is meaningful?
 - Did I cover cancellation or stale-result behavior if background work is involved?
+- Would this fail for a meaningful user-visible or contract regression?
+- Would this fail only because markup was rearranged without behavior changing?
+- Is this a representative case, or another copy of the same binding or copying pattern?
 - Did I avoid asserting on wording that the UI may legitimately change later?
 - Did I keep the test data and setup readable?
 

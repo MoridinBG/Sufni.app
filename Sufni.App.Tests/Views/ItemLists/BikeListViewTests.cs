@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.Queries;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;

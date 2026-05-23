@@ -1,17 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Layout;
-using Avalonia.VisualTree;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.Controls;
 using Sufni.App.Views.SessionPages;
 using Sufni.Telemetry;
 
@@ -197,32 +193,6 @@ public class MobileStatisticsPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task VibrationPageView_RendersAvailableVibrationHosts_InOneColumn()
-    {
-        var workspace = MobileStatisticsWorkspaceStub.Create(
-            hasFrontStatistics: true,
-            hasRearStatistics: true,
-            hasFrontForkVibration: true,
-            hasFrontFrameVibration: true,
-            hasRearForkVibration: true,
-            hasRearFrameVibration: true);
-        var page = new VibrationPageViewModel(workspace);
-
-        await using var mounted = await MountAsync(new VibrationPageView { DataContext = page });
-
-        var column = mounted.View.FindControl<StackPanel>("VibrationColumn");
-        var hosts = mounted.View.GetVisualDescendants()
-            .OfType<PlaceholderOverlayContainer>()
-            .Where(host => host.Name?.EndsWith("VibrationHost", StringComparison.Ordinal) == true)
-            .ToArray();
-
-        Assert.NotNull(column);
-        Assert.Equal(Orientation.Vertical, column!.Orientation);
-        Assert.Equal(4, hosts.Length);
-        Assert.All(hosts, host => Assert.True(host.IsVisible));
-    }
-
-    [AvaloniaFact]
     public async Task SessionAnalysisPageView_BindsFindingsAndTargetProfile_InOneColumn()
     {
         var workspace = MobileStatisticsWorkspaceStub.Create(
@@ -232,20 +202,9 @@ public class MobileStatisticsPageViewTests
 
         await using var mounted = await MountAsync(new SessionAnalysisPageView { DataContext = page });
 
-        var content = mounted.View.FindControl<StackPanel>("MobileAnalysisContent");
-        var header = mounted.View.FindControl<StackPanel>("MobileAnalysisHeader");
         var profileComboBox = mounted.View.FindControl<ComboBox>("MobileAnalysisTargetProfileComboBox");
-        var steps = mounted.View.FindControl<ItemsControl>("MobileSessionAnalysisStepsItemsControl");
 
-        Assert.NotNull(content);
-        Assert.NotNull(header);
-        Assert.Equal(Orientation.Vertical, content!.Orientation);
-        Assert.Equal(Orientation.Vertical, header!.Orientation);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, profileComboBox!.SelectedValue);
-        Assert.NotNull(steps);
-        var step = Assert.IsType<SessionAnalysisStep>(Assert.Single(steps!.Items));
-        Assert.Equal(SessionAnalysisStepId.Sag, step.Id);
-        Assert.Equal("Travel use watch", Assert.Single(step.Findings).Title);
 
         profileComboBox.SelectedValue = SessionAnalysisTargetProfile.Enduro;
         await ViewTestHelpers.FlushDispatcherAsync();

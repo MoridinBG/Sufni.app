@@ -80,16 +80,17 @@ UNKNOWN=value
     [Fact]
     public async Task SaveCommand_KeepsEditorOpenAndShowsError_OnUploadFailure()
     {
+        const string uploadFailureMessage = "upload failure sentinel";
         var editor = CreateEditor(
             DaqConfigDocument.Parse(string.Empty),
             (_, _) => Task.FromResult<DaqManagementResult>(
-                new DaqManagementResult.Error(DaqManagementErrorCode.ValidationError, "invalid config")));
+                new DaqManagementResult.Error(DaqManagementErrorCode.ValidationError, uploadFailureMessage)));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.False(editor.IsCompleted);
         Assert.True(editor.HasSaveError);
-        Assert.Equal("invalid config", editor.SaveErrorMessage);
+        Assert.Equal(uploadFailureMessage, editor.SaveErrorMessage);
     }
 
     [Fact]
