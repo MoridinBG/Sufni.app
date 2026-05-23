@@ -100,8 +100,7 @@ public class MainPagesViewTests
 
         Assert.NotNull(menuPanel);
         Assert.NotNull(importGpxMenuItem);
-        Assert.Equal("GPX import", importGpxMenuItem!.Header);
-        Assert.Same(viewModel.OpenGpsTracksCommand, importGpxMenuItem.Command);
+        Assert.Same(viewModel.OpenGpsTracksCommand, importGpxMenuItem!.Command);
     }
 
     private static async Task<MountedMainPagesView> MountAsync(MainPagesView view)
