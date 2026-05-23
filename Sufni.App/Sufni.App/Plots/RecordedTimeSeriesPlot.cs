@@ -20,7 +20,8 @@ public sealed record RecordedTimeSeries(
     Color Color,
     RecordedTimeSeriesValues Values,
     string Format = "0.##",
-    float LineWidth = 2.0f);
+    float LineWidth = 2.0f,
+    string? SourceKey = null);
 
 public readonly record struct RecordedTimeSeriesValueRange(double Minimum, double Maximum);
 
@@ -31,11 +32,13 @@ public sealed record RecordedTimeSeriesData(
     IReadOnlyList<RecordedTimeSeries> Series,
     RecordedTimeSeriesValueRange? ValueRange = null,
     TelemetryData? MarkerSource = null,
-    bool ShowLegendWhenSingleSource = false);
+    bool ShowLegendWhenSingleSource = false,
+    bool EnableInteractiveLegend = false,
+    string? InteractiveLegendRowId = null);
 
 public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
-    private readonly List<CursorReadoutSeries> cursorSeries = [];
+    private readonly List<PlottableCursorReadoutSeries> cursorSeries = [];
     private HorizontalSpan? selectedSpan;
     private HorizontalSpan? previewSpan;
     private double cursorDurationSeconds;
@@ -64,7 +67,13 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
 
     protected override CursorReadout? GetCursorReadout(double position)
     {
-        return CreateCursorReadout(position, cursorDurationSeconds, cursorSeries);
+        return CreateCursorReadout(
+            position,
+            cursorDurationSeconds,
+            cursorSeries
+                .Where(series => series.Plottable.IsVisible)
+                .Select(series => series.CursorSeries)
+                .ToArray());
     }
 
     protected void LoadTimeSeries(RecordedTimeSeriesData data)
@@ -90,15 +99,32 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             return;
         }
 
+        var interactiveLegendEnabled =
+            data.EnableInteractiveLegend &&
+            data.InteractiveLegendRowId is not null &&
+            SourceVisibility is not null;
+
         foreach (var series in preparedSeries)
         {
-            cursorSeries.Add(series.CursorSeries);
-            series.AddToPlot(Plot);
+            var plottable = series.AddToPlot(Plot);
+            cursorSeries.Add(new PlottableCursorReadoutSeries(plottable, series.CursorSeries));
+            if (interactiveLegendEnabled)
+            {
+                RegisterInteractiveLegendSource(
+                    plottable,
+                    data.InteractiveLegendRowId!,
+                    series.Source.SourceKey ?? series.Source.Label);
+            }
         }
 
         if (preparedSeries.Length > 1 || data.ShowLegendWhenSingleSource)
         {
             ShowSourceLegend();
+        }
+
+        if (interactiveLegendEnabled)
+        {
+            EnableInteractiveSourceLegend();
         }
 
         var valueRange = data.ValueRange ?? GetValueRange(preparedSeries);
@@ -267,7 +293,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             return new PreparedTimeSeries(source, xValues, yValues, null, cursorSeries);
         }
 
-        public void AddToPlot(Plot plot)
+        public IPlottable AddToPlot(Plot plot)
         {
             if (Step is { } step)
             {
@@ -276,7 +302,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
                 signal.Axes.YAxis = plot.Axes.Left;
                 signal.LineWidth = Source.LineWidth;
                 signal.LegendText = Source.Label;
-                return;
+                return signal;
             }
 
             var scatter = plot.Add.Scatter(XValues, YValues);
@@ -284,6 +310,9 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             scatter.LineWidth = Source.LineWidth;
             scatter.LegendText = Source.Label;
             scatter.MarkerStyle.IsVisible = false;
+            return scatter;
         }
     }
+
+    private sealed record PlottableCursorReadoutSeries(IPlottable Plottable, CursorReadoutSeries CursorSeries);
 }

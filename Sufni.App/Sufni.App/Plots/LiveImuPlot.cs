@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Theming;
 
@@ -18,13 +19,24 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
     private readonly LivePlotChannel rearChannel;
     private double runningMax;
 
-    public LiveImuPlot(Plot plot, double imuMaximum, bool hideRightAxis, SufniTheme? theme = null)
+    public LiveImuPlot(
+        Plot plot,
+        double imuMaximum,
+        bool hideRightAxis,
+        SufniTheme? theme = null,
+        TelemetrySourceVisibilityStore? sourceVisibility = null)
         : base(plot, "Vibration RMS (g)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(0.1, imuMaximum), hideRightAxis, theme)
     {
+        SourceVisibility = sourceVisibility;
         frameChannel = CreateChannel(ImuPlot.FrameColor, "Frame");
         forkChannel = CreateChannel(TelemetryPlot.FrontColor, "Fork");
         rearChannel = CreateChannel(TelemetryPlot.RearColor, "Shock");
         ShowSourceLegend();
+        EnableInteractiveSourceLegendForChannels(
+            TelemetryGraphRowIds.Imu,
+            (frameChannel, TelemetrySourceKeys.ImuLocation((int)LiveImuLocation.Frame)),
+            (forkChannel, TelemetrySourceKeys.ImuLocation((int)LiveImuLocation.Fork)),
+            (rearChannel, TelemetrySourceKeys.ImuLocation((int)LiveImuLocation.Rear)));
         ApplyAutoLimits();
     }
 
