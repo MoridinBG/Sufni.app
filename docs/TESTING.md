@@ -149,6 +149,8 @@ They should not cover:
 
 - complex workflow logic that is already better expressed in a view model test
 - pixel-perfect styling details unless there is a concrete regression risk
+- reusable child view behavior that is already covered by that child view's own tests
+- static child controls declared directly in XAML unless their presence is the parent view's contract
 
 ### Model And Utility Tests
 
@@ -187,6 +189,8 @@ Code that usually does not need direct tests includes:
 - constants
 - trivial getters and setters
 - obvious pass-through code with no branching, translation, or meaningful state change
+- record, snapshot, or DTO copying where no normalization, preservation rule, or compatibility contract is involved
+- resource or theme key inventories unless missing keys caused a real rendering regression or the resource bridge itself is the behavior under test
 
 ## Optimistic Concurrency
 
@@ -206,6 +210,10 @@ This mechanism is shared across editor save flows and should be treated as a sta
 - Artificial tests that exist only to reach a private helper path instead of exercising a real public behavior.
 - Large multi-assertion tests that validate several unrelated behaviors at once.
 - Hard-coding fragile message text or exception text.
+- Tests whose only assertion is that a static XAML child exists.
+- Tests that repeat the same binding contract in both a parent view and a child view.
+- Tests that duplicate the same common behavior in desktop and mobile variants when only layout differs.
+- Model tests that only verify property copying unless preserving raw invalid state is an intentional domain contract.
 
 ## Cancellation And Result Coherence
 
@@ -258,18 +266,24 @@ When changing production code:
 
 1. Decide which single unit owns the behavior.
 2. Add or update tests in that layer first when practical.
-3. Add cross-layer tests only when there is clear value, not as routine duplication.
-4. Run focused tests while iterating.
-5. Run the affected test project before considering the change complete.
+3. Check whether the same behavior is already covered in that owning unit or in a smaller child unit.
+4. Add cross-layer tests only when there is clear value, not as routine duplication.
+5. Run focused tests while iterating.
+6. Run the affected test project before considering the change complete.
 
 ## Default Checklist
 
 Before finishing a change, ask:
 
 - Did I test one unit through its public interface?
+- Did I choose the unit that owns the behavior?
+- Is the same behavior already covered in that unit or a smaller child unit?
 - Did I cover the expected case and a plausible unexpected case where that adds value?
 - Did I cover the failure or conflict branch if it is meaningful?
 - Did I cover cancellation or stale-result behavior if background work is involved?
+- Would this fail for a meaningful user-visible or contract regression?
+- Would this fail only because markup was rearranged without behavior changing?
+- Is this a representative case, or another copy of the same binding or copying pattern?
 - Did I avoid asserting on wording that the UI may legitimately change later?
 - Did I keep the test data and setup readable?
 

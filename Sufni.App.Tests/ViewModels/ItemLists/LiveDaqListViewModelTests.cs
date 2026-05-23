@@ -11,28 +11,6 @@ public class LiveDaqListViewModelTests
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
-    public void Activate_DelegatesToCoordinator()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
-
-        viewModel.Activate();
-
-        coordinator.Received(1).Activate();
-    }
-
-    [Fact]
-    public void Deactivate_DelegatesToCoordinator()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
-
-        viewModel.Deactivate();
-
-        coordinator.Received(1).Deactivate();
-    }
-
-    [Fact]
     public void SearchText_FiltersItems_AcrossLiveDaqPresentationFields()
     {
         var store = new LiveDaqStore();

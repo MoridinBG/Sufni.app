@@ -12,7 +12,7 @@ namespace Sufni.App.Tests.Views.SensorConfigurations;
 public class RotationalForkSensorConfigurationViewTests
 {
     [AvaloniaFact]
-    public async Task RotationalForkSensorConfigurationView_MaxLengthNumericUpDown_DisplaysBoundValue()
+    public async Task RotationalForkSensorConfigurationView_NumericInputs_DisplayBoundValues()
     {
         var view = new RotationalForkSensorConfigurationView
         {
@@ -29,35 +29,11 @@ public class RotationalForkSensorConfigurationViewTests
         try
         {
             var maxLength = view.FindControl<NumericUpDown>("MaxLengthNumericUpDown");
-            Assert.NotNull(maxLength);
-            Assert.Equal(218.4, Convert.ToDouble(maxLength!.Value));
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task RotationalForkSensorConfigurationView_ArmLengthNumericUpDown_DisplaysBoundValue()
-    {
-        var view = new RotationalForkSensorConfigurationView
-        {
-            DataContext = new RotationalForkSensorConfigurationViewModel(new RotationalForkSensorConfiguration
-            {
-                MaxLength = 218.4,
-                ArmLength = 82.6
-            })
-        };
-
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        try
-        {
             var armLength = view.FindControl<NumericUpDown>("ArmLengthNumericUpDown");
+
+            Assert.NotNull(maxLength);
             Assert.NotNull(armLength);
+            Assert.Equal(218.4, Convert.ToDouble(maxLength!.Value));
             Assert.Equal(82.6, Convert.ToDouble(armLength!.Value));
         }
         finally

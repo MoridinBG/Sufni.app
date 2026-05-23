@@ -150,21 +150,6 @@ public class LiveDaqDetailDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task LiveDaqDetailDesktopView_DeviceManagementControls_AndBars_ArePresent()
-    {
-        var editor = CreateEditorWithManagement();
-
-        await using var mounted = await MountAsync(editor);
-
-        Assert.NotNull(mounted.View.FindControl<Button>("SetTimeButton"));
-        Assert.NotNull(mounted.View.FindControl<Button>("EditConfigButton"));
-        Assert.NotNull(mounted.View.FindControl<Button>("SelectConfigButton"));
-        Assert.NotNull(mounted.View.FindControl<Button>("UploadConfigButton"));
-        Assert.NotNull(mounted.View.FindControl<Control>("ManagementNotificationsBar"));
-        Assert.NotNull(mounted.View.FindControl<Control>("ManagementErrorMessagesBar"));
-    }
-
-    [AvaloniaFact]
     public async Task LiveDaqDetailDesktopView_SetTimeButton_DisabledWhenConnected()
     {
         var editor = CreateEditorWithManagement();
