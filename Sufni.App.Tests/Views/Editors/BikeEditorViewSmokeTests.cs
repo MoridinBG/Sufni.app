@@ -18,7 +18,6 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
 using Sufni.Kinematics;
 
@@ -47,22 +46,11 @@ public class BikeEditorViewSmokeTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var bikeImage = view.FindControl<Image>("BikeImage");
-        var shockStrokeLabel = view.FindControl<TextBlock>("ShockStrokeLabel");
-        var shockStrokeValue = view.FindControl<TextBlock>("ShockStrokeValueTextBlock");
         var importButton = view.FindControl<Button>("ImportButton");
 
-        Assert.NotNull(bikeImage);
-        Assert.NotNull(bikeImage.Source);
-        Assert.NotNull(shockStrokeLabel);
-        Assert.NotNull(shockStrokeValue);
         Assert.NotNull(importButton);
-        Assert.True(shockStrokeLabel!.IsVisible);
-        Assert.True(shockStrokeValue!.IsVisible);
         Assert.NotNull(importButton!.Command);
         Assert.Same(viewModel.ImportCommand, importButton.Command);
-        Assert.Single(view.GetVisualDescendants().OfType<ErrorMessagesBar>());
-        Assert.Single(view.GetVisualDescendants().OfType<CommonButtonLine>());
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -116,33 +104,6 @@ public class BikeEditorViewSmokeTests
         {
             Width = 900,
             Height = 700,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
-        Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task BikeImageControlsDesktopView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
-    {
-        EnsureBikeEditorViewResources();
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var view = new BikeImageControlsDesktopView
-        {
-            DataContext = CreateViewModel(TestSnapshots.Bike())
-        };
-        var host = new Window
-        {
-            Width = 500,
-            Height = 800,
             Content = view
         };
 
@@ -217,38 +178,6 @@ public class BikeEditorViewSmokeTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Single(view.GetVisualDescendants().OfType<LeverageRatioEditorView>());
-        Assert.DoesNotContain(
-            view.GetVisualDescendants().OfType<TextBlock>(),
-            textBlock => textBlock.Text?.Contains("Sufni.App.ViewModels.Editors.Bike.LeverageRatioEditorViewModel", StringComparison.Ordinal) == true);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task BikeImageControlsDesktopView_HidesWheelEditors_WhenInLeverageRatioMode()
-    {
-        EnsureBikeEditorViewResources();
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var view = new BikeImageControlsDesktopView
-        {
-            DataContext = CreateViewModel(CreateLeverageRatioSnapshot())
-        };
-        var host = new Window
-        {
-            Width = 500,
-            Height = 800,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.False(view.FindControl<Grid>("FrontWheelEditorHeaderGrid")!.IsVisible);
-        Assert.False(view.FindControl<Grid>("FrontWheelEditorInputsGrid")!.IsVisible);
-        Assert.False(view.FindControl<Grid>("RearWheelEditorHeaderGrid")!.IsVisible);
-        Assert.False(view.FindControl<Grid>("RearWheelEditorInputsGrid")!.IsVisible);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();

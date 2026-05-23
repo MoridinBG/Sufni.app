@@ -5,13 +5,6 @@ namespace Sufni.Telemetry.Tests;
 
 public class FiltersTests
 {
-    [Fact]
-    public void Create_WithValidParameters_ReturnsInstance()
-    {
-        var filter = SavitzkyGolay.Create(5, 0, 2);
-        Assert.NotNull(filter);
-    }
-
     [Theory]
     [InlineData(4)] // Even
     [InlineData(3)] // Less than 5

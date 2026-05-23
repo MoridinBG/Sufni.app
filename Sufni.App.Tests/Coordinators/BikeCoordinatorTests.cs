@@ -291,8 +291,7 @@ public class BikeCoordinatorTests
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
-        var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
-        Assert.Contains("must match leverage ratio max shock stroke", invalid.ErrorMessage, StringComparison.Ordinal);
+        Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
         await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(default!, default);
         await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());

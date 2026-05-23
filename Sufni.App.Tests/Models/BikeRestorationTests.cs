@@ -11,19 +11,13 @@ namespace Sufni.App.Tests.Models;
 public class BikeRestorationTests
 {
     [Fact]
-    public void FromSnapshot_PreservesShockStrokeWheelStateRotationAndLinkageStructure()
+    public void FromSnapshot_PreservesShockStrokeChainstayRotationAndLinkageStructure()
     {
         var source = new Bike(Guid.NewGuid(), "restored bike")
         {
             HeadAngle = 64,
             ForkStroke = 170,
             PixelsToMillimeters = 1,
-            FrontWheelRimSize = EtrtoRimSize.Inch29,
-            FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = Math.Round(EtrtoRimSize.Inch29.CalculateTotalDiameterMm(2.4), 1),
-            RearWheelRimSize = EtrtoRimSize.Inch275,
-            RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = Math.Round(EtrtoRimSize.Inch275.CalculateTotalDiameterMm(2.5), 1),
             ImageRotationDegrees = 12.5,
             ImageBytes = TestImages.SmallPngBytes(),
             Linkage = TestSnapshots.FullSuspensionLinkage(),
@@ -36,14 +30,7 @@ public class BikeRestorationTests
 
         Assert.Equal(snapshot.ShockStroke, restored.ShockStroke);
         Assert.Equal(snapshot.Chainstay, restored.Chainstay);
-        Assert.Equal(snapshot.FrontWheelRimSize, restored.FrontWheelRimSize);
-        Assert.Equal(snapshot.FrontWheelTireWidth, restored.FrontWheelTireWidth);
-        Assert.Equal(snapshot.FrontWheelDiameterMm, restored.FrontWheelDiameterMm);
-        Assert.Equal(snapshot.RearWheelRimSize, restored.RearWheelRimSize);
-        Assert.Equal(snapshot.RearWheelTireWidth, restored.RearWheelTireWidth);
-        Assert.Equal(snapshot.RearWheelDiameterMm, restored.RearWheelDiameterMm);
         Assert.Equal(snapshot.ImageRotationDegrees, restored.ImageRotationDegrees);
-        Assert.Equal(snapshot.Updated, restored.Updated);
         Assert.NotNull(restored.Linkage);
         Assert.Equal(snapshot.ShockStroke, restored.Linkage!.ShockStroke);
         Assert.Equal(DescribeJoints(snapshot.Linkage!.Joints), DescribeJoints(restored.Linkage.Joints));

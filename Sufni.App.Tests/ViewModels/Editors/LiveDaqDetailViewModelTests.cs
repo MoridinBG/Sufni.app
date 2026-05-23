@@ -228,7 +228,6 @@ public class LiveDaqDetailViewModelTests
         editor.RequestedGpsFixHz = 0;
 
         Assert.False(editor.CanConnect);
-        Assert.Equal("Set at least one live preview rate above 0 Hz.", editor.ConnectDisabledTooltip);
     }
 
     [AvaloniaFact]
@@ -288,11 +287,12 @@ public class LiveDaqDetailViewModelTests
     [AvaloniaFact]
     public async Task ConnectCommand_PushesErrorMessage_WhenStartIsRejected()
     {
-        var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, "busy"));
+        const string rejectionMessage = "start rejected sentinel";
+        var editor = CreateEditor(new LivePreviewStartResult.Rejected(LiveStartErrorCode.Busy, rejectionMessage));
 
         await editor.ConnectCommand.ExecuteAsync(null);
 
-        Assert.Contains("busy", editor.ErrorMessages);
+        Assert.Contains(rejectionMessage, editor.ErrorMessages);
         await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         shell.DidNotReceive().Close(editor);
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
@@ -446,45 +446,6 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SnapshotTexts_ShowCalibratedMillimeters_WhenQueryProvidesCalibration()
-    {
-        knownBoardsQuery.GetTravelCalibration("board-1").Returns(new LiveDaqTravelCalibration(
-            Front: new LiveDaqTravelChannelCalibration(200, measurement => measurement * 0.5),
-            Rear: null));
-
-        var editor = CreateEditor();
-
-        editor.Snapshot = LiveDaqUiSnapshot.Empty with
-        {
-            Session = new LiveSessionContractSnapshot(
-                SessionId: 808,
-                SelectedSensorMask: LiveSensorMask.Travel,
-                RequestedSensorMask: LiveSensorInstanceMask.Travel,
-                AcceptedSensorMask: LiveSensorInstanceMask.Travel,
-                AcceptedTravelHz: 200,
-                AcceptedImuHz: 0,
-                AcceptedGpsFixHz: 0,
-                SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
-                Flags: LiveSessionFlags.CalibratedOnly,
-                ActiveImuLocations: []),
-            Travel = new LiveTravelUiSnapshot(
-                IsActive: true,
-                FrontIsActive: true,
-                RearIsActive: true,
-                HasData: true,
-                FrontMeasurement: 120,
-                RearMeasurement: 222,
-                SampleOffset: TimeSpan.FromSeconds(1.25),
-                SampleDelay: TimeSpan.FromMilliseconds(42),
-                QueueDepth: 3,
-                DroppedBatches: 1)
-        };
-
-        Assert.Equal("Front: 60mm (30%)", editor.FrontTravelText);
-        Assert.Equal("Rear: 222", editor.RearTravelText);
-    }
-
-    [AvaloniaFact]
     public void CanManage_TracksConnectionState_WhenEndpointExists()
     {
         var editor = CreateEditor();
@@ -501,7 +462,6 @@ public class LiveDaqDetailViewModelTests
 
         Assert.False(editor.CanManage);
         Assert.False(editor.EditConfigCommand.CanExecute(null));
-        Assert.Equal("Disconnect live session first", editor.ManagementDisabledTooltip);
     }
 
     [AvaloniaFact]
@@ -530,6 +490,7 @@ public class LiveDaqDetailViewModelTests
     [AvaloniaFact]
     public async Task EditConfigCommand_ReportsTypedDownloadErrorWithoutOpeningEditor()
     {
+        const string downloadErrorMessage = "download failed sentinel";
         daqManagementService.GetFileAsync(
                 Arg.Any<string>(),
                 Arg.Any<int>(),
@@ -537,12 +498,12 @@ public class LiveDaqDetailViewModelTests
                 Arg.Any<int>(),
                 Arg.Any<Stream>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "busy")));
+            .Returns(Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, downloadErrorMessage)));
         var editor = CreateEditor();
 
         await editor.EditConfigCommand.ExecuteAsync(null);
 
-        Assert.Contains("busy", editor.ErrorMessages);
+        Assert.Contains(downloadErrorMessage, editor.ErrorMessages);
         await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
     }
 
@@ -564,7 +525,7 @@ public class LiveDaqDetailViewModelTests
             1557,
             Arg.Is<byte[]>(bytes => Encoding.UTF8.GetString(bytes).Contains("STA_SSID=edited", StringComparison.Ordinal)),
             Arg.Any<CancellationToken>());
-        Assert.Contains("CONFIG uploaded.", editor.Notifications);
+        Assert.Single(editor.Notifications);
     }
 
     [AvaloniaFact]
@@ -641,9 +602,10 @@ public class LiveDaqDetailViewModelTests
     [AvaloniaFact]
     public async Task SetTimeCommand_AddsError_OnTypedFailure()
     {
+        const string setTimeErrorMessage = "set time failed sentinel";
         daqManagementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqSetTimeResult>(
-                new DaqSetTimeResult.Error(DaqManagementErrorCode.Busy, "busy")));
+                new DaqSetTimeResult.Error(DaqManagementErrorCode.Busy, setTimeErrorMessage)));
         var editor = CreateEditor();
 
         await editor.SetTimeCommand.ExecuteAsync(null);

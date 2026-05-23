@@ -37,7 +37,7 @@ public class LeverageRatioCsvParserTests
         var result = LeverageRatioCsvParser.Parse(csv);
 
         var invalid = Assert.IsType<LeverageRatioParseResult.Invalid>(result);
-        Assert.Contains(invalid.Errors, error => error.Message.Contains("Required CSV header", StringComparison.Ordinal));
+        Assert.Contains(invalid.Errors, error => error.Code == LeverageRatioParseErrorCode.InvalidHeader);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class LeverageRatioCsvParserTests
         var result = LeverageRatioCsvParser.Parse(csv);
 
         var invalid = Assert.IsType<LeverageRatioParseResult.Invalid>(result);
-        Assert.Contains(invalid.Errors, error => error.Message.Contains("Decimal comma", StringComparison.Ordinal));
+        Assert.Contains(invalid.Errors, error => error.Code == LeverageRatioParseErrorCode.DecimalComma);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class LeverageRatioCsvParserTests
         var result = LeverageRatioCsvParser.Parse(csv);
 
         var invalid = Assert.IsType<LeverageRatioParseResult.Invalid>(result);
-        Assert.Contains(invalid.Errors, error => error.Message.Contains("Shock travel must be a valid number.", StringComparison.Ordinal));
-        Assert.Contains(invalid.Errors, error => error.Message.Contains("Shock travel must increase monotonically.", StringComparison.Ordinal));
+        Assert.Contains(invalid.Errors, error => error.Code == LeverageRatioParseErrorCode.InvalidShockTravel);
+        Assert.Contains(invalid.Errors, error => error.Code == LeverageRatioParseErrorCode.NonIncreasingShockTravel);
     }
 }

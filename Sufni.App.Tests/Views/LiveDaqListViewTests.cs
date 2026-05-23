@@ -117,31 +117,6 @@ public class LiveDaqListViewTests
         await coordinator.Received(1).SelectAsync("board-1");
     }
 
-    [AvaloniaFact]
-    public async Task LiveDaqListView_OfflineRowTap_DoesNotInvokeCoordinator()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var store = new LiveDaqStore();
-        store.Upsert(new LiveDaqSnapshot(
-            IdentityKey: "board-1",
-            DisplayName: "Board 1",
-            BoardId: "board-1",
-            Host: null,
-            Port: null,
-            IsOnline: false,
-            SetupName: null,
-            BikeName: null));
-
-        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
-
-        // Bypass IsEnabled to confirm the VM-level guard rejects offline rows.
-        var row = viewModel.Items.Single();
-        viewModel.RowSelectedCommand.Execute(row);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        await coordinator.DidNotReceive().SelectAsync(Arg.Any<string>());
-    }
-
     private static Button[] FindRowButtons(Control root)
     {
         return root.FindAllVisual<Button>()

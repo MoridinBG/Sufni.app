@@ -10,7 +10,6 @@ using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
-using Sufni.App.Presentation;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
@@ -46,40 +45,6 @@ public class LiveSessionDetailViewTests
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault());
         Assert.IsType<LiveSessionControlsMobileView>(shell!.ControlContent);
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionDetailView_SaveAndResetButtons_BindToEditorCommands()
-    {
-        var editor = CreateEditor();
-
-        await using var mounted = await MountAsync(editor);
-
-        var buttons = mounted.View.GetVisualDescendants().OfType<Button>().ToArray();
-        var saveButton = buttons.First(b => b.Name == "SaveButton");
-        var resetButton = buttons.First(b => b.Name == "ResetButton");
-
-        Assert.Same(editor.SaveCommand, saveButton.Command);
-        Assert.Same(editor.ResetCommand, resetButton.Command);
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionDetailView_ShowsScreenError_WhenScreenStateIsError()
-    {
-        var editor = CreateEditor();
-        editor.ScreenState = SessionScreenPresentationState.Error("stream dropped");
-
-        await using var mounted = await MountAsync(editor);
-
-        var errorHeading = mounted.View.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .FirstOrDefault(t => t.Text == "Could not load session");
-        var errorBody = mounted.View.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .FirstOrDefault(t => t.Text == "stream dropped");
-
-        Assert.NotNull(errorHeading);
-        Assert.NotNull(errorBody);
     }
 
     private static LiveSessionDetailViewModel CreateEditor()

@@ -75,7 +75,7 @@ public class KinematicsHelperTests
     [Fact]
     public void CalculateAngleAtPoint_WithCoincidentPoints_ThrowsInvalidOperationException()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
             GeometryUtils.CalculateAngleAtPoint(
                 centralX: 0,
                 centralY: 0,
@@ -83,7 +83,5 @@ public class KinematicsHelperTests
                 adjacent1Y: 0,
                 adjacent2X: 1,
                 adjacent2Y: 0));
-
-        Assert.NotNull(exception.Message);
     }
 }

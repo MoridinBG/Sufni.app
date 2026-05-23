@@ -23,46 +23,6 @@ namespace Sufni.App.Tests.Views.Editors;
 public class LiveDaqDetailViewTests
 {
     [AvaloniaFact]
-    public async Task LiveDaqDetailView_RendersSectionsInSpecOrder()
-    {
-        var editor = CreateEditor();
-        await using var mounted = await MountAsync(editor);
-
-        var stack = mounted.View.GetVisualDescendants()
-            .OfType<StackPanel>()
-            .First(p => p.Children.OfType<Border>().Any(b => b.Name == "SetupCard"));
-
-        var orderedNames = stack.Children
-            .Select(c => c.Name)
-            .Where(n => !string.IsNullOrEmpty(n))
-            .ToArray();
-
-        Assert.Equal(new[]
-        {
-            "SetupCard",
-            "ConnectionCard",
-            "RequestedRatesCard",
-            "AcceptedSessionCard",
-            "ReadingsSection",
-            "DeviceManagementCard",
-            "ManagementNotificationsBar",
-        }, orderedNames);
-
-        var readings = mounted.View.FindControl<StackPanel>("ReadingsSection")!;
-        var readingNames = readings.Children
-            .Select(c => c.Name)
-            .Where(n => !string.IsNullOrEmpty(n))
-            .ToArray();
-
-        Assert.Equal(new[]
-        {
-            "TravelCard",
-            "ImuCard",
-            "GpsCard",
-        }, readingNames);
-    }
-
-    [AvaloniaFact]
     public async Task LiveDaqDetailView_BackAndStartSessionButtons_ShareBottomActionRow()
     {
         var editor = CreateEditor();

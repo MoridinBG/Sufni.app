@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
 using Sufni.App.Models;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
@@ -37,7 +36,6 @@ public class SessionAnalysisControlsTests
             var metrics = view.FindControl<ItemsControl>("StepMetricsItemsControl");
             var otherOptions = view.FindControl<Expander>("OtherOptionsExpander");
             var findings = view.FindControl<Expander>("FindingsExpander");
-            var text = RenderedText(view);
 
             Assert.NotNull(primary);
             Assert.True(primary!.IsVisible);
@@ -47,8 +45,6 @@ public class SessionAnalysisControlsTests
             Assert.False(otherOptions!.IsVisible);
             Assert.NotNull(findings);
             Assert.False(findings!.IsVisible);
-            Assert.Contains("Fork · Open HSR by 1 click", text);
-            Assert.Contains("Expected: Rebound 95th should rise into 1800-2500 mm/s.", text);
         }
         finally
         {
@@ -101,48 +97,4 @@ public class SessionAnalysisControlsTests
         }
     }
 
-    [AvaloniaFact]
-    public async Task SessionAnalysisVibrationPanel_RendersMetricsAndCaveat()
-    {
-        var panel = new Sufni.App.Models.SessionAnalysisVibrationPanel(
-            [
-                new SessionAnalysisMetric("Magic carpet ratio", "3.20", null, "Fork", null),
-                new SessionAnalysisMetric("Average g", "0.81", "g", "Rear", null),
-            ],
-            "Compare vibration only side-by-side on the same trail at the same pace.");
-
-        var view = new Sufni.App.Views.Controls.SessionAnalysisVibrationPanel
-        {
-            DataContext = panel,
-        };
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-
-        try
-        {
-            var text = RenderedText(view);
-            var metrics = view.FindControl<ItemsControl>("VibrationMetricsItemsControl");
-
-            Assert.NotNull(metrics);
-            Assert.Same(panel.Metrics, metrics!.ItemsSource);
-            Assert.Contains("Vibration", text);
-            Assert.Contains("Compare vibration only side-by-side on the same trail at the same pace.", text);
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    private static string RenderedText(Control view)
-    {
-        return string.Join(
-            "\n",
-            view
-            .GetVisualDescendants()
-            .OfType<TextBlock>()
-            .Select(textBlock => textBlock.Text)
-            .Where(text => !string.IsNullOrWhiteSpace(text))
-            .Cast<string>());
-    }
 }

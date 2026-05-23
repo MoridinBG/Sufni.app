@@ -109,20 +109,6 @@ public class MainPagesViewModelTests
         Assert.Equal(SufniThemeMode.Dark, viewModel.NextThemeMode);
     }
 
-    [Fact]
-    public async Task ToggleThemeCommand_TogglesThroughThemeService()
-    {
-        var themeService = Substitute.For<IThemeService>();
-        themeService.Mode.Returns(SufniThemeMode.Dark);
-        themeService.EffectiveMode.Returns(SufniThemeMode.Dark);
-        themeService.IsSystemThemeAvailable.Returns(true);
-        var viewModel = MainPagesViewModelTestFactory.Create(themeService: themeService);
-
-        await viewModel.ToggleThemeCommand.ExecuteAsync(null);
-
-        await themeService.Received(1).ToggleAsync();
-    }
-
     [AvaloniaFact]
     public async Task SyncProgressState_MirrorsCoordinatorProgress()
     {

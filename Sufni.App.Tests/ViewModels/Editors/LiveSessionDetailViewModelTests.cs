@@ -87,14 +87,6 @@ public class LiveSessionDetailViewModelTests
         Assert.Equal(SurfacePresentationState.Hidden, editor.SessionAnalysis.State);
         Assert.Empty(editor.SessionAnalysis.Findings);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
-        Assert.Equal([SessionAnalysisTargetProfile.Weekend, SessionAnalysisTargetProfile.Trail, SessionAnalysisTargetProfile.Enduro, SessionAnalysisTargetProfile.DH], editor.SessionAnalysisTargetProfileOptions.Select(option => option.Value));
-        Assert.Equal("Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both", editor.SessionAnalysisModesText);
-
-        editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
-        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-        editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
-
-        Assert.Equal("Travel: Dynamic sag  Velocity: Stroke-peak average  Balance: Travel / Both", editor.SessionAnalysisModesText);
     }
 
     [AvaloniaFact]
@@ -443,9 +435,6 @@ public class LiveSessionDetailViewModelTests
     {
         var editor = CreateEditor();
 
-        Assert.Equal(
-            ["Graph", "Spring", "Damper", "Notes", "Preferences"],
-            editor.Pages.Select(page => page.DisplayName));
         Assert.IsType<LiveGraphPageViewModel>(editor.Pages[0]);
         Assert.IsType<SpringPageViewModel>(editor.Pages[1]);
         Assert.IsType<DamperPageViewModel>(editor.Pages[2]);

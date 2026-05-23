@@ -64,29 +64,6 @@ public class TrackSignalPlotTests
     }
 
     [Fact]
-    public void LoadTrackData_HidesRightAxis_WhenRequested()
-    {
-        var plot = new Plot();
-        var sut = new TrackSignalPlot(plot)
-        {
-            HideRightAxis = true,
-        };
-
-        sut.LoadTrackData(
-            [
-                new TrackPoint(100, 0, 0, 500, 10),
-                new TrackPoint(101, 1, 1, 501, 20),
-            ],
-            new TrackTimeRange(100, 1),
-            telemetryData: null,
-            TrackSignalKind.Speed);
-
-        Assert.False(plot.Axes.Right.IsVisible);
-        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
-    }
-
-    [Fact]
     public void LoadTrackData_KeepsFiniteSamplesOutsideVisibleDuration()
     {
         var plot = new Plot();

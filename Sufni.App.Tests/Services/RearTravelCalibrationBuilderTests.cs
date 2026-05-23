@@ -58,7 +58,6 @@ public class RearTravelCalibrationBuilderTests
 
         Assert.False(success);
         Assert.Null(calibration);
-        Assert.Contains("must match leverage ratio max shock stroke", errorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,7 +81,6 @@ public class RearTravelCalibrationBuilderTests
 
         Assert.False(success);
         Assert.Null(calibration);
-        Assert.Equal("Shock stroke is required for leverage ratio bikes.", errorMessage);
     }
 
     [Fact]

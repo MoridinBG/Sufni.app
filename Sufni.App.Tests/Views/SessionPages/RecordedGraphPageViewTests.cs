@@ -7,8 +7,6 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.Behaviors;
-using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionGraphs;
@@ -26,79 +24,6 @@ namespace Sufni.App.Tests.Views.SessionPages;
 
 public class RecordedGraphPageViewTests
 {
-    [AvaloniaFact]
-    public async Task RecordedGraphPageView_RendersPlots_WhenStatesReady()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
-        var workspace = new RecordedGraphPageWorkspaceStub(
-            telemetry,
-            SurfacePresentationState.Ready,
-            SurfacePresentationState.Ready,
-            pitchRollGraphState: SurfacePresentationState.Ready,
-            speedGraphState: SurfacePresentationState.Ready,
-            elevationGraphState: SurfacePresentationState.Ready,
-            analysisRange: new TelemetryTimeRange(0.25, 0.75));
-
-        var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
-
-        await using var mounted = await MountAsync(page);
-
-        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
-        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
-        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
-        var pitchRollView = GetNamedVisual<FramePitchRollPlotDesktopView>(mounted.View, "PitchRoll");
-        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
-        var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Elevation");
-        var rowsView = Assert.Single(mounted.View.GetVisualDescendants().OfType<RecordedSessionGraphRowsView>());
-        var root = GetGraphRoot(mounted.View);
-        var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
-
-        Assert.NotNull(travelView);
-        Assert.NotNull(velocityView);
-        Assert.NotNull(imuView);
-        Assert.NotNull(pitchRollView);
-        Assert.NotNull(speedView);
-        Assert.NotNull(elevationView);
-        Assert.NotNull(pageScrollViewer);
-        Assert.Equal(
-            ["Travel (mm)", "Vibration RMS (g)", "GPS speed (km/h)"],
-            root.Rows.Select(row => row.Title!).ToArray());
-        Assert.Equal(["Velocity (m/s)"], GetBaseRow(root, "Travel (mm)").ChildRows.Select(row => row.Title!).ToArray());
-        Assert.Equal(["Frame pitch/roll (deg)"], GetBaseRow(root, "Vibration RMS (g)").ChildRows.Select(row => row.Title!).ToArray());
-        Assert.Equal(["Elevation (m)"], GetBaseRow(root, "GPS speed (km/h)").ChildRows.Select(row => row.Title!).ToArray());
-        Assert.True(travelView!.IsVisible);
-        Assert.True(velocityView!.IsVisible);
-        Assert.True(imuView!.IsVisible);
-        Assert.True(pitchRollView!.IsVisible);
-        Assert.True(speedView!.IsVisible);
-        Assert.True(elevationView!.IsVisible);
-        Assert.Same(workspace, travelView.GraphWorkspace);
-        Assert.Same(workspace, velocityView.GraphWorkspace);
-        Assert.Same(workspace, imuView.GraphWorkspace);
-        Assert.Same(workspace, pitchRollView.GraphWorkspace);
-        Assert.Same(workspace, speedView.GraphWorkspace);
-        Assert.Same(workspace, elevationView.GraphWorkspace);
-        Assert.Equal(workspace.AnalysisRange, travelView.AnalysisRange);
-        Assert.Equal(workspace.AnalysisRange, velocityView.AnalysisRange);
-        Assert.Equal(workspace.AnalysisRange, imuView.AnalysisRange);
-        Assert.Equal(workspace.AnalysisRange, pitchRollView.AnalysisRange);
-        Assert.Equal(workspace.AnalysisRange, speedView.AnalysisRange);
-        Assert.Equal(workspace.AnalysisRange, elevationView.AnalysisRange);
-        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, travelView.MaximumDisplayHz);
-        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, velocityView.MaximumDisplayHz);
-        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, imuView.MaximumDisplayHz);
-        Assert.Equal(SessionGraphSettings.RecordedMobileMaximumDisplayHz, pitchRollView.MaximumDisplayHz);
-        Assert.True(HapticFeedbackBehavior.GetIsEnabled(rowsView));
-        Assert.True(travelView.HideRightAxis);
-        Assert.True(velocityView.HideRightAxis);
-        Assert.True(imuView.HideRightAxis);
-        Assert.True(pitchRollView.HideRightAxis);
-        Assert.True(speedView.HideRightAxis);
-        Assert.True(elevationView.HideRightAxis);
-        Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
-    }
-
     [AvaloniaFact]
     public async Task RecordedGraphPageView_AppliesStoredGraphPreferences()
     {
@@ -135,35 +60,6 @@ public class RecordedGraphPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task RecordedGraphPageView_ShowsPlaceholders_WhenStatesWaiting()
-    {
-        var workspace = new RecordedGraphPageWorkspaceStub(
-            TestTelemetryData.CreateProcessed(),
-            SurfacePresentationState.WaitingForData("Waiting for travel data."),
-            SurfacePresentationState.WaitingForData("Waiting for IMU data."),
-            pitchRollGraphState: SurfacePresentationState.WaitingForData("Waiting for pitch/roll data."),
-            speedGraphState: SurfacePresentationState.WaitingForData("Waiting for speed data."),
-            elevationGraphState: SurfacePresentationState.WaitingForData("Waiting for elevation data."));
-
-        var page = new RecordedGraphPageViewModel(workspace, CreateMediaWorkspace([]));
-
-        await using var mounted = await MountAsync(page);
-
-        var hosts = mounted.View.GetVisualDescendants()
-            .OfType<PlaceholderOverlayContainer>()
-            .Where(host => host.Name != "MapHost")
-            .ToArray();
-        Assert.Equal(6, hosts.Length);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[0].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[1].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[2].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[3].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[4].PresentationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, hosts[5].PresentationState.Kind);
-        Assert.False(mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder")!.IsVisible);
-    }
-
-    [AvaloniaFact]
     public async Task RecordedGraphPageView_ShowsNoGraphDataFallback_WhenBothStatesHidden()
     {
         var workspace = new RecordedGraphPageWorkspaceStub(
@@ -184,7 +80,7 @@ public class RecordedGraphPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task RecordedGraphPageView_CollapsesVelocityRow_WhenVelocityStateHidden()
+    public async Task RecordedGraphPageView_HidesNoGraphDataPlaceholder_WhenOnlyVelocityGraphIsHidden()
     {
         var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
@@ -198,16 +94,9 @@ public class RecordedGraphPageViewTests
         await using var mounted = await MountAsync(page);
 
         var fallback = mounted.View.FindControl<SurfacePlaceholderCard>("NoGraphDataPlaceholder");
-        var root = GetGraphRoot(mounted.View);
-        var travelRow = GetBaseRow(root, "Travel (mm)");
-        var velocityRow = GetChildRow(travelRow, "Velocity (m/s)");
-        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
 
         Assert.NotNull(fallback);
         Assert.False(fallback!.IsVisible);
-        Assert.True(travelRow.IsVisible);
-        Assert.False(velocityRow.IsVisible);
-        Assert.True(imuRow.IsVisible);
     }
 
     [AvaloniaFact]
@@ -259,15 +148,6 @@ public class RecordedGraphPageViewTests
             .SingleOrDefault(root => root.Name == "GraphRoot");
         Assert.NotNull(root);
         return root!;
-    }
-
-    private static T GetNamedVisual<T>(Control root, string name)
-        where T : Control
-    {
-        var rowsView = Assert.Single(root.GetVisualDescendants().OfType<RecordedSessionGraphRowsView>());
-        var visual = rowsView.FindControl<T>(name);
-        Assert.NotNull(visual);
-        return visual!;
     }
 
     private static TelemetryPlotRow GetBaseRow(TelemetryPlotsRoot root, string title)

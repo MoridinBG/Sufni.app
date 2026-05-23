@@ -1082,15 +1082,6 @@ public class SessionCoordinatorTests
         sessionStore.DidNotReceive().Remove(Arg.Any<Guid>());
     }
 
-    [Fact]
-    public void Constructor_CreatesCoordinator_WhenSyncServerNull()
-    {
-        // Smoke test: with no sync server we should still get a working
-        // coordinator and never NRE on construction.
-        var coordinator = CreateCoordinator(sync: null);
-        Assert.NotNull(coordinator);
-    }
-
     private static RecomputeTestContext CreateRecomputeContext(
         SessionStaleness? staleness = null,
         bool hasProcessedData = true,

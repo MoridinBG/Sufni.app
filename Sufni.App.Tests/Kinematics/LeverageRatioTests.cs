@@ -15,7 +15,7 @@ public class LeverageRatioTests
                 new LeverageRatioPoint(10, 25)
             ]));
 
-        Assert.Contains(exception.Errors, error => error.Message.Contains("duplicate values", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Code == LeverageRatioValidationErrorCode.DuplicateShockTravel);
     }
 
     [Fact]

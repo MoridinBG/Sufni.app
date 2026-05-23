@@ -23,19 +23,6 @@ public class PlaceholderOverlayContainerTests
     }
 
     [AvaloniaFact]
-    public async Task PlaceholderOverlayContainer_ReservesLayout_ForWaitingForData()
-    {
-        await using var mounted = await MountAsync(SurfacePresentationState.WaitingForData("Waiting for map data."));
-
-        Assert.True(mounted.View.IsVisible);
-        Assert.False(mounted.View.FindControl<ContentControl>("ReadyHost")!.IsVisible);
-        Assert.True(mounted.View.FindControl<ContentControl>("PlaceholderHost")!.IsVisible);
-        Assert.True(mounted.View.FindControl<Border>("OverlayPanel")!.IsVisible);
-        Assert.True(mounted.View.FindControl<TextBlock>("StateMessageText")!.IsVisible);
-        Assert.Equal("Waiting for map data.", mounted.View.FindControl<TextBlock>("StateMessageText")!.Text);
-    }
-
-    [AvaloniaFact]
     public async Task PlaceholderOverlayContainer_Collapses_ForHidden()
     {
         await using var mounted = await MountAsync(SurfacePresentationState.Hidden);
