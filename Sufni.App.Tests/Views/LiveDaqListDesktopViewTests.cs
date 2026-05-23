@@ -30,7 +30,7 @@ public class LiveDaqListDesktopViewTests
             SetupName: "Race",
             BikeName: "Demo"));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         Assert.NotNull(mounted.View.FindControl<Control>("LiveDaqSearchBar"));
@@ -59,7 +59,7 @@ public class LiveDaqListDesktopViewTests
             SetupName: "Race",
             BikeName: "Demo"));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(mounted.View.FindAllVisual<LiveDaqListItemButton>());

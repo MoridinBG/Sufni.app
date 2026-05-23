@@ -9,6 +9,8 @@ namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class SessionListViewModelTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
     [Fact]
     public async Task FinalizeDelete_KeepsSessionHidden_WhileDeleteInProgress()
     {
@@ -22,7 +24,7 @@ public class SessionListViewModelTests
             var deleteTcs = new TaskCompletionSource<SessionDeleteResult>();
             sessionCoordinator.DeleteAsync(summary.Id).Returns(deleteTcs.Task);
 
-            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
             Assert.Single(viewModel.Items);
 
             viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -53,7 +55,7 @@ public class SessionListViewModelTests
             sessionCoordinator.DeleteAsync(summary.Id)
                 .Returns(new SessionDeleteResult(SessionDeleteOutcome.Failed, "boom"));
 
-            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
             Assert.Single(viewModel.Items);
 
             viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -82,7 +84,7 @@ public class SessionListViewModelTests
             sessionCoordinator.DeleteAsync(first.Id).Returns(firstTcs.Task);
             sessionCoordinator.DeleteAsync(second.Id).Returns(secondTcs.Task);
 
-            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
             Assert.Equal(2, viewModel.Items.Count);
 
             // Delete both rows back to back. The second delete must not
@@ -113,7 +115,7 @@ public class SessionListViewModelTests
             sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
-            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
             Assert.True(row.RecalculateCommand.CanExecute(null));
@@ -141,7 +143,7 @@ public class SessionListViewModelTests
             sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
                 .Returns(new SessionRecomputeResult.Failed("boom"));
 
-            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
             await viewModel.Items[0].RecalculateCommand.ExecuteAsync(null);
 
             Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
@@ -164,7 +166,7 @@ public class SessionListViewModelTests
             sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
-            var viewModel = new SessionListViewModel(graph, sessionCoordinator);
+            var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
             Assert.True(row.RecalculateCommand.CanExecute(null));
@@ -185,7 +187,7 @@ public class SessionListViewModelTests
                 name: "no raw",
                 staleness: new SessionStaleness.MissingRawSource()));
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
             Assert.False(row.RecalculateCommand.CanExecute(null));
@@ -203,7 +205,7 @@ public class SessionListViewModelTests
                 description: "rough track",
                 staleness: new SessionStaleness.DependencyHashChanged());
             sessionCache.AddOrUpdate(summary);
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
             Assert.True(row.IsStale);
@@ -230,7 +232,7 @@ public class SessionListViewModelTests
                 description: "rough track",
                 staleness: new SessionStaleness.MissingRawSource());
             sessionCache.AddOrUpdate(summary);
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
             Assert.False(row.IsStale);
@@ -262,7 +264,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(older);
             sessionCache.AddOrUpdate(undated);
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             Assert.Equal(3, viewModel.DateGroups.Count);
             Assert.Equal(new DateOnly(2026, 5, 20), viewModel.DateGroups[0].Key.Date);
@@ -275,6 +277,25 @@ public class SessionListViewModelTests
     }
 
     [Fact]
+    public void DateFilterTo_IncludesEntireSelectedDay()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            sessionCache.AddOrUpdate(CreateSummary("morning", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
+            sessionCache.AddOrUpdate(CreateSummary("evening", timestamp: ToUnixSeconds(2026, 5, 20, 23, 59)));
+            sessionCache.AddOrUpdate(CreateSummary("next day", timestamp: ToUnixSeconds(2026, 5, 21, 0, 0)));
+
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher)
+            {
+                DateFilterTo = new DateTime(2026, 5, 20)
+            };
+
+            Assert.Equal(new[] { "evening", "morning" }, viewModel.Items.Select(row => row.BaseName));
+        }
+    }
+
+    [Fact]
     public void DateGroups_PreserveExistingGroupAndRowsCollection_WhenRowsChange()
     {
         var (graph, sessionCache) = CreateGraph();
@@ -282,7 +303,7 @@ public class SessionListViewModelTests
         {
             sessionCache.AddOrUpdate(CreateSummary("Morning", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var group = Assert.Single(viewModel.DateGroups);
             var rows = group.Items;
 
@@ -304,7 +325,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(CreateSummary("Alpine", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
             sessionCache.AddOrUpdate(CreateSummary("Valley", timestamp: ToUnixSeconds(2026, 5, 19, 8, 0)));
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             viewModel.DateGroups[0].ToggleExpandedCommand.Execute(null);
 
             Assert.False(viewModel.DateGroups[0].IsExpanded);
@@ -329,7 +350,7 @@ public class SessionListViewModelTests
             var summary = CreateSummary("delete", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15));
             sessionCache.AddOrUpdate(summary);
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             Assert.Single(viewModel.DateGroups);
 
             viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -355,7 +376,7 @@ public class SessionListViewModelTests
                 staleness: new SessionStaleness.DependencyHashChanged());
             sessionCache.AddOrUpdate(summary);
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
             var expectedTimestamp = row.Timestamp!.Value.ToString(
                 CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern,
@@ -382,7 +403,7 @@ public class SessionListViewModelTests
                 descentMeters: 4.2);
             sessionCache.AddOrUpdate(summary);
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
             Assert.Equal("1m 05s | 987 m | +12 m / -4 m", row.SubtitleText);
@@ -398,7 +419,7 @@ public class SessionListViewModelTests
         {
             sessionCache.AddOrUpdate(CreateSummary(name: "Duration", durationSeconds: 3725));
 
-            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+            var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
             Assert.Equal("1h 02m", row.SubtitleText);

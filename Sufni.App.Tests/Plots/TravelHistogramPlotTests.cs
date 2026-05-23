@@ -3,6 +3,7 @@ using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
+using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -44,7 +45,7 @@ public class TravelHistogramPlotTests
         TravelHistogramMode histogramMode,
         string expectedLabel)
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var plot = new Plot();
         var sut = new TravelHistogramPlot(plot, SuspensionType.Front)
         {
@@ -60,8 +61,8 @@ public class TravelHistogramPlotTests
     [Fact]
     public void Clear_RemovesAxisRulesBeforeReloadingChangedTravelRange()
     {
-        var original = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
-        var recomputed = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var original = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
+        var recomputed = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         recomputed.Front.MaxTravel = 240;
         recomputed.Front.TravelBins = HistogramBuilder.Linspace(0, 240, Parameters.TravelHistBins + 1);
         var plot = new Plot();
@@ -79,18 +80,9 @@ public class TravelHistogramPlotTests
         Assert.True(plot.Axes.GetLimits().Bottom > 230);
     }
 
-    private static IEnumerable<string> ReadTextLabels(Text text)
-    {
-        return text.GetType()
-            .GetProperties()
-            .Where(property => property.PropertyType == typeof(string))
-            .Select(property => property.GetValue(text) as string)
-            .Where(label => !string.IsNullOrWhiteSpace(label))!;
-    }
-
     private static TelemetryData CreateTelemetryWithoutStrokes()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         telemetry.Front.Strokes = new Strokes
         {

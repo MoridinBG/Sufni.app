@@ -29,7 +29,7 @@ public class LiveDaqListViewTests
             SetupName: "Race",
             BikeName: "Demo"));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(FindRowButtons(mounted.Control));
@@ -59,7 +59,7 @@ public class LiveDaqListViewTests
             SetupName: null,
             BikeName: null));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(FindRowButtons(mounted.Control));
@@ -82,7 +82,7 @@ public class LiveDaqListViewTests
             SetupName: null,
             BikeName: null));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(FindRowButtons(mounted.Control));
@@ -107,7 +107,7 @@ public class LiveDaqListViewTests
             SetupName: null,
             BikeName: null));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(FindRowButtons(mounted.Control));
@@ -132,7 +132,7 @@ public class LiveDaqListViewTests
             SetupName: null,
             BikeName: null));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
 
         // Bypass IsEnabled to confirm the VM-level guard rejects offline rows.
         var row = viewModel.Items.Single();
@@ -166,7 +166,7 @@ public class LiveDaqListViewTests
             SetupName: null,
             BikeName: null));
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
 
         Assert.Equal(2, FindRowButtons(mounted.Control).Length);

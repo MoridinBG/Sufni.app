@@ -22,7 +22,7 @@ public class SetupListViewTests
         var coordinator = TestCoordinatorSubstitutes.Setup();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SetupListViewModel(store, coordinator);
+        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         var view = new SetupListView
         {
             DataContext = viewModel,

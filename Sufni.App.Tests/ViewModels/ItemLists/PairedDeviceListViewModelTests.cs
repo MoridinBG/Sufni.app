@@ -9,6 +9,8 @@ namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class PairedDeviceListViewModelTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
     [Fact]
     public async Task FinalizeUnpair_KeepsDeviceHidden_WhileDeleteInProgress()
     {
@@ -33,7 +35,7 @@ public class PairedDeviceListViewModelTests
         dbService.DeletePairedDeviceAsync(snapshot.DeviceId).Returns(deleteTcs.Task);
 
         var coordinator = new PairedDeviceCoordinator(storeWriter, dbService);
-        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator);
+        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -71,7 +73,7 @@ public class PairedDeviceListViewModelTests
             .Returns(Task.FromException(new InvalidOperationException("boom")));
 
         var coordinator = new PairedDeviceCoordinator(storeWriter, dbService);
-        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator);
+        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);

@@ -20,6 +20,7 @@ public class SetupEditorViewModelTests
     private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
     private readonly SourceCache<BikeSnapshot, Guid> bikesCache = new(b => b.Id);
 
@@ -32,7 +33,7 @@ public class SetupEditorViewModelTests
     }
 
     private SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false) =>
-        new(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService);
+        new(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, uiThreadDispatcher);
 
     private const string LinearForkConfigurationJson =
         "{\"type\":\"linear_fork\",\"length\":100,\"resolution\":12}";

@@ -22,7 +22,7 @@ public class RecordedSessionReprocessorTests
                 Resolution = 12
             })
         };
-        var sstBytes = CreateSstV3Bytes();
+        var sstBytes = TestSstFiles.CreateV3WithFrontOnly();
         var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes);
         var source = new RecordedSessionSource
         {
@@ -121,23 +121,4 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
 
-    private static byte[] CreateSstV3Bytes()
-    {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream);
-
-        writer.Write("SST"u8);
-        writer.Write((byte)3);
-        writer.Write((ushort)100);
-        writer.Write((ushort)0);
-        writer.Write(1_700_000_000L);
-
-        for (ushort sample = 0; sample < 64; sample++)
-        {
-            writer.Write((ushort)(1200 + sample));
-            writer.Write(ushort.MaxValue);
-        }
-
-        return stream.ToArray();
-    }
 }

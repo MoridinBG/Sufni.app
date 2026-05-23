@@ -23,6 +23,7 @@ public class BikeEditorViewModelTests
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
     public BikeEditorViewModelTests()
     {
@@ -32,7 +33,7 @@ public class BikeEditorViewModelTests
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool isDesktop = true)
     {
         TestApp.SetIsDesktop(isDesktop);
-        return new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService);
+        return new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher);
     }
 
     private void SetDesktop(bool isDesktop)

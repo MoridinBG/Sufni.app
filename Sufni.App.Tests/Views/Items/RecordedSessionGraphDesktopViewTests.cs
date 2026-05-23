@@ -18,7 +18,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Views.Items;
 
@@ -27,7 +27,7 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_HidesImuRegion_WhenTelemetryHasNoImuData()
     {
-        var workspace = new RecordedSessionGraphWorkspaceStub(TestTelemetryData.Create());
+        var workspace = new RecordedSessionGraphWorkspaceStub(TestTelemetryData.CreateProcessed());
 
         await using var mounted = await MountAsync(workspace);
 
@@ -60,7 +60,7 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_HidesTravelRegion_WhenTelemetryHasNoTravelData()
     {
-        var telemetry = CreateTelemetryDataWithImu();
+        var telemetry = CreateWithImu();
         telemetry.Front.Present = false;
         telemetry.Rear.Present = false;
         telemetry.Front.Travel = [];
@@ -90,8 +90,8 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_HidesVelocityRegion_WhenVelocityStateHidden()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(
             telemetry,
             velocityGraphState: SurfacePresentationState.Hidden);
@@ -111,8 +111,8 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_ShowsImuRegion_WhenTelemetryHasImuData()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
 
         await using var mounted = await MountAsync(workspace);
@@ -130,7 +130,7 @@ public class RecordedSessionGraphDesktopViewTests
     public async Task RecordedSessionGraphDesktopView_ShowsGpsBaseRow_WhenImuIsHidden()
     {
         var workspace = new RecordedSessionGraphWorkspaceStub(
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             speedGraphState: SurfacePresentationState.Ready);
 
         await using var mounted = await MountAsync(workspace);
@@ -152,8 +152,8 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_UsesNestedTelemetryRows()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(
             telemetry,
             speedGraphState: SurfacePresentationState.Ready);
@@ -177,8 +177,8 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_AppliesStoredGraphPreferences()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(
             telemetry,
             speedGraphState: SurfacePresentationState.Ready)
@@ -210,8 +210,8 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_AnalysisRangeBindingKeepsAndClearsOverlayOnEveryPlot()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedSessionGraphWorkspaceStub(
             telemetry,
             pitchRollGraphState: SurfacePresentationState.Ready,
@@ -271,7 +271,7 @@ public class RecordedSessionGraphDesktopViewTests
     [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_VelocityPlotClick_ClearsAnalysisRange()
     {
-        var workspace = new RecordedSessionGraphWorkspaceStub(CreateTelemetryData());
+        var workspace = new RecordedSessionGraphWorkspaceStub(CreateMinimal());
 
         await using var mounted = await MountAsync(workspace);
 

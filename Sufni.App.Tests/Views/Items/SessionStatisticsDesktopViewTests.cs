@@ -27,7 +27,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_ShowsSpringSectionInitially_WhenFrontAndRearStatisticsAreAvailable()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: true,
             hasCompressionBalanceTelemetry: true,
@@ -63,7 +63,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_ShowsOnlyFrontDampingHosts_WhenOnlyFrontStatisticsAreAvailable()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: false,
             hasCompressionBalanceTelemetry: false,
@@ -106,7 +106,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_ShowsOnlyStrokesHosts_WhenStrokesTabSelected()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: true,
             hasCompressionBalanceTelemetry: false,
@@ -148,7 +148,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_ShowsOnlyAvailableVibrationHosts_WhenVibrationTabSelected()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: false,
             hasRearStatistics: false,
             hasCompressionBalanceTelemetry: false,
@@ -189,7 +189,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_ShowsOnlyAvailableBalanceHosts_WhenBalanceTabSelected()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: true,
             hasCompressionBalanceTelemetry: true,
@@ -233,7 +233,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_ShowsAnalysisTab_AndHidesOtherContent_WhenSelected()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: true,
             hasCompressionBalanceTelemetry: true,
@@ -267,7 +267,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_AnalysisTab_BindsFindingsAndTargetProfile()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: true,
             hasCompressionBalanceTelemetry: true,
@@ -304,7 +304,7 @@ public class SessionStatisticsDesktopViewTests
     public async Task SessionStatisticsDesktopView_BindsStatisticsModeSelectors()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontStatistics: true,
             hasRearStatistics: true,
             hasCompressionBalanceTelemetry: true,

@@ -62,7 +62,8 @@ public class SessionDetailViewModelTests
             tileLayerService,
             shell,
             dialogService,
-            preferencesService);
+            preferencesService,
+            new InlineUiThreadDispatcher());
     }
 
     private void SetDesktop(bool isDesktop)
@@ -150,7 +151,7 @@ public class SessionDetailViewModelTests
         try
         {
             var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-            editor.TelemetryData = TestTelemetryData.Create();
+            editor.TelemetryData = TestTelemetryData.CreateProcessed();
             editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
             editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
             editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
@@ -170,7 +171,7 @@ public class SessionDetailViewModelTests
     public void TelemetryDataChanged_UpdatesNotesTemperatureAverages()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        var telemetry = TestTelemetryFactories.CreateTelemetryData();
+        var telemetry = TestTelemetryData.CreateMinimal();
         telemetry.TemperatureAverages =
         [
             new TemperatureAverage(1, 21.26),
@@ -346,7 +347,7 @@ public class SessionDetailViewModelTests
     public async Task Loaded_OnDesktop_AppliesCoordinatorResult()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var trackPoints = new List<TrackPoint> { new(1, 1, 1, 0) };
         var fullTrackPoints = new List<TrackPoint> { new(2, 2, 2, 0) };
         var result = new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
@@ -418,7 +419,7 @@ public class SessionDetailViewModelTests
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
@@ -512,7 +513,7 @@ public class SessionDetailViewModelTests
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated));
         SetDesktop(true);
@@ -549,7 +550,7 @@ public class SessionDetailViewModelTests
                     BalanceSpeedMode.HighSpeed,
                     SessionAnalysisTargetProfile.DH)));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
@@ -571,7 +572,7 @@ public class SessionDetailViewModelTests
         preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
@@ -603,7 +604,7 @@ public class SessionDetailViewModelTests
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(TestTelemetryData.Create()));
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
@@ -626,7 +627,7 @@ public class SessionDetailViewModelTests
     public async Task Loaded_OnDesktop_AppliesFreshSessionAnalysis()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var damperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
         var analysis = CreateAnalysisResult();
         var result = new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
@@ -762,7 +763,7 @@ public class SessionDetailViewModelTests
     public void SelectedTravelHistogramMode_RecomputesAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.Create();
+        editor.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
@@ -775,7 +776,7 @@ public class SessionDetailViewModelTests
     public void SelectedVelocityAverageMode_RecomputesAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.Create();
+        editor.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
@@ -788,7 +789,7 @@ public class SessionDetailViewModelTests
     public void SelectedBalanceDisplacementMode_RecomputesAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.Create();
+        editor.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
@@ -801,7 +802,7 @@ public class SessionDetailViewModelTests
     public void SelectedSessionAnalysisTargetProfile_RecomputesAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.Create();
+        editor.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SelectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro;
@@ -814,7 +815,7 @@ public class SessionDetailViewModelTests
     public void DamperPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.Create();
+        editor.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.DamperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
@@ -943,7 +944,7 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
             false),
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             null);
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
@@ -997,7 +998,7 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
             false),
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             new SessionTrackPresentationData(Guid.NewGuid(), fullTrackPoints, trackPoints, 400));
         sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
@@ -1060,7 +1061,7 @@ public class SessionDetailViewModelTests
     public async Task Unloaded_CancelsInFlightLoad_AndDropsResult()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var pending = new TaskCompletionSource<SessionDesktopLoadResult>();
 
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
@@ -1114,7 +1115,7 @@ public class SessionDetailViewModelTests
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
             false),
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             new SessionTrackPresentationData(null, null, null, null)));
 
         await loadTask;
@@ -1161,8 +1162,8 @@ public class SessionDetailViewModelTests
     public async Task LaterLoad_SupersedesEarlierCompletion()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        var firstTelemetry = TestTelemetryData.Create();
-        var secondTelemetry = TestTelemetryData.Create();
+        var firstTelemetry = TestTelemetryData.CreateProcessed();
+        var secondTelemetry = TestTelemetryData.CreateProcessed();
         var firstPending = new TaskCompletionSource<SessionDesktopLoadResult>();
         var callCount = 0;
 
@@ -1211,7 +1212,7 @@ public class SessionDetailViewModelTests
         var refreshPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finalLoadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finalPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var finalTelemetry = TestTelemetryData.Create();
+        var finalTelemetry = TestTelemetryData.CreateProcessed();
         var finalResultApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var callCount = 0;
 
@@ -1279,7 +1280,7 @@ public class SessionDetailViewModelTests
         watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = false }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
         watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = true }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
         refreshPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             null,
             null,
             null,
@@ -1394,8 +1395,8 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
         var recomputedSnapshot = snapshot with { Updated = 7 };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        var oldTelemetry = TestTelemetryData.Create();
-        var freshTelemetry = TestTelemetryData.Create();
+        var oldTelemetry = TestTelemetryData.CreateProcessed();
+        var freshTelemetry = TestTelemetryData.CreateProcessed();
         var telemetryChanges = new List<TelemetryData?>();
         var loadCount = 0;
 
@@ -1625,8 +1626,8 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
         var updatedSnapshot = snapshot with { Updated = 8 };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        var oldTelemetry = TestTelemetryData.Create();
-        var freshTelemetry = TestTelemetryData.Create();
+        var oldTelemetry = TestTelemetryData.CreateProcessed();
+        var freshTelemetry = TestTelemetryData.CreateProcessed();
         var loadCount = 0;
 
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
@@ -1660,7 +1661,7 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
         var updatedSnapshot = snapshot with { Updated = 8, Description = "remote" };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        var oldTelemetry = TestTelemetryData.Create();
+        var oldTelemetry = TestTelemetryData.CreateProcessed();
 
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(oldTelemetry));

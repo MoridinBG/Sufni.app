@@ -106,7 +106,7 @@ public class LiveSessionDetailViewModelTests
         await editor.UnloadedCommand.ExecuteAsync(null);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -119,7 +119,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        var telemetryData = TestTelemetryData.Create();
+        var telemetryData = TestTelemetryData.CreateProcessed();
         var trackPoints = new List<TrackPoint>
         {
             new(1, 2, 3, 4),
@@ -260,7 +260,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -309,7 +309,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -339,7 +339,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -364,7 +364,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create(), captureRevision: 7);
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed(), captureRevision: 7);
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -391,7 +391,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create(), captureRevision: 7);
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed(), captureRevision: 7);
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -399,7 +399,7 @@ public class LiveSessionDetailViewModelTests
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Assert.False(editor.SaveCommand.CanExecute(null));
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create(), captureRevision: 8);
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed(), captureRevision: 8);
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -414,7 +414,7 @@ public class LiveSessionDetailViewModelTests
 
         currentSnapshot = CreateSnapshot(
             canSave: true,
-            telemetryData: TestTelemetryData.Create(),
+            telemetryData: TestTelemetryData.CreateProcessed(),
             trackPoints:
             [
                 new TrackPoint(1, 2, 3, 4),
@@ -475,7 +475,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -502,7 +502,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -542,7 +542,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -590,7 +590,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: false));
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -615,6 +615,7 @@ public class LiveSessionDetailViewModelTests
             FrontTravelHistogram = "<svg id='second-front' />",
         };
 
+        var firstBakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken capturedFirstToken = default;
         var callCount = 0;
         sessionPresentationService
@@ -625,6 +626,7 @@ public class LiveSessionDetailViewModelTests
                 if (callCount == 1)
                 {
                     capturedFirstToken = callInfo.Arg<CancellationToken>();
+                    firstBakeStarted.TrySetResult();
                     return firstBakeGate.Task.Result;
                 }
 
@@ -635,24 +637,14 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        var firstTelemetry = TestTelemetryData.Create();
+        var firstTelemetry = TestTelemetryData.CreateProcessed();
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: firstTelemetry);
         snapshots.OnNext(currentSnapshot);
 
-        // Wait for the runner to actually pick up the first bake — poll until the
-        // first call reached the service (synchronous runner blocks inside the task
-        // pool worker on firstBakeGate.Task.Result after this point).
-        var waited = 0;
-        while (callCount == 0 && waited < 2000)
-        {
-            await Task.Delay(25);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            waited += 25;
-        }
-
+        await firstBakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(1, callCount);
 
-        var secondTelemetry = TestTelemetryData.Create();
+        var secondTelemetry = TestTelemetryData.CreateProcessed();
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: secondTelemetry, captureRevision: 2);
         snapshots.OnNext(currentSnapshot);
 
@@ -685,7 +677,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -704,7 +696,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -786,7 +778,7 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
@@ -825,12 +817,14 @@ public class LiveSessionDetailViewModelTests
             DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
             BalanceAvailable: false);
         CancellationToken capturedBakeToken = default;
+        var bakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         sessionPresentationService
             .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 capturedBakeToken = callInfo.Arg<CancellationToken>();
+                bakeStarted.TrySetResult();
                 return bakeGate.Task.Result;
             });
         ConfigureRunnerToRunSynchronously();
@@ -838,16 +832,10 @@ public class LiveSessionDetailViewModelTests
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.Create());
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
 
-        var waited = 0;
-        while (capturedBakeToken == default && waited < 2000)
-        {
-            await Task.Delay(25);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            waited += 25;
-        }
+        await bakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         await editor.ResetCommand.ExecuteAsync(null);
         bakeGate.SetResult(staleData);
@@ -860,9 +848,9 @@ public class LiveSessionDetailViewModelTests
 
     private static TelemetryData TelemetryWithoutStrokes()
     {
-        // TestTelemetryData.Create() happens to produce strokes; we want a
+        // TestTelemetryData.CreateProcessed() happens to produce strokes; we want a
         // warm-up-style telemetry with present front/rear but no strokes.
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.Front.Strokes.Compressions = [];
         telemetry.Front.Strokes.Rebounds = [];
         telemetry.Rear.Strokes.Compressions = [];
@@ -891,7 +879,8 @@ public class LiveSessionDetailViewModelTests
             backgroundTaskRunner,
             tileLayerService,
             shell,
-            dialogService);
+            dialogService,
+            new InlineUiThreadDispatcher());
     }
 
     private static LiveSessionPresentationSnapshot CreateSnapshot(

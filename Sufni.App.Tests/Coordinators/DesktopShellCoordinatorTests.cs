@@ -7,6 +7,7 @@ namespace Sufni.App.Tests.Coordinators;
 public class DesktopShellCoordinatorTests
 {
     private readonly IMainWindowShellHost host = Substitute.For<IMainWindowShellHost>();
+    private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
     private DesktopShellCoordinator CreateCoordinator() => new(() => host);
 
@@ -16,13 +17,25 @@ public class DesktopShellCoordinatorTests
     /// the SUT's dependency — the SUT depends on the host interface,
     /// which is substituted separately.
     /// </summary>
-    private sealed class TestTabPageViewModel : TabPageViewModelBase;
+    private sealed class TestTabPageViewModel : TabPageViewModelBase
+    {
+        public TestTabPageViewModel()
+            : base(TestDispatcher)
+        {
+        }
+    }
 
     /// <summary>
     /// Minimal test-only `ViewModelBase` subclass used to exercise the
     /// non-tab branches of `Close()`.
     /// </summary>
-    private sealed class TestViewModel : ViewModelBase;
+    private sealed class TestViewModel : ViewModelBase
+    {
+        public TestViewModel()
+            : base(TestDispatcher)
+        {
+        }
+    }
 
     // ----- Open -----
 
@@ -98,7 +111,7 @@ public class DesktopShellCoordinatorTests
 
         coordinator.Close(tab);
 
-        host.Received(1).CloseTabPage(tab);
+        host.Received(1).CloseTabPage(tab, rememberForRestore: true);
     }
 
     [Fact]
@@ -109,7 +122,7 @@ public class DesktopShellCoordinatorTests
 
         coordinator.Close(view);
 
-        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!);
+        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!, default);
     }
 
     // ----- CloseIfOpen -----
@@ -123,7 +136,32 @@ public class DesktopShellCoordinatorTests
 
         coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
 
-        host.Received(1).CloseTabPage(tab);
+        host.Received(1).CloseTabPage(tab, rememberForRestore: true);
+    }
+
+    [Fact]
+    public void CloseIfOpen_ForgetsRestoreHistory_WhenRequested()
+    {
+        var tab = new TestTabPageViewModel();
+        host.Tabs.Returns(new TabPageViewModelBase[] { tab });
+        var coordinator = CreateCoordinator();
+
+        coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true, forgetRestoreHistory: true);
+
+        host.Received(1).ForgetTabHistory(Arg.Any<Func<TestTabPageViewModel, bool>>());
+        host.Received(1).CloseTabPage(tab, rememberForRestore: false);
+    }
+
+    [Fact]
+    public void CloseIfOpen_ForgetsRestoreHistory_EvenWhenNoMatchingOpenTab()
+    {
+        host.Tabs.Returns(Array.Empty<TabPageViewModelBase>());
+        var coordinator = CreateCoordinator();
+
+        coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true, forgetRestoreHistory: true);
+
+        host.Received(1).ForgetTabHistory(Arg.Any<Func<TestTabPageViewModel, bool>>());
+        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!, default);
     }
 
     [Fact]
@@ -134,7 +172,7 @@ public class DesktopShellCoordinatorTests
 
         coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
 
-        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!);
+        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!, default);
     }
 
     // ----- GoBack -----
@@ -147,7 +185,7 @@ public class DesktopShellCoordinatorTests
         coordinator.GoBack();
 
         host.DidNotReceiveWithAnyArgs().OpenView(default!);
-        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!);
+        host.DidNotReceiveWithAnyArgs().CloseTabPage(default!, default);
         _ = host.DidNotReceiveWithAnyArgs().Tabs;
     }
 }

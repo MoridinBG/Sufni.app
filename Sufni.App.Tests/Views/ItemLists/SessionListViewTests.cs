@@ -38,7 +38,7 @@ public class SessionListViewTests
         var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SessionListViewModel(graph, coordinator);
+        var viewModel = new SessionListViewModel(graph, coordinator, new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -94,7 +94,7 @@ public class SessionListViewTests
         coordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
-        var viewModel = new SessionListViewModel(graph, coordinator);
+        var viewModel = new SessionListViewModel(graph, coordinator, new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -139,7 +139,7 @@ public class SessionListViewTests
         var graph = Substitute.For<IRecordedSessionGraph>();
         graph.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+        var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -190,7 +190,7 @@ public class SessionListViewTests
         var graph = Substitute.For<IRecordedSessionGraph>();
         graph.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session());
+        var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,

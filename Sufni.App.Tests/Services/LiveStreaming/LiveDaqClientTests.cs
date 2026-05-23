@@ -411,6 +411,8 @@ public class LiveDaqClientTests
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 612);
+        var stopRequestReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseServer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var serverTask = Task.Run(async () =>
         {
@@ -425,7 +427,8 @@ public class LiveDaqClientTests
             // Deliberately consume STOP_LIVE without ever replying with STOP_ACK
             // so the client has to fall back to its bounded timeout.
             _ = await ReadExactAsync(stream, LiveProtocolConstants.FrameHeaderSize);
-            await Task.Delay(500);
+            stopRequestReceived.TrySetResult();
+            await releaseServer.Task;
         });
 
         await using var client = new LiveDaqClient(TimeSpan.FromMilliseconds(150));
@@ -434,8 +437,11 @@ public class LiveDaqClientTests
         var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100, 0, 0));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
-        await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        var stopTask = client.StopPreviewAsync();
+        await stopRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await stopTask.WaitAsync(TimeSpan.FromSeconds(2));
 
+        releaseServer.TrySetResult();
         await client.DisconnectAsync();
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
     }

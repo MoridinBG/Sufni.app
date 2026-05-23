@@ -109,6 +109,11 @@ public class UndoDeleteButtonTests
 
 internal sealed class TestUndoItemListViewModel : ItemListViewModelBase
 {
+    public TestUndoItemListViewModel()
+        : base(new InlineUiThreadDispatcher())
+    {
+    }
+
     public int FinalizeCount { get; private set; }
     public int UndoCount { get; private set; }
 

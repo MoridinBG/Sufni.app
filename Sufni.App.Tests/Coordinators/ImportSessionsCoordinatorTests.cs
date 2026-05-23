@@ -13,7 +13,8 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -24,6 +25,7 @@ public class ImportSessionsCoordinatorTests
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
+    private IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
 
@@ -49,7 +51,7 @@ public class ImportSessionsCoordinatorTests
                 var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
                 var source = callInfo.ArgAt<RecordedSessionSource>(1);
                 return Task.FromResult(new RecordedSessionReprocessResult(
-                    CreateTelemetryData(),
+                    CreateMinimal(),
                     GeneratedFullTrack: null,
                     new ProcessingFingerprint(
                         SchemaVersion: 2,
@@ -83,6 +85,7 @@ public class ImportSessionsCoordinatorTests
         sourceStore,
         shell,
         backgroundTaskRunner,
+        uiThreadDispatcher,
         daqManagementService,
         reprocessor,
         importSessionsResolver);
@@ -208,6 +211,22 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportAsync_UpsertsSessionAndSourceThroughUiDispatcher()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var file = CreateTelemetryFile(shouldBeImported: true);
+        var dispatcher = new RecordingUiThreadDispatcher();
+        uiThreadDispatcher = dispatcher;
+
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportAsync(new[] { file }, setup.Id);
+
+        Assert.Equal(1, dispatcher.InvokeCount);
+        sessionStore.Received(1).Upsert(Arg.Any<SessionSnapshot>());
+        sourceStore.Received(1).Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
+    }
+
+    [Fact]
     public async Task ImportAsync_WithGpsData_PersistsTrackAndAssociatesSession()
     {
         var (setup, _) = SeedSetupAndBike();
@@ -217,7 +236,7 @@ public class ImportSessionsCoordinatorTests
             new GpsRecord(new DateTime(2025, 6, 1, 12, 34, 57, DateTimeKind.Utc), 42.6978, 23.3220, 591f, 5.5f, 182f, 3, 10, 1f, 2f)
         };
 
-        var telemetryData = CreateTelemetryData();
+        var telemetryData = CreateMinimal();
         telemetryData.GpsData = gpsRecords;
         var generatedTrack = Track.FromGpsRecords(gpsRecords);
         var file = CreateTelemetryFile(name: "ride-gps", shouldBeImported: true);
@@ -319,6 +338,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("broken", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
         await database.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
@@ -327,7 +347,7 @@ public class ImportSessionsCoordinatorTests
 
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
         var reported = Assert.Single(nonProgressEvents);
-        var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
+        var failed = Assert.IsType<SessionImportEvent.ImportFailed>(reported);
         Assert.Equal("broken", failed.FileName);
     }
 
@@ -349,6 +369,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("persist-fail", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
         await file.DidNotReceive().OnImported();
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
     }
@@ -366,6 +387,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("post-import-fail", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
     }
 
@@ -384,9 +406,10 @@ public class ImportSessionsCoordinatorTests
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal("trash-fail", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Trash, failure.Operation);
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
         var reported = Assert.Single(nonProgressEvents);
-        var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
+        var failed = Assert.IsType<SessionImportEvent.TrashFailed>(reported);
         Assert.Equal("trash-fail", failed.FileName);
     }
 
@@ -432,12 +455,13 @@ public class ImportSessionsCoordinatorTests
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("bad", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
         await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
         await file.DidNotReceive().OnImported();
 
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
         var reported = Assert.Single(nonProgressEvents);
-        var failed = Assert.IsType<SessionImportEvent.Failed>(reported);
+        var failed = Assert.IsType<SessionImportEvent.ImportFailed>(reported);
         Assert.Equal("bad", failed.FileName);
     }
 
@@ -617,7 +641,7 @@ public class ImportSessionsCoordinatorTests
 
     private static byte[] CreatePsst(params GpsRecord[] gpsRecords)
     {
-        var telemetryData = CreateTelemetryData();
+        var telemetryData = CreateMinimal();
         telemetryData.GpsData = gpsRecords.Length > 0 ? gpsRecords : null;
         return telemetryData.BinaryForm;
     }

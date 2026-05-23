@@ -78,7 +78,7 @@ public class ImuDisplaySignalProcessorTests
     [Fact]
     public void ProcessRecorded_SkipsAccelerometerCorrection_DuringRecordedAirtime()
     {
-        var telemetry = CreateTelemetryData(
+        var telemetry = CreateMinimal(
             records:
             [
                 FrameLevel(),
@@ -98,7 +98,7 @@ public class ImuDisplaySignalProcessorTests
     [Fact]
     public void ProcessRecorded_SkipsAccelerometerCorrection_WhenSuspensionVelocityIsHigh()
     {
-        var telemetry = CreateTelemetryData(
+        var telemetry = CreateMinimal(
             records:
             [
                 FrameLevel(),
@@ -189,7 +189,7 @@ public class ImuDisplaySignalProcessorTests
         };
     }
 
-    private static TelemetryData CreateTelemetryData(
+    private static TelemetryData CreateMinimal(
         IReadOnlyList<ImuRecord> records,
         IReadOnlyList<Airtime>? airtimes = null,
         IReadOnlyList<double>? frontVelocity = null)
