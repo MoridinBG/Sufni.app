@@ -32,5 +32,10 @@ public sealed class TelemetrySourceVisibilityStore
         }
     }
 
+    public void Clear()
+    {
+        hiddenSources.Clear();
+    }
+
     private readonly record struct TelemetrySourceVisibilityKey(string RowId, string SourceKey);
 }

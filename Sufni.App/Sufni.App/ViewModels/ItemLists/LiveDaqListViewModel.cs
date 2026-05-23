@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
 using Sufni.App.Coordinators;
+using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -23,7 +24,11 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
     // Read-only row projection used by the desktop live DAQ list surface.
     public ReadOnlyObservableCollection<LiveDaqRowViewModel> Items => liveDaqRows;
 
-    public LiveDaqListViewModel(ILiveDaqStore liveDaqStore, LiveDaqCoordinator liveDaqCoordinator)
+    public LiveDaqListViewModel(
+        ILiveDaqStore liveDaqStore,
+        LiveDaqCoordinator liveDaqCoordinator,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.liveDaqStore = liveDaqStore;
         this.liveDaqCoordinator = liveDaqCoordinator;

@@ -202,10 +202,7 @@ public class TelemetryPlot : SufniPlot
         set
         {
             sourceVisibility = value;
-            if (value is not null)
-            {
-                legendInteraction.Enable(value);
-            }
+            legendInteraction.SetSourceVisibility(value);
         }
     }
     public bool HideRightAxis { get; set; }
@@ -282,7 +279,7 @@ public class TelemetryPlot : SufniPlot
             return;
         }
 
-        legendInteraction.Enable(SourceVisibility);
+        legendInteraction.SetSourceVisibility(SourceVisibility);
     }
 
     public bool TryToggleInteractiveLegendAt(Pixel pixel, PixelSize plotSize)

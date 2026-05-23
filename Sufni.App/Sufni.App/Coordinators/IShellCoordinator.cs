@@ -41,7 +41,7 @@ public interface IShellCoordinator
     /// a list page and an editor for one of its rows are not on the back
     /// stack at the same time, so there is nothing to close.
     /// </summary>
-    void CloseIfOpen<T>(Func<T, bool> match) where T : ViewModelBase;
+    void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase;
 
     /// <summary>
     /// Pop the current view on mobile (e.g. hardware back button). No-op

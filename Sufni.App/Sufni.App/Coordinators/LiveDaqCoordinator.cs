@@ -32,6 +32,7 @@ public class LiveDaqCoordinator
     private readonly IFilesService filesService;
     private readonly IShellCoordinator shell;
     private readonly IDialogService dialogService;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     private readonly object reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
@@ -51,7 +52,8 @@ public class LiveDaqCoordinator
         IDaqManagementService daqManagementService,
         IFilesService filesService,
         IShellCoordinator shell,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IUiThreadDispatcher uiThreadDispatcher)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
@@ -66,6 +68,7 @@ public class LiveDaqCoordinator
         this.filesService = filesService;
         this.shell = shell;
         this.dialogService = dialogService;
+        this.uiThreadDispatcher = uiThreadDispatcher;
     }
 
     public virtual void Activate()
@@ -147,7 +150,8 @@ public class LiveDaqCoordinator
                 shell,
                 dialogService,
                 knownBoardsQuery,
-                liveDaqStore));
+                liveDaqStore,
+                uiThreadDispatcher));
 
         return Task.CompletedTask;
     }
@@ -188,7 +192,8 @@ public class LiveDaqCoordinator
                 backgroundTaskRunner,
                 tileLayerService,
                 shell,
-                dialogService));
+                dialogService,
+                uiThreadDispatcher));
 
         return Task.CompletedTask;
     }

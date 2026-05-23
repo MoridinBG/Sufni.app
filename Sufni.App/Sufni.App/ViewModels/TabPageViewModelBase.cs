@@ -19,13 +19,18 @@ public partial class TabPageViewModelBase : ViewModelBase
 
     #region Constructors
 
-    protected TabPageViewModelBase()
+    protected TabPageViewModelBase(IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         shell = null!;
         dialogService = null!;
     }
 
-    protected TabPageViewModelBase(IShellCoordinator shell, IDialogService dialogService)
+    protected TabPageViewModelBase(
+        IShellCoordinator shell,
+        IDialogService dialogService,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.shell = shell;
         this.dialogService = dialogService;

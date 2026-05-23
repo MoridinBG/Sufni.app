@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Sufni.App.ViewModels;
@@ -13,5 +14,6 @@ public interface IMainWindowShellHost
 {
     IEnumerable<TabPageViewModelBase> Tabs { get; }
     void OpenView(ViewModelBase view);
-    void CloseTabPage(TabPageViewModelBase tab);
+    void CloseTabPage(TabPageViewModelBase tab, bool rememberForRestore = true);
+    void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase;
 }

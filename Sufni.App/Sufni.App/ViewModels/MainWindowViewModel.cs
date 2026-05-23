@@ -1,8 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
@@ -40,7 +43,11 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     #region Constructors
 
-    public MainWindowViewModel(MainPagesViewModel mainPagesViewModel, WelcomeScreenViewModel welcomeScreenViewModel)
+    public MainWindowViewModel(
+        MainPagesViewModel mainPagesViewModel,
+        WelcomeScreenViewModel welcomeScreenViewModel,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         MainPagesViewModel = mainPagesViewModel;
 
@@ -64,7 +71,7 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         CurrentView = tabPage;
     }
 
-    public void CloseTabPage(TabPageViewModelBase tab)
+    public void CloseTabPage(TabPageViewModelBase tab, bool rememberForRestore = true)
     {
         // Guard against setting previousActiveTab to the tab we are closing.
         isClosing = true;
@@ -73,7 +80,10 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         var closingTab = CurrentView;
 
         Tabs.Remove(tab);
-        tabHistory.Push(tab);
+        if (rememberForRestore)
+        {
+            tabHistory.Push(tab);
+        }
 
         // We don't want to switch tabs when
         //   - closing a tab that's not currently the active one.
@@ -82,6 +92,20 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
             CurrentView = previousActiveTab ?? (Tabs.Count == 0 ? null : Tabs[0]);
 
         isClosing = false;
+    }
+
+    public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
+    {
+        var retained = tabHistory
+            .Where(tab => tab is not T typed || !match(typed))
+            .Reverse()
+            .ToArray();
+
+        tabHistory.Clear();
+        foreach (var tab in retained)
+        {
+            tabHistory.Push(tab);
+        }
     }
 
     #endregion Public methods

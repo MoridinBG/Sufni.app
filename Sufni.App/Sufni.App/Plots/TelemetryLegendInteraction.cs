@@ -33,9 +33,20 @@ internal sealed class TelemetryLegendInteraction(Plot plot)
         sources.Clear();
     }
 
-    public void Enable(TelemetrySourceVisibilityStore visibilityStore)
+    public void SetSourceVisibility(TelemetrySourceVisibilityStore? visibilityStore)
     {
         sourceVisibility = visibilityStore;
+        if (visibilityStore is null)
+        {
+            plot.Legend.ShowItemsFromHiddenPlottables = false;
+            foreach (var source in sources)
+            {
+                source.Plottable.IsVisible = true;
+            }
+
+            return;
+        }
+
         plot.Legend.ShowItemsFromHiddenPlottables = true;
         plot.Legend.HiddenItemOpacity = HiddenItemOpacity;
 

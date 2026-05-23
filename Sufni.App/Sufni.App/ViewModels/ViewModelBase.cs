@@ -3,9 +3,11 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Reactive.Disposables;
-using System.Timers;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels
 {
@@ -24,9 +26,8 @@ namespace Sufni.App.ViewModels
         
         #region Private fields
 
-        // Timer for notifications. They are closed 3 seconds after the last messages arrived,unless
-        // the pointer is over them. In such case, the timer starts when the pointer leaves.
-        private readonly Timer notificationsTimer = new(Timeout);
+        private readonly IUiThreadDispatcher uiThreadDispatcher;
+        private CancellationTokenSource? notificationTimeoutCancellation;
 
         private CompositeDisposable? scopedSubscriptions;
 
@@ -38,32 +39,28 @@ namespace Sufni.App.ViewModels
         {
             // Reset the timer when the pointer leaves the notifications container
             if (value) return;
-            notificationsTimer.Stop();
-            notificationsTimer.Start();
+            RestartNotificationTimeout();
         }
 
         #endregion Property change handlers
 
         #region Constructors
 
-        protected ViewModelBase()
+        protected ViewModelBase(IUiThreadDispatcher uiThreadDispatcher)
         {
-            notificationsTimer.AutoReset = false;
-            notificationsTimer.Elapsed += (_, _) =>
-            {
-                if (IsPointerOverNotifications) return;
-                Notifications.Clear();
-            };
+            ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
+            this.uiThreadDispatcher = uiThreadDispatcher;
 
             Notifications.CollectionChanged += (_, args) =>
             {
                 if (args.Action != NotifyCollectionChangedAction.Add) return;
-                notificationsTimer.Stop();
-                notificationsTimer.Start();
+                RestartNotificationTimeout();
             };
         }
 
         #endregion Constructors
+
+        protected IUiThreadDispatcher UiThreadDispatcher => uiThreadDispatcher;
 
         #region Commands
 
@@ -76,6 +73,7 @@ namespace Sufni.App.ViewModels
         [RelayCommand]
         private void ClearNotifications(object? o)
         {
+            CancelNotificationTimeout();
             Notifications.Clear();
         }
 
@@ -100,5 +98,42 @@ namespace Sufni.App.ViewModels
         }
 
         #endregion Scoped subscriptions
+
+        #region Notification timeout
+
+        private void RestartNotificationTimeout()
+        {
+            CancelNotificationTimeout();
+            notificationTimeoutCancellation = new CancellationTokenSource();
+            _ = ClearNotificationsAfterTimeoutAsync(notificationTimeoutCancellation.Token);
+        }
+
+        private void CancelNotificationTimeout()
+        {
+            notificationTimeoutCancellation?.Cancel();
+            notificationTimeoutCancellation?.Dispose();
+            notificationTimeoutCancellation = null;
+        }
+
+        private async Task ClearNotificationsAfterTimeoutAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(Timeout, cancellationToken);
+                await uiThreadDispatcher.InvokeAsync(() =>
+                {
+                    if (!IsPointerOverNotifications)
+                    {
+                        Notifications.Clear();
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // Superseded by a newer notification timeout.
+            }
+        }
+
+        #endregion Notification timeout
     }
 }

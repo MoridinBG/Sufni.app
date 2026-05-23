@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Sufni.App.ViewModels;
 
-public partial class PullMenuItemViewModel(string name, IRelayCommand command, object? parameter = null) : ViewModelBase
+public partial class PullMenuItemViewModel(string name, IRelayCommand command, object? parameter = null) : ObservableObject
 {
     public string Name { get; set; } = name;
     public object? CommandParameter { get; set; } = parameter;

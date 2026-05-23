@@ -146,38 +146,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         set => SetProperty(ref selectedSessionAnalysisTargetProfile, value);
     }
 
-    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
-    [
-        new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
-        new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
-    ];
-
-    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
-    [
-        new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
-        new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
-    ];
-
-    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
-    [
-        new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
-        new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
-        new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
-    ];
-
-    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
-    [
-        new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
-        new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
-    ];
-
-    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
-    [
-        new(SessionAnalysisTargetProfile.Weekend, "Weekend", "Uses conservative speed context for recreational pace and mixed terrain."),
-        new(SessionAnalysisTargetProfile.Trail, "Trail", "Uses general trail-riding speed context."),
-        new(SessionAnalysisTargetProfile.Enduro, "Enduro", "Uses faster rough-descending speed context."),
-        new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
-    ];
+    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
+    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
+    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionAnalysisPresentation.VelocityAverageModeOptions;
+    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } = SessionAnalysisPresentation.SessionAnalysisTargetProfileOptions;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]
@@ -200,7 +173,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public TelemetryTimeRange? AnalysisRange => null;
     public SessionAnalysisResult SessionAnalysis => SessionAnalysisResult.Hidden;
     public string SessionAnalysisRangeText => "Live session";
-    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)} / {DisplayName(SelectedBalanceSpeedMode)}";
+    public string SessionAnalysisModesText => SessionAnalysisPresentation.DescribeModes(
+        SelectedTravelHistogramMode,
+        SelectedVelocityAverageMode,
+        SelectedBalanceDisplacementMode,
+        SelectedBalanceSpeedMode);
 
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
@@ -210,8 +187,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
-        IDialogService dialogService)
-        : base(shell, dialogService)
+        IDialogService dialogService,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         IdentityKey = context.IdentityKey;
         SetupId = context.SetupId;
@@ -227,7 +205,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         var timeline = new SessionTimelineLinkViewModel();
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.GraphBatches);
-        mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline);
+        mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline, uiThreadDispatcher);
         uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
         LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
@@ -547,31 +525,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out _);
-    }
-
-    private static string DisplayName(TravelHistogramMode mode)
-    {
-        return mode == TravelHistogramMode.DynamicSag ? "Dynamic sag" : "Active suspension";
-    }
-
-    private static string DisplayName(VelocityAverageMode mode)
-    {
-        return mode == VelocityAverageMode.StrokePeakAveraged ? "Stroke-peak average" : "Sample-averaged";
-    }
-
-    private static string DisplayName(BalanceDisplacementMode mode)
-    {
-        return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
-    }
-
-    private static string DisplayName(BalanceSpeedMode mode)
-    {
-        return mode switch
-        {
-            BalanceSpeedMode.LowSpeed => "Low speed",
-            BalanceSpeedMode.HighSpeed => "High speed",
-            _ => "Both",
-        };
     }
 
     private static LiveSessionPlotRanges CreatePlotRanges(LiveDaqSessionContext context)
