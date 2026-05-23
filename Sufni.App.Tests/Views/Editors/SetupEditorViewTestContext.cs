@@ -44,7 +44,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false)
     {
-        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService);
+        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher());
     }
 
     public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)

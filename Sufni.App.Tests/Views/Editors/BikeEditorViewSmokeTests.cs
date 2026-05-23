@@ -267,7 +267,8 @@ public class BikeEditorViewSmokeTests
             bikeCoordinator,
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
-            dialogService ?? Substitute.For<IDialogService>());
+            dialogService ?? Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher());
     }
 
     private static BikeSnapshot CreateSnapshot()

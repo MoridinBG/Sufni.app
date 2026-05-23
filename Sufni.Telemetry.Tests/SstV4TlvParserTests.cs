@@ -1,4 +1,3 @@
-using System.Text;
 using Sufni.Telemetry;
 
 namespace Sufni.Telemetry.Tests;
@@ -8,57 +7,14 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_ValidV4File_AllChunks_ReturnsCorrectData()
     {
-        // Arrange
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        // Header
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0); // Padding
-        writer.Write((long)123456789); // Timestamp
-
-        // Rates Chunk (0x00)
-        writer.Write((byte)0x00);
-        writer.Write((ushort)6); // Length
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-        writer.Write((byte)TlvChunkType.Imu);
-        writer.Write((ushort)100);
-
-        // Telemetry Chunk (0x01)
-        writer.Write((byte)0x01);
-        writer.Write((ushort)8); // 2 records
-        writer.Write((ushort)1000); // Front 1
-        writer.Write((ushort)2000); // Rear 1
-        writer.Write((ushort)1100); // Front 2
-        writer.Write((ushort)2100); // Rear 2
-
-        // Marker Chunk (0x02) - at sample 2
-        writer.Write((byte)0x02);
-        writer.Write((ushort)0);
-
-        // IMU Meta Chunk (0x04)
-        writer.Write((byte)0x04);
-        writer.Write((ushort)10); // 1 + (1 * 9)
-        writer.Write((byte)1); // 1 entry
-        writer.Write((byte)0); // Location: Frame
-        writer.Write(16384.0f); // Accel LSB
-        writer.Write(16.4f); // Gyro LSB
-
-        // IMU Chunk (0x03)
-        writer.Write((byte)0x03);
-        writer.Write((ushort)12); // 1 record
-        writer.Write((short)100); // ax
-        writer.Write((short)200); // ay
-        writer.Write((short)300); // az
-        writer.Write((short)10);  // gx
-        writer.Write((short)20);  // gy
-        writer.Write((short)30);  // gz
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4ParserStream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000), (TlvChunkType.Imu, 100)),
+            SstTestFiles.Telemetry((1000, 2000), (1100, 2100)),
+            SstTestFiles.Marker(),
+            SstTestFiles.ImuMeta(new ImuMetaSpec(0, 16384.0f, 16.4f)),
+            SstTestFiles.Imu(new ImuRecordSpec(100, 200, 300, 10, 20, 30)));
         using var reader = new BinaryReader(ms);
-        reader.ReadBytes(4); // Skip magic and version
 
         var parser = new SstV4TlvParser();
 
@@ -82,36 +38,14 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_TemperatureChunk_ReturnsTemperatureSamples()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        writer.Write((byte)TlvChunkType.Temperature);
-        writer.Write((ushort)26);
-        writer.Write((long)123456790);
-        writer.Write((byte)0);
-        writer.Write(22.5f);
-        writer.Write((long)123456791);
-        writer.Write((byte)2);
-        writer.Write(26.75f);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4ParserStream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((500, 600)),
+            SstTestFiles.Temperature(
+                new TemperatureSpec(123456790, 0, 22.5f),
+                new TemperatureSpec(123456791, 2, 26.75f)));
         using var reader = new BinaryReader(ms);
-        reader.ReadBytes(4);
 
         var result = new SstV4TlvParser().Parse(reader, 4);
 
@@ -127,45 +61,16 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_GpsChunk_ReturnsCorrectData()
     {
-        // Arrange
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0); // Padding
-        writer.Write((long)0); // Timestamp
-
-        // Rates Chunk
-        writer.Write((byte)0x00);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        // Telemetry Chunk (minimal)
-        writer.Write((byte)0x01);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        // GPS Chunk (0x05) - 1 record = 46 bytes
-        writer.Write((byte)0x05);
-        writer.Write((ushort)46);
-        writer.Write((uint)20250106);  // Date: 2025-01-06
-        writer.Write((uint)43200000);  // Time: 12:00:00.000 (noon in ms)
-        writer.Write(47.123456);       // Latitude
-        writer.Write(19.654321);       // Longitude
-        writer.Write(150.5f);          // Altitude
-        writer.Write(25.3f);           // Speed
-        writer.Write(180.0f);          // Heading
-        writer.Write((byte)2);         // Fix mode (3D)
-        writer.Write((byte)12);        // Satellites
-        writer.Write(2.5f);            // EPE 2D
-        writer.Write(3.5f);            // EPE 3D
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4ParserStream(
+            0,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((500, 600)),
+            SstTestFiles.Gps(new GpsRecordSpec(
+                Date: 20250106,
+                TimeMs: 43200000,
+                Latitude: 47.123456,
+                Longitude: 19.654321)));
         using var reader = new BinaryReader(ms);
-        reader.ReadBytes(4);
 
         var parser = new SstV4TlvParser();
 
@@ -191,30 +96,13 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_GpsChunk_SkipsInvalidGpsDateRecords()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)0);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        writer.Write((byte)TlvChunkType.Gps);
-        writer.Write((ushort)(GpsBinaryRecordDecoder.RecordSize * 2));
-        WriteGpsRecord(writer, date: 20250229, timeMs: 0, latitude: 1, longitude: 2);
-        WriteGpsRecord(writer, date: 20240229, timeMs: 1_000, latitude: 47.123456, longitude: 19.654321);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            0,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((500, 600)),
+            SstTestFiles.Gps(
+                new GpsRecordSpec(20250229, 0, 1, 2),
+                new GpsRecordSpec(20240229, 1_000, 47.123456, 19.654321)));
 
         var result = RawTelemetryData.FromStream(ms);
 
@@ -227,35 +115,12 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_UnknownChunkType_SkipsGracefully()
     {
-        // Arrange
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0); // Padding
-        writer.Write((long)0); // Timestamp
-
-        // Unknown Chunk (0xFF)
-        writer.Write((byte)0xFF);
-        writer.Write((ushort)5);
-        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
-
-        // Rates Chunk
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        // Telemetry Chunk
-        writer.Write((byte)0x01);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4ParserStream(
+            0,
+            SstTestFiles.Chunk(0xFF, [1, 2, 3, 4, 5]),
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((500, 600)));
         using var reader = new BinaryReader(ms);
-        reader.ReadBytes(4);
 
         var parser = new SstV4TlvParser();
 
@@ -270,29 +135,11 @@ public class SstV4TlvParserTests
     [Fact]
     public void Inspect_UnknownChunkType_ReturnsValidInspectionWithHasUnknown()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)0xFF);
-        writer.Write((ushort)5);
-        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Chunk(0xFF, [1, 2, 3, 4, 5]),
+            SstTestFiles.Telemetry((500, 600)));
 
         var result = RawTelemetryData.InspectStream(ms);
 
@@ -306,24 +153,10 @@ public class SstV4TlvParserTests
     [Fact]
     public void Inspect_InvalidTelemetryChunkLength_ReturnsMalformedInspection()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)5);
-        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Chunk(TlvChunkType.Telemetry, [1, 2, 3, 4, 5]));
 
         var result = RawTelemetryData.InspectStream(ms);
 
@@ -336,24 +169,10 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_InvalidTelemetryChunkLength_ThrowsFormatException()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)5);
-        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Chunk(TlvChunkType.Telemetry, [1, 2, 3, 4, 5]));
 
         Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
     }
@@ -361,29 +180,11 @@ public class SstV4TlvParserTests
     [Fact]
     public void Inspect_InvalidTemperatureChunkLength_ReturnsMalformedInspection()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        writer.Write((byte)TlvChunkType.Temperature);
-        writer.Write((ushort)12);
-        writer.Write(new byte[12]);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((500, 600)),
+            SstTestFiles.Chunk(TlvChunkType.Temperature, new byte[12]));
 
         var result = RawTelemetryData.InspectStream(ms);
 
@@ -396,29 +197,11 @@ public class SstV4TlvParserTests
     [Fact]
     public void Parse_InvalidTemperatureChunkLength_ThrowsFormatException()
     {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)4);
-        writer.Write((ushort)500);
-        writer.Write((ushort)600);
-
-        writer.Write((byte)TlvChunkType.Temperature);
-        writer.Write((ushort)12);
-        writer.Write(new byte[12]);
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry((500, 600)),
+            SstTestFiles.Chunk(TlvChunkType.Temperature, new byte[12]));
 
         Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
     }
@@ -456,30 +239,11 @@ public class SstV4TlvParserTests
         ushort[] front = [2500, 2510, 2520, 2530, 2540];
         ushort[] rear  = [3000, 3010, 3020, 3030, 3040];
 
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)(front.Length * 4));
-        for (var i = 0; i < front.Length; i++)
-        {
-            writer.Write(front[i]);
-            writer.Write(rear[i]);
-        }
-
-        ms.Position = 0;
+        using var ms = SstTestFiles.CreateV4ParserStream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry(front.Zip(rear, (frontSample, rearSample) => (frontSample, rearSample)).ToArray()));
         using var reader = new BinaryReader(ms);
-        reader.ReadBytes(4);
 
         var result = new SstV4TlvParser().Parse(reader, 4);
 
@@ -491,53 +255,13 @@ public class SstV4TlvParserTests
         int actualTelemetryPayloadBytes,
         int declaredTelemetryPayloadBytes)
     {
-        var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)declaredTelemetryPayloadBytes);
-
+        var samplePayload = SstTestFiles.TelemetryPayload((500, 600), (501, 601));
         var payload = new byte[actualTelemetryPayloadBytes];
-        using (var payloadWriter = new BinaryWriter(new MemoryStream(payload)))
-        {
-            payloadWriter.Write((ushort)500);
-            payloadWriter.Write((ushort)600);
-            payloadWriter.Write((ushort)501);
-            payloadWriter.Write((ushort)601);
-        }
+        Array.Copy(samplePayload, payload, Math.Min(samplePayload.Length, payload.Length));
 
-        writer.Write(payload);
-        ms.Position = 0;
-        return ms;
-    }
-
-    private static void WriteGpsRecord(
-        BinaryWriter writer,
-        uint date,
-        uint timeMs,
-        double latitude,
-        double longitude)
-    {
-        writer.Write(date);
-        writer.Write(timeMs);
-        writer.Write(latitude);
-        writer.Write(longitude);
-        writer.Write(150.5f);
-        writer.Write(25.3f);
-        writer.Write(180.0f);
-        writer.Write((byte)2);
-        writer.Write((byte)12);
-        writer.Write(2.5f);
-        writer.Write(3.5f);
+        return SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Chunk(TlvChunkType.Telemetry, payload, (ushort)declaredTelemetryPayloadBytes));
     }
 }

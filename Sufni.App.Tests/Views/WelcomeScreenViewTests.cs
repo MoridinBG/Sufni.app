@@ -41,7 +41,7 @@ public class WelcomeScreenViewTests
 
         filesService.OpenLogsFolderAsync().Returns(Task.CompletedTask);
 
-        var viewModel = new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService);
+        var viewModel = new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService, new InlineUiThreadDispatcher());
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -76,7 +76,7 @@ public class WelcomeScreenViewTests
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var filesService = Substitute.For<IFilesService>();
         filesService.OpenLogsFolderAsync().Returns(Task.CompletedTask);
-        return new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService);
+        return new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService, new InlineUiThreadDispatcher());
     }
 
     private static async Task<MountedWelcomeScreenView> MountAsync(WelcomeScreenViewModel viewModel)

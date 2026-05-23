@@ -5,7 +5,7 @@ using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -40,9 +40,9 @@ public class TrackSignalPlotDesktopViewTests
     public async Task TrackSignalPlotDesktopView_ReloadsTelemetryMarkersWhileHidden()
     {
         var view = CreateTrackSignalView();
-        var oldTelemetry = CreateTelemetryData();
+        var oldTelemetry = CreateMinimal();
         oldTelemetry.Markers = [new MarkerData(0.5)];
-        var freshTelemetry = CreateTelemetryData();
+        var freshTelemetry = CreateMinimal();
         freshTelemetry.Markers = [new MarkerData(0.25), new MarkerData(0.75)];
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);

@@ -193,7 +193,7 @@ public class LiveGraphPageViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
-        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
         {
             FullTrackPoints = [],
             SessionTrackPoints = trackPoints.ToList(),

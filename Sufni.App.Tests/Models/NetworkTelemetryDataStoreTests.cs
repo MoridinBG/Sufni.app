@@ -1,13 +1,13 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Models;
@@ -165,7 +165,7 @@ public class NetworkTelemetryDataStoreTests
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var bytes = CreateValidV3SstBytes();
+                var bytes = TestSstFiles.CreateValidV3();
                 var destination = callInfo.ArgAt<Stream>(4);
                 destination.Write(bytes);
                 return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
@@ -183,7 +183,7 @@ public class NetworkTelemetryDataStoreTests
         var source = await file.ReadSourceAsync();
 
         Assert.Equal("DEVICE.SST", source.FileName);
-        Assert.Equal(CreateValidV3SstBytes(), source.SstBytes);
+        Assert.Equal(TestSstFiles.CreateValidV3(), source.SstBytes);
         await daqManagementService.Received(1)
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
     }
@@ -220,7 +220,7 @@ public class NetworkTelemetryDataStoreTests
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var bytes = CreateValidV3SstBytes();
+                var bytes = TestSstFiles.CreateValidV3();
                 var destination = callInfo.ArgAt<Stream>(4);
                 destination.Write(bytes);
                 return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
@@ -276,7 +276,7 @@ public class NetworkTelemetryDataStoreTests
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var bytes = CreateValidV3SstBytes();
+                var bytes = TestSstFiles.CreateValidV3();
                 var destination = callInfo.ArgAt<Stream>(4);
                 destination.Write(bytes);
                 return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
@@ -402,25 +402,4 @@ public class NetworkTelemetryDataStoreTests
     private static HashSet<string> SourceTempFiles() =>
         Directory.EnumerateFiles(Path.GetTempPath(), "sufni-source-*.SST").ToHashSet(StringComparer.Ordinal);
 
-    private static byte[] CreateValidV3SstBytes()
-    {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)3);
-        writer.Write((ushort)1000);
-        writer.Write((ushort)0);
-        writer.Write((long)1_700_000_000);
-
-        for (var index = 0; index < 256; index++)
-        {
-            var front = 1900.0 + 260.0 * Math.Sin(index * 2.0 * Math.PI / 48.0);
-            var rear = 1850.0 + 240.0 * Math.Sin(index * 2.0 * Math.PI / 52.0);
-            writer.Write((ushort)Math.Round(front));
-            writer.Write((ushort)Math.Round(rear));
-        }
-
-        return ms.ToArray();
-    }
 }

@@ -29,8 +29,8 @@ public class RecordedGraphPageViewTests
     [AvaloniaFact]
     public async Task RecordedGraphPageView_RendersPlots_WhenStatesReady()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedGraphPageWorkspaceStub(
             telemetry,
             SurfacePresentationState.Ready,
@@ -102,8 +102,8 @@ public class RecordedGraphPageViewTests
     [AvaloniaFact]
     public async Task RecordedGraphPageView_AppliesStoredGraphPreferences()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedGraphPageWorkspaceStub(
             telemetry,
             SurfacePresentationState.Ready,
@@ -138,7 +138,7 @@ public class RecordedGraphPageViewTests
     public async Task RecordedGraphPageView_ShowsPlaceholders_WhenStatesWaiting()
     {
         var workspace = new RecordedGraphPageWorkspaceStub(
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             SurfacePresentationState.WaitingForData("Waiting for travel data."),
             SurfacePresentationState.WaitingForData("Waiting for IMU data."),
             pitchRollGraphState: SurfacePresentationState.WaitingForData("Waiting for pitch/roll data."),
@@ -186,8 +186,8 @@ public class RecordedGraphPageViewTests
     [AvaloniaFact]
     public async Task RecordedGraphPageView_CollapsesVelocityRow_WhenVelocityStateHidden()
     {
-        var telemetry = TestTelemetryData.Create();
-        telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         var workspace = new RecordedGraphPageWorkspaceStub(
             telemetry,
             SurfacePresentationState.Ready,
@@ -214,7 +214,7 @@ public class RecordedGraphPageViewTests
     public async Task RecordedGraphPageView_RendersMapBelowGraphs_WhenMapReady()
     {
         var graphWorkspace = new RecordedGraphPageWorkspaceStub(
-            TestTelemetryData.Create(),
+            TestTelemetryData.CreateProcessed(),
             SurfacePresentationState.Ready,
             SurfacePresentationState.Hidden);
         var mediaWorkspace = CreateMediaWorkspace(
@@ -284,7 +284,7 @@ public class RecordedGraphPageViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
-        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>())
+        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
         {
             FullTrackPoints = [],
             SessionTrackPoints = trackPoints.ToList(),

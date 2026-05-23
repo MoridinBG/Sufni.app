@@ -22,7 +22,7 @@ public class MainViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
         var mainPages = MainPagesViewModelTestFactory.Create();
-        var viewModel = new MainViewModel(mainPages);
+        var viewModel = new MainViewModel(mainPages, new InlineUiThreadDispatcher());
         var view = new MainView
         {
             DataContext = viewModel,
@@ -57,7 +57,7 @@ public class MainViewTests
 
         var server = new TestSynchronizationServerService();
         var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: CreateSyncCoordinator(server));
-        var viewModel = new MainViewModel(mainPages);
+        var viewModel = new MainViewModel(mainPages, new InlineUiThreadDispatcher());
         var view = new MainView
         {
             DataContext = viewModel,

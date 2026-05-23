@@ -34,4 +34,17 @@ public class TelemetrySourceVisibilityStoreTests
 
         Assert.True(sut.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear));
     }
+
+    [Fact]
+    public void Clear_RestoresAllHiddenSources()
+    {
+        var sut = new TelemetrySourceVisibilityStore();
+        sut.SetVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear, visible: false);
+        sut.SetVisible(TelemetryGraphRowIds.Velocity, TelemetrySourceKeys.Front, visible: false);
+
+        sut.Clear();
+
+        Assert.True(sut.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear));
+        Assert.True(sut.IsVisible(TelemetryGraphRowIds.Velocity, TelemetrySourceKeys.Front));
+    }
 }

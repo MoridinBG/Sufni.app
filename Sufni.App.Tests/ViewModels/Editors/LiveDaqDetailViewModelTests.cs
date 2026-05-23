@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Reactive.Subjects;
 using System.Text;
 using Avalonia.Headless.XUnit;
@@ -132,7 +133,8 @@ public class LiveDaqDetailViewModelTests
             shell,
             dialogService,
             knownBoardsQuery,
-            liveDaqStore);
+            liveDaqStore,
+            new InlineUiThreadDispatcher());
     }
 
     [AvaloniaFact]
@@ -273,13 +275,12 @@ public class LiveDaqDetailViewModelTests
         editor.SetTabActive(true);
         editor.SetTabActive(false);
         frames.OnNext(CreateTravelBatchFrame());
-        await Task.Delay(150);
 
         Assert.False(editor.Snapshot.HasTravelData);
 
         editor.SetTabActive(true);
         frames.OnNext(CreateTravelBatchFrame());
-        await Task.Delay(150);
+        await WaitForSnapshotAsync(editor, snapshot => snapshot.HasTravelData);
 
         Assert.True(editor.Snapshot.HasTravelData);
     }
@@ -425,8 +426,9 @@ public class LiveDaqDetailViewModelTests
 
         var coordinator1 = TestCoordinatorSubstitutes.LiveDaq();
         var coordinator2 = TestCoordinatorSubstitutes.LiveDaq();
-        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
-        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, daqManagementService, filesService, shell, dialogService, query, liveDaqStore);
+        var dispatcher = new InlineUiThreadDispatcher();
+        var editor1 = new LiveDaqDetailViewModel(snapshot1, stream1, coordinator1, daqManagementService, filesService, shell, dialogService, query, liveDaqStore, dispatcher);
+        var editor2 = new LiveDaqDetailViewModel(snapshot2, stream2, coordinator2, daqManagementService, filesService, shell, dialogService, query, liveDaqStore, dispatcher);
 
         await editor1.LoadedCommand.ExecuteAsync(null);
         await editor2.LoadedCommand.ExecuteAsync(null);
@@ -913,5 +915,35 @@ public class LiveDaqDetailViewModelTests
                 new LiveTravelRecord(1030, 1130),
                 new LiveTravelRecord(1040, 1140),
             ]);
+    }
+
+    private static async Task WaitForSnapshotAsync(
+        LiveDaqDetailViewModel editor,
+        Func<LiveDaqUiSnapshot, bool> predicate)
+    {
+        if (predicate(editor.Snapshot))
+        {
+            return;
+        }
+
+        var snapshotChanged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        PropertyChangedEventHandler? handler = (_, args) =>
+        {
+            if (args.PropertyName == nameof(LiveDaqDetailViewModel.Snapshot) &&
+                predicate(editor.Snapshot))
+            {
+                snapshotChanged.TrySetResult();
+            }
+        };
+
+        editor.PropertyChanged += handler;
+        try
+        {
+            await snapshotChanged.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            editor.PropertyChanged -= handler;
+        }
     }
 }

@@ -76,7 +76,7 @@ public class TrackCoordinatorTests
     {
         var sessionId = Guid.NewGuid();
         var fullTrackId = Guid.NewGuid();
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var existingTrack = new List<TrackPoint>
         {
             new(1, 1, 1, 0),
@@ -109,7 +109,7 @@ public class TrackCoordinatorTests
     {
         var sessionId = Guid.NewGuid();
         var fullTrackId = Guid.NewGuid();
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.Metadata.Duration = 3.0;
         var fullTrack = new Track
         {

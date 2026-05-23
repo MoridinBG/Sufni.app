@@ -247,6 +247,11 @@ public class SessionShellMobileViewTests
 
 internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionShellMobileWorkspace
 {
+    public FakeShellHostViewModel()
+        : base(new InlineUiThreadDispatcher())
+    {
+    }
+
     public ObservableCollection<PageViewModelBase> Pages { get; init; } = [];
 
     [ObservableProperty]

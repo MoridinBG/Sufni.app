@@ -6,6 +6,7 @@ using Avalonia.VisualTree;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Theming;
 using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Controls;
@@ -143,7 +144,7 @@ public class TelemetryPlotsRootTests
         Assert.Equal(travel.GetPreferredGroupHeight(), travel.ManualGroupHeight);
     }
 
-    [AvaloniaFact(Skip = "Temporarily skipped while TelemetryPlotRow hosted-to-root background defaulting is revisited.")]
+    [AvaloniaFact]
     public async Task TelemetryPlotsRoot_DropHostedRowBetweenRootRows_MakesItRoot()
     {
         var velocity = CreateRow("Velocity");
@@ -164,10 +165,11 @@ public class TelemetryPlotsRootTests
         Assert.Same(imu, root.Rows[2]);
         Assert.Empty(travel.ChildRows);
         Assert.Equal(0, velocity.TitleLeftInset);
-        Assert.Null(velocity.RowBackground);
-        Assert.Null(velocity.HeaderBackground);
-        Assert.Equal(Color.Parse("#15191C"), velocity.PlotFigureBackground);
-        Assert.Equal(Color.Parse("#20262B"), velocity.PlotDataBackground);
+        var expectedRootTheme = SufniThemes.FromVariant(velocity.ActualThemeVariant).GraphRow.Root;
+        AssertBrushColor(expectedRootTheme.Container, velocity.RowBackground);
+        AssertBrushColor(expectedRootTheme.Header, velocity.HeaderBackground);
+        Assert.Equal(expectedRootTheme.PlotFigure, velocity.PlotFigureBackground);
+        Assert.Equal(expectedRootTheme.PlotData, velocity.PlotDataBackground);
     }
 
     [AvaloniaFact]
@@ -389,6 +391,12 @@ public class TelemetryPlotsRootTests
     {
         root.Measure(new Size(width, height));
         root.Arrange(new Rect(0, 0, width, height));
+    }
+
+    private static void AssertBrushColor(Color expected, IBrush? brush)
+    {
+        var solidBrush = Assert.IsType<SolidColorBrush>(brush);
+        Assert.Equal(expected, solidBrush.Color);
     }
 
     private sealed class MountedRoot(Window host) : IAsyncDisposable

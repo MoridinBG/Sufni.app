@@ -41,6 +41,11 @@ public class TabPageViewModelBaseTests
 
     private sealed class DirtyTrackingTabPageViewModel : TabPageViewModelBase
     {
+        public DirtyTrackingTabPageViewModel()
+            : base(new InlineUiThreadDispatcher())
+        {
+        }
+
         public bool UnderlyingDirty { get; set; } = true;
 
         public Func<Task>? OnSave { get; set; }

@@ -8,6 +8,8 @@ namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class SetupListViewModelTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
     [Fact]
     public void AddCommand_OpensSetupCreate_WithoutImportPageBoardContext()
     {
@@ -17,7 +19,7 @@ public class SetupListViewModelTests
 
         setupStore.Connect().Returns(setupCache.Connect());
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator);
+        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher);
 
         viewModel.AddCommand.Execute(null);
 
@@ -39,7 +41,7 @@ public class SetupListViewModelTests
         var deleteTcs = new TaskCompletionSource<SetupDeleteResult>();
         setupCoordinator.DeleteAsync(snapshot.Id).Returns(deleteTcs.Task);
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator);
+        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -71,7 +73,7 @@ public class SetupListViewModelTests
         setupCoordinator.DeleteAsync(snapshot.Id)
             .Returns(new SetupDeleteResult(SetupDeleteOutcome.Failed, "boom"));
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator);
+        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);

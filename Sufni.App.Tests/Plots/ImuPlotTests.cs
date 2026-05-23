@@ -4,7 +4,7 @@ using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -16,7 +16,7 @@ public class ImuPlotTests
         var plot = new Plot();
         var sut = new ImuPlot(plot);
 
-        sut.LoadTelemetryData(CreateTelemetryDataWithImu());
+        sut.LoadTelemetryData(CreateWithImu());
 
         Assert.NotNull(sut.CursorLine);
         Assert.Empty(plot.Axes.Title.Label.Text);
@@ -34,7 +34,7 @@ public class ImuPlotTests
         var plot = new Plot();
         var sut = new ImuPlot(plot);
 
-        var telemetry = CreateTelemetryDataWithImu(
+        var telemetry = CreateWithImu(
             activeLocations: [0, 1],
             meta: [new ImuMetaEntry(0, 1.0f, 1.0f)],
             records:
@@ -56,7 +56,7 @@ public class ImuPlotTests
         var plot = new Plot();
         var sut = new ImuPlot(plot);
 
-        sut.LoadTelemetryData(CreateTelemetryData());
+        sut.LoadTelemetryData(CreateMinimal());
 
         Assert.Null(sut.CursorLine);
         Assert.Empty(plot.Axes.Title.Label.Text);

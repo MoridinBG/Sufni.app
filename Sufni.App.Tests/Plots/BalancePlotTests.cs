@@ -5,6 +5,7 @@ using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
+using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -99,18 +100,9 @@ public class BalancePlotTests
         Assert.Contains("Rear peak speed: 125 mm/s", tooltip.LabelText);
     }
 
-    private static IEnumerable<string> ReadTextLabels(Text text)
-    {
-        return text.GetType()
-            .GetProperties()
-            .Where(property => property.PropertyType == typeof(string))
-            .Select(property => property.GetValue(text) as string)
-            .Where(label => !string.IsNullOrWhiteSpace(label))!;
-    }
-
     private static TelemetryData CreateTelemetryWithSingleBalanceSamplePerSide()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         telemetry.Front.Strokes = new Strokes
         {
@@ -161,7 +153,7 @@ public class BalancePlotTests
 
     private static TelemetryData CreateTelemetryWithTwoBalanceSamplesPerSide()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         telemetry.Front.Travel = [0, 10, 0, 20];
         telemetry.Front.Strokes = new Strokes
