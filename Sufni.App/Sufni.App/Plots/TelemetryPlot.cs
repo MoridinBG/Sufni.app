@@ -154,7 +154,9 @@ public class TelemetryPlot : SufniPlot
     public static readonly Color RearColor = SufniThemes.SignalSeries.SuspensionRear.ToScottPlotColor();
 
     private const float MarkerLineWidth = 2.0f;
+    private readonly TelemetryLegendInteraction legendInteraction;
     private readonly List<IPointerReadoutTarget> pointerReadoutTargets = [];
+    private TelemetrySourceVisibilityStore? sourceVisibility;
     private Tooltip? cursorTooltip;
     private Color markerLineColor;
     private Color cursorTooltipFillColor;
@@ -164,6 +166,7 @@ public class TelemetryPlot : SufniPlot
     public TelemetryPlot(Plot plot, SufniTheme? theme = null)
         : base(plot, theme)
     {
+        legendInteraction = new TelemetryLegendInteraction(plot);
         HideSourceLegend();
     }
 
@@ -193,6 +196,18 @@ public class TelemetryPlot : SufniPlot
     public int? MaximumDisplayHz { get; set; }
     public PlotSmoothingLevel SmoothingLevel { get; set; }
     public TelemetryTimeRange? AnalysisRange { get; set; }
+    public TelemetrySourceVisibilityStore? SourceVisibility
+    {
+        get => sourceVisibility;
+        set
+        {
+            sourceVisibility = value;
+            if (value is not null)
+            {
+                legendInteraction.Enable(value);
+            }
+        }
+    }
     public bool HideRightAxis { get; set; }
 
     protected void ConfigureTimeSeriesFrame(string title, Func<double, string>? timeLabelFormatter = null)
@@ -253,6 +268,26 @@ public class TelemetryPlot : SufniPlot
         Plot.Legend.FontSize = 12;
         Plot.Legend.SymbolHeight = 18;
         Plot.Legend.Padding = new PixelPadding(8, 8, 8, 8);
+    }
+
+    protected void RegisterInteractiveLegendSource(IPlottable plottable, string rowId, string sourceKey)
+    {
+        legendInteraction.Register(plottable, rowId, sourceKey);
+    }
+
+    protected void EnableInteractiveSourceLegend()
+    {
+        if (SourceVisibility is null)
+        {
+            return;
+        }
+
+        legendInteraction.Enable(SourceVisibility);
+    }
+
+    public bool TryToggleInteractiveLegendAt(Pixel pixel, PixelSize plotSize)
+    {
+        return legendInteraction.TryToggleAt(pixel, plotSize);
     }
 
     protected void HideSourceLegend()
@@ -459,6 +494,7 @@ public class TelemetryPlot : SufniPlot
 
     public override void Clear()
     {
+        legendInteraction.Clear();
         base.Clear();
         HideSourceLegend();
         ResetReadouts();

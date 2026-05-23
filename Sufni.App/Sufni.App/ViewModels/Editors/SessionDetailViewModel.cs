@@ -116,6 +116,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             PersistRecordedPreferenceChangeIfEnabled(current => current with { Graph = value });
         }
     }
+    public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
 

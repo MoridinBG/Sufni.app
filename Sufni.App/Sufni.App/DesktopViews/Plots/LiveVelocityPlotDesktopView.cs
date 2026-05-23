@@ -14,7 +14,8 @@ public sealed class LiveVelocityPlotDesktopView : LiveGraphPlotDesktopViewBase
             PlotControl.Plot,
             Math.Max(Math.Abs(MinimumY ?? 0), Math.Abs(MaximumY ?? 5)),
             HideRightAxis,
-            CurrentTheme);
+            CurrentTheme,
+            SourceVisibility);
         ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();

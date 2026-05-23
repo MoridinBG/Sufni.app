@@ -56,6 +56,31 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ClickingLegendEntry_HidesSource()
+    {
+        var view = new TravelPlotDesktopView
+        {
+            SourceVisibility = new TelemetrySourceVisibilityStore(),
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = CreateTelemetryData();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        var rear = Assert.Single(plot.Plot.PlottableList.OfType<Signal>(), signal => signal.LegendText == "Rear");
+        var clickPoint = plot.TranslatePoint(GetLegendItemCenter(plot, rear), mounted.Host);
+        Assert.NotNull(clickPoint);
+
+        mounted.Host.MouseDown(clickPoint.Value, MouseButton.Left, RawInputModifiers.None);
+        mounted.Host.MouseUp(clickPoint.Value, MouseButton.Left, RawInputModifiers.None);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(rear.IsVisible);
+    }
+
+    [AvaloniaFact]
     public async Task TravelPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoTravelData()
     {
         var view = new TravelPlotDesktopView();
@@ -341,6 +366,34 @@ public class TravelPlotDesktopViewTests
             .Where(label => !string.IsNullOrWhiteSpace(label))!;
     }
 
+    private static Point GetLegendItemCenter(ScottPlot.Avalonia.AvaPlot plot, IPlottable plottable)
+    {
+        var plotSize = new ScottPlot.PixelSize((float)plot.Bounds.Width, (float)plot.Bounds.Height);
+        plot.Plot.RenderInMemory((int)plotSize.Width, (int)plotSize.Height);
+        using var paint = Paint.NewDisposablePaint();
+        var dataRect = plot.Plot.LastRender.DataRect.HasArea
+            ? plot.Plot.LastRender.DataRect
+            : plotSize.ToPixelRect();
+        var layout = plot.Plot.Legend.GetLayout(dataRect.Size, paint);
+        var legendRect = layout.LegendRect.AlignedInside(dataRect, plot.Plot.Legend.Alignment);
+        var itemCount = layout.LegendItems.Length;
+
+        for (var index = 0; index < itemCount; index++)
+        {
+            if (!ReferenceEquals(layout.LegendItems[index].Plottable, plottable))
+            {
+                continue;
+            }
+
+            var rowHeight = legendRect.Height / itemCount;
+            return new Point(
+                (legendRect.Left + legendRect.Right) / 2,
+                legendRect.Top + rowHeight * index + rowHeight / 2);
+        }
+
+        throw new InvalidOperationException("Legend item was not found.");
+    }
+
     private sealed class RecordedSessionGraphWorkspaceStub(TelemetryData telemetryData) : IRecordedSessionGraphWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
@@ -355,6 +408,7 @@ public class TravelPlotDesktopViewTests
         public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
+        public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public int ClearAnalysisRangeCallCount { get; private set; }
         public int SetAnalysisRangeBoundaryCallCount { get; private set; }

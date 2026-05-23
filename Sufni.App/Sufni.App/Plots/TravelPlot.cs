@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.Models;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
@@ -36,7 +37,8 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 "mm",
                 FrontColor,
                 new SampledValues(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate),
-                "0.#"));
+                "0.#",
+                SourceKey: TelemetrySourceKeys.Front));
         }
 
         if (telemetryData.Rear.Present)
@@ -46,7 +48,8 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 "mm",
                 RearColor,
                 new SampledValues(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate),
-                "0.#"));
+                "0.#",
+                SourceKey: TelemetrySourceKeys.Rear));
         }
 
         LoadTimeSeries(new RecordedTimeSeriesData(
@@ -56,7 +59,9 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
             series,
             new RecordedTimeSeriesValueRange(maxTravel, 0),
             telemetryData,
-            ShowLegendWhenSingleSource: true));
+            ShowLegendWhenSingleSource: true,
+            EnableInteractiveLegend: true,
+            InteractiveLegendRowId: TelemetryGraphRowIds.Travel));
     }
 
     protected override void AddTimeSeriesOverlays(RecordedTimeSeriesData data)
