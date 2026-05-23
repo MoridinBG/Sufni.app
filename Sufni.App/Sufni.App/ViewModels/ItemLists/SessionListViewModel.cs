@@ -11,6 +11,7 @@ using DynamicData;
 using DynamicData.Binding;
 using Sufni.App.Coordinators;
 using Sufni.App.SessionGraph;
+using Sufni.App.Services;
 using Sufni.App.ViewModels.Rows;
 
 namespace Sufni.App.ViewModels.ItemLists;
@@ -43,7 +44,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #region Constructors
 
-    public SessionListViewModel(IRecordedSessionGraph recordedSessionGraph, SessionCoordinator sessionCoordinator)
+    public SessionListViewModel(
+        IRecordedSessionGraph recordedSessionGraph,
+        SessionCoordinator sessionCoordinator,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.sessionCoordinator = sessionCoordinator;
 
@@ -79,7 +84,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     {
         var search = SearchText;
         var fromDate = DateFilterFrom;
-        var toDate = DateFilterTo;
+        var toDateExclusive = DateFilterTo?.Date.AddDays(1);
         var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
 
         filterSubject.OnNext(summary =>
@@ -97,7 +102,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
             var ts = DateTimeOffset.FromUnixTimeSeconds(summary.Timestamp.Value).LocalDateTime;
             if (fromDate is not null && ts < fromDate) return false;
-            if (toDate is not null && ts > toDate) return false;
+            if (toDateExclusive is not null && ts >= toDateExclusive) return false;
 
             return true;
         });

@@ -3,7 +3,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -34,7 +34,7 @@ public class FramePitchRollPlotTests
         var plot = new Plot();
         var sut = new FramePitchRollPlot(plot);
 
-        sut.LoadTelemetryData(CreateTelemetryDataWithImu(
+        sut.LoadTelemetryData(CreateWithImu(
             activeLocations: [(byte)ImuLocation.Fork],
             meta: [new ImuMetaEntry((byte)ImuLocation.Fork, 10, 100)],
             records:
@@ -56,7 +56,7 @@ public class FramePitchRollPlotTests
 
     private static TelemetryData CreateTelemetryDataWithFramePitchRoll()
     {
-        return CreateTelemetryDataWithImu(
+        return CreateWithImu(
             activeLocations: [(byte)ImuLocation.Frame],
             meta: [new ImuMetaEntry((byte)ImuLocation.Frame, 10, 100)],
             records:

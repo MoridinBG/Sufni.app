@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.ViewModels;
 
 namespace Sufni.App.ViewModels.Editors;
 
-public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSessionGraphWorkspace
+public sealed class LiveSessionGraphWorkspaceViewModel : ObservableObject, ILiveSessionGraphWorkspace
 {
     private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
     private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
@@ -124,6 +124,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
             hasPitchRollData = false;
             TrackPoints = [];
             TrackTimelineContext = null;
+            SourceVisibility.Clear();
             RefreshStates();
             return;
         }
@@ -143,6 +144,7 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ViewModelBase, ILiveSes
             hasPitchRollData = false;
             TrackPoints = [];
             TrackTimelineContext = null;
+            SourceVisibility.Clear();
         }
 
         RefreshStates();

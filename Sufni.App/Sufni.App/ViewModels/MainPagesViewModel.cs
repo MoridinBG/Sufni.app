@@ -72,8 +72,10 @@ public partial class MainPagesViewModel : ViewModelBase
         LiveDaqListViewModel liveDaqsPage,
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
+        IUiThreadDispatcher uiThreadDispatcher,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
+        : base(uiThreadDispatcher)
     {
         this.bikeStore = bikeStore;
         this.setupStore = setupStore;

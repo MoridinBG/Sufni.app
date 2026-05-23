@@ -17,6 +17,8 @@ namespace Sufni.App.Tests.Views;
 
 internal static class MainPagesViewModelTestFactory
 {
+    private static readonly IUiThreadDispatcher UiThreadDispatcher = new InlineUiThreadDispatcher();
+
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
         TrackCoordinator? trackCoordinator = null,
@@ -65,6 +67,7 @@ internal static class MainPagesViewModelTestFactory
             liveDaqsPage ?? CreateLiveDaqListPage(),
             CreateImportSessionsPage(shell, importSessionsCoordinator),
             CreatePairedDeviceListPage(),
+            UiThreadDispatcher,
             pairingServerViewModel: pairingServerViewModel);
     }
 
@@ -76,17 +79,19 @@ internal static class MainPagesViewModelTestFactory
             TestCoordinatorSubstitutes.Bike(),
             TestCoordinatorSubstitutes.Setup(),
             TestCoordinatorSubstitutes.ImportSessions(),
-            Substitute.For<IFilesService>());
+            Substitute.For<IFilesService>(),
+            UiThreadDispatcher);
     }
 
     private static BikeListViewModel CreateBikeListPage() =>
         new(
             new BikeStoreStub(),
             TestCoordinatorSubstitutes.Bike(),
-            Substitute.For<IBikeDependencyQuery>());
+            Substitute.For<IBikeDependencyQuery>(),
+            UiThreadDispatcher);
 
     private static SessionListViewModel CreateSessionListPage() =>
-        new(CreateRecordedSessionGraph(), TestCoordinatorSubstitutes.Session());
+        new(CreateRecordedSessionGraph(), TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
     private static IRecordedSessionGraph CreateRecordedSessionGraph()
     {
@@ -97,13 +102,13 @@ internal static class MainPagesViewModelTestFactory
     }
 
     private static SetupListViewModel CreateSetupListPage() =>
-        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup());
+        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage() =>
-        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq());
+        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher);
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
-        new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator());
+        new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator(), UiThreadDispatcher);
 
     private static PairedDeviceCoordinator CreatePairedDeviceCoordinator() =>
         new(Substitute.For<IPairedDeviceStoreWriter>(), Substitute.For<IDatabaseService>());
@@ -122,6 +127,7 @@ internal static class MainPagesViewModelTestFactory
             Substitute.For<IDialogService>(),
             TestCoordinatorSubstitutes.Setup(),
             importSessionsCoordinator,
-            Substitute.For<ISetupStore>());
+            Substitute.For<ISetupStore>(),
+            UiThreadDispatcher);
     }
 }

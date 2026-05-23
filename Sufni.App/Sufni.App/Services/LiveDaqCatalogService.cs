@@ -15,7 +15,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
     private static readonly ILogger logger = Log.ForContext<LiveDaqCatalogService>();
 
     private readonly IServiceDiscovery serviceDiscovery;
-    private readonly ILiveDaqBrowseOwner browseOwner;
+    private readonly IDaqBrowseOwner browseOwner;
     private readonly ILiveDaqBoardIdInspector boardIdInspector;
     private readonly object gate = new();
     private readonly HashSet<string> announcedEndpoints = new(StringComparer.OrdinalIgnoreCase);
@@ -24,7 +24,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     public LiveDaqCatalogService(
         [FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery,
-        ILiveDaqBrowseOwner browseOwner,
+        IDaqBrowseOwner browseOwner,
         ILiveDaqBoardIdInspector boardIdInspector)
     {
         this.serviceDiscovery = serviceDiscovery;

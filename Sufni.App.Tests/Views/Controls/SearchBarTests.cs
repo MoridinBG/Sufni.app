@@ -16,7 +16,7 @@ public class SearchBarTests
         ViewTestHelpers.EnsureViewTestResources();
         var control = new SearchBar
         {
-            DataContext = new ItemListViewModelBase(),
+            DataContext = new ItemListViewModelBase(new InlineUiThreadDispatcher()),
         };
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
@@ -34,7 +34,7 @@ public class SearchBarTests
     public async Task SearchBar_BindsSearchText_AndClearsIt()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        var viewModel = new ItemListViewModelBase
+        var viewModel = new ItemListViewModelBase(new InlineUiThreadDispatcher())
         {
             SearchText = "shock",
         };
@@ -70,7 +70,7 @@ public class SearchBarTests
         ViewTestHelpers.EnsureViewTestResources();
         var control = new SearchBar
         {
-            DataContext = new ItemListViewModelBase(),
+            DataContext = new ItemListViewModelBase(new InlineUiThreadDispatcher()),
         };
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);

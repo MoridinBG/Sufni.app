@@ -4,7 +4,7 @@ using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -28,7 +28,7 @@ public class VelocityPlotDesktopViewTests
 
         await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
 
-        velocityView.Telemetry = CreateTelemetryData();
+        velocityView.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mountedVelocity.View);
@@ -47,7 +47,7 @@ public class VelocityPlotDesktopViewTests
 
         await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
 
-        var telemetry = CreateTelemetryData();
+        var telemetry = CreateMinimal();
         telemetry.Front.Present = false;
         telemetry.Rear.Present = false;
 
@@ -69,7 +69,7 @@ public class VelocityPlotDesktopViewTests
 
         await using var mountedVelocity = await PlotViewTestSupport.MountAsync(velocityView);
 
-        var telemetry = CreateTelemetryData();
+        var telemetry = CreateMinimal();
         telemetry.Markers = [new MarkerData(0.5), new MarkerData(1.5)];
 
         velocityView.Telemetry = telemetry;

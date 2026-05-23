@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
@@ -17,7 +18,8 @@ public partial class MainViewModel : ViewModelBase, IMainViewShellHost
 
     #region Constructors
 
-    public MainViewModel(MainPagesViewModel mainPagesViewModel)
+    public MainViewModel(MainPagesViewModel mainPagesViewModel, IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         MainPagesViewModel = mainPagesViewModel;
         CurrentView = mainPagesViewModel;

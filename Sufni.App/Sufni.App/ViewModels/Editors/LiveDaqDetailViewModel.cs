@@ -121,8 +121,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
-        ILiveDaqStore liveDaqStore)
-        : base(shell, dialogService)
+        ILiveDaqStore liveDaqStore,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         IdentityKey = snapshot.IdentityKey;
         BoardId = snapshot.BoardId;

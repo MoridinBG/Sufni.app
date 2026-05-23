@@ -15,7 +15,8 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -41,7 +42,7 @@ public class TravelPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -65,7 +66,7 @@ public class TravelPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -84,7 +85,7 @@ public class TravelPlotDesktopViewTests
     public async Task TravelPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoTravelData()
     {
         var view = new TravelPlotDesktopView();
-        var telemetry = CreateTelemetryData();
+        var telemetry = CreateMinimal();
         telemetry.Front.Present = false;
         telemetry.Rear.Present = false;
 
@@ -111,7 +112,7 @@ public class TravelPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -131,7 +132,7 @@ public class TravelPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -153,7 +154,7 @@ public class TravelPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -179,7 +180,7 @@ public class TravelPlotDesktopViewTests
     public async Task TravelPlotDesktopView_RendersMarkerLinesFromTelemetry()
     {
         var view = new TravelPlotDesktopView();
-        var telemetry = CreateTelemetryData();
+        var telemetry = CreateMinimal();
         telemetry.Markers = [new MarkerData(0.5), new MarkerData(1.5)];
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
@@ -206,7 +207,7 @@ public class TravelPlotDesktopViewTests
     public async Task TravelPlotDesktopView_CullsCollidingAirtimeLabelsAfterTelemetryLoad()
     {
         var view = new TravelPlotDesktopView();
-        var telemetry = CreateTelemetryData(duration: 10);
+        var telemetry = CreateMinimal(duration: 10);
         telemetry.Airtimes =
         [
             new Airtime { Start = 1.90, End = 2.10 },
@@ -226,9 +227,9 @@ public class TravelPlotDesktopViewTests
     public async Task TravelPlotDesktopView_ClearsAndReloadsTelemetryWhileHidden()
     {
         var view = new TravelPlotDesktopView();
-        var oldTelemetry = CreateTelemetryData();
+        var oldTelemetry = CreateMinimal();
         oldTelemetry.Markers = [new MarkerData(0.5)];
-        var freshTelemetry = CreateTelemetryData();
+        var freshTelemetry = CreateMinimal();
         freshTelemetry.Markers = [new MarkerData(0.25), new MarkerData(1.5)];
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
@@ -262,7 +263,7 @@ public class TravelPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData(duration: 10);
+        view.Telemetry = CreateMinimal(duration: 10);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -279,7 +280,7 @@ public class TravelPlotDesktopViewTests
         TestApp.SetIsDesktop(false);
         try
         {
-            var telemetry = CreateTelemetryData(duration: 10);
+            var telemetry = CreateMinimal(duration: 10);
             var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
             var view = new LongPressTravelPlotDesktopView
             {
@@ -347,51 +348,6 @@ public class TravelPlotDesktopViewTests
     private sealed class TestSubscription(Action dispose) : IDisposable
     {
         public void Dispose() => dispose();
-    }
-
-    private static Text[] GetAirtimeLabels(Plot plot)
-    {
-        return plot.PlottableList
-            .OfType<Text>()
-            .Where(text => ReadTextLabels(text).Any(label => label.Contains("s air")))
-            .ToArray();
-    }
-
-    private static IEnumerable<string> ReadTextLabels(Text text)
-    {
-        return text.GetType()
-            .GetProperties()
-            .Where(property => property.PropertyType == typeof(string))
-            .Select(property => property.GetValue(text) as string)
-            .Where(label => !string.IsNullOrWhiteSpace(label))!;
-    }
-
-    private static Point GetLegendItemCenter(ScottPlot.Avalonia.AvaPlot plot, IPlottable plottable)
-    {
-        var plotSize = new ScottPlot.PixelSize((float)plot.Bounds.Width, (float)plot.Bounds.Height);
-        plot.Plot.RenderInMemory((int)plotSize.Width, (int)plotSize.Height);
-        using var paint = Paint.NewDisposablePaint();
-        var dataRect = plot.Plot.LastRender.DataRect.HasArea
-            ? plot.Plot.LastRender.DataRect
-            : plotSize.ToPixelRect();
-        var layout = plot.Plot.Legend.GetLayout(dataRect.Size, paint);
-        var legendRect = layout.LegendRect.AlignedInside(dataRect, plot.Plot.Legend.Alignment);
-        var itemCount = layout.LegendItems.Length;
-
-        for (var index = 0; index < itemCount; index++)
-        {
-            if (!ReferenceEquals(layout.LegendItems[index].Plottable, plottable))
-            {
-                continue;
-            }
-
-            var rowHeight = legendRect.Height / itemCount;
-            return new Point(
-                (legendRect.Left + legendRect.Right) / 2,
-                legendRect.Top + rowHeight * index + rowHeight / 2);
-        }
-
-        throw new InvalidOperationException("Legend item was not found.");
     }
 
     private sealed class RecordedSessionGraphWorkspaceStub(TelemetryData telemetryData) : IRecordedSessionGraphWorkspace

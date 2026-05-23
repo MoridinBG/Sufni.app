@@ -57,32 +57,6 @@ internal sealed class SetupStoreStub : ISetupStore
     public Task RefreshAsync() => Task.CompletedTask;
 }
 
-internal sealed class SessionStoreStub : ISessionStore
-{
-    private readonly SourceCache<SessionSnapshot, Guid> cache = new(snapshot => snapshot.Id);
-
-    public SessionStoreStub()
-    {
-    }
-
-    public SessionStoreStub(params SessionSnapshot[] snapshots)
-    {
-        cache.AddOrUpdate(snapshots);
-    }
-
-    public IObservable<IChangeSet<SessionSnapshot, Guid>> Connect() => cache.Connect();
-
-    public IObservable<SessionSnapshot> Watch(Guid id) => Observable.Empty<SessionSnapshot>();
-
-    public SessionSnapshot? Get(Guid id)
-    {
-        var result = cache.Lookup(id);
-        return result.HasValue ? result.Value : null;
-    }
-
-    public Task RefreshAsync() => Task.CompletedTask;
-}
-
 internal sealed class PairedDeviceStoreStub : IPairedDeviceStore
 {
     private readonly SourceCache<PairedDeviceSnapshot, string> cache = new(snapshot => snapshot.DeviceId);

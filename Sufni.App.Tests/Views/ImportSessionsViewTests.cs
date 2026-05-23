@@ -19,7 +19,8 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.Views;
 using Sufni.App.Views.Controls;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
 
 namespace Sufni.App.Tests.Views;
 
@@ -133,7 +134,8 @@ public class ImportSessionsViewTests
             dialogService,
             setupCoordinator,
             importSessionsCoordinator,
-            setupStore);
+            setupStore,
+            new InlineUiThreadDispatcher());
 
         var view = createView();
         view.DataContext = viewModel;
@@ -174,7 +176,7 @@ public class ImportSessionsViewTests
 
         importCompletion.SetResult(new SessionImportResult(
             Array.Empty<SessionSnapshot>(),
-            Array.Empty<(string FileName, string ErrorMessage)>()));
+            Array.Empty<SessionImportFailure>()));
         await importTask;
 
         host.Close();
@@ -220,7 +222,8 @@ public class ImportSessionsViewTests
             dialogService,
             setupCoordinator,
             importSessionsCoordinator,
-            setupStore);
+            setupStore,
+            new InlineUiThreadDispatcher());
 
         var view = createView();
         view.DataContext = viewModel;
@@ -280,7 +283,8 @@ public class ImportSessionsViewTests
             dialogService,
             setupCoordinator,
             importSessionsCoordinator,
-            setupStore);
+            setupStore,
+            new InlineUiThreadDispatcher());
 
         var view = createView();
         view.DataContext = viewModel;
@@ -354,7 +358,8 @@ public class ImportSessionsViewTests
             dialogService,
             setupCoordinator,
             importSessionsCoordinator,
-            setupStore);
+            setupStore,
+            new InlineUiThreadDispatcher());
 
         var view = createView();
         view.DataContext = viewModel;
@@ -414,7 +419,8 @@ public class ImportSessionsViewTests
             dialogService,
             setupCoordinator,
             importSessionsCoordinator,
-            setupStore);
+            setupStore,
+            new InlineUiThreadDispatcher());
 
         var view = createView();
         view.DataContext = viewModel;

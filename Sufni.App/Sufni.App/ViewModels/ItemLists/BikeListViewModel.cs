@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
+using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
 
@@ -40,7 +41,9 @@ public partial class BikeListViewModel : ItemListViewModelBase
     public BikeListViewModel(
         IBikeStore bikeStore,
         BikeCoordinator bikeCoordinator,
-        IBikeDependencyQuery dependencyQuery)
+        IBikeDependencyQuery dependencyQuery,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(uiThreadDispatcher)
     {
         this.bikeStore = bikeStore;
         this.bikeCoordinator = bikeCoordinator;

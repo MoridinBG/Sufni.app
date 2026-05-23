@@ -291,8 +291,8 @@ public class MobileStatisticsPageViewTests
             bool hasRearForkVibration = false,
             bool hasRearFrameVibration = false)
         {
-            var telemetry = TestTelemetryData.Create();
-            telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+            var telemetry = TestTelemetryData.CreateProcessed();
+            telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
 
             return new MobileStatisticsWorkspaceStub(
                 telemetry,

@@ -29,7 +29,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBikeEditorService>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher());
 
         coordinator.OpenCreateAsync().Returns(Task.CompletedTask);
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
@@ -58,7 +59,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IFilesService>(),
             Substitute.For<IBackgroundTaskRunner>(),
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher());
 
         coordinator.OpenCreateAsync(Arg.Any<Guid?>()).Returns(Task.CompletedTask);
         coordinator.OpenCreateForDetectedBoardAsync().Returns(Task.CompletedTask);
@@ -98,6 +100,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher(),
             Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IRecordedSessionDomainQuery>(),
             Substitute.For<IRecordedSessionGraph>(),
@@ -126,7 +129,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher());
 
         coordinator.SelectAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
         coordinator.OpenSessionAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
@@ -142,6 +146,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBackgroundTaskRunner>(),
+            new InlineUiThreadDispatcher(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IRecordedSessionReprocessor>(),
             new Func<ImportSessionsViewModel>(() => null!));

@@ -13,7 +13,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new TravelHistogramPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Time (%)", "Axle position (mm)");
     }
@@ -27,7 +27,7 @@ public class StatisticsPlotAxisLabelTests
             AverageMode = VelocityAverageMode.StrokePeakAveraged,
         };
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Strokes (%)", "Velocity (mm/s)");
     }
@@ -38,7 +38,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new VelocityHistogramPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Time (%)", "Velocity (mm/s)");
     }
@@ -49,7 +49,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new DeepTravelHistogramPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Axle position (mm)", "Strokes");
     }
@@ -60,7 +60,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new StrokeLengthHistogramPlot(plot, SuspensionType.Front, BalanceType.Compression);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Stroke length (mm)", "Strokes (%)");
     }
@@ -71,7 +71,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new StrokeSpeedHistogramPlot(plot, SuspensionType.Front, BalanceType.Compression);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Peak stroke speed (mm/s)", "Strokes (%)");
     }
@@ -82,7 +82,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new BalancePlot(plot, BalanceType.Compression);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Zenith (%)", "Peak speed (mm/s)");
     }
@@ -93,7 +93,7 @@ public class StatisticsPlotAxisLabelTests
         var plot = new Plot();
         var sut = new TravelFrequencyHistogramPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(TestTelemetryData.Create(frontPresent: true, rearPresent: true));
+        sut.LoadTelemetryData(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true));
 
         AssertAxisLabels(plot, "Frequency (Hz)", "Power (dB)");
     }
@@ -117,7 +117,7 @@ public class StatisticsPlotAxisLabelTests
 
     private static TelemetryData CreateTelemetryWithForkImu()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         const float accelLsbPerG = 1000;
 
         telemetry.ImuData = new RawImuData

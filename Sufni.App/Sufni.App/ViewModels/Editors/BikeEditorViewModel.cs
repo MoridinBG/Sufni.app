@@ -191,8 +191,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         BikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
-        IDialogService dialogService)
-        : base(shell, dialogService)
+        IDialogService dialogService,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;

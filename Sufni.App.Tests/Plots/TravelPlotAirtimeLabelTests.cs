@@ -2,7 +2,8 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Plots;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Plots;
 
@@ -63,25 +64,9 @@ public class TravelPlotAirtimeLabelTests
 
     private static TelemetryData CreateTelemetryWithAirtimes(Airtime[] airtimes)
     {
-        var telemetry = CreateTelemetryData(duration: 10, sampleRate: 2);
+        var telemetry = CreateMinimal(duration: 10, sampleRate: 2);
         telemetry.Airtimes = airtimes;
         return telemetry;
     }
 
-    private static Text[] GetAirtimeLabels(Plot plot)
-    {
-        return plot.PlottableList
-            .OfType<Text>()
-            .Where(text => ReadTextLabels(text).Any(label => label.Contains("s air")))
-            .ToArray();
-    }
-
-    private static IEnumerable<string> ReadTextLabels(Text text)
-    {
-        return text.GetType()
-            .GetProperties()
-            .Where(property => property.PropertyType == typeof(string))
-            .Select(property => property.GetValue(text) as string)
-            .Where(label => !string.IsNullOrWhiteSpace(label))!;
-    }
 }

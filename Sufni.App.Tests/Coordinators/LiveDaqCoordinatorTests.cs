@@ -32,6 +32,7 @@ public class LiveDaqCoordinatorTests
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> liveSessionSnapshots = new(LiveSessionPresentationSnapshot.Empty);
@@ -68,7 +69,8 @@ public class LiveDaqCoordinatorTests
             daqManagementService,
             filesService,
             shell,
-            dialogService);
+            dialogService,
+            uiThreadDispatcher);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
@@ -279,7 +281,8 @@ public class LiveDaqCoordinatorTests
             shell,
             dialogService,
             knownBoardsQuery,
-            liveDaqStore);
+            liveDaqStore,
+            uiThreadDispatcher);
         Assert.False(capturedMatch(other));
     }
 
@@ -331,7 +334,8 @@ public class LiveDaqCoordinatorTests
             backgroundTaskRunner,
             tileLayerService,
             shell,
-            dialogService);
+            dialogService,
+            uiThreadDispatcher);
         Assert.False(capturedMatch(other));
     }
 

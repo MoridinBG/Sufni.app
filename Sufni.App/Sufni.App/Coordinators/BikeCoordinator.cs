@@ -17,7 +17,8 @@ public class BikeCoordinator(
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
-    IDialogService dialogService)
+    IDialogService dialogService,
+    IUiThreadDispatcher uiThreadDispatcher)
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 
@@ -31,7 +32,8 @@ public class BikeCoordinator(
             this,
             dependencyQuery,
             shell,
-            dialogService)
+            dialogService,
+            uiThreadDispatcher)
         {
             IsDirty = true
         };
@@ -52,7 +54,8 @@ public class BikeCoordinator(
                 this,
                 dependencyQuery,
                 shell,
-                dialogService));
+                dialogService,
+                uiThreadDispatcher));
         return Task.CompletedTask;
     }
 
@@ -238,7 +241,7 @@ public class BikeCoordinator(
             return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
         }
 
-        shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId);
+        shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId, forgetRestoreHistory: true);
         bikeStore.Remove(bikeId);
         logger.Information("Bike delete completed for {BikeId}", bikeId);
         return new BikeDeleteResult(BikeDeleteOutcome.Deleted);

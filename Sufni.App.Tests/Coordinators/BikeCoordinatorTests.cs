@@ -22,9 +22,10 @@ public class BikeCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
     private BikeCoordinator CreateCoordinator() => new(
-        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService);
+        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService, uiThreadDispatcher);
 
     // ----- OpenCreateAsync -----
 
@@ -311,7 +312,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await database.DidNotReceive().DeleteAsync<Bike>(Arg.Any<Guid>());
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!);
+        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!, default);
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
 
@@ -326,7 +327,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Bike>(id);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<BikeEditorViewModel, bool>>());
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<BikeEditorViewModel, bool>>(), forgetRestoreHistory: true);
         bikeStore.Received(1).Remove(id);
     }
 
@@ -342,6 +343,6 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!);
+        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!, default);
     }
 }

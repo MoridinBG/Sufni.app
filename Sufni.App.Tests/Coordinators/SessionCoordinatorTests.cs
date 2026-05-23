@@ -34,6 +34,7 @@ public class SessionCoordinatorTests
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
+    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
     public SessionCoordinatorTests()
     {
@@ -59,6 +60,7 @@ public class SessionCoordinatorTests
             sessionPreferences,
             shell,
             dialogService,
+            uiThreadDispatcher,
             sourceStore,
             domainQuery,
             recordedSessionGraph,
@@ -319,7 +321,7 @@ public class SessionCoordinatorTests
     public async Task RecomputeAsync_PersistsFreshProcessedDataAndUpsertsSnapshot()
     {
         var context = CreateRecomputeContext();
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "new-dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var fresh = CreateSession(context.Session, updated: 9);
@@ -360,7 +362,7 @@ public class SessionCoordinatorTests
         {
             Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250)
         };
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var fresh = CreateSession(context.Session, updated: 9);
@@ -392,7 +394,7 @@ public class SessionCoordinatorTests
     public async Task RecomputeAsync_Recomputes_WhenProcessedDataIsMissingButSourceExists()
     {
         var context = CreateRecomputeContext(new SessionStaleness.MissingProcessedData(), hasProcessedData: false);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var fresh = CreateSession(context.Session, updated: 8);
@@ -415,7 +417,7 @@ public class SessionCoordinatorTests
     public async Task RecomputeAsync_Recomputes_WhenSessionIsCurrentAndManualRecomputeRequested()
     {
         var context = CreateRecomputeContext(new SessionStaleness.Current());
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var fresh = CreateSession(context.Session, updated: 8);
@@ -456,7 +458,7 @@ public class SessionCoordinatorTests
     public async Task RecomputeAsync_ReturnsConflict_WhenGuardedPersistenceFindsNewerRow()
     {
         var context = CreateRecomputeContext();
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         var current = CreateSession(context.Session, updated: 12);
@@ -508,7 +510,7 @@ public class SessionCoordinatorTests
     {
         var previousTrackId = Guid.NewGuid();
         var context = CreateRecomputeContext(fullTrackId: previousTrackId);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         persisted.FullTrack = previousTrackId;
@@ -545,7 +547,7 @@ public class SessionCoordinatorTests
         existingTrack.Id = previousTrackId;
         var generatedTrack = CreateTrack(new TrackPoint(1, 2, 3, 4));
         var context = CreateRecomputeContext(fullTrackId: previousTrackId);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         persisted.FullTrack = previousTrackId;
@@ -582,7 +584,7 @@ public class SessionCoordinatorTests
         existingTrack.Id = previousTrackId;
         var generatedTrack = CreateTrack(new TrackPoint(2, 4, 6, 8));
         var context = CreateRecomputeContext(fullTrackId: previousTrackId);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         persisted.FullTrack = previousTrackId;
@@ -620,7 +622,7 @@ public class SessionCoordinatorTests
         existingTrack.Id = previousTrackId;
         var generatedTrack = CreateTrack(new TrackPoint(1, 2, 3, 4, fixMode: 3, satellites: 12, epe2d: 0.5f, epe3d: 0.8f));
         var context = CreateRecomputeContext(fullTrackId: previousTrackId);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var fingerprint = new ProcessingFingerprint(2, 1, context.Domain.Setup!.Id, context.Domain.Bike!.Id, 1, "dependency", context.Source.SourceHash);
         var persisted = CreateSession(context.Session, updated: 5);
         persisted.FullTrack = previousTrackId;
@@ -670,7 +672,7 @@ public class SessionCoordinatorTests
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
         await database.Received(1).DeleteAsync<Track>(trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -693,7 +695,7 @@ public class SessionCoordinatorTests
         await database.Received(1).DeleteAsync<Session>(id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
         await database.DidNotReceive().DeleteAsync<Track>(Arg.Any<Guid>());
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -715,7 +717,7 @@ public class SessionCoordinatorTests
         await database.Received(1).DeleteAsync<Session>(id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
         await database.Received(1).DeleteAsync<Track>(trackId);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>());
+        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -730,7 +732,7 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!);
+        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!, default);
     }
 
     // ----- Desktop / Mobile load workflows -----
@@ -739,7 +741,7 @@ public class SessionCoordinatorTests
     public async Task LoadDesktopDetailAsync_ReturnsLoaded_WhenTelemetryPresent()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var percentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
         var trackData = new SessionTrackPresentationData(
             Guid.NewGuid(),
@@ -795,7 +797,7 @@ public class SessionCoordinatorTests
     public async Task LoadDesktopDetailAsync_ReturnsFailed_WhenTrackCoordinatorThrows()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
@@ -811,7 +813,7 @@ public class SessionCoordinatorTests
     {
         var sessionId = Guid.NewGuid();
         var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
         database.GetSessionCacheAsync(sessionId).Returns(cache);
         database.GetSessionPsstAsync(sessionId).Returns(telemetry);
@@ -850,7 +852,7 @@ public class SessionCoordinatorTests
     public async Task LoadMobileDetailAsync_BuildsAndPersistsCache_WhenCacheMissing()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
         var cacheData = new SessionCachePresentationData(
             "front-travel",
@@ -911,7 +913,7 @@ public class SessionCoordinatorTests
     public async Task LoadMobileDetailAsync_ReturnsFailed_WhenPresentationFails()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
@@ -929,7 +931,7 @@ public class SessionCoordinatorTests
     public async Task LoadMobileDetailAsync_CancellationDuringCacheBuild_SkipsCacheWrite()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);

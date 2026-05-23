@@ -5,7 +5,7 @@ using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 using Sufni.App.Tests.Views.Plots;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryFactories;
+using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Views.Plots;
 
@@ -18,7 +18,7 @@ public class ImuPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryDataWithImu();
+        view.Telemetry = CreateWithImu();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -37,7 +37,7 @@ public class ImuPlotDesktopViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        view.Telemetry = CreateTelemetryData();
+        view.Telemetry = CreateMinimal();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
@@ -51,7 +51,7 @@ public class ImuPlotDesktopViewTests
     public async Task ImuPlotDesktopView_RendersMarkerLinesFromTelemetry()
     {
         var view = new ImuPlotDesktopView();
-        var telemetry = CreateTelemetryDataWithImu();
+        var telemetry = CreateWithImu();
         telemetry.Markers = [new MarkerData(0.5), new MarkerData(1.5)];
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);

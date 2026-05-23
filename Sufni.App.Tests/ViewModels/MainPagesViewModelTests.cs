@@ -13,11 +13,13 @@ namespace Sufni.App.Tests.ViewModels;
 
 public class MainPagesViewModelTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
     [Fact]
     public void SelectedIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
         var liveCoordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator);
+        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher);
         var viewModel = MainPagesViewModelTestFactory.Create(livePage);
 
         viewModel.SelectedIndex = 3;
@@ -30,7 +32,7 @@ public class MainPagesViewModelTests
     [Fact]
     public void LiveDaqsPage_IsAlwaysProvided()
     {
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq());
+        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher);
         var viewModel = MainPagesViewModelTestFactory.Create(livePage);
 
         Assert.Same(livePage, viewModel.LiveDaqsPage);

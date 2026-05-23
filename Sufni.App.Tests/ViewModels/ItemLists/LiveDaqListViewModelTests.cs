@@ -8,11 +8,13 @@ namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class LiveDaqListViewModelTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
     [Fact]
     public void Activate_DelegatesToCoordinator()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
+        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
 
         viewModel.Activate();
 
@@ -23,7 +25,7 @@ public class LiveDaqListViewModelTests
     public void Deactivate_DelegatesToCoordinator()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
+        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
 
         viewModel.Deactivate();
 
@@ -35,7 +37,7 @@ public class LiveDaqListViewModelTests
     {
         var store = new LiveDaqStore();
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(store, coordinator);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher);
 
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-alpha",
@@ -75,7 +77,7 @@ public class LiveDaqListViewModelTests
     public async Task RowSelectedCommand_SelectsIdentityKey_WhenRowProvided()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
+        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
         var row = new LiveDaqRowViewModel(new LiveDaqSnapshot(
             IdentityKey: "board-1",
             DisplayName: "Board 1",
@@ -95,7 +97,7 @@ public class LiveDaqListViewModelTests
     public async Task RowSelectedCommand_DoesNothing_WhenRowIsNull()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
+        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
 
         await viewModel.RowSelectedCommand.ExecuteAsync(null);
 
@@ -106,7 +108,7 @@ public class LiveDaqListViewModelTests
     public async Task RowSelectedCommand_IgnoresOfflineRow()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator);
+        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(), coordinator, UiThreadDispatcher);
         var offlineRow = new LiveDaqRowViewModel(new LiveDaqSnapshot(
             IdentityKey: "board-offline",
             DisplayName: "Offline Board",

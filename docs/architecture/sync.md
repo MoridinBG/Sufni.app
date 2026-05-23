@@ -49,7 +49,7 @@ sequenceDiagram
 | `/session/source/data/{id}`    | GET    | JWT  | Download a `RecordedSessionSourceTransfer` JSON payload      |
 | `/session/source/data/{id}`    | PATCH  | JWT  | Upload a `RecordedSessionSourceTransfer` JSON payload        |
 
-`PATCH /session/data/{id}` raises `SessionDataArrived`; `PATCH /session/source/data/{id}` raises `SessionSourceDataArrived`. `SessionCoordinator` listens to both events and updates `SessionStore` or `RecordedSessionSourceStore` on the UI thread after the database write succeeds.
+`PATCH /session/data/{id}` raises `SessionDataArrived`; `PATCH /session/source/data/{id}` raises `SessionSourceDataArrived`. `SessionCoordinator` listens to both events and updates `SessionStore` or `RecordedSessionSourceStore` on the UI thread after the database write succeeds. The server service remains UI-agnostic; subscribers that mutate stores or bound state own the `IUiThreadDispatcher` hop.
 
 ## Client
 

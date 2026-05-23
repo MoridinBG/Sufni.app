@@ -62,8 +62,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IDialogService dialogService,
         SetupCoordinator setupCoordinator,
         ImportSessionsCoordinator importSessionsCoordinator,
-        ISetupStore setupStore)
-        : base(shell, dialogService)
+        ISetupStore setupStore,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         Name = "Import Sessions";
         this.telemetryDataStoreService = telemetryDataStoreService;
@@ -153,8 +154,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 case SessionImportEvent.Imported imported:
                     Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
                     break;
-                case SessionImportEvent.Failed failed:
+                case SessionImportEvent.ImportFailed failed:
                     ErrorMessages.Add($"Could not import {failed.FileName}: {failed.ErrorMessage}");
+                    break;
+                case SessionImportEvent.TrashFailed failed:
+                    ErrorMessages.Add($"Could not trash {failed.FileName}: {failed.ErrorMessage}");
                     break;
                 case SessionImportEvent.Progress progressEvent:
                     CurrentFileIndex = progressEvent.Current;

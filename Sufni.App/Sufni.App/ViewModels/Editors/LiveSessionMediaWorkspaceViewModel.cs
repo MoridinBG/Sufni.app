@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.ViewModels;
 
 namespace Sufni.App.ViewModels.Editors;
 
-public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISessionMediaWorkspace, IDisposable
+public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
 {
     private bool isInitialized;
     private bool mapExpected;
@@ -28,23 +28,18 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ViewModelBase, ISession
     public string? VideoUrl => null;
 
     public LiveSessionMediaWorkspaceViewModel()
-        : this(tileLayerService: null, dialogService: null, new SessionTimelineLinkViewModel())
     {
+        Timeline = new SessionTimelineLinkViewModel();
     }
 
     public LiveSessionMediaWorkspaceViewModel(
-        ITileLayerService? tileLayerService,
-        IDialogService? dialogService,
-        SessionTimelineLinkViewModel timeline)
+        ITileLayerService tileLayerService,
+        IDialogService dialogService,
+        SessionTimelineLinkViewModel timeline,
+        IUiThreadDispatcher uiThreadDispatcher)
     {
         Timeline = timeline;
-
-        if (tileLayerService is null || dialogService is null)
-        {
-            return;
-        }
-
-        MapViewModel = new MapViewModel(tileLayerService, dialogService)
+        MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher)
         {
             FullTrackPoints = [],
             SessionTrackPoints = [],

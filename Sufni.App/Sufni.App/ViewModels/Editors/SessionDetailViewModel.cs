@@ -161,38 +161,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
     [ObservableProperty] private SessionAnalysisResult sessionAnalysis = SessionAnalysisResult.Hidden;
-    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
-    [
-        new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
-        new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
-    ];
-    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
-    [
-        new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
-        new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
-    ];
-    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
-    [
-        new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
-        new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
-        new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
-    ];
-    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
-    [
-        new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
-        new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
-    ];
-    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
-    [
-        new(SessionAnalysisTargetProfile.Weekend, "Weekend", "Uses conservative speed context for recreational pace and mixed terrain."),
-        new(SessionAnalysisTargetProfile.Trail, "Trail", "Uses general trail-riding speed context."),
-        new(SessionAnalysisTargetProfile.Enduro, "Enduro", "Uses faster rough-descending speed context."),
-        new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
-    ];
+    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
+    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
+    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionAnalysisPresentation.VelocityAverageModeOptions;
+    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } = SessionAnalysisPresentation.SessionAnalysisTargetProfileOptions;
     public string SessionAnalysisRangeText => AnalysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
-    public string SessionAnalysisModesText => $"Travel: {DisplayName(SelectedTravelHistogramMode)}  Velocity: {DisplayName(SelectedVelocityAverageMode)}  Balance: {DisplayName(SelectedBalanceDisplacementMode)} / {DisplayName(SelectedBalanceSpeedMode)}";
+    public string SessionAnalysisModesText => SessionAnalysisPresentation.DescribeModes(
+        SelectedTravelHistogramMode,
+        SelectedVelocityAverageMode,
+        SelectedBalanceDisplacementMode,
+        SelectedBalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages { get; }
     IReadOnlyList<TrackPoint>? IRecordedSessionGraphWorkspace.TrackPoints => TrackPoints;
 
@@ -370,31 +351,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private static string FormatSeconds(double seconds)
     {
         return seconds.ToString("F1", CultureInfo.InvariantCulture);
-    }
-
-    private static string DisplayName(TravelHistogramMode mode)
-    {
-        return mode == TravelHistogramMode.DynamicSag ? "Dynamic sag" : "Active suspension";
-    }
-
-    private static string DisplayName(VelocityAverageMode mode)
-    {
-        return mode == VelocityAverageMode.StrokePeakAveraged ? "Stroke-peak average" : "Sample-averaged";
-    }
-
-    private static string DisplayName(BalanceDisplacementMode mode)
-    {
-        return mode == BalanceDisplacementMode.Travel ? "Travel" : "Zenith";
-    }
-
-    private static string DisplayName(BalanceSpeedMode mode)
-    {
-        return mode switch
-        {
-            BalanceSpeedMode.LowSpeed => "Low speed",
-            BalanceSpeedMode.HighSpeed => "High speed",
-            _ => "Both",
-        };
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
@@ -1130,8 +1086,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        ISessionPreferences sessionPreferences)
-        : base(shell, dialogService)
+        ISessionPreferences sessionPreferences,
+        IUiThreadDispatcher uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
 
@@ -1154,7 +1111,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         VibrationPage = new VibrationPageViewModel(this);
         AnalysisPage = new SessionAnalysisPageViewModel(this);
         Pages = [GraphPage, SpringPage, StrokesPage, DamperPage, BalancePage, VibrationPage, AnalysisPage, NotesPage, PreferencesPage];
-        MapViewModel = new MapViewModel(tileLayerService, dialogService);
+        MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher);
         _ = MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {

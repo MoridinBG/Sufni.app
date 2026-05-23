@@ -1,8 +1,7 @@
-using System.Text;
 using Avalonia.Platform.Storage;
 using NSubstitute;
 using Sufni.App.Models;
-using Sufni.Telemetry;
+using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Models;
 
@@ -15,7 +14,7 @@ public class TelemetryFileInspectionMappingTests
 
         try
         {
-            File.WriteAllBytes(path, CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
+            File.WriteAllBytes(path, TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
 
             var file = new MassStorageTelemetryFile(new FileInfo(path));
 
@@ -39,7 +38,7 @@ public class TelemetryFileInspectionMappingTests
 
         try
         {
-            File.WriteAllBytes(path, CreateMalformedV4WithInvalidTelemetryLength());
+            File.WriteAllBytes(path, TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength());
 
             var file = new MassStorageTelemetryFile(new FileInfo(path));
 
@@ -60,7 +59,7 @@ public class TelemetryFileInspectionMappingTests
     {
         var storageFile = Substitute.For<IStorageFile>();
         storageFile.Name.Returns("sample.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
 
         var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
 
@@ -77,7 +76,7 @@ public class TelemetryFileInspectionMappingTests
     {
         var storageFile = Substitute.For<IStorageFile>();
         storageFile.Name.Returns("broken.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateMalformedV4WithInvalidTelemetryLength())));
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength())));
 
         var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
 
@@ -95,7 +94,7 @@ public class TelemetryFileInspectionMappingTests
 
         try
         {
-            File.WriteAllBytes(path, CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000));
+            File.WriteAllBytes(path, TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000));
 
             var file = new MassStorageTelemetryFile(new FileInfo(path));
 
@@ -115,7 +114,7 @@ public class TelemetryFileInspectionMappingTests
     {
         var storageFile = Substitute.For<IStorageFile>();
         storageFile.Name.Returns("trimmed.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000))));
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000))));
 
         var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
 
@@ -134,7 +133,7 @@ public class TelemetryFileInspectionMappingTests
 
         var storageFile = Substitute.For<IStorageFile>();
         storageFile.Name.Returns("sample.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
         storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
         storageFile.MoveAsync(uploaded).Returns(Task.FromResult<IStorageItem?>(storageFile));
         parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
@@ -156,7 +155,7 @@ public class TelemetryFileInspectionMappingTests
 
         var storageFile = Substitute.For<IStorageFile>();
         storageFile.Name.Returns("sample.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
         storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
         parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
 
@@ -164,85 +163,6 @@ public class TelemetryFileInspectionMappingTests
 
         await Assert.ThrowsAsync<Exception>(() => file.OnTrashed());
         await storageFile.DidNotReceive().MoveAsync(Arg.Any<IStorageFolder>());
-    }
-
-    private static byte[] CreateValidV4WithUnknownChunk(int telemetrySampleCount)
-    {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)0xFF);
-        writer.Write((ushort)2);
-        writer.Write(new byte[] { 1, 2 });
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)(telemetrySampleCount * 4));
-        for (var i = 0; i < telemetrySampleCount; i++)
-        {
-            writer.Write((ushort)500);
-            writer.Write((ushort)600);
-        }
-
-        return ms.ToArray();
-    }
-
-    private static byte[] CreateMalformedV4WithInvalidTelemetryLength()
-    {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)5);
-        writer.Write(new byte[] { 1, 2, 3, 4, 5 });
-
-        return ms.ToArray();
-    }
-
-    private static byte[] CreateV4WithTelemetryChunkExtendingPastEnd(int telemetrySampleCount)
-    {
-        using var ms = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-
-        writer.Write(Encoding.ASCII.GetBytes("SST"));
-        writer.Write((byte)4);
-        writer.Write((uint)0);
-        writer.Write((long)123456789);
-
-        writer.Write((byte)TlvChunkType.Rates);
-        writer.Write((ushort)3);
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)1000);
-
-        var actualTelemetryPayloadLength = telemetrySampleCount * 4;
-        writer.Write((byte)TlvChunkType.Telemetry);
-        writer.Write((ushort)(actualTelemetryPayloadLength + 4));
-        for (var i = 0; i < telemetrySampleCount; i++)
-        {
-            writer.Write((ushort)500);
-            writer.Write((ushort)600);
-        }
-
-        return ms.ToArray();
     }
 
     private static async IAsyncEnumerable<IStorageItem> EnumerateStorageItems(params IStorageItem[] items)

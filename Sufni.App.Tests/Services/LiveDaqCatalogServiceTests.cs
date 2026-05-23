@@ -13,9 +13,9 @@ public class LiveDaqCatalogServiceTests
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
     private readonly ILiveDaqBoardIdInspector boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
 
-    private LiveDaqBrowseOwner CreateBrowseOwner() => new(serviceDiscovery);
+    private DaqBrowseOwner CreateBrowseOwner() => new(serviceDiscovery);
 
-    private LiveDaqCatalogService CreateCatalogService(ILiveDaqBrowseOwner? browseOwner = null) =>
+    private LiveDaqCatalogService CreateCatalogService(IDaqBrowseOwner? browseOwner = null) =>
         new(serviceDiscovery, browseOwner ?? CreateBrowseOwner(), boardIdInspector);
 
     [Fact]
@@ -50,7 +50,7 @@ public class LiveDaqCatalogServiceTests
                 }
             });
 
-        var owner = new LiveDaqBrowseOwner(failingDiscovery);
+        var owner = new DaqBrowseOwner(failingDiscovery);
 
         Assert.Throws<InvalidOperationException>(() => owner.AcquireBrowse());
         failingDiscovery.Received(1).StartBrowse("_gosst._tcp");

@@ -68,10 +68,10 @@ internal sealed class SessionDetailViewTestContext
 
     public SessionDesktopLoadResult.Loaded CreateDesktopLoadedState(bool includeImu = false)
     {
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         if (includeImu)
         {
-            telemetry.ImuData = TestTelemetryFactories.CreateTelemetryDataWithImu().ImuData;
+            telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         }
 
         return new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
@@ -96,7 +96,7 @@ internal sealed class SessionDetailViewTestContext
             ReboundBalance: includeBalance ? DefaultSvg : null,
             DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
             BalanceAvailable: includeBalance),
-            includeTelemetry ? TestTelemetryData.Create() : null,
+            includeTelemetry ? TestTelemetryData.CreateProcessed() : null,
             null);
     }
 
@@ -160,7 +160,8 @@ internal sealed class SessionDetailViewTestContext
             tileLayerService,
             shell,
             dialogService,
-            sessionPreferences);
+            sessionPreferences,
+            new InlineUiThreadDispatcher());
     }
 }
 

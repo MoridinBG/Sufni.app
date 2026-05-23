@@ -121,7 +121,7 @@ public class SessionMediaDesktopViewTests
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
 
         var dialogService = Substitute.For<IDialogService>();
-        var mapViewModel = new MapViewModel(tileLayerService, dialogService)
+        var mapViewModel = new MapViewModel(tileLayerService, dialogService, new InlineUiThreadDispatcher())
         {
             SessionTrackPoints = trackPoints.ToList(),
             FullTrackPoints = [],

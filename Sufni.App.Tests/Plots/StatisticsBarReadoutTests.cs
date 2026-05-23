@@ -12,7 +12,7 @@ public class StatisticsBarReadoutTests
     [Fact]
     public void TravelHistogram_SetPointerPositionWithReadout_ShowsClosestBarValue()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);
         var index = data.Values.FindIndex(value => value > 0);
         var plot = new Plot();
@@ -30,7 +30,7 @@ public class StatisticsBarReadoutTests
     [Fact]
     public void StrokeLengthHistogram_SetPointerPositionWithReadout_ShowsClosestVerticalBarValue()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetry, SuspensionType.Front, BalanceType.Compression);
         var index = data.Values.FindIndex(value => value > 0);
         var plot = new Plot();
@@ -48,7 +48,7 @@ public class StatisticsBarReadoutTests
     [Fact]
     public void VelocityHistogram_SetPointerPositionWithReadout_ShowsClosestStackedSegmentValue()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateVelocityHistogram(telemetry, SuspensionType.Front);
         var (velocityIndex, travelIndex) = FindStackedValue(data);
         var value = data.Values[velocityIndex][travelIndex];
@@ -69,7 +69,7 @@ public class StatisticsBarReadoutTests
     [Fact]
     public void TravelHistogram_SetPointerPositionWithReadout_KeepsTooltipAnchorInsideDataArea()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);
         var index = data.Values.FindIndex(value => value > 0);
         var plot = new Plot();
@@ -90,7 +90,7 @@ public class StatisticsBarReadoutTests
     [Fact]
     public void TravelHistogram_SetPointerPositionWithReadout_PositionsTooltipNearPointer()
     {
-        var telemetry = TestTelemetryData.Create(frontPresent: true, rearPresent: true);
+        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);
         var index = data.Values.FindIndex(value => value > 0);
         var plot = new Plot();

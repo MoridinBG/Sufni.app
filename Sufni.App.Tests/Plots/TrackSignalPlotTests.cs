@@ -113,7 +113,7 @@ public class TrackSignalPlotTests
     {
         var plot = new Plot();
         var sut = new TrackSignalPlot(plot);
-        var telemetry = TestTelemetryData.Create();
+        var telemetry = TestTelemetryData.CreateProcessed();
         telemetry.Metadata.Duration = 1;
         telemetry.Markers = [new MarkerData(0.5), new MarkerData(0.75)];
 

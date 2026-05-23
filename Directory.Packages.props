@@ -34,7 +34,6 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
-    <PackageVersion Include="QuikGraph" Version="2.5.0" />
     <PackageVersion Include="ScottPlot" Version="5.1.58" />
     <PackageVersion Include="ScottPlot.Avalonia" Version="5.1.58" />
     <PackageVersion Include="Serilog" Version="4.3.1" />
