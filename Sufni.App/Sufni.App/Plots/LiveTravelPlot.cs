@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Theming;
 
@@ -17,12 +18,22 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
     private readonly LivePlotChannel rearChannel;
     private double runningMax;
 
-    public LiveTravelPlot(Plot plot, double travelMaximum, bool hideRightAxis, SufniTheme? theme = null)
+    public LiveTravelPlot(
+        Plot plot,
+        double travelMaximum,
+        bool hideRightAxis,
+        SufniTheme? theme = null,
+        TelemetrySourceVisibilityStore? sourceVisibility = null)
         : base(plot, "Travel (mm)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, 0, Math.Max(1, travelMaximum), hideRightAxis, theme)
     {
+        SourceVisibility = sourceVisibility;
         frontChannel = CreateChannel(TelemetryPlot.FrontColor, "Front");
         rearChannel = CreateChannel(TelemetryPlot.RearColor, "Rear");
         ShowSourceLegend();
+        EnableInteractiveSourceLegendForChannels(
+            TelemetryGraphRowIds.Travel,
+            (frontChannel, TelemetrySourceKeys.Front),
+            (rearChannel, TelemetrySourceKeys.Rear));
         ApplyAutoLimits();
     }
 

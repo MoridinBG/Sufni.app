@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Theming;
 
@@ -19,12 +20,22 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
     private double[] rearVelocityScratch = [];
     private double runningMaxAbs;
 
-    public LiveVelocityPlot(Plot plot, double velocityMaximum, bool hideRightAxis, SufniTheme? theme = null)
+    public LiveVelocityPlot(
+        Plot plot,
+        double velocityMaximum,
+        bool hideRightAxis,
+        SufniTheme? theme = null,
+        TelemetrySourceVisibilityStore? sourceVisibility = null)
         : base(plot, "Velocity (m/s)", RenderCapacitySamples, VisibleWindowDurationMilliseconds, -Math.Max(0.1, velocityMaximum), Math.Max(0.1, velocityMaximum), hideRightAxis, theme)
     {
+        SourceVisibility = sourceVisibility;
         frontChannel = CreateChannel(TelemetryPlot.FrontColor, "Front");
         rearChannel = CreateChannel(TelemetryPlot.RearColor, "Rear");
         ShowSourceLegend();
+        EnableInteractiveSourceLegendForChannels(
+            TelemetryGraphRowIds.Velocity,
+            (frontChannel, TelemetrySourceKeys.Front),
+            (rearChannel, TelemetrySourceKeys.Rear));
         ApplyAutoLimits();
     }
 
