@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
@@ -23,7 +24,8 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
                 "m/s",
                 FrontColor,
                 new SampledValues(fullVelocity, telemetryData.Metadata.SampleRate),
-                "0.###"));
+                "0.###",
+                SourceKey: TelemetrySourceKeys.Front));
             minimum = fullVelocity.Min();
             maximum = fullVelocity.Max();
         }
@@ -36,7 +38,8 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
                 "m/s",
                 RearColor,
                 new SampledValues(fullVelocity, telemetryData.Metadata.SampleRate),
-                "0.###"));
+                "0.###",
+                SourceKey: TelemetrySourceKeys.Rear));
             minimum = Math.Min(minimum, fullVelocity.Min());
             maximum = Math.Max(maximum, fullVelocity.Max());
         }
@@ -48,6 +51,8 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
             series,
             new RecordedTimeSeriesValueRange(minimum, maximum),
             telemetryData,
-            ShowLegendWhenSingleSource: true));
+            ShowLegendWhenSingleSource: true,
+            EnableInteractiveLegend: true,
+            InteractiveLegendRowId: TelemetryGraphRowIds.Velocity));
     }
 }

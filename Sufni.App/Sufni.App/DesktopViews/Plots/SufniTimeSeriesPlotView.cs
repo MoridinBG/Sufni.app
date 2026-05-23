@@ -22,6 +22,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool isSelectingAnalysisRange;
     private bool isGraphClickCandidate;
     private bool suppressGraphClickClear;
+    private bool suppressLegendTogglePointerRelease;
     private Point graphClickStartPoint;
     private double selectionStartSeconds;
     private double selectionEndSeconds;
@@ -70,6 +71,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(GraphWorkspaceProperty, value);
     }
 
+    public static readonly StyledProperty<TelemetrySourceVisibilityStore?> SourceVisibilityProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, TelemetrySourceVisibilityStore?>(nameof(SourceVisibility));
+
+    public TelemetrySourceVisibilityStore? SourceVisibility
+    {
+        get => GetValue(SourceVisibilityProperty);
+        set => SetValue(SourceVisibilityProperty, value);
+    }
+
     protected virtual TelemetryData? MarkerSource => null;
 
     protected SufniTimeSeriesPlotView()
@@ -80,6 +90,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             {
                 case nameof(SmoothingLevel):
                 case nameof(HideRightAxis):
+                case nameof(SourceVisibility):
                     RequestReload();
                     break;
 
@@ -153,6 +164,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerPressedEvent,
             (_, args) =>
             {
+                if (TryToggleInteractiveLegend(args))
+                {
+                    return;
+                }
+
                 UpdateCursor(args);
 
                 var workspace = GraphWorkspace;
@@ -222,6 +238,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerReleasedEvent,
             (_, args) =>
             {
+                if (suppressLegendTogglePointerRelease)
+                {
+                    suppressLegendTogglePointerRelease = false;
+                    args.Handled = true;
+                    return;
+                }
+
                 UpdateCursor(args);
                 if (isSelectingAnalysisRange)
                 {
@@ -299,6 +322,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         plotModel.SmoothingLevel = SmoothingLevel;
         plotModel.HideRightAxis = HideRightAxis;
         plotModel.AnalysisRange = AnalysisRange;
+        plotModel.SourceVisibility = SourceVisibility;
         var (figure, data) = ResolvePlotBackgrounds();
         plotModel.SetBackgroundColors(figure, data);
     }
@@ -396,6 +420,35 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     {
         mobileAnalysisRangeLongPress?.Dispose();
         mobileAnalysisRangeLongPress = null;
+    }
+
+    private bool TryToggleInteractiveLegend(PointerEventArgs args)
+    {
+        if (plot is null || !HasPlotControl || !IsPrimaryPointerPressed(args))
+        {
+            return false;
+        }
+
+        var point = args.GetPosition(PlotControl);
+        var pixel = PlotControl.ToScottPlotPixel(point);
+        var plotSize = PlotControl.GetScottPlotPixelSize();
+        if (!plot.TryToggleInteractiveLegendAt(pixel, plotSize))
+        {
+            return false;
+        }
+
+        CancelMobileAnalysisRangeLongPress();
+        isSelectingAnalysisRange = false;
+        isGraphClickCandidate = false;
+        suppressGraphClickClear = false;
+        suppressLegendTogglePointerRelease = true;
+        PlotControl.Cursor = Cursor.Default;
+        SetPreviewRange(null, null);
+        plot.HideCursorReadout();
+        args.Pointer.Capture(null);
+        args.Handled = true;
+        RefreshPlot();
+        return true;
     }
 
     private void CompleteMobileAnalysisRangeLongPress()

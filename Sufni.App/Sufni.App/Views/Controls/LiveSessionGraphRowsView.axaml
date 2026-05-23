@@ -27,6 +27,7 @@ mc:Ignorable="d">
                     GraphBatches="{Binding GraphBatches}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     MaximumY="{Binding PlotRanges.TravelMaximum}"
+                    SourceVisibility="{Binding SourceVisibility}"
                     SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
                     Timeline="{Binding Timeline}" />
                 </controls:TelemetryPlotRow.PlotContent>
@@ -45,6 +46,7 @@ mc:Ignorable="d">
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             MinimumY="{Binding PlotRanges.VelocityMinimum}"
                             MaximumY="{Binding PlotRanges.VelocityMaximum}"
+                            SourceVisibility="{Binding SourceVisibility}"
                             SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
                             Timeline="{Binding Timeline}" />
                         </controls:TelemetryPlotRow.PlotContent>
@@ -65,6 +67,7 @@ mc:Ignorable="d">
                     GraphBatches="{Binding GraphBatches}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     MaximumY="{Binding PlotRanges.ImuMaximum}"
+                    SourceVisibility="{Binding SourceVisibility}"
                     SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
                     Timeline="{Binding Timeline}" />
                 </controls:TelemetryPlotRow.PlotContent>

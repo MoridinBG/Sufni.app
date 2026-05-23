@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
+using Sufni.App.Models;
 using Sufni.App.Services.Imu;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
@@ -50,7 +51,8 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
                 "g",
                 color,
                 new SampledValues(vibrationSeries.RmsG, telemetryData.ImuData.SampleRate),
-                "0.###"));
+                "0.###",
+                SourceKey: TelemetrySourceKeys.ImuLocation(vibrationSeries.LocationId)));
         }
 
         LoadTimeSeries(new RecordedTimeSeriesData(
@@ -59,7 +61,9 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
             telemetryData.Metadata.Duration,
             series,
             hasData ? new RecordedTimeSeriesValueRange(0, maxVal) : null,
-            telemetryData));
+            telemetryData,
+            EnableInteractiveLegend: true,
+            InteractiveLegendRowId: TelemetryGraphRowIds.Imu));
     }
 
     private void ShowEmptyState(double durationSeconds)

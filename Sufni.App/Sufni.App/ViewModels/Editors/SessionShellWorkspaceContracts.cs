@@ -35,6 +35,7 @@ public interface IRecordedSessionGraphWorkspace
     SurfacePresentationState ElevationGraphState { get; }
     SessionPlotPreferences PlotPreferences { get; }
     SessionGraphPreferences GraphPreferences { get; set; }
+    TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
@@ -106,6 +107,7 @@ public interface ILiveSessionGraphWorkspace
     SurfacePresentationState ElevationGraphState { get; }
     SessionPlotPreferences PlotPreferences { get; }
     SessionGraphPreferences GraphPreferences { get; set; }
+    TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
 }
 

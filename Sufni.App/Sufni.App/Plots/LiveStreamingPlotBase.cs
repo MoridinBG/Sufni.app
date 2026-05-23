@@ -73,6 +73,18 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         return new LivePlotChannel(streamer);
     }
 
+    protected void EnableInteractiveSourceLegendForChannels(
+        string rowId,
+        params (LivePlotChannel Channel, string SourceKey)[] channelSources)
+    {
+        foreach (var (channel, sourceKey) in channelSources)
+        {
+            RegisterInteractiveLegendSource(channel.Plottable, rowId, sourceKey);
+        }
+
+        EnableInteractiveSourceLegend();
+    }
+
     public void SetVerticalLimits(double minimumY, double maximumY)
     {
         if (!double.IsFinite(minimumY) || !double.IsFinite(maximumY))
@@ -216,6 +228,8 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
     {
         private readonly TelemetryDisplayStreamingSmoother smoother = new();
         private double[] smoothingScratch = [];
+
+        public IPlottable Plottable => streamer;
 
         public void Append(
             IReadOnlyList<double> times,
