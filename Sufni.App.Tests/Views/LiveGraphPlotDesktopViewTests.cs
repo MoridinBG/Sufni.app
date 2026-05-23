@@ -563,6 +563,7 @@ public class LiveGraphPlotDesktopViewTests
             : SurfacePresentationState.Hidden;
         public SessionPlotPreferences PlotPreferences { get; } = new();
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
+        public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
     }
 }

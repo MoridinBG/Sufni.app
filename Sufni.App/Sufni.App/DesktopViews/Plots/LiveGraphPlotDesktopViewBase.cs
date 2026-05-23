@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Plots;
@@ -27,6 +28,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     private int pendingSampleMargin = DefaultPendingSampleMargin;
     private PendingGraphBatchBuffer pendingGraphBatches = new();
     private LiveStreamingPlotBase? plot;
+    private bool suppressLegendTogglePointerRelease;
 
     public LiveStreamingPlotBase? Plot
     {
@@ -34,6 +36,11 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         protected set
         {
             plot = value;
+            if (plot is not null)
+            {
+                plot.SourceVisibility = SourceVisibility;
+            }
+
             ApplyPlotBackgroundColors(refresh: false);
         }
     }
@@ -92,6 +99,15 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         set => SetValue(HideRightAxisProperty, value);
     }
 
+    public static readonly StyledProperty<TelemetrySourceVisibilityStore?> SourceVisibilityProperty =
+        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, TelemetrySourceVisibilityStore?>(nameof(SourceVisibility));
+
+    public TelemetrySourceVisibilityStore? SourceVisibility
+    {
+        get => GetValue(SourceVisibilityProperty);
+        set => SetValue(SourceVisibilityProperty, value);
+    }
+
     protected LiveGraphPlotDesktopViewBase()
     {
         uiRefreshTimer = CreateUiRefreshTimer();
@@ -134,6 +150,14 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
                 case nameof(HideRightAxis):
                     Plot?.SetHideRightAxis(HideRightAxis);
                     RefreshPlot();
+                    break;
+
+                case nameof(SourceVisibility):
+                    if (Plot is not null)
+                    {
+                        Plot.SourceVisibility = SourceVisibility;
+                        RefreshPlot();
+                    }
                     break;
 
                 case nameof(PlotFigureBackground):
@@ -186,11 +210,57 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
             RefreshPlot();
         }
 
-        plotControl.PointerPressed += (_, args) => UpdateCursor(args);
+        plotControl.PointerPressed += (_, args) =>
+        {
+            if (TryToggleInteractiveLegend(args))
+            {
+                return;
+            }
+
+            UpdateCursor(args);
+        };
         plotControl.PointerMoved += (_, args) => UpdateCursor(args);
 
-        plotControl.PointerReleased += (_, _) => UpdateTimelineRange();
+        plotControl.PointerReleased += (_, args) =>
+        {
+            if (suppressLegendTogglePointerRelease)
+            {
+                suppressLegendTogglePointerRelease = false;
+                args.Handled = true;
+                return;
+            }
+
+            UpdateTimelineRange();
+        };
         plotControl.PointerWheelChanged += (_, _) => UpdateTimelineRange();
+    }
+
+    private bool TryToggleInteractiveLegend(PointerEventArgs args)
+    {
+        if (Plot is null || !HasPlotControl || !IsPrimaryPointerPressed(args))
+        {
+            return false;
+        }
+
+        var point = args.GetPosition(PlotControl);
+        var pixel = PlotControl.ToScottPlotPixel(point);
+        var plotSize = PlotControl.GetScottPlotPixelSize();
+        if (!Plot.TryToggleInteractiveLegendAt(pixel, plotSize))
+        {
+            return false;
+        }
+
+        Plot.HideCursorReadout();
+        suppressLegendTogglePointerRelease = true;
+        args.Handled = true;
+        RefreshPlot();
+        return true;
+    }
+
+    private bool IsPrimaryPointerPressed(PointerEventArgs args)
+    {
+        var point = args.GetCurrentPoint(PlotControl);
+        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
     }
 
     protected abstract void ApplyGraphBatch(LiveGraphBatch batch);
