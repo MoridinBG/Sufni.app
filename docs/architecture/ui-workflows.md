@@ -53,7 +53,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   concrete shell view model, so the shell can be resolved lazily and
   tested against substitutes.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
-  `IDaqManagementService`, `ITelemetryDataStoreService`,
+  `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
   `IDatabaseService`, `IFilesService`,
   `IDialogService`, plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
@@ -79,7 +79,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `IRecordedSessionGraph`.
 - **Live DAQ**: `LiveDaqStore` (singleton behind both
   `ILiveDaqStore` and `ILiveDaqStoreWriter`),
-  `ILiveDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
+  `IDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
   `ILiveDaqCatalogService`, `Func<ILiveDaqClient>`,
   `ILiveDaqSharedStreamRegistry`, `ILiveSessionServiceFactory`,
   `LiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
@@ -95,7 +95,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 
 Concrete datastore construction, management-protocol ownership,
 file-picker lifetime (including loaded `SelectedDeviceConfigFile`
-results for device CONFIG replacement), and background execution stay
+results for device CONFIG replacement), UI-thread dispatching, and background execution stay
 behind these service registrations rather than being created ad hoc in
 view models.
 
