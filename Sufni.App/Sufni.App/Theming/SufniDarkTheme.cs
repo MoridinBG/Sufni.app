@@ -134,8 +134,8 @@ public static class SufniDarkTheme
             Axis: new SufniPlotAxisTheme(C("#505558"), text.Primary, text.Primary),
             Legend: new SufniPlotLegendTheme(surface.Elevated, line.Subtle, text.Primary),
             Marker: new SufniPlotMarkerTheme(
-                Line: C("#D53E4F").WithAlpha(0.9),
-                AirtimeFill: C("#D53E4F").WithAlpha(0.2),
+                Line: C("#56B4E9").WithAlpha(0.9),
+                AirtimeFill: C("#56B4E9").WithAlpha(0.2),
                 AirtimeOutline: text.Secondary.WithAlpha(0.5)),
             AnalysisRange: new SufniPlotAnalysisRangeTheme(
                 SelectedFill: series.SuspensionFront.WithAlpha(0.16),
