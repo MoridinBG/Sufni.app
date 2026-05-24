@@ -21,6 +21,7 @@ mc:Ignorable="d">
         <controls:TelemetryPlotsRoot.Rows>
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Travel}"
+            HeaderActions="{Binding TravelHeaderActions}"
             Title="Travel (mm)"
             PresentationState="{Binding TravelGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
@@ -30,6 +31,7 @@ mc:Ignorable="d">
                     GraphWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
+                    ShowAirtime="{Binding ShowAirtime}"
                     SourceVisibility="{Binding SourceVisibility}"
                     SmoothingLevel="{Binding PlotPreferences.TravelSmoothing}"
                     Telemetry="{Binding TelemetryData}"
@@ -41,6 +43,7 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.ChildRows>
                     <controls:TelemetryPlotRow
                     RowId="{x:Static models:TelemetryGraphRowIds.Velocity}"
+                    HeaderActions="{Binding VelocityHeaderActions}"
                     Title="Velocity (m/s)"
                     PresentationState="{Binding VelocityGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
@@ -50,6 +53,7 @@ mc:Ignorable="d">
                             GraphWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
+                            ShowAirtime="{Binding ShowVelocityAirtime}"
                             SourceVisibility="{Binding SourceVisibility}"
                             SmoothingLevel="{Binding PlotPreferences.VelocitySmoothing}"
                             Telemetry="{Binding TelemetryData}"
@@ -64,6 +68,7 @@ mc:Ignorable="d">
 
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Imu}"
+            HeaderActions="{Binding ImuHeaderActions}"
             Title="Vibration RMS (g)"
             PresentationState="{Binding ImuGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
@@ -73,6 +78,7 @@ mc:Ignorable="d">
                     GraphWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
+                    ShowAirtime="{Binding ShowImuAirtime}"
                     SourceVisibility="{Binding SourceVisibility}"
                     SmoothingLevel="{Binding PlotPreferences.ImuSmoothing}"
                     Telemetry="{Binding TelemetryData}"
@@ -84,6 +90,7 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.ChildRows>
                     <controls:TelemetryPlotRow
                     RowId="{x:Static models:TelemetryGraphRowIds.PitchRoll}"
+                    HeaderActions="{Binding PitchRollHeaderActions}"
                     Title="Frame pitch/roll (deg)"
                     PresentationState="{Binding PitchRollGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
@@ -93,6 +100,7 @@ mc:Ignorable="d">
                             GraphWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
+                            ShowAirtime="{Binding ShowPitchRollAirtime}"
                             SmoothingLevel="{Binding PlotPreferences.PitchRollSmoothing}"
                             Telemetry="{Binding TelemetryData}"
                             Timeline="{Binding Timeline}" />
@@ -106,6 +114,7 @@ mc:Ignorable="d">
 
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Speed}"
+            HeaderActions="{Binding SpeedHeaderActions}"
             Title="GPS speed (km/h)"
             PresentationState="{Binding SpeedGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
@@ -115,6 +124,7 @@ mc:Ignorable="d">
                     GraphWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
+                    ShowAirtime="{Binding ShowSpeedAirtime}"
                     SmoothingLevel="{Binding PlotPreferences.SpeedSmoothing}"
                     Telemetry="{Binding TelemetryData}"
                     Timeline="{Binding Timeline}"
@@ -127,6 +137,7 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.ChildRows>
                     <controls:TelemetryPlotRow
                     RowId="{x:Static models:TelemetryGraphRowIds.Elevation}"
+                    HeaderActions="{Binding ElevationHeaderActions}"
                     Title="Elevation (m)"
                     PresentationState="{Binding ElevationGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
@@ -136,6 +147,7 @@ mc:Ignorable="d">
                             GraphWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
+                            ShowAirtime="{Binding ShowElevationAirtime}"
                             SmoothingLevel="{Binding PlotPreferences.ElevationSmoothing}"
                             Telemetry="{Binding TelemetryData}"
                             Timeline="{Binding Timeline}"

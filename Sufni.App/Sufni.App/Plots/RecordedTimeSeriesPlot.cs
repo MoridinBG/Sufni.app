@@ -39,11 +39,20 @@ public sealed record RecordedTimeSeriesData(
 public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
     private readonly List<PlottableCursorReadoutSeries> cursorSeries = [];
+    private readonly List<HorizontalSpan> airtimeSpans = [];
     private HorizontalSpan? selectedSpan;
     private HorizontalSpan? previewSpan;
     private double cursorDurationSeconds;
 
     public VerticalLine? CursorLine { get; protected set; }
+    protected IReadOnlyList<HorizontalSpan> AirtimeSpans => airtimeSpans;
+    protected bool IsAirtimeVisible { get; private set; }
+
+    public override void Clear()
+    {
+        airtimeSpans.Clear();
+        base.Clear();
+    }
 
     public void SetAnalysisRange(TelemetryTimeRange? range)
     {
@@ -148,6 +157,42 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
 
     protected virtual void AddTimeSeriesOverlays(RecordedTimeSeriesData data)
     {
+        AddAirtimeSpanOverlays(data.MarkerSource);
+    }
+
+    protected IReadOnlyList<HorizontalSpan> AddAirtimeSpanOverlays(TelemetryData? telemetryData)
+    {
+        airtimeSpans.Clear();
+        if (telemetryData is null || telemetryData.Airtimes.Length == 0)
+        {
+            return airtimeSpans;
+        }
+
+        foreach (var airtime in telemetryData.Airtimes)
+        {
+            var span = Plot.Add.HorizontalSpan(airtime.Start, airtime.End);
+            span.FillColor = PlotTheme.Marker.AirtimeFill.ToScottPlotColor();
+            span.LineStyle.Color = PlotTheme.Marker.AirtimeOutline.ToScottPlotColor();
+            span.LineStyle.Width = 1.0f;
+            span.EnableAutoscale = false;
+            span.IsVisible = IsAirtimeVisible;
+            airtimeSpans.Add(span);
+        }
+
+        return airtimeSpans;
+    }
+
+    public virtual void ApplyAirtimeVisibility(
+        bool isVisible,
+        double visibleMinimumSeconds,
+        double visibleMaximumSeconds,
+        double dataAreaWidthPixels)
+    {
+        IsAirtimeVisible = isVisible;
+        foreach (var span in airtimeSpans)
+        {
+            span.IsVisible = isVisible;
+        }
     }
 
     private HorizontalSpan? SetSpan(HorizontalSpan? span, double? startSeconds, double? endSeconds, Color color)

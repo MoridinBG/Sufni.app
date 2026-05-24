@@ -21,6 +21,7 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
+        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
         sut.UpdateAirtimeLabelVisibility(visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.Equal([true, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
@@ -39,6 +40,7 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
+        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
         sut.UpdateAirtimeLabelVisibility(visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.Equal([false, true, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
@@ -56,10 +58,54 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
+        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
         sut.UpdateAirtimeLabelVisibility(visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.Equal([false, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
         Assert.All(plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
+    }
+
+    [Fact]
+    public void ApplyAirtimeVisibility_HidesAndRestoresSpansAndLabels()
+    {
+        var plot = new Plot();
+        var sut = new TravelPlot(plot);
+        var telemetry = CreateTelemetryWithAirtimes(
+        [
+            new Airtime { Start = 1.8, End = 2.2 },
+            new Airtime { Start = 7.8, End = 8.2 },
+        ]);
+
+        sut.LoadTelemetryData(telemetry);
+        sut.ApplyAirtimeVisibility(false, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+
+        Assert.All(plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.False(span.IsVisible));
+        Assert.All(GetAirtimeLabels(plot), label => Assert.False(label.IsVisible));
+
+        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+
+        Assert.All(plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
+        Assert.Equal([true, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
+    }
+
+    [Fact]
+    public void RecordedTimeSeriesPlot_AirtimeSpansDefaultHiddenAndCanBeShown()
+    {
+        var plot = new Plot();
+        var sut = new VelocityPlot(plot);
+        var telemetry = CreateTelemetryWithAirtimes(
+        [
+            new Airtime { Start = 1.8, End = 2.2 },
+        ]);
+
+        sut.LoadTelemetryData(telemetry);
+
+        var span = Assert.Single(plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.False(span.IsVisible);
+
+        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+
+        Assert.True(span.IsVisible);
     }
 
     private static TelemetryData CreateTelemetryWithAirtimes(Airtime[] airtimes)
