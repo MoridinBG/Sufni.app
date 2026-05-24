@@ -13,6 +13,7 @@
     <Platforms>AnyCPU</Platforms>
     <EnableCodeSigning>true</EnableCodeSigning>
     <CodesignKey>Apple Development</CodesignKey>
+    <AppIcon>AppIcon</AppIcon>
     <UserSecretsId>9dc6bf57-4366-4b6b-aede-915715ef1f8d</UserSecretsId>
   </PropertyGroup>
 
