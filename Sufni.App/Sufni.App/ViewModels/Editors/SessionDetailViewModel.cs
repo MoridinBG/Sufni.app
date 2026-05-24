@@ -9,6 +9,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,6 +22,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Editors;
@@ -82,6 +84,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
+    private readonly TelemetryPlotRowAction showAirtimeAction;
+    private readonly TelemetryPlotRowAction showVelocityAirtimeAction;
+    private readonly TelemetryPlotRowAction showImuAirtimeAction;
+    private readonly TelemetryPlotRowAction showPitchRollAirtimeAction;
+    private readonly TelemetryPlotRowAction showSpeedAirtimeAction;
+    private readonly TelemetryPlotRowAction showElevationAirtimeAction;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -119,6 +127,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
 
     #endregion Public fields
 
@@ -147,6 +161,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private bool showAirtime = true;
+    [ObservableProperty] private bool showVelocityAirtime;
+    [ObservableProperty] private bool showImuAirtime;
+    [ObservableProperty] private bool showPitchRollAirtime;
+    [ObservableProperty] private bool showSpeedAirtime;
+    [ObservableProperty] private bool showElevationAirtime;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
     [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
@@ -276,6 +296,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         MapViewModel.TimelineContext = value;
     }
+
+    partial void OnShowAirtimeChanged(bool value)
+    {
+        UpdateAirtimeAction(showAirtimeAction, value);
+    }
+
+    partial void OnShowVelocityAirtimeChanged(bool value) => UpdateAirtimeAction(showVelocityAirtimeAction, value);
+
+    partial void OnShowImuAirtimeChanged(bool value) => UpdateAirtimeAction(showImuAirtimeAction, value);
+
+    partial void OnShowPitchRollAirtimeChanged(bool value) => UpdateAirtimeAction(showPitchRollAirtimeAction, value);
+
+    partial void OnShowSpeedAirtimeChanged(bool value) => UpdateAirtimeAction(showSpeedAirtimeAction, value);
+
+    partial void OnShowElevationAirtimeChanged(bool value) => UpdateAirtimeAction(showElevationAirtimeAction, value);
 
     partial void OnVideoUrlChanged(string? value)
     {
@@ -1098,6 +1133,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
         this.sessionPreferences = sessionPreferences;
+        showAirtimeAction = CreateAirtimeAction("travel_airtime", ShowAirtime, () => ShowAirtime = !ShowAirtime);
+        showVelocityAirtimeAction = CreateAirtimeAction("velocity_airtime", ShowVelocityAirtime, () => ShowVelocityAirtime = !ShowVelocityAirtime);
+        showImuAirtimeAction = CreateAirtimeAction("imu_airtime", ShowImuAirtime, () => ShowImuAirtime = !ShowImuAirtime);
+        showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", ShowPitchRollAirtime, () => ShowPitchRollAirtime = !ShowPitchRollAirtime);
+        showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", ShowSpeedAirtime, () => ShowSpeedAirtime = !ShowSpeedAirtime);
+        showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", ShowElevationAirtime, () => ShowElevationAirtime = !ShowElevationAirtime);
+        TravelHeaderActions = [showAirtimeAction];
+        VelocityHeaderActions = [showVelocityAirtimeAction];
+        ImuHeaderActions = [showImuAirtimeAction];
+        PitchRollHeaderActions = [showPitchRollAirtimeAction];
+        SpeedHeaderActions = [showSpeedAirtimeAction];
+        ElevationHeaderActions = [showElevationAirtimeAction];
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
@@ -1159,6 +1206,27 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             DescentMeters = snapshot.DescentMeters,
         };
         return s;
+    }
+
+    private TelemetryPlotRowAction CreateAirtimeAction(string id, bool isChecked, Action toggle)
+    {
+        return new TelemetryPlotRowAction
+        {
+            Id = id,
+            Kind = TelemetryPlotRowActionKind.Toggle,
+            IconGeometry = Geometry.Parse(
+                "M12 4C7 4 3 7 1 12C3 17 7 20 12 20C17 20 21 17 23 12C21 7 17 4 12 4ZM12 16C9.8 16 8 14.2 8 12C8 9.8 9.8 8 12 8C14.2 8 16 9.8 16 12C16 14.2 14.2 16 12 16Z"),
+            ToolTip = isChecked ? "Hide airtime" : "Show airtime",
+            Command = new RelayCommand(toggle),
+            IsChecked = isChecked,
+            Tone = TelemetryPlotRowActionTone.Default,
+        };
+    }
+
+    private static void UpdateAirtimeAction(TelemetryPlotRowAction action, bool isChecked)
+    {
+        action.IsChecked = isChecked;
+        action.ToolTip = isChecked ? "Hide airtime" : "Show airtime";
     }
 
     private void EvaluateDirtinessFromPageChange()

@@ -14,6 +14,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
@@ -130,6 +131,26 @@ public class SessionDetailViewModelTests
         Assert.Equal(BalanceSpeedMode.Both, editor.SelectedBalanceSpeedMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
+    }
+
+    [AvaloniaFact]
+    public void Construction_InitializesAirtimeHeaderAction()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+
+        var action = Assert.Single(editor.TravelHeaderActions);
+        Assert.True(editor.ShowAirtime);
+        Assert.Equal("travel_airtime", action.Id);
+        Assert.Equal(TelemetryPlotRowActionKind.Toggle, action.Kind);
+        Assert.True(action.IsChecked);
+        Assert.Equal("Hide airtime", action.ToolTip);
+        Assert.NotNull(action.Command);
+
+        AssertDefaultHiddenAirtimeAction(editor.VelocityHeaderActions, editor.ShowVelocityAirtime, "velocity_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.ImuHeaderActions, editor.ShowImuAirtime, "imu_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.PitchRollHeaderActions, editor.ShowPitchRollAirtime, "pitch_roll_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.SpeedHeaderActions, editor.ShowSpeedAirtime, "speed_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.ElevationHeaderActions, editor.ShowElevationAirtime, "elevation_airtime");
     }
 
     [AvaloniaFact]
@@ -450,6 +471,39 @@ public class SessionDetailViewModelTests
         await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
         Assert.NotNull(update);
         Assert.False(update!(SessionPreferences.Default).Plots.Velocity);
+    }
+
+    [AvaloniaFact]
+    public async Task TravelHeaderAction_TogglesAirtimeWithoutDirtyingOrPersistingPreferences()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+
+        var action = Assert.Single(editor.TravelHeaderActions);
+        action.Command!.Execute(null);
+
+        Assert.False(editor.ShowAirtime);
+        Assert.False(action.IsChecked);
+        Assert.Equal("Show airtime", action.ToolTip);
+        Assert.False(editor.IsDirty);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+
+        var velocityAction = Assert.Single(editor.VelocityHeaderActions);
+        velocityAction.Command!.Execute(null);
+
+        Assert.True(editor.ShowVelocityAirtime);
+        Assert.True(velocityAction.IsChecked);
+        Assert.Equal("Hide airtime", velocityAction.ToolTip);
+        Assert.False(editor.IsDirty);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
 
     [AvaloniaFact]
@@ -1450,6 +1504,20 @@ public class SessionDetailViewModelTests
             Arg.Any<string>(),
             Arg.Any<string>());
         await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    private static void AssertDefaultHiddenAirtimeAction(
+        IReadOnlyList<TelemetryPlotRowAction> actions,
+        bool isVisible,
+        string expectedId)
+    {
+        var action = Assert.Single(actions);
+        Assert.False(isVisible);
+        Assert.Equal(expectedId, action.Id);
+        Assert.Equal(TelemetryPlotRowActionKind.Toggle, action.Kind);
+        Assert.False(action.IsChecked);
+        Assert.Equal("Show airtime", action.ToolTip);
+        Assert.NotNull(action.Command);
     }
 
     private static async Task WaitForAsync(Func<bool> condition)

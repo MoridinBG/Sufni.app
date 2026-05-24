@@ -185,6 +185,18 @@ public class RecordedGraphPageViewTests
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange { get; private set; } = analysisRange;
+        public bool ShowAirtime => true;
+        public bool ShowVelocityAirtime => false;
+        public bool ShowImuAirtime => false;
+        public bool ShowPitchRollAirtime => false;
+        public bool ShowSpeedAirtime => false;
+        public bool ShowElevationAirtime => false;
+        public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints { get; } =
         [
             new TrackPoint(0, 0, 0, 100, 5),
