@@ -15,11 +15,11 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
     private const double AirtimeLabelFontSize = 13;
     private const double AirtimeLabelAverageCharacterWidthFactor = 0.58;
 
-    private readonly List<AirtimeLabel> airtimeLabels = [];
+    private readonly List<AirtimeOverlay> airtimeOverlays = [];
 
     public override void Clear()
     {
-        airtimeLabels.Clear();
+        airtimeOverlays.Clear();
         base.Clear();
     }
 
@@ -66,7 +66,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
 
     protected override void AddTimeSeriesOverlays(RecordedTimeSeriesData data)
     {
-        airtimeLabels.Clear();
+        airtimeOverlays.Clear();
 
         if (data.MarkerSource is not { } telemetryData)
         {
@@ -74,19 +74,20 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
         }
 
         var maxTravel = data.ValueRange?.Minimum ?? 0;
-        foreach (var airtime in telemetryData.Airtimes)
+        var spans = AddAirtimeSpanOverlays(telemetryData);
+        for (var index = 0; index < telemetryData.Airtimes.Length && index < spans.Count; index++)
         {
-            var span = Plot.Add.HorizontalSpan(airtime.Start, airtime.End);
-            span.FillColor = PlotTheme.Marker.AirtimeFill.ToScottPlotColor();
-            span.LineStyle.Color = PlotTheme.Marker.AirtimeOutline.ToScottPlotColor();
-            span.LineStyle.Width = 1.0f;
+            var airtime = telemetryData.Airtimes[index];
+            var span = spans[index];
 
             var timeSpan = airtime.End - airtime.Start;
             var labelContent = $"{timeSpan:0.##}s air";
             var labelCenter = airtime.Start + timeSpan / 2;
             var label = AddLabel(labelContent, labelCenter, maxTravel - AirtimeLabelYInset,
                 0, 0, Alignment.LowerCenter);
-            airtimeLabels.Add(new AirtimeLabel(
+            label.IsVisible = IsAirtimeVisible;
+            airtimeOverlays.Add(new AirtimeOverlay(
+                span,
                 label,
                 labelCenter,
                 timeSpan,
@@ -99,18 +100,28 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
         double visibleMaximumSeconds,
         double dataAreaWidthPixels)
     {
-        if (airtimeLabels.Count == 0 || dataAreaWidthPixels <= 0)
+        if (!IsAirtimeVisible)
+        {
+            foreach (var overlay in airtimeOverlays)
+            {
+                overlay.Text.IsVisible = false;
+            }
+
+            return;
+        }
+
+        if (airtimeOverlays.Count == 0 || dataAreaWidthPixels <= 0)
         {
             return;
         }
 
         var selected = AirtimeLabelLayout.SelectVisibleLabels(
-            airtimeLabels
-                .Select((label, index) => new AirtimeLabelLayoutCandidate(
+            airtimeOverlays
+                .Select((overlay, index) => new AirtimeLabelLayoutCandidate(
                     index,
-                    label.CenterSeconds,
-                    label.WidthPixels,
-                    label.DurationSeconds))
+                    overlay.CenterSeconds,
+                    overlay.WidthPixels,
+                    overlay.DurationSeconds))
                 .ToArray(),
             visibleMinimumSeconds,
             visibleMaximumSeconds,
@@ -118,14 +129,43 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
 
         for (var i = 0; i < selected.Length; i++)
         {
-            airtimeLabels[i].Text.IsVisible = selected[i];
+            airtimeOverlays[i].Text.IsVisible = selected[i];
         }
+    }
+
+    public override void ApplyAirtimeVisibility(
+        bool isVisible,
+        double visibleMinimumSeconds,
+        double visibleMaximumSeconds,
+        double dataAreaWidthPixels)
+    {
+        base.ApplyAirtimeVisibility(
+            isVisible,
+            visibleMinimumSeconds,
+            visibleMaximumSeconds,
+            dataAreaWidthPixels);
+
+        if (!isVisible)
+        {
+            foreach (var overlay in airtimeOverlays)
+            {
+                overlay.Text.IsVisible = false;
+            }
+
+            return;
+        }
+
+        UpdateAirtimeLabelVisibility(
+            visibleMinimumSeconds,
+            visibleMaximumSeconds,
+            dataAreaWidthPixels);
     }
 
     private static double EstimateLabelWidthPixels(string content) =>
         content.Length * AirtimeLabelFontSize * AirtimeLabelAverageCharacterWidthFactor;
 
-    private sealed record AirtimeLabel(
+    private sealed record AirtimeOverlay(
+        HorizontalSpan Span,
         Text Text,
         double CenterSeconds,
         double DurationSeconds,
