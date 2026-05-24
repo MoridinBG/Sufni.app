@@ -6,6 +6,7 @@ using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Editors;
@@ -37,6 +38,18 @@ public interface IRecordedSessionGraphWorkspace
     SessionGraphPreferences GraphPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
+    bool ShowAirtime { get; }
+    bool ShowVelocityAirtime { get; }
+    bool ShowImuAirtime { get; }
+    bool ShowPitchRollAirtime { get; }
+    bool ShowSpeedAirtime { get; }
+    bool ShowElevationAirtime { get; }
+    IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
+    IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; }
+    IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; }
+    IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
+    IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
+    IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
     void SetAnalysisRangeBoundary(double boundarySeconds);

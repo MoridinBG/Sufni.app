@@ -168,6 +168,18 @@ public class RecordedSessionGraphDesktopViewTests
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AnalysisRange)));
             }
         }
+        public bool ShowAirtime => true;
+        public bool ShowVelocityAirtime => false;
+        public bool ShowImuAirtime => false;
+        public bool ShowPitchRollAirtime => false;
+        public bool ShowSpeedAirtime => false;
+        public bool ShowElevationAirtime => false;
+        public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; } = [];
         public SurfacePresentationState TravelGraphState => travelGraphState ?? CreateTravelState(TelemetryData);
         public SurfacePresentationState VelocityGraphState => velocityGraphState ?? TravelGraphState;
         public SurfacePresentationState ImuGraphState => imuGraphState ?? CreateImuState(TelemetryData);
