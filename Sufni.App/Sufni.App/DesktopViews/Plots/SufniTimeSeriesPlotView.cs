@@ -53,6 +53,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(HideRightAxisProperty, value);
     }
 
+    public static readonly StyledProperty<bool> ShowAirtimeProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, bool>(nameof(ShowAirtime));
+
+    public bool ShowAirtime
+    {
+        get => GetValue(ShowAirtimeProperty);
+        set => SetValue(ShowAirtimeProperty, value);
+    }
+
     public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, TelemetryTimeRange?>(nameof(AnalysisRange));
 
@@ -92,6 +101,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 case nameof(HideRightAxis):
                 case nameof(SourceVisibility):
                     RequestReload();
+                    break;
+
+                case nameof(ShowAirtime):
+                    ApplyAirtimeVisibility(refresh: true);
                     break;
 
                 case nameof(PlotFigureBackground):
@@ -376,6 +389,38 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
     }
 
+    protected override void OnViewportChanged()
+    {
+        base.OnViewportChanged();
+        ApplyAirtimeVisibility(refresh: true);
+    }
+
+    private void ApplyAirtimeVisibility(bool refresh)
+    {
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
+        {
+            return;
+        }
+
+        var limits = PlotControl.Plot.Axes.GetLimits();
+        var dataRect = PlotControl.Plot.LastRender.DataRect;
+        double dataAreaWidthPixels = Math.Abs(dataRect.Right - dataRect.Left);
+        if (dataAreaWidthPixels <= 0)
+        {
+            dataAreaWidthPixels = PlotControl.Bounds.Width;
+        }
+
+        recordedPlot.ApplyAirtimeVisibility(
+            ShowAirtime,
+            limits.Left,
+            limits.Right,
+            dataAreaWidthPixels);
+        if (refresh)
+        {
+            RefreshPlot();
+        }
+    }
+
     private bool IsPrimaryPointerPressed(PointerEventArgs args)
     {
         var point = args.GetCurrentPoint(PlotControl);
@@ -578,5 +623,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected virtual void OnPlotDataLoaded()
     {
+        ApplyAirtimeVisibility(refresh: false);
     }
 }

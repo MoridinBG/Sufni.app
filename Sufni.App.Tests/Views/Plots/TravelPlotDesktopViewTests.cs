@@ -13,6 +13,7 @@ using Sufni.App.Presentation;
 using Sufni.App.SessionGraphs;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
@@ -25,7 +26,10 @@ public class TravelPlotDesktopViewTests
     [AvaloniaFact]
     public async Task TravelPlotDesktopView_StartsEmpty_BeforeTelemetryIsAssigned()
     {
-        var view = new TravelPlotDesktopView();
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = true,
+        };
 
         Assert.Null(view.MaximumDisplayHz);
 
@@ -38,7 +42,10 @@ public class TravelPlotDesktopViewTests
     [AvaloniaFact]
     public async Task TravelPlotDesktopView_LoadsSignalsFromTelemetryProperty()
     {
-        var view = new TravelPlotDesktopView();
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = true,
+        };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -84,7 +91,10 @@ public class TravelPlotDesktopViewTests
     [AvaloniaFact]
     public async Task TravelPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoTravelData()
     {
-        var view = new TravelPlotDesktopView();
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = true,
+        };
         var telemetry = CreateMinimal();
         telemetry.Front.Present = false;
         telemetry.Rear.Present = false;
@@ -131,7 +141,10 @@ public class TravelPlotDesktopViewTests
     [AvaloniaFact]
     public async Task TravelPlotDesktopView_AnalysisRangeUpdatesOverlayWithoutReloadingSignals()
     {
-        var view = new TravelPlotDesktopView();
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = true,
+        };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -160,7 +173,10 @@ public class TravelPlotDesktopViewTests
     [AvaloniaFact]
     public async Task TravelPlotDesktopView_CullsCollidingAirtimeLabelsAfterTelemetryLoad()
     {
-        var view = new TravelPlotDesktopView();
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = true,
+        };
         var telemetry = CreateMinimal(duration: 10);
         telemetry.Airtimes =
         [
@@ -175,6 +191,83 @@ public class TravelPlotDesktopViewTests
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         Assert.Equal([false, true], GetAirtimeLabels(plot.Plot).Select(label => label.IsVisible).ToArray());
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ShowAirtime_ForwardsVisibilityToLoadedPlot()
+    {
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = true,
+        };
+        var telemetry = CreateMinimal(duration: 10);
+        telemetry.Airtimes =
+        [
+            new Airtime { Start = 1.8, End = 2.2 },
+            new Airtime { Start = 7.8, End = 8.2 },
+        ];
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = telemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.All(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
+
+        view.ShowAirtime = false;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.All(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.False(span.IsVisible));
+        Assert.All(GetAirtimeLabels(plot.Plot), label => Assert.False(label.IsVisible));
+
+        view.ShowAirtime = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.All(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
+        Assert.Equal([true, true], GetAirtimeLabels(plot.Plot).Select(label => label.IsVisible).ToArray());
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ShowAirtimeFalseBeforeLoad_HidesAirtimeAfterTelemetryLoads()
+    {
+        var view = new TravelPlotDesktopView
+        {
+            ShowAirtime = false,
+        };
+        var telemetry = CreateMinimal(duration: 10);
+        telemetry.Airtimes = [new Airtime { Start = 1.8, End = 2.2 }];
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = telemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.All(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.False(span.IsVisible));
+        Assert.All(GetAirtimeLabels(plot.Plot), label => Assert.False(label.IsVisible));
+    }
+
+    [AvaloniaFact]
+    public async Task VelocityPlotDesktopView_AirtimeDefaultsHiddenAndCanBeShown()
+    {
+        var view = new VelocityPlotDesktopView();
+        var telemetry = CreateMinimal(duration: 10);
+        telemetry.Airtimes = [new Airtime { Start = 1.8, End = 2.2 }];
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.Telemetry = telemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        var span = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.False(span.IsVisible);
+
+        view.ShowAirtime = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(span.IsVisible);
     }
 
     [AvaloniaFact]
@@ -308,6 +401,18 @@ public class TravelPlotDesktopViewTests
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange { get; private set; }
+        public bool ShowAirtime => true;
+        public bool ShowVelocityAirtime => false;
+        public bool ShowImuAirtime => false;
+        public bool ShowPitchRollAirtime => false;
+        public bool ShowSpeedAirtime => false;
+        public bool ShowElevationAirtime => false;
+        public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints => null;
         public TrackTimeRange? TrackTimelineContext => null;
         public SurfacePresentationState TravelGraphState => SurfacePresentationState.Ready;
