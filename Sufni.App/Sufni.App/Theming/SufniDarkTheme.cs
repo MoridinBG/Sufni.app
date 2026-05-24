@@ -1,4 +1,4 @@
-using Avalonia.Media;
+using static Sufni.App.Theming.SufniDarkPalette;
 
 namespace Sufni.App.Theming;
 
@@ -9,46 +9,44 @@ public static class SufniDarkTheme
 
     private static SufniTheme Create()
     {
-        static Color C(string hex) => Color.Parse(hex);
-
         var surface = new SufniSurfaceTheme(
-            Page: C("#15191C"),
-            Elevated: C("#1A1F23"),
-            Input: C("#20262B"),
-            InputHover: C("#2C3032"),
-            InputPressed: C("#2C3032"),
-            InputDisabled: C("#25292C"),
-            ItemHover: C("#272D33"),
-            InputFocused: C("#10161B"));
+            Page: Obsidian,
+            Elevated: SlateBlack,
+            Input: SlateAbyss,
+            InputHover: Slate,
+            InputPressed: Slate,
+            InputDisabled: SlateMidnight,
+            ItemHover: SlateNight,
+            InputFocused: Onyx);
         var text = new SufniTextTheme(
-            High: C("#FEFEFE"),
-            Emphasis: C("#F0F0F0"),
-            Primary: C("#D0D0D0"),
-            Secondary: C("#A0A0A0"),
-            Hover: C("#C0C0C0"),
-            Disabled: C("#606060"));
+            High: PureWhite,
+            Emphasis: Snow,
+            Primary: Fog,
+            Secondary: Ash,
+            Hover: Silver,
+            Disabled: Graphite);
         var line = new SufniLineTheme(
-            Subtle: C("#343C42"),
-            Default: C("#505558"),
-            Divider: C("#404040"),
-            Input: C("#505050"),
-            Strong: C("#5A5A5A"),
-            GridMinor: C("#3A3F42"));
+            Subtle: SlateCharcoal,
+            Default: SteelGray,
+            Divider: Charcoal,
+            Input: DarkIron,
+            Strong: Iron,
+            GridMinor: Gunmetal);
         var action = new SufniActionTheme(
-            AccentPrimary: C("#0078D7"),
-            AccentPrimaryHover: C("#1E8AE0"),
-            Danger: C("#BF312D"),
-            DangerDark: C("#9F110D"),
+            AccentPrimary: AccentBlue,
+            AccentPrimaryHover: AccentBlueLight,
+            Danger: DangerRed,
+            DangerDark: DangerRedDark,
             AccentAliases: new SufniAccentAliasTheme(
-                TabUnderline: C("#0078D7"),
-                NavPipe: C("#0078D7"),
-                DropPosition: C("#0078D7"),
-                FocusRing: C("#0078D7"),
-                Hyperlink: C("#0078D7"),
-                Spinner: C("#0078D7")),
+                TabUnderline: AccentBlue,
+                NavPipe: AccentBlue,
+                DropPosition: AccentBlue,
+                FocusRing: AccentBlue,
+                Hyperlink: AccentBlue,
+                Spinner: AccentBlue),
             Disabled: new SufniDisabledActionTheme(surface.InputDisabled, text.Disabled, 0.3));
         var selection = new SufniSelectionTheme(
-            SurfaceSubtle: C("#25292C"),
+            SurfaceSubtle: SlateMidnight,
             Indicator: action.AccentPrimary,
             IndicatorThickness: 2,
             IndicatorLengthVertical: 60);
@@ -93,12 +91,12 @@ public static class SufniDarkTheme
             SurfaceFocused: surface.InputFocused,
             Border: line.Input,
             BorderFocused: action.AccentPrimary,
-            BorderDisabled: C("#303030"),
+            BorderDisabled: Coal,
             Height: 39);
         var dragDrop = new SufniDragDropTheme(
-            Header: C("#263238"),
+            Header: DragHeader,
             FeedbackOpacity: 0.72,
-            DropTargetHeader: C("#1F3A46"),
+            DropTargetHeader: DropTargetTeal,
             DropPositionIndicator: action.AccentAliases.DropPosition);
         var graphRow = new SufniGraphRowTheme(
             Root: new SufniGraphRowDepthTheme(
@@ -107,46 +105,46 @@ public static class SufniDarkTheme
                 PlotFigure: surface.Page,
                 PlotData: surface.Input),
             HostedLevel1: new SufniGraphRowDepthTheme(
-                Container: C("#0F1314"),
-                Header: C("#101416"),
-                PlotFigure: C("#101518"),
-                PlotData: C("#1B2126")),
+                Container: TarContainer,
+                Header: TarHeader,
+                PlotFigure: TarFigure,
+                PlotData: TarData),
             HostedLevel2: new SufniGraphRowDepthTheme(
-                Container: C("#0A0C0D"),
-                Header: C("#07090A"),
-                PlotFigure: C("#0A0D0F"),
-                PlotData: C("#11161A")),
+                Container: PitchContainer,
+                Header: PitchHeader,
+                PlotFigure: PitchFigure,
+                PlotData: PitchData),
             HostedLevel3Plus: new SufniGraphRowDepthTheme(
-                Container: C("#050607"),
-                Header: C("#030404"),
-                PlotFigure: C("#050708"),
-                PlotData: C("#0B0F12")),
-            Connector: C("#63727A"),
+                Container: VoidContainer,
+                Header: VoidHeader,
+                PlotFigure: VoidFigure,
+                PlotData: VoidData),
+            Connector: SlateGray,
             DividerBetweenRoots: line.Divider);
         var travelZone = SufniThemes.TravelZoneRamp;
         var series = SufniThemes.SignalSeries;
         var plot = new SufniPlotTheme(
-            Root: new SufniPlotDepthTheme(C("#15191C"), C("#20262B")),
-            HostedLevel1: new SufniPlotDepthTheme(C("#101518"), C("#1B2126")),
-            HostedLevel2: new SufniPlotDepthTheme(C("#0A0D0F"), C("#11161A")),
-            HostedLevel3Plus: new SufniPlotDepthTheme(C("#050708"), C("#0B0F12")),
-            Grid: new SufniPlotGridTheme(C("#505558"), C("#3A3F42")),
-            Axis: new SufniPlotAxisTheme(C("#505558"), text.Primary, text.Primary),
+            Root: new SufniPlotDepthTheme(Obsidian, SlateAbyss),
+            HostedLevel1: new SufniPlotDepthTheme(TarFigure, TarData),
+            HostedLevel2: new SufniPlotDepthTheme(PitchFigure, PitchData),
+            HostedLevel3Plus: new SufniPlotDepthTheme(VoidFigure, VoidData),
+            Grid: new SufniPlotGridTheme(SteelGray, Gunmetal),
+            Axis: new SufniPlotAxisTheme(SteelGray, text.Primary, text.Primary),
             Legend: new SufniPlotLegendTheme(surface.Elevated, line.Subtle, text.Primary),
             Marker: new SufniPlotMarkerTheme(
-                Line: C("#56B4E9").WithAlpha(0.9),
-                AirtimeFill: C("#56B4E9").WithAlpha(0.2),
+                Line: MarkerBlue.WithAlpha(0.9),
+                AirtimeFill: MarkerBlue.WithAlpha(0.2),
                 AirtimeOutline: text.Secondary.WithAlpha(0.5)),
             AnalysisRange: new SufniPlotAnalysisRangeTheme(
                 SelectedFill: series.SuspensionFront.WithAlpha(0.16),
-                PreviewFill: C("#D6DDE4").WithAlpha(0.12)),
+                PreviewFill: SlateMist.WithAlpha(0.12)),
             Cursor: new SufniPlotCursorTheme(
-                Line: C("#C8C8C8"),
+                Line: Pearl,
                 TooltipFill: surface.Page.WithAlpha(0.96),
                 TooltipText: text.Emphasis,
                 TooltipBorder: line.Strong),
             InPlotLabelText: text.High,
-            ReferenceLine: C("#DDDDDD"),
+            ReferenceLine: Mist,
             Series: series);
         var typography = new SufniTypographyTheme(
             FontFamilyName: string.Empty,
@@ -186,7 +184,7 @@ public static class SufniDarkTheme
             ElevatedSurface: surface.Elevated,
             FrontSeries: series.SuspensionFront,
             RearSeries: series.SuspensionRear,
-            MarkerRed: C("#D53E4F"),
+            MarkerRed: SufniDarkPalette.MarkerRed,
             TravelZone: travelZone);
 
         return new SufniTheme(
@@ -198,7 +196,7 @@ public static class SufniDarkTheme
             Action: action,
             Status: new SufniStatusTheme(
                 Success: null,
-                Warning: C("#DAA520"),
+                Warning: WarningGold,
                 Info: null),
             Selection: selection,
             Tab: tab,
