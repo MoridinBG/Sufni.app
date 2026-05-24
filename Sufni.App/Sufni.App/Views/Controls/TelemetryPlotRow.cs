@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
@@ -31,6 +32,7 @@ public sealed class TelemetryPlotRow : UserControl
     private readonly Grid headerContentGrid;
     private readonly TextBlock chevronText;
     private readonly TextBlock titleText;
+    private readonly TelemetryPlotRowActionsPresenter headerActionsPresenter;
     private readonly Grid expandedGrid;
     private readonly PlaceholderOverlayContainer plotHost;
     private readonly ContentControl plotContentHost;
@@ -66,6 +68,10 @@ public sealed class TelemetryPlotRow : UserControl
 
     public static readonly StyledProperty<object?> PlaceholderContentProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, object?>(nameof(PlaceholderContent));
+
+    public static readonly StyledProperty<IEnumerable<TelemetryPlotRowAction>?> HeaderActionsProperty =
+        AvaloniaProperty.Register<TelemetryPlotRow, IEnumerable<TelemetryPlotRowAction>?>(
+            nameof(HeaderActions));
 
     public static readonly StyledProperty<bool> IsExpandedProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, bool>(nameof(IsExpanded), defaultValue: true);
@@ -132,6 +138,12 @@ public sealed class TelemetryPlotRow : UserControl
     {
         get => GetValue(PlaceholderContentProperty);
         set => SetValue(PlaceholderContentProperty, value);
+    }
+
+    public IEnumerable<TelemetryPlotRowAction>? HeaderActions
+    {
+        get => GetValue(HeaderActionsProperty);
+        set => SetValue(HeaderActionsProperty, value);
     }
 
     public bool IsExpanded
@@ -228,6 +240,11 @@ public sealed class TelemetryPlotRow : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             FontWeight = FontWeight.SemiBold,
             TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        headerActionsPresenter = new TelemetryPlotRowActionsPresenter
+        {
+            Margin = new Thickness(8, 0, 0, 0),
         };
         headerContentGrid = new Grid
         {
@@ -235,14 +252,17 @@ public sealed class TelemetryPlotRow : UserControl
             {
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
             },
             Children =
             {
                 chevronText,
                 titleText,
+                headerActionsPresenter,
             },
         };
         Grid.SetColumn(titleText, 1);
+        Grid.SetColumn(headerActionsPresenter, 2);
 
         headerButton = new Button
         {
@@ -326,6 +346,7 @@ public sealed class TelemetryPlotRow : UserControl
                 e.Property == PresentationStateProperty ||
                 e.Property == PlotContentProperty ||
                 e.Property == PlaceholderContentProperty ||
+                e.Property == HeaderActionsProperty ||
                 e.Property == IsExpandedProperty ||
                 e.Property == HeaderHeightProperty ||
                 e.Property == CollapsedHeaderHeightProperty ||
@@ -643,6 +664,7 @@ public sealed class TelemetryPlotRow : UserControl
     private void UpdateVisualState()
     {
         titleText.Text = Title;
+        headerActionsPresenter.Actions = HeaderActions;
         chevronText.Text = IsExpanded ? "-" : "+";
         chevronText.Margin = new Thickness(TitleLeftInset, 0, 0, 0);
         headerButton.Height = IsExpanded ? HeaderHeight : CollapsedHeaderHeight;
@@ -777,7 +799,7 @@ public sealed class TelemetryPlotRow : UserControl
 
     private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs args)
     {
-        if (!IsPrimaryPointerPressed(args))
+        if (!IsPrimaryPointerPressed(args) || IsPointerOverHeaderActions(args))
         {
             return;
         }
@@ -865,6 +887,20 @@ public sealed class TelemetryPlotRow : UserControl
     {
         var point = args.GetCurrentPoint(headerButton);
         return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+    }
+
+    private bool IsPointerOverHeaderActions(PointerEventArgs args)
+    {
+        if (!headerActionsPresenter.IsVisible)
+        {
+            return false;
+        }
+
+        var point = args.GetPosition(headerActionsPresenter);
+        return point.X >= 0 &&
+               point.Y >= 0 &&
+               point.X <= headerActionsPresenter.Bounds.Width &&
+               point.Y <= headerActionsPresenter.Bounds.Height;
     }
 
     private bool IsWithinHeaderBounds(Point point)

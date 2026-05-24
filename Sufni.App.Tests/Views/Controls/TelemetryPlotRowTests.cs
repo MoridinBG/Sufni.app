@@ -231,6 +231,71 @@ public class TelemetryPlotRowTests
         Assert.Equal(192, row.GetMinimumGroupHeight());
     }
 
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HeaderActions_NoActionsKeepsPresenterHidden()
+    {
+        var row = CreateRow("Travel");
+
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        var presenter = Assert.Single(row.GetVisualDescendants().OfType<TelemetryPlotRowActionsPresenter>());
+        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
+        Assert.False(presenter.IsVisible);
+        Assert.Equal(400, header.Bounds.Width);
+        Assert.Equal(212, row.AllocatedGroupHeight);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HeaderActions_RenderToggleGroupBeforeExecuteGroupWithGroupGap()
+    {
+        var row = CreateRow("Travel");
+        row.HeaderActions =
+        [
+            CreateAction("execute_action", TelemetryPlotRowActionKind.Execute),
+            CreateAction("toggle_action", TelemetryPlotRowActionKind.Toggle),
+        ];
+
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        var toggleGroup = Assert.Single(row.GetVisualDescendants().OfType<StackPanel>(), panel => panel.Name == "ToggleActionsGroup");
+        var executeGroup = Assert.Single(row.GetVisualDescendants().OfType<StackPanel>(), panel => panel.Name == "ExecuteActionsGroup");
+        var groupGap = Assert.Single(row.GetVisualDescendants().OfType<Border>(), border => border.Name == "ActionGroupGap");
+        var actionsRoot = Assert.Single(row.GetVisualDescendants().OfType<StackPanel>(), panel => panel.Name == "TelemetryPlotRowActionsRoot");
+        var actionsRootOrigin = actionsRoot.TranslatePoint(new Point(0, 0), row);
+        Assert.NotNull(actionsRootOrigin);
+
+        Assert.Equal("toggle_action", Assert.Single(toggleGroup.Children.OfType<Button>()).Name);
+        Assert.Equal("execute_action", Assert.Single(executeGroup.Children.OfType<Button>()).Name);
+        Assert.True(actionsRootOrigin.Value.X > 300);
+        Assert.True(toggleGroup.Bounds.X < groupGap.Bounds.X);
+        Assert.True(groupGap.Bounds.X < executeGroup.Bounds.X);
+        Assert.Equal(TelemetryPlotRowActionsPresenter.GroupSpacing, groupGap.Width);
+        Assert.True(groupGap.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotRow_HeaderToggleAction_UpdatesCheckedState()
+    {
+        var action = CreateAction("toggle_action", TelemetryPlotRowActionKind.Toggle);
+        var row = CreateRow("Travel");
+        row.HeaderActions = [action];
+
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        var uncheckedButton = Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
+        Assert.Equal(new Thickness(0), uncheckedButton.BorderThickness);
+
+        action.IsChecked = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        var checkedButton = Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
+        Assert.Equal(new Thickness(1), checkedButton.BorderThickness);
+    }
+
     private static TelemetryPlotRow CreateRow(string title)
     {
         return new TelemetryPlotRow
@@ -244,6 +309,19 @@ public class TelemetryPlotRowTests
             HeaderHeight = 32,
             CollapsedHeaderHeight = 32,
             ChildRowGap = 4,
+        };
+    }
+
+    private static TelemetryPlotRowAction CreateAction(
+        string id,
+        TelemetryPlotRowActionKind kind)
+    {
+        return new TelemetryPlotRowAction
+        {
+            Id = id,
+            Kind = kind,
+            IconGeometry = Geometry.Parse("M0 0L12 0L12 12L0 12Z"),
+            ToolTip = id,
         };
     }
 
