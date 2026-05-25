@@ -86,20 +86,24 @@ public class MobileStatisticsPageViewTests
         var selector = mounted.View.FindControl<StackPanel>("MobileBalanceDisplacementModeRadioButtons");
         var zenith = mounted.View.FindControl<RadioButton>("MobileZenithModeRadioButton");
         var travel = mounted.View.FindControl<RadioButton>("MobileTravelModeRadioButton");
+        var speed = mounted.View.FindControl<RadioButton>("MobileSpeedModeRadioButton");
 
         Assert.NotNull(selector);
         Assert.True(selector!.IsVisible);
         Assert.NotNull(zenith);
         Assert.NotNull(travel);
+        Assert.NotNull(speed);
         Assert.True(zenith!.IsChecked);
         Assert.False(travel!.IsChecked);
+        Assert.False(speed!.IsChecked);
 
-        travel.IsChecked = true;
+        speed.IsChecked = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceDisplacementMode.Speed, workspace.SelectedBalanceDisplacementMode);
         Assert.False(zenith.IsChecked);
-        Assert.True(travel.IsChecked);
+        Assert.False(travel.IsChecked);
+        Assert.True(speed.IsChecked);
     }
 
     [AvaloniaFact]
@@ -279,6 +283,7 @@ public class MobileStatisticsPageViewTests
         [
             new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
             new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+            new(BalanceDisplacementMode.Speed, "Speed", "Plots each stroke at the travel position where peak speed occurs."),
         ];
         public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
         [

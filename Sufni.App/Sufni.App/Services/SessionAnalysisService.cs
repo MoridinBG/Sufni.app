@@ -1335,7 +1335,12 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
     private static string ModeLabel(BalanceDisplacementMode mode)
     {
-        return mode == BalanceDisplacementMode.Travel ? "Travel balance" : "Zenith balance";
+        return mode switch
+        {
+            BalanceDisplacementMode.Travel => "Travel balance",
+            BalanceDisplacementMode.Speed => "Speed-position balance",
+            _ => "Zenith balance",
+        };
     }
 
     private static string ModeLabel(BalanceSpeedMode mode)

@@ -209,6 +209,7 @@ public class SessionStatisticsDesktopViewTests
         [
             new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
             new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+            new(BalanceDisplacementMode.Speed, "Speed", "Plots each stroke at the travel position where peak speed occurs."),
         ];
         public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
         [
