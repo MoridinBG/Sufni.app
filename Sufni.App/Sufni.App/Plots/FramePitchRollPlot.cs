@@ -48,7 +48,10 @@ public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : Re
                     "0.#")
             ],
             new RecordedTimeSeriesValueRange(-maximum, maximum),
-            telemetryData));
+            telemetryData,
+            [
+                RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetryData.Airtimes, PlotTheme),
+            ]));
     }
 
     private void ShowEmptyState(double durationSeconds)

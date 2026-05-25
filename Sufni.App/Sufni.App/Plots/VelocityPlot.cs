@@ -51,6 +51,9 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
             series,
             new RecordedTimeSeriesValueRange(minimum, maximum),
             telemetryData,
+            [
+                RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetryData.Airtimes, PlotTheme),
+            ],
             ShowLegendWhenSingleSource: true,
             EnableInteractiveLegend: true,
             InteractiveLegendRowId: TelemetryGraphRowIds.Velocity));
