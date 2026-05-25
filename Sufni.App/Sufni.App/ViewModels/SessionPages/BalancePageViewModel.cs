@@ -46,6 +46,18 @@ public partial class BalancePageViewModel : PageViewModelBase
         }
     }
 
+    public bool SpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Speed;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceDisplacementMode(BalanceDisplacementMode.Speed);
+            }
+        }
+    }
+
     public bool BothSpeedModeSelected
     {
         get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.Both;
@@ -154,6 +166,7 @@ public partial class BalancePageViewModel : PageViewModelBase
     {
         OnPropertyChanged(nameof(ZenithModeSelected));
         OnPropertyChanged(nameof(TravelModeSelected));
+        OnPropertyChanged(nameof(SpeedModeSelected));
     }
 
     private void RefreshBalanceSpeedModeSelection()

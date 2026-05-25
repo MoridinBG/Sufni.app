@@ -86,20 +86,24 @@ public class MobileStatisticsPageViewTests
         var selector = mounted.View.FindControl<StackPanel>("MobileBalanceDisplacementModeRadioButtons");
         var zenith = mounted.View.FindControl<RadioButton>("MobileZenithModeRadioButton");
         var travel = mounted.View.FindControl<RadioButton>("MobileTravelModeRadioButton");
+        var speed = mounted.View.FindControl<RadioButton>("MobileSpeedModeRadioButton");
 
         Assert.NotNull(selector);
         Assert.True(selector!.IsVisible);
         Assert.NotNull(zenith);
         Assert.NotNull(travel);
+        Assert.NotNull(speed);
         Assert.True(zenith!.IsChecked);
         Assert.False(travel!.IsChecked);
+        Assert.False(speed!.IsChecked);
 
-        travel.IsChecked = true;
+        speed.IsChecked = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceDisplacementMode.Speed, workspace.SelectedBalanceDisplacementMode);
         Assert.False(zenith.IsChecked);
-        Assert.True(travel.IsChecked);
+        Assert.False(travel.IsChecked);
+        Assert.True(speed.IsChecked);
     }
 
     [AvaloniaFact]
@@ -272,13 +276,14 @@ public class MobileStatisticsPageViewTests
         public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; } = SessionAnalysisTargetProfile.Trail;
         public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
         [
-            new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
-            new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
+            new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses only compression and rebound stroke samples. Best for travel use while the suspension is actively moving."),
+            new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses every selected travel sample. Best for ride height over the segment, including quiet or steady sections."),
         ];
         public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
         [
             new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
             new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+            new(BalanceDisplacementMode.Speed, "Speed", "Plots each stroke at the travel position where peak speed occurs."),
         ];
         public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
         [
@@ -288,8 +293,8 @@ public class MobileStatisticsPageViewTests
         ];
         public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
         [
-            new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
-            new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke."),
+            new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Counts every sample inside compression and rebound strokes. Best for where the damper spent time."),
+            new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Counts each stroke once by peak velocity and peak travel. Best for what events the damper saw."),
         ];
         public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
         [

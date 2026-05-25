@@ -34,6 +34,12 @@ mc:Ignorable="d">
                     GroupName="MobileBalanceDisplacementMode"
                     IsChecked="{Binding TravelModeSelected, Mode=TwoWay}"
                     ToolTip.Tip="Uses start-to-end stroke distance." />
+                    <RadioButton
+                    Name="MobileSpeedModeRadioButton"
+                    Content="Speed"
+                    GroupName="MobileBalanceDisplacementMode"
+                    IsChecked="{Binding SpeedModeSelected, Mode=TwoWay}"
+                    ToolTip.Tip="Uses travel position at peak stroke speed." />
                 </StackPanel>
 
                 <StackPanel

@@ -687,6 +687,44 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateBalance_WithSpeedMode_UsesTravelAtPeakStrokeSpeedAndOmitsTrendData()
+    {
+        var telemetry = CreateBalanceTelemetry(
+            frontTravel: [0, 10, 30, 20, 0, 15, 45, 25],
+            rearTravel: [0, 20, 50, 30, 0, 25, 55, 35],
+            frontVelocity: [10, 200, 800, 100, 5, 100, 600, 200],
+            rearVelocity: [10, 300, 500, 100, 5, 250, 700, 200],
+            frontCompressions:
+            [
+                CreateStroke(0, 3, maxVelocity: 800, maxTravel: 30),
+                CreateStroke(4, 7, maxVelocity: 600, maxTravel: 45),
+            ],
+            rearCompressions:
+            [
+                CreateStroke(0, 3, maxVelocity: 500, maxTravel: 50),
+                CreateStroke(4, 7, maxVelocity: 700, maxTravel: 55),
+            ]);
+
+        var balance = TelemetryStatistics.CalculateBalance(telemetry,
+            BalanceType.Compression,
+            new BalanceStatisticsOptions(DisplacementMode: BalanceDisplacementMode.Speed));
+
+        Assert.Collection(
+            balance.FrontTravel,
+            value => Assert.Equal(30, value, 6),
+            value => Assert.Equal(45, value, 6));
+        Assert.Collection(
+            balance.RearTravel,
+            value => Assert.Equal(50, value, 6),
+            value => Assert.Equal(55, value, 6));
+        Assert.Empty(balance.FrontTrend);
+        Assert.Empty(balance.RearTrend);
+        Assert.Equal(0, balance.FrontSlope);
+        Assert.Equal(0, balance.RearSlope);
+        Assert.Equal(0, balance.AbsoluteSlopeDeltaPercent);
+    }
+
+    [Fact]
     public void CalculateBalance_ReturnsSlopeDeltaPercent()
     {
         var telemetry = CreateBalanceTelemetry(
@@ -1037,13 +1075,15 @@ public class TelemetryDataTests
         double[] rearTravel,
         Stroke[] frontCompressions,
         Stroke[] rearCompressions,
+        double[]? frontVelocity = null,
+        double[]? rearVelocity = null,
         double maxTravel = 100)
     {
         return new TelemetryData
         {
             Metadata = new Metadata { SampleRate = 1000, Duration = frontTravel.Length / 1000.0 },
-            Front = CreateSuspension(frontTravel, maxTravel, frontCompressions, []),
-            Rear = CreateSuspension(rearTravel, maxTravel, rearCompressions, []),
+            Front = CreateSuspension(frontTravel, maxTravel, frontCompressions, [], frontVelocity),
+            Rear = CreateSuspension(rearTravel, maxTravel, rearCompressions, [], rearVelocity),
             Airtimes = [],
             Markers = [],
         };
@@ -1053,14 +1093,15 @@ public class TelemetryDataTests
         double[] travel,
         double maxTravel,
         Stroke[]? compressions,
-        Stroke[]? rebounds)
+        Stroke[]? rebounds,
+        double[]? velocity = null)
     {
         return new Suspension
         {
             Present = true,
             MaxTravel = maxTravel,
             Travel = travel,
-            Velocity = new double[travel.Length],
+            Velocity = velocity ?? new double[travel.Length],
             TravelBins = CreateTravelBins(maxTravel),
             VelocityBins = [-100, 0, 100],
             FineVelocityBins = [-100, 0, 100],

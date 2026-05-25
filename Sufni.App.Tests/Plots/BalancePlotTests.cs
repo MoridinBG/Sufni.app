@@ -63,6 +63,27 @@ public class BalancePlotTests
         Assert.Contains("Rear peak speed: 125 mm/s", tooltip.LabelText);
     }
 
+    [Fact]
+    public void SetPointerPositionWithReadout_UsesNearestPointInSpeedMode()
+    {
+        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
+        var plot = new Plot();
+        var sut = new BalancePlot(plot, BalanceType.Compression)
+        {
+            DisplacementMode = BalanceDisplacementMode.Speed,
+        };
+
+        sut.LoadTelemetryData(telemetry);
+        plot.GetSvgXml(500, 320);
+        sut.SetPointerPositionWithReadout(10, 200);
+
+        Assert.Equal(2, plot.PlottableList.OfType<Scatter>().Count());
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Peak speed position: 10 %", tooltip.LabelText);
+        Assert.Contains("Front peak speed: 200 mm/s", tooltip.LabelText);
+    }
+
     private static TelemetryData CreateTelemetryWithSingleBalanceSamplePerSide()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
@@ -119,6 +140,7 @@ public class BalancePlotTests
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
         telemetry.Front.Travel = [0, 10, 0, 20];
+        telemetry.Front.Velocity = [0, 100, 0, 200];
         telemetry.Front.Strokes = new Strokes
         {
             Compressions =
@@ -130,6 +152,7 @@ public class BalancePlotTests
         };
 
         telemetry.Rear.Travel = [0, 10, 0, 20];
+        telemetry.Rear.Velocity = [0, 100, 0, 150];
         telemetry.Rear.Strokes = new Strokes
         {
             Compressions =
