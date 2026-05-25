@@ -23,13 +23,13 @@ mc:Ignorable="d">
                 Content="Active suspension"
                 GroupName="MobileTravelHistogramMode"
                 IsChecked="{Binding ActiveSuspensionModeSelected, Mode=TwoWay}"
-                ToolTip.Tip="Uses compression and rebound stroke samples only." />
+                ToolTip.Tip="Uses only compression and rebound stroke samples. Best for travel use while the suspension is actively moving." />
                 <RadioButton
                 Name="MobileDynamicSagModeRadioButton"
                 Content="Dynamic sag"
                 GroupName="MobileTravelHistogramMode"
                 IsChecked="{Binding DynamicSagModeSelected, Mode=TwoWay}"
-                ToolTip.Tip="Uses all selected travel samples." />
+                ToolTip.Tip="Uses every selected travel sample. Best for ride height over the segment, including quiet or steady sections." />
             </StackPanel>
 
             <controls:TravelStatisticsHost

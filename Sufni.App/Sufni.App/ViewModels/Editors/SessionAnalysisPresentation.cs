@@ -9,8 +9,8 @@ internal static class SessionAnalysisPresentation
 {
     public static IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
     [
-        new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples only."),
-        new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses all selected travel samples."),
+        new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses only compression and rebound stroke samples. Best for travel use while the suspension is actively moving."),
+        new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses every selected travel sample. Best for ride height over the segment, including quiet or steady sections."),
     ];
 
     public static IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
@@ -28,8 +28,8 @@ internal static class SessionAnalysisPresentation
 
     public static IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
     [
-        new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Uses every stroke sample for bars and average labels."),
-        new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Uses one peak-speed event per stroke for bars and average labels."),
+        new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Counts every sample inside compression and rebound strokes. Best for where the damper spent time."),
+        new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Counts each stroke once by peak velocity and peak travel. Best for what events the damper saw."),
     ];
 
     public static IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
