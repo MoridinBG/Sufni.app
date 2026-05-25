@@ -62,6 +62,9 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
             series,
             hasData ? new RecordedTimeSeriesValueRange(0, maxVal) : null,
             telemetryData,
+            [
+                RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetryData.Airtimes, PlotTheme),
+            ],
             EnableInteractiveLegend: true,
             InteractiveLegendRowId: TelemetryGraphRowIds.Imu));
     }

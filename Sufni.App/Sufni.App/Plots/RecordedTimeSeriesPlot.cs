@@ -32,38 +32,122 @@ public sealed record RecordedTimeSeriesData(
     IReadOnlyList<RecordedTimeSeries> Series,
     RecordedTimeSeriesValueRange? ValueRange = null,
     TelemetryData? MarkerSource = null,
+    IReadOnlyList<RecordedTimeRangeOverlaySetRegistration>? InitialRangeOverlays = null,
     bool ShowLegendWhenSingleSource = false,
     bool EnableInteractiveLegend = false,
     string? InteractiveLegendRowId = null);
 
 public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
+    private const double AirtimeLabelAverageCharacterWidthFactor = 0.58;
+    private const double AirtimeLabelVisualInsetFraction = 0.08;
+
     private readonly List<PlottableCursorReadoutSeries> cursorSeries = [];
-    private readonly List<HorizontalSpan> airtimeSpans = [];
-    private HorizontalSpan? selectedSpan;
-    private HorizontalSpan? previewSpan;
+    private readonly Dictionary<string, RangeOverlayRenderState> rangeOverlayStates = [];
     private double cursorDurationSeconds;
 
     public VerticalLine? CursorLine { get; protected set; }
-    protected IReadOnlyList<HorizontalSpan> AirtimeSpans => airtimeSpans;
-    protected bool IsAirtimeVisible { get; private set; }
 
     public override void Clear()
     {
-        airtimeSpans.Clear();
+        rangeOverlayStates.Clear();
         base.Clear();
     }
 
-    public void SetAnalysisRange(TelemetryTimeRange? range)
+    public void SetRangeOverlaySet(string id, RecordedTimeRangeOverlaySet set)
     {
-        selectedSpan = SetSpan(selectedSpan, range?.StartSeconds, range?.EndSeconds,
-            PlotTheme.AnalysisRange.SelectedFill.ToScottPlotColor());
+        var state = GetOrCreateRangeOverlayState(id);
+        state.Set = set;
+        ApplyRangeOverlaySet(state);
     }
 
-    public void SetPreviewRange(double? startSeconds, double? endSeconds)
+    public void ClearRangeOverlaySet(string id)
     {
-        previewSpan = SetSpan(previewSpan, startSeconds, endSeconds,
-            PlotTheme.AnalysisRange.PreviewFill.ToScottPlotColor());
+        if (!rangeOverlayStates.TryGetValue(id, out var state))
+        {
+            return;
+        }
+
+        state.Set = null;
+        state.ActiveRangeCount = 0;
+        state.ActiveLabelCount = 0;
+        foreach (var span in state.Spans)
+        {
+            span.IsVisible = false;
+        }
+
+        foreach (var label in state.Labels)
+        {
+            label.Text.IsVisible = false;
+        }
+    }
+
+    public void SetRangeOverlayVisibility(string id, bool isVisible)
+    {
+        if (!rangeOverlayStates.TryGetValue(id, out var state))
+        {
+            return;
+        }
+
+        state.IsVisible = isVisible;
+        for (var index = 0; index < state.Spans.Count; index++)
+        {
+            state.Spans[index].IsVisible = isVisible && index < state.ActiveRangeCount;
+        }
+
+        UpdateRangeOverlayLabelsForVisibility(state);
+    }
+
+    public void UpdateRangeOverlayLabelVisibility(
+        string id,
+        double visibleMinimumSeconds,
+        double visibleMaximumSeconds,
+        double dataAreaWidthPixels)
+    {
+        if (!rangeOverlayStates.TryGetValue(id, out var state))
+        {
+            return;
+        }
+
+        if (!state.IsVisible)
+        {
+            HideRangeOverlayLabels(state);
+            return;
+        }
+
+        if (state.Set?.LabelOptions is not { } labelOptions)
+        {
+            return;
+        }
+
+        if (state.ActiveLabelCount == 0 || dataAreaWidthPixels <= 0)
+        {
+            return;
+        }
+
+        if (!labelOptions.CullCollisions)
+        {
+            UpdateRangeOverlayLabelsForVisibility(state);
+            return;
+        }
+
+        var selected = AirtimeLabelLayout.SelectVisibleLabels(
+            state.Labels
+                .Take(state.ActiveLabelCount)
+                .Select((overlay, index) => new AirtimeLabelLayoutCandidate(
+                    index,
+                    overlay.CenterSeconds,
+                    overlay.WidthPixels,
+                    overlay.DurationSeconds))
+                .ToArray(),
+            visibleMinimumSeconds,
+            visibleMaximumSeconds,
+            dataAreaWidthPixels);
+
+        for (var i = 0; i < state.ActiveLabelCount; i++)
+        {
+            state.Labels[i].Text.IsVisible = selected[i];
+        }
     }
 
     protected override void SetCursorLinePosition(double position)
@@ -89,8 +173,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     {
         ResetCursorReadout();
         CursorLine = null;
-        selectedSpan = null;
-        previewSpan = null;
+        rangeOverlayStates.Clear();
         cursorSeries.Clear();
         cursorDurationSeconds = data.DurationSeconds;
 
@@ -140,10 +223,11 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         Plot.Axes.SetLimits(0, data.DurationSeconds, valueRange.Minimum, valueRange.Maximum);
         AddMirroredTimeSeriesAxisRules(0, data.DurationSeconds, valueRange.Minimum, valueRange.Maximum);
 
-        AddTimeSeriesOverlays(data);
-
-        SetAnalysisRange(AnalysisRange);
-        SetPreviewRange(null, null);
+        foreach (var registration in data.InitialRangeOverlays ?? [])
+        {
+            SetRangeOverlaySet(registration.Id, registration.Set);
+            SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
+        }
 
         ConfigureSymmetricValueTicks(20);
 
@@ -155,76 +239,165 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         CursorLine = AddTimeSeriesCursorLine();
     }
 
-    protected virtual void AddTimeSeriesOverlays(RecordedTimeSeriesData data)
+    protected static double GetAirtimeLabelY(RecordedTimeSeriesValueRange? valueRange)
     {
-        AddAirtimeSpanOverlays(data.MarkerSource);
-    }
-
-    protected IReadOnlyList<HorizontalSpan> AddAirtimeSpanOverlays(TelemetryData? telemetryData)
-    {
-        airtimeSpans.Clear();
-        if (telemetryData is null || telemetryData.Airtimes.Length == 0)
+        if (valueRange is not { } range)
         {
-            return airtimeSpans;
+            return 0;
         }
 
-        foreach (var airtime in telemetryData.Airtimes)
-        {
-            var span = Plot.Add.HorizontalSpan(airtime.Start, airtime.End);
-            span.FillColor = PlotTheme.Marker.AirtimeFill.ToScottPlotColor();
-            span.LineStyle.Color = PlotTheme.Marker.AirtimeOutline.ToScottPlotColor();
-            span.LineStyle.Width = 1.0f;
-            span.EnableAutoscale = false;
-            span.IsVisible = IsAirtimeVisible;
-            airtimeSpans.Add(span);
-        }
-
-        return airtimeSpans;
+        return range.Minimum + (range.Maximum - range.Minimum) * AirtimeLabelVisualInsetFraction;
     }
 
-    public virtual void ApplyAirtimeVisibility(
-        bool isVisible,
-        double visibleMinimumSeconds,
-        double visibleMaximumSeconds,
-        double dataAreaWidthPixels)
+    private static double EstimateLabelWidthPixels(string content) =>
+        content.Length * RecordedTimeRangeOverlayFactory.AirtimeLabelFontSize * AirtimeLabelAverageCharacterWidthFactor;
+
+    private RangeOverlayRenderState GetOrCreateRangeOverlayState(string id)
     {
-        IsAirtimeVisible = isVisible;
-        foreach (var span in airtimeSpans)
+        if (rangeOverlayStates.TryGetValue(id, out var state))
         {
-            span.IsVisible = isVisible;
+            return state;
         }
+
+        state = new RangeOverlayRenderState(id);
+        rangeOverlayStates.Add(id, state);
+        return state;
     }
 
-    private HorizontalSpan? SetSpan(HorizontalSpan? span, double? startSeconds, double? endSeconds, Color color)
+    private void ApplyRangeOverlaySet(RangeOverlayRenderState state)
     {
-        if (startSeconds is null || endSeconds is null)
+        if (state.Set is not { } set)
         {
-            if (span is not null)
+            ClearRangeOverlaySet(state.Id);
+            return;
+        }
+
+        for (var index = 0; index < set.Ranges.Count; index++)
+        {
+            var range = set.Ranges[index];
+            var span = index < state.Spans.Count
+                ? state.Spans[index]
+                : AddRangeOverlaySpan(state);
+            ConfigureRangeOverlaySpan(span, range, set.Style, state.IsVisible);
+        }
+
+        for (var index = set.Ranges.Count; index < state.Spans.Count; index++)
+        {
+            state.Spans[index].IsVisible = false;
+        }
+
+        state.ActiveRangeCount = set.Ranges.Count;
+        ApplyRangeOverlayLabels(state, set);
+    }
+
+    private HorizontalSpan AddRangeOverlaySpan(RangeOverlayRenderState state)
+    {
+        var span = Plot.Add.HorizontalSpan(0, 0);
+        span.EnableAutoscale = false;
+        span.IsVisible = false;
+        state.Spans.Add(span);
+        return span;
+    }
+
+    private static void ConfigureRangeOverlaySpan(
+        HorizontalSpan span,
+        RecordedTimeRangeOverlay range,
+        RecordedTimeRangeOverlayStyle style,
+        bool isVisible)
+    {
+        span.X1 = range.StartSeconds;
+        span.X2 = range.EndSeconds;
+        span.FillColor = style.FillColor;
+        span.LineStyle.Color = style.OutlineColor;
+        span.LineStyle.Width = style.OutlineWidth;
+        span.EnableAutoscale = false;
+        span.IsVisible = isVisible;
+    }
+
+    private void ApplyRangeOverlayLabels(
+        RangeOverlayRenderState state,
+        RecordedTimeRangeOverlaySet set)
+    {
+        if (set.LabelOptions is not { } labelOptions)
+        {
+            state.ActiveLabelCount = 0;
+            HideRangeOverlayLabels(state);
+            return;
+        }
+
+        var labelIndex = 0;
+        foreach (var range in set.Ranges)
+        {
+            if (string.IsNullOrWhiteSpace(range.Label))
             {
-                span.IsVisible = false;
+                continue;
             }
 
-            return span;
+            var label = labelIndex < state.Labels.Count
+                ? state.Labels[labelIndex]
+                : AddRangeOverlayLabel(state);
+            ConfigureRangeOverlayLabel(label, range, labelOptions, state.IsVisible);
+            labelIndex++;
         }
 
-        var start = Math.Min(startSeconds.Value, endSeconds.Value);
-        var end = Math.Max(startSeconds.Value, endSeconds.Value);
-        if (span is null)
+        state.ActiveLabelCount = labelIndex;
+        for (var index = labelIndex; index < state.Labels.Count; index++)
         {
-            span = Plot.Add.HorizontalSpan(start, end);
-            span.FillColor = color;
-            span.LineStyle.Width = 0;
-            span.EnableAutoscale = false;
+            state.Labels[index].Text.IsVisible = false;
         }
-        else
+    }
+
+    private RangeOverlayLabel AddRangeOverlayLabel(RangeOverlayRenderState state)
+    {
+        var text = AddLabel(string.Empty, 0, 0, 0, 0, Alignment.LowerCenter);
+        text.IsVisible = false;
+        var label = new RangeOverlayLabel(text);
+        state.Labels.Add(label);
+        return label;
+    }
+
+    private static void ConfigureRangeOverlayLabel(
+        RangeOverlayLabel label,
+        RecordedTimeRangeOverlay range,
+        RecordedTimeRangeOverlayLabelOptions labelOptions,
+        bool isVisible)
+    {
+        var duration = range.EndSeconds - range.StartSeconds;
+        var center = range.StartSeconds + duration / 2;
+        label.Text.LabelText = range.Label ?? string.Empty;
+        label.Text.Location = new Coordinates(center, labelOptions.Y);
+        label.Text.LabelFontSize = (float)labelOptions.FontSize;
+        label.Text.IsVisible = isVisible;
+        label.CenterSeconds = center;
+        label.DurationSeconds = duration;
+        label.WidthPixels = EstimateLabelWidthPixels(range.Label ?? string.Empty);
+    }
+
+    private static void HideRangeOverlayLabels(RangeOverlayRenderState state)
+    {
+        foreach (var label in state.Labels)
         {
-            span.X1 = start;
-            span.X2 = end;
-            span.FillColor = color;
+            label.Text.IsVisible = false;
+        }
+    }
+
+    private static void UpdateRangeOverlayLabelsForVisibility(RangeOverlayRenderState state)
+    {
+        if (state.Set?.LabelOptions is null)
+        {
+            HideRangeOverlayLabels(state);
+            return;
         }
 
-        span.IsVisible = true;
-        return span;
+        for (var index = 0; index < state.Labels.Count; index++)
+        {
+            state.Labels[index].Text.IsVisible = state.IsVisible && index < state.ActiveLabelCount;
+        }
+
+        if (!state.IsVisible)
+        {
+            HideRangeOverlayLabels(state);
+        }
     }
 
     private PreparedTimeSeries? PrepareSeries(RecordedTimeSeries series)
@@ -360,4 +533,23 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     }
 
     private sealed record PlottableCursorReadoutSeries(IPlottable Plottable, CursorReadoutSeries CursorSeries);
+
+    private sealed class RangeOverlayRenderState(string id)
+    {
+        public string Id { get; } = id;
+        public RecordedTimeRangeOverlaySet? Set { get; set; }
+        public bool IsVisible { get; set; }
+        public int ActiveRangeCount { get; set; }
+        public int ActiveLabelCount { get; set; }
+        public List<HorizontalSpan> Spans { get; } = [];
+        public List<RangeOverlayLabel> Labels { get; } = [];
+    }
+
+    private sealed class RangeOverlayLabel(Text text)
+    {
+        public Text Text { get; } = text;
+        public double CenterSeconds { get; set; }
+        public double DurationSeconds { get; set; }
+        public double WidthPixels { get; set; }
+    }
 }

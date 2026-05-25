@@ -384,7 +384,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     {
         if (plot is RecordedTimeSeriesPlot recordedPlot && IsPlotReady)
         {
-            recordedPlot.SetAnalysisRange(AnalysisRange);
+            ApplyAnalysisRange(recordedPlot);
             RefreshPlot();
         }
     }
@@ -410,8 +410,9 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             dataAreaWidthPixels = PlotControl.Bounds.Width;
         }
 
-        recordedPlot.ApplyAirtimeVisibility(
-            ShowAirtime,
+        recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.Airtime, ShowAirtime);
+        recordedPlot.UpdateRangeOverlayLabelVisibility(
+            RecordedTimeRangeOverlayIds.Airtime,
             limits.Left,
             limits.Right,
             dataAreaWidthPixels);
@@ -518,7 +519,18 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     {
         if (plot is RecordedTimeSeriesPlot recordedPlot)
         {
-            recordedPlot.SetPreviewRange(startSeconds, endSeconds);
+            if (startSeconds is null || endSeconds is null)
+            {
+                recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.PreviewRange);
+                return;
+            }
+
+            var registration = RecordedTimeRangeOverlayFactory.CreatePreviewRangeRegistration(
+                startSeconds.Value,
+                endSeconds.Value,
+                CurrentTheme.Plot);
+            recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
+            recordedPlot.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
         }
     }
 
@@ -623,6 +635,24 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected virtual void OnPlotDataLoaded()
     {
+        if (plot is RecordedTimeSeriesPlot recordedPlot)
+        {
+            ApplyAnalysisRange(recordedPlot);
+        }
+
         ApplyAirtimeVisibility(refresh: false);
+    }
+
+    private void ApplyAnalysisRange(RecordedTimeSeriesPlot recordedPlot)
+    {
+        if (AnalysisRange is not { } range)
+        {
+            recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.AnalysisRange);
+            return;
+        }
+
+        var registration = RecordedTimeRangeOverlayFactory.CreateAnalysisRangeRegistration(range, CurrentTheme.Plot);
+        recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
+        recordedPlot.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
     }
 }

@@ -86,7 +86,13 @@ public class TrackSignalPlot(Plot plot, SufniTheme? theme = null) : RecordedTime
             message,
             context.DurationSeconds,
             series,
-            MarkerSource: telemetryData));
+            MarkerSource: telemetryData,
+            InitialRangeOverlays: telemetryData is null
+                ? []
+                :
+                [
+                    RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetryData.Airtimes, PlotTheme),
+                ]));
     }
 
     private static double? GetSignalValue(TrackPoint point, TrackSignalKind kind)

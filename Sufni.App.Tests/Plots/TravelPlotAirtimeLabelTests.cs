@@ -21,8 +21,8 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
-        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
-        sut.UpdateAirtimeLabelVisibility(visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        SetAirtimeVisibility(sut, true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        sut.UpdateRangeOverlayLabelVisibility(RecordedTimeRangeOverlayIds.Airtime, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.Equal([true, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
     }
@@ -40,8 +40,8 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
-        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
-        sut.UpdateAirtimeLabelVisibility(visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        SetAirtimeVisibility(sut, true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        sut.UpdateRangeOverlayLabelVisibility(RecordedTimeRangeOverlayIds.Airtime, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.Equal([false, true, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
     }
@@ -58,8 +58,8 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
-        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
-        sut.UpdateAirtimeLabelVisibility(visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        SetAirtimeVisibility(sut, true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        sut.UpdateRangeOverlayLabelVisibility(RecordedTimeRangeOverlayIds.Airtime, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.Equal([false, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
         Assert.All(plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
@@ -77,12 +77,12 @@ public class TravelPlotAirtimeLabelTests
         ]);
 
         sut.LoadTelemetryData(telemetry);
-        sut.ApplyAirtimeVisibility(false, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        SetAirtimeVisibility(sut, false, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.All(plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.False(span.IsVisible));
         Assert.All(GetAirtimeLabels(plot), label => Assert.False(label.IsVisible));
 
-        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        SetAirtimeVisibility(sut, true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.All(plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
         Assert.Equal([true, true], GetAirtimeLabels(plot).Select(label => label.IsVisible).ToArray());
@@ -103,7 +103,7 @@ public class TravelPlotAirtimeLabelTests
         var span = Assert.Single(plot.PlottableList.OfType<HorizontalSpan>());
         Assert.False(span.IsVisible);
 
-        sut.ApplyAirtimeVisibility(true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
+        SetAirtimeVisibility(sut, true, visibleMinimumSeconds: 0, visibleMaximumSeconds: 10, dataAreaWidthPixels: 500);
 
         Assert.True(span.IsVisible);
     }
@@ -115,4 +115,18 @@ public class TravelPlotAirtimeLabelTests
         return telemetry;
     }
 
+    private static void SetAirtimeVisibility(
+        RecordedTimeSeriesPlot plot,
+        bool isVisible,
+        double visibleMinimumSeconds,
+        double visibleMaximumSeconds,
+        double dataAreaWidthPixels)
+    {
+        plot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.Airtime, isVisible);
+        plot.UpdateRangeOverlayLabelVisibility(
+            RecordedTimeRangeOverlayIds.Airtime,
+            visibleMinimumSeconds,
+            visibleMaximumSeconds,
+            dataAreaWidthPixels);
+    }
 }
