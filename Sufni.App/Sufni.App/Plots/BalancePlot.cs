@@ -12,6 +12,8 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
     public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
     public BalanceSpeedMode SpeedMode { get; set; } = BalanceSpeedMode.Both;
 
+    private bool UsesTrend => DisplacementMode != BalanceDisplacementMode.Speed;
+
     private void AddStatistics(BalanceData balance, double axisMaximum)
     {
         var maxVelocity = Math.Max(
@@ -35,8 +37,18 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         base.LoadTelemetryData(telemetryData);
 
         var modeLabel = $"{DisplacementModeLabel()} / {SpeedModeLabel()}";
-        var xAxisLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "Stroke travel (%)" : "Zenith (%)";
-        var xReadoutLabel = DisplacementMode == BalanceDisplacementMode.Travel ? "Stroke travel" : "Zenith";
+        var xAxisLabel = DisplacementMode switch
+        {
+            BalanceDisplacementMode.Travel => "Stroke travel (%)",
+            BalanceDisplacementMode.Speed => "Peak speed position (%)",
+            _ => "Zenith (%)",
+        };
+        var xReadoutLabel = DisplacementMode switch
+        {
+            BalanceDisplacementMode.Travel => "Stroke travel",
+            BalanceDisplacementMode.Speed => "Peak speed position",
+            _ => "Zenith",
+        };
         Plot.Axes.Title.Label.Text = type == BalanceType.Compression
               ? $"Compression balance - {modeLabel}"
               : $"Rebound balance - {modeLabel}";
@@ -54,43 +66,89 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(10);
 
         var front = Plot.Add.Scatter(balance.FrontTravel, balance.FrontVelocity);
+        if (!UsesTrend)
+        {
+            front.LegendText = "Front";
+        }
         front.LineStyle.IsVisible = false;
         front.MarkerStyle.LineColor = FrontColor.WithOpacity();
         front.MarkerStyle.FillColor = FrontColor.WithOpacity();
         front.MarkerStyle.Size = 5;
 
-        var frontTrend = Plot.Add.Scatter(balance.FrontTravel, balance.FrontTrend);
-        frontTrend.LegendText = "Front";
-        frontTrend.MarkerStyle.IsVisible = false;
-        frontTrend.LineStyle.Color = FrontColor;
-        frontTrend.LineStyle.Width = 2;
-
         var rear = Plot.Add.Scatter(balance.RearTravel, balance.RearVelocity);
+        if (!UsesTrend)
+        {
+            rear.LegendText = "Rear";
+        }
         rear.LineStyle.IsVisible = false;
         rear.MarkerStyle.LineColor = RearColor.WithOpacity();
         rear.MarkerStyle.FillColor = RearColor.WithOpacity();
         rear.MarkerStyle.Size = 5;
 
-        var rearTrend = Plot.Add.Scatter(balance.RearTravel, balance.RearTrend);
-        rearTrend.LegendText = "Rear";
-        rearTrend.MarkerStyle.IsVisible = false;
-        rearTrend.LineStyle.Color = RearColor;
-        rearTrend.LineStyle.Width = 2;
+        if (UsesTrend)
+        {
+            var frontTrend = Plot.Add.Scatter(balance.FrontTravel, balance.FrontTrend);
+            frontTrend.LegendText = "Front";
+            frontTrend.MarkerStyle.IsVisible = false;
+            frontTrend.LineStyle.Color = FrontColor;
+            frontTrend.LineStyle.Width = 2;
 
-        AddPointerReadoutTarget(BalanceTrendReadout.FromTrends(
-            balance.FrontTravel,
-            balance.FrontTrend,
-            balance.RearTravel,
-            balance.RearTrend,
-            xReadoutLabel));
+            var rearTrend = Plot.Add.Scatter(balance.RearTravel, balance.RearTrend);
+            rearTrend.LegendText = "Rear";
+            rearTrend.MarkerStyle.IsVisible = false;
+            rearTrend.LineStyle.Color = RearColor;
+            rearTrend.LineStyle.Width = 2;
+
+            AddPointerReadoutTarget(BalanceTrendReadout.FromTrends(
+                balance.FrontTravel,
+                balance.FrontTrend,
+                balance.RearTravel,
+                balance.RearTrend,
+                xReadoutLabel));
+            AddStatistics(balance, roundedMaxVelocity);
+        }
+        else
+        {
+            AddPointReadouts(balance, xReadoutLabel);
+        }
 
         ShowSourceLegend();
-        AddStatistics(balance, roundedMaxVelocity);
     }
 
     private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode, SpeedMode);
 
-    private string DisplacementModeLabel() => DisplacementMode == BalanceDisplacementMode.Travel ? "travel" : "zenith";
+    private void AddPointReadouts(BalanceData balance, string xReadoutLabel)
+    {
+        for (var index = 0; index < balance.FrontTravel.Count && index < balance.FrontVelocity.Count; index++)
+        {
+            AddPointerReadoutTarget(BalancePointReadout.FromPoint(
+                balance.FrontTravel[index],
+                balance.FrontVelocity[index],
+                "Front",
+                xReadoutLabel,
+                FrontColor));
+        }
+
+        for (var index = 0; index < balance.RearTravel.Count && index < balance.RearVelocity.Count; index++)
+        {
+            AddPointerReadoutTarget(BalancePointReadout.FromPoint(
+                balance.RearTravel[index],
+                balance.RearVelocity[index],
+                "Rear",
+                xReadoutLabel,
+                RearColor));
+        }
+    }
+
+    private string DisplacementModeLabel()
+    {
+        return DisplacementMode switch
+        {
+            BalanceDisplacementMode.Travel => "travel",
+            BalanceDisplacementMode.Speed => "speed",
+            _ => "zenith",
+        };
+    }
 
     private string SpeedModeLabel()
     {

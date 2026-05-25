@@ -54,13 +54,20 @@ public static partial class TelemetryStatistics
         var frontTrendLine = FitLinearTrend(frontTravelVelocity.Item1, frontTravelVelocity.Item2);
         var rearTrendLine = FitLinearTrend(rearTravelVelocity.Item1, rearTravelVelocity.Item2);
 
-        var frontTrend = frontTravelVelocity.Item1.Select(frontTrendLine.Predict).ToList();
-        var rearTrend = rearTravelVelocity.Item1.Select(rearTrendLine.Predict).ToList();
+        var supportsTrend = options.DisplacementMode != BalanceDisplacementMode.Speed;
+        var frontTrend = supportsTrend
+            ? frontTravelVelocity.Item1.Select(frontTrendLine.Predict).ToList()
+            : [];
+        var rearTrend = supportsTrend
+            ? rearTravelVelocity.Item1.Select(rearTrendLine.Predict).ToList()
+            : [];
 
-        var pairedCount = Math.Min(frontTrend.Count, rearTrend.Count);
-        var sum = frontTrend.Zip(rearTrend, (front, rear) => front - rear).Sum();
+        var pairedCount = supportsTrend ? Math.Min(frontTrend.Count, rearTrend.Count) : 0;
+        var sum = supportsTrend ? frontTrend.Zip(rearTrend, (front, rear) => front - rear).Sum() : 0;
         var meanSignedDeviation = pairedCount == 0 ? 0 : sum / pairedCount;
-        var signedSlopeDeltaPercent = CalculateSlopeDeltaPercent(frontTrendLine.Slope, rearTrendLine.Slope);
+        var frontSlope = supportsTrend ? frontTrendLine.Slope : 0;
+        var rearSlope = supportsTrend ? rearTrendLine.Slope : 0;
+        var signedSlopeDeltaPercent = supportsTrend ? CalculateSlopeDeltaPercent(frontSlope, rearSlope) : 0;
 
         return new BalanceData(
             [.. frontTravelVelocity.Item1],
@@ -70,8 +77,8 @@ public static partial class TelemetryStatistics
             [.. rearTravelVelocity.Item2],
             rearTrend,
             meanSignedDeviation,
-            frontTrendLine.Slope,
-            rearTrendLine.Slope,
+            frontSlope,
+            rearSlope,
             signedSlopeDeltaPercent,
             Math.Abs(signedSlopeDeltaPercent));
     }
@@ -123,6 +130,7 @@ public static partial class TelemetryStatistics
             {
                 BalanceDisplacementMode.Travel => Math.Abs(suspension.Travel[stroke.End] - suspension.Travel[stroke.Start]),
                 BalanceDisplacementMode.Zenith => stroke.Stat.MaxTravel,
+                BalanceDisplacementMode.Speed => GetPeakSpeedTravel(suspension, stroke, balanceType),
                 _ => throw new ArgumentOutOfRangeException(nameof(options), options.DisplacementMode, null),
             };
 
@@ -136,6 +144,46 @@ public static partial class TelemetryStatistics
         Array.Sort(travelArray, velocityArray);
 
         return (travelArray, velocityArray);
+    }
+
+    private static double GetPeakSpeedTravel(
+        Suspension suspension,
+        Stroke stroke,
+        BalanceType balanceType)
+    {
+        if (suspension.Travel.Length == 0)
+        {
+            return 0;
+        }
+
+        var start = Math.Clamp(stroke.Start, 0, suspension.Travel.Length - 1);
+        var end = Math.Clamp(stroke.End, 0, suspension.Travel.Length - 1);
+        if (end < start || suspension.Velocity.Length == 0)
+        {
+            return suspension.Travel[start];
+        }
+
+        end = Math.Min(end, suspension.Velocity.Length - 1);
+        if (end < start)
+        {
+            return suspension.Travel[start];
+        }
+
+        var peakIndex = start;
+        var peakVelocity = suspension.Velocity[start];
+        for (var index = start + 1; index <= end; index++)
+        {
+            var velocity = suspension.Velocity[index];
+            if (balanceType == BalanceType.Rebound
+                    ? velocity < peakVelocity
+                    : velocity > peakVelocity)
+            {
+                peakVelocity = velocity;
+                peakIndex = index;
+            }
+        }
+
+        return suspension.Travel[Math.Clamp(peakIndex, 0, suspension.Travel.Length - 1)];
     }
 
     private static double CalculateSlopeDeltaPercent(double frontSlope, double rearSlope)
