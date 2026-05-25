@@ -23,13 +23,13 @@ mc:Ignorable="d">
                 Content="Sample-averaged"
                 GroupName="MobileVelocityAverageMode"
                 IsChecked="{Binding SampleAveragedModeSelected, Mode=TwoWay}"
-                ToolTip.Tip="Uses every stroke sample for bars and average labels." />
+                ToolTip.Tip="Counts every sample inside compression and rebound strokes. Best for where the damper spent time." />
                 <RadioButton
                 Name="MobileStrokePeakAveragedModeRadioButton"
                 Content="Stroke-peak average"
                 GroupName="MobileVelocityAverageMode"
                 IsChecked="{Binding StrokePeakAveragedModeSelected, Mode=TwoWay}"
-                ToolTip.Tip="Uses one peak-speed event per stroke for bars and average labels." />
+                ToolTip.Tip="Counts each stroke once by peak velocity and peak travel. Best for what events the damper saw." />
             </StackPanel>
 
             <controls:VelocityStatisticsHost

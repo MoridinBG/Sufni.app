@@ -99,7 +99,7 @@ mc:Ignorable="d">
                     ItemsSource="{Binding TravelHistogramModeOptions}"
                     SelectedValue="{Binding SelectedTravelHistogramMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:TravelHistogramModeOption}"
-                    ToolTip.Tip="Active suspension uses stroke samples. Dynamic sag uses all selected travel samples.">
+                    ToolTip.Tip="Choose whether spring stats show active stroke movement or overall ride height.">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:TravelHistogramModeOption">
                                 <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
@@ -189,7 +189,7 @@ mc:Ignorable="d">
                     ItemsSource="{Binding VelocityAverageModeOptions}"
                     SelectedValue="{Binding SelectedVelocityAverageMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:VelocityAverageModeOption}"
-                    ToolTip.Tip="Sample-averaged uses all stroke samples. Stroke-peak average uses one peak-speed event per stroke.">
+                    ToolTip.Tip="Choose whether damping bars show time spent in bins or one peak event per stroke.">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:VelocityAverageModeOption">
                                 <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
