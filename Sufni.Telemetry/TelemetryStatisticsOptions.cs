@@ -10,6 +10,7 @@ public enum BalanceDisplacementMode
 {
     Zenith = 0,
     Travel = 1,
+    Speed = 2,
 }
 
 public enum BalanceSpeedMode
