@@ -156,6 +156,42 @@ public class TelemetryData
         suspension.FineVelocityBins = trace.FineVelocityBins;
     }
 
+    private static void ProcessSuspensionSide(
+        Suspension suspension,
+        ushort[] rawSamples,
+        bool measurementWraps,
+        Func<ushort, double>? measurementToTravel,
+        int sampleRate,
+        double[] time,
+        SavitzkyGolay? filter)
+    {
+        if (!suspension.Present)
+        {
+            return;
+        }
+
+        Debug.Assert(measurementToTravel is not null);
+        if (measurementToTravel is null)
+        {
+            throw new InvalidOperationException("Present suspension is missing travel calibration.");
+        }
+
+        var preprocessed = MeasurementPreprocessor.Process(
+            rawSamples,
+            MeasurementPreprocessor.SensorTypeForWrapping(measurementWraps),
+            sampleRate);
+        var trace = SuspensionTraceProcessor.Process(
+            preprocessed.Samples,
+            suspension.MaxTravel!.Value,
+            measurementToTravel,
+            sampleRate,
+            time,
+            filter);
+
+        ApplySuspensionTrace(suspension, trace);
+        suspension.AnomalyRate = CalculateAnomalyRate(preprocessed.AnomalyCount, preprocessed.Samples.Length, sampleRate);
+    }
+
     private static SavitzkyGolay? CreateVelocityFilter(
         int recordCount,
         int sampleRate,
@@ -293,29 +329,22 @@ public class TelemetryData
         // shorter than a full SST import during early-session save or stats recompute.
         var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate, processingOptions);
 
-        // Calculate telemetry data
-        if (td.Front.Present)
-        {
-            Debug.Assert(bikeData.FrontMeasurementToTravel is not null);
-            var front = MeasurementPreprocessor.Process(
-                rawData.Front,
-                MeasurementPreprocessor.SensorTypeForWrapping(bikeData.FrontMeasurementWraps),
-                td.Metadata.SampleRate);
-            var frontTrace = SuspensionTraceProcessor.Process(front.Samples, td.Front.MaxTravel!.Value, bikeData.FrontMeasurementToTravel, td.Metadata.SampleRate, time, filter);
-            ApplySuspensionTrace(td.Front, frontTrace);
-            td.Front.AnomalyRate = CalculateAnomalyRate(front.AnomalyCount, front.Samples.Length, td.Metadata.SampleRate);
-        }
-        if (td.Rear.Present)
-        {
-            Debug.Assert(bikeData.RearMeasurementToTravel is not null);
-            var rear = MeasurementPreprocessor.Process(
-                rawData.Rear,
-                MeasurementPreprocessor.SensorTypeForWrapping(bikeData.RearMeasurementWraps),
-                td.Metadata.SampleRate);
-            var rearTrace = SuspensionTraceProcessor.Process(rear.Samples, td.Rear.MaxTravel!.Value, bikeData.RearMeasurementToTravel, td.Metadata.SampleRate, time, filter);
-            ApplySuspensionTrace(td.Rear, rearTrace);
-            td.Rear.AnomalyRate = CalculateAnomalyRate(rear.AnomalyCount, rear.Samples.Length, td.Metadata.SampleRate);
-        }
+        ProcessSuspensionSide(
+            td.Front,
+            rawData.Front,
+            bikeData.FrontMeasurementWraps,
+            bikeData.FrontMeasurementToTravel,
+            td.Metadata.SampleRate,
+            time,
+            filter);
+        ProcessSuspensionSide(
+            td.Rear,
+            rawData.Rear,
+            bikeData.RearMeasurementWraps,
+            bikeData.RearMeasurementToTravel,
+            td.Metadata.SampleRate,
+            time,
+            filter);
 
         td.CalculateAirTimes();
 

@@ -56,7 +56,7 @@ public sealed record LiveSessionPresentationSnapshot(
     public static readonly LiveSessionPresentationSnapshot Empty = new(
         Stream: new LiveSessionStreamPresentation.Idle(),
         StatisticsTelemetry: null,
-        DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+        DamperPercentages: SessionDamperPercentages.Empty,
         SessionTrackPoints: [],
         Controls: LiveSessionControlState.Empty,
         CaptureRevision: 0);

@@ -277,8 +277,7 @@ public class SessionCoordinator
             }
 
             await databaseService.PutSessionAsync(session);
-            // PutSessionAsync only writes metadata columns; re-fetch via
-            // the SQL-computed has_data path so the snapshot's
+            // Re-fetch via the SQL-computed has_data path so the snapshot's
             // HasProcessedData reflects the current DB state.
             var fresh = await databaseService.GetSessionAsync(session.Id);
             if (fresh is null)

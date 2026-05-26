@@ -515,6 +515,52 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
+    public async Task PutSessionAsync_PreservesExistingSummaryMetrics_OnMetadataUpdate()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "session-summary-metadata-save.db");
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            var processed = await database.PutProcessedSessionAsync(
+                new Session(sessionId, "processed", "desc", null, 100)
+                {
+                    ProcessedData = CreateTelemetryBlob(65)
+                },
+                CreateFullTrack(),
+                source: null);
+
+            await database.PutSessionAsync(new Session(sessionId, "renamed", "new desc", null, 100)
+            {
+                DurationSeconds = 1,
+                DistanceMeters = 2,
+                AscentMeters = 3,
+                DescentMeters = 4
+            });
+
+            var loaded = await database.GetSessionAsync(sessionId);
+
+            Assert.NotNull(loaded);
+            Assert.Equal("renamed", loaded!.Name);
+            Assert.Equal("new desc", loaded.Description);
+            Assert.Equal(processed.DurationSeconds, loaded.DurationSeconds);
+            Assert.Equal(processed.DistanceMeters, loaded.DistanceMeters);
+            Assert.Equal(processed.AscentMeters, loaded.AscentMeters);
+            Assert.Equal(processed.DescentMeters, loaded.DescentMeters);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PutProcessedSessionAsync_AssociatesExistingTrack_WhenSessionHasNoGeneratedTrack()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
@@ -962,12 +1008,85 @@ public class SQLiteDatabaseServiceTests
                 Sessions = [new Session(sessionId, "remote", "desc", null, 100) { Updated = 10, ClientUpdated = 10 }]
             });
 
-            await database.PatchSessionPsstAsync(sessionId, [1, 2, 3]);
+            var patchedPsst = CreateTelemetryBlob(65);
+            await database.PatchSessionPsstAsync(sessionId, patchedPsst);
 
             var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
 
             Assert.True(changedSession.HasProcessedData);
-            Assert.Equal([1, 2, 3], await database.GetSessionRawPsstAsync(sessionId));
+            Assert.Equal(patchedPsst, await database.GetSessionRawPsstAsync(sessionId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PatchSessionPsstAsync_RejectsInvalidBlob_WithoutChangingExistingData()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "session-psst-invalid-patch.db");
+        var sessionId = Guid.NewGuid();
+        var originalPsst = CreateTelemetryBlob(65);
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            await database.PutProcessedSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+            {
+                ProcessedData = originalPsst
+            }, newFullTrack: null, source: null);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => database.PatchSessionPsstAsync(sessionId, [1, 2, 3]));
+
+            var session = await database.GetSessionAsync(sessionId);
+
+            Assert.NotNull(session);
+            Assert.True(session!.HasProcessedData);
+            Assert.Equal(65, session.DurationSeconds);
+            Assert.Equal(originalPsst, await database.GetSessionRawPsstAsync(sessionId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetChangedAsync_ForSessions_DerivesHasProcessedDataFromDataColumn()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "session-has-data-derived.db");
+        var sessionId = Guid.NewGuid();
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            _ = await database.GetSessionsAsync();
+
+            using (var connection = new SQLiteConnection(databasePath))
+            {
+                connection.Insert(new Session(sessionId, "session", "desc", null, 100)
+                {
+                    ProcessedData = CreateTelemetryBlob(65),
+                    Updated = 10
+                });
+                connection.Execute("UPDATE session SET has_data = 0 WHERE id = ?", sessionId);
+            }
+
+            var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
+
+            Assert.True(changedSession.HasProcessedData);
+            Assert.Null(changedSession.ProcessedData);
         }
         finally
         {

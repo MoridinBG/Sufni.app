@@ -15,42 +15,27 @@ public sealed class SessionPresentationService : ISessionPresentationService
         TelemetryData telemetryData,
         TelemetryTimeRange? range = null)
     {
-        double? frontHsc = null;
-        double? rearHsc = null;
-        double? frontLsc = null;
-        double? rearLsc = null;
-        double? frontLsr = null;
-        double? rearLsr = null;
-        double? frontHsr = null;
-        double? rearHsr = null;
+        return SessionDamperPercentages.FromSides(
+            CalculateDamperSidePercentages(telemetryData, SuspensionType.Front, range),
+            CalculateDamperSidePercentages(telemetryData, SuspensionType.Rear, range));
+    }
 
-        if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front, range))
+    private static SessionDamperSidePercentages CalculateDamperSidePercentages(
+        TelemetryData telemetryData,
+        SuspensionType suspensionType,
+        TelemetryTimeRange? range)
+    {
+        if (!TelemetryStatistics.HasStrokeData(telemetryData, suspensionType, range))
         {
-            var frontBands = TelemetryStatistics.CalculateVelocityBands(telemetryData, SuspensionType.Front, HighSpeedThreshold, range);
-            frontHsc = frontBands.HighSpeedCompression;
-            frontLsc = frontBands.LowSpeedCompression;
-            frontLsr = frontBands.LowSpeedRebound;
-            frontHsr = frontBands.HighSpeedRebound;
+            return SessionDamperSidePercentages.Empty;
         }
 
-        if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear, range))
-        {
-            var rearBands = TelemetryStatistics.CalculateVelocityBands(telemetryData, SuspensionType.Rear, HighSpeedThreshold, range);
-            rearHsc = rearBands.HighSpeedCompression;
-            rearLsc = rearBands.LowSpeedCompression;
-            rearLsr = rearBands.LowSpeedRebound;
-            rearHsr = rearBands.HighSpeedRebound;
-        }
-
-        return new SessionDamperPercentages(
-            frontHsc,
-            rearHsc,
-            frontLsc,
-            rearLsc,
-            frontLsr,
-            rearLsr,
-            frontHsr,
-            rearHsr);
+        var bands = TelemetryStatistics.CalculateVelocityBands(telemetryData, suspensionType, HighSpeedThreshold, range);
+        return new SessionDamperSidePercentages(
+            bands.HighSpeedCompression,
+            bands.LowSpeedCompression,
+            bands.LowSpeedRebound,
+            bands.HighSpeedRebound);
     }
 
     public SessionCachePresentationData BuildCachePresentation(

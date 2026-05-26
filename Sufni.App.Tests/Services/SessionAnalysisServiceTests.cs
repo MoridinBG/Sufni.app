@@ -423,7 +423,7 @@ public class SessionAnalysisServiceTests
             velocityMode,
             balanceMode,
             balanceSpeedMode,
-            damperPercentages ?? new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            damperPercentages ?? SessionDamperPercentages.Empty,
             profile);
     }
 
