@@ -55,7 +55,7 @@ public readonly record struct TelemetryTimeRange
         out TelemetryTimeRange range)
     {
         range = default;
-        if (double.IsNaN(durationSeconds) || double.IsInfinity(durationSeconds) || durationSeconds <= 0 ||
+        if (!HasValidDuration(durationSeconds) ||
             !TryNormalize(startSeconds, endSeconds, out var start, out var end))
         {
             return false;
@@ -72,14 +72,26 @@ public readonly record struct TelemetryTimeRange
         return true;
     }
 
+    public static bool TryClampBoundary(
+        double boundarySeconds,
+        double durationSeconds,
+        out double clampedSeconds)
+    {
+        clampedSeconds = default;
+        if (!IsFinite(boundarySeconds) || !HasValidDuration(durationSeconds))
+        {
+            return false;
+        }
+
+        clampedSeconds = Math.Clamp(boundarySeconds, 0, durationSeconds);
+        return true;
+    }
+
     private static bool TryNormalize(double startSeconds, double endSeconds, out double start, out double end)
     {
         start = default;
         end = default;
-        if (double.IsNaN(startSeconds) ||
-            double.IsNaN(endSeconds) ||
-            double.IsInfinity(startSeconds) ||
-            double.IsInfinity(endSeconds))
+        if (!IsFinite(startSeconds) || !IsFinite(endSeconds))
         {
             return false;
         }
@@ -87,5 +99,15 @@ public readonly record struct TelemetryTimeRange
         start = Math.Min(startSeconds, endSeconds);
         end = Math.Max(startSeconds, endSeconds);
         return true;
+    }
+
+    private static bool IsFinite(double value)
+    {
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+
+    private static bool HasValidDuration(double durationSeconds)
+    {
+        return IsFinite(durationSeconds) && durationSeconds > 0;
     }
 }

@@ -53,7 +53,7 @@ public class LiveSessionDetailDesktopViewTests
         var snapshot = new LiveSessionPresentationSnapshot(
             Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
             StatisticsTelemetry: null,
-            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            DamperPercentages: SessionDamperPercentages.Empty,
             SessionTrackPoints: [],
             Controls: new LiveSessionControlState(
                 ConnectionState: LiveConnectionState.Connected,

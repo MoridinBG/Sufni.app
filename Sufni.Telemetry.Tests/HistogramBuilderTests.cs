@@ -24,12 +24,24 @@ public class HistogramBuilderTests
     }
 
     [Fact]
-    public void DigitizeValue_UsesLowerBinForExactInteriorBoundaries()
+    public void DigitizeValue_UsesUpperBinForExactInteriorBoundaries()
     {
         double[] bins = [0, 10, 20];
 
-        Assert.Equal(0, HistogramBuilder.DigitizeValue(10, bins));
+        Assert.Equal(1, HistogramBuilder.DigitizeValue(10, bins));
         Assert.Equal(1, HistogramBuilder.DigitizeValue(20, bins));
+    }
+
+    [Fact]
+    public void DigitizeAndDigitizeValue_AgreeOnBoundaryValues()
+    {
+        double[] bins = [0, 10, 20];
+        double[] values = [-1, 0, 5, 10, 15, 20, 21];
+
+        var vectorIndexes = HistogramBuilder.Digitize(values, bins);
+        var scalarIndexes = values.Select(value => HistogramBuilder.DigitizeValue(value, bins)).ToArray();
+
+        Assert.Equal(vectorIndexes, scalarIndexes);
     }
 
     [Fact]

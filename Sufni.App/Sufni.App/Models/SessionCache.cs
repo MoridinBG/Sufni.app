@@ -21,4 +21,29 @@ public class SessionCache
     [Column("rear_lsr_percentage")] public double? RearLsrPercentage { get; set; }
     [Column("front_hsr_percentage")] public double? FrontHsrPercentage { get; set; }
     [Column("rear_hsr_percentage")] public double? RearHsrPercentage { get; set; }
+
+    [Ignore]
+    public SessionDamperPercentages DamperPercentages
+    {
+        get => new(
+            FrontHscPercentage,
+            RearHscPercentage,
+            FrontLscPercentage,
+            RearLscPercentage,
+            FrontLsrPercentage,
+            RearLsrPercentage,
+            FrontHsrPercentage,
+            RearHsrPercentage);
+        set
+        {
+            FrontHscPercentage = value.FrontHscPercentage;
+            RearHscPercentage = value.RearHscPercentage;
+            FrontLscPercentage = value.FrontLscPercentage;
+            RearLscPercentage = value.RearLscPercentage;
+            FrontLsrPercentage = value.FrontLsrPercentage;
+            RearLsrPercentage = value.RearLsrPercentage;
+            FrontHsrPercentage = value.FrontHsrPercentage;
+            RearHsrPercentage = value.RearHsrPercentage;
+        }
+    }
 }

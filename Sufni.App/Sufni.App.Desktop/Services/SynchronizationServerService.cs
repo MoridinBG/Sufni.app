@@ -571,6 +571,11 @@ public class SynchronizationServerService : ISynchronizationServerService
                         {
                             await databaseService.PatchSessionPsstAsync(id, data);
                         }
+                        catch (InvalidDataException ex)
+                        {
+                            logger.Warning(ex, "Session data patch rejected because the uploaded data was invalid for {SessionId}", id);
+                            return Results.BadRequest();
+                        }
                         catch (Exception ex)
                         {
                             logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);

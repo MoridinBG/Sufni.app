@@ -69,4 +69,33 @@ public class TelemetryTimeRangeTests
         Assert.False(created);
         Assert.Equal(default, range);
     }
+
+    [Theory]
+    [InlineData(-1.0, 2.0, 0.0)]
+    [InlineData(3.0, 2.0, 2.0)]
+    [InlineData(1.25, 2.0, 1.25)]
+    public void TryClampBoundary_ClampsFiniteBoundaryToDuration(
+        double boundarySeconds,
+        double durationSeconds,
+        double expected)
+    {
+        var created = TelemetryTimeRange.TryClampBoundary(boundarySeconds, durationSeconds, out var clamped);
+
+        Assert.True(created);
+        Assert.Equal(expected, clamped);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 2.0)]
+    [InlineData(1.0, double.PositiveInfinity)]
+    [InlineData(1.0, 0.0)]
+    public void TryClampBoundary_ReturnsFalseForInvalidBoundaryOrDuration(
+        double boundarySeconds,
+        double durationSeconds)
+    {
+        var created = TelemetryTimeRange.TryClampBoundary(boundarySeconds, durationSeconds, out var clamped);
+
+        Assert.False(created);
+        Assert.Equal(default, clamped);
+    }
 }

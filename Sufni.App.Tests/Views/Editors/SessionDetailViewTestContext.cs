@@ -40,7 +40,7 @@ internal sealed class SessionDetailViewTestContext
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
         sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
-            .Returns(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+            .Returns(SessionDamperPercentages.Empty);
         sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
 

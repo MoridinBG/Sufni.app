@@ -9,6 +9,7 @@ namespace Sufni.App.Models;
 public class Session : Synchronizable
 {
     private byte[]? processedData;
+    private bool hasProcessedData;
 
     // Just to satisfy sql-net-pcl's parameterless constructor requirement
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
@@ -77,15 +78,16 @@ public class Session : Synchronizable
 
     [JsonIgnore]
     [Column("data")]
-    // Local processed-cache blob. HasProcessedData stays in the row so sync can
-    // find missing blobs and transfer them through patch endpoints.
+    // Local processed-cache blob. When the blob is loaded on this model,
+    // availability is derived from it so a stale has_data column cannot hide
+    // readable telemetry.
     public byte[]? ProcessedData
     {
         get => processedData;
         set
         {
-            HasProcessedData = value is not null;
             processedData = value;
+            hasProcessedData = value is not null;
         }
     }
 
@@ -131,5 +133,9 @@ public class Session : Synchronizable
 
     [JsonIgnore]
     [Column("has_data")]
-    public bool HasProcessedData { get; set; }
+    public bool HasProcessedData
+    {
+        get => processedData is not null || hasProcessedData;
+        set => hasProcessedData = value;
+    }
 }

@@ -333,6 +333,27 @@ public class SqLiteDatabaseService : IDatabaseService
                                                                      {SessionHasDataProjection}
                                                                      """;
 
+    private static readonly string SessionSynchronizationProjection = $"""
+                                                                      id,
+                                                                      name,
+                                                                      setup_id,
+                                                                      description,
+                                                                      timestamp,
+                                                                      duration_seconds,
+                                                                      distance_meters,
+                                                                      ascent_meters,
+                                                                      descent_meters,
+                                                                      full_track_id,
+                                                                      {SessionProcessingFingerprintColumn},
+                                                                      track,
+                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
+                                                                      rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
+                                                                      updated,
+                                                                      client_updated,
+                                                                      deleted,
+                                                                      {SessionHasDataProjection}
+                                                                      """;
+
     private const string ProcessedSessionUpdateAssignments = """
                                                              name=?,
                                                              setup_id=?,
@@ -349,8 +370,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                                              front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                              rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                              updated=?,
-                                                             deleted=NULL,
-                                                             has_data=CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END
+                                                             deleted=NULL
                                                              """;
 
     private const string SessionMetadataSaveUpdateAssignments = """
@@ -358,10 +378,6 @@ public class SqLiteDatabaseService : IDatabaseService
                                                                 setup_id=?,
                                                                 description=?,
                                                                 timestamp=?,
-                                                                duration_seconds=COALESCE(?, duration_seconds),
-                                                                distance_meters=COALESCE(?, distance_meters),
-                                                                ascent_meters=COALESCE(?, ascent_meters),
-                                                                descent_meters=COALESCE(?, descent_meters),
                                                                 full_track_id=?,
                                                                 session_processing_fingerprint=?,
                                                                 track=COALESCE(?, track),
@@ -369,8 +385,7 @@ public class SqLiteDatabaseService : IDatabaseService
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                 updated=?,
-                                                                deleted=NULL,
-                                                                has_data=CASE WHEN COALESCE(?, data) IS NOT NULL THEN 1 ELSE 0 END
+                                                                deleted=NULL
                                                                 """;
 
     private static readonly string UpdateProcessedSessionSql = $"""
@@ -451,8 +466,7 @@ public class SqLiteDatabaseService : IDatabaseService
         session.RearLowSpeedCompression,
         session.RearLowSpeedRebound,
         session.RearHighSpeedRebound,
-        session.Updated,
-        session.ProcessedData
+        session.Updated
     ];
 
     private static object?[] CreateProcessedSessionUpdateValues(Session session, long baselineUpdated) =>
@@ -465,6 +479,30 @@ public class SqLiteDatabaseService : IDatabaseService
     private static object?[] CreateProcessedSessionUpdateValuesWithId(Session session) =>
     [
         .. CreateProcessedSessionUpdateValues(session),
+        session.Id
+    ];
+
+    private static object?[] CreateSessionMetadataSaveUpdateValuesWithId(Session session) =>
+    [
+        session.Name,
+        session.Setup,
+        session.Description,
+        session.Timestamp,
+        session.FullTrack,
+        session.ProcessingFingerprintJson,
+        SerializeTrack(session),
+        session.ProcessedData,
+        session.FrontSpringRate,
+        session.FrontHighSpeedCompression,
+        session.FrontLowSpeedCompression,
+        session.FrontLowSpeedRebound,
+        session.FrontHighSpeedRebound,
+        session.RearSpringRate,
+        session.RearHighSpeedCompression,
+        session.RearLowSpeedCompression,
+        session.RearLowSpeedRebound,
+        session.RearHighSpeedRebound,
+        session.Updated,
         session.Id
     ];
 
@@ -514,6 +552,23 @@ public class SqLiteDatabaseService : IDatabaseService
         catch
         {
             return null;
+        }
+    }
+
+    private static TelemetryData ReadProcessedTelemetryData(byte[] processedData)
+    {
+        try
+        {
+            return TelemetryData.FromBinary(processedData)
+                   ?? throw new InvalidDataException("Processed session data did not contain telemetry.");
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidDataException("Processed session data is not valid telemetry.", exception);
         }
     }
 
@@ -775,9 +830,27 @@ public class SqLiteDatabaseService : IDatabaseService
     public async Task<List<T>> GetChangedAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(long since) where T : Synchronizable, new()
     {
         await Initialization;
+        if (typeof(T) == typeof(Session))
+        {
+            return (List<T>)(object)await GetChangedSessionsAsync(since);
+        }
+
         return await Table<T>()
             .Where(s => s.Updated > since || (s.Deleted != null && s.Deleted > since))
             .ToListAsync();
+    }
+
+    private Task<List<Session>> GetChangedSessionsAsync(long since)
+    {
+        var query = $"""
+                     SELECT
+                         {SessionSynchronizationProjection}
+                     FROM
+                         session
+                     WHERE
+                         updated > ? OR (deleted IS NOT NULL AND deleted > ?)
+                     """;
+        return connection.QueryAsync<Session>(query, since, since);
     }
 
     public async Task<T> GetAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(Guid id) where T : Synchronizable, new()
@@ -956,7 +1029,7 @@ public class SqLiteDatabaseService : IDatabaseService
         session.Deleted = null;
         if (existing)
         {
-            await connection.ExecuteAsync(UpdateSessionMetadataSaveSql, CreateProcessedSessionUpdateValuesWithId(session));
+            await connection.ExecuteAsync(UpdateSessionMetadataSaveSql, CreateSessionMetadataSaveUpdateValuesWithId(session));
         }
         else
         {
@@ -1106,8 +1179,9 @@ public class SqLiteDatabaseService : IDatabaseService
             throw new Exception($"Session {id} does not exist.");
         }
 
+        var telemetryData = ReadProcessedTelemetryData(data);
         session.ProcessedData = data;
-        var durationSeconds = ReadProcessedDurationSeconds(data) ?? session.DurationSeconds;
+        var durationSeconds = telemetryData.Metadata?.Duration ?? session.DurationSeconds;
         var metrics = SessionSummaryMetricsCalculator.Calculate(durationSeconds, session.Track);
         var hasTrackPoints = session.Track is { Count: > 0 };
 
@@ -1119,8 +1193,7 @@ public class SqLiteDatabaseService : IDatabaseService
                 duration_seconds=?,
                 distance_meters=?,
                 ascent_meters=?,
-                descent_meters=?,
-                has_data=1
+                descent_meters=?
             WHERE id=?
             """,
             data,
