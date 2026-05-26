@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -62,6 +63,26 @@ public partial class DamperPageViewModel : PageViewModelBase
         {
             observableWorkspace.PropertyChanged += OnWorkspacePropertyChanged;
         }
+    }
+
+    public void ApplyDamperPercentages(SessionDamperPercentages percentages)
+    {
+        var front = percentages.ForSide(SuspensionType.Front);
+        var rear = percentages.ForSide(SuspensionType.Rear);
+
+        FrontHscPercentage = front.HscPercentage;
+        RearHscPercentage = rear.HscPercentage;
+        FrontLscPercentage = front.LscPercentage;
+        RearLscPercentage = rear.LscPercentage;
+        FrontLsrPercentage = front.LsrPercentage;
+        RearLsrPercentage = rear.LsrPercentage;
+        FrontHsrPercentage = front.HsrPercentage;
+        RearHsrPercentage = rear.HsrPercentage;
+    }
+
+    public void ClearDamperPercentages()
+    {
+        ApplyDamperPercentages(SessionDamperPercentages.Empty);
     }
 
     partial void OnFrontHistogramStateChanged(SurfacePresentationState value)

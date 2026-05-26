@@ -40,15 +40,7 @@ public sealed record SessionCachePresentationData(
             cache.RearVelocityHistogram,
             cache.CompressionBalance,
             cache.ReboundBalance,
-            new SessionDamperPercentages(
-                cache.FrontHscPercentage,
-                cache.RearHscPercentage,
-                cache.FrontLscPercentage,
-                cache.RearLscPercentage,
-                cache.FrontLsrPercentage,
-                cache.RearLsrPercentage,
-                cache.FrontHsrPercentage,
-                cache.RearHsrPercentage),
+            cache.DamperPercentages,
             balanceAvailable);
     }
 
@@ -63,14 +55,7 @@ public sealed record SessionCachePresentationData(
             RearVelocityHistogram = RearVelocityHistogram,
             CompressionBalance = BalanceAvailable ? CompressionBalance : null,
             ReboundBalance = BalanceAvailable ? ReboundBalance : null,
-            FrontHscPercentage = DamperPercentages.FrontHscPercentage,
-            RearHscPercentage = DamperPercentages.RearHscPercentage,
-            FrontLscPercentage = DamperPercentages.FrontLscPercentage,
-            RearLscPercentage = DamperPercentages.RearLscPercentage,
-            FrontLsrPercentage = DamperPercentages.FrontLsrPercentage,
-            RearLsrPercentage = DamperPercentages.RearLsrPercentage,
-            FrontHsrPercentage = DamperPercentages.FrontHsrPercentage,
-            RearHsrPercentage = DamperPercentages.RearHsrPercentage,
+            DamperPercentages = this.DamperPercentages,
         };
     }
 }

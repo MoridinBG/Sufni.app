@@ -35,7 +35,7 @@ public class SessionDetailViewModelTests
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
-            .Returns(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+            .Returns(SessionDamperPercentages.Empty);
         sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
 

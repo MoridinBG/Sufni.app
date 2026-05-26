@@ -84,7 +84,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private TelemetryData? telemetryData;
 
     [ObservableProperty]
-    private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
+    private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
 
     private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
@@ -162,10 +162,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
 
-    public SurfacePresentationState FrontStatisticsState => CreateStatisticsState(ControlState.SessionHeader, TelemetryData, SuspensionType.Front, hasFrontTravelCalibration);
-    public SurfacePresentationState RearStatisticsState => CreateStatisticsState(ControlState.SessionHeader, TelemetryData, SuspensionType.Rear, hasRearTravelCalibration);
-    public SurfacePresentationState CompressionBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Compression);
-    public SurfacePresentationState ReboundBalanceState => CreateBalanceState(ControlState.SessionHeader, TelemetryData, hasFrontTravelCalibration, hasRearTravelCalibration, BalanceType.Rebound);
+    public SurfacePresentationState FrontStatisticsState => SessionStatisticsSurfaceState.ForSuspension(IsTravelStatisticsExpected(hasFrontTravelCalibration), TelemetryData, SuspensionType.Front);
+    public SurfacePresentationState RearStatisticsState => SessionStatisticsSurfaceState.ForSuspension(IsTravelStatisticsExpected(hasRearTravelCalibration), TelemetryData, SuspensionType.Rear);
+    public SurfacePresentationState CompressionBalanceState => SessionStatisticsSurfaceState.ForBalance(IsBalanceStatisticsExpected(), TelemetryData, BalanceType.Compression);
+    public SurfacePresentationState ReboundBalanceState => SessionStatisticsSurfaceState.ForBalance(IsBalanceStatisticsExpected(), TelemetryData, BalanceType.Rebound);
     public SurfacePresentationState FrontForkVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState FrontFrameVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
@@ -547,53 +547,16 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             PitchRollMaximum: 15);
     }
 
-    private static SurfacePresentationState CreateStatisticsState(
-        LiveSessionHeader? sessionHeader,
-        TelemetryData? telemetryData,
-        SuspensionType suspensionType,
-        bool sideConfigured)
+    private bool IsTravelStatisticsExpected(bool sideConfigured)
     {
-        if (!sideConfigured || sessionHeader is not { AcceptedTravelHz: > 0 })
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        if (telemetryData is null)
-        {
-            return SurfacePresentationState.WaitingForData("Waiting for statistics.");
-        }
-
-        var suspension = suspensionType == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
-        if (!suspension.Present)
-        {
-            return SurfacePresentationState.WaitingForData("Waiting for statistics.");
-        }
-
-        return TelemetryStatistics.HasStrokeData(telemetryData, suspensionType)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        return sideConfigured && ControlState.SessionHeader is { AcceptedTravelHz: > 0 };
     }
 
-    private static SurfacePresentationState CreateBalanceState(
-        LiveSessionHeader? sessionHeader,
-        TelemetryData? telemetryData,
-        bool frontConfigured,
-        bool rearConfigured,
-        BalanceType balanceType)
+    private bool IsBalanceStatisticsExpected()
     {
-        if (!frontConfigured || !rearConfigured || sessionHeader is not { AcceptedTravelHz: > 0 })
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        if (telemetryData is null || !telemetryData.Front.Present || !telemetryData.Rear.Present)
-        {
-            return SurfacePresentationState.WaitingForData("Waiting for balance data.");
-        }
-
-        return TelemetryStatistics.HasBalanceData(telemetryData, balanceType)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        return hasFrontTravelCalibration &&
+            hasRearTravelCalibration &&
+            ControlState.SessionHeader is { AcceptedTravelHz: > 0 };
     }
 
     private void QueueGraphBatchRefresh(LiveGraphBatch batch)
@@ -786,14 +749,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DamperPage.FrontHistogramState = ResolveSurfaceState(hasFrontVelocityHistogram, frontStats);
         DamperPage.RearHistogramState = ResolveSurfaceState(hasRearVelocityHistogram, rearStats);
 
-        DamperPage.FrontHscPercentage = data.DamperPercentages.FrontHscPercentage;
-        DamperPage.RearHscPercentage = data.DamperPercentages.RearHscPercentage;
-        DamperPage.FrontLscPercentage = data.DamperPercentages.FrontLscPercentage;
-        DamperPage.RearLscPercentage = data.DamperPercentages.RearLscPercentage;
-        DamperPage.FrontLsrPercentage = data.DamperPercentages.FrontLsrPercentage;
-        DamperPage.RearLsrPercentage = data.DamperPercentages.RearLsrPercentage;
-        DamperPage.FrontHsrPercentage = data.DamperPercentages.FrontHsrPercentage;
-        DamperPage.RearHsrPercentage = data.DamperPercentages.RearHsrPercentage;
+        DamperPage.ApplyDamperPercentages(data.DamperPercentages);
         DamperPercentages = data.DamperPercentages;
 
         BalancePage.CompressionBalance = data.CompressionBalance;
@@ -888,21 +844,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DamperPage.RearVelocityHistogram = null;
         DamperPage.FrontHistogramState = SurfacePresentationState.Hidden;
         DamperPage.RearHistogramState = SurfacePresentationState.Hidden;
-        DamperPage.FrontHscPercentage = null;
-        DamperPage.RearHscPercentage = null;
-        DamperPage.FrontLscPercentage = null;
-        DamperPage.RearLscPercentage = null;
-        DamperPage.FrontLsrPercentage = null;
-        DamperPage.RearLsrPercentage = null;
-        DamperPage.FrontHsrPercentage = null;
-        DamperPage.RearHsrPercentage = null;
+        DamperPage.ClearDamperPercentages();
 
         BalancePage.CompressionBalance = null;
         BalancePage.ReboundBalance = null;
         BalancePage.CompressionBalanceState = SurfacePresentationState.Hidden;
         BalancePage.ReboundBalanceState = SurfacePresentationState.Hidden;
 
-        DamperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
+        DamperPercentages = SessionDamperPercentages.Empty;
         EnsureBalancePage(balanceAvailable: false);
     }
 

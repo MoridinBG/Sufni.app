@@ -550,7 +550,7 @@ public class TelemetryDataTests
         Assert.Equal(Parameters.TravelHistBins + 1, histogram.Bins.Count);
         Assert.Equal(100.0 / 3.0, histogram.Values[2], 3);
         Assert.Equal(100.0 / 3.0, histogram.Values[7], 3);
-        Assert.Equal(100.0 / 3.0, histogram.Values[14], 3);
+        Assert.Equal(100.0 / 3.0, histogram.Values[15], 3);
         Assert.Equal(100, histogram.Values.Sum(), 3);
     }
 
@@ -571,7 +571,7 @@ public class TelemetryDataTests
 
         Assert.Equal(36, histogram.Bins.Count);
         Assert.Equal(100.0 / 3.0, histogram.Values[2], 3);
-        Assert.Equal(100.0 / 3.0, histogram.Values[14], 3);
+        Assert.Equal(100.0 / 3.0, histogram.Values[15], 3);
         Assert.Equal(100.0 / 3.0, histogram.Values[34], 3);
         Assert.Equal(100, histogram.Values.Sum(), 3);
     }
@@ -817,7 +817,7 @@ public class TelemetryDataTests
         Assert.Equal(100, strokePeakHistogram.Values.SelectMany(values => values).Sum(), 3);
         Assert.True(sampleHistogram.Values[1][0] > 0);
         Assert.Equal(0, strokePeakHistogram.Values[1][0]);
-        Assert.Equal(50, strokePeakHistogram.Values[1][1], 3);
+        Assert.Equal(50, strokePeakHistogram.Values[1][2], 3);
     }
 
     [Fact]

@@ -179,7 +179,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMediaContent))]
     private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
+    [ObservableProperty] private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
     [ObservableProperty] private SessionAnalysisResult sessionAnalysis = SessionAnalysisResult.Hidden;
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
@@ -334,19 +334,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private void ApplyDamperPercentages(SessionDamperPercentages percentages)
     {
         DamperPercentages = percentages;
-        DamperPage.FrontHscPercentage = percentages.FrontHscPercentage;
-        DamperPage.RearHscPercentage = percentages.RearHscPercentage;
-        DamperPage.FrontLscPercentage = percentages.FrontLscPercentage;
-        DamperPage.RearLscPercentage = percentages.RearLscPercentage;
-        DamperPage.FrontLsrPercentage = percentages.FrontLsrPercentage;
-        DamperPage.RearLsrPercentage = percentages.RearLsrPercentage;
-        DamperPage.FrontHsrPercentage = percentages.FrontHsrPercentage;
-        DamperPage.RearHsrPercentage = percentages.RearHsrPercentage;
+        DamperPage.ApplyDamperPercentages(percentages);
     }
 
     private void ClearDamperPercentages()
     {
-        ApplyDamperPercentages(new SessionDamperPercentages(null, null, null, null, null, null, null, null));
+        ApplyDamperPercentages(SessionDamperPercentages.Empty);
     }
 
     private void RecomputeDamperPercentagesForAnalysisRange()
@@ -501,64 +494,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         return frameMeta is { AccelLsbPerG: > 0, GyroLsbPerDps: > 0 };
     }
 
-    private static SurfacePresentationState CreateStatisticsState(
-        TelemetryData? telemetry,
-        SuspensionType suspensionType,
-        TelemetryTimeRange? range)
-    {
-        if (telemetry is null)
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        var suspension = suspensionType == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
-        if (!suspension.Present)
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        return TelemetryStatistics.HasStrokeData(telemetry, suspensionType, range)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData("Waiting for statistics.");
-    }
-
-    private static SurfacePresentationState CreateBalanceState(
-        TelemetryData? telemetry,
-        BalanceType balanceType,
-        TelemetryTimeRange? range)
-    {
-        if (telemetry is null || !telemetry.Front.Present || !telemetry.Rear.Present)
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        return TelemetryStatistics.HasBalanceData(telemetry, balanceType, range)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData("Waiting for balance data.");
-    }
-
-    private static SurfacePresentationState CreateVibrationState(
-        TelemetryData? telemetry,
-        SuspensionType suspensionType,
-        ImuLocation location,
-        TelemetryTimeRange? range)
-    {
-        if (telemetry is null)
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        var suspension = suspensionType == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
-        if (!suspension.Present || !TelemetryStatistics.HasVibrationData(telemetry, location))
-        {
-            return SurfacePresentationState.Hidden;
-        }
-
-        return TelemetryStatistics.HasStrokeData(telemetry, suspensionType, range)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData("Waiting for vibration data.");
-    }
-
     private void RefreshAnalysisRangeStates()
     {
         if (TelemetryData is { } telemetry)
@@ -569,14 +504,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyAnalysisRangeStates(TelemetryData telemetry)
     {
-        FrontStatisticsState = CreateStatisticsState(telemetry, SuspensionType.Front, AnalysisRange);
-        RearStatisticsState = CreateStatisticsState(telemetry, SuspensionType.Rear, AnalysisRange);
-        CompressionBalanceState = CreateBalanceState(telemetry, BalanceType.Compression, AnalysisRange);
-        ReboundBalanceState = CreateBalanceState(telemetry, BalanceType.Rebound, AnalysisRange);
-        FrontForkVibrationState = CreateVibrationState(telemetry, SuspensionType.Front, ImuLocation.Fork, AnalysisRange);
-        FrontFrameVibrationState = CreateVibrationState(telemetry, SuspensionType.Front, ImuLocation.Frame, AnalysisRange);
-        RearForkVibrationState = CreateVibrationState(telemetry, SuspensionType.Rear, ImuLocation.Fork, AnalysisRange);
-        RearFrameVibrationState = CreateVibrationState(telemetry, SuspensionType.Rear, ImuLocation.Frame, AnalysisRange);
+        FrontStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front, AnalysisRange);
+        RearStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, AnalysisRange);
+        CompressionBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Compression, AnalysisRange);
+        ReboundBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Rebound, AnalysisRange);
+        FrontForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, AnalysisRange);
+        FrontFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, AnalysisRange);
+        RearForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, AnalysisRange);
+        RearFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, AnalysisRange);
     }
 
     private void HideVibrationStates()
@@ -1200,10 +1135,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
             HasProcessedData = snapshot.HasProcessedData,
             Updated = snapshot.Updated,
-            DurationSeconds = snapshot.DurationSeconds,
-            DistanceMeters = snapshot.DistanceMeters,
-            AscentMeters = snapshot.AscentMeters,
-            DescentMeters = snapshot.DescentMeters,
         };
         return s;
     }
@@ -1527,10 +1458,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
             HasProcessedData = IsComplete,
             FullTrack = session.FullTrack,
-            DurationSeconds = session.DurationSeconds,
-            DistanceMeters = session.DistanceMeters,
-            AscentMeters = session.AscentMeters,
-            DescentMeters = session.DescentMeters,
         };
 
         var result = await sessionCoordinator.SaveAsync(newSession, BaselineUpdated);
@@ -1652,23 +1579,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
         if (TelemetryData is null ||
-            double.IsNaN(boundarySeconds) ||
-            double.IsInfinity(boundarySeconds))
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
         }
 
-        boundarySeconds = Math.Clamp(boundarySeconds, 0, TelemetryData.Metadata.Duration);
         if (AnalysisRange is { } range)
         {
-            if (Math.Abs(boundarySeconds - range.StartSeconds) <= Math.Abs(boundarySeconds - range.EndSeconds))
+            if (Math.Abs(clampedBoundarySeconds - range.StartSeconds) <= Math.Abs(clampedBoundarySeconds - range.EndSeconds))
             {
-                SetAnalysisRange(boundarySeconds, range.EndSeconds);
+                SetAnalysisRange(clampedBoundarySeconds, range.EndSeconds);
             }
             else
             {
-                SetAnalysisRange(range.StartSeconds, boundarySeconds);
+                SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
             }
 
             return;
@@ -1676,11 +1601,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
         {
-            pendingAnalysisRangeBoundary = boundarySeconds;
+            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
             return;
         }
 
-        SetAnalysisRange(pendingBoundary, boundarySeconds);
+        SetAnalysisRange(pendingBoundary, clampedBoundarySeconds);
     }
 
     public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)

@@ -1096,29 +1096,10 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         SessionDamperPercentages percentages)
     {
         var source = "Current damper band percentages";
-        evidence.Add(CreateEvidence("HSC", FormatNullablePercent(GetDamperPercentage(percentages, side.Type, DamperBand.Hsc)), "%", side.Name, source));
-        evidence.Add(CreateEvidence("LSC", FormatNullablePercent(GetDamperPercentage(percentages, side.Type, DamperBand.Lsc)), "%", side.Name, source));
-        evidence.Add(CreateEvidence("HSR", FormatNullablePercent(GetDamperPercentage(percentages, side.Type, DamperBand.Hsr)), "%", side.Name, source));
-        evidence.Add(CreateEvidence("LSR", FormatNullablePercent(GetDamperPercentage(percentages, side.Type, DamperBand.Lsr)), "%", side.Name, source));
-    }
-
-    private static double? GetDamperPercentage(
-        SessionDamperPercentages percentages,
-        SuspensionType side,
-        DamperBand band)
-    {
-        return (side, band) switch
-        {
-            (SuspensionType.Front, DamperBand.Hsc) => percentages.FrontHscPercentage,
-            (SuspensionType.Front, DamperBand.Lsc) => percentages.FrontLscPercentage,
-            (SuspensionType.Front, DamperBand.Hsr) => percentages.FrontHsrPercentage,
-            (SuspensionType.Front, DamperBand.Lsr) => percentages.FrontLsrPercentage,
-            (SuspensionType.Rear, DamperBand.Hsc) => percentages.RearHscPercentage,
-            (SuspensionType.Rear, DamperBand.Lsc) => percentages.RearLscPercentage,
-            (SuspensionType.Rear, DamperBand.Hsr) => percentages.RearHsrPercentage,
-            (SuspensionType.Rear, DamperBand.Lsr) => percentages.RearLsrPercentage,
-            _ => null,
-        };
+        evidence.Add(CreateEvidence("HSC", FormatNullablePercent(percentages.Get(side.Type, DamperBand.Hsc)), "%", side.Name, source));
+        evidence.Add(CreateEvidence("LSC", FormatNullablePercent(percentages.Get(side.Type, DamperBand.Lsc)), "%", side.Name, source));
+        evidence.Add(CreateEvidence("HSR", FormatNullablePercent(percentages.Get(side.Type, DamperBand.Hsr)), "%", side.Name, source));
+        evidence.Add(CreateEvidence("LSR", FormatNullablePercent(percentages.Get(side.Type, DamperBand.Lsr)), "%", side.Name, source));
     }
 
     private static SessionAnalysisEvidence CreateEvidence(
@@ -1178,8 +1159,8 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
     private static AdjustmentComponent SelectCompressionOpenComponent(SideSnapshot side, AnalysisContext context)
     {
-        var hsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Hsc) ?? 0;
-        var lsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Lsc) ?? 0;
+        var hsc = context.Request.DamperPercentages.Get(side.Type, DamperBand.Hsc) ?? 0;
+        var lsc = context.Request.DamperPercentages.Get(side.Type, DamperBand.Lsc) ?? 0;
         return hsc > lsc
             ? AdjustmentComponent.HighSpeedCompression
             : AdjustmentComponent.LowSpeedCompression;
@@ -1238,8 +1219,8 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
     private static AdjustmentComponent SelectDominantReboundComponent(SideSnapshot side, AnalysisContext context)
     {
-        var hsr = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Hsr) ?? 0;
-        var lsr = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Lsr) ?? 0;
+        var hsr = context.Request.DamperPercentages.Get(side.Type, DamperBand.Hsr) ?? 0;
+        var lsr = context.Request.DamperPercentages.Get(side.Type, DamperBand.Lsr) ?? 0;
         return hsr > lsr
             ? AdjustmentComponent.HighSpeedRebound
             : AdjustmentComponent.LowSpeedRebound;
@@ -1247,8 +1228,8 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
 
     private static AdjustmentComponent SelectDominantCompressionComponent(SideSnapshot side, AnalysisContext context)
     {
-        var hsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Hsc) ?? 0;
-        var lsc = GetDamperPercentage(context.Request.DamperPercentages, side.Type, DamperBand.Lsc) ?? 0;
+        var hsc = context.Request.DamperPercentages.Get(side.Type, DamperBand.Hsc) ?? 0;
+        var lsc = context.Request.DamperPercentages.Get(side.Type, DamperBand.Lsc) ?? 0;
         return hsc > lsc
             ? AdjustmentComponent.HighSpeedCompression
             : AdjustmentComponent.LowSpeedCompression;
@@ -1407,14 +1388,6 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         return string.IsNullOrWhiteSpace(value)
             ? value
             : char.ToUpperInvariant(value[0]) + value[1..];
-    }
-
-    private enum DamperBand
-    {
-        Hsc,
-        Lsc,
-        Hsr,
-        Lsr,
     }
 
     private readonly record struct SpeedBand(double Low, double High);

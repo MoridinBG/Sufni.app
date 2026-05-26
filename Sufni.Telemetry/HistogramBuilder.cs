@@ -6,6 +6,8 @@ public readonly record struct DigitizedSeries(
 
 public static class HistogramBuilder
 {
+    private const double BinEdgeTolerance = 0.0001;
+
     public static double[] Linspace(double min, double max, int count)
     {
         var step = (max - min) / (count - 1);
@@ -22,26 +24,26 @@ public static class HistogramBuilder
     public static int[] Digitize(double[] values, double[] bins)
     {
         var indexes = new int[values.Length];
+        if (bins.Length < 2)
+        {
+            return indexes;
+        }
+
         var maxBinIndex = bins.Length - 2;
         for (var index = 0; index < values.Length; index++)
         {
-            var binIndex = Array.BinarySearch(bins, values[index]);
-            if (binIndex < 0)
-            {
-                binIndex = ~binIndex;
-            }
-
-            if (values[index] >= bins[^1] || Math.Abs(values[index] - bins[binIndex]) > 0.0001)
-            {
-                binIndex -= 1;
-            }
-
-            indexes[index] = Math.Clamp(binIndex, 0, maxBinIndex);
+            indexes[index] = DigitizeValue(values[index], bins, maxBinIndex);
         }
 
         return indexes;
     }
 
+    /// <summary>
+    /// Returns the histogram bin index for <paramref name="value"/>.
+    /// Interior bins use [lower, upper) intervals, exact interior edges are
+    /// assigned to the upper bin, and the final edge is included in the last bin.
+    /// Values outside the bin range are clamped to the first or last bin.
+    /// </summary>
     public static int DigitizeValue(double value, double[] bins)
     {
         if (bins.Length < 2)
@@ -62,22 +64,19 @@ public static class HistogramBuilder
 
     private static int DigitizeValue(double value, double[] bins, int maxBinIndex)
     {
-        if (value <= bins[0])
+        var binIndex = Array.BinarySearch(bins, value);
+        if (binIndex < 0)
         {
-            return 0;
+            binIndex = ~binIndex;
         }
 
-        if (value >= bins[^1])
+        if (value >= bins[^1] ||
+            binIndex >= bins.Length ||
+            Math.Abs(value - bins[binIndex]) > BinEdgeTolerance)
         {
-            return maxBinIndex;
+            binIndex -= 1;
         }
 
-        var index = Array.BinarySearch(bins, value);
-        if (index >= 0)
-        {
-            return Math.Clamp(index - 1, 0, maxBinIndex);
-        }
-
-        return Math.Clamp(~index - 1, 0, maxBinIndex);
+        return Math.Clamp(binIndex, 0, maxBinIndex);
     }
 }
