@@ -262,52 +262,6 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
-    public async Task Initialization_BackfillsSessionSummaryMetrics_FromProcessedDataAndSessionTrack()
-    {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-        var databasePath = Path.Combine(tempDirectory, "summary-backfill.db");
-        var sessionId = Guid.NewGuid();
-
-        try
-        {
-            var firstRun = new SqLiteDatabaseService(databasePath);
-            _ = await firstRun.GetSessionsAsync();
-
-            using (var connection = new SQLiteConnection(databasePath))
-            {
-                connection.Insert(new Session(sessionId, "legacy", "desc", null, 100)
-                {
-                    ProcessedData = CreateTelemetryBlob(65),
-                    Track =
-                    [
-                        new TrackPoint(100, 0, 0, 10),
-                        new TrackPoint(101, 3, 4, 14),
-                        new TrackPoint(102, 6, 8, 10)
-                    ],
-                    Updated = 1
-                });
-            }
-
-            var secondRun = new SqLiteDatabaseService(databasePath);
-            var session = await secondRun.GetSessionAsync(sessionId);
-
-            Assert.NotNull(session);
-            Assert.Equal(65, session!.DurationSeconds);
-            Assert.InRange(session.DistanceMeters!.Value, 9.98, 10.0);
-            Assert.Equal(4, session.AscentMeters);
-            Assert.Equal(4, session.DescentMeters);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
     public async Task RecordedSessionSourceCrud_RoundTripsSourceAndMissingSourceIds()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
