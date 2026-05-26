@@ -61,7 +61,6 @@ public class SqLiteDatabaseService : IDatabaseService
             await EnsureSessionProcessingFingerprintColumnAsync();
             await EnsureSessionSummaryMetricColumnsAsync();
             await BackfillRearSuspensionKindAsync();
-            await BackfillSessionSummaryMetricsAsync();
 
             var cleanupSummary = await Cleanup();
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
@@ -128,68 +127,6 @@ public class SqLiteDatabaseService : IDatabaseService
     private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
         "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND (rear_suspension_kind IS NULL OR rear_suspension_kind = ?)",
         [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
-
-    private async Task BackfillSessionSummaryMetricsAsync()
-    {
-        var sessions = await connection.QueryAsync<Session>(
-            """
-            SELECT
-                id,
-                timestamp,
-                duration_seconds,
-                distance_meters,
-                ascent_meters,
-                descent_meters,
-                full_track_id,
-                track,
-                data
-            FROM session
-            WHERE
-                deleted IS NULL
-                AND data IS NOT NULL
-                AND (
-                    duration_seconds IS NULL
-                    OR distance_meters IS NULL
-                    OR ascent_meters IS NULL
-                    OR descent_meters IS NULL
-                )
-            """);
-
-        foreach (var session in sessions)
-        {
-            var previousMetrics = new SessionSummaryMetrics(
-                session.DurationSeconds,
-                session.DistanceMeters,
-                session.AscentMeters,
-                session.DescentMeters);
-
-            await ApplySessionSummaryMetricsAsync(session, generatedFullTrack: null);
-
-            if (previousMetrics.DurationSeconds == session.DurationSeconds &&
-                previousMetrics.DistanceMeters == session.DistanceMeters &&
-                previousMetrics.AscentMeters == session.AscentMeters &&
-                previousMetrics.DescentMeters == session.DescentMeters)
-            {
-                continue;
-            }
-
-            await connection.ExecuteAsync(
-                """
-                UPDATE session
-                SET
-                    duration_seconds=?,
-                    distance_meters=?,
-                    ascent_meters=?,
-                    descent_meters=?
-                WHERE id=?
-                """,
-                session.DurationSeconds,
-                session.DistanceMeters,
-                session.AscentMeters,
-                session.DescentMeters,
-                session.Id);
-        }
-    }
 
     private AsyncTableQuery<T> Table<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
     {
