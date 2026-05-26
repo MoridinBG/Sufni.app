@@ -27,12 +27,14 @@ public class DeepTravelHistogramPlot(Plot plot, SuspensionType type, SufniTheme?
         var data = TelemetryStatistics.CalculateDeepTravelHistogram(telemetryData, type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Select((value, index) =>
+        var bars = data.Values.Select((value, index) => (Value: value, Index: index))
+            .Where(bin => bin.Value > 0)
+            .Select(bin =>
             {
                 var bar = new Bar
                 {
-                    Position = data.Bins[index],
-                    Value = value,
+                    Position = data.Bins[bin.Index],
+                    Value = bin.Value,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
                     LineWidth = 1.5f,
@@ -42,14 +44,17 @@ public class DeepTravelHistogramPlot(Plot plot, SuspensionType type, SufniTheme?
 
                 AddBarReadout(
                     bar,
-                    FormatReadoutRange("Axle position", data.Bins, index, "mm"),
-                    new CursorReadoutLine("Strokes", value, string.Empty, color, "0"));
+                    FormatReadoutRange("Axle position", data.Bins, bin.Index, "mm"),
+                    new CursorReadoutLine("Strokes", bin.Value, string.Empty, color, "0"));
 
                 return bar;
             })
             .ToList();
 
-        Plot.Add.Bars(bars);
+        if (bars.Count > 0)
+        {
+            Plot.Add.Bars(bars);
+        }
 
         var maxValue = Math.Max(1, data.Values.Max());
         var top = maxValue / 0.9;
