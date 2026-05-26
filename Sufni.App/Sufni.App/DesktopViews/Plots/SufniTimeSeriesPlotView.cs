@@ -326,8 +326,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         var point = args.GetPosition(PlotControl);
         var coords = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
-        seconds = Math.Clamp(coords.X, 0.0, duration);
-        return true;
+        return TelemetryTimeRange.TryClampBoundary(coords.X, duration, out seconds);
     }
 
     protected virtual void ApplyPlotOptions(TelemetryPlot plotModel)

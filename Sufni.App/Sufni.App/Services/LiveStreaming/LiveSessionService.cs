@@ -107,7 +107,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private LiveSessionHeader? sessionHeader;
     private LiveSessionStats? latestSessionStats;
     private TelemetryData? statisticsTelemetry;
-    private SessionDamperPercentages damperPercentages = new(null, null, null, null, null, null, null, null);
+    private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
     private TrackPoint[] sessionTrackPoints = [];
     private TrackPointGeoCoordinate? previousAcceptedGpsCoordinate;
     private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
@@ -255,7 +255,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             gpsRecords.Clear();
             imuDisplaySignalProcessor.Reset();
             statisticsTelemetry = null;
-            damperPercentages = new SessionDamperPercentages(null, null, null, null, null, null, null, null);
+            damperPercentages = SessionDamperPercentages.Empty;
             sessionTrackPoints = [];
             previousAcceptedGpsCoordinate = null;
             captureStartMonotonicUs = null;

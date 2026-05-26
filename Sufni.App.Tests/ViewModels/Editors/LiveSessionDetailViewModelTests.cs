@@ -513,7 +513,7 @@ public class LiveSessionDetailViewModelTests
             RearVelocityHistogram: null,
             CompressionBalance: "<svg id='compression' />",
             ReboundBalance: "<svg id='rebound' />",
-            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            DamperPercentages: SessionDamperPercentages.Empty,
             BalanceAvailable: true);
         var noBalanceData = balanceData with
         {
@@ -568,7 +568,7 @@ public class LiveSessionDetailViewModelTests
             RearVelocityHistogram: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            DamperPercentages: SessionDamperPercentages.Empty,
             BalanceAvailable: false);
 
         sessionPresentationService
@@ -597,7 +597,7 @@ public class LiveSessionDetailViewModelTests
             RearVelocityHistogram: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            DamperPercentages: SessionDamperPercentages.Empty,
             BalanceAvailable: false);
         var secondData = firstData with
         {
@@ -716,7 +716,7 @@ public class LiveSessionDetailViewModelTests
             RearVelocityHistogram: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            DamperPercentages: SessionDamperPercentages.Empty,
             BalanceAvailable: false);
 
         sessionPresentationService
@@ -803,7 +803,7 @@ public class LiveSessionDetailViewModelTests
             RearVelocityHistogram: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: new SessionDamperPercentages(null, null, null, null, null, null, null, null),
+            DamperPercentages: SessionDamperPercentages.Empty,
             BalanceAvailable: false);
         CancellationToken capturedBakeToken = default;
         var bakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
