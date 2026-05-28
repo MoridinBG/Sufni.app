@@ -9,6 +9,7 @@ using NSubstitute;
 using Serilog.Core;
 using Sufni.App.Models;
 using Sufni.App.Queries;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
@@ -51,7 +52,11 @@ public class LiveSessionServiceTests
             return Task.FromResult<LivePreviewStartResult?>(
                 new LivePreviewStartResult.Started(sessionHeader));
         });
-        sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>())
+        sessionPresentationService.CalculateDamperPercentages(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8));
     }
 
@@ -150,6 +155,31 @@ public class LiveSessionServiceTests
 
         var partialCapture = await service.PrepareCaptureForSaveAsync();
         Assert.Equal(5, partialCapture.TelemetryCapture.RearMeasurements.Length);
+    }
+
+    [Fact]
+    public async Task Frames_CalculateDamperPercentagesWithContextCutoffs()
+    {
+        var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
+        var service = CreateService(context: CreateSessionContext(cutoffs));
+        var statisticsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
+        {
+            if (snapshot.StatisticsTelemetry is not null)
+            {
+                statisticsReady.TrySetResult();
+            }
+        });
+
+        await service.EnsureAttachedAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        await statisticsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        sessionPresentationService.Received(1).CalculateDamperPercentages(
+            Arg.Any<TelemetryData>(),
+            Arg.Any<TelemetryTimeRange?>(),
+            Arg.Any<VelocityAverageMode>(),
+            Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs));
     }
 
     [Fact]
@@ -431,11 +461,14 @@ public class LiveSessionServiceTests
         }
     }
 
-    private ILiveSessionService CreateService(IBackgroundTaskRunner? runner = null, ILiveGraphPipeline? graphPipeline = null)
+    private ILiveSessionService CreateService(
+        IBackgroundTaskRunner? runner = null,
+        ILiveGraphPipeline? graphPipeline = null,
+        LiveDaqSessionContext? context = null)
     {
         var pipeline = graphPipeline ?? new LiveGraphPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
         return new LiveSessionService(
-            CreateSessionContext(),
+            context ?? CreateSessionContext(),
             sharedStream,
             sessionPresentationService,
             runner ?? backgroundTaskRunner,
@@ -607,7 +640,7 @@ public class LiveSessionServiceTests
             ]);
     }
 
-    private static LiveDaqSessionContext CreateSessionContext()
+    private static LiveDaqSessionContext CreateSessionContext(DampingSpeedCutoffs? cutoffs = null)
     {
         return new LiveDaqSessionContext(
             IdentityKey: "board-1",
@@ -623,6 +656,8 @@ public class LiveSessionServiceTests
                 RearMaxTravel: 170,
                 FrontMeasurementToTravel: measurement => measurement / 10.0,
                 RearMeasurementToTravel: measurement => measurement / 10.0),
-            TravelCalibration: new LiveDaqTravelCalibration(null, null));
+            TravelCalibration: new LiveDaqTravelCalibration(null, null),
+            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
     }
 }

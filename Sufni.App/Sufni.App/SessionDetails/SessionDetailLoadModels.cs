@@ -5,13 +5,37 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.SessionDetails;
 
+public sealed record DampingSpeedCutoffOwner(Guid BikeId, long BaselineUpdated);
+
 public sealed record SessionTelemetryPresentationData(
     TelemetryData TelemetryData,
     Guid? FullTrackId,
     List<TrackPoint>? FullTrackPoints,
     List<TrackPoint>? TrackPoints,
     double? MapVideoWidth,
-    SessionDamperPercentages DamperPercentages);
+    SessionDamperPercentages DamperPercentages,
+    DampingSpeedCutoffs DampingSpeedCutoffs,
+    DampingSpeedCutoffOwner? DampingSpeedCutoffOwner)
+{
+    public SessionTelemetryPresentationData(
+        TelemetryData TelemetryData,
+        Guid? FullTrackId,
+        List<TrackPoint>? FullTrackPoints,
+        List<TrackPoint>? TrackPoints,
+        double? MapVideoWidth,
+        SessionDamperPercentages DamperPercentages)
+        : this(
+            TelemetryData,
+            FullTrackId,
+            FullTrackPoints,
+            TrackPoints,
+            MapVideoWidth,
+            DamperPercentages,
+            DampingSpeedCutoffs.Default,
+            null)
+    {
+    }
+}
 
 public sealed record SessionTrackPresentationData(
     Guid? FullTrackId,
@@ -27,8 +51,32 @@ public sealed record SessionCachePresentationData(
     string? CompressionBalance,
     string? ReboundBalance,
     SessionDamperPercentages DamperPercentages,
-    bool BalanceAvailable)
+    DampingSpeedCutoffs DampingSpeedCutoffs,
+    bool BalanceAvailable,
+    DampingSpeedCutoffOwner? DampingSpeedCutoffOwner = null)
 {
+    public SessionCachePresentationData(
+        string? FrontTravelHistogram,
+        string? RearTravelHistogram,
+        string? FrontVelocityHistogram,
+        string? RearVelocityHistogram,
+        string? CompressionBalance,
+        string? ReboundBalance,
+        SessionDamperPercentages DamperPercentages,
+        bool BalanceAvailable)
+        : this(
+            FrontTravelHistogram,
+            RearTravelHistogram,
+            FrontVelocityHistogram,
+            RearVelocityHistogram,
+            CompressionBalance,
+            ReboundBalance,
+            DamperPercentages,
+            DampingSpeedCutoffs.Default,
+            BalanceAvailable)
+    {
+    }
+
     public static SessionCachePresentationData FromCache(SessionCache cache)
     {
         var balanceAvailable = cache.CompressionBalance is not null && cache.ReboundBalance is not null;
@@ -41,6 +89,7 @@ public sealed record SessionCachePresentationData(
             cache.CompressionBalance,
             cache.ReboundBalance,
             cache.DamperPercentages,
+            cache.DampingSpeedCutoffs,
             balanceAvailable);
     }
 
@@ -56,6 +105,7 @@ public sealed record SessionCachePresentationData(
             CompressionBalance = BalanceAvailable ? CompressionBalance : null,
             ReboundBalance = BalanceAvailable ? ReboundBalance : null,
             DamperPercentages = this.DamperPercentages,
+            DampingSpeedCutoffs = this.DampingSpeedCutoffs,
         };
     }
 }

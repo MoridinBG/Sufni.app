@@ -17,6 +17,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
         TravelZonePalette.HexColors.Select(Color.FromHex).ToArray();
 
     public VelocityAverageMode AverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
+    public DampingSpeedCutoffs DampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
 
     private void AddStatistics(VelocityStatistics statistics)
     {
@@ -156,5 +157,13 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
         AddStatistics(velocityStats);
     }
 
-    private VelocityStatisticsOptions CreateOptions() => new(AnalysisRange, AverageMode);
+    private VelocityStatisticsOptions CreateOptions()
+    {
+        var cutoffs = DampingSpeedCutoffs.ForSide(type);
+        return new VelocityStatisticsOptions(
+            AnalysisRange,
+            AverageMode,
+            cutoffs.CompressionMmPerSecond,
+            cutoffs.ReboundMmPerSecond);
+    }
 }
