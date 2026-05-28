@@ -1,40 +1,25 @@
-using System;
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Data;
-using Avalonia.Data.Converters;
+using Sufni.App.SessionDetails;
 
 namespace Sufni.App.Views.Plots;
 
-public class GridLengthConverter : IValueConverter
-{
-    public static readonly GridLengthConverter Instance = new();
-
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is null)
-        {
-            return new GridLength(0, GridUnitType.Star);
-        }
-
-        if (value is double length)
-        {
-            return new GridLength(length, GridUnitType.Star);
-        }
-
-        return new BindingNotification(new InvalidCastException(), BindingErrorType.Error);
-    }
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        throw new NotSupportedException();
-    }
-}
-
 public class VelocityBandView : TemplatedControl
 {
+    private static readonly GridLength highSpeedZoneLength = new(
+        SessionDampingSettings.VelocityHistogramLimitMmPerSecond -
+        SessionDampingSettings.HighSpeedThresholdMmPerSecond,
+        GridUnitType.Star);
+
+    private static readonly GridLength lowSpeedZoneLength = new(
+        SessionDampingSettings.HighSpeedThresholdMmPerSecond,
+        GridUnitType.Star);
+
+    public GridLength HighSpeedZoneLength => highSpeedZoneLength;
+
+    public GridLength LowSpeedZoneLength => lowSpeedZoneLength;
+
     public static readonly StyledProperty<double?> HsrPercentageProperty = AvaloniaProperty.Register<VelocityBandView, double?>(
         "HsrPercentage");
 

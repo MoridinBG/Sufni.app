@@ -9,28 +9,33 @@ namespace Sufni.App.Services;
 
 public sealed class SessionPresentationService : ISessionPresentationService
 {
-    private const double HighSpeedThreshold = 200.0;
-
     public SessionDamperPercentages CalculateDamperPercentages(
         TelemetryData telemetryData,
-        TelemetryTimeRange? range = null)
+        TelemetryTimeRange? range = null,
+        VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged)
     {
         return SessionDamperPercentages.FromSides(
-            CalculateDamperSidePercentages(telemetryData, SuspensionType.Front, range),
-            CalculateDamperSidePercentages(telemetryData, SuspensionType.Rear, range));
+            CalculateDamperSidePercentages(telemetryData, SuspensionType.Front, range, velocityAverageMode),
+            CalculateDamperSidePercentages(telemetryData, SuspensionType.Rear, range, velocityAverageMode));
     }
 
     private static SessionDamperSidePercentages CalculateDamperSidePercentages(
         TelemetryData telemetryData,
         SuspensionType suspensionType,
-        TelemetryTimeRange? range)
+        TelemetryTimeRange? range,
+        VelocityAverageMode velocityAverageMode)
     {
         if (!TelemetryStatistics.HasStrokeData(telemetryData, suspensionType, range))
         {
             return SessionDamperSidePercentages.Empty;
         }
 
-        var bands = TelemetryStatistics.CalculateVelocityBands(telemetryData, suspensionType, HighSpeedThreshold, range);
+        var options = new VelocityStatisticsOptions(range, velocityAverageMode);
+        var bands = TelemetryStatistics.CalculateVelocityBands(
+            telemetryData,
+            suspensionType,
+            SessionDampingSettings.HighSpeedThresholdMmPerSecond,
+            options);
         return new SessionDamperSidePercentages(
             bands.HighSpeedCompression,
             bands.LowSpeedCompression,

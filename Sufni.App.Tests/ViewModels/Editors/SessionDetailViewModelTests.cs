@@ -34,7 +34,10 @@ public class SessionDetailViewModelTests
     {
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
-        sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
+        sessionPresentationService.CalculateDamperPercentages(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>())
             .Returns(SessionDamperPercentages.Empty);
         sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
@@ -639,6 +642,8 @@ public class SessionDetailViewModelTests
     public async Task StatisticsPreferenceChange_RecomputesAnalysisAndPersistsAfterHydration()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var strokePeakPercentages = new SessionDamperPercentages(11, 21, 31, 41, 51, 61, 71, 81);
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         Func<SessionPreferences, SessionPreferences>? update = null;
@@ -647,7 +652,12 @@ public class SessionDetailViewModelTests
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
+            .Returns(LoadedDesktopResult(telemetry));
+        sessionPresentationService.CalculateDamperPercentages(
+                telemetry,
+                Arg.Is<TelemetryTimeRange?>(range => !range.HasValue),
+                VelocityAverageMode.StrokePeakAveraged)
+            .Returns(strokePeakPercentages);
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
@@ -658,7 +668,8 @@ public class SessionDetailViewModelTests
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
 
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
-            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged));
+            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
+            request.DamperPercentages == strokePeakPercentages));
         await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
         Assert.NotNull(update);
         Assert.Equal(

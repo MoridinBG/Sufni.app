@@ -253,6 +253,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     partial void OnSelectedVelocityAverageModeChanged(VelocityAverageMode value)
     {
         OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
     }
@@ -350,7 +351,27 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return;
         }
 
-        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(TelemetryData, AnalysisRange));
+        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
+            TelemetryData,
+            AnalysisRange,
+            SelectedVelocityAverageMode));
+    }
+
+    private void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    {
+        if (TelemetryData is null)
+        {
+            ClearDamperPercentages();
+            return;
+        }
+
+        if (AnalysisRange is null && SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        {
+            ApplyDamperPercentages(sampleAveragedPercentages);
+            return;
+        }
+
+        RecomputeDamperPercentagesForAnalysisRange();
     }
 
     private void RecomputeSessionAnalysisIfAllowed()
@@ -655,7 +676,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 FullTrackPoints = loaded.Data.FullTrackPoints;
                 TrackPoints = loaded.Data.TrackPoints;
                 MapVideoWidth = loaded.Data.MapVideoWidth;
-                ApplyDamperPercentages(loaded.Data.DamperPercentages);
+                ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
                 RecomputeSessionAnalysis();
                 lastObservedHasProcessedData = true;
