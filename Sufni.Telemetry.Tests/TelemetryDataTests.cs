@@ -821,6 +821,41 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateVelocityBands_WithStrokePeakAverage_UsesOnePeakPerStroke()
+    {
+        var telemetry = CreateTelemetry(
+            travel: [0, 10, 20, 30, 20, 10, 0, 5],
+            velocity: [250, 50, 50, 50, -250, -50, -50, -50],
+            maxTravel: 100,
+            compressions:
+            [
+                CreateStroke(0, 2, maxVelocity: 250),
+                CreateStroke(3, 3, maxVelocity: 50),
+            ],
+            rebounds:
+            [
+                CreateStroke(4, 6, maxVelocity: -250),
+                CreateStroke(7, 7, maxVelocity: -50),
+            ]);
+
+        var sampleBands = TelemetryStatistics.CalculateVelocityBands(telemetry, SuspensionType.Front, 200.0);
+        var strokePeakBands = TelemetryStatistics.CalculateVelocityBands(
+            telemetry,
+            SuspensionType.Front,
+            200.0,
+            new VelocityStatisticsOptions(VelocityAverageMode: VelocityAverageMode.StrokePeakAveraged));
+
+        Assert.Equal(37.5, sampleBands.LowSpeedCompression, 3);
+        Assert.Equal(12.5, sampleBands.HighSpeedCompression, 3);
+        Assert.Equal(37.5, sampleBands.LowSpeedRebound, 3);
+        Assert.Equal(12.5, sampleBands.HighSpeedRebound, 3);
+        Assert.Equal(25, strokePeakBands.LowSpeedCompression, 3);
+        Assert.Equal(25, strokePeakBands.HighSpeedCompression, 3);
+        Assert.Equal(25, strokePeakBands.LowSpeedRebound, 3);
+        Assert.Equal(25, strokePeakBands.HighSpeedRebound, 3);
+    }
+
+    [Fact]
     public void CalculateVibration_SplitsVibrationByCompressionReboundAndOther()
     {
         var travel = Enumerable.Repeat(10.0, 400).ToArray();
@@ -1057,12 +1092,13 @@ public class TelemetryDataTests
         int sampleRate = 1000,
         Stroke[]? compressions = null,
         Stroke[]? rebounds = null,
-        RawImuData? imuData = null)
+        RawImuData? imuData = null,
+        double[]? velocity = null)
     {
         return new TelemetryData
         {
             Metadata = new Metadata { SampleRate = sampleRate, Duration = travel.Length / (double)sampleRate },
-            Front = CreateSuspension(travel, maxTravel, compressions, rebounds),
+            Front = CreateSuspension(travel, maxTravel, compressions, rebounds, velocity),
             Rear = CreateSuspension(travel, maxTravel, [], []),
             Airtimes = [],
             Markers = [],

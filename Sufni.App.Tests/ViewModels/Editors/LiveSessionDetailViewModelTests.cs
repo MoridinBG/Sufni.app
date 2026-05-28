@@ -60,6 +60,11 @@ public class LiveSessionDetailViewModelTests
             return Task.CompletedTask;
         });
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
+        sessionPresentationService.CalculateDamperPercentages(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>())
+            .Returns(SessionDamperPercentages.Empty);
         sessionCoordinator.SaveLiveCaptureAsync(
             Arg.Any<Session>(),
             Arg.Any<LiveSessionCapturePackage>(),

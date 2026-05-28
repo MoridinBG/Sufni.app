@@ -173,9 +173,9 @@ mc:Ignorable="d">
                 RowDefinitions="auto auto *">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=64}" />
+                        <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=88}" />
                         <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=64}" />
+                        <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=88}" />
                     </Grid.ColumnDefinitions>
 
                     <ComboBox
@@ -185,7 +185,7 @@ mc:Ignorable="d">
                     Grid.ColumnSpan="4"
                     Width="190"
                     HorizontalAlignment="Right"
-                    Margin="0,0,69,8"
+                    Margin="0,0,93,8"
                     ItemsSource="{Binding VelocityAverageModeOptions}"
                     SelectedValue="{Binding SelectedVelocityAverageMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:VelocityAverageModeOption}"

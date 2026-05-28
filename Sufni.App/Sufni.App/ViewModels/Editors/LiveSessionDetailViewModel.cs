@@ -136,6 +136,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref selectedVelocityAverageMode, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
+                RecomputeDamperPercentagesForSelectedVelocityAverageMode();
             }
         }
     }
@@ -623,7 +624,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ApplyPlotAvailability(snapshot.Controls.SessionHeader);
         mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
         TelemetryData = snapshot.StatisticsTelemetry;
-        DamperPercentages = snapshot.DamperPercentages;
+        ApplyModeAwareDamperPercentages(snapshot.DamperPercentages);
         var trackTimelineContext = CreateLiveTrackTimelineContext(snapshot.Controls);
         graphWorkspace.ApplyTrackPresentation(snapshot.SessionTrackPoints, trackTimelineContext);
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints, trackTimelineContext);
@@ -749,8 +750,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DamperPage.FrontHistogramState = ResolveSurfaceState(hasFrontVelocityHistogram, frontStats);
         DamperPage.RearHistogramState = ResolveSurfaceState(hasRearVelocityHistogram, rearStats);
 
-        DamperPage.ApplyDamperPercentages(data.DamperPercentages);
-        DamperPercentages = data.DamperPercentages;
+        ApplyModeAwareDamperPercentages(data.DamperPercentages);
 
         BalancePage.CompressionBalance = data.CompressionBalance;
         BalancePage.ReboundBalance = data.ReboundBalance;
@@ -771,6 +771,43 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
 
         return workspaceState.IsHidden ? SurfacePresentationState.Hidden : workspaceState;
+    }
+
+    private void ApplyDamperPercentages(SessionDamperPercentages percentages)
+    {
+        DamperPercentages = percentages;
+        DamperPage.ApplyDamperPercentages(percentages);
+    }
+
+    private void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    {
+        if (TelemetryData is null)
+        {
+            ApplyDamperPercentages(SessionDamperPercentages.Empty);
+            return;
+        }
+
+        if (SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        {
+            ApplyDamperPercentages(sampleAveragedPercentages);
+            return;
+        }
+
+        RecomputeDamperPercentagesForSelectedVelocityAverageMode();
+    }
+
+    private void RecomputeDamperPercentagesForSelectedVelocityAverageMode()
+    {
+        if (TelemetryData is null)
+        {
+            ApplyDamperPercentages(SessionDamperPercentages.Empty);
+            return;
+        }
+
+        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
+            TelemetryData,
+            AnalysisRange,
+            SelectedVelocityAverageMode));
     }
 
     private bool IsCurrentCaptureAlreadySaved()

@@ -9,7 +9,8 @@ public interface ISessionPresentationService
 {
     SessionDamperPercentages CalculateDamperPercentages(
         TelemetryData telemetryData,
-        TelemetryTimeRange? range = null);
+        TelemetryTimeRange? range = null,
+        VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged);
 
     SessionCachePresentationData BuildCachePresentation(
         TelemetryData telemetryData,

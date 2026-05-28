@@ -122,7 +122,30 @@ public static partial class TelemetryStatistics
         double highSpeedThreshold,
         TelemetryTimeRange? range = null)
     {
+        return CalculateVelocityBands(telemetryData, type, highSpeedThreshold, new VelocityStatisticsOptions(range));
+    }
+
+    public static VelocityBands CalculateVelocityBands(
+        TelemetryData telemetryData,
+        SuspensionType type,
+        double highSpeedThreshold,
+        VelocityStatisticsOptions options)
+    {
         var suspension = GetSuspension(telemetryData, type);
+        return options.VelocityAverageMode switch
+        {
+            VelocityAverageMode.SampleAveraged => CalculateSampleVelocityBands(telemetryData, suspension, highSpeedThreshold, options.Range),
+            VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityBands(telemetryData, suspension, highSpeedThreshold, options.Range),
+            _ => throw new ArgumentOutOfRangeException(nameof(options), options.VelocityAverageMode, null),
+        };
+    }
+
+    private static VelocityBands CalculateSampleVelocityBands(
+        TelemetryData telemetryData,
+        Suspension suspension,
+        double highSpeedThreshold,
+        TelemetryTimeRange? range)
+    {
         var velocity = suspension.Velocity;
 
         var totalCount = 0.0;
@@ -168,6 +191,33 @@ public static partial class TelemetryStatistics
         {
             return new VelocityBands(0, 0, 0, 0);
         }
+
+        var totalPercentage = 100.0 / totalCount;
+        return new VelocityBands(
+            lowSpeedCompression * totalPercentage,
+            highSpeedCompression * totalPercentage,
+            lowSpeedRebound * totalPercentage,
+            highSpeedRebound * totalPercentage);
+    }
+
+    private static VelocityBands CalculateStrokePeakVelocityBands(
+        TelemetryData telemetryData,
+        Suspension suspension,
+        double highSpeedThreshold,
+        TelemetryTimeRange? range)
+    {
+        var compressions = GetIncludedCompressions(telemetryData, suspension, range);
+        var rebounds = GetIncludedRebounds(telemetryData, suspension, range);
+        var totalCount = compressions.Length + rebounds.Length;
+        if (totalCount <= 0)
+        {
+            return new VelocityBands(0, 0, 0, 0);
+        }
+
+        var lowSpeedCompression = compressions.Count(stroke => stroke.Stat.MaxVelocity < highSpeedThreshold);
+        var highSpeedCompression = compressions.Length - lowSpeedCompression;
+        var lowSpeedRebound = rebounds.Count(stroke => stroke.Stat.MaxVelocity > -highSpeedThreshold);
+        var highSpeedRebound = rebounds.Length - lowSpeedRebound;
 
         var totalPercentage = 100.0 / totalCount;
         return new VelocityBands(

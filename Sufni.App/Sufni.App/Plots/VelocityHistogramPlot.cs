@@ -4,6 +4,7 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
+using Sufni.App.SessionDetails;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
@@ -11,7 +12,7 @@ namespace Sufni.App.Plots;
 
 public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
-    private const double VelocityLimit = 2000.0;
+    private const double VelocityLimit = SessionDampingSettings.VelocityHistogramLimitMmPerSecond;
     private static readonly IReadOnlyList<Color> palette =
         TravelZonePalette.HexColors.Select(Color.FromHex).ToArray();
 
