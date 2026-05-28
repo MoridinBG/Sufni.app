@@ -37,7 +37,8 @@ public class SessionDetailViewModelTests
         sessionPresentationService.CalculateDamperPercentages(
                 Arg.Any<TelemetryData>(),
                 Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>())
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(SessionDamperPercentages.Empty);
         sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
@@ -46,7 +47,8 @@ public class SessionDetailViewModelTests
         SessionSnapshot snapshot,
         IObservable<RecordedSessionDomainSnapshot>? watch = null,
         bool? isDesktop = null,
-        ISessionPreferences? sessionPreferences = null)
+        ISessionPreferences? sessionPreferences = null,
+        BikeCoordinator? bikeCoordinator = null)
     {
         if (isDesktop.HasValue)
         {
@@ -67,7 +69,8 @@ public class SessionDetailViewModelTests
             shell,
             dialogService,
             preferencesService,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            bikeCoordinator);
     }
 
     private void SetDesktop(bool isDesktop)
@@ -369,7 +372,9 @@ public class SessionDetailViewModelTests
             fullTrackPoints,
             trackPoints,
             400.0,
-            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8)));
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingSpeedCutoffs.Default,
+            null));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
         SetDesktop(true);
 
@@ -392,6 +397,121 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
         Assert.True(editor.ScreenState.IsReady);
+    }
+
+    [AvaloniaFact]
+    public async Task DampingSpeedCutoffPreview_RecomputesPercentagesAndAnalysisWithoutDirtying()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        var previewCutoffs = initialCutoffs.With(SuspensionType.Front, DampingSpeedCircuit.Compression, 260);
+        var previewPercentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var owner = new DampingSpeedCutoffOwner(Guid.NewGuid(), 7);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        sessionPresentationService.ClearReceivedCalls();
+        sessionAnalysisService.ClearReceivedCalls();
+        sessionPresentationService
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Is<DampingSpeedCutoffs?>(value => value == previewCutoffs))
+            .Returns(previewPercentages);
+
+        editor.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
+
+        Assert.Equal(previewCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.Equal(previewPercentages, editor.DamperPercentages);
+        Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
+        Assert.False(editor.IsDirty);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
+            request.DampingSpeedCutoffs == previewCutoffs &&
+            request.DamperPercentages == previewPercentages));
+    }
+
+    [AvaloniaFact]
+    public async Task DampingSpeedCutoffCommit_PersistsThroughBikeCoordinatorWithoutDirtyingSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var bikeId = Guid.NewGuid();
+        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
+        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        var savedCutoffs = initialCutoffs.With(SuspensionType.Front, DampingSpeedCircuit.Rebound, 270);
+        var savedBike = TestSnapshots.Bike(id: bikeId, updated: 8) with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = savedCutoffs.Front.CompressionMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = savedCutoffs.Front.ReboundMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = savedCutoffs.Rear.CompressionMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = savedCutoffs.Rear.ReboundMmPerSecond,
+        };
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(
+                bikeId,
+                owner.BaselineUpdated,
+                SuspensionType.Front,
+                DampingSpeedCircuit.Rebound,
+                270)
+            .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(savedBike));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, bikeCoordinator: bikeCoordinator);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Rebound, 266);
+
+        await bikeCoordinator.Received(1).UpdateDampingSpeedCutoffAsync(
+            bikeId,
+            owner.BaselineUpdated,
+            SuspensionType.Front,
+            DampingSpeedCircuit.Rebound,
+            270);
+        Assert.Equal(savedCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(savedCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.True(editor.CanEditDampingSpeedCutoffs);
+        Assert.False(editor.IsDirty);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task DampingSpeedCutoffCommitFailure_RestoresPersistedCutoffAndReportsError()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var bikeId = Guid.NewGuid();
+        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
+        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(
+                bikeId,
+                owner.BaselineUpdated,
+                SuspensionType.Rear,
+                DampingSpeedCircuit.Compression,
+                500)
+            .Returns(new BikeDampingSpeedCutoffUpdateResult.Failed("disk full"));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, bikeCoordinator: bikeCoordinator);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.PreviewDampingSpeedCutoff(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
+
+        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
+
+        Assert.Equal(initialCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.False(editor.IsDirty);
+        Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
     }
 
     [AvaloniaFact]
@@ -656,7 +776,8 @@ public class SessionDetailViewModelTests
         sessionPresentationService.CalculateDamperPercentages(
                 telemetry,
                 Arg.Is<TelemetryTimeRange?>(range => !range.HasValue),
-                VelocityAverageMode.StrokePeakAveraged)
+                VelocityAverageMode.StrokePeakAveraged,
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(strokePeakPercentages);
         SetDesktop(true);
 
@@ -690,7 +811,9 @@ public class SessionDetailViewModelTests
             FullTrackPoints: null,
             TrackPoints: null,
             MapVideoWidth: null,
-            damperPercentages));
+            DamperPercentages: damperPercentages,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: null));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
         sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(analysis);
         sessionAnalysisService.ClearReceivedCalls();
@@ -739,7 +862,9 @@ public class SessionDetailViewModelTests
                 Arg.Is<TelemetryTimeRange?>(range =>
                     range.HasValue &&
                     range.Value.StartSeconds == 0.02 &&
-                    range.Value.EndSeconds == 0.16))
+                    range.Value.EndSeconds == 0.16),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(rangePercentages);
 
         var editor = CreateEditor(snapshot);
@@ -760,7 +885,11 @@ public class SessionDetailViewModelTests
         var telemetry = CreateVibrationTelemetry();
         var rangePercentages = new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80);
         sessionPresentationService
-            .CalculateDamperPercentages(telemetry, Arg.Is<TelemetryTimeRange?>(range => range.HasValue))
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Is<TelemetryTimeRange?>(range => range.HasValue),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(rangePercentages);
 
         var editor = CreateEditor(snapshot);
@@ -782,10 +911,18 @@ public class SessionDetailViewModelTests
         var rangePercentages = new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80);
         var fullSessionPercentages = new SessionDamperPercentages(11, 21, 31, 41, 51, 61, 71, 81);
         sessionPresentationService
-            .CalculateDamperPercentages(telemetry, Arg.Is<TelemetryTimeRange?>(range => range.HasValue))
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Is<TelemetryTimeRange?>(range => range.HasValue),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(rangePercentages);
         sessionPresentationService
-            .CalculateDamperPercentages(telemetry, Arg.Is<TelemetryTimeRange?>(range => !range.HasValue))
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Is<TelemetryTimeRange?>(range => !range.HasValue),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(fullSessionPercentages);
 
         var editor = CreateEditor(snapshot);
@@ -945,6 +1082,7 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
             false),
             TestTelemetryData.CreateProcessed(),
             null);
@@ -989,6 +1127,7 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
             false),
             null,
             null);
@@ -1030,6 +1169,7 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
             false),
             TestTelemetryData.CreateProcessed(),
             new SessionTrackPresentationData(Guid.NewGuid(), fullTrackPoints, trackPoints, 400));
@@ -1114,7 +1254,9 @@ public class SessionDetailViewModelTests
             null,
             null,
             null,
-            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8))));
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingSpeedCutoffs.Default,
+            null)));
 
         await loadTask;
 
@@ -1147,6 +1289,7 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
             false),
             TestTelemetryData.CreateProcessed(),
             new SessionTrackPresentationData(null, null, null, null)));
@@ -1171,6 +1314,7 @@ public class SessionDetailViewModelTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
             false),
             null,
             null);
@@ -1212,7 +1356,9 @@ public class SessionDetailViewModelTests
                         null,
                         null,
                         null,
-                        new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80))));
+                        new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
+                        DampingSpeedCutoffs.Default,
+                        null)));
             });
         SetDesktop(true);
 
@@ -1227,7 +1373,9 @@ public class SessionDetailViewModelTests
             null,
             null,
             null,
-            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8))));
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingSpeedCutoffs.Default,
+            null)));
 
         await Task.WhenAll(firstLoad, secondLoad);
 
@@ -1318,7 +1466,9 @@ public class SessionDetailViewModelTests
             null,
             null,
             null,
-            new SessionDamperPercentages(9, 9, 9, 9, 9, 9, 9, 9))));
+            new SessionDamperPercentages(9, 9, 9, 9, 9, 9, 9, 9),
+            DampingSpeedCutoffs.Default,
+            null)));
 
         await finalLoadStarted.Task;
         finalPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
@@ -1327,7 +1477,9 @@ public class SessionDetailViewModelTests
             null,
             null,
             null,
-            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8))));
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingSpeedCutoffs.Default,
+            null)));
 
         await finalResultApplied.Task;
 
@@ -1749,7 +1901,10 @@ public class SessionDetailViewModelTests
         staleness ?? new SessionStaleness.Current(),
         changeKind);
 
-    private static SessionDesktopLoadResult LoadedDesktopResult(TelemetryData telemetry)
+    private static SessionDesktopLoadResult LoadedDesktopResult(
+        TelemetryData telemetry,
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null,
+        DampingSpeedCutoffOwner? dampingSpeedCutoffOwner = null)
     {
         return new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
             telemetry,
@@ -1757,7 +1912,9 @@ public class SessionDetailViewModelTests
             null,
             null,
             null,
-            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8)));
+            new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default,
+            dampingSpeedCutoffOwner));
     }
 
     private static void ConfigureRecordedPreferences(

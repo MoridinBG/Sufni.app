@@ -20,6 +20,7 @@ mc:Ignorable="d">
                 BalanceDisplacementMode="{Binding #Root.BalanceDisplacementMode}"
                 BalanceSpeedMode="{Binding #Root.BalanceSpeedMode}"
                 BalanceType="{Binding #Root.BalanceType}"
+                DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
                 Height="{Binding #Root.PlotHeight}"
                 IsVisible="{Binding #Root.HasDynamicStatistics}"
                 PlotKind="Balance"

@@ -10,6 +10,7 @@ using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
+using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;
@@ -256,6 +257,13 @@ public class SessionStatisticsDesktopViewTests
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
+        public DampingSpeedCutoffs DampingSpeedCutoffs { get; } = DampingSpeedCutoffs.Default;
+        public DampingSpeedCutoffs PlotDampingSpeedCutoffs => DampingSpeedCutoffs;
+        public bool CanEditDampingSpeedCutoffs => true;
+        public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
+        public void CancelDampingSpeedCutoffPreview() { }
+        public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>
+            Task.CompletedTask;
         public SessionAnalysisResult SessionAnalysis { get; } = new(
             SurfacePresentationState.Ready,
             [new SessionAnalysisStep(
