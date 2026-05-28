@@ -173,9 +173,9 @@ mc:Ignorable="d">
                 RowDefinitions="auto auto *">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=88}" />
+                        <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
                         <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=88}" />
+                        <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
                     </Grid.ColumnDefinitions>
 
                     <ComboBox
@@ -185,7 +185,7 @@ mc:Ignorable="d">
                     Grid.ColumnSpan="4"
                     Width="190"
                     HorizontalAlignment="Right"
-                    Margin="0,0,93,8"
+                    Margin="0,0,8,8"
                     ItemsSource="{Binding VelocityAverageModeOptions}"
                     SelectedValue="{Binding SelectedVelocityAverageMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:VelocityAverageModeOption}"
@@ -203,12 +203,15 @@ mc:Ignorable="d">
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
                     AnalysisRange="{Binding AnalysisRange}"
+                    DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
                     HscPercentage="{Binding DamperPercentages.FrontHscPercentage}"
                     HsrPercentage="{Binding DamperPercentages.FrontHsrPercentage}"
                     LscPercentage="{Binding DamperPercentages.FrontLscPercentage}"
                     LsrPercentage="{Binding DamperPercentages.FrontLsrPercentage}"
+                    PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding FrontStatisticsState}"
                     ShowTravelLegend="True"
+                    StatisticsWorkspace="{Binding}"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}"
                     Title="Front damping"
@@ -220,12 +223,15 @@ mc:Ignorable="d">
                     Grid.Column="2"
                     Grid.ColumnSpan="2"
                     AnalysisRange="{Binding AnalysisRange}"
+                    DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
                     HscPercentage="{Binding DamperPercentages.RearHscPercentage}"
                     HsrPercentage="{Binding DamperPercentages.RearHsrPercentage}"
                     LscPercentage="{Binding DamperPercentages.RearLscPercentage}"
                     LsrPercentage="{Binding DamperPercentages.RearLsrPercentage}"
+                    PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding RearStatisticsState}"
                     ShowTravelLegend="True"
+                    StatisticsWorkspace="{Binding}"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}"
                     Title="Rear damping"
@@ -281,6 +287,8 @@ mc:Ignorable="d">
                         BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
                         BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
                         BalanceType="Compression"
+                        DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
+                        PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                         PresentationState="{Binding CompressionBalanceState}"
                         Telemetry="{Binding TelemetryData}"
                         Title="Compression balance" />
@@ -291,6 +299,8 @@ mc:Ignorable="d">
                         BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
                         BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
                         BalanceType="Rebound"
+                        DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
+                        PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                         PresentationState="{Binding ReboundBalanceState}"
                         Telemetry="{Binding TelemetryData}"
                         Title="Rebound balance" />

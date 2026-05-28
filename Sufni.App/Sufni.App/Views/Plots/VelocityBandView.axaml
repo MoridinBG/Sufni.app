@@ -12,7 +12,7 @@
         <Setter Property="MaxWidth" Value="84" />
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid ColumnDefinitions="Auto" RowDefinitions="39 * 39">
+                <Grid ColumnDefinitions="Auto" RowDefinitions="40 * 55">
 
                     <!--  Title  -->
                     <TextBlock
@@ -25,12 +25,12 @@
                         Text="Zone %" />
 
                     <!--  Bands  -->
-                    <Grid Grid.Row="1">
+                    <Grid Name="PART_BandsGrid" Grid.Row="1">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="{Binding Path=HighSpeedZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
-                            <RowDefinition Height="{Binding Path=LowSpeedZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
-                            <RowDefinition Height="{Binding Path=LowSpeedZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
-                            <RowDefinition Height="{Binding Path=HighSpeedZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=HsrZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=LsrZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=LscZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=HscZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
                         </Grid.RowDefinitions>
 
                         <Grid.Styles>
@@ -48,6 +48,23 @@
                                     <Setter Property="Foreground" Value="{DynamicResource SufniTextPrimaryBrush}" />
                                     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                                     <Setter Property="TextWrapping" Value="NoWrap" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle">
+                                    <Setter Property="Height" Value="8" />
+                                    <Setter Property="Margin" Value="8,0" />
+                                    <Setter Property="Background" Value="{DynamicResource SufniLineDefaultBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SufniSurfaceItemHoverBrush}" />
+                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="CornerRadius" Value="5" />
+                                    <Setter Property="Cursor" Value="SizeNorthSouth" />
+                                    <Setter Property="Focusable" Value="True" />
+                                    <Setter Property="Opacity" Value="0.72" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle:pointerover">
+                                    <Setter Property="Opacity" Value="0.9" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle:disabled">
+                                    <Setter Property="Opacity" Value="0.25" />
                                 </Style>
                             </Styles>
                         </Grid.Styles>
@@ -75,6 +92,22 @@
                             Text="{Binding Path=HscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='HSC {0:0.00}'}"
                             TextAlignment="Center" />
                         </Border>
+
+                        <Border
+                            Name="PART_ReboundHandle"
+                            Grid.Row="0"
+                            Classes="cutoff-handle"
+                            IsEnabled="{Binding Path=CanEditDampingSpeedCutoffs, RelativeSource={RelativeSource TemplatedParent}}"
+                            ToolTip.Tip="{Binding Path=ReboundCutoff, RelativeSource={RelativeSource TemplatedParent}, StringFormat='Rebound cutoff: {0:0} mm/s'}"
+                            VerticalAlignment="Bottom" />
+
+                        <Border
+                            Name="PART_CompressionHandle"
+                            Grid.Row="2"
+                            Classes="cutoff-handle"
+                            IsEnabled="{Binding Path=CanEditDampingSpeedCutoffs, RelativeSource={RelativeSource TemplatedParent}}"
+                            ToolTip.Tip="{Binding Path=CompressionCutoff, RelativeSource={RelativeSource TemplatedParent}, StringFormat='Compression cutoff: {0:0} mm/s'}"
+                            VerticalAlignment="Bottom" />
                     </Grid>
                 </Grid>
             </ControlTemplate>

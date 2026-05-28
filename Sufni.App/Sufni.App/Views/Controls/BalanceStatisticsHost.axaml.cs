@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.Presentation;
+using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Views.Controls;
@@ -26,6 +27,16 @@ public partial class BalanceStatisticsHost : UserControl
 
     public static readonly StyledProperty<BalanceSpeedMode> BalanceSpeedModeProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, BalanceSpeedMode>(nameof(BalanceSpeedMode));
+
+    public static readonly StyledProperty<DampingSpeedCutoffs> DampingSpeedCutoffsProperty =
+        AvaloniaProperty.Register<BalanceStatisticsHost, DampingSpeedCutoffs>(
+            nameof(DampingSpeedCutoffs),
+            DampingSpeedCutoffs.Default);
+
+    public static readonly StyledProperty<DampingSpeedCutoffs> PlotDampingSpeedCutoffsProperty =
+        AvaloniaProperty.Register<BalanceStatisticsHost, DampingSpeedCutoffs>(
+            nameof(PlotDampingSpeedCutoffs),
+            DampingSpeedCutoffs.Default);
 
     public static readonly StyledProperty<bool> HasDynamicStatisticsProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, bool>(nameof(HasDynamicStatistics), true);
@@ -85,6 +96,18 @@ public partial class BalanceStatisticsHost : UserControl
     {
         get => GetValue(BalanceSpeedModeProperty);
         set => SetValue(BalanceSpeedModeProperty, value);
+    }
+
+    public DampingSpeedCutoffs DampingSpeedCutoffs
+    {
+        get => GetValue(DampingSpeedCutoffsProperty);
+        set => SetValue(DampingSpeedCutoffsProperty, value);
+    }
+
+    public DampingSpeedCutoffs PlotDampingSpeedCutoffs
+    {
+        get => GetValue(PlotDampingSpeedCutoffsProperty);
+        set => SetValue(PlotDampingSpeedCutoffsProperty, value);
     }
 
     public bool HasDynamicStatistics
