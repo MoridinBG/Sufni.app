@@ -59,6 +59,10 @@ erDiagram
         real fork_stroke
         real shock_stroke
         int rear_suspension_kind
+        real front_compression_damping_cutoff_mm_per_second
+        real front_rebound_damping_cutoff_mm_per_second
+        real rear_compression_damping_cutoff_mm_per_second
+        real rear_rebound_damping_cutoff_mm_per_second
         text linkage
         text leverage_ratio
         blob image
@@ -138,6 +142,8 @@ erDiagram
 ## Database Service
 
 `SqLiteDatabaseService` (`Sufni.App/Sufni.App/Services/SQLiteDatabaseService.cs`) implements `IDatabaseService` using the sqlite-net API (`sqlite-net-e` package) with WAL mode. The database path uses `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`.
+
+Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
 
 Repeated session SQL inside `SQLiteDatabaseService` is kept behind private projection and bind-value helpers. There is no repository or public query-builder layer: `IDatabaseService` remains the persistence boundary, and the helper extraction does not change transaction boundaries or merge behavior.
 

@@ -5,12 +5,14 @@ using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Queries;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Kinematics;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -242,6 +244,110 @@ public class BikeCoordinatorTests
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
         Assert.IsType<BikeSaveResult.Failed>(result);
+        bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
+    }
+
+    // ----- UpdateDampingSpeedCutoffAsync -----
+
+    [Fact]
+    public async Task UpdateDampingSpeedCutoffAsync_RoundsClampsPersistsAndUpsertsWithoutNavigation()
+    {
+        var existing = TestSnapshots.Bike(updated: 5) with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = 120,
+            FrontReboundDampingCutoffMmPerSecond = 130,
+            RearCompressionDampingCutoffMmPerSecond = 140,
+            RearReboundDampingCutoffMmPerSecond = 150,
+        };
+        bikeStore.Get(existing.Id).Returns(existing);
+        database.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
+        {
+            var bike = callInfo.Arg<Bike>();
+            bike.Updated = 9;
+            return bike.Id;
+        });
+
+        var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
+            existing.Id,
+            baselineUpdated: 5,
+            SuspensionType.Front,
+            DampingSpeedCircuit.Compression,
+            237);
+
+        var saved = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(result);
+        Assert.Equal(240, saved.Snapshot.FrontCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(130, saved.Snapshot.FrontReboundDampingCutoffMmPerSecond);
+        Assert.Equal(140, saved.Snapshot.RearCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(150, saved.Snapshot.RearReboundDampingCutoffMmPerSecond);
+        Assert.Equal(9, saved.Snapshot.Updated);
+        await database.Received(1).PutAsync(Arg.Is<Bike>(bike =>
+            bike.Id == existing.Id &&
+            bike.FrontCompressionDampingCutoffMmPerSecond == 240 &&
+            bike.FrontReboundDampingCutoffMmPerSecond == 130 &&
+            bike.RearCompressionDampingCutoffMmPerSecond == 140 &&
+            bike.RearReboundDampingCutoffMmPerSecond == 150));
+        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(snapshot =>
+            snapshot.Id == existing.Id &&
+            snapshot.FrontCompressionDampingCutoffMmPerSecond == 240 &&
+            snapshot.Updated == 9));
+        shell.DidNotReceive().GoBack();
+    }
+
+    [Fact]
+    public async Task UpdateDampingSpeedCutoffAsync_ClampsCommittedValue()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+
+        var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
+            existing.Id,
+            baselineUpdated: 5,
+            SuspensionType.Rear,
+            DampingSpeedCircuit.Rebound,
+            2500);
+
+        var saved = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(result);
+        Assert.Equal(DampingSpeedCutoffs.MaximumMmPerSecond, saved.Snapshot.RearReboundDampingCutoffMmPerSecond);
+        await database.Received(1).PutAsync(Arg.Is<Bike>(bike =>
+            bike.RearReboundDampingCutoffMmPerSecond == DampingSpeedCutoffs.MaximumMmPerSecond));
+    }
+
+    [Fact]
+    public async Task UpdateDampingSpeedCutoffAsync_ReturnsConflict_WhenStoreIsNewer()
+    {
+        var current = TestSnapshots.Bike(updated: 10);
+        bikeStore.Get(current.Id).Returns(current);
+
+        var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
+            current.Id,
+            baselineUpdated: 5,
+            SuspensionType.Front,
+            DampingSpeedCircuit.Rebound,
+            300);
+
+        var conflict = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Conflict>(result);
+        Assert.Same(current, conflict.CurrentSnapshot);
+        await database.DidNotReceive().PutAsync(Arg.Any<Bike>());
+        bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
+    }
+
+    [Fact]
+    public async Task UpdateDampingSpeedCutoffAsync_ReturnsFailed_WhenDatabasePutThrows()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+        database.PutAsync(Arg.Any<Bike>()).ThrowsAsync(new InvalidOperationException("disk full"));
+
+        var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
+            existing.Id,
+            baselineUpdated: 5,
+            SuspensionType.Front,
+            DampingSpeedCircuit.Compression,
+            300);
+
+        Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Failed>(result);
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
         shell.DidNotReceive().GoBack();
     }

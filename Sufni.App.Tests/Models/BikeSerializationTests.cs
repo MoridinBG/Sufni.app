@@ -38,6 +38,10 @@ public class BikeSerializationTests
             ShockStroke = 20,
             RearSuspensionKind = RearSuspensionKind.LeverageRatio,
             LeverageRatio = leverageRatio,
+            FrontCompressionDampingCutoffMmPerSecond = 110,
+            FrontReboundDampingCutoffMmPerSecond = 120,
+            RearCompressionDampingCutoffMmPerSecond = 230,
+            RearReboundDampingCutoffMmPerSecond = 240,
         };
 
         var imported = Bike.FromJson(bike.ToJson());
@@ -46,6 +50,34 @@ public class BikeSerializationTests
         Assert.Equal(RearSuspensionKind.LeverageRatio, imported!.RearSuspensionKind);
         Assert.NotNull(imported.LeverageRatio);
         Assert.Equal(leverageRatio.Points, imported.LeverageRatio!.Points);
+        Assert.Equal(110, imported.FrontCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(120, imported.FrontReboundDampingCutoffMmPerSecond);
+        Assert.Equal(230, imported.RearCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(240, imported.RearReboundDampingCutoffMmPerSecond);
+    }
+
+    [Fact]
+    public void BikeFromJson_LegacyExportWithoutDampingCutoffs_UsesDefaults()
+    {
+        var bike = new Bike(Guid.NewGuid(), "legacy cutoff bike")
+        {
+            HeadAngle = 64,
+            ForkStroke = 150,
+        };
+
+        var json = JsonNode.Parse(bike.ToJson())!.AsObject();
+        json.Remove("front_compression_damping_cutoff_mm_per_second");
+        json.Remove("front_rebound_damping_cutoff_mm_per_second");
+        json.Remove("rear_compression_damping_cutoff_mm_per_second");
+        json.Remove("rear_rebound_damping_cutoff_mm_per_second");
+
+        var imported = Bike.FromJson(json.ToJsonString());
+
+        Assert.NotNull(imported);
+        Assert.Equal(200, imported!.FrontCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(200, imported.FrontReboundDampingCutoffMmPerSecond);
+        Assert.Equal(200, imported.RearCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(200, imported.RearReboundDampingCutoffMmPerSecond);
     }
 
 }
