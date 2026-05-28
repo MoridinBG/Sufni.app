@@ -1,6 +1,7 @@
 using System.IO;
 using SQLite;
 using Sufni.App.Models;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
@@ -140,11 +141,19 @@ public class SQLiteDatabaseServiceTests
 
                 Assert.Contains(columns, column => column.Name == "rear_suspension_kind");
                 Assert.Contains(columns, column => column.Name == "leverage_ratio");
+                Assert.Contains(columns, column => column.Name == "front_compression_damping_cutoff_mm_per_second");
+                Assert.Contains(columns, column => column.Name == "front_rebound_damping_cutoff_mm_per_second");
+                Assert.Contains(columns, column => column.Name == "rear_compression_damping_cutoff_mm_per_second");
+                Assert.Contains(columns, column => column.Name == "rear_rebound_damping_cutoff_mm_per_second");
             }
 
             var firstRunBike = Assert.Single(firstRunBikes);
             Assert.Equal(legacyBikeId, firstRunBike.Id);
             Assert.Equal(RearSuspensionKind.Linkage, firstRunBike.RearSuspensionKind);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.FrontCompressionDampingCutoffMmPerSecond);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.FrontReboundDampingCutoffMmPerSecond);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.RearCompressionDampingCutoffMmPerSecond);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.RearReboundDampingCutoffMmPerSecond);
             Assert.NotNull(firstRunBike.Linkage);
 
             var secondRun = new SqLiteDatabaseService(databasePath);
@@ -153,6 +162,10 @@ public class SQLiteDatabaseServiceTests
             var secondRunBike = Assert.Single(secondRunBikes);
             Assert.Equal(legacyBikeId, secondRunBike.Id);
             Assert.Equal(RearSuspensionKind.Linkage, secondRunBike.RearSuspensionKind);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.FrontCompressionDampingCutoffMmPerSecond);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.FrontReboundDampingCutoffMmPerSecond);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.RearCompressionDampingCutoffMmPerSecond);
+            Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.RearReboundDampingCutoffMmPerSecond);
         }
         finally
         {

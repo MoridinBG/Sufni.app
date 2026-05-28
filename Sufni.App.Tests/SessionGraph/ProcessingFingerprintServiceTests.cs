@@ -266,6 +266,10 @@ public class ProcessingFingerprintServiceTests
         {
             Name = "renamed bike",
             ImageBytes = [9, 8, 7],
+            FrontCompressionDampingCutoffMmPerSecond = 120,
+            FrontReboundDampingCutoffMmPerSecond = 130,
+            RearCompressionDampingCutoffMmPerSecond = 240,
+            RearReboundDampingCutoffMmPerSecond = 250,
             Updated = 99
         };
 

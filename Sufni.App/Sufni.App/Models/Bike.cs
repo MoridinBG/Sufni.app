@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using Serilog;
 using SQLite;
 using Sufni.App.Models.SensorConfigurations;
+using Sufni.App.SessionDetails;
 using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
@@ -58,6 +59,41 @@ public class Bike : Synchronizable
     [JsonPropertyName("rear_suspension_kind")]
     [Column("rear_suspension_kind")]
     public RearSuspensionKind RearSuspensionKind { get; set; }
+
+    [JsonPropertyName("front_compression_damping_cutoff_mm_per_second")]
+    [Column("front_compression_damping_cutoff_mm_per_second")]
+    public double FrontCompressionDampingCutoffMmPerSecond { get; set; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonPropertyName("front_rebound_damping_cutoff_mm_per_second")]
+    [Column("front_rebound_damping_cutoff_mm_per_second")]
+    public double FrontReboundDampingCutoffMmPerSecond { get; set; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonPropertyName("rear_compression_damping_cutoff_mm_per_second")]
+    [Column("rear_compression_damping_cutoff_mm_per_second")]
+    public double RearCompressionDampingCutoffMmPerSecond { get; set; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonPropertyName("rear_rebound_damping_cutoff_mm_per_second")]
+    [Column("rear_rebound_damping_cutoff_mm_per_second")]
+    public double RearReboundDampingCutoffMmPerSecond { get; set; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonIgnore]
+    [Ignore]
+    public DampingSpeedCutoffs DampingSpeedCutoffs
+    {
+        get => DampingSpeedCutoffs.FromValues(
+            FrontCompressionDampingCutoffMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond);
+        set
+        {
+            var clamped = value.ClampValues();
+            FrontCompressionDampingCutoffMmPerSecond = clamped.Front.CompressionMmPerSecond;
+            FrontReboundDampingCutoffMmPerSecond = clamped.Front.ReboundMmPerSecond;
+            RearCompressionDampingCutoffMmPerSecond = clamped.Rear.CompressionMmPerSecond;
+            RearReboundDampingCutoffMmPerSecond = clamped.Rear.ReboundMmPerSecond;
+        }
+    }
 
     [JsonPropertyName("linkage")]
     [Ignore]
@@ -199,6 +235,10 @@ public class Bike : Synchronizable
         ForkStroke = snapshot.ForkStroke,
         ShockStroke = snapshot.ShockStroke,
         RearSuspensionKind = snapshot.RearSuspensionKind,
+        FrontCompressionDampingCutoffMmPerSecond = snapshot.FrontCompressionDampingCutoffMmPerSecond,
+        FrontReboundDampingCutoffMmPerSecond = snapshot.FrontReboundDampingCutoffMmPerSecond,
+        RearCompressionDampingCutoffMmPerSecond = snapshot.RearCompressionDampingCutoffMmPerSecond,
+        RearReboundDampingCutoffMmPerSecond = snapshot.RearReboundDampingCutoffMmPerSecond,
         Chainstay = snapshot.Chainstay,
         PixelsToMillimeters = snapshot.PixelsToMillimeters,
         FrontWheelDiameterMm = snapshot.FrontWheelDiameterMm,
@@ -258,6 +298,18 @@ internal sealed class BikeExportModel
     [JsonPropertyName("shock_stroke")]
     public double? ShockStroke { get; init; }
 
+    [JsonPropertyName("front_compression_damping_cutoff_mm_per_second")]
+    public double FrontCompressionDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonPropertyName("front_rebound_damping_cutoff_mm_per_second")]
+    public double FrontReboundDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonPropertyName("rear_compression_damping_cutoff_mm_per_second")]
+    public double RearCompressionDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
+    [JsonPropertyName("rear_rebound_damping_cutoff_mm_per_second")]
+    public double RearReboundDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
+
     [JsonPropertyName("linkage")]
     public Linkage? Linkage { get; init; }
 
@@ -300,6 +352,10 @@ internal sealed class BikeExportModel
             HeadAngle = bike.HeadAngle,
             ForkStroke = bike.ForkStroke,
             ShockStroke = bike.ShockStroke,
+            FrontCompressionDampingCutoffMmPerSecond = bike.FrontCompressionDampingCutoffMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = bike.FrontReboundDampingCutoffMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = bike.RearCompressionDampingCutoffMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = bike.RearReboundDampingCutoffMmPerSecond,
             Linkage = bike.Linkage,
             LeverageRatio = bike.LeverageRatio,
             PixelsToMillimeters = bike.PixelsToMillimeters,
@@ -322,6 +378,10 @@ internal sealed class BikeExportModel
             HeadAngle = HeadAngle,
             ForkStroke = ForkStroke,
             ShockStroke = ShockStroke,
+            FrontCompressionDampingCutoffMmPerSecond = FrontCompressionDampingCutoffMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = FrontReboundDampingCutoffMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = RearCompressionDampingCutoffMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = RearReboundDampingCutoffMmPerSecond,
             Linkage = Linkage,
             LeverageRatio = LeverageRatio,
             PixelsToMillimeters = PixelsToMillimeters,

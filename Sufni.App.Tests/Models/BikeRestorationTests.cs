@@ -21,6 +21,10 @@ public class BikeRestorationTests
             ImageRotationDegrees = 12.5,
             ImageBytes = TestImages.SmallPngBytes(),
             Linkage = TestSnapshots.FullSuspensionLinkage(),
+            FrontCompressionDampingCutoffMmPerSecond = 115,
+            FrontReboundDampingCutoffMmPerSecond = 125,
+            RearCompressionDampingCutoffMmPerSecond = 235,
+            RearReboundDampingCutoffMmPerSecond = 245,
             Updated = 7,
         };
         source.ShockStroke = 0.5;
@@ -29,6 +33,10 @@ public class BikeRestorationTests
         var restored = Bike.FromSnapshot(snapshot);
 
         Assert.Equal(snapshot.ShockStroke, restored.ShockStroke);
+        Assert.Equal(snapshot.FrontCompressionDampingCutoffMmPerSecond, restored.FrontCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(snapshot.FrontReboundDampingCutoffMmPerSecond, restored.FrontReboundDampingCutoffMmPerSecond);
+        Assert.Equal(snapshot.RearCompressionDampingCutoffMmPerSecond, restored.RearCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(snapshot.RearReboundDampingCutoffMmPerSecond, restored.RearReboundDampingCutoffMmPerSecond);
         Assert.Equal(snapshot.Chainstay, restored.Chainstay);
         Assert.Equal(snapshot.ImageRotationDegrees, restored.ImageRotationDegrees);
         Assert.NotNull(restored.Linkage);

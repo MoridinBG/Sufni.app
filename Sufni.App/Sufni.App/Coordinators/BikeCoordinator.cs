@@ -4,9 +4,11 @@ using System.Threading.Tasks;
 using Sufni.App.BikeEditing;
 using Sufni.App.Models;
 using Sufni.App.Queries;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Telemetry;
 using Serilog;
 
 namespace Sufni.App.Coordinators;
@@ -221,6 +223,59 @@ public class BikeCoordinator(
         }
     }
 
+    public virtual async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
+        Guid bikeId,
+        long baselineUpdated,
+        SuspensionType side,
+        DampingSpeedCircuit circuit,
+        double cutoffMmPerSecond)
+    {
+        logger.Information(
+            "Starting bike damping speed cutoff update for {BikeId} {Side} {Circuit}",
+            bikeId,
+            side,
+            circuit);
+
+        var current = bikeStore.Get(bikeId);
+        if (current is null)
+        {
+            logger.Warning("Bike damping speed cutoff update failed because bike {BikeId} was not found", bikeId);
+            return new BikeDampingSpeedCutoffUpdateResult.Failed("Bike was not found.");
+        }
+
+        if (current.Updated > baselineUpdated)
+        {
+            logger.Warning("Bike damping speed cutoff update conflict for {BikeId}", bikeId);
+            return new BikeDampingSpeedCutoffUpdateResult.Conflict(current);
+        }
+
+        var roundedCutoff = DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond);
+        var updatedCutoffs = current.DampingSpeedCutoffs.With(side, circuit, roundedCutoff);
+        var updatedSnapshot = current with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = updatedCutoffs.Front.CompressionMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = updatedCutoffs.Front.ReboundMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = updatedCutoffs.Rear.CompressionMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = updatedCutoffs.Rear.ReboundMmPerSecond,
+        };
+        var bike = Bike.FromSnapshot(updatedSnapshot);
+
+        try
+        {
+            await databaseService.PutAsync(bike);
+            var saved = BikeSnapshot.From(bike);
+            bikeStore.Upsert(saved);
+
+            logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
+            return new BikeDampingSpeedCutoffUpdateResult.Saved(saved);
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Bike damping speed cutoff update failed for {BikeId}", bikeId);
+            return new BikeDampingSpeedCutoffUpdateResult.Failed(e.Message);
+        }
+    }
+
     public virtual async Task<BikeDeleteResult> DeleteAsync(Guid bikeId)
     {
         logger.Information("Starting bike delete for {BikeId}", bikeId);
@@ -299,6 +354,15 @@ public abstract record BikeSaveResult
 }
 
 public sealed record BikeDeleteResult(BikeDeleteOutcome Outcome, string? ErrorMessage = null);
+
+public abstract record BikeDampingSpeedCutoffUpdateResult
+{
+    private BikeDampingSpeedCutoffUpdateResult() { }
+
+    public sealed record Saved(BikeSnapshot Snapshot) : BikeDampingSpeedCutoffUpdateResult;
+    public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeDampingSpeedCutoffUpdateResult;
+    public sealed record Failed(string ErrorMessage) : BikeDampingSpeedCutoffUpdateResult;
+}
 
 public enum BikeDeleteOutcome
 {
