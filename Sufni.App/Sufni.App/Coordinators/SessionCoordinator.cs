@@ -43,6 +43,7 @@ public class SessionCoordinator
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
+    private readonly BikeCoordinator? bikeCoordinator;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -61,7 +62,8 @@ public class SessionCoordinator
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionGraph recordedSessionGraph,
         IRecordedSessionReprocessor recordedSessionReprocessor,
-        ISynchronizationServerService? synchronizationServer = null)
+        ISynchronizationServerService? synchronizationServer = null,
+        BikeCoordinator? bikeCoordinator = null)
     {
         this.sessionStore = sessionStore;
         this.databaseService = databaseService;
@@ -79,6 +81,7 @@ public class SessionCoordinator
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionGraph = recordedSessionGraph;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
+        this.bikeCoordinator = bikeCoordinator;
 
         if (synchronizationServer is not null)
         {
@@ -106,7 +109,8 @@ public class SessionCoordinator
                 shell,
                 dialogService,
                 sessionPreferences,
-                uiThreadDispatcher));
+                uiThreadDispatcher,
+                bikeCoordinator));
         return Task.CompletedTask;
     }
 
@@ -146,9 +150,12 @@ public class SessionCoordinator
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(sessionId);
             logger.Verbose("Calculating presentation data for desktop session {SessionId}", sessionId);
             var damperPercentages = await backgroundTaskRunner.RunAsync(
-                () => sessionPresentationService.CalculateDamperPercentages(telemetryData),
+                () => sessionPresentationService.CalculateDamperPercentages(
+                    telemetryData,
+                    dampingSpeedCutoffs: dampingSpeedCutoffContext.Cutoffs),
                 cancellationToken);
 
             logger.Information("Desktop session load completed for {SessionId}", sessionId);
@@ -159,7 +166,9 @@ public class SessionCoordinator
                     trackData.FullTrackPoints,
                     trackData.TrackPoints,
                     trackData.MapVideoWidth,
-                    damperPercentages));
+                    damperPercentages,
+                    dampingSpeedCutoffContext.Cutoffs,
+                    dampingSpeedCutoffContext.Owner));
         }
         catch (OperationCanceledException)
         {
@@ -181,6 +190,8 @@ public class SessionCoordinator
 
         try
         {
+            var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(sessionId);
+
             logger.Verbose("Checking cached mobile presentation for session {SessionId}", sessionId);
             var cached = await backgroundTaskRunner.RunAsync(
                 () => databaseService.GetSessionCacheAsync(sessionId),
@@ -206,8 +217,27 @@ public class SessionCoordinator
                 }
 
                 logger.Information("Mobile session load completed from cache for {SessionId}", sessionId);
+                var cachedPresentation = SessionCachePresentationData.FromCache(cached) with
+                {
+                    DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner,
+                };
+                if (cachedTelemetryData is not null && cachedPresentation.DampingSpeedCutoffs != dampingSpeedCutoffContext.Cutoffs)
+                {
+                    logger.Verbose("Recomputing cached damper percentages for session {SessionId} because bike cutoffs changed", sessionId);
+                    var damperPercentages = await backgroundTaskRunner.RunAsync(
+                        () => sessionPresentationService.CalculateDamperPercentages(
+                            cachedTelemetryData,
+                            dampingSpeedCutoffs: dampingSpeedCutoffContext.Cutoffs),
+                        cancellationToken);
+                    cachedPresentation = cachedPresentation with
+                    {
+                        DamperPercentages = damperPercentages,
+                        DampingSpeedCutoffs = dampingSpeedCutoffContext.Cutoffs,
+                    };
+                }
+
                 return new SessionMobileLoadResult.LoadedFromCache(
-                    SessionCachePresentationData.FromCache(cached),
+                    cachedPresentation,
                     cachedTelemetryData,
                     cachedTrackData);
             }
@@ -234,8 +264,14 @@ public class SessionCoordinator
 
             logger.Verbose("Building mobile session cache for {SessionId}", sessionId);
             var presentation = await backgroundTaskRunner.RunAsync(
-                () => sessionPresentationService.BuildCachePresentation(telemetryData, dimensions, cancellationToken),
+                () => sessionPresentationService.BuildCachePresentation(
+                    telemetryData,
+                    dimensions,
+                    cancellationToken,
+                    dampingSpeedCutoffContext.Cutoffs),
                 cancellationToken);
+
+            presentation = presentation with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -256,6 +292,14 @@ public class SessionCoordinator
             logger.Error(e, "Mobile session load failed for {SessionId}", sessionId);
             return new SessionMobileLoadResult.Failed(e.Message);
         }
+    }
+
+    private (DampingSpeedCutoffs Cutoffs, DampingSpeedCutoffOwner? Owner) ResolveDampingSpeedCutoffContext(Guid sessionId)
+    {
+        var bike = recordedSessionDomainQuery.Get(sessionId)?.Bike;
+        return bike is null
+            ? (DampingSpeedCutoffs.Default, null)
+            : (bike.DampingSpeedCutoffs, new DampingSpeedCutoffOwner(bike.Id, bike.Updated));
     }
 
     public virtual async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)

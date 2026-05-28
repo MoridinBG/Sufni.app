@@ -750,6 +750,48 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateBalance_LowHighSpeedModes_UseSideSpecificCompressionAndReboundThresholds()
+    {
+        var telemetry = CreateBalanceTelemetry(
+            frontTravel: [0, 10, 20, 30, 40, 50],
+            rearTravel: [0, 15, 30, 45, 60, 75],
+            frontCompressions:
+            [
+                CreateStroke(0, 0, maxVelocity: 150, maxTravel: 10),
+                CreateStroke(1, 1, maxVelocity: 200, maxTravel: 20),
+            ],
+            rearCompressions:
+            [
+                CreateStroke(0, 0, maxVelocity: 250, maxTravel: 15),
+                CreateStroke(1, 1, maxVelocity: 300, maxTravel: 30),
+            ],
+            frontRebounds:
+            [
+                CreateStroke(2, 2, maxVelocity: -150, maxTravel: 30),
+                CreateStroke(3, 3, maxVelocity: -200, maxTravel: 40),
+            ],
+            rearRebounds:
+            [
+                CreateStroke(2, 2, maxVelocity: -250, maxTravel: 45),
+                CreateStroke(3, 3, maxVelocity: -300, maxTravel: 60),
+            ]);
+        var options = new BalanceStatisticsOptions(
+            SpeedMode: BalanceSpeedMode.HighSpeed,
+            FrontCompressionHighSpeedThreshold: 200,
+            RearCompressionHighSpeedThreshold: 300,
+            FrontReboundHighSpeedThreshold: 200,
+            RearReboundHighSpeedThreshold: 300);
+
+        var compression = TelemetryStatistics.CalculateBalance(telemetry, BalanceType.Compression, options);
+        var rebound = TelemetryStatistics.CalculateBalance(telemetry, BalanceType.Rebound, options);
+
+        Assert.Equal([200], compression.FrontVelocity);
+        Assert.Equal([300], compression.RearVelocity);
+        Assert.Equal([200], rebound.FrontVelocity);
+        Assert.Equal([300], rebound.RearVelocity);
+    }
+
+    [Fact]
     public void CalculateVelocityStatistics_WithStrokePeakAverageAndPercentile_UsesStrokePeaks()
     {
         var telemetry = CreateTelemetry(
@@ -853,6 +895,86 @@ public class TelemetryDataTests
         Assert.Equal(25, strokePeakBands.HighSpeedCompression, 3);
         Assert.Equal(25, strokePeakBands.LowSpeedRebound, 3);
         Assert.Equal(25, strokePeakBands.HighSpeedRebound, 3);
+    }
+
+    [Fact]
+    public void CalculateVelocityBands_WithSampleAverage_UsesSeparateCompressionAndReboundThresholds()
+    {
+        var telemetry = CreateTelemetry(
+            travel: [0, 10, 20, 30, 20, 10, 0, 5],
+            velocity: [150, 250, 450, 50, -150, -250, -450, -50],
+            maxTravel: 100,
+            compressions:
+            [
+                CreateStroke(0, 3),
+            ],
+            rebounds:
+            [
+                CreateStroke(4, 7),
+            ]);
+        var options = new VelocityStatisticsOptions(
+            CompressionHighSpeedThreshold: 300,
+            ReboundHighSpeedThreshold: 200);
+
+        var bands = TelemetryStatistics.CalculateVelocityBands(telemetry, SuspensionType.Front, options);
+
+        Assert.Equal(37.5, bands.LowSpeedCompression, 3);
+        Assert.Equal(12.5, bands.HighSpeedCompression, 3);
+        Assert.Equal(25, bands.LowSpeedRebound, 3);
+        Assert.Equal(25, bands.HighSpeedRebound, 3);
+    }
+
+    [Fact]
+    public void CalculateVelocityBands_WithStrokePeakAverage_UsesSeparateCompressionAndReboundThresholds()
+    {
+        var telemetry = CreateTelemetry(
+            travel: [0, 10, 20, 30],
+            maxTravel: 100,
+            compressions:
+            [
+                CreateStroke(0, 0, maxVelocity: 250),
+                CreateStroke(1, 1, maxVelocity: 300),
+            ],
+            rebounds:
+            [
+                CreateStroke(2, 2, maxVelocity: -150),
+                CreateStroke(3, 3, maxVelocity: -200),
+            ]);
+        var options = new VelocityStatisticsOptions(
+            VelocityAverageMode: VelocityAverageMode.StrokePeakAveraged,
+            CompressionHighSpeedThreshold: 300,
+            ReboundHighSpeedThreshold: 200);
+
+        var bands = TelemetryStatistics.CalculateVelocityBands(telemetry, SuspensionType.Front, options);
+
+        Assert.Equal(25, bands.LowSpeedCompression, 3);
+        Assert.Equal(25, bands.HighSpeedCompression, 3);
+        Assert.Equal(25, bands.LowSpeedRebound, 3);
+        Assert.Equal(25, bands.HighSpeedRebound, 3);
+    }
+
+    [Fact]
+    public void CalculateVelocityBands_LegacyThresholdOverload_UsesSameThresholdForCompressionAndRebound()
+    {
+        var telemetry = CreateTelemetry(
+            travel: [0, 10, 20, 30],
+            velocity: [199, 200, -199, -200],
+            maxTravel: 100,
+            compressions:
+            [
+                CreateStroke(0, 1),
+            ],
+            rebounds:
+            [
+                CreateStroke(2, 3),
+            ]);
+
+        var bands = TelemetryStatistics.CalculateVelocityBands(telemetry, SuspensionType.Front, 200);
+
+        Assert.Equal(25, bands.LowSpeedCompression, 3);
+        Assert.Equal(25, bands.HighSpeedCompression, 3);
+        Assert.Equal(25, bands.LowSpeedRebound, 3);
+        Assert.Equal(25, bands.HighSpeedRebound, 3);
     }
 
     [Fact]
@@ -1109,8 +1231,10 @@ public class TelemetryDataTests
     private static TelemetryData CreateBalanceTelemetry(
         double[] frontTravel,
         double[] rearTravel,
-        Stroke[] frontCompressions,
-        Stroke[] rearCompressions,
+        Stroke[]? frontCompressions,
+        Stroke[]? rearCompressions,
+        Stroke[]? frontRebounds = null,
+        Stroke[]? rearRebounds = null,
         double[]? frontVelocity = null,
         double[]? rearVelocity = null,
         double maxTravel = 100)
@@ -1118,8 +1242,8 @@ public class TelemetryDataTests
         return new TelemetryData
         {
             Metadata = new Metadata { SampleRate = 1000, Duration = frontTravel.Length / 1000.0 },
-            Front = CreateSuspension(frontTravel, maxTravel, frontCompressions, [], frontVelocity),
-            Rear = CreateSuspension(rearTravel, maxTravel, rearCompressions, [], rearVelocity),
+            Front = CreateSuspension(frontTravel, maxTravel, frontCompressions ?? [], frontRebounds ?? [], frontVelocity),
+            Rear = CreateSuspension(rearTravel, maxTravel, rearCompressions ?? [], rearRebounds ?? [], rearVelocity),
             Airtimes = [],
             Markers = [],
         };

@@ -25,6 +25,7 @@ public class LiveDaqCoordinator
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
     private readonly SessionCoordinator sessionCoordinator;
+    private readonly BikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITileLayerService tileLayerService;
@@ -53,7 +54,8 @@ public class LiveDaqCoordinator
         IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        BikeCoordinator? bikeCoordinator = null)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
@@ -61,6 +63,7 @@ public class LiveDaqCoordinator
         this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
         this.liveSessionServiceFactory = liveSessionServiceFactory;
         this.sessionCoordinator = sessionCoordinator;
+        this.bikeCoordinator = bikeCoordinator;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.tileLayerService = tileLayerService;
@@ -193,7 +196,8 @@ public class LiveDaqCoordinator
                 tileLayerService,
                 shell,
                 dialogService,
-                uiThreadDispatcher));
+                uiThreadDispatcher,
+                bikeCoordinator));
 
         return Task.CompletedTask;
     }
