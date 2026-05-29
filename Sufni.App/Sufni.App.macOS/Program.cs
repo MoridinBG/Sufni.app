@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using Avalonia.Native;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using Sufni.App.Desktop;
@@ -22,7 +23,7 @@ namespace Sufni.App.macOS
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(
-                AppBuilder.Configure<App>().UsePlatformDetect(),
+                AppBuilder.Configure<App>().UseSkia().UseAvaloniaNative(),
                 "macOS");
         }
     }
