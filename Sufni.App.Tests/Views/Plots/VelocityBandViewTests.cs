@@ -126,6 +126,14 @@ public class VelocityBandViewTests
                 (_, _) => hapticCount++);
 
             await using var mounted = await MountAsync(view);
+            var bubbledPressCount = 0;
+            var bubbledMoveCount = 0;
+            mounted.Host.AddHandler<PointerPressedEventArgs>(
+                InputElement.PointerPressedEvent,
+                (_, _) => bubbledPressCount++);
+            mounted.Host.AddHandler<PointerEventArgs>(
+                InputElement.PointerMovedEvent,
+                (_, _) => bubbledMoveCount++);
             var handle = FindHandle(view, "PART_ReboundHandle");
             var start = Translate(handle, mounted.Host);
             var moved = start + new Vector(0, 12);
@@ -145,6 +153,8 @@ public class VelocityBandViewTests
                 Arg.Any<SuspensionType>(),
                 Arg.Any<DampingSpeedCircuit>(),
                 Arg.Any<double>());
+            Assert.Equal(1, bubbledPressCount);
+            Assert.True(bubbledMoveCount > 0);
             Assert.Equal(0, hapticCount);
         }
         finally
@@ -187,6 +197,44 @@ public class VelocityBandViewTests
                 SuspensionType.Front,
                 DampingSpeedCircuit.Rebound,
                 Arg.Any<double>());
+        }
+        finally
+        {
+            TestApp.SetIsDesktop(true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task VelocityStatisticsHost_EnablesHapticFeedbackOnDampingHandles()
+    {
+        TestApp.SetIsDesktop(false);
+        try
+        {
+            var host = new VelocityStatisticsHost
+            {
+                Width = 600,
+                Height = 420,
+                PresentationState = SurfacePresentationState.Ready,
+                HasDynamicStatistics = false,
+                StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
+                SuspensionType = SuspensionType.Front,
+                DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
+                StatisticsWorkspace = CreateWorkspace(),
+            };
+
+            EnsureVelocityBandStyle();
+            var window = await ViewTestHelpers.ShowViewAsync(host);
+            try
+            {
+                var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
+
+                Assert.True(HapticFeedbackBehavior.GetIsEnabled(band));
+            }
+            finally
+            {
+                window.Close();
+                await ViewTestHelpers.FlushDispatcherAsync();
+            }
         }
         finally
         {
