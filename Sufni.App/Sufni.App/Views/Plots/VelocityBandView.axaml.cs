@@ -291,7 +291,6 @@ public class VelocityBandView : TemplatedControl
         if (pendingMobileLongPress is not null && HasExceededClickMovement(e))
         {
             CancelPendingMobileLongPress();
-            e.Handled = true;
             return;
         }
 
@@ -300,6 +299,7 @@ public class VelocityBandView : TemplatedControl
             return;
         }
 
+        e.PreventGestureRecognition();
         PreviewFromPointer(e, circuit);
         e.Handled = true;
     }
@@ -384,6 +384,7 @@ public class VelocityBandView : TemplatedControl
         if (UsesMobileLongPress())
         {
             StartPendingMobileLongPress(e.Pointer, circuit);
+            return;
         }
         else
         {
