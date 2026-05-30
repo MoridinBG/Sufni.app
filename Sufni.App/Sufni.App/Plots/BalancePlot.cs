@@ -16,19 +16,17 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
 
     private bool UsesTrend => DisplacementMode != BalanceDisplacementMode.Speed;
 
-    private void AddStatistics(BalanceData balance, double axisMaximum)
+    private void AddStatistics(BalanceData balance)
     {
         var maxVelocity = Math.Max(
             balance.FrontVelocity.Max(),
             balance.RearVelocity.Max());
 
         var msd = balance.MeanSignedDeviation / maxVelocity * 100.0;
-        var slopeString = $"Slope Δ: {balance.SignedSlopeDeltaPercent:+0.0;-#.0} %";
-        var msdString = $"MSD: {msd:+0.0;-#.0} %";
-        var labelY = axisMaximum * 0.10;
+        var slopeString = $"Δ {balance.SignedSlopeDeltaPercent:+0.0;-#.0}%";
+        var msdString = $"MSD {msd:+0.0;-#.0}%";
 
-        AddLabel(slopeString, 100, labelY, -10, -23, Alignment.LowerRight);
-        AddLabel(msdString, 100, labelY, -10, -5, Alignment.LowerRight);
+        AddLabel($"{slopeString}   {msdString}", 100, 0, -10, -30, Alignment.LowerRight);
     }
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
@@ -104,7 +102,7 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
                 balance.RearTravel,
                 balance.RearTrend,
                 xReadoutLabel));
-            AddStatistics(balance, roundedMaxVelocity);
+            AddStatistics(balance);
         }
         else
         {
@@ -112,6 +110,10 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         }
 
         ShowSourceLegend();
+        Plot.Legend.Orientation = Orientation.Horizontal;
+        Plot.Legend.FontSize = 10;
+        Plot.Legend.SymbolHeight = 12;
+        Plot.Legend.Padding = new PixelPadding(4, 4, 4, 4);
     }
 
     private BalanceStatisticsOptions CreateOptions() => new(
