@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:paz="using:Avalonia.Controls.PanAndZoom"
+xmlns:shortcuts="using:Sufni.App.KeyboardShortcuts"
 xmlns:v="using:Sufni.App.Views.Items"
 xmlns:vl="using:Sufni.App.Views.LinkageParts"
 xmlns:vm="using:Sufni.App.ViewModels.Editors"
@@ -45,7 +46,7 @@ mc:Ignorable="d">
         </Interaction.Behaviors>
 
         <paz:ZoomBorder.KeyBindings>
-            <KeyBinding Command="{Binding LinkageEditor.DeleteSelectedItemCommand}" Gesture="Delete" />
+            <KeyBinding Command="{Binding LinkageEditor.DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageDesktopView, Id=delete-selection}" />
         </paz:ZoomBorder.KeyBindings>
 
         <Viewbox>

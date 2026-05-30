@@ -9,6 +9,7 @@ xmlns:bikeVm="using:Sufni.App.ViewModels.Editors.Bike"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:shortcuts="using:Sufni.App.KeyboardShortcuts"
 xmlns:v="using:Sufni.App.DesktopViews.Items"
 xmlns:vm="using:Sufni.App.ViewModels.Editors"
 xmlns:vmle="using:Sufni.App.ViewModels.LinkageEditing"
@@ -362,7 +363,7 @@ mc:Ignorable="d">
                     </DataGrid.IsVisible>
 
                     <DataGrid.KeyBindings>
-                        <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+                        <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageControlsDesktopView, Id=delete-selection}" />
                     </DataGrid.KeyBindings>
 
                     <DataGrid.Columns>
@@ -447,7 +448,7 @@ mc:Ignorable="d">
                     </DataGrid.IsVisible>
 
                     <DataGrid.KeyBindings>
-                        <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="Delete" />
+                        <KeyBinding Command="{Binding DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageControlsDesktopView, Id=delete-selection}" />
                     </DataGrid.KeyBindings>
 
                     <DataGrid.Columns>

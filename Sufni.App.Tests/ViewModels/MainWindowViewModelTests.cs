@@ -174,6 +174,89 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public void SelectNextTabCommand_SelectsNextTabAndWraps()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+        var second = new TestTabPage();
+
+        mainWindow.OpenView(first);
+        mainWindow.OpenView(second);
+        mainWindow.OpenView(welcome);
+
+        mainWindow.SelectNextTabCommand.Execute(null);
+
+        Assert.Same(first, mainWindow.CurrentView);
+        Assert.True(first.IsTabActive);
+        Assert.False(welcome.IsTabActive);
+
+        mainWindow.SelectNextTabCommand.Execute(null);
+        mainWindow.SelectNextTabCommand.Execute(null);
+
+        Assert.Same(welcome, mainWindow.CurrentView);
+        Assert.True(welcome.IsTabActive);
+        Assert.False(second.IsTabActive);
+    }
+
+    [Fact]
+    public void SelectPreviousTabCommand_SelectsPreviousTabAndWraps()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+        var second = new TestTabPage();
+
+        mainWindow.OpenView(first);
+        mainWindow.OpenView(second);
+        mainWindow.OpenView(welcome);
+
+        mainWindow.SelectPreviousTabCommand.Execute(null);
+
+        Assert.Same(second, mainWindow.CurrentView);
+        Assert.True(second.IsTabActive);
+        Assert.False(welcome.IsTabActive);
+
+        mainWindow.SelectPreviousTabCommand.Execute(null);
+        mainWindow.SelectPreviousTabCommand.Execute(null);
+
+        Assert.Same(welcome, mainWindow.CurrentView);
+        Assert.True(welcome.IsTabActive);
+        Assert.False(first.IsTabActive);
+    }
+
+    [Fact]
+    public void SelectTabCommands_DoNothing_WhenOnlyOneTabIsOpen()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+
+        mainWindow.SelectNextTabCommand.Execute(null);
+        mainWindow.SelectPreviousTabCommand.Execute(null);
+
+        Assert.Same(welcome, mainWindow.CurrentView);
+        Assert.True(welcome.IsTabActive);
+    }
+
+    [Fact]
+    public void SelectTabCommands_DoNothing_WhenNoTabIsSelected()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+
+        mainWindow.OpenView(first);
+        mainWindow.CurrentView = null;
+
+        mainWindow.SelectNextTabCommand.Execute(null);
+        mainWindow.SelectPreviousTabCommand.Execute(null);
+
+        Assert.Null(mainWindow.CurrentView);
+        Assert.False(welcome.IsTabActive);
+        Assert.False(first.IsTabActive);
+    }
+
+    [Fact]
     public void ForgetTabHistory_RemovesMatchingClosedTabs()
     {
         var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();

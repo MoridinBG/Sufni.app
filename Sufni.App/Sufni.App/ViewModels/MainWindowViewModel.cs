@@ -136,6 +136,23 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         return true;
     }
 
+    private void SelectRelativeTab(int offset)
+    {
+        if (Tabs.Count <= 1 || CurrentView is null)
+        {
+            return;
+        }
+
+        var currentIndex = Tabs.IndexOf(CurrentView);
+        if (currentIndex < 0)
+        {
+            return;
+        }
+
+        var nextIndex = (currentIndex + offset + Tabs.Count) % Tabs.Count;
+        CurrentView = Tabs[nextIndex];
+    }
+
     public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
         => RemoveTabHistory(match, out _);
 
@@ -180,6 +197,18 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
         Tabs.Add(toRestore);
         CurrentView = toRestore;
+    }
+
+    [RelayCommand]
+    private void SelectNextTab()
+    {
+        SelectRelativeTab(1);
+    }
+
+    [RelayCommand]
+    private void SelectPreviousTab()
+    {
+        SelectRelativeTab(-1);
     }
 
     #endregion Commands

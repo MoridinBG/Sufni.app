@@ -127,6 +127,15 @@ never poke at the shell view model directly — they call
 `shell.Open(view)`, `shell.OpenOrFocus<T>(match, factory)`,
 `shell.Close(view)`, `shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`.
 
+App-defined keyboard shortcuts are listed in
+`KeyboardShortcutRegistry`, grouped by source and shortcut ID in
+`GesturesBySource`. Shell and feature views resolve
+`KeyBinding.Gesture` values through `ShortcutGestureExtension` instead
+of hard-coding gesture strings. Command-style shortcuts use the
+platform command modifier (`Meta` / Cmd on macOS and iOS, `Control`
+on Windows, Linux, and Android). Native text editing, focus traversal,
+and control-internal keys stay local to their controls.
+
 - **Mobile** — `MobileShellCoordinator` wraps `MainViewModel`, which
   maintains a `Stack<ViewModelBase>`. `Open` pushes; `Close` pops if
   the supplied view is current; `GoBack` always pops; `OpenOrFocus`

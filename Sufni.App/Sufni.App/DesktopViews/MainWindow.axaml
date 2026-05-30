@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shortcuts="using:Sufni.App.KeyboardShortcuts"
     xmlns:v="clr-namespace:Sufni.App.DesktopViews"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     Title="Sufni.App"
@@ -23,8 +24,12 @@
     </Window.Resources>
 
     <Window.KeyBindings>
-        <KeyBinding Command="{Binding CurrentView.CloseCommand}" Gesture="Ctrl+W" />
-        <KeyBinding Command="{Binding RestoreCommand}" Gesture="Ctrl+Shift+T" />
+        <KeyBinding Command="{Binding CurrentView.CloseCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=close-current-tab}" />
+        <KeyBinding Command="{Binding RestoreCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=restore-closed-tab}" />
+        <KeyBinding Command="{Binding SelectNextTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-next-tab}" />
+        <KeyBinding Command="{Binding SelectNextTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-next-tab, Index=1}" />
+        <KeyBinding Command="{Binding SelectPreviousTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-previous-tab}" />
+        <KeyBinding Command="{Binding SelectPreviousTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-previous-tab, Index=1}" />
     </Window.KeyBindings>
 
     <SplitView
