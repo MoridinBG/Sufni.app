@@ -62,6 +62,9 @@ public partial class BalanceStatisticsHost : UserControl
     public static readonly StyledProperty<Thickness> PlaceholderMarginProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, Thickness>(nameof(PlaceholderMargin));
 
+    public static readonly StyledProperty<object?> HeaderContentProperty =
+        AvaloniaProperty.Register<BalanceStatisticsHost, object?>(nameof(HeaderContent));
+
     public SurfacePresentationState PresentationState
     {
         get => GetValue(PresentationStateProperty);
@@ -156,6 +159,12 @@ public partial class BalanceStatisticsHost : UserControl
     {
         get => GetValue(PlaceholderMarginProperty);
         set => SetValue(PlaceholderMarginProperty, value);
+    }
+
+    public object? HeaderContent
+    {
+        get => GetValue(HeaderContentProperty);
+        set => SetValue(HeaderContentProperty, value);
     }
 
     public BalanceStatisticsHost()

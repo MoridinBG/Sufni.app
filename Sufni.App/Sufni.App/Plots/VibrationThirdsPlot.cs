@@ -21,10 +21,9 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
 
         base.LoadTelemetryData(telemetryData);
 
-        var suspensionName = type == SuspensionType.Front ? "Front" : "Rear";
-        Plot.Axes.Title.Label.Text = $"{suspensionName} {location} vibration thirds";
+        SetTitle(StatisticsPlotTitles.VibrationThirds(type, location));
         SetAxisLabels("Stroke group", "Vibration (%)");
-        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 45));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding(titleTop: 45));
 
         var groups = new[]
         {

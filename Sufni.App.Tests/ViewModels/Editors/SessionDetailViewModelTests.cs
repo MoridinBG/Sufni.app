@@ -1029,7 +1029,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_OnDesktop_WithImuAndNoStrokes_WaitsForVibrationData()
+    public async Task Loaded_OnDesktop_WithImuAndNoStrokes_ShowsNoDataStates()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var telemetry = CreateVibrationTelemetry(frontStrokes: false, rearStrokes: false);
@@ -1040,10 +1040,14 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontForkVibrationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontFrameVibrationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearForkVibrationState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearFrameVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, editor.FrontStatisticsState.Indicator);
+        Assert.Equal("Not enough travel movement to calculate statistics.", editor.FrontStatisticsState.Message);
+        Assert.Equal(SurfaceStateKind.NoData, editor.FrontForkVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.FrontFrameVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.RearForkVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.RearFrameVibrationState.Kind);
     }
 
     [AvaloniaFact]
@@ -1113,6 +1117,40 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.False(editor.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_OnMobile_FromCacheWithNoStrokes_ShowsNoDataStatistics()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = CreateVibrationTelemetry(
+            frontStrokes: false,
+            rearStrokes: false,
+            forkImu: false,
+            frameImu: false);
+        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs.Default,
+            false),
+            telemetry,
+            null);
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+
+        Assert.Equal(SurfaceStateKind.NoData, editor.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, editor.FrontStatisticsState.Indicator);
+        Assert.Equal("Not enough travel movement to calculate statistics.", editor.FrontStatisticsState.Message);
     }
 
     [AvaloniaFact]

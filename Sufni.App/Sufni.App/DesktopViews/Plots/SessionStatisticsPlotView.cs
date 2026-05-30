@@ -58,6 +58,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             nameof(DampingSpeedCutoffs),
             DampingSpeedCutoffs.Default);
 
+    public static readonly StyledProperty<string> StatisticsTitleProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, string>(nameof(StatisticsTitle), string.Empty);
+
+    public static readonly StyledProperty<object?> HeaderContentProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, object?>(nameof(HeaderContent));
+
     public PlotKind PlotKind
     {
         get => GetValue(PlotKindProperty);
@@ -112,10 +118,27 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         set => SetValue(DampingSpeedCutoffsProperty, value);
     }
 
+    public string StatisticsTitle
+    {
+        get => GetValue(StatisticsTitleProperty);
+        set => SetValue(StatisticsTitleProperty, value);
+    }
+
+    public object? HeaderContent
+    {
+        get => GetValue(HeaderContentProperty);
+        set => SetValue(HeaderContentProperty, value);
+    }
+
     public SessionStatisticsPlotView()
     {
         PropertyChanged += (_, e) =>
         {
+            if (IsTitleProperty(e.Property.Name))
+            {
+                UpdateStatisticsTitle();
+            }
+
             if (e.Property.Name is nameof(TravelHistogramMode) && PlotKind == PlotKind.TravelHistogram ||
                 e.Property.Name is nameof(BalanceDisplacementMode) && PlotKind == PlotKind.Balance ||
                 e.Property.Name is nameof(BalanceSpeedMode) && PlotKind == PlotKind.Balance ||
@@ -148,9 +171,37 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             _ => throw new ArgumentOutOfRangeException()
         };
 
+        plotModel.ShowTitle = false;
         ApplyModeToPlotModel(plotModel);
         SetPlotModel(plotModel);
+        UpdateStatisticsTitle();
         InitializeBarReadoutInteractions();
+    }
+
+    private static bool IsTitleProperty(string? propertyName) =>
+        propertyName is nameof(PlotKind) or
+            nameof(SuspensionType) or
+            nameof(BalanceType) or
+            nameof(ImuLocation) or
+            nameof(TravelHistogramMode) or
+            nameof(BalanceDisplacementMode) or
+            nameof(BalanceSpeedMode) or
+            nameof(VelocityAverageMode);
+
+    private void UpdateStatisticsTitle()
+    {
+        StatisticsTitle = PlotKind switch
+        {
+            PlotKind.TravelHistogram => StatisticsPlotTitles.TravelHistogram(SuspensionType, TravelHistogramMode),
+            PlotKind.TravelFrequencyHistogram => StatisticsPlotTitles.TravelFrequencyHistogram(SuspensionType),
+            PlotKind.VelocityHistogram => StatisticsPlotTitles.VelocityHistogram(SuspensionType, VelocityAverageMode),
+            PlotKind.Balance => StatisticsPlotTitles.Balance(BalanceType, BalanceDisplacementMode, BalanceSpeedMode),
+            PlotKind.StrokeLengthHistogram => StatisticsPlotTitles.StrokeLengthHistogram(SuspensionType, BalanceType),
+            PlotKind.StrokeSpeedHistogram => StatisticsPlotTitles.StrokeSpeedHistogram(SuspensionType, BalanceType),
+            PlotKind.DeepTravelHistogram => StatisticsPlotTitles.DeepTravelHistogram(SuspensionType),
+            PlotKind.VibrationThirds => StatisticsPlotTitles.VibrationThirds(SuspensionType, ImuLocation),
+            _ => string.Empty
+        };
     }
 
     private void ApplyModeToPlotModel(TelemetryPlot plotModel)

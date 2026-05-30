@@ -60,8 +60,8 @@ Both shells satisfy the same `IShellCoordinator` interface but back it with very
 | ------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | Shell host          | `MainWindowViewModel` with `ObservableCollection<TabPageViewModelBase> Tabs` | `MainViewModel` with `Stack<ViewModelBase>` view history         |
 | `Open(view)`        | Add the tab if missing, set `CurrentView`                                    | Push current view onto history, set `CurrentView`                |
-| `OpenOrFocus<T>`    | Walk `Tabs.OfType<T>().FirstOrDefault(match)`, reuse if found                | Always create + push (mobile has no concept of focusing)         |
-| `Close(view)`       | Remove the tab, push it onto a `tabHistory` for `RestoreCommand`             | Pop if the supplied view is current                              |
+| `OpenOrFocus<T>`    | Reuse a matching open tab, then a matching closed history tab, otherwise create | Always create + push (mobile has no concept of focusing)         |
+| `Close(view)`       | Remove the tab, push it onto a deduplicated `tabHistory` for `RestoreCommand` | Pop if the supplied view is current                              |
 | `GoBack()`          | No-op                                                                        | Pop one frame                                                    |
 | Initial view        | `WelcomeScreenViewModel` is added as the first tab                           | `MainPagesViewModel` is the root; no welcome screen              |
 | Hardware back       | n/a                                                                          | `TopLevel.BackRequested` wired in `App` to `OpenPreviousView()`  |

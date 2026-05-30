@@ -60,13 +60,10 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
         base.LoadTelemetryData(telemetryData);
 
         var isStrokePeakMode = AverageMode == VelocityAverageMode.StrokePeakAveraged;
-        var modeLabel = isStrokePeakMode ? "stroke-peak stats" : "sample-averaged stats";
         var percentageLabel = isStrokePeakMode ? "Strokes" : "Time";
-        Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? $"Front velocity - {modeLabel}"
-            : $"Rear velocity - {modeLabel}";
+        SetTitle(StatisticsPlotTitles.VelocityHistogram(type, AverageMode));
         SetAxisLabels(isStrokePeakMode ? "Strokes (%)" : "Time (%)", "Velocity (mm/s)");
-        Plot.Layout.Fixed(new PixelPadding(65, 5, 55, 40));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding(right: 5));
 
         var data = TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, CreateOptions());
         var step = data.Bins[1] - data.Bins[0];

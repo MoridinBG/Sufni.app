@@ -5,6 +5,7 @@ public enum SurfaceStateKind
     Hidden,
     Loading,
     WaitingForData,
+    NoData,
     Ready,
     Error,
 }
@@ -25,7 +26,7 @@ public sealed record SurfacePresentationState(
     public bool IsHidden => Kind == SurfaceStateKind.Hidden;
     public bool IsReady => Kind == SurfaceStateKind.Ready;
     public bool ShowPlaceholder => ReservesLayout && !IsReady;
-    public bool ShowOverlay => Kind is SurfaceStateKind.Loading or SurfaceStateKind.WaitingForData or SurfaceStateKind.Error;
+    public bool ShowOverlay => Kind is SurfaceStateKind.Loading or SurfaceStateKind.WaitingForData or SurfaceStateKind.NoData or SurfaceStateKind.Error;
     public bool ShowSpinner => Indicator == SurfaceIndicatorKind.Spinner;
     public bool ShowErrorIcon => Indicator == SurfaceIndicatorKind.ErrorIcon;
 
@@ -46,6 +47,11 @@ public sealed record SurfacePresentationState(
     public static SurfacePresentationState WaitingForData(string? message = null)
     {
         return new SurfacePresentationState(SurfaceStateKind.WaitingForData, message, SurfaceIndicatorKind.Spinner);
+    }
+
+    public static SurfacePresentationState NoData(string? message = null)
+    {
+        return new SurfacePresentationState(SurfaceStateKind.NoData, message, SurfaceIndicatorKind.None);
     }
 
     public static SurfacePresentationState Error(string? message)

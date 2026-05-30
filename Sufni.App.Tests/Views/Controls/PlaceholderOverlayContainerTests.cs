@@ -43,6 +43,18 @@ public class PlaceholderOverlayContainerTests
         Assert.Equal("Failed to load graph.", mounted.View.FindControl<TextBlock>("StateMessageText")!.Text);
     }
 
+    [AvaloniaFact]
+    public async Task PlaceholderOverlayContainer_ShowsMessageWithoutIndicator_ForNoData()
+    {
+        await using var mounted = await MountAsync(SurfacePresentationState.NoData("Not enough travel movement."));
+
+        Assert.True(mounted.View.IsVisible);
+        Assert.True(mounted.View.FindControl<Border>("OverlayPanel")!.IsVisible);
+        Assert.False(mounted.View.FindControl<ActivityIndicator>("ProgressIndicator")!.IsVisible);
+        Assert.False(mounted.View.FindControl<TextBlock>("ErrorIconText")!.IsVisible);
+        Assert.Equal("Not enough travel movement.", mounted.View.FindControl<TextBlock>("StateMessageText")!.Text);
+    }
+
     private static async Task<MountedPlaceholderOverlayContainer> MountAsync(SurfacePresentationState state)
     {
         ViewTestHelpers.EnsureViewTestResources();
