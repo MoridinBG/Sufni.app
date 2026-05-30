@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Sufni.App.Tests.Views;
 using Sufni.App.ViewModels;
 
@@ -59,6 +60,103 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public void MoveTab_PlacesTabAfterTarget_AndPreservesSelectedTab()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+        var second = new TestTabPage();
+
+        mainWindow.OpenView(first);
+        mainWindow.OpenView(second);
+
+        var moved = mainWindow.MoveTab(first, second, placeAfterTarget: true);
+
+        Assert.True(moved);
+        Assert.Collection(
+            mainWindow.Tabs,
+            tab => Assert.Same(welcome, tab),
+            tab => Assert.Same(second, tab),
+            tab => Assert.Same(first, tab));
+        Assert.Same(second, mainWindow.CurrentView);
+        Assert.False(first.IsTabActive);
+        Assert.True(second.IsTabActive);
+    }
+
+    [Fact]
+    public void MoveTab_PlacesTabBeforeTarget_AndKeepsMovedTabSelected()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+        var second = new TestTabPage();
+
+        mainWindow.OpenView(first);
+        mainWindow.OpenView(second);
+
+        var moved = mainWindow.MoveTab(second, first, placeAfterTarget: false);
+
+        Assert.True(moved);
+        Assert.Collection(
+            mainWindow.Tabs,
+            tab => Assert.Same(welcome, tab),
+            tab => Assert.Same(second, tab),
+            tab => Assert.Same(first, tab));
+        Assert.Same(second, mainWindow.CurrentView);
+        Assert.True(second.IsTabActive);
+    }
+
+    [Fact]
+    public void MoveTab_ReturnsFalse_WhenDropWouldKeepSameOrder()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+
+        mainWindow.OpenView(first);
+
+        var moved = mainWindow.MoveTab(first, welcome, placeAfterTarget: true);
+
+        Assert.False(moved);
+        Assert.Collection(
+            mainWindow.Tabs,
+            tab => Assert.Same(welcome, tab),
+            tab => Assert.Same(first, tab));
+    }
+
+    [Fact]
+    public void MoveTab_SuppressesTransientSelectionChangesDuringCollectionMove()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var first = new TestTabPage();
+        var second = new TestTabPage();
+
+        mainWindow.OpenView(first);
+        mainWindow.OpenView(second);
+        first.ResetActivationCounts();
+        second.ResetActivationCounts();
+
+        mainWindow.Tabs.CollectionChanged += (_, args) =>
+        {
+            if (args.Action == NotifyCollectionChangedAction.Move)
+            {
+                mainWindow.CurrentView = first;
+            }
+        };
+
+        var moved = mainWindow.MoveTab(second, first, placeAfterTarget: false);
+
+        Assert.True(moved);
+        Assert.Same(second, mainWindow.CurrentView);
+        Assert.False(first.IsTabActive);
+        Assert.True(second.IsTabActive);
+        Assert.Equal(0, first.ActivatedCount);
+        Assert.Equal(0, second.ActivatedCount);
+        Assert.Equal(0, second.DeactivatedCount);
+    }
+
+    [Fact]
     public void ForgetTabHistory_RemovesMatchingClosedTabs()
     {
         var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
@@ -81,9 +179,28 @@ public class MainWindowViewModelTests
 
     private sealed class TestTabPage : TabPageViewModelBase
     {
+        public int ActivatedCount { get; private set; }
+        public int DeactivatedCount { get; private set; }
+
         public TestTabPage()
             : base(TestDispatcher)
         {
+        }
+
+        public void ResetActivationCounts()
+        {
+            ActivatedCount = 0;
+            DeactivatedCount = 0;
+        }
+
+        protected override void OnActivated()
+        {
+            ActivatedCount++;
+        }
+
+        protected override void OnDeactivated()
+        {
+            DeactivatedCount++;
         }
     }
 }

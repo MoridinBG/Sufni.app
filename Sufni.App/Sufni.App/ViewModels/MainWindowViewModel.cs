@@ -14,6 +14,7 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
     private TabPageViewModelBase? previousActiveTab;
     private bool isClosing;
+    private bool isReorderingTabs;
 
     #region Observable properties
 
@@ -32,6 +33,11 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase? newValue)
     {
+        if (isReorderingTabs)
+        {
+            return;
+        }
+
         oldValue?.SetTabActive(false);
         newValue?.SetTabActive(true);
 
@@ -92,6 +98,40 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
             CurrentView = previousActiveTab ?? (Tabs.Count == 0 ? null : Tabs[0]);
 
         isClosing = false;
+    }
+
+    public bool MoveTab(TabPageViewModelBase tab, TabPageViewModelBase targetTab, bool placeAfterTarget)
+    {
+        var currentIndex = Tabs.IndexOf(tab);
+        var targetIndex = Tabs.IndexOf(targetTab);
+
+        if (currentIndex < 0 || targetIndex < 0 || currentIndex == targetIndex)
+        {
+            return false;
+        }
+
+        var newIndex = placeAfterTarget
+            ? targetIndex + (currentIndex > targetIndex ? 1 : 0)
+            : targetIndex - (currentIndex < targetIndex ? 1 : 0);
+
+        if (newIndex == currentIndex)
+        {
+            return false;
+        }
+
+        var selectedBeforeMove = CurrentView;
+        isReorderingTabs = true;
+        try
+        {
+            Tabs.Move(currentIndex, newIndex);
+            CurrentView = selectedBeforeMove;
+        }
+        finally
+        {
+            isReorderingTabs = false;
+        }
+
+        return true;
     }
 
     public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase

@@ -43,63 +43,74 @@
 
         <!--  Main tab area  -->
         <Grid RowDefinitions="auto *">
-            <TabStrip
-                Name="TabControl"
-                Grid.Row="0"
-                Padding="0"
-                ItemsSource="{Binding Tabs}"
-                SelectedItem="{Binding CurrentView}">
+            <Grid Grid.Row="0" ClipToBounds="True">
+                <TabStrip
+                    Name="TabControl"
+                    Padding="0"
+                    ItemsSource="{Binding Tabs}"
+                    SelectedItem="{Binding CurrentView}">
 
-                <TabStrip.Styles>
-                    <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
-                    </Style>
-                    <Style Selector="TabStripItem:selected /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
-                    </Style>
-                    <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
-                    </Style>
-                    <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
-                        <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
-                        <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
-                        <Setter Property="Margin" Value="{StaticResource SufniTabIndicatorBleedMargin}" />
-                    </Style>
-                </TabStrip.Styles>
+                    <TabStrip.Styles>
+                        <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
+                        </Style>
+                        <Style Selector="TabStripItem:selected /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+                        </Style>
+                        <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+                        </Style>
+                        <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
+                            <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+                            <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
+                            <Setter Property="Margin" Value="{StaticResource SufniTabIndicatorBleedMargin}" />
+                        </Style>
+                    </TabStrip.Styles>
 
-                <TabStrip.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Margin="10,0,0,0" ColumnDefinitions="* auto">
-                            <TextBlock
-                                x:Name="TabHeaderText"
-                                Grid.Column="0"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="{StaticResource SufniTabFontSizeWindow}"
-                                FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
-                                Text="{Binding Name}">
-                                <TextBlock.Foreground>
-                                    <MultiBinding Converter="{StaticResource BoolToColorConverter}">
-                                        <Binding Path="IsDirty" />
-                                        <Binding ElementName="TabHeaderText" Path="ActualThemeVariant" />
-                                    </MultiBinding>
-                                </TextBlock.Foreground>
-                            </TextBlock>
-                            <Button
-                                Grid.Column="1"
-                                Margin="5,3,0,0"
-                                HorizontalAlignment="Right"
-                                Classes="embedded"
-                                Command="{Binding CloseCommand}">
-                                <Image
-                                    Width="12"
-                                    Opacity="0.4"
-                                    Source="{SvgImage /Assets/fa-xmark.svg}" />
-                            </Button>
-                        </Grid>
-                    </DataTemplate>
-                </TabStrip.ItemTemplate>
-            </TabStrip>
+                    <TabStrip.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="10,0,0,0" ColumnDefinitions="* auto">
+                                <TextBlock
+                                    x:Name="TabHeaderText"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="{StaticResource SufniTabFontSizeWindow}"
+                                    FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
+                                    Text="{Binding Name}">
+                                    <TextBlock.Foreground>
+                                        <MultiBinding Converter="{StaticResource BoolToColorConverter}">
+                                            <Binding Path="IsDirty" />
+                                            <Binding ElementName="TabHeaderText" Path="ActualThemeVariant" />
+                                        </MultiBinding>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                                <Button
+                                    Grid.Column="1"
+                                    Margin="5,3,0,0"
+                                    HorizontalAlignment="Right"
+                                    Classes="embedded"
+                                    Command="{Binding CloseCommand}">
+                                    <Image
+                                        Width="12"
+                                        Opacity="0.4"
+                                        Source="{SvgImage /Assets/fa-xmark.svg}" />
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </TabStrip.ItemTemplate>
+                </TabStrip>
+
+                <Border
+                    Name="TabDropIndicator"
+                    Width="{StaticResource SufniSelectionIndicatorThickness}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Stretch"
+                    Background="{DynamicResource SufniDropPositionIndicator}"
+                    IsHitTestVisible="False"
+                    IsVisible="False"
+                    ZIndex="1" />
+            </Grid>
 
             <ItemsControl Grid.Row="1" ItemsSource="{Binding Tabs}">
                 <ItemsControl.ItemsPanel>

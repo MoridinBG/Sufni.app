@@ -140,7 +140,11 @@ never poke at the shell view model directly — they call
   tab if found, otherwise instantiates and adds a new one. `Close`
   removes the tab through `MainWindowViewModel.CloseTabPage`, which
   preserves a `tabHistory` stack so `RestoreCommand` can re-open the
-  most recently closed tab. `GoBack` is a no-op on desktop.
+  most recently closed tab. The desktop tab strip previews reordering
+  by fading the dragged tab and showing an insertion indicator, then
+  commits the drop through `MainWindowViewModel.MoveTab`; this changes
+  the shell collection order and keeps the moved tab active.
+  `GoBack` is a no-op on desktop.
 
 `DesktopViews/` continues to provide extended layouts (side panels,
 richer controls) that the desktop tab renders instead of the mobile
