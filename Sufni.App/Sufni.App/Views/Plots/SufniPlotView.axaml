@@ -1,6 +1,7 @@
 ﻿<Styles
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:desktopplots="clr-namespace:Sufni.App.DesktopViews.Plots"
     xmlns:plots="clr-namespace:Sufni.App.Views.Plots">
     <Design.PreviewWith>
         <plots:SufniPlotView />
@@ -11,6 +12,40 @@
         <Setter Property="Template">
             <ControlTemplate>
                 <plots:SufniAvaPlot Name="Plot" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector=":is(desktopplots|SessionStatisticsPlotView)">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid RowDefinitions="Auto,*">
+                    <plots:StatisticsPlotHeaderPanel
+                        Grid.Row="0"
+                        MinHeight="28"
+                        Margin="0,0,0,2"
+                        Gap="8">
+                        <TextBlock
+                            x:Name="StatisticsTitleTextBlock"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="Bold"
+                            Foreground="{DynamicResource SufniTextPrimaryBrush}"
+                            Text="{TemplateBinding StatisticsTitle}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <ContentControl
+                            x:Name="StatisticsHeaderContentPresenter"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}"
+                            Content="{TemplateBinding HeaderContent}" />
+                    </plots:StatisticsPlotHeaderPanel>
+
+                    <plots:SufniAvaPlot Grid.Row="1" Name="Plot" />
+                </Grid>
             </ControlTemplate>
         </Setter>
     </Style>

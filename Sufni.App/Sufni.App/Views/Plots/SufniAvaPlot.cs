@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using ScottPlot;
 using ScottPlot.Avalonia;
 using ScottPlot.Interactivity.UserActionResponses;
@@ -56,7 +58,17 @@ public class SufniAvaPlot : AvaPlot
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        if (!IsPointInDataArea(e.GetPosition(this)) || e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            if (TryScrollAncestor(e))
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (!IsPointInDataArea(e.GetPosition(this)))
         {
             return;
         }
@@ -69,6 +81,121 @@ public class SufniAvaPlot : AvaPlot
 
         base.OnPointerWheelChanged(e);
     }
+
+    private bool TryScrollAncestor(PointerWheelEventArgs e)
+    {
+        var deltaY = GetVerticalScrollDelta(e.Delta);
+        if (deltaY == 0)
+        {
+            return false;
+        }
+
+        var scrollViewer = this.GetVisualAncestors()
+            .OfType<ScrollViewer>()
+            .FirstOrDefault(candidate => CanScrollVertically(candidate, deltaY));
+        if (scrollViewer is null)
+        {
+            return false;
+        }
+
+        var previousOffset = scrollViewer.Offset;
+        var forwardedArgs = CreateForwardedWheelArgs(e, scrollViewer, deltaY);
+        scrollViewer.RaiseEvent(forwardedArgs);
+
+        if (forwardedArgs.Handled || HasVerticalOffsetChanged(scrollViewer, previousOffset))
+        {
+            return true;
+        }
+
+        return ScrollDirectly(scrollViewer, deltaY);
+    }
+
+    private static double GetVerticalScrollDelta(Vector delta)
+    {
+        if (delta.Y != 0)
+        {
+            return delta.Y;
+        }
+
+        return delta.X;
+    }
+
+    private static PointerWheelEventArgs CreateForwardedWheelArgs(
+        PointerWheelEventArgs original,
+        ScrollViewer scrollViewer,
+        double deltaY)
+    {
+        var keyModifiers = original.KeyModifiers & ~KeyModifiers.Shift;
+        return new PointerWheelEventArgs(
+            scrollViewer,
+            original.Pointer,
+            scrollViewer,
+            original.GetPosition(scrollViewer),
+            original.Timestamp,
+            new PointerPointProperties(ToRawInputModifiers(keyModifiers), PointerUpdateKind.Other),
+            keyModifiers,
+            new Vector(0, deltaY));
+    }
+
+    private static RawInputModifiers ToRawInputModifiers(KeyModifiers keyModifiers)
+    {
+        var rawModifiers = RawInputModifiers.None;
+        if (keyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            rawModifiers |= RawInputModifiers.Alt;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            rawModifiers |= RawInputModifiers.Control;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            rawModifiers |= RawInputModifiers.Meta;
+        }
+
+        return rawModifiers;
+    }
+
+    private static bool CanScrollVertically(ScrollViewer scrollViewer, double deltaY)
+    {
+        var maxOffset = GetMaxVerticalOffset(scrollViewer);
+        if (maxOffset <= 0)
+        {
+            return false;
+        }
+
+        return deltaY < 0
+            ? scrollViewer.Offset.Y < maxOffset
+            : scrollViewer.Offset.Y > 0;
+    }
+
+    private static bool ScrollDirectly(ScrollViewer scrollViewer, double deltaY)
+    {
+        var previousOffset = scrollViewer.Offset;
+        var maxOffset = GetMaxVerticalOffset(scrollViewer);
+        var smallChange = scrollViewer.SmallChange.Height;
+        if (double.IsNaN(smallChange) || smallChange <= 0)
+        {
+            smallChange = 50;
+        }
+
+        var nextY = Math.Clamp(previousOffset.Y - deltaY * smallChange, 0, maxOffset);
+        if (Math.Abs(nextY - previousOffset.Y) < 0.001)
+        {
+            return false;
+        }
+
+        scrollViewer.Offset = new Vector(previousOffset.X, nextY);
+        return true;
+    }
+
+    private static double GetMaxVerticalOffset(ScrollViewer scrollViewer) =>
+        Math.Max(0, Math.Max(scrollViewer.ScrollBarMaximum.Y, scrollViewer.Extent.Height - scrollViewer.Viewport.Height));
+
+    private static bool HasVerticalOffsetChanged(ScrollViewer scrollViewer, Vector previousOffset) =>
+        Math.Abs(scrollViewer.Offset.Y - previousOffset.Y) >= 0.001;
 
     private void ProcessWheelWithPrecisionZoom(PointerWheelEventArgs e)
     {

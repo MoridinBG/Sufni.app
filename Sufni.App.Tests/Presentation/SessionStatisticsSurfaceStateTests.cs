@@ -29,6 +29,38 @@ public class SessionStatisticsSurfaceStateTests
     }
 
     [Fact]
+    public void ForSuspension_ShowsNoDataForRecordedSurface_WhenTravelHasNoStrokes()
+    {
+        var telemetry = TestTelemetryData.CreateMinimal();
+
+        var state = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front);
+
+        Assert.Equal(SurfaceStateKind.NoData, state.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, state.Indicator);
+        Assert.Equal("Not enough travel movement to calculate statistics.", state.Message);
+    }
+
+    [Fact]
+    public void ForSuspension_ShowsRangeSpecificNoDataForRecordedSurface_WhenSelectedRangeHasNoStrokes()
+    {
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 2, sampleRate: 2);
+        telemetry.Front.Strokes = new Strokes
+        {
+            Compressions = [new Stroke { Start = 2, End = 3 }],
+            Rebounds = [],
+        };
+
+        var state = SessionStatisticsSurfaceState.ForSuspension(
+            telemetry,
+            SuspensionType.Front,
+            new TelemetryTimeRange(0, 0.5));
+
+        Assert.Equal(SurfaceStateKind.NoData, state.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, state.Indicator);
+        Assert.Equal("Not enough travel movement in the selected range to calculate statistics.", state.Message);
+    }
+
+    [Fact]
     public void ForBalance_HidesLiveSurface_WhenBalanceIsNotExpected()
     {
         var state = SessionStatisticsSurfaceState.ForBalance(
@@ -40,7 +72,7 @@ public class SessionStatisticsSurfaceStateTests
     }
 
     [Fact]
-    public void ForVibration_Waits_WhenImuExistsButStrokeDataIsMissing()
+    public void ForVibration_ShowsNoDataForRecordedSurface_WhenImuExistsButStrokeDataIsMissing()
     {
         var telemetry = TestTelemetryData.CreateWithImu(activeLocations: [(byte)ImuLocation.Fork]);
 
@@ -49,6 +81,7 @@ public class SessionStatisticsSurfaceStateTests
             SuspensionType.Front,
             ImuLocation.Fork);
 
-        Assert.Equal(SurfaceStateKind.WaitingForData, state.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, state.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, state.Indicator);
     }
 }

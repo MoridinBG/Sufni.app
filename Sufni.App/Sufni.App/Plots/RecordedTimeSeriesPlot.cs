@@ -21,7 +21,10 @@ public sealed record RecordedTimeSeries(
     RecordedTimeSeriesValues Values,
     string Format = "0.##",
     float LineWidth = 2.0f,
-    string? SourceKey = null);
+    string? SourceKey = null)
+{
+    public Func<double, string>? CursorValueFormatter { get; init; }
+}
 
 public readonly record struct RecordedTimeSeriesValueRange(double Minimum, double Maximum);
 
@@ -425,7 +428,8 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             displaySamples,
             step,
             cursorDurationSeconds,
-            series.Format);
+            series.Format,
+            series.CursorValueFormatter);
 
         return PreparedTimeSeries.FromSampledValues(series, displaySamples, step, cursorReadoutSeries);
     }
@@ -452,7 +456,8 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             series.Color,
             xValues,
             yValues,
-            series.Format);
+            series.Format,
+            series.CursorValueFormatter);
 
         return PreparedTimeSeries.FromExplicitValues(series, xValues, yValues, cursorReadoutSeries);
     }

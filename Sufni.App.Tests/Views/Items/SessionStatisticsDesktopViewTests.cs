@@ -94,7 +94,10 @@ public class SessionStatisticsDesktopViewTests
             .Where(host => host.PresentationState.ReservesLayout)
             .ToArray();
         var frontDampingHost = Assert.Single(readyDampingHosts);
-        Assert.True(frontDampingHost.ShowTravelLegend);
+        Assert.False(frontDampingHost.ShowTravelLegend);
+        Assert.Single(
+            damping.GetVisualDescendants().OfType<TravelPercentageLegend>(),
+            legend => legend.IsVisible);
         Assert.Equal(workspace.DamperPercentages.FrontHscPercentage, frontDampingHost.HscPercentage);
     }
 
@@ -159,15 +162,25 @@ public class SessionStatisticsDesktopViewTests
         await using var mounted = await MountAsync(workspace);
 
         var travelMode = mounted.View.FindControl<ComboBox>("TravelHistogramModeComboBox");
+        var balanceDisplacementMode = mounted.View.FindControl<ComboBox>("BalanceDisplacementModeComboBox");
+        var balanceSpeedMode = mounted.View.FindControl<ComboBox>("BalanceSpeedModeComboBox");
 
         Assert.NotNull(travelMode);
+        Assert.NotNull(balanceDisplacementMode);
+        Assert.NotNull(balanceSpeedMode);
 
         Assert.Equal(TravelHistogramMode.ActiveSuspension, travelMode!.SelectedValue);
+        Assert.Equal(BalanceDisplacementMode.Zenith, balanceDisplacementMode!.SelectedValue);
+        Assert.Equal(BalanceSpeedMode.Both, balanceSpeedMode!.SelectedValue);
 
         travelMode.SelectedValue = TravelHistogramMode.DynamicSag;
+        balanceDisplacementMode.SelectedValue = BalanceDisplacementMode.Travel;
+        balanceSpeedMode.SelectedValue = BalanceSpeedMode.HighSpeed;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.HighSpeed, workspace.SelectedBalanceSpeedMode);
     }
 
     private static async Task<MountedSessionStatisticsDesktopView> MountAsync(SessionStatisticsWorkspaceStub workspace)

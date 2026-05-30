@@ -64,6 +64,37 @@ public class BalancePlotTests
     }
 
     [Fact]
+    public void LoadTelemetryData_KeepsSourceLegendCompactAndDrawsTrendStatisticsSeparately()
+    {
+        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
+        var plot = new Plot();
+        var sut = new BalancePlot(plot, BalanceType.Compression);
+
+        sut.LoadTelemetryData(telemetry);
+
+        var legendLabels = plot.PlottableList
+            .OfType<Scatter>()
+            .Select(scatter => scatter.LegendText)
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .ToArray();
+        plot.RenderInMemory(320, 180);
+        using var paint = Paint.NewDisposablePaint();
+        var legendLayout = plot.Legend.GetLayout(plot.LastRender.DataRect.Size, paint);
+
+        Assert.Equal("Front", legendLabels[0]);
+        Assert.Equal("Rear", legendLabels[1]);
+        Assert.Equal(Orientation.Horizontal, plot.Legend.Orientation);
+        Assert.Equal(2, legendLayout.LegendItems.Length);
+        Assert.True(
+            legendLayout.LegendRect.Height < plot.LastRender.DataRect.Height * 0.35,
+            $"Legend height {legendLayout.LegendRect.Height} should stay compact relative to data height {plot.LastRender.DataRect.Height}.");
+        Assert.DoesNotContain(legendLabels, label => label.StartsWith("Δ ") || label.StartsWith("MSD "));
+        Assert.Contains(
+            plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels),
+            label => label.StartsWith("Δ ") && label.Contains("MSD "));
+    }
+
+    [Fact]
     public void SetPointerPositionWithReadout_UsesNearestPointInSpeedMode()
     {
         var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();

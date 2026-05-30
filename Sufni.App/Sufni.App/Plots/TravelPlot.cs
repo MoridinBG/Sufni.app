@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using ScottPlot;
 using Sufni.App.Models;
 using Sufni.App.Theming;
@@ -18,24 +19,32 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
 
         if (telemetryData.Front.Present)
         {
+            var maxFrontTravel = telemetryData.Front.MaxTravel!.Value;
             series.Add(new RecordedTimeSeries(
                 "Front",
                 "mm",
                 FrontColor,
                 new SampledValues(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate),
                 "0.#",
-                SourceKey: TelemetrySourceKeys.Front));
+                SourceKey: TelemetrySourceKeys.Front)
+            {
+                CursorValueFormatter = value => FormatTravelCursorValue(value, maxFrontTravel)
+            });
         }
 
         if (telemetryData.Rear.Present)
         {
+            var maxRearTravel = telemetryData.Rear.MaxTravel!.Value;
             series.Add(new RecordedTimeSeries(
                 "Rear",
                 "mm",
                 RearColor,
                 new SampledValues(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate),
                 "0.#",
-                SourceKey: TelemetrySourceKeys.Rear));
+                SourceKey: TelemetrySourceKeys.Rear)
+            {
+                CursorValueFormatter = value => FormatTravelCursorValue(value, maxRearTravel)
+            });
         }
 
         var valueRange = new RecordedTimeSeriesValueRange(maxTravel, 0);
@@ -56,5 +65,12 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
             ShowLegendWhenSingleSource: true,
             EnableInteractiveLegend: true,
             InteractiveLegendRowId: TelemetryGraphRowIds.Travel));
+    }
+
+    private static string FormatTravelCursorValue(double value, double maxTravel)
+    {
+        var travelText = value.ToString("0.#", CultureInfo.InvariantCulture);
+        var percentage = Math.Round(value / maxTravel * 100.0, MidpointRounding.AwayFromZero);
+        return $"{travelText} mm ({percentage.ToString("0", CultureInfo.InvariantCulture)}%)";
     }
 }

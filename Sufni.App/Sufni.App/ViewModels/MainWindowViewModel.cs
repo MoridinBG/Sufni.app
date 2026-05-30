@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Services;
@@ -14,6 +13,7 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
     private TabPageViewModelBase? previousActiveTab;
     private bool isClosing;
+    private bool isReorderingTabs;
 
     #region Observable properties
 
@@ -32,6 +32,11 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase? newValue)
     {
+        if (isReorderingTabs)
+        {
+            return;
+        }
+
         oldValue?.SetTabActive(false);
         newValue?.SetTabActive(true);
 
@@ -82,6 +87,9 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         Tabs.Remove(tab);
         if (rememberForRestore)
         {
+            RemoveTabHistory<TabPageViewModelBase>(
+                historyTab => ReferenceEquals(historyTab, tab),
+                out _);
             tabHistory.Push(tab);
         }
 
@@ -94,17 +102,69 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         isClosing = false;
     }
 
-    public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
+    public bool MoveTab(TabPageViewModelBase tab, TabPageViewModelBase targetTab, bool placeAfterTarget)
     {
-        var retained = tabHistory
-            .Where(tab => tab is not T typed || !match(typed))
-            .Reverse()
-            .ToArray();
+        var currentIndex = Tabs.IndexOf(tab);
+        var targetIndex = Tabs.IndexOf(targetTab);
 
-        tabHistory.Clear();
-        foreach (var tab in retained)
+        if (currentIndex < 0 || targetIndex < 0 || currentIndex == targetIndex)
         {
-            tabHistory.Push(tab);
+            return false;
+        }
+
+        var newIndex = placeAfterTarget
+            ? targetIndex + (currentIndex > targetIndex ? 1 : 0)
+            : targetIndex - (currentIndex < targetIndex ? 1 : 0);
+
+        if (newIndex == currentIndex)
+        {
+            return false;
+        }
+
+        var selectedBeforeMove = CurrentView;
+        isReorderingTabs = true;
+        try
+        {
+            Tabs.Move(currentIndex, newIndex);
+            CurrentView = selectedBeforeMove;
+        }
+        finally
+        {
+            isReorderingTabs = false;
+        }
+
+        return true;
+    }
+
+    public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
+        => RemoveTabHistory(match, out _);
+
+    public T? TakeTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
+    {
+        RemoveTabHistory(match, out var tab);
+        return tab;
+    }
+
+    private void RemoveTabHistory<T>(Func<T, bool> match, out T? mostRecentMatch)
+        where T : ViewModelBase
+    {
+        mostRecentMatch = null;
+        var retained = new List<TabPageViewModelBase>(tabHistory.Count);
+
+        while (tabHistory.TryPop(out var tab))
+        {
+            if (tab is T typed && match(typed))
+            {
+                mostRecentMatch ??= typed;
+                continue;
+            }
+
+            retained.Add(tab);
+        }
+
+        for (var i = retained.Count - 1; i >= 0; i--)
+        {
+            tabHistory.Push(retained[i]);
         }
     }
 

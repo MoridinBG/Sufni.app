@@ -7,6 +7,12 @@ public static class SessionStatisticsSurfaceState
     private const string StatisticsWaitingMessage = "Waiting for statistics.";
     private const string BalanceWaitingMessage = "Waiting for balance data.";
     private const string VibrationWaitingMessage = "Waiting for vibration data.";
+    private const string StatisticsNoDataMessage = "Not enough travel movement to calculate statistics.";
+    private const string RangeStatisticsNoDataMessage = "Not enough travel movement in the selected range to calculate statistics.";
+    private const string BalanceNoDataMessage = "Not enough travel movement to calculate balance data.";
+    private const string RangeBalanceNoDataMessage = "Not enough travel movement in the selected range to calculate balance data.";
+    private const string VibrationNoDataMessage = "Not enough suspension movement to calculate vibration data.";
+    private const string RangeVibrationNoDataMessage = "Not enough suspension movement in the selected range to calculate vibration data.";
 
     public static SurfacePresentationState ForSuspension(
         TelemetryData? telemetry,
@@ -20,7 +26,10 @@ public static class SessionStatisticsSurfaceState
 
         return TelemetryStatistics.HasStrokeData(telemetry, suspensionType, range)
             ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData(StatisticsWaitingMessage);
+            : SurfacePresentationState.NoData(SelectRangeAwareMessage(
+                range,
+                StatisticsNoDataMessage,
+                RangeStatisticsNoDataMessage));
     }
 
     public static SurfacePresentationState ForSuspension(
@@ -56,7 +65,10 @@ public static class SessionStatisticsSurfaceState
 
         return TelemetryStatistics.HasBalanceData(telemetry, balanceType, range)
             ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData(BalanceWaitingMessage);
+            : SurfacePresentationState.NoData(SelectRangeAwareMessage(
+                range,
+                BalanceNoDataMessage,
+                RangeBalanceNoDataMessage));
     }
 
     public static SurfacePresentationState ForBalance(
@@ -99,11 +111,22 @@ public static class SessionStatisticsSurfaceState
 
         return TelemetryStatistics.HasStrokeData(telemetry, suspensionType, range)
             ? SurfacePresentationState.Ready
-            : SurfacePresentationState.WaitingForData(VibrationWaitingMessage);
+            : SurfacePresentationState.NoData(SelectRangeAwareMessage(
+                range,
+                VibrationNoDataMessage,
+                RangeVibrationNoDataMessage));
     }
 
     private static Suspension GetSuspension(TelemetryData telemetry, SuspensionType suspensionType)
     {
         return suspensionType == SuspensionType.Front ? telemetry.Front : telemetry.Rear;
+    }
+
+    private static string SelectRangeAwareMessage(
+        TelemetryTimeRange? range,
+        string fullSessionMessage,
+        string selectedRangeMessage)
+    {
+        return range is null ? fullSessionMessage : selectedRangeMessage;
     }
 }

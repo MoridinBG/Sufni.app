@@ -18,11 +18,10 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
 
         base.LoadTelemetryData(telemetryData);
 
-        var suspensionName = type == SuspensionType.Front ? "Front" : "Rear";
         var strokeName = strokeKind == BalanceType.Compression ? "compression" : "rebound";
-        Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} speed";
+        SetTitle(StatisticsPlotTitles.StrokeSpeedHistogram(type, strokeKind));
         SetAxisLabels("Peak stroke speed (mm/s)", "Strokes (%)");
-        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding());
 
         var data = TelemetryStatistics.CalculateStrokeSpeedHistogram(telemetryData, type, strokeKind, AnalysisRange);
         if (data.Values.Sum() <= 0)
