@@ -53,6 +53,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #region Private fields
 
     private readonly SessionCoordinator sessionCoordinator;
+    private readonly BikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly ISessionPresentationService sessionPresentationService;
@@ -96,6 +97,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private SurfacePresentationState recordedPitchRollGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedSpeedGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedElevationGraphBaseState = SurfacePresentationState.Hidden;
+    private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
+    private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
 
     #endregion Private fields
 
@@ -133,6 +137,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
+    public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
 
     #endregion Public fields
 
@@ -180,6 +185,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [NotifyPropertyChangedFor(nameof(HasMediaContent))]
     private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
+    [ObservableProperty] private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    [ObservableProperty] private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     [ObservableProperty] private SessionAnalysisResult sessionAnalysis = SessionAnalysisResult.Hidden;
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
@@ -253,6 +260,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     partial void OnSelectedVelocityAverageModeChanged(VelocityAverageMode value)
     {
         OnPropertyChanged(nameof(SessionAnalysisModesText));
+        RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
     }
@@ -261,6 +269,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
+    }
+
+    partial void OnDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
+    {
+        RecomputeDamperPercentagesForAnalysisRange();
+        RecomputeSessionAnalysisIfAllowed();
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -337,6 +351,94 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         DamperPage.ApplyDamperPercentages(percentages);
     }
 
+    private void ApplyDampingSpeedCutoffContext(
+        DampingSpeedCutoffs cutoffs,
+        DampingSpeedCutoffOwner? owner)
+    {
+        persistedDampingSpeedCutoffs = cutoffs.ClampValues();
+        dampingSpeedCutoffPreviewOrigin = null;
+        dampingSpeedCutoffOwner = owner;
+        OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
+        PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+        DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+    }
+
+    public void PreviewDampingSpeedCutoff(
+        SuspensionType side,
+        DampingSpeedCircuit circuit,
+        double cutoffMmPerSecond)
+    {
+        if (dampingSpeedCutoffOwner is null)
+        {
+            return;
+        }
+
+        dampingSpeedCutoffPreviewOrigin ??= DampingSpeedCutoffs;
+        DampingSpeedCutoffs = DampingSpeedCutoffs.With(
+            side,
+            circuit,
+            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+    }
+
+    public void CancelDampingSpeedCutoffPreview()
+    {
+        if (dampingSpeedCutoffPreviewOrigin is not { } origin)
+        {
+            return;
+        }
+
+        dampingSpeedCutoffPreviewOrigin = null;
+        DampingSpeedCutoffs = origin;
+    }
+
+    public async Task CommitDampingSpeedCutoffAsync(
+        SuspensionType side,
+        DampingSpeedCircuit circuit,
+        double cutoffMmPerSecond)
+    {
+        if (dampingSpeedCutoffOwner is not { } owner || bikeCoordinator is null)
+        {
+            return;
+        }
+
+        dampingSpeedCutoffPreviewOrigin = null;
+        var committedCutoffs = DampingSpeedCutoffs.With(
+            side,
+            circuit,
+            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+        DampingSpeedCutoffs = committedCutoffs;
+        PlotDampingSpeedCutoffs = committedCutoffs;
+
+        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
+            owner.BikeId,
+            owner.BaselineUpdated,
+            side,
+            circuit,
+            committedCutoffs.Get(side, circuit));
+
+        switch (result)
+        {
+            case BikeDampingSpeedCutoffUpdateResult.Saved saved:
+                ApplyDampingSpeedCutoffContext(
+                    saved.Snapshot.DampingSpeedCutoffs,
+                    new DampingSpeedCutoffOwner(saved.Snapshot.Id, saved.Snapshot.Updated));
+                break;
+
+            case BikeDampingSpeedCutoffUpdateResult.Conflict conflict:
+                ApplyDampingSpeedCutoffContext(
+                    conflict.CurrentSnapshot.DampingSpeedCutoffs,
+                    new DampingSpeedCutoffOwner(conflict.CurrentSnapshot.Id, conflict.CurrentSnapshot.Updated));
+                ErrorMessages.Add("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff.");
+                break;
+
+            case BikeDampingSpeedCutoffUpdateResult.Failed failed:
+                DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                ErrorMessages.Add($"Could not save damping cutoff: {failed.ErrorMessage}");
+                break;
+        }
+    }
+
     private void ClearDamperPercentages()
     {
         ApplyDamperPercentages(SessionDamperPercentages.Empty);
@@ -350,7 +452,28 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             return;
         }
 
-        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(TelemetryData, AnalysisRange));
+        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
+            TelemetryData,
+            AnalysisRange,
+            SelectedVelocityAverageMode,
+            DampingSpeedCutoffs));
+    }
+
+    private void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    {
+        if (TelemetryData is null)
+        {
+            ClearDamperPercentages();
+            return;
+        }
+
+        if (AnalysisRange is null && SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        {
+            ApplyDamperPercentages(sampleAveragedPercentages);
+            return;
+        }
+
+        RecomputeDamperPercentagesForAnalysisRange();
     }
 
     private void RecomputeSessionAnalysisIfAllowed()
@@ -373,7 +496,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             SelectedBalanceDisplacementMode,
             SelectedBalanceSpeedMode,
             DamperPercentages,
-            SelectedSessionAnalysisTargetProfile));
+            SelectedSessionAnalysisTargetProfile)
+        {
+            DampingSpeedCutoffs = this.DampingSpeedCutoffs,
+        });
     }
 
     private static string FormatSeconds(double seconds)
@@ -422,6 +548,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
     {
+        ApplyDampingSpeedCutoffContext(data.DampingSpeedCutoffs, data.DampingSpeedCutoffOwner);
+
         var hasFrontTravelHistogram = !string.IsNullOrWhiteSpace(data.FrontTravelHistogram);
         var hasRearTravelHistogram = !string.IsNullOrWhiteSpace(data.RearTravelHistogram);
         var hasFrontVelocityHistogram = !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
@@ -642,6 +770,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         switch (result)
         {
             case SessionDesktopLoadResult.Loaded loaded:
+                ApplyDampingSpeedCutoffContext(
+                    loaded.Data.DampingSpeedCutoffs,
+                    loaded.Data.DampingSpeedCutoffOwner);
                 suppressAnalysisRecompute = true;
                 try
                 {
@@ -655,7 +786,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 FullTrackPoints = loaded.Data.FullTrackPoints;
                 TrackPoints = loaded.Data.TrackPoints;
                 MapVideoWidth = loaded.Data.MapVideoWidth;
-                ApplyDamperPercentages(loaded.Data.DamperPercentages);
+                ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
                 RecomputeSessionAnalysis();
                 lastObservedHasProcessedData = true;
@@ -1057,12 +1188,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         IShellCoordinator shell,
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        BikeCoordinator? bikeCoordinator = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
 
         this.sessionCoordinator = sessionCoordinator;
+        this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
         this.recordedSessionGraph = recordedSessionGraph;
         this.sessionPresentationService = sessionPresentationService;

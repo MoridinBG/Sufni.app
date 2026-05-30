@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
+using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
@@ -314,6 +315,13 @@ public class MobileStatisticsPageViewTests
         public SurfacePresentationState RearForkVibrationState { get; }
         public SurfacePresentationState RearFrameVibrationState { get; }
         public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
+        public DampingSpeedCutoffs DampingSpeedCutoffs { get; } = DampingSpeedCutoffs.Default;
+        public DampingSpeedCutoffs PlotDampingSpeedCutoffs => DampingSpeedCutoffs;
+        public bool CanEditDampingSpeedCutoffs => true;
+        public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
+        public void CancelDampingSpeedCutoffPreview() { }
+        public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>
+            Task.CompletedTask;
         public SessionAnalysisResult SessionAnalysis { get; } = new(
             SurfacePresentationState.Ready,
             [new SessionAnalysisStep(

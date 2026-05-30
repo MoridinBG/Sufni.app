@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
@@ -236,7 +237,9 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
                 BikeId: record.BikeId!.Value,
                 BikeName: record.BikeName!,
                 BikeData: TelemetryBikeData.Create(bike, frontSensorConfiguration, rearTravelCalibration),
-                TravelCalibration: calibration));
+                TravelCalibration: calibration,
+                DampingSpeedCutoffs: bikeSnapshot.DampingSpeedCutoffs,
+                DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeSnapshot.Id, bikeSnapshot.Updated)));
     }
 
     private static LiveDaqTravelChannelCalibration? CreateCalibration(Models.SensorConfigurations.ISensorConfiguration? configuration)

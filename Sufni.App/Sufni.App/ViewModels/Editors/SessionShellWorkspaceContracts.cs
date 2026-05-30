@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
@@ -91,7 +93,13 @@ public interface ISessionStatisticsWorkspace
     SurfacePresentationState RearForkVibrationState { get; }
     SurfacePresentationState RearFrameVibrationState { get; }
     SessionDamperPercentages DamperPercentages { get; }
+    DampingSpeedCutoffs DampingSpeedCutoffs { get; }
+    DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
+    bool CanEditDampingSpeedCutoffs { get; }
     SessionAnalysisResult SessionAnalysis { get; }
+    void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
+    void CancelDampingSpeedCutoffPreview();
+    Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
 }
 
 public interface ISessionSidebarWorkspace

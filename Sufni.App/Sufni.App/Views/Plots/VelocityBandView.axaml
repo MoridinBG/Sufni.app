@@ -8,14 +8,16 @@
 
     <Style Selector="controls|VelocityBandView">
         <!--  Set Defaults  -->
+        <Setter Property="MinWidth" Value="68" />
+        <Setter Property="MaxWidth" Value="84" />
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid ColumnDefinitions="64" RowDefinitions="39 * 39">
+                <Grid ColumnDefinitions="Auto" RowDefinitions="40 * 55">
 
                     <!--  Title  -->
                     <TextBlock
                         Grid.Row="0"
-                        Margin="0,3,10,5"
+                        Margin="0,3,0,5"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Bottom"
                         FontWeight="Bold"
@@ -23,16 +25,12 @@
                         Text="Zone %" />
 
                     <!--  Bands  -->
-                    <Grid Grid.Row="1" Margin="0,0,12,0">
-                        <Grid.Resources>
-                            <controls:GridLengthConverter x:Key="GridLengthConverter" />
-                        </Grid.Resources>
-
+                    <Grid Name="PART_BandsGrid" Grid.Row="1">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="{Binding Path=HsrPercentage, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource GridLengthConverter}}" />
-                            <RowDefinition Height="{Binding Path=LsrPercentage, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource GridLengthConverter}}" />
-                            <RowDefinition Height="{Binding Path=LscPercentage, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource GridLengthConverter}}" />
-                            <RowDefinition Height="{Binding Path=HscPercentage, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource GridLengthConverter}}" />
+                            <RowDefinition Height="{Binding Path=HsrZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=LsrZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=LscZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=HscZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
                         </Grid.RowDefinitions>
 
                         <Grid.Styles>
@@ -40,14 +38,33 @@
                                 <Style Selector="Border">
                                     <Setter Property="BorderThickness" Value="1,0,1,1" />
                                     <Setter Property="BorderBrush" Value="{DynamicResource SufniLineDefaultBrush}" />
-                                    <Setter Property="Padding" Value="5" />
+                                    <Setter Property="Padding" Value="6,2" />
                                 </Style>
                                 <Style Selector="TextBlock">
                                     <Setter Property="HorizontalAlignment" Value="Center" />
                                     <Setter Property="VerticalAlignment" Value="Center" />
-                                    <Setter Property="FontSize" Value="12" />
-                                    <Setter Property="FontWeight" Value="Black" />
+                                    <Setter Property="FontSize" Value="10" />
+                                    <Setter Property="FontWeight" Value="Bold" />
                                     <Setter Property="Foreground" Value="{DynamicResource SufniTextPrimaryBrush}" />
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    <Setter Property="TextWrapping" Value="NoWrap" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle">
+                                    <Setter Property="Height" Value="8" />
+                                    <Setter Property="Margin" Value="8,0" />
+                                    <Setter Property="Background" Value="{DynamicResource SufniLineDefaultBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SufniSurfaceItemHoverBrush}" />
+                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="CornerRadius" Value="5" />
+                                    <Setter Property="Cursor" Value="SizeNorthSouth" />
+                                    <Setter Property="Focusable" Value="True" />
+                                    <Setter Property="Opacity" Value="0.72" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle:pointerover">
+                                    <Setter Property="Opacity" Value="0.9" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle:disabled">
+                                    <Setter Property="Opacity" Value="0.25" />
                                 </Style>
                             </Styles>
                         </Grid.Styles>
@@ -56,33 +73,41 @@
                             Grid.Row="0"
                             Background="{DynamicResource SufniSurfaceItemHoverBrush}"
                             BorderThickness="1,1,1,1">
-                            <TextBlock TextAlignment="Center">
-                                <Run Text="HSR:" />
-                                <LineBreak />
-                                <Run Text="{Binding Path=HsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
-                            </TextBlock>
+                            <TextBlock
+                            Text="{Binding Path=HsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='HSR {0:0.00}'}"
+                            TextAlignment="Center" />
                         </Border>
                         <Border Grid.Row="1" Background="{DynamicResource SufniSurfaceInputBrush}">
-                            <TextBlock TextAlignment="Center">
-                                <Run Text="LSR:" />
-                                <LineBreak />
-                                <Run Text="{Binding Path=LsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
-                            </TextBlock>
+                            <TextBlock
+                            Text="{Binding Path=LsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='LSR {0:0.00}'}"
+                            TextAlignment="Center" />
                         </Border>
                         <Border Grid.Row="2" Background="{DynamicResource SufniSurfaceInputBrush}">
-                            <TextBlock TextAlignment="Center">
-                                <Run Text="LSC:" />
-                                <LineBreak />
-                                <Run Text="{Binding Path=LscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
-                            </TextBlock>
+                            <TextBlock
+                            Text="{Binding Path=LscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='LSC {0:0.00}'}"
+                            TextAlignment="Center" />
                         </Border>
                         <Border Grid.Row="3" Background="{DynamicResource SufniSurfaceItemHoverBrush}">
-                            <TextBlock TextAlignment="Center">
-                                <Run Text="HSC:" />
-                                <LineBreak />
-                                <Run Text="{Binding Path=HscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='0.00'}" />
-                            </TextBlock>
+                            <TextBlock
+                            Text="{Binding Path=HscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='HSC {0:0.00}'}"
+                            TextAlignment="Center" />
                         </Border>
+
+                        <Border
+                            Name="PART_ReboundHandle"
+                            Grid.Row="0"
+                            Classes="cutoff-handle"
+                            IsEnabled="{Binding Path=CanEditDampingSpeedCutoffs, RelativeSource={RelativeSource TemplatedParent}}"
+                            ToolTip.Tip="{Binding Path=ReboundCutoff, RelativeSource={RelativeSource TemplatedParent}, StringFormat='Rebound cutoff: {0:0} mm/s'}"
+                            VerticalAlignment="Bottom" />
+
+                        <Border
+                            Name="PART_CompressionHandle"
+                            Grid.Row="2"
+                            Classes="cutoff-handle"
+                            IsEnabled="{Binding Path=CanEditDampingSpeedCutoffs, RelativeSource={RelativeSource TemplatedParent}}"
+                            ToolTip.Tip="{Binding Path=CompressionCutoff, RelativeSource={RelativeSource TemplatedParent}, StringFormat='Compression cutoff: {0:0} mm/s'}"
+                            VerticalAlignment="Bottom" />
                     </Grid>
                 </Grid>
             </ControlTemplate>

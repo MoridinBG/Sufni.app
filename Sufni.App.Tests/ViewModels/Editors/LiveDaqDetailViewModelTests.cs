@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Queries;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
@@ -860,7 +861,9 @@ public class LiveDaqDetailViewModelTests
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
             BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
-            TravelCalibration: new LiveDaqTravelCalibration(null, null));
+            TravelCalibration: new LiveDaqTravelCalibration(null, null),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
     }
 
     private static LiveTravelBatchFrame CreateTravelBatchFrame()

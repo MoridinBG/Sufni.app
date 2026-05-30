@@ -1,5 +1,6 @@
 using System;
 using Sufni.App.Models;
+using Sufni.App.SessionDetails;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Stores;
@@ -15,6 +16,10 @@ public sealed record BikeSnapshot(
     double? ForkStroke,
     double? ShockStroke,
     RearSuspensionKind RearSuspensionKind,
+    double FrontCompressionDampingCutoffMmPerSecond,
+    double FrontReboundDampingCutoffMmPerSecond,
+    double RearCompressionDampingCutoffMmPerSecond,
+    double RearReboundDampingCutoffMmPerSecond,
     double? Chainstay,
     double PixelsToMillimeters,
     double? FrontWheelDiameterMm,
@@ -29,6 +34,12 @@ public sealed record BikeSnapshot(
     byte[] ImageBytes,
     long Updated)
 {
+    public DampingSpeedCutoffs DampingSpeedCutoffs => DampingSpeedCutoffs.FromValues(
+        FrontCompressionDampingCutoffMmPerSecond,
+        FrontReboundDampingCutoffMmPerSecond,
+        RearCompressionDampingCutoffMmPerSecond,
+        RearReboundDampingCutoffMmPerSecond);
+
     public static BikeSnapshot From(Bike bike) => new(
         bike.Id,
         bike.Name,
@@ -36,6 +47,10 @@ public sealed record BikeSnapshot(
         bike.ForkStroke,
         bike.ShockStroke,
         bike.RearSuspensionKind,
+        bike.FrontCompressionDampingCutoffMmPerSecond,
+        bike.FrontReboundDampingCutoffMmPerSecond,
+        bike.RearCompressionDampingCutoffMmPerSecond,
+        bike.RearReboundDampingCutoffMmPerSecond,
         bike.Chainstay,
         bike.PixelsToMillimeters,
         bike.FrontWheelDiameterMm,

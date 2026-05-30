@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.Presentation;
+using Sufni.App.SessionDetails;
+using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Views.Controls;
@@ -23,6 +25,20 @@ public partial class VelocityStatisticsHost : UserControl
 
     public static readonly StyledProperty<VelocityAverageMode> VelocityAverageModeProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, VelocityAverageMode>(nameof(VelocityAverageMode));
+
+    public static readonly StyledProperty<DampingSpeedCutoffs> DampingSpeedCutoffsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, DampingSpeedCutoffs>(
+            nameof(DampingSpeedCutoffs),
+            DampingSpeedCutoffs.Default);
+
+    public static readonly StyledProperty<DampingSpeedCutoffs> PlotDampingSpeedCutoffsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, DampingSpeedCutoffs>(
+            nameof(PlotDampingSpeedCutoffs),
+            DampingSpeedCutoffs.Default);
+
+    public static readonly StyledProperty<ISessionStatisticsWorkspace?> StatisticsWorkspaceProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, ISessionStatisticsWorkspace?>(
+            nameof(StatisticsWorkspace));
 
     public static readonly StyledProperty<bool> HasDynamicStatisticsProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, bool>(nameof(HasDynamicStatistics), true);
@@ -85,6 +101,24 @@ public partial class VelocityStatisticsHost : UserControl
     {
         get => GetValue(VelocityAverageModeProperty);
         set => SetValue(VelocityAverageModeProperty, value);
+    }
+
+    public DampingSpeedCutoffs DampingSpeedCutoffs
+    {
+        get => GetValue(DampingSpeedCutoffsProperty);
+        set => SetValue(DampingSpeedCutoffsProperty, value);
+    }
+
+    public DampingSpeedCutoffs PlotDampingSpeedCutoffs
+    {
+        get => GetValue(PlotDampingSpeedCutoffsProperty);
+        set => SetValue(PlotDampingSpeedCutoffsProperty, value);
+    }
+
+    public ISessionStatisticsWorkspace? StatisticsWorkspace
+    {
+        get => GetValue(StatisticsWorkspaceProperty);
+        set => SetValue(StatisticsWorkspaceProperty, value);
     }
 
     public bool HasDynamicStatistics

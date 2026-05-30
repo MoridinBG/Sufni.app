@@ -12,6 +12,7 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Queries;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
@@ -126,7 +127,9 @@ public class LiveSessionDetailDesktopViewTests
             BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
             TravelCalibration: new LiveDaqTravelCalibration(
                 new LiveDaqTravelChannelCalibration(180, measurement => measurement),
-                new LiveDaqTravelChannelCalibration(170, measurement => measurement)));
+                new LiveDaqTravelChannelCalibration(170, measurement => measurement)),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
     }
 
     private static async Task<MountedLiveSessionDetailDesktopView> MountAsync(LiveSessionDetailViewModel editor)

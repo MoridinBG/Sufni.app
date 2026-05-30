@@ -876,7 +876,9 @@ internal sealed class LiveSessionService : ILiveSessionService
                 var telemetryData = await backgroundTaskRunner.RunAsync(
                     () => TelemetryData.FromLiveCapture(BuildCapture(capture)),
                     cancellationToken);
-                var percentages = sessionPresentationService.CalculateDamperPercentages(telemetryData);
+                var percentages = sessionPresentationService.CalculateDamperPercentages(
+                    telemetryData,
+                    dampingSpeedCutoffs: context.DampingSpeedCutoffs);
 
                 LiveSessionPresentationSnapshot snapshot;
                 bool shouldContinue;
