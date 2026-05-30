@@ -20,8 +20,8 @@ public class RecordedCursorReadoutTests
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
         Assert.Contains("0.5 s", tooltip.LabelText);
-        Assert.Contains("Front: 25 mm", tooltip.LabelText);
-        Assert.Contains("Rear: 20 mm", tooltip.LabelText);
+        Assert.Contains("Front: 25 mm (15%)", tooltip.LabelText);
+        Assert.Contains("Rear: 20 mm (13%)", tooltip.LabelText);
     }
 
     [Fact]

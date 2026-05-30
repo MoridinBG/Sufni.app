@@ -11,10 +11,16 @@ public sealed record CursorReadoutLine(
     double Value,
     string Unit,
     Color Color,
-    string Format = "0.##")
+    string Format = "0.##",
+    string? DisplayValue = null)
 {
     public string FormatValue()
     {
+        if (DisplayValue is not null)
+        {
+            return DisplayValue;
+        }
+
         var formatted = Value.ToString(Format, CultureInfo.InvariantCulture);
         return string.IsNullOrWhiteSpace(Unit)
             ? formatted
@@ -38,6 +44,7 @@ public sealed class CursorReadoutSeries
     private readonly IReadOnlyList<double>? xValues;
     private readonly IReadOnlyList<double> yValues;
     private readonly double? regularStep;
+    private readonly Func<double, string>? valueFormatter;
     private readonly double maximumX;
     private readonly bool xValuesSorted;
 
@@ -49,6 +56,7 @@ public sealed class CursorReadoutSeries
         IReadOnlyList<double>? xValues,
         IReadOnlyList<double> yValues,
         double? regularStep,
+        Func<double, string>? valueFormatter,
         double maximumX)
     {
         Label = label;
@@ -58,6 +66,7 @@ public sealed class CursorReadoutSeries
         this.xValues = xValues;
         this.yValues = yValues;
         this.regularStep = regularStep;
+        this.valueFormatter = valueFormatter;
         this.maximumX = maximumX;
         xValuesSorted = xValues is not null && IsSortedAscending(xValues);
     }
@@ -74,10 +83,11 @@ public sealed class CursorReadoutSeries
         IReadOnlyList<double> yValues,
         double step,
         double maximumX,
-        string format = "0.##")
+        string format = "0.##",
+        Func<double, string>? valueFormatter = null)
     {
         var finiteStep = double.IsFinite(step) && step > 0 ? step : 1.0;
-        return new CursorReadoutSeries(label, unit, color, format, null, yValues, finiteStep, maximumX);
+        return new CursorReadoutSeries(label, unit, color, format, null, yValues, finiteStep, valueFormatter, maximumX);
     }
 
     public static CursorReadoutSeries FromScatterSamples(
@@ -86,9 +96,10 @@ public sealed class CursorReadoutSeries
         Color color,
         IReadOnlyList<double> xValues,
         IReadOnlyList<double> yValues,
-        string format = "0.##")
+        string format = "0.##",
+        Func<double, string>? valueFormatter = null)
     {
-        return new CursorReadoutSeries(label, unit, color, format, xValues, yValues, null, 0);
+        return new CursorReadoutSeries(label, unit, color, format, xValues, yValues, null, valueFormatter, 0);
     }
 
     public bool TryGetLine(double position, out CursorReadoutLine line)
@@ -111,7 +122,7 @@ public sealed class CursorReadoutSeries
             return false;
         }
 
-        line = new CursorReadoutLine(Label, value, Unit, Color, Format);
+        line = new CursorReadoutLine(Label, value, Unit, Color, Format, valueFormatter?.Invoke(value));
         return true;
     }
 
