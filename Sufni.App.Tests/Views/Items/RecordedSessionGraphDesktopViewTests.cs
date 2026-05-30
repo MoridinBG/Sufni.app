@@ -196,6 +196,8 @@ public class RecordedSessionGraphDesktopViewTests
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; } =
+            new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
 
         public void SetAnalysisRange(double startSeconds, double endSeconds)
         {

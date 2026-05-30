@@ -91,6 +91,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly TelemetryPlotRowAction showPitchRollAirtimeAction;
     private readonly TelemetryPlotRowAction showSpeedAirtimeAction;
     private readonly TelemetryPlotRowAction showElevationAirtimeAction;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> autozoomPlotCommand;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -137,6 +138,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
+    public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
     public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
 
     #endregion Public fields
@@ -1207,12 +1209,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", ShowPitchRollAirtime, () => ShowPitchRollAirtime = !ShowPitchRollAirtime);
         showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", ShowSpeedAirtime, () => ShowSpeedAirtime = !ShowSpeedAirtime);
         showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", ShowElevationAirtime, () => ShowElevationAirtime = !ShowElevationAirtime);
+        autozoomPlotCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            AutozoomPlot,
+            CanAutozoomPlot);
         TravelHeaderActions = [showAirtimeAction];
         VelocityHeaderActions = [showVelocityAirtimeAction];
         ImuHeaderActions = [showImuAirtimeAction];
         PitchRollHeaderActions = [showPitchRollAirtimeAction];
         SpeedHeaderActions = [showSpeedAirtimeAction];
         ElevationHeaderActions = [showElevationAirtimeAction];
+        PlotContextMenuActionsByRowId = CreatePlotContextMenuActionsByRowId(autozoomPlotCommand);
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
@@ -1291,6 +1297,83 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         action.IsChecked = isChecked;
         action.ToolTip = isChecked ? "Hide airtime" : "Show airtime";
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreatePlotContextMenuActionsByRowId(
+        IRelayCommand<TelemetryPlotContextMenuContext?> autozoomCommand)
+    {
+        var autozoom = new TelemetryPlotContextMenuAction("autozoom", "Autozoom", autozoomCommand);
+        return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
+        {
+            [TelemetryGraphRowIds.Travel] = [autozoom],
+            [TelemetryGraphRowIds.Velocity] = [autozoom],
+            [TelemetryGraphRowIds.Imu] = [autozoom],
+            [TelemetryGraphRowIds.PitchRoll] = [autozoom],
+            [TelemetryGraphRowIds.Speed] = [autozoom],
+            [TelemetryGraphRowIds.Elevation] = [autozoom],
+        };
+    }
+
+    private static bool CanAutozoomPlot(TelemetryPlotContextMenuContext? context)
+    {
+        return context is not null &&
+               double.IsFinite(context.DurationSeconds) &&
+               context.DurationSeconds > 0 &&
+               double.IsFinite(context.ClickSeconds);
+    }
+
+    private void AutozoomPlot(TelemetryPlotContextMenuContext? context)
+    {
+        if (context is null || !CanAutozoomPlot(context))
+        {
+            return;
+        }
+
+        var duration = context.DurationSeconds;
+        var (startSeconds, endSeconds) = context.IsClickInsideAnalysisRange && context.AnalysisRange is { } range
+            ? CreateSelectionAutozoomRange(range, duration)
+            : (0d, duration);
+
+        Timeline.SetVisibleRange(startSeconds / duration, endSeconds / duration, this);
+    }
+
+    private static (double StartSeconds, double EndSeconds) CreateSelectionAutozoomRange(
+        TelemetryTimeRange range,
+        double durationSeconds)
+    {
+        const double paddingFraction = 0.05;
+        const double minimumSpanFraction = 0.01;
+
+        var selectionStart = Math.Clamp(range.StartSeconds, 0, durationSeconds);
+        var selectionEnd = Math.Clamp(range.EndSeconds, 0, durationSeconds);
+        var selectionSpan = Math.Max(0, selectionEnd - selectionStart);
+        var padding = selectionSpan * paddingFraction;
+        var start = Math.Clamp(selectionStart - padding, 0, durationSeconds);
+        var end = Math.Clamp(selectionEnd + padding, 0, durationSeconds);
+        var minimumSpan = durationSeconds * minimumSpanFraction;
+
+        if (end - start < minimumSpan)
+        {
+            var center = (start + end) / 2.0;
+            start = center - minimumSpan / 2.0;
+            end = center + minimumSpan / 2.0;
+        }
+
+        if (start < 0)
+        {
+            end -= start;
+            start = 0;
+        }
+
+        if (end > durationSeconds)
+        {
+            start -= end - durationSeconds;
+            end = durationSeconds;
+        }
+
+        start = Math.Clamp(start, 0, durationSeconds);
+        end = Math.Clamp(end, 0, durationSeconds);
+        return (start, end);
     }
 
     private void EvaluateDirtinessFromPageChange()
