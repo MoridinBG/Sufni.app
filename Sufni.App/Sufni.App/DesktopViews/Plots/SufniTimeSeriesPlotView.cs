@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -9,6 +10,7 @@ using Sufni.App.Plots;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using ScottPlotPixel = ScottPlot.Pixel;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -34,6 +36,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     protected bool HasPlotModel => plot is not null;
     protected override TelemetryPlot? TimelinePlot => plot;
     public bool IsPlotReady => plot is not null && HasPlotControl;
+
+    public static readonly StyledProperty<string?> PlotRowIdProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, string?>(nameof(PlotRowId));
+
+    public string? PlotRowId
+    {
+        get => GetValue(PlotRowIdProperty);
+        set => SetValue(PlotRowIdProperty, value);
+    }
 
     public static readonly StyledProperty<PlotSmoothingLevel> SmoothingLevelProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, PlotSmoothingLevel>(nameof(SmoothingLevel));
@@ -168,6 +179,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected void InitializeCursorReadoutInteractions()
     {
+        InstallTelemetryPlotContextMenu();
+
         void UpdateCursor(PointerEventArgs args)
         {
             SetCursorPositionWithReadoutFromPointer(args);
@@ -465,6 +478,63 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     {
         mobileAnalysisRangeLongPress?.Dispose();
         mobileAnalysisRangeLongPress = null;
+    }
+
+    private void InstallTelemetryPlotContextMenu()
+    {
+        PlotControl.Menu = CreateTelemetryPlotContextMenu(TryCreateContextMenuContext, GetContextMenuActions);
+    }
+
+    protected virtual ScottPlot.IPlotMenu CreateTelemetryPlotContextMenu(
+        Func<ScottPlotPixel, TelemetryPlotContextMenuContext?> createContext,
+        Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
+    {
+        return new TelemetryPlotContextMenu(PlotControl, createContext, getActions);
+    }
+
+    private TelemetryPlotContextMenuContext? TryCreateContextMenuContext(ScottPlotPixel pixel)
+    {
+        if (string.IsNullOrWhiteSpace(PlotRowId) ||
+            GraphWorkspace is null ||
+            !IsPlotReady ||
+            TimelineDurationSeconds is not { } duration ||
+            !double.IsFinite(duration) ||
+            duration <= 0 ||
+            !IsContextMenuPixelInDataArea(pixel))
+        {
+            return null;
+        }
+
+        var coordinates = PlotControl.Plot.GetCoordinates(pixel.X, pixel.Y);
+        if (!TelemetryTimeRange.TryClampBoundary(coordinates.X, duration, out var seconds))
+        {
+            return null;
+        }
+
+        return new TelemetryPlotContextMenuContext(PlotRowId, seconds, duration, AnalysisRange);
+    }
+
+    private IReadOnlyList<TelemetryPlotContextMenuAction> GetContextMenuActions(TelemetryPlotContextMenuContext context)
+    {
+        return GraphWorkspace?.PlotContextMenuActionsByRowId.TryGetValue(context.RowId, out var actions) == true
+            ? actions
+            : [];
+    }
+
+    private bool IsContextMenuPixelInDataArea(ScottPlotPixel pixel)
+    {
+        var dataRect = PlotControl.Plot.LastRender.DataRect;
+        if (!dataRect.HasArea)
+        {
+            return false;
+        }
+
+        var left = Math.Min(dataRect.Left, dataRect.Right);
+        var right = Math.Max(dataRect.Left, dataRect.Right);
+        var top = Math.Min(dataRect.Top, dataRect.Bottom);
+        var bottom = Math.Max(dataRect.Top, dataRect.Bottom);
+
+        return pixel.X >= left && pixel.X <= right && pixel.Y >= top && pixel.Y <= bottom;
     }
 
     private bool TryToggleInteractiveLegend(PointerEventArgs args)

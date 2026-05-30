@@ -168,14 +168,16 @@ public partial class MapView : UserControl
             sessionTrackLayer.Features = [new GeometryFeature { Geometry = lineString }];
             sessionTrackLayer.DataHasChanged();
 
-            // Zoom to session
+            // Keep late track updates aligned with the shared timeline range.
             if (sessionTrackLayer.Extent != null)
             {
                 RunWithoutViewportTimelineUpdates(() =>
                 {
                     if (ViewModel.SessionTrackPoints.Count > 1)
                     {
-                        ZoomToNormalizedRange(0, 1);
+                        var start = Timeline?.VisibleRangeStart ?? 0;
+                        var end = Timeline?.VisibleRangeEnd ?? 1;
+                        ZoomToNormalizedRange(start, end);
                     }
                     else
                     {
@@ -337,12 +339,28 @@ public partial class MapView : UserControl
 
         var width = maxX - minX;
         var height = maxY - minY;
-        if (width <= 0 || height <= 0)
+        if (width <= 0 && height <= 0)
         {
             mapControl.Map.Navigator.CenterOnAndZoomTo(
                 new Mapsui.MPoint((minX + maxX) / 2, (minY + maxY) / 2),
-                mapControl.Map.Navigator.Viewport.Resolution);
+                Math.Min(mapControl.Map.Navigator.Viewport.Resolution, 10));
             return;
+        }
+
+        if (width <= 0)
+        {
+            var halfWidth = height / 2.0;
+            minX -= halfWidth;
+            maxX += halfWidth;
+            width = maxX - minX;
+        }
+
+        if (height <= 0)
+        {
+            var halfHeight = width / 2.0;
+            minY -= halfHeight;
+            maxY += halfHeight;
+            height = maxY - minY;
         }
 
         var paddingX = width * padding;
