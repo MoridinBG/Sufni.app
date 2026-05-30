@@ -1,13 +1,59 @@
 using Avalonia;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Sufni.App.DesktopViews;
+using Sufni.App.KeyboardShortcuts;
 using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Views;
 
 public class MainWindowTests
 {
+    [AvaloniaFact]
+    public async Task MainWindow_UsesShortcutRegistryForWindowShortcuts()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            Width = 900,
+            Height = 700,
+        });
+
+        Assert.Contains(
+            mounted.Window.KeyBindings,
+            binding => HasGesture(
+                binding,
+                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.CloseCurrentTab)));
+        Assert.Contains(
+            mounted.Window.KeyBindings,
+            binding => HasGesture(
+                binding,
+                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.RestoreClosedTab)));
+        Assert.Contains(
+            mounted.Window.KeyBindings,
+            binding => HasGesture(
+                binding,
+                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab)));
+        Assert.Contains(
+            mounted.Window.KeyBindings,
+            binding => HasGesture(
+                binding,
+                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab, 1)));
+        Assert.Contains(
+            mounted.Window.KeyBindings,
+            binding => HasGesture(
+                binding,
+                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab)));
+        Assert.Contains(
+            mounted.Window.KeyBindings,
+            binding => HasGesture(
+                binding,
+                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab, 1)));
+    }
+
     [AvaloniaFact]
     public async Task MainWindow_TabDragFeedback_FadesDraggedTabAndShowsInsertionIndicator()
     {
@@ -48,6 +94,14 @@ public class MainWindowTests
 
         return new MountedMainWindow(window);
     }
+
+    private static bool HasGesture(KeyBinding binding, KeyGesture expected) =>
+        binding.Gesture is { } actual &&
+        actual.Key == expected.Key &&
+        actual.KeyModifiers == expected.KeyModifiers;
+
+    private static KeyGesture Shortcut(string source, string id, int index = 0) =>
+        KeyboardShortcutRegistry.GesturesBySource[source][id][index];
 }
 
 internal sealed class MountedMainWindow(MainWindow window) : IAsyncDisposable
