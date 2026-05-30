@@ -87,27 +87,8 @@ mc:Ignorable="d">
             <ItemsControl.Items>
 
                 <!--  Spring rate  -->
-                <Grid
-                Name="SpringRate"
-                RowDefinitions="Auto,*">
-                    <ComboBox
-                    Name="TravelHistogramModeComboBox"
-                    Grid.Row="0"
-                    Width="170"
-                    HorizontalAlignment="Right"
-                    Margin="0,0,10,8"
-                    ItemsSource="{Binding TravelHistogramModeOptions}"
-                    SelectedValue="{Binding SelectedTravelHistogramMode, Mode=TwoWay}"
-                    SelectedValueBinding="{Binding Value, DataType=vm:TravelHistogramModeOption}"
-                    ToolTip.Tip="Choose whether spring stats show active stroke movement or overall ride height.">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TravelHistogramModeOption">
-                                <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                    <Grid Grid.Row="1">
+                <Grid Name="SpringRate">
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                             <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
@@ -122,7 +103,24 @@ mc:Ignorable="d">
                         SuspensionType="Front"
                         Telemetry="{Binding TelemetryData}"
                         Title="Front spring"
-                        TravelHistogramMode="{Binding SelectedTravelHistogramMode}" />
+                        TravelHistogramMode="{Binding SelectedTravelHistogramMode}">
+                            <controls:TravelStatisticsHost.HeaderContent>
+                                <ComboBox
+                                Name="FrontTravelHistogramModeComboBox"
+                                Width="170"
+                                IsVisible="{Binding !#StatisticsContentHost.DataContext.RearStatisticsState.ReservesLayout}"
+                                ItemsSource="{Binding #StatisticsContentHost.DataContext.TravelHistogramModeOptions}"
+                                SelectedValue="{Binding #StatisticsContentHost.DataContext.SelectedTravelHistogramMode, Mode=TwoWay}"
+                                SelectedValueBinding="{Binding Value, DataType=vm:TravelHistogramModeOption}"
+                                ToolTip.Tip="Choose whether spring stats show active stroke movement or overall ride height.">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TravelHistogramModeOption">
+                                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </controls:TravelStatisticsHost.HeaderContent>
+                        </controls:TravelStatisticsHost>
 
                         <controls:TravelStatisticsHost
                         Grid.Column="1"
@@ -133,7 +131,24 @@ mc:Ignorable="d">
                         SuspensionType="Rear"
                         Telemetry="{Binding TelemetryData}"
                         Title="Rear spring"
-                        TravelHistogramMode="{Binding SelectedTravelHistogramMode}" />
+                        TravelHistogramMode="{Binding SelectedTravelHistogramMode}">
+                            <controls:TravelStatisticsHost.HeaderContent>
+                                <ComboBox
+                                Name="TravelHistogramModeComboBox"
+                                Width="170"
+                                IsVisible="{Binding #StatisticsContentHost.DataContext.RearStatisticsState.ReservesLayout}"
+                                ItemsSource="{Binding #StatisticsContentHost.DataContext.TravelHistogramModeOptions}"
+                                SelectedValue="{Binding #StatisticsContentHost.DataContext.SelectedTravelHistogramMode, Mode=TwoWay}"
+                                SelectedValueBinding="{Binding Value, DataType=vm:TravelHistogramModeOption}"
+                                ToolTip.Tip="Choose whether spring stats show active stroke movement or overall ride height.">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TravelHistogramModeOption">
+                                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </controls:TravelStatisticsHost.HeaderContent>
+                        </controls:TravelStatisticsHost>
                     </Grid>
                 </Grid>
 
@@ -170,7 +185,7 @@ mc:Ignorable="d">
                 <!--  Damping  -->
                 <Grid
                 Name="Damping"
-                RowDefinitions="auto auto *">
+                RowDefinitions="Auto,*">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
@@ -178,14 +193,29 @@ mc:Ignorable="d">
                         <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
                     </Grid.ColumnDefinitions>
 
+                    <plots:TravelPercentageLegend
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="4"
+                    Margin="38,0,218,8">
+                        <plots:TravelPercentageLegend.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                <Binding Path="FrontStatisticsState.ReservesLayout" />
+                                <Binding Path="RearStatisticsState.ReservesLayout" />
+                            </MultiBinding>
+                        </plots:TravelPercentageLegend.IsVisible>
+                    </plots:TravelPercentageLegend>
+
                     <ComboBox
                     Name="VelocityAverageModeComboBox"
                     Grid.Row="0"
                     Grid.Column="0"
                     Grid.ColumnSpan="4"
+                    ZIndex="1"
                     Width="190"
                     HorizontalAlignment="Right"
-                    Margin="0,0,8,8"
+                    VerticalAlignment="Top"
+                    Margin="0,8,8,0"
                     ItemsSource="{Binding VelocityAverageModeOptions}"
                     SelectedValue="{Binding SelectedVelocityAverageMode, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Value, DataType=vm:VelocityAverageModeOption}"
@@ -199,7 +229,6 @@ mc:Ignorable="d">
 
                     <controls:VelocityStatisticsHost
                     Grid.Row="1"
-                    Grid.RowSpan="2"
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
                     AnalysisRange="{Binding AnalysisRange}"
@@ -210,7 +239,6 @@ mc:Ignorable="d">
                     LsrPercentage="{Binding DamperPercentages.FrontLsrPercentage}"
                     PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding FrontStatisticsState}"
-                    ShowTravelLegend="True"
                     StatisticsWorkspace="{Binding}"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}"
@@ -219,7 +247,6 @@ mc:Ignorable="d">
 
                     <controls:VelocityStatisticsHost
                     Grid.Row="1"
-                    Grid.RowSpan="2"
                     Grid.Column="2"
                     Grid.ColumnSpan="2"
                     AnalysisRange="{Binding AnalysisRange}"
@@ -230,7 +257,6 @@ mc:Ignorable="d">
                     LsrPercentage="{Binding DamperPercentages.RearLsrPercentage}"
                     PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding RearStatisticsState}"
-                    ShowTravelLegend="True"
                     StatisticsWorkspace="{Binding}"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}"
@@ -239,72 +265,105 @@ mc:Ignorable="d">
                 </Grid>
 
                 <!--  Balance graphs  -->
-                <Grid Name="Balance" RowDefinitions="Auto,*">
-                    <StackPanel
-                    Grid.Row="0"
-                    HorizontalAlignment="Right"
-                    Margin="0,0,10,8"
-                    Orientation="Horizontal"
-                    Spacing="8">
-                        <ComboBox
-                        Name="BalanceDisplacementModeComboBox"
-                        Width="150"
-                        ItemsSource="{Binding BalanceDisplacementModeOptions}"
-                        SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
-                        SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
-                        ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:BalanceDisplacementModeOption">
-                                    <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
+                <Grid Name="Balance">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding CompressionBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        <ColumnDefinition Width="{Binding ReboundBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                    </Grid.ColumnDefinitions>
 
-                        <ComboBox
-                        Name="BalanceSpeedModeComboBox"
-                        Width="150"
-                        ItemsSource="{Binding BalanceSpeedModeOptions}"
-                        SelectedValue="{Binding SelectedBalanceSpeedMode, Mode=TwoWay}"
-                        SelectedValueBinding="{Binding Value, DataType=vm:BalanceSpeedModeOption}"
-                        ToolTip.Tip="Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:BalanceSpeedModeOption">
-                                    <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
+                    <controls:BalanceStatisticsHost
+                    Grid.Column="0"
+                    AnalysisRange="{Binding AnalysisRange}"
+                    BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
+                    BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
+                    BalanceType="Compression"
+                    DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
+                    PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
+                    PresentationState="{Binding CompressionBalanceState}"
+                    Telemetry="{Binding TelemetryData}"
+                    Title="Compression balance">
+                        <controls:BalanceStatisticsHost.HeaderContent>
+                            <StackPanel
+                            IsVisible="{Binding !#StatisticsContentHost.DataContext.ReboundBalanceState.ReservesLayout}"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                                <ComboBox
+                                Name="CompressionBalanceDisplacementModeComboBox"
+                                Width="150"
+                                ItemsSource="{Binding #StatisticsContentHost.DataContext.BalanceDisplacementModeOptions}"
+                                SelectedValue="{Binding #StatisticsContentHost.DataContext.SelectedBalanceDisplacementMode, Mode=TwoWay}"
+                                SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
+                                ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BalanceDisplacementModeOption">
+                                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
 
-                    <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="{Binding CompressionBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                            <ColumnDefinition Width="{Binding ReboundBalanceState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                        </Grid.ColumnDefinitions>
+                                <ComboBox
+                                Name="CompressionBalanceSpeedModeComboBox"
+                                Width="150"
+                                ItemsSource="{Binding #StatisticsContentHost.DataContext.BalanceSpeedModeOptions}"
+                                SelectedValue="{Binding #StatisticsContentHost.DataContext.SelectedBalanceSpeedMode, Mode=TwoWay}"
+                                SelectedValueBinding="{Binding Value, DataType=vm:BalanceSpeedModeOption}"
+                                ToolTip.Tip="Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BalanceSpeedModeOption">
+                                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </controls:BalanceStatisticsHost.HeaderContent>
+                    </controls:BalanceStatisticsHost>
 
-                        <controls:BalanceStatisticsHost
-                        Grid.Column="0"
-                        AnalysisRange="{Binding AnalysisRange}"
-                        BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
-                        BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
-                        BalanceType="Compression"
-                        DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
-                        PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
-                        PresentationState="{Binding CompressionBalanceState}"
-                        Telemetry="{Binding TelemetryData}"
-                        Title="Compression balance" />
+                    <controls:BalanceStatisticsHost
+                    Grid.Column="1"
+                    AnalysisRange="{Binding AnalysisRange}"
+                    BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
+                    BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
+                    BalanceType="Rebound"
+                    DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
+                    PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
+                    PresentationState="{Binding ReboundBalanceState}"
+                    Telemetry="{Binding TelemetryData}"
+                    Title="Rebound balance">
+                        <controls:BalanceStatisticsHost.HeaderContent>
+                            <StackPanel
+                            IsVisible="{Binding #StatisticsContentHost.DataContext.ReboundBalanceState.ReservesLayout}"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                                <ComboBox
+                                Name="BalanceDisplacementModeComboBox"
+                                Width="150"
+                                ItemsSource="{Binding #StatisticsContentHost.DataContext.BalanceDisplacementModeOptions}"
+                                SelectedValue="{Binding #StatisticsContentHost.DataContext.SelectedBalanceDisplacementMode, Mode=TwoWay}"
+                                SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
+                                ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BalanceDisplacementModeOption">
+                                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
 
-                        <controls:BalanceStatisticsHost
-                        Grid.Column="1"
-                        AnalysisRange="{Binding AnalysisRange}"
-                        BalanceDisplacementMode="{Binding SelectedBalanceDisplacementMode}"
-                        BalanceSpeedMode="{Binding SelectedBalanceSpeedMode}"
-                        BalanceType="Rebound"
-                        DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
-                        PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
-                        PresentationState="{Binding ReboundBalanceState}"
-                        Telemetry="{Binding TelemetryData}"
-                        Title="Rebound balance" />
-                    </Grid>
+                                <ComboBox
+                                Name="BalanceSpeedModeComboBox"
+                                Width="150"
+                                ItemsSource="{Binding #StatisticsContentHost.DataContext.BalanceSpeedModeOptions}"
+                                SelectedValue="{Binding #StatisticsContentHost.DataContext.SelectedBalanceSpeedMode, Mode=TwoWay}"
+                                SelectedValueBinding="{Binding Value, DataType=vm:BalanceSpeedModeOption}"
+                                ToolTip.Tip="Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BalanceSpeedModeOption">
+                                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </controls:BalanceStatisticsHost.HeaderContent>
+                    </controls:BalanceStatisticsHost>
                 </Grid>
 
                 <!--  Vibration  -->

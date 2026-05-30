@@ -19,11 +19,9 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type, SufniT
 
         base.LoadTelemetryData(telemetryData);
 
-        Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? "Front frequencies"
-            : "Rear frequencies";
+        SetTitle(StatisticsPlotTitles.TravelFrequencyHistogram(type));
         SetAxisLabels("Frequency (Hz)", "Power (dB)");
-        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding());
 
         var data = TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetryData, type, AnalysisRange);
         if (data.Bins.Count == 0 || data.Values.Count == 0)

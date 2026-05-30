@@ -33,7 +33,7 @@ public class TravelHistogramPlotTests
         sut.LoadTelemetryData(telemetry);
 
         Assert.NotEmpty(plot.PlottableList);
-        Assert.Contains("dynamic sag", plot.Axes.Title.Label.Text);
+        Assert.Equal("Front travel", plot.Axes.Title.Label.Text);
     }
 
     [Fact]

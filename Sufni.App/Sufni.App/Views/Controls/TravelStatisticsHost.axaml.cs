@@ -45,6 +45,9 @@ public partial class TravelStatisticsHost : UserControl
     public static readonly StyledProperty<Thickness> PlaceholderMarginProperty =
         AvaloniaProperty.Register<TravelStatisticsHost, Thickness>(nameof(PlaceholderMargin));
 
+    public static readonly StyledProperty<object?> HeaderContentProperty =
+        AvaloniaProperty.Register<TravelStatisticsHost, object?>(nameof(HeaderContent));
+
     public SurfacePresentationState PresentationState
     {
         get => GetValue(PresentationStateProperty);
@@ -115,6 +118,12 @@ public partial class TravelStatisticsHost : UserControl
     {
         get => GetValue(PlaceholderMarginProperty);
         set => SetValue(PlaceholderMarginProperty, value);
+    }
+
+    public object? HeaderContent
+    {
+        get => GetValue(HeaderContentProperty);
+        set => SetValue(HeaderContentProperty, value);
     }
 
     public TravelStatisticsHost()

@@ -1,6 +1,7 @@
 ﻿<Styles
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:desktopplots="clr-namespace:Sufni.App.DesktopViews.Plots"
     xmlns:plots="clr-namespace:Sufni.App.Views.Plots">
     <Design.PreviewWith>
         <plots:SufniPlotView />
@@ -11,6 +12,35 @@
         <Setter Property="Template">
             <ControlTemplate>
                 <plots:SufniAvaPlot Name="Plot" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="desktopplots|SessionStatisticsPlotView">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid RowDefinitions="Auto,*">
+                    <Grid
+                        Grid.Row="0"
+                        MinHeight="28"
+                        Margin="0,0,0,2">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="Bold"
+                            Foreground="{DynamicResource SufniTextPrimaryBrush}"
+                            Text="{TemplateBinding StatisticsTitle}" />
+
+                        <ContentControl
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}"
+                            Content="{TemplateBinding HeaderContent}" />
+                    </Grid>
+
+                    <plots:SufniAvaPlot Grid.Row="1" Name="Plot" />
+                </Grid>
             </ControlTemplate>
         </Setter>
     </Style>
