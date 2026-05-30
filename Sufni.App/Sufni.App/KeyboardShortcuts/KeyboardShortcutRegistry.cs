@@ -35,12 +35,12 @@ public static class KeyboardShortcutRegistry
                 [ShortcutConfiguration.RestoreClosedTab] = [Gesture(Key.T, CommandModifier | KeyModifiers.Shift)],
                 [ShortcutConfiguration.SelectNextTab] =
                 [
-                    Gesture(Key.Tab, CommandModifier),
+                    Gesture(Key.Tab, KeyModifiers.Control),
                     Gesture(Key.OemCloseBrackets, CommandModifier | KeyModifiers.Shift),
                 ],
                 [ShortcutConfiguration.SelectPreviousTab] =
                 [
-                    Gesture(Key.Tab, CommandModifier | KeyModifiers.Shift),
+                    Gesture(Key.Tab, KeyModifiers.Control | KeyModifiers.Shift),
                     Gesture(Key.OemOpenBrackets, CommandModifier | KeyModifiers.Shift),
                 ],
             },

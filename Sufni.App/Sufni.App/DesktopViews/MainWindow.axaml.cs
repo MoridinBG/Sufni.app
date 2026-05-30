@@ -8,10 +8,12 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using Sufni.App.KeyboardShortcuts;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels;
 
@@ -114,6 +116,7 @@ public partial class MainWindow : Window
 
     private TabStripItem? draggedTabItem;
     private TabPageViewModelBase? draggedTab;
+    private RawTabShortcutHandler? rawTabShortcutHandler;
     private Point tabDragStartPoint;
     private double draggedTabOriginalOpacity = 1;
     private bool isTabDragInProgress;
@@ -123,7 +126,14 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         TabStripMiddleClickHandler.Register();
+        rawTabShortcutHandler = RawTabShortcutHandler.Attach(TryHandleRegisteredTabShortcut);
+        Closed += (_, _) => DisposeRawTabShortcutHandling();
 
+        AddHandler<KeyEventArgs>(
+            InputElement.KeyDownEvent,
+            OnWindowKeyDown,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
         TabControl.AddHandler<PointerPressedEventArgs>(
             InputElement.PointerPressedEvent,
             OnTabPointerPressed,
@@ -135,6 +145,54 @@ public partial class MainWindow : Window
             OnTabPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+    }
+
+    private void DisposeRawTabShortcutHandling()
+    {
+        rawTabShortcutHandler?.Dispose();
+        rawTabShortcutHandler = null;
+    }
+
+    internal bool TryHandleRawTabShortcut(RawKeyEventType type, Key key, KeyModifiers modifiers) =>
+        rawTabShortcutHandler?.TryHandleRawTabShortcut(type, key, modifiers) == true;
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs args)
+    {
+        if (TryHandleRegisteredTabShortcut(args.Key, args.KeyModifiers))
+        {
+            args.Handled = true;
+        }
+    }
+
+    internal bool TryHandleRegisteredTabShortcut(Key key, KeyModifiers modifiers)
+    {
+        if (DataContext is not MainWindowViewModel mainWindow)
+        {
+            return false;
+        }
+
+        if (MatchesMainWindowTabShortcut(key, modifiers, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab))
+        {
+            mainWindow.SelectNextTabCommand.Execute(null);
+            return true;
+        }
+
+        if (MatchesMainWindowTabShortcut(key, modifiers, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab))
+        {
+            mainWindow.SelectPreviousTabCommand.Execute(null);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool MatchesMainWindowTabShortcut(Key key, KeyModifiers modifiers, string shortcutId)
+    {
+        var gestures = KeyboardShortcutRegistry
+            .GesturesBySource[KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow][shortcutId];
+        return gestures.Any(gesture => gesture.Key == Key.Tab &&
+                                       gesture.Key == key &&
+                                       gesture.KeyModifiers == modifiers);
     }
 
     private void OnTabPointerPressed(object? sender, PointerPressedEventArgs args)
