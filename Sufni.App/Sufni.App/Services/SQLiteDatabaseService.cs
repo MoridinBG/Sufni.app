@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
+using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 using Serilog;
 
@@ -60,6 +61,8 @@ public class SqLiteDatabaseService : IDatabaseService
             await CreateTablesAsync();
             await EnsureSessionProcessingFingerprintColumnAsync();
             await EnsureSessionSummaryMetricColumnsAsync();
+            await EnsureBikeDampingSpeedCutoffColumnsAsync();
+            await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
             await BackfillRearSuspensionKindAsync();
 
             var cleanupSummary = await Cleanup();
@@ -121,6 +124,42 @@ public class SqLiteDatabaseService : IDatabaseService
             {
                 await connection.ExecuteAsync($"ALTER TABLE session ADD COLUMN {columnName} REAL");
             }
+        }
+    }
+
+    private async Task EnsureBikeDampingSpeedCutoffColumnsAsync()
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(bike)");
+        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var columnName in BikeDampingSpeedCutoffColumnNames)
+        {
+            if (!columnNames.Contains(columnName))
+            {
+                await connection.ExecuteAsync($"ALTER TABLE bike ADD COLUMN {columnName} REAL");
+            }
+
+            await connection.ExecuteAsync(
+                $"UPDATE bike SET {columnName} = ? WHERE {columnName} IS NULL",
+                DampingSpeedCutoffs.DefaultMmPerSecond);
+        }
+    }
+
+    private async Task EnsureSessionCacheDampingSpeedCutoffColumnsAsync()
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session_cache)");
+        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var columnName in DampingSpeedCutoffColumnNames)
+        {
+            if (!columnNames.Contains(columnName))
+            {
+                await connection.ExecuteAsync($"ALTER TABLE session_cache ADD COLUMN {columnName} REAL");
+            }
+
+            await connection.ExecuteAsync(
+                $"UPDATE session_cache SET {columnName} = ? WHERE {columnName} IS NULL",
+                DampingSpeedCutoffs.DefaultMmPerSecond);
         }
     }
 
@@ -244,6 +283,16 @@ public class SqLiteDatabaseService : IDatabaseService
         "ascent_meters",
         "descent_meters"
     ];
+
+    private static readonly string[] DampingSpeedCutoffColumnNames =
+    [
+        "front_compression_damping_cutoff_mm_per_second",
+        "front_rebound_damping_cutoff_mm_per_second",
+        "rear_compression_damping_cutoff_mm_per_second",
+        "rear_rebound_damping_cutoff_mm_per_second"
+    ];
+
+    private static readonly string[] BikeDampingSpeedCutoffColumnNames = DampingSpeedCutoffColumnNames;
 
     private const string SessionHasDataProjection = """
                                                     CASE

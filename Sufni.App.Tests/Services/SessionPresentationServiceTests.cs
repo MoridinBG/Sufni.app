@@ -2,6 +2,7 @@ using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Services;
 
@@ -95,6 +96,33 @@ public class SessionPresentationServiceTests
         Assert.Null(result.ReboundBalance);
         Assert.Null(result.DamperPercentages.FrontHscPercentage);
         Assert.Null(result.DamperPercentages.RearHscPercentage);
+    }
+
+    [Fact]
+    public void CalculateDamperPercentages_UsesDampingSpeedCutoffs()
+    {
+        var telemetry = new TelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 1000, Duration = 0.004 },
+            Front = CreateDamperSuspension([150, 250, -150, -250]),
+            Rear = CreateDamperSuspension([350, 450, -350, -450]),
+            Airtimes = [],
+            Markers = [],
+        };
+        var cutoffs = new DampingSpeedCutoffs(
+            new DampingSpeedCutoffSide(200, 200),
+            new DampingSpeedCutoffSide(400, 400));
+
+        var result = service.CalculateDamperPercentages(telemetry, dampingSpeedCutoffs: cutoffs);
+
+        Assert.Equal(25, result.FrontLscPercentage);
+        Assert.Equal(25, result.FrontHscPercentage);
+        Assert.Equal(25, result.FrontLsrPercentage);
+        Assert.Equal(25, result.FrontHsrPercentage);
+        Assert.Equal(25, result.RearLscPercentage);
+        Assert.Equal(25, result.RearHscPercentage);
+        Assert.Equal(25, result.RearLsrPercentage);
+        Assert.Equal(25, result.RearHsrPercentage);
     }
 
     [Fact]
@@ -201,5 +229,46 @@ public class SessionPresentationServiceTests
         };
 
         return telemetry;
+    }
+
+    private static Suspension CreateDamperSuspension(double[] velocity)
+    {
+        return new Suspension
+        {
+            Present = true,
+            MaxTravel = 100,
+            Travel = [0, 10, 20, 30],
+            Velocity = velocity,
+            TravelBins = [0, 10, 20, 30, 40],
+            VelocityBins = [-500, 0, 500],
+            FineVelocityBins = [-500, 0, 500],
+            Strokes = new Strokes
+            {
+                Compressions =
+                [
+                    new Stroke
+                    {
+                        Start = 0,
+                        End = 1,
+                        Stat = new StrokeStat { Count = 2 },
+                        DigitizedTravel = [],
+                        DigitizedVelocity = [],
+                        FineDigitizedVelocity = [],
+                    },
+                ],
+                Rebounds =
+                [
+                    new Stroke
+                    {
+                        Start = 2,
+                        End = 3,
+                        Stat = new StrokeStat { Count = 2 },
+                        DigitizedTravel = [],
+                        DigitizedVelocity = [],
+                        FineDigitizedVelocity = [],
+                    },
+                ],
+            },
+        };
     }
 }

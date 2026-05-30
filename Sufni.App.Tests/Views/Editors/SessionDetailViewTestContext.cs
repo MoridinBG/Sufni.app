@@ -39,7 +39,11 @@ internal sealed class SessionDetailViewTestContext
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(SessionPreferences.Default));
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
-        sessionPresentationService.CalculateDamperPercentages(Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>())
+        sessionPresentationService.CalculateDamperPercentages(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(SessionDamperPercentages.Empty);
         sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
     }
@@ -80,7 +84,9 @@ internal sealed class SessionDetailViewTestContext
             FullTrackPoints: null,
             TrackPoints: null,
             MapVideoWidth: null,
-            DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80)));
+            DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: null));
     }
 
     public SessionMobileLoadResult.LoadedFromCache CreateMobileLoadedState(
@@ -95,6 +101,7 @@ internal sealed class SessionDetailViewTestContext
             CompressionBalance: includeBalance ? DefaultSvg : null,
             ReboundBalance: includeBalance ? DefaultSvg : null,
             DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: includeBalance),
             includeTelemetry ? TestTelemetryData.CreateProcessed() : null,
             null);

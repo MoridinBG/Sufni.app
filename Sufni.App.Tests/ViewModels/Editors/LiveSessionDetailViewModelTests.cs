@@ -60,6 +60,12 @@ public class LiveSessionDetailViewModelTests
             return Task.CompletedTask;
         });
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
+        sessionPresentationService.CalculateDamperPercentages(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
+            .Returns(SessionDamperPercentages.Empty);
         sessionCoordinator.SaveLiveCaptureAsync(
             Arg.Any<Session>(),
             Arg.Any<LiveSessionCapturePackage>(),
@@ -347,6 +353,111 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task DampingSpeedCutoffPreview_RecomputesLivePercentagesWithoutDirtying()
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        var previewCutoffs = initialCutoffs.With(SuspensionType.Rear, DampingSpeedCircuit.Compression, 520);
+        var previewPercentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var bikeId = Guid.NewGuid();
+        var context = CreateSessionContext(
+            bikeId: bikeId,
+            dampingSpeedCutoffs: initialCutoffs,
+            dampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeId, 7));
+        var editor = CreateEditor(context);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: telemetry);
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+        sessionPresentationService.ClearReceivedCalls();
+        sessionPresentationService
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Is<DampingSpeedCutoffs?>(value => value == previewCutoffs))
+            .Returns(previewPercentages);
+        var wasDirty = editor.IsDirty;
+
+        editor.PreviewDampingSpeedCutoff(SuspensionType.Rear, DampingSpeedCircuit.Compression, 517);
+
+        Assert.Equal(previewCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.Equal(previewPercentages, editor.DamperPercentages);
+        Assert.Equal(wasDirty, editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public async Task DampingSpeedCutoffCommit_PersistsThroughBikeCoordinator()
+    {
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var bikeId = Guid.NewGuid();
+        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
+        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        var savedCutoffs = initialCutoffs.With(SuspensionType.Front, DampingSpeedCircuit.Compression, 260);
+        var savedBike = TestSnapshots.Bike(id: bikeId, updated: 8) with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = savedCutoffs.Front.CompressionMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = savedCutoffs.Front.ReboundMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = savedCutoffs.Rear.CompressionMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = savedCutoffs.Rear.ReboundMmPerSecond,
+        };
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(
+                bikeId,
+                owner.BaselineUpdated,
+                SuspensionType.Front,
+                DampingSpeedCircuit.Compression,
+                260)
+            .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(savedBike));
+        var context = CreateSessionContext(
+            bikeId: bikeId,
+            dampingSpeedCutoffs: initialCutoffs,
+            dampingSpeedCutoffOwner: owner);
+        var editor = CreateEditor(context, bikeCoordinator);
+
+        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
+
+        await bikeCoordinator.Received(1).UpdateDampingSpeedCutoffAsync(
+            bikeId,
+            owner.BaselineUpdated,
+            SuspensionType.Front,
+            DampingSpeedCircuit.Compression,
+            260);
+        Assert.Equal(savedCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(savedCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.True(editor.CanEditDampingSpeedCutoffs);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task DampingSpeedCutoffCommitFailure_RestoresPersistedCutoffsAndReportsError()
+    {
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var bikeId = Guid.NewGuid();
+        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
+        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(
+                bikeId,
+                owner.BaselineUpdated,
+                SuspensionType.Rear,
+                DampingSpeedCircuit.Rebound,
+                600)
+            .Returns(new BikeDampingSpeedCutoffUpdateResult.Failed("disk full"));
+        var context = CreateSessionContext(
+            bikeId: bikeId,
+            dampingSpeedCutoffs: initialCutoffs,
+            dampingSpeedCutoffOwner: owner);
+        var editor = CreateEditor(context, bikeCoordinator);
+        editor.PreviewDampingSpeedCutoff(SuspensionType.Rear, DampingSpeedCircuit.Rebound, 600);
+
+        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Rebound, 600);
+
+        Assert.Equal(initialCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
+    }
+
+    [AvaloniaFact]
     public async Task SaveCommand_WhenPostSaveCleanupFails_DisablesResavingPersistedCapture()
     {
         liveSessionService
@@ -454,10 +565,15 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: null,
             ReboundBalance: null,
             DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(bakeData);
         ConfigureRunnerToRunSynchronously();
 
@@ -473,7 +589,8 @@ public class LiveSessionDetailViewModelTests
             .BuildCachePresentation(
                 Arg.Any<TelemetryData>(),
                 Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>());
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>());
         Assert.Equal(bakeData.FrontTravelHistogram, editor.SpringPage.FrontTravelHistogram);
         Assert.Equal(bakeData.RearTravelHistogram, editor.SpringPage.RearTravelHistogram);
         Assert.Equal(bakeData.FrontVelocityHistogram, editor.DamperPage.FrontVelocityHistogram);
@@ -481,6 +598,42 @@ public class LiveSessionDetailViewModelTests
         Assert.Equal(1d, editor.DamperPage.FrontHscPercentage);
         Assert.Equal(8d, editor.DamperPage.RearHsrPercentage);
         Assert.Equal(1d, editor.DamperPercentages.FrontHscPercentage);
+    }
+
+    [AvaloniaFact]
+    public async Task Bake_UsesCurrentDampingSpeedCutoffs()
+    {
+        var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
+        var bakeData = new SessionCachePresentationData(
+            FrontTravelHistogram: "<svg id='front-travel' />",
+            RearTravelHistogram: null,
+            FrontVelocityHistogram: null,
+            RearVelocityHistogram: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs: cutoffs,
+            BalanceAvailable: false);
+        sessionPresentationService
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
+            .Returns(bakeData);
+        ConfigureRunnerToRunSynchronously();
+
+        var editor = CreateEditor(CreateSessionContext(dampingSpeedCutoffs: cutoffs));
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
+        snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
+
+        sessionPresentationService.Received(1).BuildCachePresentation(
+            Arg.Any<TelemetryData>(),
+            Arg.Any<SessionPresentationDimensions>(),
+            Arg.Any<CancellationToken>(),
+            Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs));
     }
 
     [AvaloniaFact]
@@ -500,7 +653,8 @@ public class LiveSessionDetailViewModelTests
             .BuildCachePresentation(
                 Arg.Any<TelemetryData>(),
                 Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>());
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>());
     }
 
     [AvaloniaFact]
@@ -514,6 +668,7 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: "<svg id='compression' />",
             ReboundBalance: "<svg id='rebound' />",
             DamperPercentages: SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: true);
         var noBalanceData = balanceData with
         {
@@ -524,7 +679,11 @@ public class LiveSessionDetailViewModelTests
 
         var returnValue = balanceData;
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(_ => returnValue);
         ConfigureRunnerToRunSynchronously();
 
@@ -569,10 +728,15 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: null,
             ReboundBalance: null,
             DamperPercentages: SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(bakeData);
         ConfigureRunnerToRunSynchronously();
 
@@ -598,6 +762,7 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: null,
             ReboundBalance: null,
             DamperPercentages: SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
         var secondData = firstData with
         {
@@ -608,7 +773,11 @@ public class LiveSessionDetailViewModelTests
         CancellationToken capturedFirstToken = default;
         var callCount = 0;
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(callInfo =>
             {
                 callCount++;
@@ -717,10 +886,15 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: null,
             ReboundBalance: null,
             DamperPercentages: SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(warmUpData);
         ConfigureRunnerToRunSynchronously();
 
@@ -757,10 +931,15 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: "<svg id='comp' />",
             ReboundBalance: "<svg id='reb' />",
             DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: true);
 
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(bakedData);
         ConfigureRunnerToRunSynchronously();
 
@@ -804,12 +983,17 @@ public class LiveSessionDetailViewModelTests
             CompressionBalance: null,
             ReboundBalance: null,
             DamperPercentages: SessionDamperPercentages.Empty,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
         CancellationToken capturedBakeToken = default;
         var bakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         sessionPresentationService
-            .BuildCachePresentation(Arg.Any<TelemetryData>(), Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .BuildCachePresentation(
+                Arg.Any<TelemetryData>(),
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(callInfo =>
             {
                 capturedBakeToken = callInfo.Arg<CancellationToken>();
@@ -858,7 +1042,9 @@ public class LiveSessionDetailViewModelTests
             });
     }
 
-    private LiveSessionDetailViewModel CreateEditor(LiveDaqSessionContext? context = null)
+    private LiveSessionDetailViewModel CreateEditor(
+        LiveDaqSessionContext? context = null,
+        BikeCoordinator? bikeCoordinator = null)
     {
         return new LiveSessionDetailViewModel(
             context ?? CreateSessionContext(),
@@ -869,7 +1055,8 @@ public class LiveSessionDetailViewModelTests
             tileLayerService,
             shell,
             dialogService,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            bikeCoordinator);
     }
 
     private static LiveSessionPresentationSnapshot CreateSnapshot(
@@ -903,20 +1090,26 @@ public class LiveSessionDetailViewModelTests
 
     private static LiveDaqSessionContext CreateSessionContext(
         bool hasFrontTravelCalibration = true,
-        bool hasRearTravelCalibration = true)
+        bool hasRearTravelCalibration = true,
+        Guid? bikeId = null,
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null,
+        DampingSpeedCutoffOwner? dampingSpeedCutoffOwner = null)
     {
+        var resolvedBikeId = bikeId ?? Guid.NewGuid();
         return new LiveDaqSessionContext(
             IdentityKey: "board-1",
             BoardId: Guid.NewGuid(),
             DisplayName: "Board 1",
             SetupId: Guid.NewGuid(),
             SetupName: "race",
-            BikeId: Guid.NewGuid(),
+            BikeId: resolvedBikeId,
             BikeName: "demo",
             BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
             TravelCalibration: new LiveDaqTravelCalibration(
                 hasFrontTravelCalibration ? CreateTravelCalibration(180) : null,
-                hasRearTravelCalibration ? CreateTravelCalibration(170) : null));
+                hasRearTravelCalibration ? CreateTravelCalibration(170) : null),
+            DampingSpeedCutoffs: dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: dampingSpeedCutoffOwner ?? new DampingSpeedCutoffOwner(resolvedBikeId, 0));
     }
 
     private static LiveDaqTravelChannelCalibration CreateTravelCalibration(double maxTravel)

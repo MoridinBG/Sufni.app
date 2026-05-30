@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Input;
 using Sufni.App.Plots;
+using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 
 namespace Sufni.App.DesktopViews.Plots;
@@ -52,6 +53,11 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             nameof(VelocityAverageMode),
             VelocityAverageMode.SampleAveraged);
 
+    public static readonly StyledProperty<DampingSpeedCutoffs> DampingSpeedCutoffsProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, DampingSpeedCutoffs>(
+            nameof(DampingSpeedCutoffs),
+            DampingSpeedCutoffs.Default);
+
     public PlotKind PlotKind
     {
         get => GetValue(PlotKindProperty);
@@ -100,6 +106,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         set => SetValue(VelocityAverageModeProperty, value);
     }
 
+    public DampingSpeedCutoffs DampingSpeedCutoffs
+    {
+        get => GetValue(DampingSpeedCutoffsProperty);
+        set => SetValue(DampingSpeedCutoffsProperty, value);
+    }
+
     public SessionStatisticsPlotView()
     {
         PropertyChanged += (_, e) =>
@@ -107,6 +119,7 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             if (e.Property.Name is nameof(TravelHistogramMode) && PlotKind == PlotKind.TravelHistogram ||
                 e.Property.Name is nameof(BalanceDisplacementMode) && PlotKind == PlotKind.Balance ||
                 e.Property.Name is nameof(BalanceSpeedMode) && PlotKind == PlotKind.Balance ||
+                e.Property.Name is nameof(DampingSpeedCutoffs) && PlotKind is PlotKind.Balance or PlotKind.VelocityHistogram ||
                 e.Property.Name is nameof(VelocityAverageMode) && PlotKind == PlotKind.VelocityHistogram)
             {
                 if (!HasPlotModel)
@@ -150,9 +163,11 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             case BalancePlot balance:
                 balance.DisplacementMode = BalanceDisplacementMode;
                 balance.SpeedMode = BalanceSpeedMode;
+                balance.DampingSpeedCutoffs = DampingSpeedCutoffs;
                 break;
             case VelocityHistogramPlot velocityHistogram:
                 velocityHistogram.AverageMode = VelocityAverageMode;
+                velocityHistogram.DampingSpeedCutoffs = DampingSpeedCutoffs;
                 break;
         }
     }

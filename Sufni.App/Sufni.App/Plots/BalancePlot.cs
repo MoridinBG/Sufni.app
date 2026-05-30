@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
+using Sufni.App.SessionDetails;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
@@ -11,6 +12,7 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
 {
     public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
     public BalanceSpeedMode SpeedMode { get; set; } = BalanceSpeedMode.Both;
+    public DampingSpeedCutoffs DampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
 
     private bool UsesTrend => DisplacementMode != BalanceDisplacementMode.Speed;
 
@@ -115,7 +117,14 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         ShowSourceLegend();
     }
 
-    private BalanceStatisticsOptions CreateOptions() => new(AnalysisRange, DisplacementMode, SpeedMode);
+    private BalanceStatisticsOptions CreateOptions() => new(
+        AnalysisRange,
+        DisplacementMode,
+        SpeedMode,
+        DampingSpeedCutoffs.Front.CompressionMmPerSecond,
+        DampingSpeedCutoffs.Front.ReboundMmPerSecond,
+        DampingSpeedCutoffs.Rear.CompressionMmPerSecond,
+        DampingSpeedCutoffs.Rear.ReboundMmPerSecond);
 
     private void AddPointReadouts(BalanceData balance, string xReadoutLabel)
     {

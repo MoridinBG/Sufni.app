@@ -105,7 +105,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IRecordedSessionDomainQuery>(),
             Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<IRecordedSessionReprocessor>(),
-            null);
+            null,
+            Bike());
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -130,7 +131,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IFilesService>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            Bike());
 
         coordinator.SelectAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
         coordinator.OpenSessionAsync(Arg.Any<string>()).Returns(Task.CompletedTask);

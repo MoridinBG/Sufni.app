@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.Presentation;
+using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Models;
@@ -104,7 +105,10 @@ public sealed record SessionAnalysisRequest(
     BalanceDisplacementMode BalanceDisplacementMode,
     BalanceSpeedMode BalanceSpeedMode,
     SessionDamperPercentages DamperPercentages,
-    SessionAnalysisTargetProfile TargetProfile);
+    SessionAnalysisTargetProfile TargetProfile)
+{
+    public DampingSpeedCutoffs DampingSpeedCutoffs { get; init; } = DampingSpeedCutoffs.Default;
+}
 
 public sealed record SessionAnalysisResult(
     SurfacePresentationState State,

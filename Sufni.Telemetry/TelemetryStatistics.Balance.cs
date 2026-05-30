@@ -117,8 +117,9 @@ public static partial class TelemetryStatistics
         var travelMax = suspensionType == SuspensionType.Front
             ? telemetryData.Front.MaxTravel!.Value
             : telemetryData.Rear.MaxTravel!.Value;
+        var highSpeedThreshold = HighSpeedThresholdFor(suspensionType, balanceType, options);
         var strokes = GetIncludedStrokes(telemetryData, suspension, balanceType, options.Range)
-            .Where(stroke => IncludesSpeedMode(stroke, options))
+            .Where(stroke => IncludesSpeedMode(stroke, options.SpeedMode, highSpeedThreshold))
             .ToArray();
 
         var travelValues = new List<double>();
@@ -192,14 +193,32 @@ public static partial class TelemetryStatistics
         return denominator < 1e-9 ? 0 : (frontSlope - rearSlope) / denominator * 100.0;
     }
 
-    private static bool IncludesSpeedMode(Stroke stroke, BalanceStatisticsOptions options)
+    private static double HighSpeedThresholdFor(
+        SuspensionType suspensionType,
+        BalanceType balanceType,
+        BalanceStatisticsOptions options)
     {
-        return options.SpeedMode switch
+        return (suspensionType, balanceType) switch
+        {
+            (SuspensionType.Front, BalanceType.Compression) => options.FrontCompressionHighSpeedThreshold,
+            (SuspensionType.Front, BalanceType.Rebound) => options.FrontReboundHighSpeedThreshold,
+            (SuspensionType.Rear, BalanceType.Compression) => options.RearCompressionHighSpeedThreshold,
+            (SuspensionType.Rear, BalanceType.Rebound) => options.RearReboundHighSpeedThreshold,
+            _ => throw new ArgumentOutOfRangeException(nameof(balanceType), balanceType, null),
+        };
+    }
+
+    private static bool IncludesSpeedMode(
+        Stroke stroke,
+        BalanceSpeedMode speedMode,
+        double highSpeedThreshold)
+    {
+        return speedMode switch
         {
             BalanceSpeedMode.Both => true,
-            BalanceSpeedMode.LowSpeed => Math.Abs(stroke.Stat.MaxVelocity) < options.HighSpeedThreshold,
-            BalanceSpeedMode.HighSpeed => Math.Abs(stroke.Stat.MaxVelocity) >= options.HighSpeedThreshold,
-            _ => throw new ArgumentOutOfRangeException(nameof(options), options.SpeedMode, null),
+            BalanceSpeedMode.LowSpeed => Math.Abs(stroke.Stat.MaxVelocity) < highSpeedThreshold,
+            BalanceSpeedMode.HighSpeed => Math.Abs(stroke.Stat.MaxVelocity) >= highSpeedThreshold,
+            _ => throw new ArgumentOutOfRangeException(nameof(speedMode), speedMode, null),
         };
     }
 }

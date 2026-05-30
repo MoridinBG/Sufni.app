@@ -34,6 +34,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService liveSessionService;
     private readonly SessionCoordinator sessionCoordinator;
+    private readonly BikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly DispatcherTimer uiRefreshTimer;
@@ -50,12 +51,16 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private SessionPresentationDimensions? lastPresentationDimensions;
     private TelemetryData? lastBakedTelemetryData;
     private CancellationTokenSource? bakeCts;
+    private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
+    private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
 
     public string IdentityKey { get; }
     public Guid SetupId { get; }
     public string? SetupName { get; }
     public Guid BikeId { get; }
     public string? BikeName { get; }
+    public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
 
     public ILiveSessionGraphWorkspace GraphWorkspace => graphWorkspace;
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;
@@ -85,6 +90,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     [ObservableProperty]
     private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
+
+    [ObservableProperty]
+    private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+
+    [ObservableProperty]
+    private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
 
     private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
@@ -136,6 +147,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref selectedVelocityAverageMode, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
+                RecomputeDamperPercentagesForSelectedVelocityAverageMode();
             }
         }
     }
@@ -188,7 +200,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ITileLayerService tileLayerService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        BikeCoordinator? bikeCoordinator = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         IdentityKey = context.IdentityKey;
@@ -196,8 +209,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         SetupName = context.SetupName;
         BikeId = context.BikeId;
         BikeName = context.BikeName;
+        dampingSpeedCutoffOwner = context.DampingSpeedCutoffOwner;
+        persistedDampingSpeedCutoffs = context.DampingSpeedCutoffs.ClampValues();
+        dampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+        plotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         this.liveSessionService = liveSessionService;
         this.sessionCoordinator = sessionCoordinator;
+        this.bikeCoordinator = bikeCoordinator;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         hasFrontTravelCalibration = context.TravelCalibration.Front is not null;
@@ -623,7 +641,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ApplyPlotAvailability(snapshot.Controls.SessionHeader);
         mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
         TelemetryData = snapshot.StatisticsTelemetry;
-        DamperPercentages = snapshot.DamperPercentages;
+        ApplyModeAwareDamperPercentages(snapshot.DamperPercentages);
         var trackTimelineContext = CreateLiveTrackTimelineContext(snapshot.Controls);
         graphWorkspace.ApplyTrackPresentation(snapshot.SessionTrackPoints, trackTimelineContext);
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints, trackTimelineContext);
@@ -659,13 +677,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         bakeCts = cts;
         var service = sessionPresentationService;
         var runner = backgroundTaskRunner;
+        var cutoffs = DampingSpeedCutoffs;
 
         _ = Task.Run(async () =>
         {
             try
             {
                 var data = await runner.RunAsync(
-                    () => service.BuildCachePresentation(telemetryData, dimensions, cts.Token),
+                    () => service.BuildCachePresentation(telemetryData, dimensions, cts.Token, cutoffs),
                     cts.Token);
 
                 if (cts.IsCancellationRequested)
@@ -749,8 +768,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DamperPage.FrontHistogramState = ResolveSurfaceState(hasFrontVelocityHistogram, frontStats);
         DamperPage.RearHistogramState = ResolveSurfaceState(hasRearVelocityHistogram, rearStats);
 
-        DamperPage.ApplyDamperPercentages(data.DamperPercentages);
-        DamperPercentages = data.DamperPercentages;
+        ApplyModeAwareDamperPercentages(data.DamperPercentages);
 
         BalancePage.CompressionBalance = data.CompressionBalance;
         BalancePage.ReboundBalance = data.ReboundBalance;
@@ -771,6 +789,137 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
 
         return workspaceState.IsHidden ? SurfacePresentationState.Hidden : workspaceState;
+    }
+
+    private void ApplyDamperPercentages(SessionDamperPercentages percentages)
+    {
+        DamperPercentages = percentages;
+        DamperPage.ApplyDamperPercentages(percentages);
+    }
+
+    public void PreviewDampingSpeedCutoff(
+        SuspensionType side,
+        DampingSpeedCircuit circuit,
+        double cutoffMmPerSecond)
+    {
+        if (dampingSpeedCutoffOwner is null)
+        {
+            return;
+        }
+
+        dampingSpeedCutoffPreviewOrigin ??= DampingSpeedCutoffs;
+        DampingSpeedCutoffs = DampingSpeedCutoffs.With(
+            side,
+            circuit,
+            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+    }
+
+    public void CancelDampingSpeedCutoffPreview()
+    {
+        if (dampingSpeedCutoffPreviewOrigin is not { } origin)
+        {
+            return;
+        }
+
+        dampingSpeedCutoffPreviewOrigin = null;
+        DampingSpeedCutoffs = origin;
+    }
+
+    public async Task CommitDampingSpeedCutoffAsync(
+        SuspensionType side,
+        DampingSpeedCircuit circuit,
+        double cutoffMmPerSecond)
+    {
+        if (dampingSpeedCutoffOwner is not { } owner || bikeCoordinator is null)
+        {
+            return;
+        }
+
+        dampingSpeedCutoffPreviewOrigin = null;
+        var committedCutoffs = DampingSpeedCutoffs.With(
+            side,
+            circuit,
+            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+        DampingSpeedCutoffs = committedCutoffs;
+        PlotDampingSpeedCutoffs = committedCutoffs;
+
+        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
+            owner.BikeId,
+            owner.BaselineUpdated,
+            side,
+            circuit,
+            committedCutoffs.Get(side, circuit));
+
+        switch (result)
+        {
+            case BikeDampingSpeedCutoffUpdateResult.Saved saved:
+                ApplyPersistedDampingSpeedCutoffs(saved.Snapshot.DampingSpeedCutoffs, saved.Snapshot.Updated);
+                break;
+
+            case BikeDampingSpeedCutoffUpdateResult.Conflict conflict:
+                ApplyPersistedDampingSpeedCutoffs(conflict.CurrentSnapshot.DampingSpeedCutoffs, conflict.CurrentSnapshot.Updated);
+                ErrorMessages.Add("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff.");
+                break;
+
+            case BikeDampingSpeedCutoffUpdateResult.Failed failed:
+                DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                ErrorMessages.Add($"Could not save damping cutoff: {failed.ErrorMessage}");
+                break;
+        }
+    }
+
+    private void ApplyPersistedDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs, long baselineUpdated)
+    {
+        persistedDampingSpeedCutoffs = cutoffs.ClampValues();
+        dampingSpeedCutoffPreviewOrigin = null;
+        dampingSpeedCutoffOwner = new DampingSpeedCutoffOwner(BikeId, baselineUpdated);
+        OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
+        PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+        DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+    }
+
+    private void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    {
+        if (TelemetryData is null)
+        {
+            ApplyDamperPercentages(SessionDamperPercentages.Empty);
+            return;
+        }
+
+        if (SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        {
+            ApplyDamperPercentages(sampleAveragedPercentages);
+            return;
+        }
+
+        RecomputeDamperPercentagesForSelectedVelocityAverageMode();
+    }
+
+    private void RecomputeDamperPercentagesForSelectedVelocityAverageMode()
+    {
+        if (TelemetryData is null)
+        {
+            ApplyDamperPercentages(SessionDamperPercentages.Empty);
+            return;
+        }
+
+        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
+            TelemetryData,
+            AnalysisRange,
+            SelectedVelocityAverageMode,
+            DampingSpeedCutoffs));
+    }
+
+    partial void OnDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
+    {
+        RecomputeDamperPercentagesForSelectedVelocityAverageMode();
+    }
+
+    partial void OnPlotDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
+    {
+        lastBakedTelemetryData = null;
+        MaybeQueueBake(TelemetryData);
     }
 
     private bool IsCurrentCaptureAlreadySaved()

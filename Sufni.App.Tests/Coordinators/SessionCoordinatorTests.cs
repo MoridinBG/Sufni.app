@@ -753,7 +753,13 @@ public class SessionCoordinatorTests
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
-        sessionPresentationService.CalculateDamperPercentages(telemetry).Returns(percentages);
+        sessionPresentationService
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Any<DampingSpeedCutoffs?>())
+            .Returns(percentages);
 
         var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
 
@@ -762,6 +768,42 @@ public class SessionCoordinatorTests
         Assert.Same(trackData.TrackPoints, loaded.Data.TrackPoints);
         Assert.Equal(400.0, loaded.Data.MapVideoWidth);
         Assert.Equal(percentages, loaded.Data.DamperPercentages);
+    }
+
+    [Fact]
+    public async Task LoadDesktopDetailAsync_UsesBikeDampingSpeedCutoffs()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var cutoffs = DampingSpeedCutoffs.FromValues(110, 220, 330, 440);
+        var bike = TestSnapshots.Bike(updated: 17) with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = cutoffs.Front.CompressionMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = cutoffs.Front.ReboundMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = cutoffs.Rear.CompressionMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = cutoffs.Rear.ReboundMmPerSecond,
+        };
+        var percentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
+            .Returns(percentages);
+
+        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+
+        var loaded = Assert.IsType<SessionDesktopLoadResult.Loaded>(result);
+        Assert.Equal(cutoffs, loaded.Data.DampingSpeedCutoffs);
+        Assert.Equal(percentages, loaded.Data.DamperPercentages);
+        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
     }
 
     [Fact]
@@ -849,6 +891,53 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task LoadMobileDetailAsync_RecomputesCachedDamperPercentages_WhenBikeCutoffsChangedAndTelemetryIsAvailable()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var cachedCutoffs = DampingSpeedCutoffs.FromValues(100, 100, 100, 100);
+        var currentCutoffs = DampingSpeedCutoffs.FromValues(250, 350, 450, 550);
+        var bike = TestSnapshots.Bike(updated: 21) with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = currentCutoffs.Front.CompressionMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = currentCutoffs.Front.ReboundMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = currentCutoffs.Rear.CompressionMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = currentCutoffs.Rear.ReboundMmPerSecond,
+        };
+        var stalePercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var currentPercentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var cache = new SessionCache
+        {
+            SessionId = snapshot.Id,
+            FrontTravelHistogram = "cached",
+            DamperPercentages = stalePercentages,
+            DampingSpeedCutoffs = cachedCutoffs,
+        };
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
+        database.GetSessionCacheAsync(snapshot.Id).Returns(cache);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService
+            .CalculateDamperPercentages(
+                telemetry,
+                Arg.Any<TelemetryTimeRange?>(),
+                Arg.Any<VelocityAverageMode>(),
+                Arg.Is<DampingSpeedCutoffs?>(value => value == currentCutoffs))
+            .Returns(currentPercentages);
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
+        Assert.Equal(currentPercentages, loaded.Data.DamperPercentages);
+        Assert.Equal(currentCutoffs, loaded.Data.DampingSpeedCutoffs);
+        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
+        await database.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
+    }
+
+    [Fact]
     public async Task LoadMobileDetailAsync_BuildsAndPersistsCache_WhenCacheMissing()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -862,6 +951,7 @@ public class SessionCoordinatorTests
             null,
             null,
             new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
             false);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
@@ -869,7 +959,11 @@ public class SessionCoordinatorTests
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
-        sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                new SessionPresentationDimensions(320, 180),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(cacheData);
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
@@ -880,6 +974,53 @@ public class SessionCoordinatorTests
         Assert.Same(trackData, built.TrackData);
         await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
             cache.SessionId == snapshot.Id && cache.FrontTravelHistogram == "front-travel"));
+    }
+
+    [Fact]
+    public async Task LoadMobileDetailAsync_BuildsAndPersistsCache_WithCurrentBikeCutoffs()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var cutoffs = DampingSpeedCutoffs.FromValues(125, 235, 345, 455);
+        var bike = TestSnapshots.Bike(updated: 31) with
+        {
+            FrontCompressionDampingCutoffMmPerSecond = cutoffs.Front.CompressionMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond = cutoffs.Front.ReboundMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond = cutoffs.Rear.CompressionMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond = cutoffs.Rear.ReboundMmPerSecond,
+        };
+        var cacheData = new SessionCachePresentationData(
+            "front-travel",
+            null,
+            "front-velocity",
+            null,
+            null,
+            null,
+            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            cutoffs,
+            false);
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
+        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                new SessionPresentationDimensions(320, 180),
+                Arg.Any<CancellationToken>(),
+                Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
+            .Returns(cacheData);
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
+        Assert.Equal(cutoffs, built.Data.DampingSpeedCutoffs);
+        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), built.Data.DampingSpeedCutoffOwner);
+        await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
+            cache.SessionId == snapshot.Id &&
+            cache.DampingSpeedCutoffs == cutoffs));
     }
 
     [Fact]
@@ -919,7 +1060,11 @@ public class SessionCoordinatorTests
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                new SessionPresentationDimensions(320, 180),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Throws(new InvalidOperationException("render failed"));
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
@@ -937,7 +1082,11 @@ public class SessionCoordinatorTests
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), Arg.Any<CancellationToken>())
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                new SessionPresentationDimensions(320, 180),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
             .Returns(callInfo =>
             {
                 var token = callInfo.ArgAt<CancellationToken>(2);
@@ -950,6 +1099,7 @@ public class SessionCoordinatorTests
                     null,
                     null,
                     new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+                    DampingSpeedCutoffs.Default,
                     false);
             });
 
@@ -1142,6 +1292,16 @@ public class SessionCoordinatorTests
         };
     }
 
+    private static RecordedSessionDomainSnapshot DomainWithBike(SessionSnapshot session, BikeSnapshot bike) => new(
+        session,
+        null,
+        bike,
+        null,
+        null,
+        null,
+        new SessionStaleness.Current(),
+        DerivedChangeKind.None);
+
     private static Track CreateTrack(params TrackPoint[] points)
     {
         return new Track
@@ -1166,7 +1326,9 @@ public class SessionCoordinatorTests
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
             BikeData: new BikeData(63, 180, 170, measurement => measurement / 10.0, measurement => measurement / 10.0),
-            TravelCalibration: new LiveDaqTravelCalibration(null, null));
+            TravelCalibration: new LiveDaqTravelCalibration(null, null),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
 
         return new LiveSessionCapturePackage(
             context,

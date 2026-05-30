@@ -34,8 +34,13 @@ public sealed record BalanceStatisticsOptions(
     TelemetryTimeRange? Range = null,
     BalanceDisplacementMode DisplacementMode = BalanceDisplacementMode.Zenith,
     BalanceSpeedMode SpeedMode = BalanceSpeedMode.Both,
-    double HighSpeedThreshold = 200.0);
+    double FrontCompressionHighSpeedThreshold = 200.0,
+    double FrontReboundHighSpeedThreshold = 200.0,
+    double RearCompressionHighSpeedThreshold = 200.0,
+    double RearReboundHighSpeedThreshold = 200.0);
 
 public sealed record VelocityStatisticsOptions(
     TelemetryTimeRange? Range = null,
-    VelocityAverageMode VelocityAverageMode = VelocityAverageMode.SampleAveraged);
+    VelocityAverageMode VelocityAverageMode = VelocityAverageMode.SampleAveraged,
+    double CompressionHighSpeedThreshold = 200.0,
+    double ReboundHighSpeedThreshold = 200.0);

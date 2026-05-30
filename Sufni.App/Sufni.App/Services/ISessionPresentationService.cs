@@ -9,10 +9,13 @@ public interface ISessionPresentationService
 {
     SessionDamperPercentages CalculateDamperPercentages(
         TelemetryData telemetryData,
-        TelemetryTimeRange? range = null);
+        TelemetryTimeRange? range = null,
+        VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged,
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null);
 
     SessionCachePresentationData BuildCachePresentation(
         TelemetryData telemetryData,
         SessionPresentationDimensions dimensions,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null);
 }

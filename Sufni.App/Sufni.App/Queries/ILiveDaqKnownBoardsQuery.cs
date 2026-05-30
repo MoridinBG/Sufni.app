@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Queries;
@@ -30,7 +31,35 @@ public sealed record LiveDaqSessionContext(
     Guid BikeId,
     string BikeName,
     BikeData BikeData,
-    LiveDaqTravelCalibration TravelCalibration);
+    LiveDaqTravelCalibration TravelCalibration,
+    DampingSpeedCutoffs DampingSpeedCutoffs,
+    DampingSpeedCutoffOwner DampingSpeedCutoffOwner)
+{
+    public LiveDaqSessionContext(
+        string IdentityKey,
+        Guid BoardId,
+        string DisplayName,
+        Guid SetupId,
+        string SetupName,
+        Guid BikeId,
+        string BikeName,
+        BikeData BikeData,
+        LiveDaqTravelCalibration TravelCalibration)
+        : this(
+            IdentityKey,
+            BoardId,
+            DisplayName,
+            SetupId,
+            SetupName,
+            BikeId,
+            BikeName,
+            BikeData,
+            TravelCalibration,
+            DampingSpeedCutoffs.Default,
+            new DampingSpeedCutoffOwner(BikeId, 0))
+    {
+    }
+}
 
 // Read-only query that merges persisted boards with their current setup and bike
 // context for the live DAQ list.

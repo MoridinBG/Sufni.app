@@ -3,6 +3,7 @@ x:Name="Root"
 x:Class="Sufni.App.Views.Controls.VelocityStatisticsHost"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:behaviors="clr-namespace:Sufni.App.Behaviors"
 xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -14,7 +15,7 @@ mc:Ignorable="d">
 
     <controls:PlaceholderOverlayContainer PresentationState="{Binding #Root.PresentationState}">
         <controls:PlaceholderOverlayContainer.ReadyContent>
-            <Grid ColumnDefinitions="* auto" RowDefinitions="auto *">
+            <Grid ClipToBounds="True" ColumnDefinitions="* auto" RowDefinitions="auto *">
                 <plots:TravelPercentageLegend
                 Grid.Row="0"
                 Grid.Column="0"
@@ -24,6 +25,7 @@ mc:Ignorable="d">
                 <Grid Grid.Row="1" Grid.Column="0">
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
                     Height="{Binding #Root.PlotHeight}"
                     IsVisible="{Binding #Root.HasDynamicStatistics}"
                     PlotKind="VelocityHistogram"
@@ -36,13 +38,53 @@ mc:Ignorable="d">
                     Source="{Binding #Root.StaticSource}" />
                 </Grid>
 
+                <Canvas
+                Name="PART_DampingGuideLayer"
+                Grid.Row="1"
+                Grid.Column="0"
+                ClipToBounds="True"
+                IsHitTestVisible="False">
+                    <Line
+                    Name="PART_DampingGuide"
+                    IsVisible="{Binding #VelocityBand.IsDampingGuideVisible}"
+                    Stroke="{DynamicResource SufniAccentColor}"
+                    StrokeDashArray="5,3"
+                    StrokeThickness="1"
+                    StartPoint="{Binding #VelocityBand.DampingGuideStartPoint}"
+                    EndPoint="{Binding #VelocityBand.DampingGuideEndPoint}" />
+
+                    <Border
+                    Name="PART_DampingGuideLabel"
+                    Canvas.Left="72"
+                    Canvas.Top="{Binding #VelocityBand.DampingGuideLabelTop}"
+                    Padding="6,2"
+                    Background="{DynamicResource SufniSurfaceInputBrush}"
+                    BorderBrush="{DynamicResource SufniLineDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsVisible="{Binding #VelocityBand.IsDampingGuideVisible}"
+                    Opacity="0.92">
+                        <TextBlock
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Foreground="{DynamicResource SufniTextPrimaryBrush}"
+                        Text="{Binding #VelocityBand.DampingGuideLabel}" />
+                    </Border>
+                </Canvas>
+
                 <commonplots:VelocityBandView
+                Name="VelocityBand"
                 Grid.Row="1"
                 Grid.Column="1"
+                behaviors:HapticFeedbackBehavior.IsEnabled="True"
+                CanEditDampingSpeedCutoffs="{Binding #Root.StatisticsWorkspace.CanEditDampingSpeedCutoffs}"
+                DampingSpeedCutoffs="{Binding #Root.DampingSpeedCutoffs}"
                 HscPercentage="{Binding #Root.HscPercentage}"
                 HsrPercentage="{Binding #Root.HsrPercentage}"
                 LscPercentage="{Binding #Root.LscPercentage}"
-                LsrPercentage="{Binding #Root.LsrPercentage}" />
+                LsrPercentage="{Binding #Root.LsrPercentage}"
+                StatisticsWorkspace="{Binding #Root.StatisticsWorkspace}"
+                SuspensionType="{Binding #Root.SuspensionType}" />
             </Grid>
         </controls:PlaceholderOverlayContainer.ReadyContent>
         <controls:PlaceholderOverlayContainer.PlaceholderContent>
