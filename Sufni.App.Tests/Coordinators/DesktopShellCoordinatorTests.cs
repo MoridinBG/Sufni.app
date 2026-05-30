@@ -70,6 +70,7 @@ public class DesktopShellCoordinatorTests
 
         Assert.False(factoryInvoked);
         host.Received(1).OpenView(existing);
+        host.DidNotReceiveWithAnyArgs().TakeTabHistory<TestTabPageViewModel>(default!);
     }
 
     [Fact]
@@ -83,7 +84,29 @@ public class DesktopShellCoordinatorTests
             match: _ => true,
             create: () => newView);
 
+        host.Received(1).TakeTabHistory(Arg.Any<Func<TestTabPageViewModel, bool>>());
         host.Received(1).OpenView(newView);
+    }
+
+    [Fact]
+    public void OpenOrFocus_ReusesMatchingClosedTab_AndDoesNotInvokeFactory()
+    {
+        host.Tabs.Returns(Array.Empty<TabPageViewModelBase>());
+        var restored = new TestTabPageViewModel();
+        host.TakeTabHistory(Arg.Any<Func<TestTabPageViewModel, bool>>()).Returns(restored);
+        var factoryInvoked = false;
+        var coordinator = CreateCoordinator();
+
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: _ => true,
+            create: () =>
+            {
+                factoryInvoked = true;
+                return new TestTabPageViewModel();
+            });
+
+        Assert.False(factoryInvoked);
+        host.Received(1).OpenView(restored);
     }
 
     [Fact]

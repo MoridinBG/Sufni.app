@@ -137,7 +137,10 @@ never poke at the shell view model directly — they call
   which holds an `ObservableCollection<TabPageViewModelBase> Tabs`
   and a `CurrentView`. `OpenOrFocus<T>(match, create)` walks
   `Tabs.OfType<T>().FirstOrDefault(match)` and reuses the existing
-  tab if found, otherwise instantiates and adds a new one. `Close`
+  tab if found. If no open tab matches, it removes and reuses the most
+  recent matching closed tab from `tabHistory` before creating a new
+  one; all older matching closed-tab entries are dropped so one logical
+  tab cannot retain multiple restore-history references. `Close`
   removes the tab through `MainWindowViewModel.CloseTabPage`, which
   preserves a `tabHistory` stack so `RestoreCommand` can re-open the
   most recently closed tab. The desktop tab strip previews reordering

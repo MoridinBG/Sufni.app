@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Services;
@@ -88,6 +87,9 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         Tabs.Remove(tab);
         if (rememberForRestore)
         {
+            RemoveTabHistory<TabPageViewModelBase>(
+                historyTab => ReferenceEquals(historyTab, tab),
+                out _);
             tabHistory.Push(tab);
         }
 
@@ -135,16 +137,34 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
     }
 
     public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
-    {
-        var retained = tabHistory
-            .Where(tab => tab is not T typed || !match(typed))
-            .Reverse()
-            .ToArray();
+        => RemoveTabHistory(match, out _);
 
-        tabHistory.Clear();
-        foreach (var tab in retained)
+    public T? TakeTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
+    {
+        RemoveTabHistory(match, out var tab);
+        return tab;
+    }
+
+    private void RemoveTabHistory<T>(Func<T, bool> match, out T? mostRecentMatch)
+        where T : ViewModelBase
+    {
+        mostRecentMatch = null;
+        var retained = new List<TabPageViewModelBase>(tabHistory.Count);
+
+        while (tabHistory.TryPop(out var tab))
         {
-            tabHistory.Push(tab);
+            if (tab is T typed && match(typed))
+            {
+                mostRecentMatch ??= typed;
+                continue;
+            }
+
+            retained.Add(tab);
+        }
+
+        for (var i = retained.Count - 1; i >= 0; i--)
+        {
+            tabHistory.Push(retained[i]);
         }
     }
 

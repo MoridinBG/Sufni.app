@@ -12,7 +12,13 @@ public sealed class DesktopShellCoordinator(Func<IMainWindowShellHost> mainWindo
     {
         var window = mainWindowProvider();
         var existing = window.Tabs.OfType<T>().FirstOrDefault(match);
-        window.OpenView(existing ?? create());
+        if (existing is not null)
+        {
+            window.OpenView(existing);
+            return;
+        }
+
+        window.OpenView(window.TakeTabHistory(match) ?? create());
     }
 
     public void Close(ViewModelBase view)

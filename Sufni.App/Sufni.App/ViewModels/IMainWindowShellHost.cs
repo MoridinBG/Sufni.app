@@ -15,5 +15,6 @@ public interface IMainWindowShellHost
     IEnumerable<TabPageViewModelBase> Tabs { get; }
     void OpenView(ViewModelBase view);
     void CloseTabPage(TabPageViewModelBase tab, bool rememberForRestore = true);
+    T? TakeTabHistory<T>(Func<T, bool> match) where T : ViewModelBase;
     void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase;
 }

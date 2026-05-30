@@ -60,6 +60,23 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public void CloseTabPage_RemembersSameTabReferenceOnlyOnce()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var tab = new TestTabPage();
+
+        mainWindow.OpenView(tab);
+        mainWindow.CloseTabPage(tab);
+        mainWindow.CloseTabPage(tab);
+        mainWindow.RestoreCommand.Execute(null);
+        mainWindow.CloseTabPage(tab, rememberForRestore: false);
+        mainWindow.RestoreCommand.Execute(null);
+
+        Assert.DoesNotContain(tab, mainWindow.Tabs);
+    }
+
+    [Fact]
     public void MoveTab_PlacesTabAfterTarget_AndPreservesSelectedTab()
     {
         var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
@@ -177,14 +194,42 @@ public class MainWindowViewModelTests
         Assert.DoesNotContain(first, mainWindow.Tabs);
     }
 
+    [Fact]
+    public void TakeTabHistory_ReturnsMostRecentMatch_AndRemovesAllMatchingClosedTabs()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var olderMatch = new TestTabPage("session");
+        var unrelated = new TestTabPage("other");
+        var newerMatch = new TestTabPage("session");
+
+        mainWindow.OpenView(olderMatch);
+        mainWindow.CloseTabPage(olderMatch);
+        mainWindow.OpenView(unrelated);
+        mainWindow.CloseTabPage(unrelated);
+        mainWindow.OpenView(newerMatch);
+        mainWindow.CloseTabPage(newerMatch);
+
+        var taken = mainWindow.TakeTabHistory<TestTabPage>(tab => tab.HistoryKey == "session");
+        mainWindow.RestoreCommand.Execute(null);
+        mainWindow.RestoreCommand.Execute(null);
+
+        Assert.Same(newerMatch, taken);
+        Assert.Contains(unrelated, mainWindow.Tabs);
+        Assert.DoesNotContain(olderMatch, mainWindow.Tabs);
+        Assert.DoesNotContain(newerMatch, mainWindow.Tabs);
+    }
+
     private sealed class TestTabPage : TabPageViewModelBase
     {
         public int ActivatedCount { get; private set; }
         public int DeactivatedCount { get; private set; }
+        public string? HistoryKey { get; }
 
-        public TestTabPage()
+        public TestTabPage(string? historyKey = null)
             : base(TestDispatcher)
         {
+            HistoryKey = historyKey;
         }
 
         public void ResetActivationCounts()
