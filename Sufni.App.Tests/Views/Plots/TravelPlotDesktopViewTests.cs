@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Behaviors;
@@ -322,6 +324,61 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ContextMenuContext_UsesRowIdClickSecondsAndAnalysisRange()
+    {
+        var telemetry = CreateMinimal(duration: 10);
+        var analysisRange = new TelemetryTimeRange(2, 4);
+        var view = new ContextMenuTravelPlotDesktopView
+        {
+            Telemetry = telemetry,
+            GraphWorkspace = new RecordedSessionGraphWorkspaceStub(telemetry),
+            PlotRowId = TelemetryGraphRowIds.Travel,
+            AnalysisRange = analysisRange,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        RenderPlotInMemory(plot);
+        var pixel = GetDataAreaPixelAtX(plot.Plot, 3);
+
+        var context = view.CreateContextForTest(pixel);
+
+        Assert.NotNull(context);
+        Assert.Equal(TelemetryGraphRowIds.Travel, context.RowId);
+        Assert.Equal(3, context.ClickSeconds, 1);
+        Assert.Equal(10, context.DurationSeconds, 6);
+        Assert.Equal(analysisRange, context.AnalysisRange);
+        Assert.True(context.IsClickInsideAnalysisRange);
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_ContextMenuActions_ResolveFromWorkspaceRowId()
+    {
+        var telemetry = CreateMinimal(duration: 10);
+        var action = new TelemetryPlotContextMenuAction("test", "Test", Substitute.For<ICommand>());
+        var workspace = new RecordedSessionGraphWorkspaceStub(
+            telemetry,
+            new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
+            {
+                [TelemetryGraphRowIds.Travel] = [action],
+            });
+        var view = new ContextMenuTravelPlotDesktopView
+        {
+            Telemetry = telemetry,
+            GraphWorkspace = workspace,
+            PlotRowId = TelemetryGraphRowIds.Travel,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        var context = new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, 3, 10, null);
+        var actions = view.GetActionsForTest(context);
+
+        Assert.Same(action, Assert.Single(actions));
+    }
+
+    [AvaloniaFact]
     public async Task TravelPlotDesktopView_MobileLongPress_SetsAnalysisRangeBoundaryWithoutClearingOnRelease()
     {
         TestApp.SetIsDesktop(false);
@@ -375,6 +432,82 @@ public class TravelPlotDesktopViewTests
         }
     }
 
+    private sealed class ContextMenuTravelPlotDesktopView : TravelPlotDesktopView
+    {
+        private Func<Pixel, TelemetryPlotContextMenuContext?>? createContext;
+        private Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>>? getActions;
+
+        public TelemetryPlotContextMenuContext? CreateContextForTest(Pixel pixel)
+        {
+            return createContext?.Invoke(pixel);
+        }
+
+        public IReadOnlyList<TelemetryPlotContextMenuAction> GetActionsForTest(TelemetryPlotContextMenuContext context)
+        {
+            return getActions?.Invoke(context) ?? [];
+        }
+
+        protected override IPlotMenu CreateTelemetryPlotContextMenu(
+            Func<Pixel, TelemetryPlotContextMenuContext?> createContext,
+            Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
+        {
+            this.createContext = createContext;
+            this.getActions = getActions;
+            return new NoOpPlotMenu();
+        }
+    }
+
+    private static Pixel GetDataAreaPixelAtX(Plot plot, double x)
+    {
+        var dataRect = plot.LastRender.DataRect;
+        Assert.True(dataRect.HasArea);
+        return new Pixel(plot.GetPixel(new Coordinates(x, 0)).X, dataRect.Center.Y);
+    }
+
+    private static void RenderPlotInMemory(ScottPlot.Avalonia.AvaPlot plot)
+    {
+        var width = Math.Max(1, (int)plot.Bounds.Width);
+        var height = Math.Max(1, (int)plot.Bounds.Height);
+        plot.Plot.RenderInMemory(width, height);
+        plot.Refresh();
+    }
+
+    private sealed class NoOpPlotMenu : IPlotMenu
+    {
+        public List<ContextMenuItem> ContextMenuItems { get; set; } = [];
+
+        public void Reset()
+        {
+            ContextMenuItems.Clear();
+        }
+
+        public void Clear()
+        {
+            ContextMenuItems.Clear();
+        }
+
+        public void Add(string Label, Action<Plot> action)
+        {
+            ContextMenuItems.Add(new ContextMenuItem
+            {
+                Label = Label,
+                OnInvoke = action
+            });
+        }
+
+        public void AddSeparator()
+        {
+            ContextMenuItems.Add(new ContextMenuItem
+            {
+                IsSeparator = true
+            });
+        }
+
+        public void ShowContextMenu(Pixel pixel)
+        {
+        }
+    }
+
     private sealed class LongPressTravelPlotDesktopView : TravelPlotDesktopView
     {
         private Action? scheduledLongPress;
@@ -397,7 +530,10 @@ public class TravelPlotDesktopViewTests
         public void Dispose() => dispose();
     }
 
-    private sealed class RecordedSessionGraphWorkspaceStub(TelemetryData telemetryData) : IRecordedSessionGraphWorkspace
+    private sealed class RecordedSessionGraphWorkspaceStub(
+        TelemetryData telemetryData,
+        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? plotContextMenuActionsByRowId = null)
+        : IRecordedSessionGraphWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange { get; private set; }
@@ -425,6 +561,8 @@ public class TravelPlotDesktopViewTests
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; } =
+            plotContextMenuActionsByRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
         public int ClearAnalysisRangeCallCount { get; private set; }
         public int SetAnalysisRangeBoundaryCallCount { get; private set; }
         public double? LastAnalysisRangeBoundary { get; private set; }

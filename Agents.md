@@ -64,6 +64,9 @@ The projects that matter most:
   the owning platform heads, with socket-based service discovery in shared
   code and Bonjour implementations in the Apple heads.
 
+- `docs/plans/` contains design notes and planning artifacts. Do not read those, unless explicitly asked to. 
+  Do not read the plan files, do not consider them.
+
 Full details: [ARCHITECTURE.md § Project Structure](docs/ARCHITECTURE.md#project-structure)
 and [§ Platform Abstractions](docs/ARCHITECTURE.md#platform-abstractions).
 

@@ -187,6 +187,91 @@ public class MapViewTests
     }
 
     [AvaloniaFact]
+    public async Task TimelineRangeUpdate_AfterTrackPointsArrive_ZoomsToCurrentTimelineRange()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
+        {
+            FullTrackPoints = [],
+        };
+        var timeline = new SessionTimelineLinkViewModel();
+        var view = new MapView
+        {
+            DataContext = viewModel,
+            Timeline = timeline,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+
+            timeline.SetVisibleRange(0.25, 0.5, new object());
+            viewModel.SessionTrackPoints =
+            [
+                new TrackPoint(0, 0, 0, null),
+                new TrackPoint(1, 100, 100, null),
+                new TrackPoint(2, 200, 200, null),
+                new TrackPoint(3, 300, 300, null),
+                new TrackPoint(4, 400, 400, null),
+            ];
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var segmentViewport = mapControl!.Map.Navigator.Viewport;
+            view.ZoomToNormalizedRange(0, 1);
+            await ViewTestHelpers.FlushDispatcherAsync();
+            var fullViewport = mapControl.Map.Navigator.Viewport;
+
+            Assert.True(segmentViewport.Resolution < fullViewport.Resolution);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TimelineRangeUpdate_ForStraightTrackSegment_ZoomsToTrackSegment()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var viewModel = CreateViewModelWithHorizontalTrack();
+        var timeline = new SessionTimelineLinkViewModel();
+        var view = new MapView
+        {
+            DataContext = viewModel,
+            Timeline = timeline,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+
+            var before = mapControl!.Map.Navigator.Viewport;
+            timeline.SetVisibleRange(0.25, 0.5, new object());
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var after = mapControl.Map.Navigator.Viewport;
+
+            Assert.True(after.Resolution < before.Resolution);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task TimelineRangeUpdate_FromMapSource_DoesNotReapplyToMap()
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -246,6 +331,25 @@ public class MapViewTests
                 new TrackPoint(2, 200, 200, null),
                 new TrackPoint(3, 300, 300, null),
                 new TrackPoint(4, 400, 400, null),
+            ],
+            FullTrackPoints = [],
+        };
+    }
+
+    private static MapViewModel CreateViewModelWithHorizontalTrack()
+    {
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+
+        return new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
+        {
+            SessionTrackPoints =
+            [
+                new TrackPoint(0, 0, 0, null),
+                new TrackPoint(1, 100, 0, null),
+                new TrackPoint(2, 200, 0, null),
+                new TrackPoint(3, 300, 0, null),
+                new TrackPoint(4, 400, 0, null),
             ],
             FullTrackPoints = [],
         };
