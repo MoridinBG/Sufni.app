@@ -1,8 +1,8 @@
 using System.Windows.Input;
 using ScottPlot;
-using Sufni.App.DesktopViews.Plots;
 using Sufni.App.Models;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Views.Plots;

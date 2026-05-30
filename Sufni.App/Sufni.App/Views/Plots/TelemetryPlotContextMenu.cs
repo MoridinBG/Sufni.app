@@ -4,9 +4,8 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.Avalonia;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Plots;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 internal sealed class TelemetryPlotContextMenu : IPlotMenu
 {

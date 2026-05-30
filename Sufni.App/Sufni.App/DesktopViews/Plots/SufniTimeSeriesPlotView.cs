@@ -9,6 +9,7 @@ using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
 
@@ -190,6 +191,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerPressedEvent,
             (_, args) =>
             {
+                if (TryShowMobileTelemetryPlotContextMenu(args))
+                {
+                    return;
+                }
+
                 if (TryToggleInteractiveLegend(args))
                 {
                     return;
@@ -521,6 +527,55 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             : [];
     }
 
+    private bool TryShowMobileTelemetryPlotContextMenu(PointerEventArgs args)
+    {
+        if (App.Current?.IsDesktop != false ||
+            !IsSecondaryPointerPressed(args))
+        {
+            return false;
+        }
+
+        var point = args.GetPosition(PlotControl);
+        if (!TryShowTelemetryPlotContextMenu(point))
+        {
+            return false;
+        }
+
+        args.Handled = true;
+        return true;
+    }
+
+    private bool TryShowTelemetryPlotContextMenu(Point point)
+    {
+        if (!HasPlotControl)
+        {
+            return false;
+        }
+
+        var pixel = PlotControl.ToScottPlotPixel(point);
+        if (!IsContextMenuPixelInDataArea(pixel))
+        {
+            return false;
+        }
+
+        CancelMobileAnalysisRangeLongPress();
+        isGraphClickCandidate = false;
+        suppressGraphClickClear = true;
+        if (PlotControl.Menu is not { } menu)
+        {
+            return false;
+        }
+
+        menu.ShowContextMenu(pixel);
+        return true;
+    }
+
+    private bool IsSecondaryPointerPressed(PointerEventArgs args)
+    {
+        var point = args.GetCurrentPoint(PlotControl);
+        return point.Properties.IsRightButtonPressed;
+    }
+
     private bool IsContextMenuPixelInDataArea(ScottPlotPixel pixel)
     {
         var dataRect = PlotControl.Plot.LastRender.DataRect;
@@ -573,6 +628,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             TimelineDurationSeconds is not { } duration ||
             duration <= 0 ||
             !IsPlotReady)
+        {
+            return;
+        }
+
+        if (AnalysisRange is { } range &&
+            mobileAnalysisRangeLongPressSeconds >= range.StartSeconds &&
+            mobileAnalysisRangeLongPressSeconds <= range.EndSeconds &&
+            TryShowTelemetryPlotContextMenu(mobileAnalysisRangeLongPressStartPoint))
         {
             return;
         }

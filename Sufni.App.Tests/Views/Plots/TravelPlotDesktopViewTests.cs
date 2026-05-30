@@ -379,6 +379,39 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task TravelPlotDesktopView_MobileSecondaryPointer_ShowsInstalledPlotMenu()
+    {
+        TestApp.SetIsDesktop(false);
+        try
+        {
+            var telemetry = CreateMinimal(duration: 10);
+            var view = new MobileContextMenuTravelPlotDesktopView
+            {
+                Telemetry = telemetry,
+                GraphWorkspace = new RecordedSessionGraphWorkspaceStub(telemetry),
+                PlotRowId = TelemetryGraphRowIds.Travel,
+            };
+
+            await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+            var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+            RenderPlotInMemory(plot);
+            var point = GetDataAreaCenterPoint(plot);
+            var pressPoint = plot.TranslatePoint(point, mounted.Host);
+            Assert.NotNull(pressPoint);
+
+            mounted.Host.MouseDown(pressPoint.Value, MouseButton.Right, RawInputModifiers.None);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.NotNull(view.PlotMenu.LastShowPixel);
+        }
+        finally
+        {
+            TestApp.SetIsDesktop(true);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task TravelPlotDesktopView_MobileLongPress_SetsAnalysisRangeBoundaryWithoutClearingOnRelease()
     {
         TestApp.SetIsDesktop(false);
@@ -424,6 +457,51 @@ public class TravelPlotDesktopViewTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task TravelPlotDesktopView_MobileLongPressInsideAnalysisRange_ShowsInstalledPlotMenu()
+    {
+        TestApp.SetIsDesktop(false);
+        try
+        {
+            var telemetry = CreateMinimal(duration: 10);
+            var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
+            var view = new LongPressContextMenuTravelPlotDesktopView
+            {
+                Telemetry = telemetry,
+                AnalysisRange = new TelemetryTimeRange(2, 4),
+                GraphWorkspace = workspace,
+                PlotRowId = TelemetryGraphRowIds.Travel,
+            };
+            var feedbackRequestCount = 0;
+            view.AddHandler(
+                HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
+                (_, _) => feedbackRequestCount++);
+
+            await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+            var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+            RenderPlotInMemory(plot);
+            var pressPoint = plot.TranslatePoint(GetDataAreaPointAtX(plot, 3), mounted.Host);
+            Assert.NotNull(pressPoint);
+
+            mounted.Host.MouseDown(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            view.TriggerLongPress();
+            mounted.Host.MouseUp(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.NotNull(view.PlotMenu.LastShowPixel);
+            Assert.Equal(0, workspace.SetAnalysisRangeBoundaryCallCount);
+            Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
+            Assert.Equal(0, feedbackRequestCount);
+        }
+        finally
+        {
+            TestApp.SetIsDesktop(true);
+        }
+    }
+
     private sealed class TestableTravelPlotDesktopView : TravelPlotDesktopView
     {
         public void UpdateTimelineRangeForTest()
@@ -457,11 +535,48 @@ public class TravelPlotDesktopViewTests
         }
     }
 
+    private sealed class MobileContextMenuTravelPlotDesktopView : TravelPlotDesktopView
+    {
+        public NoOpPlotMenu PlotMenu { get; } = new();
+
+        protected override IPlotMenu CreateTelemetryPlotContextMenu(
+            Func<Pixel, TelemetryPlotContextMenuContext?> createContext,
+            Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
+        {
+            return PlotMenu;
+        }
+    }
+
     private static Pixel GetDataAreaPixelAtX(Plot plot, double x)
     {
         var dataRect = plot.LastRender.DataRect;
         Assert.True(dataRect.HasArea);
         return new Pixel(plot.GetPixel(new Coordinates(x, 0)).X, dataRect.Center.Y);
+    }
+
+    private static Point GetDataAreaCenterPoint(ScottPlot.Avalonia.AvaPlot plot)
+    {
+        var dataRect = plot.Plot.LastRender.DataRect;
+        var figureRect = plot.Plot.LastRender.FigureRect;
+        Assert.True(dataRect.HasArea);
+        Assert.True(figureRect.HasArea);
+
+        return new Point(
+            (dataRect.Center.X - figureRect.Left) / figureRect.Width * plot.Bounds.Width,
+            (dataRect.Center.Y - figureRect.Top) / figureRect.Height * plot.Bounds.Height);
+    }
+
+    private static Point GetDataAreaPointAtX(ScottPlot.Avalonia.AvaPlot plot, double x)
+    {
+        var dataRect = plot.Plot.LastRender.DataRect;
+        var figureRect = plot.Plot.LastRender.FigureRect;
+        Assert.True(dataRect.HasArea);
+        Assert.True(figureRect.HasArea);
+
+        var pixel = new Pixel(plot.Plot.GetPixel(new Coordinates(x, 0)).X, dataRect.Center.Y);
+        return new Point(
+            (pixel.X - figureRect.Left) / figureRect.Width * plot.Bounds.Width,
+            (pixel.Y - figureRect.Top) / figureRect.Height * plot.Bounds.Height);
     }
 
     private static void RenderPlotInMemory(ScottPlot.Avalonia.AvaPlot plot)
@@ -475,6 +590,7 @@ public class TravelPlotDesktopViewTests
     private sealed class NoOpPlotMenu : IPlotMenu
     {
         public List<ContextMenuItem> ContextMenuItems { get; set; } = [];
+        public Pixel? LastShowPixel { get; private set; }
 
         public void Reset()
         {
@@ -505,6 +621,7 @@ public class TravelPlotDesktopViewTests
 
         public void ShowContextMenu(Pixel pixel)
         {
+            LastShowPixel = pixel;
         }
     }
 
@@ -522,6 +639,31 @@ public class TravelPlotDesktopViewTests
         {
             scheduledLongPress = callback;
             return new TestSubscription(() => scheduledLongPress = null);
+        }
+    }
+
+    private sealed class LongPressContextMenuTravelPlotDesktopView : TravelPlotDesktopView
+    {
+        private Action? scheduledLongPress;
+        public NoOpPlotMenu PlotMenu { get; } = new();
+
+        public void TriggerLongPress()
+        {
+            var callback = scheduledLongPress ?? throw new InvalidOperationException("No long press was scheduled.");
+            callback();
+        }
+
+        protected override IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
+        {
+            scheduledLongPress = callback;
+            return new TestSubscription(() => scheduledLongPress = null);
+        }
+
+        protected override IPlotMenu CreateTelemetryPlotContextMenu(
+            Func<Pixel, TelemetryPlotContextMenuContext?> createContext,
+            Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
+        {
+            return PlotMenu;
         }
     }
 
