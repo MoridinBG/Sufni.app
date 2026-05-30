@@ -44,7 +44,7 @@ public class SufniAvaPlotTests
     }
 
     [AvaloniaFact]
-    public async Task SufniAvaPlot_ShiftWheel_ScrollsAncestorWithoutZoomingPlot()
+    public void SufniAvaPlot_ShiftWheel_ScrollsAncestorWithoutZoomingPlot()
     {
         EnsureFluentTheme();
 
@@ -70,24 +70,28 @@ public class SufniAvaPlotTests
         };
 
         host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-        scrollViewer.Measure(new Size(400, 220));
-        scrollViewer.Arrange(new Rect(0, 0, 400, 220));
-        await ViewTestHelpers.FlushDispatcherAsync();
-        await RenderAsync(plot);
+        try
+        {
+            scrollViewer.Measure(new Size(400, 220));
+            scrollViewer.Arrange(new Rect(0, 0, 400, 220));
+            plot.Measure(new Size(400, 220));
+            plot.Arrange(new Rect(0, 0, 400, 220));
+            plot.Plot.RenderInMemory(400, 220);
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
 
-        var initialLimits = plot.Plot.Axes.GetLimits();
-        var initialOffset = scrollViewer.Offset.Y;
+            var initialLimits = plot.Plot.Axes.GetLimits();
+            var initialOffset = scrollViewer.Offset.Y;
 
-        var args = plot.InvokeWheel(GetDataAreaCenter(plot), KeyModifiers.Shift, new Vector(0, -1));
-        await ViewTestHelpers.FlushDispatcherAsync();
+            var args = plot.InvokeWheel(GetDataAreaCenter(plot), KeyModifiers.Shift, new Vector(0, -1));
 
-        Assert.True(args.Handled);
-        Assert.True(scrollViewer.Offset.Y > initialOffset);
-        AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+            Assert.True(args.Handled);
+            Assert.True(scrollViewer.Offset.Y > initialOffset);
+            AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
+        }
+        finally
+        {
+            host.Close();
+        }
     }
 
     [AvaloniaFact]

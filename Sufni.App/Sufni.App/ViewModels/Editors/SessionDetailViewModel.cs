@@ -897,14 +897,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
 
         ApplyAnalysisRangeStates(telemetry);
-        if (!frontStatisticsAvailable)
+        if (!frontStatisticsAvailable && FrontStatisticsState.Kind != SurfaceStateKind.NoData)
         {
             FrontStatisticsState = SurfacePresentationState.Hidden;
             FrontForkVibrationState = SurfacePresentationState.Hidden;
             FrontFrameVibrationState = SurfacePresentationState.Hidden;
         }
 
-        if (!rearStatisticsAvailable)
+        if (!rearStatisticsAvailable && RearStatisticsState.Kind != SurfaceStateKind.NoData)
         {
             RearStatisticsState = SurfacePresentationState.Hidden;
             RearForkVibrationState = SurfacePresentationState.Hidden;

@@ -202,7 +202,11 @@ Most pages are pure projection surfaces over data the editor pushes
 in: `SpringPageViewModel`, `DamperPageViewModel`, and
 `BalancePageViewModel` carry per-plot strings and
 `SurfacePresentationState` values that the editor sets after each
-analysis run; `NotesPageViewModel` carries the description plus
+analysis run. Recorded-session statistics distinguish unavailable
+finished data from live warm-up: a stored session or selected range
+with too little travel movement shows a no-data message without a
+spinner, while live-session statistics keep a waiting state because
+the relevant stream samples may still arrive. `NotesPageViewModel` carries the description plus
 fork/shock `SuspensionSettings` and exposes its own
 `IsDirty(Session)` so the editor can fold notes-page edits into its
 `IsDirty` evaluation. The editors do not subscribe to most of these —
