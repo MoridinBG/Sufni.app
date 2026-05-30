@@ -23,6 +23,7 @@ mc:Ignorable="d">
 
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    HeaderContent="{Binding #Root.HeaderContent}"
                     PlotKind="TravelHistogram"
                     SuspensionType="{Binding #Root.SuspensionType}"
                     Telemetry="{Binding #Root.Telemetry}"
@@ -42,6 +43,7 @@ mc:Ignorable="d">
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
                     Height="{Binding #Root.PlotHeight}"
+                    HeaderContent="{Binding #Root.HeaderContent}"
                     IsVisible="{Binding #Root.HasDynamicStatistics}"
                     PlotKind="TravelHistogram"
                     SuspensionType="{Binding #Root.SuspensionType}"

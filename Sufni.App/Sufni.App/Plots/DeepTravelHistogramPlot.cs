@@ -18,11 +18,9 @@ public class DeepTravelHistogramPlot(Plot plot, SuspensionType type, SufniTheme?
 
         base.LoadTelemetryData(telemetryData);
 
-        Plot.Axes.Title.Label.Text = type == SuspensionType.Front
-            ? "Front deep travel"
-            : "Rear deep travel";
+        SetTitle(StatisticsPlotTitles.DeepTravelHistogram(type));
         SetAxisLabels("Axle position (mm)", "Strokes");
-        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding());
 
         var data = TelemetryStatistics.CalculateDeepTravelHistogram(telemetryData, type, AnalysisRange);
         var step = data.Bins[1] - data.Bins[0];

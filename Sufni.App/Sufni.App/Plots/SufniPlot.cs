@@ -26,6 +26,7 @@ public class SufniPlot
     protected Plot Plot { get; }
 
     protected SufniPlotTheme PlotTheme { get; private set; } = SufniThemes.Fallback.Plot;
+    public bool ShowTitle { get; set; } = true;
 
     protected enum LabelLinePosition
     {
@@ -87,6 +88,7 @@ public class SufniPlot
     {
         Plot.Clear();
         Plot.Axes.Rules.Clear();
+        Plot.Axes.Title.Label.Text = string.Empty;
     }
 
     public void SetBackgroundColors(Color figureBackground, Color dataBackground)
@@ -101,6 +103,21 @@ public class SufniPlot
     {
         Plot.Axes.Bottom.Label.Text = bottom;
         Plot.Axes.Left.Label.Text = left;
+    }
+
+    protected void SetTitle(string title)
+    {
+        Plot.Axes.Title.Label.Text = ShowTitle ? title : string.Empty;
+    }
+
+    protected PixelPadding CreateStatisticsPlotPadding(
+        float left = 65,
+        float right = 10,
+        float bottom = 55,
+        float titleTop = 40,
+        float noTitleTop = 10)
+    {
+        return new PixelPadding(left, right, bottom, ShowTitle ? titleTop : noTitleTop);
     }
 
     protected Text AddLabel(string content, double x, double y, int xoffset, int yoffset, Alignment alignment = Alignment.LowerLeft)

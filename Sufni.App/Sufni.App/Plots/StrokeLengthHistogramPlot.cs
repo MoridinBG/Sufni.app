@@ -18,11 +18,10 @@ public class StrokeLengthHistogramPlot(Plot plot, SuspensionType type, BalanceTy
 
         base.LoadTelemetryData(telemetryData);
 
-        var suspensionName = type == SuspensionType.Front ? "Front" : "Rear";
         var strokeName = strokeKind == BalanceType.Compression ? "compression" : "rebound";
-        Plot.Axes.Title.Label.Text = $"{suspensionName} {strokeName} length";
+        SetTitle(StatisticsPlotTitles.StrokeLengthHistogram(type, strokeKind));
         SetAxisLabels("Stroke length (mm)", "Strokes (%)");
-        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding());
 
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetryData, type, strokeKind, AnalysisRange);
         if (data.Values.Sum() <= 0)

@@ -38,7 +38,6 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
 
         base.LoadTelemetryData(telemetryData);
 
-        var modeLabel = $"{DisplacementModeLabel()} / {SpeedModeLabel()}";
         var xAxisLabel = DisplacementMode switch
         {
             BalanceDisplacementMode.Travel => "Stroke travel (%)",
@@ -51,11 +50,9 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
             BalanceDisplacementMode.Speed => "Peak speed position",
             _ => "Zenith",
         };
-        Plot.Axes.Title.Label.Text = type == BalanceType.Compression
-              ? $"Compression balance - {modeLabel}"
-              : $"Rebound balance - {modeLabel}";
+        SetTitle(StatisticsPlotTitles.Balance(type, DisplacementMode, SpeedMode));
         SetAxisLabels(xAxisLabel, "Peak speed (mm/s)");
-        Plot.Layout.Fixed(new PixelPadding(65, 10, 55, 40));
+        Plot.Layout.Fixed(CreateStatisticsPlotPadding());
 
         var maxVelocity = Math.Max(balance.FrontVelocity.Max(), balance.RearVelocity.Max());
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;
@@ -147,26 +144,6 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
                 xReadoutLabel,
                 RearColor));
         }
-    }
-
-    private string DisplacementModeLabel()
-    {
-        return DisplacementMode switch
-        {
-            BalanceDisplacementMode.Travel => "travel",
-            BalanceDisplacementMode.Speed => "speed",
-            _ => "zenith",
-        };
-    }
-
-    private string SpeedModeLabel()
-    {
-        return SpeedMode switch
-        {
-            BalanceSpeedMode.LowSpeed => "low speed",
-            BalanceSpeedMode.HighSpeed => "high speed",
-            _ => "all speeds",
-        };
     }
 
     private static bool HasRenderableBalanceData(BalanceData balance) =>

@@ -89,9 +89,32 @@ public class SessionStatisticsPlotViewTests
         Assert.Equal(range, mounted.View.PlotAnalysisRange);
     }
 
+    [AvaloniaFact]
+    public async Task SessionStatisticsPlotView_UsesAvaloniaTitleAndSuppressesScottPlotTitle()
+    {
+        var view = new TestableSessionStatisticsPlotView
+        {
+            PlotKind = PlotKind.TravelHistogram,
+            SuspensionType = SuspensionType.Rear,
+            TravelHistogramMode = TravelHistogramMode.DynamicSag,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        Assert.Equal("Rear travel", mounted.View.StatisticsTitle);
+        Assert.False(mounted.View.PlotShowsScottPlotTitle);
+
+        view.Telemetry = CreateProcessed();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(mounted.View.ScottPlotTitle);
+    }
+
     private sealed class TestableSessionStatisticsPlotView : SessionStatisticsPlotView
     {
         public Type PlotModelType => PlotModel.GetType();
         public TelemetryTimeRange? PlotAnalysisRange => PlotModel.AnalysisRange;
+        public bool PlotShowsScottPlotTitle => PlotModel.ShowTitle;
+        public string ScottPlotTitle => PlotControl.Plot.Axes.Title.Label.Text;
     }
 }
