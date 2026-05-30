@@ -40,6 +40,7 @@ public interface IRecordedSessionGraphWorkspace
     SessionGraphPreferences GraphPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
+    IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
     bool ShowImuAirtime { get; }

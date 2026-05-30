@@ -160,6 +160,127 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void Construction_InitializesPlotContextMenuAutozoomActions()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+
+        var expectedRowIds = new[]
+        {
+            TelemetryGraphRowIds.Travel,
+            TelemetryGraphRowIds.Velocity,
+            TelemetryGraphRowIds.Imu,
+            TelemetryGraphRowIds.PitchRoll,
+            TelemetryGraphRowIds.Speed,
+            TelemetryGraphRowIds.Elevation,
+        };
+
+        Assert.Equal(expectedRowIds.OrderBy(id => id), editor.PlotContextMenuActionsByRowId.Keys.OrderBy(id => id));
+        foreach (var rowId in expectedRowIds)
+        {
+            var action = Assert.Single(editor.PlotContextMenuActionsByRowId[rowId]);
+            Assert.Equal("autozoom", action.Id);
+            Assert.Equal("Autozoom", action.Label);
+            Assert.NotNull(action.Command);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AutozoomPlot_FullSession_WhenNoSelection()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var action = GetAutozoomAction(editor);
+
+        action.Command.Execute(new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 5,
+            DurationSeconds: 10,
+            AnalysisRange: null));
+
+        Assert.Equal(0, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(1, editor.Timeline.VisibleRangeEnd, 6);
+        Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void AutozoomPlot_FullSession_WhenClickOutsideSelection()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var action = GetAutozoomAction(editor);
+
+        action.Command.Execute(new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 6,
+            DurationSeconds: 10,
+            AnalysisRange: new TelemetryTimeRange(2, 4)));
+
+        Assert.Equal(0, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(1, editor.Timeline.VisibleRangeEnd, 6);
+    }
+
+    [AvaloniaFact]
+    public void AutozoomPlot_SelectedRangeWithPadding_WhenClickInsideSelection()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var action = GetAutozoomAction(editor);
+
+        action.Command.Execute(new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 3,
+            DurationSeconds: 10,
+            AnalysisRange: new TelemetryTimeRange(2, 4)));
+
+        Assert.Equal(0.19, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.41, editor.Timeline.VisibleRangeEnd, 6);
+    }
+
+    [AvaloniaFact]
+    public void AutozoomPlot_SelectedRangeClampsAtSessionStart()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var action = GetAutozoomAction(editor);
+
+        action.Command.Execute(new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 0.5,
+            DurationSeconds: 10,
+            AnalysisRange: new TelemetryTimeRange(0, 1)));
+
+        Assert.Equal(0, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.105, editor.Timeline.VisibleRangeEnd, 6);
+    }
+
+    [AvaloniaFact]
+    public void AutozoomPlot_SelectedRangeEnforcesMinimumSpan()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var action = GetAutozoomAction(editor);
+
+        action.Command.Execute(new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 50,
+            DurationSeconds: 100,
+            AnalysisRange: new TelemetryTimeRange(49.9, 50.1)));
+
+        Assert.Equal(0.01, editor.Timeline.VisibleRangeEnd - editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.495, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.505, editor.Timeline.VisibleRangeEnd, 6);
+    }
+
+    [AvaloniaFact]
+    public void AutozoomPlot_CannotExecute_WhenContextOrDurationIsInvalid()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var action = GetAutozoomAction(editor);
+
+        Assert.False(action.Command.CanExecute(null));
+        Assert.False(action.Command.CanExecute(new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, 1, double.NaN, null)));
+        Assert.False(action.Command.CanExecute(new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, 1, double.PositiveInfinity, null)));
+        Assert.False(action.Command.CanExecute(new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, 1, 0, null)));
+        Assert.False(action.Command.CanExecute(new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, 1, -1, null)));
+        Assert.False(action.Command.CanExecute(new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, double.NaN, 10, null)));
+    }
+
+    [AvaloniaFact]
     public void SessionAnalysisContextText_UsesDisplayNamesAndInvariantRangeFormatting()
     {
         var previousCulture = CultureInfo.CurrentCulture;
@@ -1719,6 +1840,11 @@ public class SessionDetailViewModelTests
         Assert.False(action.IsChecked);
         Assert.Equal("Show airtime", action.ToolTip);
         Assert.NotNull(action.Command);
+    }
+
+    private static TelemetryPlotContextMenuAction GetAutozoomAction(SessionDetailViewModel editor)
+    {
+        return Assert.Single(editor.PlotContextMenuActionsByRowId[TelemetryGraphRowIds.Travel]);
     }
 
     private static async Task WaitForAsync(Func<bool> condition)
