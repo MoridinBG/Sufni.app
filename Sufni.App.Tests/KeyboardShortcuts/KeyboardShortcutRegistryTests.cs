@@ -14,9 +14,9 @@ public class KeyboardShortcutRegistryTests
         Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.W, commandModifier));
         Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.T, commandModifier | KeyModifiers.Shift));
         Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.Delete, KeyModifiers.None));
-        Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.Tab, commandModifier));
+        Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.Tab, KeyModifiers.Control));
         Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.OemCloseBrackets, commandModifier | KeyModifiers.Shift));
-        Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.Tab, commandModifier | KeyModifiers.Shift));
+        Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.Tab, KeyModifiers.Control | KeyModifiers.Shift));
         Assert.Contains(KeyboardShortcutRegistry.All, gesture => Matches(gesture, Key.OemOpenBrackets, commandModifier | KeyModifiers.Shift));
     }
 
@@ -37,11 +37,11 @@ public class KeyboardShortcutRegistryTests
             gesture => AssertGesture(gesture, Key.T, commandModifier | KeyModifiers.Shift));
         Assert.Collection(
             mainWindow[KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab],
-            gesture => AssertGesture(gesture, Key.Tab, commandModifier),
+            gesture => AssertGesture(gesture, Key.Tab, KeyModifiers.Control),
             gesture => AssertGesture(gesture, Key.OemCloseBrackets, commandModifier | KeyModifiers.Shift));
         Assert.Collection(
             mainWindow[KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab],
-            gesture => AssertGesture(gesture, Key.Tab, commandModifier | KeyModifiers.Shift),
+            gesture => AssertGesture(gesture, Key.Tab, KeyModifiers.Control | KeyModifiers.Shift),
             gesture => AssertGesture(gesture, Key.OemOpenBrackets, commandModifier | KeyModifiers.Shift));
 
         Assert.Collection(
@@ -86,7 +86,7 @@ public class KeyboardShortcutRegistryTests
         AssertGesture(
             Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab),
             Key.Tab,
-            commandModifier);
+            KeyModifiers.Control);
         AssertGesture(
             Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab, 1),
             Key.OemCloseBrackets,
@@ -94,7 +94,7 @@ public class KeyboardShortcutRegistryTests
         AssertGesture(
             Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab),
             Key.Tab,
-            commandModifier | KeyModifiers.Shift);
+            KeyModifiers.Control | KeyModifiers.Shift);
         AssertGesture(
             Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab, 1),
             Key.OemOpenBrackets,

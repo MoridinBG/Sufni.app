@@ -2,9 +2,11 @@ using Avalonia;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Sufni.App.DesktopViews;
 using Sufni.App.KeyboardShortcuts;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.Tests.Views;
 
@@ -52,6 +54,188 @@ public class MainWindowTests
             binding => HasGesture(
                 binding,
                 Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab, 1)));
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_HandlesRegisteredTabShortcutsBeforeFocusNavigation()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var viewModel = new MainWindowViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            welcome,
+            new InlineUiThreadDispatcher());
+        var first = new TestTabPageViewModel();
+        var second = new TestTabPageViewModel();
+        viewModel.OpenView(first);
+        viewModel.OpenView(second);
+        viewModel.OpenView(welcome);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            DataContext = viewModel,
+            Width = 900,
+            Height = 700,
+        });
+
+        var next = Shortcut(
+            KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
+            KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab);
+        var handledNext = mounted.Window.TryHandleRegisteredTabShortcut(next.Key, next.KeyModifiers);
+
+        Assert.True(handledNext);
+        Assert.Same(first, viewModel.CurrentView);
+
+        var previous = Shortcut(
+            KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
+            KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab);
+        var handledPrevious = mounted.Window.TryHandleRegisteredTabShortcut(previous.Key, previous.KeyModifiers);
+
+        Assert.True(handledPrevious);
+        Assert.Same(welcome, viewModel.CurrentView);
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_HandlesRegisteredTabShortcutFromHandledKeyDownEvent()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var viewModel = new MainWindowViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            welcome,
+            new InlineUiThreadDispatcher());
+        var first = new TestTabPageViewModel();
+        viewModel.OpenView(first);
+        viewModel.OpenView(welcome);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            DataContext = viewModel,
+            Width = 900,
+            Height = 700,
+        });
+
+        var next = Shortcut(
+            KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
+            KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab);
+        var args = new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Source = mounted.Window,
+            Key = next.Key,
+            KeyModifiers = next.KeyModifiers,
+            Handled = true,
+        };
+
+        mounted.Window.RaiseEvent(args);
+
+        Assert.True(args.Handled);
+        Assert.Same(first, viewModel.CurrentView);
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_HandlesRegisteredTabShortcutFromRawKeyUp_WhenRawKeyDownIsMissing()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var viewModel = new MainWindowViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            welcome,
+            new InlineUiThreadDispatcher());
+        var first = new TestTabPageViewModel();
+        viewModel.OpenView(first);
+        viewModel.OpenView(welcome);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            DataContext = viewModel,
+            Width = 900,
+            Height = 700,
+        });
+
+        var handled = mounted.Window.TryHandleRawTabShortcut(
+            RawKeyEventType.KeyUp,
+            Key.Tab,
+            KeyModifiers.Control);
+
+        Assert.True(handled);
+        Assert.Same(first, viewModel.CurrentView);
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_SuppressesRawTabKeyUp_WhenRawKeyDownAlreadyHandledShortcut()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var viewModel = new MainWindowViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            welcome,
+            new InlineUiThreadDispatcher());
+        var first = new TestTabPageViewModel();
+        viewModel.OpenView(first);
+        viewModel.OpenView(welcome);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            DataContext = viewModel,
+            Width = 900,
+            Height = 700,
+        });
+
+        var handledDown = mounted.Window.TryHandleRawTabShortcut(
+            RawKeyEventType.KeyDown,
+            Key.Tab,
+            KeyModifiers.Control);
+        var selectedAfterDown = viewModel.CurrentView;
+        var handledUp = mounted.Window.TryHandleRawTabShortcut(
+            RawKeyEventType.KeyUp,
+            Key.Tab,
+            KeyModifiers.Control);
+
+        Assert.True(handledDown);
+        Assert.True(handledUp);
+        Assert.Same(first, selectedAfterDown);
+        Assert.Same(first, viewModel.CurrentView);
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_DoesNotInterceptRegisteredNonTabShortcuts()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var viewModel = new MainWindowViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            welcome,
+            new InlineUiThreadDispatcher());
+        var first = new TestTabPageViewModel();
+        viewModel.OpenView(first);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            DataContext = viewModel,
+            Width = 900,
+            Height = 700,
+        });
+
+        var bracketShortcut = Shortcut(
+            KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
+            KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab,
+            index: 1);
+
+        Assert.False(mounted.Window.TryHandleRegisteredTabShortcut(
+            bracketShortcut.Key,
+            bracketShortcut.KeyModifiers));
+        Assert.Same(first, viewModel.CurrentView);
     }
 
     [AvaloniaFact]
