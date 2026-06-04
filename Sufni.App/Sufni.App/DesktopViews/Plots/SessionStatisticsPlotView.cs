@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Input;
 using Sufni.App.ExtensionHost.RecordedSessions;
@@ -72,6 +73,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
         AvaloniaProperty.Register<SessionStatisticsPlotView, RecordedSessionExtensionSlots?>(
             nameof(ExtensionSlots));
+
+    public static readonly StyledProperty<ICommand?> SelectTelemetryRangeSelectionCommandProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, ICommand?>(nameof(SelectTelemetryRangeSelectionCommand));
+
+    public static readonly StyledProperty<TelemetryRangeSelection?> SelectedRangeSelectionProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, TelemetryRangeSelection?>(nameof(SelectedRangeSelection));
 
     public PlotKind PlotKind
     {
@@ -145,6 +152,18 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         set => SetValue(ExtensionSlotsProperty, value);
     }
 
+    public ICommand? SelectTelemetryRangeSelectionCommand
+    {
+        get => GetValue(SelectTelemetryRangeSelectionCommandProperty);
+        set => SetValue(SelectTelemetryRangeSelectionCommandProperty, value);
+    }
+
+    public TelemetryRangeSelection? SelectedRangeSelection
+    {
+        get => GetValue(SelectedRangeSelectionProperty);
+        set => SetValue(SelectedRangeSelectionProperty, value);
+    }
+
     public SessionStatisticsPlotView()
     {
         PropertyChanged += (_, e) =>
@@ -177,6 +196,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
                 }
 
                 ApplyStatisticsOverlayDescriptor(refresh: true);
+            }
+
+            if (e.Property.Name is nameof(SelectedRangeSelection) && PlotModel is ISelectableStatisticsPlot selectablePlot)
+            {
+                selectablePlot.SetSelectedRangeSelection(SelectedRangeSelection);
+                RefreshPlot();
             }
         };
     }
@@ -213,6 +238,7 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         ApplyModeToPlotModel(plotModel);
         SetPlotModel(plotModel);
         UpdateStatisticsTitle();
+        ApplySelectedRangeSelectionToPlotModel(plotModel);
         ApplyStatisticsOverlayDescriptor(refresh: false);
         InitializeBarReadoutInteractions();
     }
@@ -220,6 +246,7 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
     protected override void OnPlotDataLoaded()
     {
         base.OnPlotDataLoaded();
+        ApplySelectedRangeSelectionToPlotModel(PlotModel);
         ApplyStatisticsOverlayDescriptor(refresh: false);
     }
 
@@ -361,9 +388,21 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         }
     }
 
+    private void ApplySelectedRangeSelectionToPlotModel(TelemetryPlot plotModel)
+    {
+        if (plotModel is ISelectableStatisticsPlot selectablePlot)
+        {
+            selectablePlot.SetSelectedRangeSelection(SelectedRangeSelection);
+        }
+    }
+
     private void InitializeBarReadoutInteractions()
     {
-        PlotControl.PointerPressed += (_, args) => SetBarReadoutFromPointer(args);
+        PlotControl.PointerPressed += (_, args) =>
+        {
+            SetBarReadoutFromPointer(args);
+            SelectRangeFromPointer(args);
+        };
         PlotControl.PointerMoved += (_, args) => SetBarReadoutFromPointer(args);
         PlotControl.PointerExited += (_, _) =>
         {
@@ -390,5 +429,30 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         var coordinates = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
         PlotModel.SetPointerPositionWithReadout(coordinates.X, coordinates.Y);
         RefreshPlot();
+    }
+
+    private void SelectRangeFromPointer(PointerEventArgs args)
+    {
+        if (!HasPlotControl ||
+            PlotModel is not ISelectableStatisticsPlot selectablePlot ||
+            SelectTelemetryRangeSelectionCommand is not { } command)
+        {
+            return;
+        }
+
+        var point = args.GetPosition(PlotControl);
+        if (!PlotControl.IsPointInDataArea(point))
+        {
+            return;
+        }
+
+        var coordinates = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
+        if (!selectablePlot.TryGetRangeSelection(coordinates.X, coordinates.Y, out var selection) ||
+            !command.CanExecute(selection))
+        {
+            return;
+        }
+
+        command.Execute(selection);
     }
 }

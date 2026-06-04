@@ -323,6 +323,14 @@ public class RecordedSessionGraphDesktopViewTests
         public bool ShowPitchRollAirtime => false;
         public bool ShowSpeedAirtime => false;
         public bool ShowElevationAirtime => false;
+        public IReadOnlyList<TelemetryHighlightRange> StatisticsSelectionHighlightRanges { get; } = [];
+        public bool HasStatisticsSelection => false;
+        public bool ShowStatisticsSelection => false;
+        public bool ShowVelocityStatisticsSelection => false;
+        public bool ShowImuStatisticsSelection => false;
+        public bool ShowPitchRollStatisticsSelection => false;
+        public bool ShowSpeedStatisticsSelection => false;
+        public bool ShowElevationStatisticsSelection => false;
         public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; } = [];
         public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; } = [];
         public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; } = [];

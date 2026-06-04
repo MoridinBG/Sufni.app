@@ -27,6 +27,8 @@ mc:Ignorable="d">
                 BalanceType="Compression"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 PlotKind="StrokeLengthHistogram"
+                SelectTelemetryRangeSelectionCommand="{Binding #Root.SelectTelemetryRangeSelectionCommand}"
+                SelectedRangeSelection="{Binding #Root.SelectedRangeSelection}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
 
@@ -36,6 +38,8 @@ mc:Ignorable="d">
                 BalanceType="Compression"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 PlotKind="StrokeSpeedHistogram"
+                SelectTelemetryRangeSelectionCommand="{Binding #Root.SelectTelemetryRangeSelectionCommand}"
+                SelectedRangeSelection="{Binding #Root.SelectedRangeSelection}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
 
@@ -45,6 +49,8 @@ mc:Ignorable="d">
                 BalanceType="Rebound"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 PlotKind="StrokeLengthHistogram"
+                SelectTelemetryRangeSelectionCommand="{Binding #Root.SelectTelemetryRangeSelectionCommand}"
+                SelectedRangeSelection="{Binding #Root.SelectedRangeSelection}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
 
@@ -54,6 +60,8 @@ mc:Ignorable="d">
                 BalanceType="Rebound"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 PlotKind="StrokeSpeedHistogram"
+                SelectTelemetryRangeSelectionCommand="{Binding #Root.SelectTelemetryRangeSelectionCommand}"
+                SelectedRangeSelection="{Binding #Root.SelectedRangeSelection}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
 
@@ -62,6 +70,8 @@ mc:Ignorable="d">
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Grid.Row="4"
                 PlotKind="DeepTravelHistogram"
+                SelectTelemetryRangeSelectionCommand="{Binding #Root.SelectTelemetryRangeSelectionCommand}"
+                SelectedRangeSelection="{Binding #Root.SelectedRangeSelection}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
             </Grid>

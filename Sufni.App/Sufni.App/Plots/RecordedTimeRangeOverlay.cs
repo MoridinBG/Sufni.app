@@ -12,6 +12,7 @@ public static class RecordedTimeRangeOverlayIds
     public const string AnalysisRange = "analysis_range";
     public const string PreviewRange = "preview_range";
     public const string Airtime = "airtime";
+    public const string StatisticsSelection = "statistics_selection";
 }
 
 public sealed record RecordedTimeRangeOverlayStyle(
@@ -27,7 +28,8 @@ public sealed record RecordedTimeRangeOverlayLabelOptions(
 public sealed record RecordedTimeRangeOverlay(
     double StartSeconds,
     double EndSeconds,
-    string? Label = null);
+    string? Label = null,
+    RecordedTimeRangeOverlayStyle? Style = null);
 
 public sealed record RecordedTimeRangeOverlaySet(
     IReadOnlyList<RecordedTimeRangeOverlay> Ranges,
@@ -100,6 +102,45 @@ public static class RecordedTimeRangeOverlayFactory
                     Colors.Transparent,
                     0)),
             IsVisible: true);
+    }
+
+    public static RecordedTimeRangeOverlaySetRegistration CreateStatisticsSelectionRegistration(
+        IEnumerable<TelemetryHighlightRange> ranges,
+        SufniPlotTheme plotTheme,
+        bool isVisible = false)
+    {
+        return new RecordedTimeRangeOverlaySetRegistration(
+            RecordedTimeRangeOverlayIds.StatisticsSelection,
+            new RecordedTimeRangeOverlaySet(
+                ranges
+                    .Select(range => new RecordedTimeRangeOverlay(
+                        range.StartSeconds,
+                        range.EndSeconds,
+                        Style: CreateStatisticsSelectionStyle(range.SuspensionType, plotTheme)))
+                    .ToArray(),
+                new RecordedTimeRangeOverlayStyle(
+                    plotTheme.Marker.DampingSelectionFill.ToScottPlotColor(),
+                    plotTheme.Marker.DampingSelectionOutline.ToScottPlotColor(),
+                    1.0f)),
+            isVisible);
+    }
+
+    private static RecordedTimeRangeOverlayStyle? CreateStatisticsSelectionStyle(
+        SuspensionType? suspensionType,
+        SufniPlotTheme plotTheme)
+    {
+        return suspensionType switch
+        {
+            SuspensionType.Front => new RecordedTimeRangeOverlayStyle(
+                plotTheme.Marker.StatisticsSelectionFrontFill.ToScottPlotColor(),
+                plotTheme.Marker.StatisticsSelectionFrontOutline.ToScottPlotColor(),
+                1.0f),
+            SuspensionType.Rear => new RecordedTimeRangeOverlayStyle(
+                plotTheme.Marker.StatisticsSelectionRearFill.ToScottPlotColor(),
+                plotTheme.Marker.StatisticsSelectionRearOutline.ToScottPlotColor(),
+                1.0f),
+            _ => null,
+        };
     }
 
     public static RecordedTimeRangeOverlaySetRegistration CreatePreviewRangeRegistration(

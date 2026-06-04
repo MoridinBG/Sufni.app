@@ -180,6 +180,49 @@ public class RecordedTimeSeriesPlotTests
         Assert.False(span.IsVisible);
     }
 
+    [Fact]
+    public void StatisticsSelectionRangeOverlay_UsesSuspensionSpecificStylesAndVisibility()
+    {
+        var plot = new Plot();
+        var sut = new TestRecordedTimeSeriesPlot(plot);
+        sut.LoadForTest(new RecordedTimeSeriesData(
+            "Travel (mm)",
+            "No travel data",
+            DurationSeconds: 2,
+            Series:
+            [
+                new RecordedTimeSeries(
+                    "Front",
+                    "mm",
+                    TelemetryPlot.FrontColor,
+                    new SampledValues([0, 25, 50, 75], SampleRate: 2),
+                    "0.#")
+            ]));
+
+        var theme = SufniThemes.Dark.Plot;
+        var registration = RecordedTimeRangeOverlayFactory.CreateStatisticsSelectionRegistration(
+            [
+                new TelemetryHighlightRange(0.25, 0.5, SuspensionType.Front),
+                new TelemetryHighlightRange(0.75, 1.0, SuspensionType.Rear),
+            ],
+            theme);
+
+        sut.SetRangeOverlaySet(registration.Id, registration.Set);
+        sut.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
+
+        var spans = plot.PlottableList.OfType<HorizontalSpan>().ToArray();
+        Assert.Equal(2, spans.Length);
+        Assert.All(spans, span => Assert.False(span.IsVisible));
+        Assert.Equal(theme.Marker.StatisticsSelectionFrontFill.ToScottPlotColor(), spans[0].FillColor);
+        Assert.Equal(theme.Marker.StatisticsSelectionFrontOutline.ToScottPlotColor(), spans[0].LineStyle.Color);
+        Assert.Equal(theme.Marker.StatisticsSelectionRearFill.ToScottPlotColor(), spans[1].FillColor);
+        Assert.Equal(theme.Marker.StatisticsSelectionRearOutline.ToScottPlotColor(), spans[1].LineStyle.Color);
+
+        sut.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, true);
+
+        Assert.All(spans, span => Assert.True(span.IsVisible));
+    }
+
     private sealed class TestRecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
     {
         public void LoadForTest(RecordedTimeSeriesData data)

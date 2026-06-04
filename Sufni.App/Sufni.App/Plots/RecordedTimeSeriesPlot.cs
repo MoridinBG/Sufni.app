@@ -281,7 +281,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             var span = index < state.Spans.Count
                 ? state.Spans[index]
                 : AddRangeOverlaySpan(state);
-            ConfigureRangeOverlaySpan(span, range, set.Style, state.IsVisible);
+            ConfigureRangeOverlaySpan(span, range, range.Style ?? set.Style, state.IsVisible);
         }
 
         for (var index = set.Ranges.Count; index < state.Spans.Count; index++)

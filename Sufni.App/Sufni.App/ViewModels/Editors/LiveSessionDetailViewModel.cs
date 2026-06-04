@@ -62,6 +62,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public Guid BikeId { get; }
     public string? BikeName { get; }
     public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
+    public IRelayCommand<TelemetryRangeSelection?> SelectTelemetryRangeSelectionCommand { get; } =
+        new RelayCommand<TelemetryRangeSelection?>(_ => { });
+    public TelemetryRangeSelection? SelectedFrontRangeSelection => null;
+    public TelemetryRangeSelection? SelectedRearRangeSelection => null;
 
     public ILiveSessionGraphWorkspace GraphWorkspace => graphWorkspace;
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;

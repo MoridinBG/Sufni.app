@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.ExtensionHost.RecordedSessions;
@@ -227,6 +229,27 @@ public class SessionStatisticsPlotViewTests
         AssertStatisticsOverlay(plot);
     }
 
+    [AvaloniaFact]
+    public async Task SessionStatisticsPlotView_ForwardsSelectedRangeSelectionToSelectablePlot()
+    {
+        var telemetry = CreateProcessed();
+        var selection = CreateFrontDampingSelection(telemetry);
+        var view = new TestableSessionStatisticsPlotView
+        {
+            PlotKind = PlotKind.VelocityHistogram,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        view.SelectedRangeSelection = selection;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.Contains(GetBars(plot.Plot), bar => bar.LineWidth == 3.0f);
+    }
+
     private static RecordedSessionPlotOverlayStyle CreateOverlayStyle(double width = 2, double opacity = 0.75)
     {
         return new RecordedSessionPlotOverlayStyle(
@@ -246,6 +269,50 @@ public class SessionStatisticsPlotViewTests
         var line = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
         Assert.False(line.MarkerStyle.IsVisible);
         Assert.Equal(3, line.LineStyle.Width, 3);
+    }
+
+    private static DampingRangeSelection CreateFrontDampingSelection(TelemetryData telemetry)
+    {
+        var histogram = TelemetryStatistics.CalculateVelocityHistogram(telemetry, SuspensionType.Front);
+        for (var velocityBinIndex = 0; velocityBinIndex < histogram.Values.Count; velocityBinIndex++)
+        {
+            var travelValues = histogram.Values[velocityBinIndex];
+            for (var travelBinIndex = 0; travelBinIndex < travelValues.Length; travelBinIndex++)
+            {
+                if (travelValues[travelBinIndex] > 0)
+                {
+                    return new DampingRangeSelection(
+                        SuspensionType.Front,
+                        VelocityAverageMode.SampleAveraged,
+                        velocityBinIndex,
+                        travelBinIndex,
+                        travelBinIndex);
+                }
+            }
+        }
+
+        Assert.Fail("Expected a non-empty front damping histogram bin.");
+        return default!;
+    }
+
+    private static Bar[] GetBars(Plot plot)
+    {
+        var bars = new List<Bar>();
+        foreach (var plottable in plot.PlottableList)
+        {
+            if (plottable is Bar bar)
+            {
+                bars.Add(bar);
+                continue;
+            }
+
+            if (plottable.GetType().GetProperty("Bars")?.GetValue(plottable) is IEnumerable<Bar> nestedBars)
+            {
+                bars.AddRange(nestedBars);
+            }
+        }
+
+        return [.. bars];
     }
 
     private sealed class TestableSessionStatisticsPlotView : SessionStatisticsPlotView

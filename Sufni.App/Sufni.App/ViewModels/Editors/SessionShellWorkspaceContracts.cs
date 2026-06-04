@@ -49,6 +49,14 @@ public interface IRecordedSessionGraphWorkspace
     bool ShowPitchRollAirtime { get; }
     bool ShowSpeedAirtime { get; }
     bool ShowElevationAirtime { get; }
+    IReadOnlyList<TelemetryHighlightRange> StatisticsSelectionHighlightRanges { get; }
+    bool HasStatisticsSelection { get; }
+    bool ShowStatisticsSelection { get; }
+    bool ShowVelocityStatisticsSelection { get; }
+    bool ShowImuStatisticsSelection { get; }
+    bool ShowPitchRollStatisticsSelection { get; }
+    bool ShowSpeedStatisticsSelection { get; }
+    bool ShowElevationStatisticsSelection { get; }
     IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
     IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; }
     IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; }
@@ -102,6 +110,9 @@ public interface ISessionStatisticsWorkspace
     DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
     bool CanEditDampingSpeedCutoffs { get; }
     SessionAnalysisResult SessionAnalysis { get; }
+    IRelayCommand<TelemetryRangeSelection?> SelectTelemetryRangeSelectionCommand { get; }
+    TelemetryRangeSelection? SelectedFrontRangeSelection { get; }
+    TelemetryRangeSelection? SelectedRearRangeSelection { get; }
     void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
     void CancelDampingSpeedCutoffPreview();
     Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);

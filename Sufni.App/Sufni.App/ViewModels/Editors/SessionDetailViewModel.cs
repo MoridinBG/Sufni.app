@@ -99,7 +99,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly TelemetryPlotRowAction showPitchRollAirtimeAction;
     private readonly TelemetryPlotRowAction showSpeedAirtimeAction;
     private readonly TelemetryPlotRowAction showElevationAirtimeAction;
+    private readonly TelemetryPlotRowAction showStatisticsSelectionAction;
+    private readonly TelemetryPlotRowAction showVelocityStatisticsSelectionAction;
+    private readonly TelemetryPlotRowAction showImuStatisticsSelectionAction;
+    private readonly TelemetryPlotRowAction showPitchRollStatisticsSelectionAction;
+    private readonly TelemetryPlotRowAction showSpeedStatisticsSelectionAction;
+    private readonly TelemetryPlotRowAction showElevationStatisticsSelectionAction;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> autozoomPlotCommand;
+    private TelemetryRangeSelection? frontTelemetryRangeSelection;
+    private TelemetryRangeSelection? rearTelemetryRangeSelection;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -149,6 +157,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
+    public bool HasStatisticsSelection => StatisticsSelectionHighlightRanges.Count > 0;
+    public TelemetryRangeSelection? SelectedFrontRangeSelection => frontTelemetryRangeSelection;
+    public TelemetryRangeSelection? SelectedRearRangeSelection => rearTelemetryRangeSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
     public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
@@ -186,6 +197,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty] private bool showPitchRollAirtime;
     [ObservableProperty] private bool showSpeedAirtime;
     [ObservableProperty] private bool showElevationAirtime;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatisticsSelection))]
+    private IReadOnlyList<TelemetryHighlightRange> statisticsSelectionHighlightRanges = [];
+    [ObservableProperty] private bool showStatisticsSelection;
+    [ObservableProperty] private bool showVelocityStatisticsSelection;
+    [ObservableProperty] private bool showImuStatisticsSelection;
+    [ObservableProperty] private bool showPitchRollStatisticsSelection;
+    [ObservableProperty] private bool showSpeedStatisticsSelection;
+    [ObservableProperty] private bool showElevationStatisticsSelection;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
     [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
@@ -225,6 +245,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         IsComplete = value != null;
         NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
         pendingAnalysisRangeBoundary = null;
+        ClearStatisticsSelections();
         RefreshTrackTimelineContext();
         if (value is null)
         {
@@ -247,6 +268,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     partial void OnAnalysisRangeChanged(TelemetryTimeRange? value)
     {
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
+        ClearStatisticsSelections();
         RefreshAnalysisRangeStates();
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
@@ -276,6 +298,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnSelectedVelocityAverageModeChanged(VelocityAverageMode value)
     {
+        ClearDampingRangeSelections();
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysis();
@@ -349,6 +372,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
     }
+
+    partial void OnShowStatisticsSelectionChanged(bool value) =>
+        UpdateStatisticsSelectionAction(showStatisticsSelectionAction, value, HasStatisticsSelection);
+
+    partial void OnShowVelocityStatisticsSelectionChanged(bool value) =>
+        UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, value, HasStatisticsSelection);
+
+    partial void OnShowImuStatisticsSelectionChanged(bool value) =>
+        UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, value, HasStatisticsSelection);
+
+    partial void OnShowPitchRollStatisticsSelectionChanged(bool value) =>
+        UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, value, HasStatisticsSelection);
+
+    partial void OnShowSpeedStatisticsSelectionChanged(bool value) =>
+        UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, value, HasStatisticsSelection);
+
+    partial void OnShowElevationStatisticsSelectionChanged(bool value) =>
+        UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, value, HasStatisticsSelection);
 
     #region Private methods
 
@@ -1385,15 +1426,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", ShowPitchRollAirtime, () => ShowPitchRollAirtime = !ShowPitchRollAirtime);
         showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", ShowSpeedAirtime, () => ShowSpeedAirtime = !ShowSpeedAirtime);
         showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", ShowElevationAirtime, () => ShowElevationAirtime = !ShowElevationAirtime);
+        showStatisticsSelectionAction = CreateStatisticsSelectionAction("travel_statistics_selection", ShowStatisticsSelection, () => ShowStatisticsSelection = !ShowStatisticsSelection);
+        showVelocityStatisticsSelectionAction = CreateStatisticsSelectionAction("velocity_statistics_selection", ShowVelocityStatisticsSelection, () => ShowVelocityStatisticsSelection = !ShowVelocityStatisticsSelection);
+        showImuStatisticsSelectionAction = CreateStatisticsSelectionAction("imu_statistics_selection", ShowImuStatisticsSelection, () => ShowImuStatisticsSelection = !ShowImuStatisticsSelection);
+        showPitchRollStatisticsSelectionAction = CreateStatisticsSelectionAction("pitch_roll_statistics_selection", ShowPitchRollStatisticsSelection, () => ShowPitchRollStatisticsSelection = !ShowPitchRollStatisticsSelection);
+        showSpeedStatisticsSelectionAction = CreateStatisticsSelectionAction("speed_statistics_selection", ShowSpeedStatisticsSelection, () => ShowSpeedStatisticsSelection = !ShowSpeedStatisticsSelection);
+        showElevationStatisticsSelectionAction = CreateStatisticsSelectionAction("elevation_statistics_selection", ShowElevationStatisticsSelection, () => ShowElevationStatisticsSelection = !ShowElevationStatisticsSelection);
         autozoomPlotCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             AutozoomPlot,
             CanAutozoomPlot);
-        TravelHeaderActions = [showAirtimeAction];
-        VelocityHeaderActions = [showVelocityAirtimeAction];
-        ImuHeaderActions = [showImuAirtimeAction];
-        PitchRollHeaderActions = [showPitchRollAirtimeAction];
-        SpeedHeaderActions = [showSpeedAirtimeAction];
-        ElevationHeaderActions = [showElevationAirtimeAction];
+        TravelHeaderActions = [showAirtimeAction, showStatisticsSelectionAction];
+        VelocityHeaderActions = [showVelocityAirtimeAction, showVelocityStatisticsSelectionAction];
+        ImuHeaderActions = [showImuAirtimeAction, showImuStatisticsSelectionAction];
+        PitchRollHeaderActions = [showPitchRollAirtimeAction, showPitchRollStatisticsSelectionAction];
+        SpeedHeaderActions = [showSpeedAirtimeAction, showSpeedStatisticsSelectionAction];
+        ElevationHeaderActions = [showElevationAirtimeAction, showElevationStatisticsSelectionAction];
         PlotContextMenuActionsByRowId = CreatePlotContextMenuActionsByRowId(autozoomPlotCommand);
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
@@ -1491,10 +1538,165 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         };
     }
 
+    private TelemetryPlotRowAction CreateStatisticsSelectionAction(string id, bool isChecked, Action toggle)
+    {
+        var action = new TelemetryPlotRowAction
+        {
+            Id = id,
+            Kind = TelemetryPlotRowActionKind.Toggle,
+            IconGeometry = Geometry.Parse("M4 6H20V8H4V6ZM4 11H17V13H4V11ZM4 16H13V18H4V16Z"),
+            Command = new RelayCommand(toggle),
+            Tone = TelemetryPlotRowActionTone.Default,
+        };
+        UpdateStatisticsSelectionAction(action, isChecked, HasStatisticsSelection);
+        return action;
+    }
+
     private static void UpdateAirtimeAction(TelemetryPlotRowAction action, bool isChecked)
     {
         action.IsChecked = isChecked;
         action.ToolTip = isChecked ? "Hide airtime" : "Show airtime";
+    }
+
+    private static void UpdateStatisticsSelectionAction(TelemetryPlotRowAction action, bool isChecked, bool hasSelection)
+    {
+        action.IsChecked = isChecked;
+        action.IsEnabled = hasSelection;
+        action.ToolTip = hasSelection
+            ? isChecked ? "Hide selected strokes" : "Show selected strokes"
+            : "Select a stroke group";
+    }
+
+    private void ClearStatisticsSelections()
+    {
+        frontTelemetryRangeSelection = null;
+        rearTelemetryRangeSelection = null;
+        OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+        OnPropertyChanged(nameof(SelectedRearRangeSelection));
+        StatisticsSelectionHighlightRanges = [];
+        ClearStatisticsSelectionToggles();
+        RefreshStatisticsSelectionActionStates();
+    }
+
+    private void ClearDampingRangeSelections()
+    {
+        var changed = false;
+        if (frontTelemetryRangeSelection is DampingRangeSelection)
+        {
+            frontTelemetryRangeSelection = null;
+            OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+            changed = true;
+        }
+
+        if (rearTelemetryRangeSelection is DampingRangeSelection)
+        {
+            rearTelemetryRangeSelection = null;
+            OnPropertyChanged(nameof(SelectedRearRangeSelection));
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        RecomputeStatisticsSelectionHighlightRanges();
+        if (!HasStatisticsSelection)
+        {
+            ClearStatisticsSelectionToggles();
+        }
+
+        RefreshStatisticsSelectionActionStates();
+    }
+
+    private void ClearSelectionsFromOtherStatistics(TelemetryRangeSelection selection)
+    {
+        var clearDampingSelections = IsStrokeStatisticsSelection(selection);
+        var clearStrokeSelections = selection is DampingRangeSelection;
+        if (!clearDampingSelections && !clearStrokeSelections)
+        {
+            return;
+        }
+
+        if (ShouldClearStatisticsSelection(frontTelemetryRangeSelection, clearDampingSelections, clearStrokeSelections))
+        {
+            frontTelemetryRangeSelection = null;
+            OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+        }
+
+        if (ShouldClearStatisticsSelection(rearTelemetryRangeSelection, clearDampingSelections, clearStrokeSelections))
+        {
+            rearTelemetryRangeSelection = null;
+            OnPropertyChanged(nameof(SelectedRearRangeSelection));
+        }
+    }
+
+    private static bool ShouldClearStatisticsSelection(
+        TelemetryRangeSelection? selection,
+        bool clearDampingSelections,
+        bool clearStrokeSelections)
+    {
+        return (clearDampingSelections && selection is DampingRangeSelection) ||
+               (clearStrokeSelections && IsStrokeStatisticsSelection(selection));
+    }
+
+    private static bool IsStrokeStatisticsSelection(TelemetryRangeSelection? selection)
+    {
+        return selection is StrokeLengthRangeSelection or StrokeSpeedRangeSelection or DeepTravelRangeSelection;
+    }
+
+    private void RecomputeStatisticsSelectionHighlightRanges()
+    {
+        if (TelemetryData is not { } telemetryData)
+        {
+            StatisticsSelectionHighlightRanges = [];
+            RefreshStatisticsSelectionActionStates();
+            return;
+        }
+
+        var ranges = new List<TelemetryHighlightRange>();
+        if (frontTelemetryRangeSelection is { } frontSelection)
+        {
+            ranges.AddRange(CreateStatisticsHighlightRanges(telemetryData, frontSelection, AnalysisRange));
+        }
+
+        if (rearTelemetryRangeSelection is { } rearSelection)
+        {
+            ranges.AddRange(CreateStatisticsHighlightRanges(telemetryData, rearSelection, AnalysisRange));
+        }
+
+        StatisticsSelectionHighlightRanges = TelemetryStatistics.MergeHighlightRanges(ranges);
+        RefreshStatisticsSelectionActionStates();
+    }
+
+    private static IEnumerable<TelemetryHighlightRange> CreateStatisticsHighlightRanges(
+        TelemetryData telemetryData,
+        TelemetryRangeSelection selection,
+        TelemetryTimeRange? analysisRange)
+    {
+        var ranges = TelemetryStatistics.CalculateHighlightRanges(telemetryData, selection, analysisRange);
+        return ranges.Select(range => range with { SuspensionType = selection.SuspensionType });
+    }
+
+    private void RefreshStatisticsSelectionActionStates()
+    {
+        var hasSelection = HasStatisticsSelection;
+        UpdateStatisticsSelectionAction(showStatisticsSelectionAction, ShowStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, ShowVelocityStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, ShowImuStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, ShowPitchRollStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, ShowSpeedStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, ShowElevationStatisticsSelection, hasSelection);
+    }
+
+    private void ClearStatisticsSelectionToggles()
+    {
+        ShowStatisticsSelection = false;
+        ShowVelocityStatisticsSelection = false;
+        ShowImuStatisticsSelection = false;
+        ShowPitchRollStatisticsSelection = false;
+        ShowSpeedStatisticsSelection = false;
+        ShowElevationStatisticsSelection = false;
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreatePlotContextMenuActionsByRowId(
@@ -1969,6 +2171,44 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #endregion TabPageViewModelBase overrides
 
     #region Commands
+
+    [RelayCommand]
+    private void SelectTelemetryRangeSelection(TelemetryRangeSelection? selection)
+    {
+        if (selection is null || TelemetryData is null)
+        {
+            return;
+        }
+
+        var isClearingSelection = selection.SuspensionType == SuspensionType.Front
+            ? frontTelemetryRangeSelection == selection
+            : rearTelemetryRangeSelection == selection;
+
+        if (selection.SuspensionType == SuspensionType.Front)
+        {
+            frontTelemetryRangeSelection = isClearingSelection ? null : selection;
+            OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+        }
+        else
+        {
+            rearTelemetryRangeSelection = isClearingSelection ? null : selection;
+            OnPropertyChanged(nameof(SelectedRearRangeSelection));
+        }
+
+        if (!isClearingSelection)
+        {
+            ClearSelectionsFromOtherStatistics(selection);
+        }
+
+        RecomputeStatisticsSelectionHighlightRanges();
+        ClearStatisticsSelectionToggles();
+        if (HasStatisticsSelection)
+        {
+            ShowStatisticsSelection = true;
+        }
+
+        RefreshStatisticsSelectionActionStates();
+    }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {

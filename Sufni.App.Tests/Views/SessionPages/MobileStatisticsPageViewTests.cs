@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -377,6 +378,10 @@ public class MobileStatisticsPageViewTests
         public DampingSpeedCutoffs DampingSpeedCutoffs { get; } = DampingSpeedCutoffs.Default;
         public DampingSpeedCutoffs PlotDampingSpeedCutoffs => DampingSpeedCutoffs;
         public bool CanEditDampingSpeedCutoffs => true;
+        public IRelayCommand<TelemetryRangeSelection?> SelectTelemetryRangeSelectionCommand { get; } =
+            new RelayCommand<TelemetryRangeSelection?>(_ => { });
+        public TelemetryRangeSelection? SelectedFrontRangeSelection => null;
+        public TelemetryRangeSelection? SelectedRearRangeSelection => null;
         public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
         public void CancelDampingSpeedCutoffPreview() { }
         public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>

@@ -151,7 +151,7 @@ public class SessionDetailViewModelTests
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
 
-        var action = Assert.Single(editor.TravelHeaderActions);
+        var action = GetRowAction(editor.TravelHeaderActions, "travel_airtime");
         Assert.True(editor.ShowAirtime);
         Assert.Equal("travel_airtime", action.Id);
         Assert.Equal(TelemetryPlotRowActionKind.Toggle, action.Kind);
@@ -164,6 +164,44 @@ public class SessionDetailViewModelTests
         AssertDefaultHiddenAirtimeAction(editor.PitchRollHeaderActions, editor.ShowPitchRollAirtime, "pitch_roll_airtime");
         AssertDefaultHiddenAirtimeAction(editor.SpeedHeaderActions, editor.ShowSpeedAirtime, "speed_airtime");
         AssertDefaultHiddenAirtimeAction(editor.ElevationHeaderActions, editor.ShowElevationAirtime, "elevation_airtime");
+
+        AssertDefaultDisabledStatisticsSelectionAction(editor.TravelHeaderActions, editor.ShowStatisticsSelection, "travel_statistics_selection");
+        AssertDefaultDisabledStatisticsSelectionAction(editor.VelocityHeaderActions, editor.ShowVelocityStatisticsSelection, "velocity_statistics_selection");
+        AssertDefaultDisabledStatisticsSelectionAction(editor.ImuHeaderActions, editor.ShowImuStatisticsSelection, "imu_statistics_selection");
+        AssertDefaultDisabledStatisticsSelectionAction(editor.PitchRollHeaderActions, editor.ShowPitchRollStatisticsSelection, "pitch_roll_statistics_selection");
+        AssertDefaultDisabledStatisticsSelectionAction(editor.SpeedHeaderActions, editor.ShowSpeedStatisticsSelection, "speed_statistics_selection");
+        AssertDefaultDisabledStatisticsSelectionAction(editor.ElevationHeaderActions, editor.ShowElevationStatisticsSelection, "elevation_statistics_selection");
+    }
+
+    [AvaloniaFact]
+    public void SelectTelemetryRangeSelectionCommand_SelectsDampingRangeAndTogglesOffWhenRepeated()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var telemetry = TestTelemetryData.CreateProcessed();
+        editor.TelemetryData = telemetry;
+        var selection = CreateFrontDampingSelection(telemetry, editor.SelectedVelocityAverageMode);
+
+        editor.SelectTelemetryRangeSelectionCommand.Execute(selection);
+
+        Assert.Equal(selection, editor.SelectedFrontRangeSelection);
+        Assert.Null(editor.SelectedRearRangeSelection);
+        Assert.True(editor.HasStatisticsSelection);
+        Assert.NotEmpty(editor.StatisticsSelectionHighlightRanges);
+        Assert.All(editor.StatisticsSelectionHighlightRanges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
+        Assert.True(editor.ShowStatisticsSelection);
+
+        var travelSelectionAction = GetRowAction(editor.TravelHeaderActions, "travel_statistics_selection");
+        Assert.True(travelSelectionAction.IsEnabled);
+        Assert.True(travelSelectionAction.IsChecked);
+        Assert.Equal("Hide selected strokes", travelSelectionAction.ToolTip);
+
+        editor.SelectTelemetryRangeSelectionCommand.Execute(selection);
+
+        Assert.Null(editor.SelectedFrontRangeSelection);
+        Assert.False(editor.HasStatisticsSelection);
+        Assert.Empty(editor.StatisticsSelectionHighlightRanges);
+        Assert.False(editor.ShowStatisticsSelection);
+        Assert.False(travelSelectionAction.IsEnabled);
     }
 
     [AvaloniaFact]
@@ -899,7 +937,7 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
         preferences.ClearReceivedCalls();
 
-        var action = Assert.Single(editor.TravelHeaderActions);
+        var action = GetRowAction(editor.TravelHeaderActions, "travel_airtime");
         action.Command!.Execute(null);
 
         Assert.False(editor.ShowAirtime);
@@ -908,7 +946,7 @@ public class SessionDetailViewModelTests
         Assert.False(editor.IsDirty);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
 
-        var velocityAction = Assert.Single(editor.VelocityHeaderActions);
+        var velocityAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
         velocityAction.Command!.Execute(null);
 
         Assert.True(editor.ShowVelocityAirtime);
@@ -2001,13 +2039,64 @@ public class SessionDetailViewModelTests
         bool isVisible,
         string expectedId)
     {
-        var action = Assert.Single(actions);
+        var action = GetRowAction(actions, expectedId);
         Assert.False(isVisible);
         Assert.Equal(expectedId, action.Id);
         Assert.Equal(TelemetryPlotRowActionKind.Toggle, action.Kind);
         Assert.False(action.IsChecked);
         Assert.Equal("Show airtime", action.ToolTip);
         Assert.NotNull(action.Command);
+    }
+
+    private static void AssertDefaultDisabledStatisticsSelectionAction(
+        IReadOnlyList<TelemetryPlotRowAction> actions,
+        bool isVisible,
+        string expectedId)
+    {
+        var action = GetRowAction(actions, expectedId);
+        Assert.False(isVisible);
+        Assert.Equal(TelemetryPlotRowActionKind.Toggle, action.Kind);
+        Assert.False(action.IsChecked);
+        Assert.False(action.IsEnabled);
+        Assert.Equal("Select a stroke group", action.ToolTip);
+        Assert.NotNull(action.Command);
+    }
+
+    private static TelemetryPlotRowAction GetRowAction(
+        IReadOnlyList<TelemetryPlotRowAction> actions,
+        string id)
+    {
+        return Assert.Single(actions, action => action.Id == id);
+    }
+
+    private static DampingRangeSelection CreateFrontDampingSelection(
+        TelemetryData telemetry,
+        VelocityAverageMode averageMode)
+    {
+        var histogram = TelemetryStatistics.CalculateVelocityHistogram(
+            telemetry,
+            SuspensionType.Front,
+            new VelocityStatisticsOptions(null, averageMode));
+
+        for (var velocityBinIndex = 0; velocityBinIndex < histogram.Values.Count; velocityBinIndex++)
+        {
+            var travelValues = histogram.Values[velocityBinIndex];
+            for (var travelBinIndex = 0; travelBinIndex < travelValues.Length; travelBinIndex++)
+            {
+                if (travelValues[travelBinIndex] > 0)
+                {
+                    return new DampingRangeSelection(
+                        SuspensionType.Front,
+                        averageMode,
+                        velocityBinIndex,
+                        travelBinIndex,
+                        travelBinIndex);
+                }
+            }
+        }
+
+        Assert.Fail("Expected a non-empty front damping histogram bin.");
+        return default!;
     }
 
     private static TelemetryPlotContextMenuAction GetAutozoomAction(SessionDetailViewModel editor)

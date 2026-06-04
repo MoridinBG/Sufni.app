@@ -6,7 +6,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Views.Controls;
 
-public partial class StrokeStatisticsHost : UserControl
+public partial class StrokeStatisticsHost : StatisticsHostBase
 {
     public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
         AvaloniaProperty.Register<StrokeStatisticsHost, SurfacePresentationState>(
@@ -132,5 +132,13 @@ public partial class StrokeStatisticsHost : UserControl
     public StrokeStatisticsHost()
     {
         InitializeComponent();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name is nameof(SuspensionType))
+            {
+                SetSelectedRangeSelectionSuspensionType(SuspensionType);
+            }
+        };
+        SetSelectedRangeSelectionSuspensionType(SuspensionType);
     }
 }

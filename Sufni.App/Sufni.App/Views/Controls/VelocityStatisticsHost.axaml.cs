@@ -8,7 +8,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Views.Controls;
 
-public partial class VelocityStatisticsHost : UserControl
+public partial class VelocityStatisticsHost : StatisticsHostBase
 {
     public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, SurfacePresentationState>(
@@ -201,5 +201,13 @@ public partial class VelocityStatisticsHost : UserControl
     public VelocityStatisticsHost()
     {
         InitializeComponent();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name is nameof(SuspensionType))
+            {
+                SetSelectedRangeSelectionSuspensionType(SuspensionType);
+            }
+        };
+        SetSelectedRangeSelectionSuspensionType(SuspensionType);
     }
 }

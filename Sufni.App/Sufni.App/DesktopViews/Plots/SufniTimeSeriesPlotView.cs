@@ -95,6 +95,25 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(TimeRangeOverlaysProperty, value);
     }
 
+    public static readonly StyledProperty<IReadOnlyList<TelemetryHighlightRange>?> StatisticsSelectionHighlightRangesProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, IReadOnlyList<TelemetryHighlightRange>?>(
+            nameof(StatisticsSelectionHighlightRanges));
+
+    public IReadOnlyList<TelemetryHighlightRange>? StatisticsSelectionHighlightRanges
+    {
+        get => GetValue(StatisticsSelectionHighlightRangesProperty);
+        set => SetValue(StatisticsSelectionHighlightRangesProperty, value);
+    }
+
+    public static readonly StyledProperty<bool> ShowStatisticsSelectionProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, bool>(nameof(ShowStatisticsSelection));
+
+    public bool ShowStatisticsSelection
+    {
+        get => GetValue(ShowStatisticsSelectionProperty);
+        set => SetValue(ShowStatisticsSelectionProperty, value);
+    }
+
     public static readonly StyledProperty<IReadOnlyList<TelemetryPlotContextMenuAction>?> AdditionalContextMenuActionsProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, IReadOnlyList<TelemetryPlotContextMenuAction>?>(
             nameof(AdditionalContextMenuActions));
@@ -139,6 +158,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
                 case nameof(ShowAirtime):
                     ApplyAirtimeVisibility(refresh: true);
+                    break;
+
+                case nameof(ShowStatisticsSelection):
+                    ApplyStatisticsSelectionVisibility(refresh: true);
+                    break;
+
+                case nameof(StatisticsSelectionHighlightRanges):
+                    ApplyStatisticsSelectionRanges(refresh: true);
                     break;
 
                 case nameof(PlotFigureBackground):
@@ -460,6 +487,48 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             limits.Left,
             limits.Right,
             dataAreaWidthPixels);
+        if (refresh)
+        {
+            RefreshPlot();
+        }
+    }
+
+    private void ApplyStatisticsSelectionVisibility(bool refresh)
+    {
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
+        {
+            return;
+        }
+
+        recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, ShowStatisticsSelection);
+        if (refresh)
+        {
+            RefreshPlot();
+        }
+    }
+
+    private void ApplyStatisticsSelectionRanges(bool refresh)
+    {
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
+        {
+            return;
+        }
+
+        var ranges = StatisticsSelectionHighlightRanges ?? [];
+        if (ranges.Count == 0)
+        {
+            recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.StatisticsSelection);
+        }
+        else
+        {
+            var registration = RecordedTimeRangeOverlayFactory.CreateStatisticsSelectionRegistration(
+                ranges,
+                CurrentTheme.Plot,
+                ShowStatisticsSelection);
+            recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
+            recordedPlot.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
+        }
+
         if (refresh)
         {
             RefreshPlot();
@@ -802,6 +871,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         ApplyTimeRangeOverlays(refresh: false);
+        ApplyStatisticsSelectionRanges(refresh: false);
+        ApplyStatisticsSelectionVisibility(refresh: false);
         ApplyAirtimeVisibility(refresh: false);
     }
 
