@@ -1245,7 +1245,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             TrackTimelineContext,
             TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds,
             viewLoaded,
-            IsTabActive);
+            IsTabActive,
+            Timeline);
     }
 
     private void UpdateRecordedSessionExtensionHostState()

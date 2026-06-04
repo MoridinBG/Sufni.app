@@ -92,6 +92,8 @@ The contribution carries an extension id, contribution id, order, and view model
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close.
 
+`RecordedSessionHostState` carries the current session snapshot, domain snapshot, analysis range, track timeline context, telemetry duration, loaded/active flags, and the neutral `SessionTimelineLinkViewModel` used by graph, map, and media surfaces. Contributed media panes use that timeline object when they need to follow cursor movement or visible-range changes.
+
 `RecordedSessionHostContext` exposes constrained host operations:
 
 - set or clear the analysis range
