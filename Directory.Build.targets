@@ -1,0 +1,10 @@
+<Project>
+  <Target Name="FailWhenPrivateExtensionsRequestedButMissing"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(SufniEnablePrivateExtensions)' == 'true' and (!Exists('Directory.Private.props') or !Exists('Directory.Private.targets'))">
+    <Error Text="SufniEnablePrivateExtensions=true requires Directory.Private.props and Directory.Private.targets." />
+  </Target>
+
+  <Import Project="Directory.Private.targets" Condition="Exists('Directory.Private.targets')" />
+</Project>
+

@@ -1,4 +1,6 @@
 <Project>
+  <Import Project="Directory.Private.props" Condition="Exists('Directory.Private.props')" />
+
   <PropertyGroup>
     <LangVersion>14.0</LangVersion>
   </PropertyGroup>
