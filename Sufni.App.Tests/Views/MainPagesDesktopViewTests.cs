@@ -1,9 +1,11 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews;
+using Sufni.App.ExtensionHost;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
@@ -101,6 +103,41 @@ public class MainPagesDesktopViewTests
 
         Assert.False(buttonSpinner.IsVisible);
         Assert.False(overlay.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesDesktopView_RendersExtensionToolbarActions()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
+        registry.RegisterAppToolbarAction(new AppToolbarContribution(
+            "extension",
+            "toolbar-action",
+            Order: 0,
+            new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" }));
+        var view = new MainPagesDesktopView
+        {
+            DataContext = MainPagesViewModelTestFactory.Create(extensionCapabilities: registry)
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var host = Assert.Single(mounted.View.GetVisualDescendants().OfType<AppToolbarContributionsView>());
+        AssertContributionText(host, "DesktopExtensionToolbarAction", "Desktop action");
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
     }
 
     private static async Task<MountedMainPagesDesktopView> MountAsync(MainPagesDesktopView view)

@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -52,6 +54,7 @@ public partial class MainPagesViewModel : ViewModelBase
     public PairedDeviceListViewModel PairedDevicesPage { get; init; }
     public PairingClientViewModel? PairingClientPage { get; init; }
     public PairingServerViewModel? PairingServerViewModel { get; init; }
+    public IReadOnlyList<AppToolbarContribution> ExtensionToolbarActions { get; }
 
     #region Constructors
 
@@ -73,6 +76,7 @@ public partial class MainPagesViewModel : ViewModelBase
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
         IUiThreadDispatcher uiThreadDispatcher,
+        IAppExtensionCapabilityRegistry? extensionCapabilities = null,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
         : base(uiThreadDispatcher)
@@ -95,6 +99,7 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
+        ExtensionToolbarActions = extensionCapabilities?.AppToolbarActions ?? [];
         primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
         activePrimaryPage = GetSelectedPrimaryPage();
 

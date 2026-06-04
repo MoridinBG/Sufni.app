@@ -216,6 +216,7 @@ public partial class App : Application
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
             sp.GetRequiredService<IUiThreadDispatcher>(),
+            sp.GetRequiredService<IAppExtensionCapabilityRegistry>(),
             sp.GetService<PairingClientViewModel>(),
             sp.GetService<PairingServerViewModel>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();

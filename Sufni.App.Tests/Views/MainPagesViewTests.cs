@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Sufni.App.ExtensionHost;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.Views;
@@ -101,6 +102,32 @@ public class MainPagesViewTests
         Assert.NotNull(menuPanel);
         Assert.NotNull(importGpxMenuItem);
         Assert.Same(viewModel.OpenGpsTracksCommand, importGpxMenuItem!.Command);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesView_SidePanelBindsExtensionToolbarActions()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
+        registry.RegisterAppToolbarAction(new AppToolbarContribution(
+            "extension",
+            "toolbar-action",
+            Order: 0,
+            new object()));
+        var viewModel = MainPagesViewModelTestFactory.Create(extensionCapabilities: registry);
+        var view = new MainPagesView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel");
+        var host = menuPanel!.FindControl<AppToolbarContributionsView>("SidePanelExtensionToolbarActions");
+        Assert.NotNull(host);
+        Assert.Same(viewModel.ExtensionToolbarActions, host!.Contributions);
     }
 
     private static async Task<MountedMainPagesView> MountAsync(MainPagesView view)

@@ -3,6 +3,7 @@ x:Class="Sufni.App.Views.Controls.SidePanel"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:converters="using:Avalonia.Data.Converters"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:theming="clr-namespace:Sufni.App.Theming"
@@ -52,6 +53,9 @@ mc:Ignorable="d">
                 <Image Width="12" Source="{SvgImage /Assets/fa-map.svg}" />
             </MenuItem.Icon>
         </MenuItem>
+        <controls:AppToolbarContributionsView
+        Name="SidePanelExtensionToolbarActions"
+        Contributions="{Binding ExtensionToolbarActions}" />
         <Separator />
         <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike">
             <MenuItem.Icon>

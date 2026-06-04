@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Views;
@@ -51,6 +52,22 @@ public class MainPagesViewModelTests
         await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
 
         Assert.Single(viewModel.SessionsPage.Notifications);
+    }
+
+    [Fact]
+    public void Constructor_ExposesExtensionToolbarActions()
+    {
+        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
+        var contribution = new AppToolbarContribution(
+            "extension",
+            "action",
+            Order: 0,
+            new object());
+        registry.RegisterAppToolbarAction(contribution);
+
+        var viewModel = MainPagesViewModelTestFactory.Create(extensionCapabilities: registry);
+
+        Assert.Equal([contribution], viewModel.ExtensionToolbarActions);
     }
 
     [Fact]

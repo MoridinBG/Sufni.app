@@ -164,6 +164,8 @@ mc:Ignorable="d">
                 <Image Width="18" Source="{SvgImage /Assets/fa-map.svg}" />
             </Button>
 
+            <controls:AppToolbarContributionsView Contributions="{Binding ExtensionToolbarActions}" />
+
             <!--  Paired devices button  -->
             <Button
             Name="PairedDevicesButton"

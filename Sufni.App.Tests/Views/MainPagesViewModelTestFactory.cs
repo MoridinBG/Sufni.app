@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -25,6 +26,7 @@ internal static class MainPagesViewModelTestFactory
         IRecordedSessionSourceStore? recordedSessionSourceStore = null,
         IThemeService? themeService = null,
         SyncCoordinator? syncCoordinator = null,
+        IAppExtensionCapabilityRegistry? extensionCapabilities = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
         var bikeStore = Substitute.For<IBikeStore>();
@@ -68,6 +70,7 @@ internal static class MainPagesViewModelTestFactory
             CreateImportSessionsPage(shell, importSessionsCoordinator),
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
+            extensionCapabilities,
             pairingServerViewModel: pairingServerViewModel);
     }
 
