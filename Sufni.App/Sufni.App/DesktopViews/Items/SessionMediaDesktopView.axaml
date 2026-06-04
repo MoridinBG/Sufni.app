@@ -62,6 +62,7 @@ mc:Ignorable="d">
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     DataContext="{Binding MapViewModel}"
+                    ExtensionSlots="{Binding $parent[controls:PlaceholderOverlayContainer].((vm:ISessionMediaWorkspace)DataContext).ExtensionSlots}"
                     Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].((vm:ISessionMediaWorkspace)DataContext).Timeline}" />
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>

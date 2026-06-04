@@ -53,6 +53,7 @@ mc:Ignorable="d">
                     <v:MapView
                     Name="MobileMapView"
                     DataContext="{Binding MediaWorkspace.MapViewModel}"
+                    ExtensionSlots="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.ExtensionSlots}"
                     Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.Timeline}" />
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>

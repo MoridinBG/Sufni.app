@@ -54,6 +54,7 @@ public class SessionMediaDesktopViewTests
         Assert.NotNull(mediaSplitter);
         Assert.True(mediaGrid!.IsVisible);
         Assert.True(mapView.IsVisible);
+        Assert.Same(workspace.ExtensionSlots, mapView.ExtensionSlots);
         Assert.Same(workspace.Timeline, mapView.Timeline);
         Assert.False(mediaSplitter!.IsVisible);
         Assert.Equal(0, mediaGrid.RowDefinitions[0].Height.Value);

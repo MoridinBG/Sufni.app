@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using Avalonia;
@@ -8,15 +9,18 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using BruTile.Predefined;
 using BruTile.Web;
+using Mapsui;
 using Mapsui.Layers;
 using Mapsui.Nts;
 using Mapsui.Nts.Extensions;
+using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI.Avalonia;
 using Mapsui.Widgets;
 using Mapsui.Widgets.InfoWidgets;
 using NetTopologySuite.Geometries;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
@@ -25,7 +29,10 @@ namespace Sufni.App.Views;
 
 public partial class MapView : UserControl
 {
+    private const string ExtensionOverlayLayerName = "Extension Overlays";
+
     private MapControl? mapControl;
+    private RecordedSessionExtensionSlots? subscribedSlots;
     private bool applyingTimelineUpdate;
     private bool mapPointerInteractionActive;
     private bool viewportNotificationQueued;
@@ -45,6 +52,16 @@ public partial class MapView : UserControl
         set => SetValue(TimelineProperty, value);
     }
 
+    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
+        AvaloniaProperty.Register<MapView, RecordedSessionExtensionSlots?>(
+            nameof(ExtensionSlots));
+
+    public RecordedSessionExtensionSlots? ExtensionSlots
+    {
+        get => GetValue(ExtensionSlotsProperty);
+        set => SetValue(ExtensionSlotsProperty, value);
+    }
+
     public MapViewModel? ViewModel => DataContext as MapViewModel;
 
     public MapView()
@@ -55,22 +72,27 @@ public partial class MapView : UserControl
 
         PropertyChanged += (_, e) =>
         {
-            if (e.Property.Name != nameof(Timeline))
+            switch (e.Property.Name)
             {
-                return;
-            }
+                case nameof(Timeline):
+                    if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
+                    {
+                        oldTimeline.PropertyChanged -= OnTimelinePropertyChanged;
+                        oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
+                    }
 
-            if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
-            {
-                oldTimeline.PropertyChanged -= OnTimelinePropertyChanged;
-                oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
-            }
+                    if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
+                    {
+                        newTimeline.PropertyChanged += OnTimelinePropertyChanged;
+                        newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
+                        ApplyTimeline(newTimeline);
+                    }
 
-            if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
-            {
-                newTimeline.PropertyChanged += OnTimelinePropertyChanged;
-                newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
-                ApplyTimeline(newTimeline);
+                    break;
+                case nameof(ExtensionSlots):
+                    SubscribeToSlots(ExtensionSlots);
+                    UpdateExtensionMapOverlays();
+                    break;
             }
         };
 
@@ -85,6 +107,7 @@ public partial class MapView : UserControl
             var sessionTrackLayer = CreateSessionTrackLayer(); // Initially empty
             mapControl.Map.Layers.Add(sessionTrackLayer);
             mapControl.Map.Layers.Add(CreateStartEndPointsLayer());
+            mapControl.Map.Layers.Add(CreateExtensionOverlayLayer());
             mapControl.Map.Layers.Add(positionMarkerLayer);
 
             mapControl.Map.Navigator.ViewportChanged += OnNavigatorViewportChanged;
@@ -104,6 +127,19 @@ public partial class MapView : UserControl
         }
 
         SetNormalizedCursorPosition(1);
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        SubscribeToSlots(ExtensionSlots);
+        UpdateExtensionMapOverlays();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        SubscribeToSlots(null);
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -207,6 +243,104 @@ public partial class MapView : UserControl
         mapControl.Refresh();
     }
 
+    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
+    {
+        if (ReferenceEquals(subscribedSlots, slots))
+        {
+            return;
+        }
+
+        if (subscribedSlots is not null)
+        {
+            subscribedSlots.MapOverlays.CollectionChanged -= OnMapOverlaysChanged;
+        }
+
+        subscribedSlots = slots;
+        if (subscribedSlots is not null)
+        {
+            subscribedSlots.MapOverlays.CollectionChanged += OnMapOverlaysChanged;
+        }
+    }
+
+    private void OnMapOverlaysChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        UpdateExtensionMapOverlays();
+    }
+
+    private void UpdateExtensionMapOverlays()
+    {
+        if (mapControl?.Map.Layers.FindLayer(ExtensionOverlayLayerName).FirstOrDefault() is not MemoryLayer layer)
+        {
+            return;
+        }
+
+        var features = new List<IFeature>();
+        if (ExtensionSlots is not null)
+        {
+            foreach (var contribution in ExtensionSlots.MapOverlays.OrderBy(static contribution => contribution.Order))
+            {
+                AddExtensionOverlayFeatures(features, contribution);
+            }
+        }
+
+        layer.Features = features;
+        layer.DataHasChanged();
+        mapControl.Refresh();
+    }
+
+    private static void AddExtensionOverlayFeatures(
+        List<IFeature> features,
+        RecordedSessionMapOverlayContribution contribution)
+    {
+        foreach (var line in contribution.Lines)
+        {
+            if (line.Points.Count < 2)
+            {
+                continue;
+            }
+
+            var coordinates = line.Points
+                .Select(ProjectMapCoordinate)
+                .Select(point => point.ToCoordinate())
+                .ToArray();
+            var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
+            feature.Styles.Add(new VectorStyle
+            {
+                Line = new Pen(ToMapColor(line.Style.Color, line.Style.Opacity), line.Style.Width),
+            });
+            features.Add(feature);
+        }
+
+        foreach (var point in contribution.Points)
+        {
+            var projected = ProjectMapCoordinate(point.Coordinate);
+            var feature = new PointFeature(projected.X, projected.Y);
+            feature.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                Fill = new Brush(ToMapColor(point.Style.Fill, point.Style.Opacity)),
+                Line = new Pen(ToMapColor(point.Style.Stroke, point.Style.Opacity), point.Style.StrokeWidth),
+                SymbolScale = point.Style.Radius,
+            });
+            features.Add(feature);
+        }
+    }
+
+    private static (double X, double Y) ProjectMapCoordinate(RecordedSessionMapCoordinate coordinate)
+    {
+        var (x, y) = SphericalMercator.FromLonLat(coordinate.Longitude, coordinate.Latitude);
+        return (x, y);
+    }
+
+    private static Color ToMapColor(RecordedSessionMapColor color, double opacity)
+    {
+        return new Color(
+            color.R,
+            color.G,
+            color.B,
+            (int)Math.Round(color.A * Math.Clamp(opacity, 0.0, 1.0)));
+    }
+
     private void OnMapPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         e.PreventGestureRecognition();
@@ -258,6 +392,11 @@ public partial class MapView : UserControl
     private MemoryLayer CreateStartEndPointsLayer()
     {
         return new MemoryLayer { Name = "Start/End Marker", Style = new SymbolStyle { SymbolScale = 0.5 } };
+    }
+
+    private static MemoryLayer CreateExtensionOverlayLayer()
+    {
+        return new MemoryLayer { Name = ExtensionOverlayLayerName };
     }
 
     public void SetNormalizedCursorPosition(double pos)

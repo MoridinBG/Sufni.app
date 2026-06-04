@@ -124,6 +124,7 @@ public class RecordedGraphPageViewTests
         Assert.True(mapHost!.IsVisible);
         Assert.True(mapView.IsVisible);
         Assert.Same(mediaWorkspace.MapViewModel, mapView.DataContext);
+        Assert.Same(mediaWorkspace.ExtensionSlots, mapView.ExtensionSlots);
         Assert.Same(mediaWorkspace.Timeline, mapView.Timeline);
         Assert.NotNull(mapView.FindControl<ComboBox>("TileProviderComboBox"));
     }

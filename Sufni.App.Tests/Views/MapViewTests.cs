@@ -4,8 +4,10 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
+using Mapsui.Layers;
 using Mapsui.UI.Avalonia;
 using NSubstitute;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
@@ -300,6 +302,71 @@ public class MapViewTests
             Assert.Equal(before.CenterX, after.CenterX, 6);
             Assert.Equal(before.CenterY, after.CenterY, 6);
             Assert.Equal(before.Resolution, after.Resolution, 6);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task MapView_RendersExtensionMapOverlays_WhenContributionCollectionChanges()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var slots = new RecordedSessionExtensionSlots();
+        var view = new MapView
+        {
+            DataContext = CreateViewModelWithTrack(),
+            ExtensionSlots = slots,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+            var overlayLayer = Assert.Single(
+                mapControl!.Map.Layers.FindLayer("Extension Overlays").OfType<MemoryLayer>());
+            Assert.Empty(overlayLayer.Features);
+
+            slots.MapOverlays.Add(new RecordedSessionMapOverlayContribution(
+                "extension",
+                "map-overlay",
+                Order: 0,
+                Lines:
+                [
+                    new RecordedSessionMapLineOverlay(
+                        [
+                            new RecordedSessionMapCoordinate(42.0, 23.0),
+                            new RecordedSessionMapCoordinate(42.001, 23.001),
+                        ],
+                        new RecordedSessionMapLineStyle(
+                            new RecordedSessionMapColor(255, 17, 34, 51),
+                            Width: 4,
+                            Opacity: 0.7))
+                ],
+                Points:
+                [
+                    new RecordedSessionMapPointOverlay(
+                        new RecordedSessionMapCoordinate(42.002, 23.002),
+                        new RecordedSessionMapPointStyle(
+                            Fill: new RecordedSessionMapColor(255, 51, 68, 85),
+                            Stroke: new RecordedSessionMapColor(255, 17, 34, 51),
+                            Radius: 0.8,
+                            StrokeWidth: 2,
+                            Opacity: 0.6))
+                ]));
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Equal(2, overlayLayer.Features.Count());
+
+            slots.MapOverlays.Clear();
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Empty(overlayLayer.Features);
         }
         finally
         {
