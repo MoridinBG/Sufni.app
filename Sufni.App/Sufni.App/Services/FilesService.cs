@@ -12,7 +12,7 @@ using Sufni.App.Services.Management;
 
 namespace Sufni.App.Services;
 
-public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesService
+public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesService, IFilePickerService
 {
     private TopLevel? target;
     private readonly FilePickerFileType jsonType = new("JSON files")
@@ -141,21 +141,10 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
 
     public async Task<List<IStorageFile>> OpenGpxFilesAsync()
     {
-        Debug.Assert(target != null, nameof(target) + " != null");
-
-        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Open GPX file",
-            AllowMultiple = true,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("GPX files")
-                {
-                    Patterns = ["*.gpx"],
-                    MimeTypes = ["application/gpx+xml"]
-                }
-            ]
-        });
+        var files = await OpenFilesAsync(new FilePickerRequest(
+            "Open GPX file",
+            AllowMultiple: true,
+            [new FilePickerFilter("GPX files", ["*.gpx"], ["application/gpx+xml"], [])]));
 
         return files.AsList();
     }
@@ -169,14 +158,11 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
 
     public async Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default)
     {
-        Debug.Assert(target != null, nameof(target) + " != null");
-
-        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Open device CONFIG",
-            AllowMultiple = false,
-            FileTypeFilter = [FilePickerFileTypes.All]
-        });
+        var files = await OpenFilesAsync(new FilePickerRequest(
+            "Open device CONFIG",
+            AllowMultiple: false,
+            [FilePickerFilter.AllFiles]),
+            cancellationToken);
 
         if (files.Count != 1)
         {
@@ -191,5 +177,18 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
             await stream.CopyToAsync(memoryStream, cancellationToken);
             return new SelectedDeviceConfigFile(file.Name, memoryStream.ToArray());
         }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<IStorageFile>> OpenFilesAsync(
+        FilePickerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(request.ToOpenOptions());
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return files;
     }
 }

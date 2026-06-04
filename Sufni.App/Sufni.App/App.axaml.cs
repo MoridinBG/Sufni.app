@@ -118,7 +118,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
         ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
         ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
-        ServiceCollection.AddSingleton<IFilesService, FilesService>();
+        ServiceCollection.AddSingleton<FilesService>();
+        ServiceCollection.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
+        ServiceCollection.AddSingleton<IFilePickerService>(sp => sp.GetRequiredService<FilesService>());
         ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
         ServiceCollection.AddSingleton<BikeStore>();
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
