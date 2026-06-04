@@ -5,8 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
@@ -14,22 +16,37 @@ using Serilog;
 
 namespace Sufni.App.Services;
 
-public class SqLiteDatabaseService : IDatabaseService
+public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnection
 {
     private static readonly ILogger logger = Log.ForContext<SqLiteDatabaseService>();
 
     private Task Initialization { get; }
     private readonly SQLiteAsyncConnection connection;
+    private readonly ExtensionDatabaseMigratorRunner extensionMigratorRunner;
 
-    public SqLiteDatabaseService() : this(AppPaths.DatabasePath, createAppDirectories: true)
+    public SqLiteDatabaseService() : this(AppPaths.DatabasePath, createAppDirectories: true, extensionMigrators: [])
     {
     }
 
-    internal SqLiteDatabaseService(string databasePath) : this(databasePath, createAppDirectories: false)
+    public SqLiteDatabaseService(IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
+        : this(AppPaths.DatabasePath, createAppDirectories: true, extensionMigrators)
     {
     }
 
-    private SqLiteDatabaseService(string databasePath, bool createAppDirectories)
+    internal SqLiteDatabaseService(string databasePath)
+        : this(databasePath, createAppDirectories: false, extensionMigrators: [])
+    {
+    }
+
+    internal SqLiteDatabaseService(string databasePath, IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
+        : this(databasePath, createAppDirectories: false, extensionMigrators)
+    {
+    }
+
+    private SqLiteDatabaseService(
+        string databasePath,
+        bool createAppDirectories,
+        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
     {
         if (createAppDirectories)
         {
@@ -45,6 +62,7 @@ public class SqLiteDatabaseService : IDatabaseService
         }
 
         connection = new SQLiteAsyncConnection(databasePath);
+        extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigrators);
         Initialization = Init();
     }
 
@@ -64,6 +82,7 @@ public class SqLiteDatabaseService : IDatabaseService
             await EnsureBikeDampingSpeedCutoffColumnsAsync();
             await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
             await BackfillRearSuspensionKindAsync();
+            await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
@@ -83,6 +102,12 @@ public class SqLiteDatabaseService : IDatabaseService
             logger.Error(ex, "SQLite database initialization failed at {DatabasePath}", AppPaths.DatabasePath);
             throw;
         }
+    }
+
+    public async Task<SQLiteAsyncConnection> GetInitializedConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        await Initialization.WaitAsync(cancellationToken);
+        return connection;
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "All persisted entity types are statically referenced in this table list.")]

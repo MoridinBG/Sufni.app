@@ -1,5 +1,6 @@
 using System.IO;
 using SQLite;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
@@ -203,6 +204,164 @@ public class SQLiteDatabaseServiceTests
             Assert.Contains(sourceColumns, column => column.Name == "schema_version");
             Assert.Contains(sourceColumns, column => column.Name == "source_hash");
             Assert.Contains(sourceColumns, column => column.Name == "payload");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Initialization_CreatesExtensionSchemaVersionTable()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "extension-schema-version.db");
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath);
+            _ = await database.GetAllAsync<Board>();
+
+            using var connection = new SQLiteConnection(databasePath);
+            var tables = connection.Query<SqliteMasterRow>(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'extension_schema_version'");
+
+            Assert.Single(tables);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Initialization_CreatesExtensionMigratorTables()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "extension-table.db");
+
+        try
+        {
+            var migrator = new TestExtensionMigrator(
+                "test",
+                targetVersion: 0,
+                [typeof(TestExtensionRow)],
+                []);
+            var database = new SqLiteDatabaseService(databasePath, [migrator]);
+
+            _ = await database.GetInitializedConnectionAsync();
+
+            using var connection = new SQLiteConnection(databasePath);
+            var tables = connection.Query<SqliteMasterRow>(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'test_extension_row'");
+
+            Assert.Single(tables);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Initialization_RunsExtensionMigrationStepsOnceAndAdvancesVersion()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "extension-migrations.db");
+        var appliedSteps = new List<int>();
+        var migrator = new TestExtensionMigrator(
+            "test",
+            targetVersion: 2,
+            [typeof(TestExtensionRow)],
+            [
+                new ExtensionDatabaseMigrationStep(1, async (context, _) =>
+                {
+                    appliedSteps.Add(1);
+                    await context.Connection.InsertAsync(new TestExtensionRow
+                    {
+                        Id = "step-1",
+                        Value = 1,
+                    });
+                }),
+                new ExtensionDatabaseMigrationStep(2, async (context, _) =>
+                {
+                    appliedSteps.Add(2);
+                    await context.Connection.InsertAsync(new TestExtensionRow
+                    {
+                        Id = "step-2",
+                        Value = 2,
+                    });
+                }),
+            ]);
+
+        try
+        {
+            var firstRun = new SqLiteDatabaseService(databasePath, [migrator]);
+            _ = await firstRun.GetInitializedConnectionAsync();
+
+            var secondRun = new SqLiteDatabaseService(databasePath, [migrator]);
+            _ = await secondRun.GetInitializedConnectionAsync();
+
+            using var connection = new SQLiteConnection(databasePath);
+            var version = Assert.Single(connection.Table<ExtensionSchemaVersion>().ToList());
+            var rows = connection.Table<TestExtensionRow>().OrderBy(row => row.Value).ToList();
+
+            Assert.Equal([1, 2], appliedSteps);
+            Assert.Equal("test", version.ExtensionId);
+            Assert.Equal(2, version.Version);
+            Assert.Equal(["step-1", "step-2"], rows.Select(row => row.Id).ToList());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetInitializedConnectionAsync_WaitsForExtensionMigrations()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "extension-raw-connection.db");
+        var migrator = new TestExtensionMigrator(
+            "test",
+            targetVersion: 1,
+            [typeof(TestExtensionRow)],
+            [
+                new ExtensionDatabaseMigrationStep(1, async (context, _) =>
+                {
+                    await context.Connection.InsertAsync(new TestExtensionRow
+                    {
+                        Id = "ready",
+                        Value = 1,
+                    });
+                }),
+            ]);
+
+        try
+        {
+            IExtensionDatabaseConnection database = new SqLiteDatabaseService(databasePath, [migrator]);
+
+            var rawConnection = await database.GetInitializedConnectionAsync();
+            var rows = await rawConnection.Table<TestExtensionRow>().ToListAsync();
+
+            Assert.Single(rows);
+            Assert.Equal("ready", rows[0].Id);
         }
         finally
         {
@@ -1872,5 +2031,33 @@ public class SQLiteDatabaseServiceTests
     private sealed class TableColumnInfo
     {
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class SqliteMasterRow
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+
+    [Table("test_extension_row")]
+    private sealed class TestExtensionRow
+    {
+        [PrimaryKey]
+        [Column("id")]
+        public string Id { get; set; } = string.Empty;
+
+        [Column("value")]
+        public int Value { get; set; }
+    }
+
+    private sealed class TestExtensionMigrator(
+        string extensionId,
+        int targetVersion,
+        IReadOnlyList<Type> tableTypes,
+        IReadOnlyList<ExtensionDatabaseMigrationStep> steps) : IExtensionDatabaseMigrator
+    {
+        public string ExtensionId { get; } = extensionId;
+        public int TargetVersion { get; } = targetVersion;
+        public IReadOnlyList<Type> TableTypes { get; } = tableTypes;
+        public IReadOnlyList<ExtensionDatabaseMigrationStep> Steps { get; } = steps;
     }
 }
