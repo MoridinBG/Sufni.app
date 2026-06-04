@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using System;
 using System.Collections.Generic;
+using Sufni.App.ExtensionHost;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.Editors.Bike;
@@ -14,6 +15,8 @@ namespace Sufni.App;
 
 public class ViewLocator : IDataTemplate
 {
+    private readonly IExtensionViewRegistry extensionViewRegistry;
+
     private static readonly IReadOnlyDictionary<Type, Func<Control>> ViewFactories = new Dictionary<Type, Func<Control>>
     {
         [typeof(MainViewModel)] = static () => new global::Sufni.App.Views.MainView(),
@@ -64,6 +67,16 @@ public class ViewLocator : IDataTemplate
         [typeof(SetupEditorViewModel)] = static () => new global::Sufni.App.DesktopViews.Editors.SetupEditorDesktopView(),
     };
 
+    public ViewLocator()
+        : this(new ExtensionViewRegistry())
+    {
+    }
+
+    public ViewLocator(IExtensionViewRegistry extensionViewRegistry)
+    {
+        this.extensionViewRegistry = extensionViewRegistry;
+    }
+
     public Control? Build(object? data)
     {
         if (data is null)
@@ -71,6 +84,11 @@ public class ViewLocator : IDataTemplate
 
         var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
+
+        if (extensionViewRegistry.TryBuild(data, isDesktop, out var extensionView))
+        {
+            return extensionView;
+        }
 
         if (isDesktop && DesktopViewFactories.TryGetValue(viewModelType, out var desktopFactory))
         {
@@ -93,6 +111,7 @@ public class ViewLocator : IDataTemplate
         var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
         return data is ViewModelBase ||
+               extensionViewRegistry.Matches(viewModelType, isDesktop) ||
                ViewFactories.ContainsKey(viewModelType) ||
                (isDesktop && DesktopViewFactories.ContainsKey(viewModelType));
     }

@@ -18,12 +18,14 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost;
 
 namespace Sufni.App;
 
 public partial class App : Application
 {
     public static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
+    public static AppExtensionCollection Extensions { get; } = new();
 
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
@@ -64,6 +66,18 @@ public partial class App : Application
         LoggingBootstrapper.InstallGlobalExceptionHooks();
 
         var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
+
+        RegisterBuildTimeExtensions(Extensions);
+
+        var extensionViewRegistry = new ExtensionViewRegistry();
+        ServiceCollection.AddSingleton<IExtensionViewRegistry>(extensionViewRegistry);
+
+        var extensionServiceContext = new AppExtensionServiceRegistrationContext(isDesktop);
+        Extensions.RegisterServices(ServiceCollection, extensionServiceContext);
+
+        var extensionCapabilityRegistry = new AppExtensionCapabilityRegistry(extensionViewRegistry);
+        ServiceCollection.AddSingleton(extensionCapabilityRegistry);
+        ServiceCollection.AddSingleton<IAppExtensionCapabilityRegistry>(extensionCapabilityRegistry);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
@@ -194,6 +208,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
 
+        Extensions.RegisterCapabilities(extensionCapabilityRegistry);
+
         IsDesktop = isDesktop;
         Services = ServiceCollection.BuildServiceProvider();
 
@@ -230,6 +246,11 @@ public partial class App : Application
         {
             _ = Services.GetService<IPairingServerCoordinator>();
             _ = Services.GetService<IInboundSyncCoordinator>();
+        }
+
+        foreach (var eagerServiceType in extensionCapabilityRegistry.EagerServiceTypes)
+        {
+            _ = Services.GetRequiredService(eagerServiceType);
         }
 
         var fileService = Services.GetRequiredService<IFilesService>();
@@ -287,4 +308,6 @@ public partial class App : Application
             || ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime
                 and not ISingleViewApplicationLifetime;
     }
+
+    static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions);
 }
