@@ -28,11 +28,14 @@ public class SessionMediaDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var mediaGrid = mounted.View.FindControl<Grid>("MediaGrid");
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
         var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().SingleOrDefault();
 
-        Assert.NotNull(mediaGrid);
-        Assert.False(mediaGrid!.IsVisible);
+        Assert.NotNull(mediaRoot);
+        Assert.NotNull(mapHost);
+        Assert.False(mediaRoot!.IsVisible);
+        Assert.False(mapHost!.IsVisible);
         Assert.Null(mapView);
     }
 
@@ -46,19 +49,23 @@ public class SessionMediaDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var mediaGrid = mounted.View.FindControl<Grid>("MediaGrid");
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
         var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
         var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().Single();
 
-        Assert.NotNull(mediaGrid);
+        Assert.NotNull(mediaRoot);
+        Assert.NotNull(mapHost);
         Assert.NotNull(mediaSplitter);
-        Assert.True(mediaGrid!.IsVisible);
+        Assert.True(mediaRoot!.IsVisible);
+        Assert.True(mapHost!.IsVisible);
         Assert.True(mapView.IsVisible);
         Assert.Same(workspace.ExtensionSlots, mapView.ExtensionSlots);
         Assert.Same(workspace.Timeline, mapView.Timeline);
         Assert.False(mediaSplitter!.IsVisible);
-        Assert.Equal(0, mediaGrid.RowDefinitions[0].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, mediaGrid.RowDefinitions[0].Height.GridUnitType);
+        Assert.True(
+            mapHost!.Bounds.Height > mounted.View.Bounds.Height * 0.9,
+            $"Expected map-only media to fill the available height. View={mounted.View.Bounds}, MapHost={mapHost.Bounds}.");
     }
 
     [AvaloniaFact]
@@ -73,16 +80,16 @@ public class SessionMediaDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var mediaRoot = mounted.View.FindControl<StackPanel>("MediaContentRoot");
-        var mediaGrid = mounted.View.FindControl<Grid>("MediaGrid");
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
         var mediaPanes = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
 
         Assert.NotNull(mediaRoot);
-        Assert.NotNull(mediaGrid);
+        Assert.NotNull(mapHost);
         Assert.NotNull(mediaPanes);
         Assert.True(mediaRoot!.IsVisible);
-        Assert.False(mediaGrid!.IsVisible);
+        Assert.False(mapHost!.IsVisible);
         AssertContributionText(mounted.View, "DesktopMediaPane", "Media pane");
     }
 
@@ -93,20 +100,23 @@ public class SessionMediaDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var mediaGrid = mounted.View.FindControl<Grid>("MediaGrid");
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
         var videoHost = mounted.View.FindControl<PlaceholderOverlayContainer>("VideoHost");
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
         var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
         var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().SingleOrDefault();
 
-        Assert.NotNull(mediaGrid);
+        Assert.NotNull(mediaRoot);
         Assert.NotNull(videoHost);
+        Assert.NotNull(mapHost);
         Assert.NotNull(mediaSplitter);
-        Assert.True(mediaGrid!.IsVisible);
+        Assert.True(mediaRoot!.IsVisible);
         Assert.True(videoHost!.IsVisible);
+        Assert.False(mapHost!.IsVisible);
         Assert.False(mediaSplitter!.IsVisible);
         Assert.Null(mapView);
-        Assert.Equal(0, mediaGrid.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, mediaGrid.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(0, mediaRoot.RowDefinitions[2].Height.Value);
+        Assert.Equal(GridUnitType.Pixel, mediaRoot.RowDefinitions[2].Height.GridUnitType);
     }
 
     private static async Task<MountedSessionMediaDesktopView> MountAsync(SessionMediaWorkspaceStub workspace)
@@ -119,8 +129,7 @@ public class SessionMediaDesktopViewTests
             DataContext = workspace,
         };
 
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedSessionMediaDesktopView(host, view);
     }
 
