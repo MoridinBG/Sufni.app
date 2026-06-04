@@ -57,6 +57,29 @@ public class SessionStatisticsDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_RendersStatisticsBannerContributions()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+            "extension",
+            "statistics-banner",
+            Order: 0,
+            new TextBlock { Name = "DesktopStatisticsBanner", Text = "Statistics banner" }));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var contributionHost = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionStatisticsContributionsView>());
+        Assert.NotNull(contributionHost);
+        AssertContributionText(mounted.View, "DesktopStatisticsBanner", "Statistics banner");
+    }
+
+    [AvaloniaFact]
     public async Task SessionStatisticsDesktopView_ShowsOnlyFrontDampingHosts_WhenOnlyFrontStatisticsAreAvailable()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
@@ -195,6 +218,18 @@ public class SessionStatisticsDesktopViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedSessionStatisticsDesktopView(host, view);
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
     }
 
     private sealed class SessionStatisticsWorkspaceStub(

@@ -16,6 +16,8 @@ mc:Ignorable="d">
     Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Name="MobileAnalysisContent" Spacing="10">
+            <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+
             <StackPanel Name="MobileAnalysisHeader" Spacing="4">
                 <TextBlock FontSize="16" FontWeight="SemiBold" Text="Analysis" />
                 <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Workspace.SessionAnalysisRangeText}" />

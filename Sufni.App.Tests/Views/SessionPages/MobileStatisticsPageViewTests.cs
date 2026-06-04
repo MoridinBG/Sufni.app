@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -10,6 +12,7 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.Controls;
 using Sufni.App.Views.SessionPages;
 using Sufni.Telemetry;
 
@@ -44,6 +47,27 @@ public class MobileStatisticsPageViewTests
         Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
         Assert.False(activeSuspension.IsChecked);
         Assert.True(dynamicSag.IsChecked);
+    }
+
+    [AvaloniaFact]
+    public async Task SpringPageView_RendersStatisticsBannerContributions()
+    {
+        var workspace = MobileStatisticsWorkspaceStub.Create(
+            hasFrontStatistics: true,
+            hasRearStatistics: true);
+        workspace.ExtensionSlots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+            "extension",
+            "statistics-banner",
+            Order: 0,
+            new TextBlock { Name = "MobileSpringStatisticsBanner", Text = "Statistics banner" }));
+        var page = new SpringPageViewModel(workspace);
+
+        await using var mounted = await MountAsync(new SpringPageView { DataContext = page });
+
+        var contributionHost = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionStatisticsContributionsView>());
+        Assert.NotNull(contributionHost);
+        AssertContributionText(mounted.View, "MobileSpringStatisticsBanner", "Statistics banner");
     }
 
     [AvaloniaFact]
@@ -199,6 +223,27 @@ public class MobileStatisticsPageViewTests
     }
 
     [AvaloniaFact]
+    public async Task StrokesPageView_RendersStatisticsBannerContributions()
+    {
+        var workspace = MobileStatisticsWorkspaceStub.Create(
+            hasFrontStatistics: true,
+            hasRearStatistics: true);
+        workspace.ExtensionSlots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+            "extension",
+            "statistics-banner",
+            Order: 0,
+            new TextBlock { Name = "MobileStrokesStatisticsBanner", Text = "Statistics banner" }));
+        var page = new StrokesPageViewModel(workspace);
+
+        await using var mounted = await MountAsync(new StrokesPageView { DataContext = page });
+
+        var contributionHost = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionStatisticsContributionsView>());
+        Assert.NotNull(contributionHost);
+        AssertContributionText(mounted.View, "MobileStrokesStatisticsBanner", "Statistics banner");
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisPageView_BindsFindingsAndTargetProfile_InOneColumn()
     {
         var workspace = MobileStatisticsWorkspaceStub.Create(
@@ -226,6 +271,18 @@ public class MobileStatisticsPageViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(new ScrollViewer { Content = view });
         return new MountedMobileStatisticsPageView<TView>(host, view);
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
     }
 
     private sealed class MobileStatisticsWorkspaceStub : ISessionStatisticsWorkspace
