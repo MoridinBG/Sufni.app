@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
@@ -44,6 +45,7 @@ public class SessionCoordinator
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly BikeCoordinator? bikeCoordinator;
+    private readonly IExtensionCascadeService? extensionCascadeService;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -63,7 +65,8 @@ public class SessionCoordinator
         IRecordedSessionGraph recordedSessionGraph,
         IRecordedSessionReprocessor recordedSessionReprocessor,
         ISynchronizationServerService? synchronizationServer = null,
-        BikeCoordinator? bikeCoordinator = null)
+        BikeCoordinator? bikeCoordinator = null,
+        IExtensionCascadeService? extensionCascadeService = null)
     {
         this.sessionStore = sessionStore;
         this.databaseService = databaseService;
@@ -82,6 +85,7 @@ public class SessionCoordinator
         this.recordedSessionGraph = recordedSessionGraph;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.bikeCoordinator = bikeCoordinator;
+        this.extensionCascadeService = extensionCascadeService;
 
         if (synchronizationServer is not null)
         {
@@ -564,6 +568,10 @@ public class SessionCoordinator
             }
 
             await databaseService.DeleteAsync<Session>(sessionId);
+            if (extensionCascadeService is not null)
+            {
+                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
+            }
             await sourceStore.RemoveAsync(sessionId);
 
             if (shouldDeleteTrack && trackId.HasValue)
@@ -571,6 +579,10 @@ public class SessionCoordinator
                 try
                 {
                     await databaseService.DeleteAsync<Track>(trackId.Value);
+                    if (extensionCascadeService is not null)
+                    {
+                        await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId.Value);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -619,6 +631,10 @@ public class SessionCoordinator
         try
         {
             await databaseService.DeleteAsync<Track>(previousFullTrackId.Value);
+            if (extensionCascadeService is not null)
+            {
+                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousFullTrackId.Value);
+            }
         }
         catch (Exception e)
         {

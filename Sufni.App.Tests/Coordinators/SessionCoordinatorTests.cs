@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -35,6 +36,7 @@ public class SessionCoordinatorTests
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     public SessionCoordinatorTests()
     {
@@ -65,7 +67,8 @@ public class SessionCoordinatorTests
             domainQuery,
             recordedSessionGraph,
             reprocessor,
-            sync);
+            synchronizationServer: sync,
+            extensionCascadeService: extensionCascade);
 
     // ----- OpenEditAsync -----
 
@@ -612,6 +615,7 @@ public class SessionCoordinatorTests
             null,
             5);
         await database.Received(1).DeleteAsync<Track>(previousTrackId);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousTrackId);
     }
 
     [Fact]
@@ -650,6 +654,7 @@ public class SessionCoordinatorTests
             null,
             5);
         await database.Received(1).DeleteAsync<Track>(previousTrackId);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousTrackId);
     }
 
     // ----- DeleteAsync -----
@@ -669,8 +674,10 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Session>(id);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
         await database.Received(1).DeleteAsync<Track>(trackId);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
@@ -693,8 +700,10 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Session>(id);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
         await database.DidNotReceive().DeleteAsync<Track>(Arg.Any<Guid>());
+        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, Arg.Any<Guid>());
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
     }
@@ -715,8 +724,10 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Session>(id);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
         await database.Received(1).DeleteAsync<Track>(trackId);
+        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
     }
@@ -730,6 +741,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
+        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!, default);

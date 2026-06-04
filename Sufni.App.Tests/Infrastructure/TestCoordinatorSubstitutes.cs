@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -30,7 +31,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBikeEditorService>(),
             Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            Substitute.For<IExtensionCascadeService>());
 
         coordinator.OpenCreateAsync().Returns(Task.CompletedTask);
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
@@ -60,7 +62,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IBackgroundTaskRunner>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            Substitute.For<IExtensionCascadeService>());
 
         coordinator.OpenCreateAsync(Arg.Any<Guid?>()).Returns(Task.CompletedTask);
         coordinator.OpenCreateForDetectedBoardAsync().Returns(Task.CompletedTask);
@@ -106,7 +109,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<IRecordedSessionReprocessor>(),
             null,
-            Bike());
+            Bike(),
+            Substitute.For<IExtensionCascadeService>());
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())

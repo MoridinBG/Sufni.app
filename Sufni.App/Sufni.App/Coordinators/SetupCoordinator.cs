@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.SetupEditing;
@@ -22,7 +23,8 @@ public class SetupCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
     IDialogService dialogService,
-    IUiThreadDispatcher uiThreadDispatcher)
+    IUiThreadDispatcher uiThreadDispatcher,
+    IExtensionCascadeService? extensionCascadeService = null)
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
@@ -129,6 +131,10 @@ public class SetupCoordinator(
         try
         {
             await databaseService.DeleteAsync<Setup>(setupId);
+            if (extensionCascadeService is not null)
+            {
+                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, setupId);
+            }
         }
         catch (Exception e)
         {

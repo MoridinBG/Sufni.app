@@ -1,6 +1,7 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -22,9 +23,10 @@ public class SetupCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     private SetupCoordinator CreateCoordinator() => new(
-        setupStore, bikeStore, bikeCoordinator, database, telemetry, filesService, backgroundTaskRunner, shell, dialogService, uiThreadDispatcher);
+        setupStore, bikeStore, bikeCoordinator, database, telemetry, filesService, backgroundTaskRunner, shell, dialogService, uiThreadDispatcher, extensionCascade);
 
     // ----- OpenCreateAsync -----
 
@@ -250,6 +252,7 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Setup>(snapshot.Id);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, snapshot.Id);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SetupEditorViewModel, bool>>(), forgetRestoreHistory: true);
         setupStore.Received(1).Remove(snapshot.Id);
     }
@@ -292,6 +295,7 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
+        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         setupStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SetupEditorViewModel>(default!);
     }

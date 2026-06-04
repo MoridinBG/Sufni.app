@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.BikeEditing;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionDetails;
@@ -20,7 +21,8 @@ public class BikeCoordinator(
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
     IDialogService dialogService,
-    IUiThreadDispatcher uiThreadDispatcher)
+    IUiThreadDispatcher uiThreadDispatcher,
+    IExtensionCascadeService? extensionCascadeService = null)
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 
@@ -289,6 +291,10 @@ public class BikeCoordinator(
         try
         {
             await databaseService.DeleteAsync<Bike>(bikeId);
+            if (extensionCascadeService is not null)
+            {
+                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Bike, bikeId);
+            }
         }
         catch (Exception e)
         {

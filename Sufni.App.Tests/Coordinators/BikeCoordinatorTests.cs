@@ -3,6 +3,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionDetails;
@@ -25,9 +26,10 @@ public class BikeCoordinatorTests
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     private BikeCoordinator CreateCoordinator() => new(
-        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService, uiThreadDispatcher);
+        bikeStore, database, dependencyQuery, shell, bikeEditorService, dialogService, uiThreadDispatcher, extensionCascade);
 
     // ----- OpenCreateAsync -----
 
@@ -417,6 +419,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await database.DidNotReceive().DeleteAsync<Bike>(Arg.Any<Guid>());
+        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!, default);
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
@@ -432,6 +435,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await database.Received(1).DeleteAsync<Bike>(id);
+        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Bike, id);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<BikeEditorViewModel, bool>>(), forgetRestoreHistory: true);
         bikeStore.Received(1).Remove(id);
     }
@@ -447,6 +451,7 @@ public class BikeCoordinatorTests
         var result = await coordinator.DeleteAsync(id);
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
+        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
         shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!, default);
     }

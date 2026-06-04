@@ -154,7 +154,8 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionGraph>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetService<ISynchronizationServerService>(),
-            sp.GetRequiredService<BikeCoordinator>()));
+            sp.GetRequiredService<BikeCoordinator>(),
+            sp.GetRequiredService<IExtensionCascadeService>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
