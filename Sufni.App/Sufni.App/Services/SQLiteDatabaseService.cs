@@ -23,31 +23,86 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private Task Initialization { get; }
     private readonly SQLiteAsyncConnection connection;
     private readonly ExtensionDatabaseMigratorRunner extensionMigratorRunner;
+    private readonly ExtensionCascadeService extensionCascadeService;
 
-    public SqLiteDatabaseService() : this(AppPaths.DatabasePath, createAppDirectories: true, extensionMigrators: [])
+    public SqLiteDatabaseService()
+        : this(
+            AppPaths.DatabasePath,
+            createAppDirectories: true,
+            extensionMigrators: [],
+            extensionCascadeRuleProviders: [],
+            extensionStateRefreshParticipants: [])
     {
     }
 
     public SqLiteDatabaseService(IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
-        : this(AppPaths.DatabasePath, createAppDirectories: true, extensionMigrators)
+        : this(
+            AppPaths.DatabasePath,
+            createAppDirectories: true,
+            extensionMigrators,
+            extensionCascadeRuleProviders: [],
+            extensionStateRefreshParticipants: [])
+    {
+    }
+
+    public SqLiteDatabaseService(
+        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators,
+        IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
+        IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants)
+        : this(
+            AppPaths.DatabasePath,
+            createAppDirectories: true,
+            extensionMigrators,
+            extensionCascadeRuleProviders,
+            extensionStateRefreshParticipants)
     {
     }
 
     internal SqLiteDatabaseService(string databasePath)
-        : this(databasePath, createAppDirectories: false, extensionMigrators: [])
+        : this(
+            databasePath,
+            createAppDirectories: false,
+            extensionMigrators: [],
+            extensionCascadeRuleProviders: [],
+            extensionStateRefreshParticipants: [])
     {
     }
 
     internal SqLiteDatabaseService(string databasePath, IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
-        : this(databasePath, createAppDirectories: false, extensionMigrators)
+        : this(
+            databasePath,
+            createAppDirectories: false,
+            extensionMigrators,
+            extensionCascadeRuleProviders: [],
+            extensionStateRefreshParticipants: [])
+    {
+    }
+
+    internal SqLiteDatabaseService(
+        string databasePath,
+        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators,
+        IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
+        IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants)
+        : this(
+            databasePath,
+            createAppDirectories: false,
+            extensionMigrators,
+            extensionCascadeRuleProviders,
+            extensionStateRefreshParticipants)
     {
     }
 
     private SqLiteDatabaseService(
         string databasePath,
         bool createAppDirectories,
-        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
+        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators,
+        IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
+        IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants)
     {
+        var extensionMigratorList = extensionMigrators.ToArray();
+        var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
+        var extensionStateRefreshParticipantList = extensionStateRefreshParticipants.ToArray();
+
         if (createAppDirectories)
         {
             AppPaths.CreateRequiredDirectories();
@@ -62,7 +117,12 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         }
 
         connection = new SQLiteAsyncConnection(databasePath);
-        extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigrators);
+        extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigratorList);
+        extensionCascadeService = new ExtensionCascadeService(
+            connection,
+            extensionMigratorList,
+            extensionCascadeRuleProviderList,
+            extensionStateRefreshParticipantList);
         Initialization = Init();
     }
 
@@ -85,6 +145,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
+            await extensionCascadeService.RepairOrphansAsync();
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
             logger.Verbose(
                 "SQLite startup cleanup removed {SessionCacheCount} session caches, {RecordedSessionSourceCount} recorded session sources, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
