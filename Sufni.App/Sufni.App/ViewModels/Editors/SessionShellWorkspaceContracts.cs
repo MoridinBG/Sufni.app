@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -40,6 +41,7 @@ public interface IRecordedSessionGraphWorkspace
     SessionGraphPreferences GraphPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
+    RecordedSessionExtensionSlots ExtensionSlots { get; }
     IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
@@ -65,6 +67,7 @@ public interface ISessionMediaWorkspace
     SurfacePresentationState MapState { get; }
     SurfacePresentationState VideoState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
+    RecordedSessionExtensionSlots ExtensionSlots { get; }
     double? MapVideoWidth { get; }
     string? VideoUrl { get; }
 }
@@ -78,6 +81,7 @@ public interface ISessionStatisticsWorkspace
     BalanceSpeedMode SelectedBalanceSpeedMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
     SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; }
+    RecordedSessionExtensionSlots ExtensionSlots { get; }
     IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
     IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; }

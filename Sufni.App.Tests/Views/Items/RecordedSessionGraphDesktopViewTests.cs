@@ -12,6 +12,7 @@ using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
@@ -196,6 +197,7 @@ public class RecordedSessionGraphDesktopViewTests
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; } =
             new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
 

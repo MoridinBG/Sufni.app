@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -270,6 +271,7 @@ public class MobileStatisticsPageViewTests
 
         public TelemetryData? TelemetryData { get; }
         public TelemetryTimeRange? AnalysisRange => null;
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
         public BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
         public BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;

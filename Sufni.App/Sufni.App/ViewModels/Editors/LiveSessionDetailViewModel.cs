@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraphs;
@@ -71,6 +72,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public BalancePageViewModel BalancePage { get; }
     public LiveGraphPageViewModel LiveGraphPage { get; }
     public ObservableCollection<PageViewModelBase> Pages { get; }
+    public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
 
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;

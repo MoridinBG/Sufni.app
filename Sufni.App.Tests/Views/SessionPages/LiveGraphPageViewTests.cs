@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
@@ -137,6 +138,7 @@ public class LiveGraphPageViewTests
             : SurfacePresentationState.Hidden;
         public SurfacePresentationState VideoState => SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public double? MapVideoWidth => 400;
         public string? VideoUrl => null;
     }

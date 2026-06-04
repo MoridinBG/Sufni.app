@@ -8,6 +8,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -209,6 +210,7 @@ public class SessionStatisticsDesktopViewTests
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange => null;
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
         public BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
         public BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;

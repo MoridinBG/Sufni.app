@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
@@ -24,6 +25,7 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
     public SurfacePresentationState VideoState => SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; }
+    public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
     public double? MapVideoWidth { get; } = 400;
     public string? VideoUrl => null;
 

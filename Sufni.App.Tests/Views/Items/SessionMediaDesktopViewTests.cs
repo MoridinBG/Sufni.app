@@ -7,6 +7,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.DesktopViews.Items;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
@@ -132,6 +133,7 @@ public class SessionMediaDesktopViewTests
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public double? MapVideoWidth => 400;
         public string? VideoUrl => videoUrl;
     }

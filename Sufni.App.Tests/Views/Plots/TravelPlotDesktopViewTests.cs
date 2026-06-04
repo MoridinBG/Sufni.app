@@ -10,6 +10,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Behaviors;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionGraphs;
@@ -703,6 +704,7 @@ public class TravelPlotDesktopViewTests
         public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; } =
             plotContextMenuActionsByRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
         public int ClearAnalysisRangeCallCount { get; private set; }
