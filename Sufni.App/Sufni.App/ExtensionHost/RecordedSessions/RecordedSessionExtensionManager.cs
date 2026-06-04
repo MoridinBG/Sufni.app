@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -27,6 +29,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly Action<string> requestPageSelection;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
     private readonly List<IRecordedSessionExtensionScope> scopes = [];
+    private readonly List<IDisposable> slotSubscriptions = [];
     private bool disposed;
 
     public RecordedSessionExtensionManager(
@@ -94,8 +97,10 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
             var context = CreateContext();
             var scope = factory.Create(context);
             scopes.Add(scope);
+            AttachScopeSlots(scope.Slots);
             await scope.InitializeAsync(cancellationToken);
             scope.UpdateHostState(CurrentState);
+            RebuildExtensionSlots();
         }
     }
 
@@ -119,6 +124,13 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         }
 
         operationCoordinator.CancelCurrent();
+        foreach (var subscription in slotSubscriptions)
+        {
+            subscription.Dispose();
+        }
+
+        slotSubscriptions.Clear();
+        ClearExtensionSlots();
         for (var i = scopes.Count - 1; i >= 0; i--)
         {
             await scopes[i].DisposeAsync();
@@ -158,8 +170,90 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
             requestPageSelection);
     }
 
+    private void AttachScopeSlots(RecordedSessionExtensionSlots slots)
+    {
+        slotSubscriptions.Add(Subscribe(slots.GraphToolbarActions));
+        slotSubscriptions.Add(Subscribe(slots.GraphToolbarPanels));
+        slotSubscriptions.Add(Subscribe(slots.Pages));
+        slotSubscriptions.Add(Subscribe(slots.MediaPanes));
+        slotSubscriptions.Add(Subscribe(slots.MapOverlays));
+        slotSubscriptions.Add(Subscribe(slots.StatisticsBanners));
+        slotSubscriptions.Add(Subscribe(slots.StatisticsOverlays));
+        slotSubscriptions.Add(Subscribe(slots.SessionListIndicators));
+        slotSubscriptions.Add(Subscribe(slots.SessionListActions));
+        slotSubscriptions.Add(Subscribe(slots.PlotContextMenuActions));
+        slotSubscriptions.Add(Subscribe(slots.PlotRowHeaderActions));
+        slotSubscriptions.Add(Subscribe(slots.HostedGraphRows));
+        slotSubscriptions.Add(Subscribe(slots.TimeRangeOverlays));
+    }
+
+    private IDisposable Subscribe<T>(ObservableCollection<T> collection)
+    {
+        NotifyCollectionChangedEventHandler handler = (_, _) => RebuildExtensionSlots();
+        collection.CollectionChanged += handler;
+        return new CollectionSubscription(() => collection.CollectionChanged -= handler);
+    }
+
+    private void RebuildExtensionSlots()
+    {
+        ClearExtensionSlots();
+        foreach (var scope in scopes)
+        {
+            AddRange(ExtensionSlots.GraphToolbarActions, scope.Slots.GraphToolbarActions);
+            AddRange(ExtensionSlots.GraphToolbarPanels, scope.Slots.GraphToolbarPanels);
+            AddRange(ExtensionSlots.Pages, scope.Slots.Pages);
+            AddRange(ExtensionSlots.MediaPanes, scope.Slots.MediaPanes);
+            AddRange(ExtensionSlots.MapOverlays, scope.Slots.MapOverlays);
+            AddRange(ExtensionSlots.StatisticsBanners, scope.Slots.StatisticsBanners);
+            AddRange(ExtensionSlots.StatisticsOverlays, scope.Slots.StatisticsOverlays);
+            AddRange(ExtensionSlots.SessionListIndicators, scope.Slots.SessionListIndicators);
+            AddRange(ExtensionSlots.SessionListActions, scope.Slots.SessionListActions);
+            AddRange(ExtensionSlots.PlotContextMenuActions, scope.Slots.PlotContextMenuActions);
+            AddRange(ExtensionSlots.PlotRowHeaderActions, scope.Slots.PlotRowHeaderActions);
+            AddRange(ExtensionSlots.HostedGraphRows, scope.Slots.HostedGraphRows);
+            AddRange(ExtensionSlots.TimeRangeOverlays, scope.Slots.TimeRangeOverlays);
+        }
+    }
+
+    private void ClearExtensionSlots()
+    {
+        ExtensionSlots.GraphToolbarActions.Clear();
+        ExtensionSlots.GraphToolbarPanels.Clear();
+        ExtensionSlots.Pages.Clear();
+        ExtensionSlots.MediaPanes.Clear();
+        ExtensionSlots.MapOverlays.Clear();
+        ExtensionSlots.StatisticsBanners.Clear();
+        ExtensionSlots.StatisticsOverlays.Clear();
+        ExtensionSlots.SessionListIndicators.Clear();
+        ExtensionSlots.SessionListActions.Clear();
+        ExtensionSlots.PlotContextMenuActions.Clear();
+        ExtensionSlots.PlotRowHeaderActions.Clear();
+        ExtensionSlots.HostedGraphRows.Clear();
+        ExtensionSlots.TimeRangeOverlays.Clear();
+    }
+
+    private static void AddRange<T>(ObservableCollection<T> target, IEnumerable<T> items)
+    {
+        foreach (var item in items)
+        {
+            target.Add(item);
+        }
+    }
+
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+    }
+
+    private sealed class CollectionSubscription(Action dispose) : IDisposable
+    {
+        private Action? disposeAction = dispose;
+
+        public void Dispose()
+        {
+            var action = disposeAction;
+            disposeAction = null;
+            action?.Invoke();
+        }
     }
 }

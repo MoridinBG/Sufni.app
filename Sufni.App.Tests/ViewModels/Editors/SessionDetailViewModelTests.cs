@@ -620,6 +620,41 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_InsertsExtensionPages_AndHostCanSelectThem()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var extensionPage = new TestPageViewModel("Extension");
+        var factory = new TestRecordedSessionExtensionFactory(
+            "test",
+            scope => scope.Slots.Pages.Add(new RecordedSessionPageContribution(
+                "test",
+                "extension-page",
+                Order: 1,
+                extensionPage,
+                RequestedIndex: 1)));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory]);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Contains(extensionPage, editor.Pages);
+        Assert.Equal(1, editor.Pages.IndexOf(extensionPage));
+
+        factory.Context!.RequestPageSelection("extension-page");
+
+        Assert.True(extensionPage.Selected);
+        Assert.All(editor.Pages.Where(page => page != extensionPage), page => Assert.False(page.Selected));
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+
+        Assert.DoesNotContain(extensionPage, editor.Pages);
+    }
+
+    [AvaloniaFact]
     public async Task DampingSpeedCutoffPreview_RecomputesPercentagesAndAnalysisWithoutDirtying()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -2321,7 +2356,9 @@ public class SessionDetailViewModelTests
         return await task.WaitAsync(cancellationToken);
     }
 
-    private sealed class TestRecordedSessionExtensionFactory(string extensionId) : IRecordedSessionExtensionFactory
+    private sealed class TestRecordedSessionExtensionFactory(
+        string extensionId,
+        Action<TestRecordedSessionExtensionScope>? configureScope = null) : IRecordedSessionExtensionFactory
     {
         public string ExtensionId { get; } = extensionId;
         public RecordedSessionHostContext? Context { get; private set; }
@@ -2331,8 +2368,13 @@ public class SessionDetailViewModelTests
         {
             Context = context;
             Scope = new TestRecordedSessionExtensionScope();
+            configureScope?.Invoke(Scope);
             return Scope;
         }
+    }
+
+    private sealed class TestPageViewModel(string displayName) : PageViewModelBase(displayName)
+    {
     }
 
     private sealed class TestRecordedSessionExtensionScope : IRecordedSessionExtensionScope

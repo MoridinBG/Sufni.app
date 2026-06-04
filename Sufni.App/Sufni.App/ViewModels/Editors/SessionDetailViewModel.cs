@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -63,6 +64,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly ISessionPreferences sessionPreferences;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
+    private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
     private Session session;
     private RecordedSessionDomainSnapshot? latestDomain;
     private RecordedGraphPageViewModel GraphPage { get; }
@@ -1254,6 +1256,80 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void RequestRecordedSessionExtensionPageSelection(string contributionId)
     {
+        if (recordedSessionExtensions is null)
+        {
+            return;
+        }
+
+        var contribution = recordedSessionExtensions.ExtensionSlots.Pages
+            .Where(contribution => StringComparer.Ordinal.Equals(contribution.ContributionId, contributionId))
+            .OrderBy(contribution => contribution.Order)
+            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (contribution is null ||
+            !recordedSessionExtensionPages.TryGetValue(RecordedSessionExtensionPageKey(contribution), out var page))
+        {
+            return;
+        }
+
+        foreach (var currentPage in Pages)
+        {
+            currentPage.Selected = false;
+        }
+
+        page.Selected = true;
+    }
+
+    private void OnRecordedSessionExtensionPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        ApplyRecordedSessionExtensionPages();
+    }
+
+    private void ApplyRecordedSessionExtensionPages()
+    {
+        if (recordedSessionExtensions is null)
+        {
+            return;
+        }
+
+        var contributions = recordedSessionExtensions.ExtensionSlots.Pages
+            .OrderBy(contribution => contribution.RequestedIndex)
+            .ThenBy(contribution => contribution.Order)
+            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
+            .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
+            .ToArray();
+        var desiredKeys = contributions
+            .Select(RecordedSessionExtensionPageKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var entry in recordedSessionExtensionPages.ToArray())
+        {
+            Pages.Remove(entry.Value);
+            if (!desiredKeys.Contains(entry.Key))
+            {
+                recordedSessionExtensionPages.Remove(entry.Key);
+            }
+        }
+
+        var insertedCount = 0;
+        foreach (var contribution in contributions)
+        {
+            var key = RecordedSessionExtensionPageKey(contribution);
+            if (!recordedSessionExtensionPages.TryGetValue(key, out var page))
+            {
+                page = contribution.Page;
+                recordedSessionExtensionPages.Add(key, page);
+            }
+
+            var insertIndex = Math.Clamp(contribution.RequestedIndex + insertedCount, 0, Pages.Count);
+            Pages.Insert(insertIndex, page);
+            insertedCount++;
+        }
+    }
+
+    private static string RecordedSessionExtensionPageKey(RecordedSessionPageContribution contribution)
+    {
+        return $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
     }
 
     #endregion
@@ -1334,6 +1410,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 ErrorMessages.Add,
                 Notifications.Add,
                 RequestRecordedSessionExtensionPageSelection);
+            recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
         }
 
         GraphPage = new RecordedGraphPageViewModel(this, this);
@@ -1857,6 +1934,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         await StopLoadedSessionAsync();
         if (recordedSessionExtensions is not null)
         {
+            recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged -= OnRecordedSessionExtensionPagesChanged;
             await recordedSessionExtensions.DisposeAsync();
             recordedSessionExtensionsDisposed = true;
         }

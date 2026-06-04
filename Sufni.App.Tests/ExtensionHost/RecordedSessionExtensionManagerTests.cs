@@ -115,6 +115,27 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
+    public async Task ScopeSlotChanges_AreMirroredToHostSlotsAndClearedOnDispose()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        var contribution = new RecordedSessionToolbarContribution(
+            "test",
+            "toolbar",
+            Order: 1,
+            new object());
+
+        factory.Scope!.Slots.GraphToolbarActions.Add(contribution);
+
+        Assert.Equal([contribution], manager.ExtensionSlots.GraphToolbarActions);
+
+        await manager.DisposeScopesAsync();
+
+        Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+    }
+
+    [Fact]
     public async Task DisposeScopesAsync_DisposesScopesAndAllowsReinitialize()
     {
         var factory = new TestRecordedSessionExtensionFactory("test");
