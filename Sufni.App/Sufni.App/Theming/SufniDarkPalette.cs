@@ -74,4 +74,6 @@ public static class SufniDarkPalette
     // Plot markers and dataviz reds (theme-local, distinct from SignalSeries).
     public static readonly Color MarkerBlue = C("#56B4E9");
     public static readonly Color MarkerRed  = C("#D53E4F");
+    public static readonly Color Indigo     = C("#4F70B5");
+    public static readonly Color Lagoon     = C("#3C9D9A");
 }

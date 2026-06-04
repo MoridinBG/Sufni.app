@@ -254,6 +254,10 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniPlotLegendBorder", theme.Plot.Legend.Border);
         AddColorPair(resources, "SufniPlotLegendText", theme.Plot.Legend.Text);
         AddColorPair(resources, "SufniPlotMarkerLine", theme.Plot.Marker.Line);
+        AddColorPair(resources, "SufniPlotStatisticsSelectionFrontFill", theme.Plot.Marker.StatisticsSelectionFrontFill);
+        AddColorPair(resources, "SufniPlotStatisticsSelectionFrontOutline", theme.Plot.Marker.StatisticsSelectionFrontOutline);
+        AddColorPair(resources, "SufniPlotStatisticsSelectionRearFill", theme.Plot.Marker.StatisticsSelectionRearFill);
+        AddColorPair(resources, "SufniPlotStatisticsSelectionRearOutline", theme.Plot.Marker.StatisticsSelectionRearOutline);
         AddColorPair(resources, "SufniPlotAnalysisRangeSelectedFill", theme.Plot.AnalysisRange.SelectedFill);
         AddColorPair(resources, "SufniPlotAnalysisRangePreviewFill", theme.Plot.AnalysisRange.PreviewFill);
         AddColorPair(resources, "SufniPlotCursorLine", theme.Plot.Cursor.Line);

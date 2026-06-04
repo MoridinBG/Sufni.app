@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.AxisRules;
@@ -10,14 +11,66 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Plots;
 
-public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
+public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme), ISelectableStatisticsPlot
 {
     private const double VelocityLimit = SessionDampingSettings.VelocityHistogramLimitMmPerSecond;
     private static readonly IReadOnlyList<Color> palette =
         TravelZonePalette.HexColors.Select(Color.FromHex).ToArray();
 
+    private readonly List<VelocityHistogramSelectableSegment> selectableSegments = [];
+    private IReadOnlyList<double> selectableVelocityBins = [];
+    private TelemetryRangeSelection? selectedRangeSelection;
+
     public VelocityAverageMode AverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
     public DampingSpeedCutoffs DampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
+
+    public bool TryGetRangeSelection(
+        double x,
+        double y,
+        [NotNullWhen(true)] out TelemetryRangeSelection? selection)
+    {
+        selection = null;
+        if (selectableVelocityBins.Count < 2)
+        {
+            return false;
+        }
+
+        foreach (var segment in selectableSegments)
+        {
+            if (x >= segment.XMinimum &&
+                x <= segment.XMaximum &&
+                y >= segment.YMinimum &&
+                y <= segment.YMaximum)
+            {
+                selection = new DampingRangeSelection(
+                    type,
+                    AverageMode,
+                    segment.VelocityBinIndex,
+                    segment.TravelBinIndex,
+                    segment.TravelBinIndex);
+                return true;
+            }
+        }
+
+        if (!TryGetVelocityBinIndex(y, out var velocityBinIndex))
+        {
+            return false;
+        }
+
+        selection = new DampingRangeSelection(
+            type,
+            AverageMode,
+            velocityBinIndex,
+            0,
+            TelemetryData.TravelBinsForVelocityHistogram - 1);
+        return true;
+    }
+
+    public void SetSelectedRangeSelection(TelemetryRangeSelection? selection)
+    {
+        selectedRangeSelection = selection;
+        ApplySelectedRangeSelection();
+    }
 
     private void AddStatistics(VelocityStatistics statistics)
     {
@@ -52,6 +105,9 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
+        selectableSegments.Clear();
+        selectableVelocityBins = [];
+
         if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
         {
             return;
@@ -67,6 +123,7 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
 
         var data = TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, CreateOptions());
         var step = data.Bins[1] - data.Bins[0];
+        selectableVelocityBins = data.Bins;
 
         for (var i = 0; i < data.Values.Count; ++i)
         {
@@ -91,8 +148,17 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
                     Orientation = Orientation.Horizontal,
                     Size = step * 0.95
                 };
+                ApplyPrimarySegmentOutline(bar, isSelected: IsSelectedSegment(i, j));
 
                 Plot.Add.Bar(bar);
+                selectableSegments.Add(new VelocityHistogramSelectableSegment(
+                    bar,
+                    i,
+                    j,
+                    Math.Min(bar.ValueBase, bar.Value),
+                    Math.Max(bar.ValueBase, bar.Value),
+                    bar.Position - bar.Size / 2.0,
+                    bar.Position + bar.Size / 2.0));
                 AddBarReadout(
                     bar,
                     $"{FormatReadoutRange("Velocity", data.Bins, i, "mm/s", "0")}{Environment.NewLine}Travel: {j * 10}-{(j + 1) * 10} %",
@@ -154,6 +220,53 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
         AddStatistics(velocityStats);
     }
 
+    private bool TryGetVelocityBinIndex(double y, out int velocityBinIndex)
+    {
+        velocityBinIndex = default;
+        if (selectableVelocityBins.Count < 2 ||
+            y < selectableVelocityBins[0] ||
+            y > selectableVelocityBins[^1])
+        {
+            return false;
+        }
+
+        velocityBinIndex = HistogramBuilder.DigitizeValue(y, selectableVelocityBins.ToArray());
+        return true;
+    }
+
+    private void ApplySelectedRangeSelection()
+    {
+        foreach (var segment in selectableSegments)
+        {
+            ApplyPrimarySegmentOutline(
+                segment.Bar,
+                IsSelectedSegment(segment.VelocityBinIndex, segment.TravelBinIndex));
+        }
+    }
+
+    private bool IsSelectedSegment(int velocityBinIndex, int travelBinIndex)
+    {
+        return selectedRangeSelection is DampingRangeSelection selection &&
+               selection.SuspensionType == type &&
+               selection.AverageMode == AverageMode &&
+               selection.VelocityBinIndex == velocityBinIndex &&
+               travelBinIndex >= selection.TravelBinStartIndex &&
+               travelBinIndex <= selection.TravelBinEndIndex;
+    }
+
+    private void ApplyPrimarySegmentOutline(Bar bar, bool isSelected)
+    {
+        if (isSelected)
+        {
+            bar.LineColor = PlotTheme.Marker.DampingSelectionOutline.ToScottPlotColor();
+            bar.LineWidth = 3.0f;
+            return;
+        }
+
+        bar.LineColor = Colors.Black;
+        bar.LineWidth = 0.5f;
+    }
+
     private VelocityStatisticsOptions CreateOptions()
     {
         var cutoffs = DampingSpeedCutoffs.ForSide(type);
@@ -163,4 +276,13 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
             cutoffs.CompressionMmPerSecond,
             cutoffs.ReboundMmPerSecond);
     }
+
+    private readonly record struct VelocityHistogramSelectableSegment(
+        Bar Bar,
+        int VelocityBinIndex,
+        int TravelBinIndex,
+        double XMinimum,
+        double XMaximum,
+        double YMinimum,
+        double YMaximum);
 }

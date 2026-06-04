@@ -134,7 +134,13 @@ public static class SufniDarkTheme
             Marker: new SufniPlotMarkerTheme(
                 Line: MarkerBlue.WithAlpha(0.9),
                 AirtimeFill: MarkerBlue.WithAlpha(0.2),
-                AirtimeOutline: text.Secondary.WithAlpha(0.5)),
+                AirtimeOutline: text.Secondary.WithAlpha(0.5),
+                StatisticsSelectionFrontFill: Indigo.WithAlpha(0.20),
+                StatisticsSelectionFrontOutline: Indigo.WithAlpha(0.66),
+                StatisticsSelectionRearFill: Lagoon.WithAlpha(0.20),
+                StatisticsSelectionRearOutline: Lagoon.WithAlpha(0.66),
+                DampingSelectionFill: WarningGold.WithAlpha(0.22),
+                DampingSelectionOutline: WarningGold.WithAlpha(0.65)),
             AnalysisRange: new SufniPlotAnalysisRangeTheme(
                 SelectedFill: series.SuspensionFront.WithAlpha(0.16),
                 PreviewFill: SlateMist.WithAlpha(0.12)),

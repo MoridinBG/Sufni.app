@@ -223,7 +223,13 @@ public sealed record SufniPlotLegendTheme(
 public sealed record SufniPlotMarkerTheme(
     Color Line,
     Color AirtimeFill,
-    Color AirtimeOutline);
+    Color AirtimeOutline,
+    Color StatisticsSelectionFrontFill,
+    Color StatisticsSelectionFrontOutline,
+    Color StatisticsSelectionRearFill,
+    Color StatisticsSelectionRearOutline,
+    Color DampingSelectionFill,
+    Color DampingSelectionOutline);
 
 public sealed record SufniPlotAnalysisRangeTheme(
     Color SelectedFill,
