@@ -20,6 +20,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Sync;
 
 namespace Sufni.App;
 
@@ -108,6 +109,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
+        ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);

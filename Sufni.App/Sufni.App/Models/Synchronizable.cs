@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using MessagePack;
 using SQLite;
+using Sufni.App.ExtensionHost.Sync;
 
 namespace Sufni.App.Models;
 
@@ -52,4 +53,5 @@ public class SynchronizationData
     [JsonPropertyName("session")] public List<Session> Sessions { get; set; } = [];
     [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
     [JsonPropertyName("app_preferences")] public AppPreferencesSyncData? AppPreferences { get; set; }
+    [JsonPropertyName("extension")] public List<ExtensionSyncEnvelope> ExtensionBatches { get; set; } = [];
 }

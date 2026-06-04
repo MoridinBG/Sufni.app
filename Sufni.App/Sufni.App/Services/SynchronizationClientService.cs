@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
 using Serilog;
 
@@ -14,30 +15,38 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IDatabaseService databaseService;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
+    private readonly IExtensionSyncService? extensionSyncService;
 
     public SynchronizationClientService(
         IDatabaseService databaseService,
         IHttpApiService httpApiService,
-        IAppPreferences appPreferences)
+        IAppPreferences appPreferences,
+        IExtensionSyncService? extensionSyncService = null)
     {
         this.databaseService = databaseService;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
+        this.extensionSyncService = extensionSyncService;
     }
 
     private async Task PushLocalChanges(long lastSyncTime)
     {
         var changes = await databaseService.GetSynchronizationDataAsync(lastSyncTime);
         changes.AppPreferences = await appPreferences.GetSyncDataAsync(lastSyncTime);
+        if (extensionSyncService is not null)
+        {
+            changes.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(lastSyncTime));
+        }
 
         logger.Verbose(
-            "Pushing local changes since {LastSyncTime} with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+            "Pushing local changes since {LastSyncTime} with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
             lastSyncTime,
             changes.Boards.Count,
             changes.Bikes.Count,
             changes.Setups.Count,
             changes.Sessions.Count,
             changes.Tracks.Count,
+            changes.ExtensionBatches.Count,
             changes.AppPreferences is not null);
 
         await httpApiService.PushSyncAsync(changes);
@@ -64,14 +73,28 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSessions.Count);
     }
 
-    private async Task PullRemoteChanges(long lastSyncTime)
+    private async Task PullRemoteChanges(
+        long lastSyncTime,
+        IProgress<SynchronizationProgressSnapshot>? progress)
     {
         var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
         await databaseService.ApplyRemoteSynchronizationDataAsync(syncData);
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
+        if (extensionSyncService is not null)
+        {
+            var extensionProgress = await extensionSyncService.ApplyBatchesAsync(
+                syncData.ExtensionBatches,
+                SynchronizationPhase.PullingRemoteChanges,
+                currentStep: 2,
+                totalSteps: 6);
+            foreach (var snapshot in extensionProgress)
+            {
+                progress?.Report(snapshot);
+            }
+        }
 
         logger.Verbose(
-            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted, and app preferences present {HasAppPreferences}",
+            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
             syncData.Boards.Count(board => board.Deleted.HasValue),
             syncData.Boards.Count(board => !board.Deleted.HasValue),
             syncData.Bikes.Count(bike => bike.Deleted.HasValue),
@@ -82,6 +105,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.Tracks.Count(track => !track.Deleted.HasValue),
             syncData.Sessions.Count(session => session.Deleted.HasValue),
             syncData.Sessions.Count(session => !session.Deleted.HasValue),
+            syncData.ExtensionBatches.Count,
             syncData.AppPreferences is not null);
     }
 
@@ -167,7 +191,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             logger.Verbose("Starting synchronization client run with last sync time {LastSyncTime}", lastSyncTime);
 
             await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(lastSyncTime));
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, () => PullRemoteChanges(lastSyncTime));
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, () => PullRemoteChanges(lastSyncTime, progress));
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, PushIncompleteSessions);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, PullIncompleteSessions);
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);

@@ -1,4 +1,6 @@
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
 using Sufni.App.Services;
 
@@ -21,9 +23,9 @@ public class SynchronizationClientServiceTests
         appPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
 
-    private SynchronizationClientService CreateService()
+    private SynchronizationClientService CreateService(IExtensionSyncService? extensionSync = null)
     {
-        return new SynchronizationClientService(database, httpApiService, appPreferences);
+        return new SynchronizationClientService(database, httpApiService, appPreferences, extensionSync);
     }
 
     [Fact]
@@ -139,6 +141,137 @@ public class SynchronizationClientServiceTests
 
         await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data =>
             ReferenceEquals(data.AppPreferences, localPreferences)));
+    }
+
+    [Fact]
+    public async Task SyncAll_AddsExtensionBatchesToPushPayload()
+    {
+        var extensionSync = Substitute.For<IExtensionSyncService>();
+        var envelope = CreateExtensionEnvelope("test");
+
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        extensionSync.CreateBatchesAsync(5, Arg.Any<CancellationToken>()).Returns([envelope]);
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+
+        await CreateService(extensionSync).SyncAll();
+
+        await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data =>
+            data.ExtensionBatches.Count == 1 &&
+            data.ExtensionBatches[0] == envelope));
+    }
+
+    [Fact]
+    public async Task SyncAll_AppliesPulledExtensionBatchesAfterCoreDataAndPreferences()
+    {
+        var extensionSync = Substitute.For<IExtensionSyncService>();
+        var envelope = CreateExtensionEnvelope("test");
+        var calls = new List<string>();
+        var remoteChanges = new SynchronizationData
+        {
+            ExtensionBatches = [envelope],
+            AppPreferences = new AppPreferencesSyncData
+            {
+                Updated = 10,
+            },
+        };
+
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        extensionSync.CreateBatchesAsync(5, Arg.Any<CancellationToken>()).Returns([]);
+        database.ApplyRemoteSynchronizationDataAsync(remoteChanges)
+            .Returns(_ =>
+            {
+                calls.Add("core");
+                return Task.CompletedTask;
+            });
+        appPreferences.ApplySyncDataAsync(remoteChanges.AppPreferences)
+            .Returns(_ =>
+            {
+                calls.Add("preferences");
+                return Task.CompletedTask;
+            });
+        extensionSync.ApplyBatchesAsync(
+                remoteChanges.ExtensionBatches,
+                SynchronizationPhase.PullingRemoteChanges,
+                2,
+                6,
+                Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                calls.Add("extension");
+                return Task.FromResult<IReadOnlyList<SynchronizationProgressSnapshot>>([]);
+            });
+        database.UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey)
+            .Returns(_ =>
+            {
+                calls.Add("last-sync");
+                return Task.CompletedTask;
+            });
+        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+
+        await CreateService(extensionSync).SyncAll();
+
+        Assert.Equal(["core", "preferences", "extension", "last-sync"], calls);
+    }
+
+    [Fact]
+    public async Task SyncAll_DoesNotAdvanceLastSync_WhenExtensionApplyFails()
+    {
+        var extensionSync = Substitute.For<IExtensionSyncService>();
+        var remoteChanges = new SynchronizationData
+        {
+            ExtensionBatches = [CreateExtensionEnvelope("test")],
+        };
+
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+        extensionSync.CreateBatchesAsync(5, Arg.Any<CancellationToken>()).Returns([]);
+        extensionSync.ApplyBatchesAsync(
+                remoteChanges.ExtensionBatches,
+                SynchronizationPhase.PullingRemoteChanges,
+                2,
+                6,
+                Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("extension failed"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(extensionSync).SyncAll());
+
+        await database.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+    }
+
+    [Fact]
+    public async Task SyncAll_ReportsExtensionProgressMessages()
+    {
+        var extensionSync = Substitute.For<IExtensionSyncService>();
+        var remoteChanges = new SynchronizationData
+        {
+            ExtensionBatches = [CreateExtensionEnvelope("test")],
+        };
+        var extensionProgress = new SynchronizationProgressSnapshot(
+            SynchronizationPhase.PullingRemoteChanges,
+            "Applied extension batch",
+            CurrentStep: 2,
+            TotalSteps: 6,
+            IsDeterminate: true);
+        var events = new List<SynchronizationProgressSnapshot>();
+
+        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+        extensionSync.CreateBatchesAsync(5, Arg.Any<CancellationToken>()).Returns([]);
+        extensionSync.ApplyBatchesAsync(
+                remoteChanges.ExtensionBatches,
+                SynchronizationPhase.PullingRemoteChanges,
+                2,
+                6,
+                Arg.Any<CancellationToken>())
+            .Returns([extensionProgress]);
+
+        await CreateService(extensionSync).SyncAll(new ProgressCapture(events));
+
+        Assert.Contains(events, progress => progress.Message == "Applied extension batch");
     }
 
     [Fact]
@@ -274,6 +407,12 @@ public class SynchronizationClientServiceTests
             Payload = payload
         };
     }
+
+    private static ExtensionSyncEnvelope CreateExtensionEnvelope(string extensionId) => new(
+        extensionId,
+        SchemaVersion: 1,
+        ContentType: "application/test",
+        Payload: [1, 2, 3]);
 
     private sealed class ProgressCapture(List<SynchronizationProgressSnapshot> events) : IProgress<SynchronizationProgressSnapshot>
     {

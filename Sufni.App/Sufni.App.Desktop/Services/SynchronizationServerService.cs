@@ -26,6 +26,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
@@ -42,6 +43,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private readonly IDatabaseService databaseService;
     private readonly IAppPreferences appPreferences;
+    private readonly IExtensionSyncService? extensionSyncService;
     private readonly ISecureStorage secureStorage;
     private readonly object advertisingGate = new();
     private readonly object startGate = new();
@@ -75,11 +77,13 @@ public class SynchronizationServerService : ISynchronizationServerService
     public SynchronizationServerService(
         IDatabaseService databaseService,
         IAppPreferences appPreferences,
-        ISecureStorage secureStorage)
+        ISecureStorage secureStorage,
+        IExtensionSyncService? extensionSyncService = null)
     {
         this.databaseService = databaseService;
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
+        this.extensionSyncService = extensionSyncService;
         Initialization = Init();
     }
 
@@ -483,15 +487,20 @@ public class SynchronizationServerService : ISynchronizationServerService
                     {
                         var data = await databaseService.GetSynchronizationDataAsync(since);
                         data.AppPreferences = await appPreferences.GetSyncDataAsync(since);
+                        if (extensionSyncService is not null)
+                        {
+                            data.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(since));
+                        }
 
                         logger.Verbose(
-                            "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+                            "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
                             since,
                             data.Boards.Count,
                             data.Bikes.Count,
                             data.Setups.Count,
                             data.Sessions.Count,
                             data.Tracks.Count,
+                            data.ExtensionBatches.Count,
                             data.AppPreferences is not null);
 
                         return Results.Ok(data);
@@ -505,16 +514,25 @@ public class SynchronizationServerService : ISynchronizationServerService
                     async () =>
                     {
                         logger.Verbose(
-                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
                             data.Boards.Count,
                             data.Bikes.Count,
                             data.Setups.Count,
                             data.Sessions.Count,
                             data.Tracks.Count,
+                            data.ExtensionBatches.Count,
                             data.AppPreferences is not null);
 
                         await databaseService.MergeAllAsync(data);
                         await appPreferences.ApplySyncDataAsync(data.AppPreferences);
+                        if (extensionSyncService is not null)
+                        {
+                            await extensionSyncService.ApplyBatchesAsync(
+                                data.ExtensionBatches,
+                                SynchronizationPhase.ReceivingChanges,
+                                currentStep: 0,
+                                totalSteps: 0);
+                        }
 
                         SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
                         return Results.NoContent();
