@@ -60,13 +60,7 @@ public static partial class TelemetryStatistics
         var suspension = GetSuspension(telemetryData, type);
         var strokes = GetIncludedStrokes(telemetryData, suspension, strokeKind, range);
 
-        var maxSpeed = strokes.Length == 0
-            ? Parameters.VelocityHistStep
-            : strokes.Select(stroke => Math.Abs(stroke.Stat.MaxVelocity)).Max();
-        var maxBin = Math.Max(
-            Parameters.VelocityHistStep,
-            Math.Ceiling(maxSpeed / Parameters.VelocityHistStep) * Parameters.VelocityHistStep);
-        var bins = HistogramBuilder.Linspace(0, maxBin, (int)(maxBin / Parameters.VelocityHistStep) + 1);
+        var bins = CreateStrokeSpeedHistogramBins(strokes);
         var hist = new double[bins.Length - 1];
 
         foreach (var stroke in strokes)
@@ -81,6 +75,17 @@ public static partial class TelemetryStatistics
         }
 
         return new HistogramData(bins.ToList(), [.. hist]);
+    }
+
+    private static double[] CreateStrokeSpeedHistogramBins(Stroke[] strokes)
+    {
+        var maxSpeed = strokes.Length == 0
+            ? Parameters.VelocityHistStep
+            : strokes.Select(stroke => Math.Abs(stroke.Stat.MaxVelocity)).Max();
+        var maxBin = Math.Max(
+            Parameters.VelocityHistStep,
+            Math.Ceiling(maxSpeed / Parameters.VelocityHistStep) * Parameters.VelocityHistStep);
+        return HistogramBuilder.Linspace(0, maxBin, (int)(maxBin / Parameters.VelocityHistStep) + 1);
     }
 
     public static HistogramData CalculateDeepTravelHistogram(

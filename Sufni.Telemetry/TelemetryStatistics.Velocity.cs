@@ -269,12 +269,94 @@ public static partial class TelemetryStatistics
             GetIncludedRebounds(telemetryData, suspension, range).Length > 0;
     }
 
+    public static IReadOnlyList<TelemetryHighlightRange> CalculateHighlightRanges(
+        TelemetryData telemetryData,
+        TelemetryRangeSelection selection,
+        TelemetryTimeRange? range = null)
+    {
+        var suspension = GetSuspension(telemetryData, selection.SuspensionType);
+        if (!IsValidHighlightSelection(telemetryData, suspension))
+        {
+            return [];
+        }
+
+        var ranges = selection switch
+        {
+            DampingRangeSelection dampingSelection => CalculateVelocityStatisticsHighlightRanges(
+                telemetryData,
+                suspension,
+                dampingSelection,
+                range),
+            StrokeLengthRangeSelection strokeLengthSelection => CalculateStrokeLengthHighlightRanges(
+                telemetryData,
+                suspension,
+                strokeLengthSelection,
+                range),
+            StrokeSpeedRangeSelection strokeSpeedSelection => CalculateStrokeSpeedHighlightRanges(
+                telemetryData,
+                suspension,
+                strokeSpeedSelection,
+                range),
+            DeepTravelRangeSelection deepTravelSelection => CalculateDeepTravelHighlightRanges(
+                telemetryData,
+                suspension,
+                deepTravelSelection,
+                range),
+            _ => [],
+        };
+
+        return MergeHighlightRanges(ranges);
+    }
+
+    public static IReadOnlyList<TelemetryHighlightRange> MergeHighlightRanges(IEnumerable<TelemetryHighlightRange> ranges)
+    {
+        var merged = ranges
+            .Where(range => range.EndSeconds > range.StartSeconds)
+            .GroupBy(range => range.SuspensionType)
+            .SelectMany(group => MergeOrderedHighlightRanges(group))
+            .OrderBy(range => range.StartSeconds)
+            .ThenBy(range => range.EndSeconds)
+            .ThenBy(range => range.SuspensionType)
+            .ToArray();
+
+        return merged;
+    }
+
+    private static IReadOnlyList<TelemetryHighlightRange> MergeOrderedHighlightRanges(
+        IEnumerable<TelemetryHighlightRange> ranges)
+    {
+        var ordered = ranges
+            .OrderBy(range => range.StartSeconds)
+            .ThenBy(range => range.EndSeconds)
+            .ToArray();
+        if (ordered.Length == 0)
+        {
+            return [];
+        }
+
+        var merged = new List<TelemetryHighlightRange> { ordered[0] };
+        for (var index = 1; index < ordered.Length; index++)
+        {
+            var current = merged[^1];
+            var next = ordered[index];
+            if (next.StartSeconds <= current.EndSeconds)
+            {
+                merged[^1] = current with { EndSeconds = Math.Max(current.EndSeconds, next.EndSeconds) };
+                continue;
+            }
+
+            merged.Add(next);
+        }
+
+        return merged;
+    }
+
     private static StackedHistogramData CalculateSampleVelocityHistogram(
         TelemetryData telemetryData,
         Suspension suspension,
         TelemetryTimeRange? range)
     {
-        var divider = (suspension.TravelBins.Length - 1) / TelemetryData.TravelBinsForVelocityHistogram;
+        var divider = GetVelocityHistogramTravelDivider(suspension);
         var histogram = new double[suspension.VelocityBins.Length - 1][];
         for (var index = 0; index < histogram.Length; index++)
         {
@@ -314,7 +396,7 @@ public static partial class TelemetryStatistics
         Suspension suspension,
         TelemetryTimeRange? range)
     {
-        var divider = (suspension.TravelBins.Length - 1) / TelemetryData.TravelBinsForVelocityHistogram;
+        var divider = GetVelocityHistogramTravelDivider(suspension);
         var histogram = new double[suspension.VelocityBins.Length - 1][];
         for (var index = 0; index < histogram.Length; index++)
         {
@@ -344,6 +426,240 @@ public static partial class TelemetryStatistics
         }
 
         return new StackedHistogramData(suspension.VelocityBins.ToList(), [.. histogram]);
+    }
+
+    private static bool IsValidHighlightSelection(
+        TelemetryData telemetryData,
+        Suspension suspension)
+    {
+        return telemetryData.Metadata?.SampleRate > 0 &&
+            suspension.Present &&
+            suspension.Strokes is not null;
+    }
+
+    private static IReadOnlyList<TelemetryHighlightRange> CalculateVelocityStatisticsHighlightRanges(
+        TelemetryData telemetryData,
+        Suspension suspension,
+        DampingRangeSelection selection,
+        TelemetryTimeRange? range)
+    {
+        if (!IsValidVelocityStatisticsSelection(suspension, selection))
+        {
+            return [];
+        }
+
+        var strokes = GetIncludedCompressions(telemetryData, suspension, range)
+            .Concat(GetIncludedRebounds(telemetryData, suspension, range));
+        var divider = GetVelocityHistogramTravelDivider(suspension);
+
+        return selection.AverageMode switch
+        {
+            VelocityAverageMode.SampleAveraged => CalculateSampleVelocityStatisticsHighlightRanges(
+                strokes,
+                telemetryData.Metadata.SampleRate,
+                selection,
+                divider),
+            VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityStatisticsHighlightRanges(
+                strokes,
+                suspension,
+                telemetryData.Metadata.SampleRate,
+                selection,
+                divider),
+            _ => [],
+        };
+    }
+
+    private static bool IsValidVelocityStatisticsSelection(
+        Suspension suspension,
+        DampingRangeSelection selection)
+    {
+        return
+            suspension.TravelBins?.Length > TelemetryData.TravelBinsForVelocityHistogram &&
+            suspension.VelocityBins?.Length > 1 &&
+            selection.VelocityBinIndex >= 0 &&
+            selection.VelocityBinIndex < suspension.VelocityBins.Length - 1 &&
+            selection.TravelBinStartIndex >= 0 &&
+            selection.TravelBinEndIndex >= selection.TravelBinStartIndex &&
+            selection.TravelBinEndIndex < TelemetryData.TravelBinsForVelocityHistogram &&
+            GetVelocityHistogramTravelDivider(suspension) > 0;
+    }
+
+    private static int GetVelocityHistogramTravelDivider(Suspension suspension)
+    {
+        return (suspension.TravelBins.Length - 1) / TelemetryData.TravelBinsForVelocityHistogram;
+    }
+
+    private static IReadOnlyList<TelemetryHighlightRange> CalculateStrokeLengthHighlightRanges(
+        TelemetryData telemetryData,
+        Suspension suspension,
+        StrokeLengthRangeSelection selection,
+        TelemetryTimeRange? range)
+    {
+        if (suspension.TravelBins is not { Length: >= 2 } travelBins ||
+            !selection.Bin.MatchesBins(travelBins))
+        {
+            return [];
+        }
+
+        var strokes = GetIncludedStrokes(telemetryData, suspension, selection.StrokeKind, range);
+        var ranges = new List<TelemetryHighlightRange>();
+        foreach (var stroke in strokes)
+        {
+            if (!IsValidStrokeSampleRange(suspension, stroke))
+            {
+                continue;
+            }
+
+            var length = Math.Abs(suspension.Travel[stroke.End] - suspension.Travel[stroke.Start]);
+            if (HistogramBuilder.DigitizeValue(length, travelBins) == selection.Bin.Index)
+            {
+                ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, telemetryData.Metadata.SampleRate));
+            }
+        }
+
+        return ranges;
+    }
+
+    private static IReadOnlyList<TelemetryHighlightRange> CalculateStrokeSpeedHighlightRanges(
+        TelemetryData telemetryData,
+        Suspension suspension,
+        StrokeSpeedRangeSelection selection,
+        TelemetryTimeRange? range)
+    {
+        var strokes = GetIncludedStrokes(telemetryData, suspension, selection.StrokeKind, range);
+        var bins = CreateStrokeSpeedHistogramBins(strokes);
+        if (!selection.Bin.MatchesBins(bins))
+        {
+            return [];
+        }
+
+        var ranges = new List<TelemetryHighlightRange>();
+        foreach (var stroke in strokes)
+        {
+            var speed = Math.Abs(stroke.Stat.MaxVelocity);
+            if (HistogramBuilder.DigitizeValue(speed, bins) == selection.Bin.Index)
+            {
+                ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, telemetryData.Metadata.SampleRate));
+            }
+        }
+
+        return ranges;
+    }
+
+    private static IReadOnlyList<TelemetryHighlightRange> CalculateDeepTravelHighlightRanges(
+        TelemetryData telemetryData,
+        Suspension suspension,
+        DeepTravelRangeSelection selection,
+        TelemetryTimeRange? range)
+    {
+        if (suspension.MaxTravel is not { } maxTravel ||
+            suspension.TravelBins is not { Length: >= 6 } travelBins)
+        {
+            return [];
+        }
+
+        var bins = travelBins[^6..];
+        if (!selection.Bin.MatchesBins(bins))
+        {
+            return [];
+        }
+
+        var threshold = Parameters.DeepTravelThresholdRatio * maxTravel;
+        var ranges = new List<TelemetryHighlightRange>();
+        foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range))
+        {
+            if (stroke.Stat.MaxTravel < threshold)
+            {
+                continue;
+            }
+
+            if (HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, bins) == selection.Bin.Index)
+            {
+                ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, telemetryData.Metadata.SampleRate));
+            }
+        }
+
+        return ranges;
+    }
+
+    private static bool IsValidStrokeSampleRange(Suspension suspension, Stroke stroke)
+    {
+        return stroke.Start >= 0 &&
+               stroke.End >= stroke.Start &&
+               stroke.End < suspension.Travel.Length;
+    }
+
+    private static List<TelemetryHighlightRange> CalculateSampleVelocityStatisticsHighlightRanges(
+        IEnumerable<Stroke> strokes,
+        int sampleRate,
+        DampingRangeSelection selection,
+        int divider)
+    {
+        var ranges = new List<TelemetryHighlightRange>();
+        foreach (var stroke in strokes)
+        {
+            var matchingStart = -1;
+            var sampleCount = Math.Min(stroke.Stat.Count, Math.Min(stroke.DigitizedVelocity.Length, stroke.DigitizedTravel.Length));
+            for (var index = 0; index < sampleCount; index++)
+            {
+                var travelBin = stroke.DigitizedTravel[index] / divider;
+                var matches = stroke.DigitizedVelocity[index] == selection.VelocityBinIndex &&
+                    travelBin >= selection.TravelBinStartIndex &&
+                    travelBin <= selection.TravelBinEndIndex;
+
+                if (matches)
+                {
+                    matchingStart = matchingStart < 0 ? index : matchingStart;
+                    continue;
+                }
+
+                if (matchingStart >= 0)
+                {
+                    ranges.Add(CreateHighlightRange(stroke.Start + matchingStart, stroke.Start + index - 1, sampleRate));
+                    matchingStart = -1;
+                }
+            }
+
+            if (matchingStart >= 0)
+            {
+                ranges.Add(CreateHighlightRange(stroke.Start + matchingStart, stroke.Start + sampleCount - 1, sampleRate));
+            }
+        }
+
+        return ranges;
+    }
+
+    private static List<TelemetryHighlightRange> CalculateStrokePeakVelocityStatisticsHighlightRanges(
+        IEnumerable<Stroke> strokes,
+        Suspension suspension,
+        int sampleRate,
+        DampingRangeSelection selection,
+        int divider)
+    {
+        var ranges = new List<TelemetryHighlightRange>();
+        foreach (var stroke in strokes)
+        {
+            var velocityBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxVelocity, suspension.VelocityBins);
+            var travelBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, suspension.TravelBins) / divider;
+            travelBin = Math.Clamp(travelBin, 0, TelemetryData.TravelBinsForVelocityHistogram - 1);
+            if (velocityBin != selection.VelocityBinIndex ||
+                travelBin < selection.TravelBinStartIndex ||
+                travelBin > selection.TravelBinEndIndex)
+            {
+                continue;
+            }
+
+            ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, sampleRate));
+        }
+
+        return ranges;
+    }
+
+    private static TelemetryHighlightRange CreateHighlightRange(int firstSampleIndex, int lastSampleIndex, int sampleRate)
+    {
+        return new TelemetryHighlightRange(
+            firstSampleIndex / (double)sampleRate,
+            (lastSampleIndex + 1) / (double)sampleRate);
     }
 
     private static double CalculateSampleAverageVelocity(Stroke[] strokes)
