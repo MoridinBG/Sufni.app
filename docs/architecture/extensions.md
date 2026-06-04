@@ -1,6 +1,6 @@
 # Extension Host
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, view resolution, database hooks, sync envelopes, and recorded-session contribution slots.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, host services, view resolution, database hooks, sync envelopes, app toolbar actions, and recorded-session contribution slots.
 
 ## Overview
 
@@ -16,7 +16,7 @@ There is no assembly scanning. Modules are added explicitly by build-time code t
 - `RegisterServices(IServiceCollection, AppExtensionServiceRegistrationContext)` runs before core shared services are registered.
 - `RegisterCapabilities(IAppExtensionCapabilityRegistry)` runs after module services are registered and before `BuildServiceProvider()`.
 
-`AppExtensionCollection` owns the ordered module list and rejects duplicate ids with ordinal comparison. `AppExtensionCapabilityRegistry` records capabilities that the app consumes after service registration, including eager extension service types. After `BuildServiceProvider()`, `App.OnFrameworkInitializationCompleted` resolves the existing eager coordinators and then resolves each registered eager extension service type so constructor-time subscriptions can attach before runtime work starts.
+`AppExtensionCollection` owns the ordered module list and rejects duplicate ids with ordinal comparison. `AppExtensionCapabilityRegistry` records capabilities that the app consumes after service registration, including eager extension service types and app toolbar action contributions. After `BuildServiceProvider()`, `App.OnFrameworkInitializationCompleted` resolves the existing eager coordinators and then resolves each registered eager extension service type so constructor-time subscriptions can attach before runtime work starts.
 
 Desktop/mobile mode is computed before module service registration. The registration context exposes that mode plus the service collection so modules can keep platform-specific registrations outside the shared app source.
 
@@ -35,6 +35,10 @@ Desktop/mobile mode is computed before module service registration. The registra
 5. Fallback text block.
 
 This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used.
+
+## Host Services
+
+`IFilePickerService` is the neutral file-open picker seam available through DI. Callers pass a `FilePickerRequest` with `FilePickerFilter` descriptors and receive Avalonia `IStorageFile` results. `FilesService` implements this interface alongside the workflow-specific `IFilesService`, so extension modules that need user-selected files can depend on the generic picker surface without depending on app-specific import, GPX, image, bike/setup, or DAQ CONFIG workflows.
 
 ## Database Hooks
 
@@ -74,6 +78,12 @@ The service is invoked after successful bike, setup, session, and track delete w
 
 Extension sync is ordered after core entity/app-preference sync during apply, so extension payloads can rely on the core rows from the same sync response already being present locally.
 
+## App Toolbar Actions
+
+`AppToolbarContribution` is the app-level action slot. Modules register actions through `IAppExtensionCapabilityRegistry.RegisterAppToolbarAction(...)`; `MainPagesViewModel` exposes the registered list as `ExtensionToolbarActions`. The desktop nav rail and mobile side panel render those actions through `AppToolbarContributionsView`, after the built-in import/GPX actions and before the paired-device/theme area.
+
+The contribution carries an extension id, contribution id, order, and view model. The host sorts by `Order` at render time and wraps non-control view models in `ContentControl`, allowing the extension view registry to resolve a matching view template.
+
 ## Recorded-Session Scope
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close.
@@ -109,4 +119,4 @@ Views render these through generic host controls or bindable descriptor properti
 
 ## Neutrality Rules
 
-Public code may name the host, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
+Public code may name the host, app toolbar actions, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.

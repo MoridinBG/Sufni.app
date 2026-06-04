@@ -166,7 +166,7 @@ Presentation-layer topics:
 
 ## Extension Host
 
-The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
+The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
 
 Topics in [architecture/extensions.md](architecture/extensions.md):
 
@@ -174,9 +174,11 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Module Startup](architecture/extensions.md#module-startup) — module service and capability registration
 - [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
 - [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
+- [Host Services](architecture/extensions.md#host-services) — neutral DI services available to extensions
 - [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, raw initialized connection
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
 - [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
+- [App Toolbar Actions](architecture/extensions.md#app-toolbar-actions) — app-level action contribution slot
 - [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
 - [Recorded-Session Slots](architecture/extensions.md#recorded-session-slots) — generic contribution slots and descriptors
 - [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries

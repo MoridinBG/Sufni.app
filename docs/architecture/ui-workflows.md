@@ -59,7 +59,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 - **Extension host**: `IExtensionViewRegistry` /
   `ExtensionViewRegistry`, `AppExtensionCapabilityRegistry`, and the
   services/capabilities supplied by `App.Extensions` before the
-  service provider is built.
+  service provider is built. Capabilities include eager service
+  resolution and app toolbar action contributions.
 - **Shell**: `IShellCoordinator` chosen by application lifetime —
   `DesktopShellCoordinator` for `IClassicDesktopStyleApplicationLifetime`,
   `MobileShellCoordinator` for `ISingleViewApplicationLifetime`. Both
@@ -68,7 +69,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   tested against substitutes.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
-  `IDatabaseService`, `IFilesService`,
+  `IDatabaseService`, `IFilesService`, `IFilePickerService`,
   `IDialogService`, plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
   registered as singletons via factory delegates that resolve the
@@ -108,8 +109,9 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   and platform-specific.
 
 Concrete datastore construction, management-protocol ownership,
-file-picker lifetime (including loaded `SelectedDeviceConfigFile`
-results for device CONFIG replacement), UI-thread dispatching, and background execution stay
+file-picker lifetime (including the generic `IFilePickerService` seam and
+loaded `SelectedDeviceConfigFile` results for device CONFIG replacement),
+UI-thread dispatching, and background execution stay
 behind these service registrations rather than being created ad hoc in
 view models.
 
