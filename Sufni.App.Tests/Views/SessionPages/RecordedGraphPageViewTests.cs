@@ -156,6 +156,29 @@ public class RecordedGraphPageViewTests
         AssertContributionText(mounted.View, "MobileToolbarPanel", "Panel");
     }
 
+    [AvaloniaFact]
+    public async Task RecordedGraphPageView_RendersMediaPaneContributions()
+    {
+        var graphWorkspace = new RecordedGraphPageWorkspaceStub(
+            TestTelemetryData.CreateProcessed(),
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden);
+        var mediaWorkspace = CreateMediaWorkspace([]);
+        mediaWorkspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            new TextBlock { Name = "MobileMediaPane", Text = "Media pane" }));
+        var page = new RecordedGraphPageViewModel(graphWorkspace, mediaWorkspace);
+
+        await using var mounted = await MountAsync(page);
+
+        var mediaPanes = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
+        Assert.NotNull(mediaPanes);
+        AssertContributionText(mounted.View, "MobileMediaPane", "Media pane");
+    }
+
     private static async Task<MountedRecordedGraphPageView> MountAsync(RecordedGraphPageViewModel page)
     {
         ViewTestHelpers.EnsureViewTestResources();

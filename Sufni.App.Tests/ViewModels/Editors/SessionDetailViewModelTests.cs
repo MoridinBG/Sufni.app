@@ -655,6 +655,40 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_MediaPaneContributions_AffectHasMediaContent()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var observedProperties = new List<string?>();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory]);
+        editor.PropertyChanged += (_, args) => observedProperties.Add(args.PropertyName);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.False(editor.HasMediaContent);
+
+        factory.Scope!.Slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "test",
+            "media-pane",
+            Order: 0,
+            new object()));
+
+        Assert.True(editor.HasMediaContent);
+        Assert.Contains(nameof(SessionDetailViewModel.HasMediaContent), observedProperties);
+
+        observedProperties.Clear();
+        await editor.UnloadedCommand.ExecuteAsync(null);
+
+        Assert.False(editor.HasMediaContent);
+        Assert.Contains(nameof(SessionDetailViewModel.HasMediaContent), observedProperties);
+    }
+
+    [AvaloniaFact]
     public async Task DampingSpeedCutoffPreview_RecomputesPercentagesAndAnalysisWithoutDirtying()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);

@@ -1,0 +1,16 @@
+<UserControl
+x:Class="Sufni.App.Views.Controls.RecordedSessionMediaPanesView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+d:DesignHeight="120"
+d:DesignWidth="360"
+x:DataType="controls:RecordedSessionMediaPanesView"
+mc:Ignorable="d">
+
+    <StackPanel
+    Name="RecordedSessionMediaPanesHost"
+    Spacing="8" />
+</UserControl>

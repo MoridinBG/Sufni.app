@@ -115,7 +115,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #region Public fields
 
     public DamperPageViewModel DamperPage { get; }
-    public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
+    public bool HasMediaContent =>
+        MapState.ReservesLayout ||
+        VideoState.ReservesLayout ||
+        ExtensionSlots.MediaPanes.Count > 0;
     public NotesPageViewModel NotesPage { get; } = new();
     public SessionPlotPreferences PlotPreferences
     {
@@ -1285,6 +1288,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         ApplyRecordedSessionExtensionPages();
     }
 
+    private void OnRecordedSessionExtensionMediaPanesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        OnPropertyChanged(nameof(HasMediaContent));
+    }
+
     private void ApplyRecordedSessionExtensionPages()
     {
         if (recordedSessionExtensions is null)
@@ -1411,6 +1419,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 Notifications.Add,
                 RequestRecordedSessionExtensionPageSelection);
             recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
+            recordedSessionExtensions.ExtensionSlots.MediaPanes.CollectionChanged += OnRecordedSessionExtensionMediaPanesChanged;
         }
 
         GraphPage = new RecordedGraphPageViewModel(this, this);
@@ -1935,6 +1944,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         if (recordedSessionExtensions is not null)
         {
             recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged -= OnRecordedSessionExtensionPagesChanged;
+            recordedSessionExtensions.ExtensionSlots.MediaPanes.CollectionChanged -= OnRecordedSessionExtensionMediaPanesChanged;
             await recordedSessionExtensions.DisposeAsync();
             recordedSessionExtensionsDisposed = true;
         }

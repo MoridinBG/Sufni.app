@@ -61,6 +61,31 @@ public class SessionMediaDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionMediaDesktopView_RendersMediaPaneContributions_WhenOnlyExtensionMediaIsPresent()
+    {
+        var workspace = CreateWorkspace([]);
+        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" }));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var mediaRoot = mounted.View.FindControl<StackPanel>("MediaContentRoot");
+        var mediaGrid = mounted.View.FindControl<Grid>("MediaGrid");
+        var mediaPanes = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
+
+        Assert.NotNull(mediaRoot);
+        Assert.NotNull(mediaGrid);
+        Assert.NotNull(mediaPanes);
+        Assert.True(mediaRoot!.IsVisible);
+        Assert.False(mediaGrid!.IsVisible);
+        AssertContributionText(mounted.View, "DesktopMediaPane", "Media pane");
+    }
+
+    [AvaloniaFact]
     public async Task SessionMediaDesktopView_CollapsesMapRow_WhenOnlyVideoIsPresent()
     {
         var workspace = CreateWorkspace([], videoUrl: "video.mp4");
@@ -98,6 +123,18 @@ public class SessionMediaDesktopViewTests
         return new MountedSessionMediaDesktopView(host, view);
     }
 
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
+    }
+
     private static SessionMediaWorkspaceStub CreateWorkspace(IReadOnlyList<TrackPoint> trackPoints, string? videoUrl = null)
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
@@ -124,7 +161,10 @@ public class SessionMediaDesktopViewTests
             this.videoUrl = videoUrl;
         }
 
-        public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
+        public bool HasMediaContent =>
+            MapState.ReservesLayout ||
+            VideoState.ReservesLayout ||
+            ExtensionSlots.MediaPanes.Count > 0;
         public MapViewModel? MapViewModel => mapViewModel;
         public SurfacePresentationState MapState => mapViewModel.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready

@@ -59,6 +59,8 @@ mc:Ignorable="d">
                     <controls:SurfacePlaceholderCard Title="Map" />
                 </controls:PlaceholderOverlayContainer.PlaceholderContent>
             </controls:PlaceholderOverlayContainer>
+
+            <controls:RecordedSessionMediaPanesView ExtensionSlots="{Binding MediaWorkspace.ExtensionSlots}" />
         </StackPanel>
     </ScrollViewer>
 
