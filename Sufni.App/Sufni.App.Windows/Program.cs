@@ -6,7 +6,7 @@ using Sufni.App.Services;
 
 namespace Sufni.App.Windows
 {
-    internal class Program
+    internal partial class Program
     {
         // Initialization code. Don't use any Avalonia, third-party APIs or any
         // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
@@ -21,9 +21,12 @@ namespace Sufni.App.Windows
             App.ServiceCollection.AddSingleton<ISecureStorage, WindowsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
+            RegisterPlatformExtensions(App.ServiceCollection);
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(
                 AppBuilder.Configure<App>().UsePlatformDetect(),
                 "Windows");
         }
+
+        static partial void RegisterPlatformExtensions(IServiceCollection services);
     }
 }

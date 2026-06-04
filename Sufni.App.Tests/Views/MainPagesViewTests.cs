@@ -110,13 +110,13 @@ public class MainPagesViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
-        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
-        registry.RegisterAppToolbarAction(new AppToolbarContribution(
+        var contribution = new AppToolbarContribution(
             "extension",
             "toolbar-action",
             Order: 0,
-            new object()));
-        var viewModel = MainPagesViewModelTestFactory.Create(extensionCapabilities: registry);
+            new object());
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)]);
         var view = new MainPagesView
         {
             DataContext = viewModel,

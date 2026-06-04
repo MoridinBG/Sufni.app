@@ -24,6 +24,8 @@ Desktop/mobile mode is computed before module service registration. The registra
 
 `Directory.Build.props` imports `Directory.Private.props` when present, and `Directory.Build.targets` imports `Directory.Private.targets` when present. Setting `SufniEnablePrivateExtensions=true` without both import files fails before build preparation with a clear error. Public project files do not reference extension projects directly; non-public builds add those references through the imported files.
 
+Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(IServiceCollection)` partial hook. Each head calls it after its built-in platform services and desktop sync registration, before returning the configured Avalonia builder. Private build imports can compile platform-specific partial implementations into the head assemblies without adding extension references to public project files.
+
 ## View Resolution
 
 `ExtensionViewRegistry` stores shared and desktop-specific factories keyed by view-model type. `ViewLocator` checks the extension registry before its built-in desktop/shared dictionaries:
@@ -39,6 +41,8 @@ This keeps public `ViewLocator` dictionaries free of extension view-model types 
 ## Host Services
 
 `IFilePickerService` is the neutral file-open picker seam available through DI. Callers pass a `FilePickerRequest` with `FilePickerFilter` descriptors and receive Avalonia `IStorageFile` results. `FilesService` implements this interface alongside the workflow-specific `IFilesService`, so extension modules that need user-selected files can depend on the generic picker surface without depending on app-specific import, GPX, image, bike/setup, or DAQ CONFIG workflows.
+
+`IExtensionDialogService` is the neutral dialog-hosting seam for extension-owned view models. Extensions pass an `ExtensionDialogRequest<TResult>` with a title, layout, and an `IExtensionDialogResultSource<TResult>` view model. `DialogService` hosts the view model through a `ContentControl`, so extension view templates still resolve through `ViewLocator`; desktop uses an owned modal window and mobile/single-view uses the existing overlay host. Completing the result source returns the supplied result, while closing the host without completion returns `default`.
 
 ## Database Hooks
 
@@ -80,9 +84,9 @@ Extension sync is ordered after core entity/app-preference sync during apply, so
 
 ## App Toolbar Actions
 
-`AppToolbarContribution` is the app-level action slot. Modules register actions through `IAppExtensionCapabilityRegistry.RegisterAppToolbarAction(...)`; `MainPagesViewModel` exposes the registered list as `ExtensionToolbarActions`. The desktop nav rail and mobile side panel render those actions through `AppToolbarContributionsView`, after the built-in import/GPX actions and before the paired-device/theme area.
+`AppToolbarContribution` is the app-level action slot. Modules register `IAppToolbarContributionProvider` implementations through DI during `RegisterServices(...)`; `MainPagesViewModel` resolves the providers, flattens their contributions, sorts them by `Order`, and exposes the result as `ExtensionToolbarActions`. The desktop nav rail and mobile side panel render those actions through `AppToolbarContributionsView`, after the built-in import/GPX actions and before the paired-device/theme area.
 
-The contribution carries an extension id, contribution id, order, and view model. The host sorts by `Order` at render time and wraps non-control view models in `ContentControl`, allowing the extension view registry to resolve a matching view template.
+The contribution carries an extension id, contribution id, order, and view model. The rendered host wraps non-control view models in `ContentControl`, allowing the extension view registry to resolve a matching view template. Providers are DI-created, so toolbar view models can depend on normal extension and host services.
 
 ## Recorded-Session Scope
 
@@ -114,6 +118,8 @@ The current public slot families are:
 - plot-row header actions
 - hosted graph rows
 - recorded time-range overlays
+
+Session-list indicators and actions are created by registered `IRecordedSessionListContributionProvider` implementations. `RecordedSessionListExtensionService` aggregates every provider and sorts each contribution family by `Order`, so separate modules can contribute to the same recorded-session row without replacing each other. Public builds with no providers return empty contribution lists.
 
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
 

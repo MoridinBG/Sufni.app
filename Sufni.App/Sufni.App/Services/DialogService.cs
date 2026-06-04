@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Sufni.App.Models;
@@ -14,7 +15,7 @@ using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Services;
 
-public class DialogService : IDialogService
+public class DialogService : IDialogService, IExtensionDialogService
 {
     private Window? owner;
     private Control? overlayHost;
@@ -58,6 +59,15 @@ public class DialogService : IDialogService
         return App.Current?.IsDesktop == true
             ? ShowLiveDaqConfigEditorWindowAsync(editor)
             : ShowLiveDaqConfigEditorOverlayAsync(editor);
+    }
+
+    public Task<TResult?> ShowDialogAsync<TResult>(ExtensionDialogRequest<TResult> request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return App.Current?.IsDesktop == true
+            ? ShowExtensionDialogWindowAsync(request)
+            : ShowExtensionDialogOverlayAsync(request);
     }
 
     private Task<TileLayerConfig?> ShowAddTileLayerWindowAsync()
@@ -188,6 +198,106 @@ public class DialogService : IDialogService
         }
     }
 
+    private Task<TResult?> ShowExtensionDialogWindowAsync<TResult>(ExtensionDialogRequest<TResult> request)
+    {
+        Debug.Assert(owner != null, nameof(owner) + " != null");
+
+        var dialogOwner = owner ?? throw new InvalidOperationException("Dialog owner has not been set.");
+        var tcs = new TaskCompletionSource<TResult?>();
+        var window = new Window
+        {
+            Title = request.Title,
+            Width = request.Layout.Width,
+            Height = request.Layout.Height,
+            MinWidth = request.Layout.MinWidth,
+            MinHeight = request.Layout.MinHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = request.Layout.CanResize,
+            Content = new ContentControl
+            {
+                Content = request.ViewModel
+            }
+        };
+
+        request.ViewModel.Completed += ViewModelCompleted;
+        window.Closed += WindowClosed;
+        window.ShowDialog(dialogOwner);
+        return tcs.Task;
+
+        void ViewModelCompleted(object? sender, TResult? result)
+        {
+            request.ViewModel.Completed -= ViewModelCompleted;
+            tcs.TrySetResult(result);
+            window.Close();
+        }
+
+        void WindowClosed(object? sender, EventArgs args)
+        {
+            request.ViewModel.Completed -= ViewModelCompleted;
+            tcs.TrySetResult(default);
+        }
+    }
+
+    private Task<TResult?> ShowExtensionDialogOverlayAsync<TResult>(ExtensionDialogRequest<TResult> request)
+    {
+        var host = overlayHost ?? TryGetSingleViewOverlayHost();
+        Debug.Assert(host != null, nameof(overlayHost) + " != null");
+
+        if (host is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host has not been set.");
+        }
+
+        var panel = TryGetOverlayPanel(host);
+        if (panel is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
+        }
+
+        var tcs = new TaskCompletionSource<TResult?>();
+        var content = new ContentControl
+        {
+            Content = request.ViewModel
+        };
+        Control? overlay = null;
+        overlay = CreateExtensionDialogOverlay(request, content, CloseOverlay);
+
+        request.ViewModel.Completed += ViewModelCompleted;
+        overlay.DetachedFromVisualTree += OverlayDetached;
+        panel.Children.Add(overlay);
+        return tcs.Task;
+
+        void ViewModelCompleted(object? sender, TResult? result)
+        {
+            Complete(result);
+        }
+
+        void CloseOverlay()
+        {
+            Complete(default);
+        }
+
+        void OverlayDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            request.ViewModel.Completed -= ViewModelCompleted;
+            overlay = null;
+            tcs.TrySetResult(default);
+        }
+
+        void Complete(TResult? result)
+        {
+            request.ViewModel.Completed -= ViewModelCompleted;
+            if (overlay is { } currentOverlay)
+            {
+                currentOverlay.DetachedFromVisualTree -= OverlayDetached;
+                panel.Children.Remove(currentOverlay);
+                overlay = null;
+            }
+
+            tcs.TrySetResult(result);
+        }
+    }
+
     private static Control? TryGetSingleViewOverlayHost()
     {
         return (Application.Current?.ApplicationLifetime as ISingleViewApplicationLifetime)?.MainView as Control;
@@ -254,6 +364,81 @@ public class DialogService : IDialogService
                     Background = new SolidColorBrush(Color.Parse("#15191c")),
                     CornerRadius = new CornerRadius(6),
                     Child = content
+                }
+            }
+        };
+    }
+
+    private static Control CreateExtensionDialogOverlay<TResult>(
+        ExtensionDialogRequest<TResult> request,
+        Control content,
+        Action close)
+    {
+        var closeButton = new Button
+        {
+            Name = "ExtensionDialogCloseButton",
+            Content = "X",
+            Width = 32,
+            Height = 32,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        closeButton.Click += (_, _) => close();
+
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Margin = new Thickness(16, 12, 12, 8),
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = request.Title,
+                    FontWeight = FontWeight.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center
+                },
+                closeButton
+            }
+        };
+        Grid.SetColumn(closeButton, 1);
+
+        var dialogContent = new Grid
+        {
+            RowDefinitions = new RowDefinitions("Auto,*"),
+            Children =
+            {
+                header,
+                new Border
+                {
+                    Margin = new Thickness(16, 0, 16, 16),
+                    Child = content
+                }
+            }
+        };
+        Grid.SetRow(dialogContent.Children[1], 1);
+
+        return new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Children =
+            {
+                new Border
+                {
+                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                },
+                new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Width = request.Layout.Width,
+                    Height = request.Layout.Height,
+                    MinWidth = request.Layout.MinWidth,
+                    MinHeight = request.Layout.MinHeight,
+                    Margin = new Thickness(12),
+                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    CornerRadius = new CornerRadius(6),
+                    Child = dialogContent
                 }
             }
         };

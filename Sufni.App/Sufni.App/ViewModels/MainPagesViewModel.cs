@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -76,7 +77,7 @@ public partial class MainPagesViewModel : ViewModelBase
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
         IUiThreadDispatcher uiThreadDispatcher,
-        IAppExtensionCapabilityRegistry? extensionCapabilities = null,
+        IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
         : base(uiThreadDispatcher)
@@ -99,7 +100,11 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
-        ExtensionToolbarActions = extensionCapabilities?.AppToolbarActions ?? [];
+        ExtensionToolbarActions = appToolbarContributionProviders?
+            .SelectMany(provider => provider.CreateContributions())
+            .OrderBy(contribution => contribution.Order)
+            .ToArray()
+            ?? [];
         primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
         activePrimaryPage = GetSelectedPrimaryPage();
 

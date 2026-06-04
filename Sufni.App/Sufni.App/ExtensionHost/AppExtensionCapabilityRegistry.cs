@@ -7,8 +7,6 @@ namespace Sufni.App.ExtensionHost;
 public interface IAppExtensionCapabilityRegistry
 {
     IReadOnlyList<Type> EagerServiceTypes { get; }
-    IReadOnlyList<AppToolbarContribution> AppToolbarActions { get; }
-    void RegisterAppToolbarAction(AppToolbarContribution contribution);
     void RegisterEagerService(Type serviceType);
     void RegisterView(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory = null);
 }
@@ -18,7 +16,6 @@ public sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRegi
     private readonly IExtensionViewRegistry viewRegistry;
     private readonly List<Type> eagerServiceTypes = [];
     private readonly HashSet<Type> eagerServiceTypeSet = [];
-    private readonly List<AppToolbarContribution> appToolbarActions = [];
 
     public AppExtensionCapabilityRegistry(IExtensionViewRegistry viewRegistry)
     {
@@ -26,14 +23,6 @@ public sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRegi
     }
 
     public IReadOnlyList<Type> EagerServiceTypes => eagerServiceTypes;
-    public IReadOnlyList<AppToolbarContribution> AppToolbarActions => appToolbarActions;
-
-    public void RegisterAppToolbarAction(AppToolbarContribution contribution)
-    {
-        ArgumentNullException.ThrowIfNull(contribution);
-
-        appToolbarActions.Add(contribution);
-    }
 
     public void RegisterEagerService(Type serviceType)
     {

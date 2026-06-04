@@ -60,19 +60,6 @@ public class AppExtensionCollectionTests
         Assert.Equal([typeof(FirstService), typeof(SecondService)], registry.EagerServiceTypes);
     }
 
-    [Fact]
-    public void RegisterAppToolbarAction_PreservesRegistrationOrder()
-    {
-        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
-        var first = new AppToolbarContribution("extension", "first", Order: 20, new object());
-        var second = new AppToolbarContribution("extension", "second", Order: 10, new object());
-
-        registry.RegisterAppToolbarAction(first);
-        registry.RegisterAppToolbarAction(second);
-
-        Assert.Equal([first, second], registry.AppToolbarActions);
-    }
-
     private sealed class TestExtensionModule(
         string id,
         Action? registerServices = null,

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
@@ -26,7 +27,7 @@ internal static class MainPagesViewModelTestFactory
         IRecordedSessionSourceStore? recordedSessionSourceStore = null,
         IThemeService? themeService = null,
         SyncCoordinator? syncCoordinator = null,
-        IAppExtensionCapabilityRegistry? extensionCapabilities = null,
+        IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
         var bikeStore = Substitute.For<IBikeStore>();
@@ -70,7 +71,7 @@ internal static class MainPagesViewModelTestFactory
             CreateImportSessionsPage(shell, importSessionsCoordinator),
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
-            extensionCapabilities,
+            appToolbarContributionProviders,
             pairingServerViewModel: pairingServerViewModel);
     }
 
@@ -132,5 +133,14 @@ internal static class MainPagesViewModelTestFactory
             importSessionsCoordinator,
             Substitute.For<ISetupStore>(),
             UiThreadDispatcher);
+    }
+}
+
+internal sealed class TestAppToolbarContributionProvider(params AppToolbarContribution[] contributions)
+    : IAppToolbarContributionProvider
+{
+    public IReadOnlyList<AppToolbarContribution> CreateContributions()
+    {
+        return contributions;
     }
 }

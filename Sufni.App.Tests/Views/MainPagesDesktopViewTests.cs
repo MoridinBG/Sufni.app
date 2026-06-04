@@ -111,15 +111,15 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
-        registry.RegisterAppToolbarAction(new AppToolbarContribution(
+        var contribution = new AppToolbarContribution(
             "extension",
             "toolbar-action",
             Order: 0,
-            new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" }));
+            new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" });
         var view = new MainPagesDesktopView
         {
-            DataContext = MainPagesViewModelTestFactory.Create(extensionCapabilities: registry)
+            DataContext = MainPagesViewModelTestFactory.Create(
+                appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)])
         };
 
         await using var mounted = await MountAsync(view);

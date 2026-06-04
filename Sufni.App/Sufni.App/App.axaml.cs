@@ -121,7 +121,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<FilesService>();
         ServiceCollection.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
         ServiceCollection.AddSingleton<IFilePickerService>(sp => sp.GetRequiredService<FilesService>());
-        ServiceCollection.AddSingleton<IDialogService>(_ => new DialogService());
+        ServiceCollection.AddSingleton<DialogService>();
+        ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
+        ServiceCollection.AddSingleton<IExtensionDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<BikeStore>();
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
@@ -216,7 +218,7 @@ public partial class App : Application
             sp.GetRequiredService<ImportSessionsViewModel>(),
             sp.GetRequiredService<PairedDeviceListViewModel>(),
             sp.GetRequiredService<IUiThreadDispatcher>(),
-            sp.GetRequiredService<IAppExtensionCapabilityRegistry>(),
+            sp.GetServices<IAppToolbarContributionProvider>(),
             sp.GetService<PairingClientViewModel>(),
             sp.GetService<PairingServerViewModel>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();

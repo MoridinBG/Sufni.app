@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost;
@@ -55,17 +56,43 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public void Constructor_ExposesExtensionToolbarActions()
+    public void Constructor_ExposesNoExtensionToolbarActions_WhenNoProvidersAreRegistered()
     {
-        var registry = new AppExtensionCapabilityRegistry(new ExtensionViewRegistry());
+        var viewModel = MainPagesViewModelTestFactory.Create();
+
+        Assert.Empty(viewModel.ExtensionToolbarActions);
+    }
+
+    [Fact]
+    public void Constructor_CreatesExtensionToolbarActionsFromDiProviders_InOrder()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ToolbarDependency>();
+        services.AddSingleton<IAppToolbarContributionProvider, LaterToolbarContributionProvider>();
+        services.AddSingleton<IAppToolbarContributionProvider, EarlierToolbarContributionProvider>();
+        using var provider = services.BuildServiceProvider();
+        var dependency = provider.GetRequiredService<ToolbarDependency>();
+
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appToolbarContributionProviders: provider.GetServices<IAppToolbarContributionProvider>());
+
+        Assert.Equal(
+            ["earlier", "later"],
+            viewModel.ExtensionToolbarActions.Select(contribution => contribution.ContributionId));
+        Assert.Same(dependency, viewModel.ExtensionToolbarActions[1].ViewModel);
+    }
+
+    [Fact]
+    public void Constructor_ExposesExtensionToolbarActionsFromProviders()
+    {
         var contribution = new AppToolbarContribution(
             "extension",
             "action",
             Order: 0,
             new object());
-        registry.RegisterAppToolbarAction(contribution);
 
-        var viewModel = MainPagesViewModelTestFactory.Create(extensionCapabilities: registry);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)]);
 
         Assert.Equal([contribution], viewModel.ExtensionToolbarActions);
     }
@@ -168,4 +195,27 @@ public class MainPagesViewModelTests
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
             inboundActivityIdleGrace: TimeSpan.Zero);
 
+    private sealed class ToolbarDependency;
+
+    private sealed class LaterToolbarContributionProvider(ToolbarDependency dependency) : IAppToolbarContributionProvider
+    {
+        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        {
+            return
+            [
+                new AppToolbarContribution("extension", "later", Order: 20, dependency),
+            ];
+        }
+    }
+
+    private sealed class EarlierToolbarContributionProvider : IAppToolbarContributionProvider
+    {
+        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        {
+            return
+            [
+                new AppToolbarContribution("extension", "earlier", Order: 10, new object()),
+            ];
+        }
+    }
 }

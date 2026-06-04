@@ -64,9 +64,10 @@ There are five kinds of view model in the presentation layer:
   closed. The triggering of the initial store refresh
   (`LoadDatabaseContent`) also lives here so the database load happens
   exactly once after the shell is constructed. It also exposes
-  `ExtensionToolbarActions` from `AppExtensionCapabilityRegistry`; the
-  desktop nav rail and mobile side panel render those neutral app-level
-  action contributions without knowing extension workflow types.
+  `ExtensionToolbarActions` from DI-created app toolbar contribution
+  providers; the desktop nav rail and mobile side panel render those
+  neutral app-level action contributions without knowing extension
+  workflow types.
 
 - **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel`, `WelcomeScreenViewModel`, and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
 

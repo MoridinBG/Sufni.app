@@ -7,7 +7,7 @@ using Sufni.App.Services;
 
 namespace Sufni.App.macOS
 {
-    internal class Program
+    internal partial class Program
     {
         // Initialization code. Don't use any Avalonia, third-party APIs or any
         // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
@@ -22,9 +22,12 @@ namespace Sufni.App.macOS
             App.ServiceCollection.AddSingleton<ISecureStorage, MacOsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
+            RegisterPlatformExtensions(App.ServiceCollection);
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(
                 AppBuilder.Configure<App>().UseSkia().UseAvaloniaNative(),
                 "macOS");
         }
+
+        static partial void RegisterPlatformExtensions(IServiceCollection services);
     }
 }
