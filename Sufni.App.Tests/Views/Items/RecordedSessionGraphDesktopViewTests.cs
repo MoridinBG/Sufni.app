@@ -26,6 +26,30 @@ namespace Sufni.App.Tests.Views.Items;
 public class RecordedSessionGraphDesktopViewTests
 {
     [AvaloniaFact]
+    public async Task RecordedSessionGraphDesktopView_RendersToolbarContributions()
+    {
+        var workspace = new RecordedSessionGraphWorkspaceStub(CreateMinimal());
+        workspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+            "extension",
+            "toolbar-action",
+            Order: 0,
+            new TextBlock { Name = "DesktopToolbarAction", Text = "Action" }));
+        workspace.ExtensionSlots.GraphToolbarPanels.Add(new RecordedSessionToolbarContribution(
+            "extension",
+            "toolbar-panel",
+            Order: 1,
+            new TextBlock { Name = "DesktopToolbarPanel", Text = "Panel" }));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var toolbarHost = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
+        Assert.NotNull(toolbarHost);
+        AssertContributionText(mounted.View, "DesktopToolbarAction", "Action");
+        AssertContributionText(mounted.View, "DesktopToolbarPanel", "Panel");
+    }
+
+    [AvaloniaFact]
     public async Task RecordedSessionGraphDesktopView_AnalysisRangeBindingKeepsAndClearsOverlayOnEveryPlot()
     {
         var telemetry = TestTelemetryData.CreateProcessed();
@@ -125,6 +149,18 @@ public class RecordedSessionGraphDesktopViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedRecordedSessionGraphDesktopView(host, view);
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
     }
 
     private static T GetNamedVisual<T>(Control root, string name)

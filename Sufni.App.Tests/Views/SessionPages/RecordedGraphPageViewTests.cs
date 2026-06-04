@@ -128,6 +128,34 @@ public class RecordedGraphPageViewTests
         Assert.NotNull(mapView.FindControl<ComboBox>("TileProviderComboBox"));
     }
 
+    [AvaloniaFact]
+    public async Task RecordedGraphPageView_RendersToolbarContributions()
+    {
+        var graphWorkspace = new RecordedGraphPageWorkspaceStub(
+            TestTelemetryData.CreateProcessed(),
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden);
+        graphWorkspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+            "extension",
+            "toolbar-action",
+            Order: 0,
+            new TextBlock { Name = "MobileToolbarAction", Text = "Action" }));
+        graphWorkspace.ExtensionSlots.GraphToolbarPanels.Add(new RecordedSessionToolbarContribution(
+            "extension",
+            "toolbar-panel",
+            Order: 1,
+            new TextBlock { Name = "MobileToolbarPanel", Text = "Panel" }));
+        var page = new RecordedGraphPageViewModel(graphWorkspace, CreateMediaWorkspace([]));
+
+        await using var mounted = await MountAsync(page);
+
+        var toolbarHost = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
+        Assert.NotNull(toolbarHost);
+        AssertContributionText(mounted.View, "MobileToolbarAction", "Action");
+        AssertContributionText(mounted.View, "MobileToolbarPanel", "Panel");
+    }
+
     private static async Task<MountedRecordedGraphPageView> MountAsync(RecordedGraphPageViewModel page)
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -140,6 +168,18 @@ public class RecordedGraphPageViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(new ScrollViewer { Content = view });
         return new MountedRecordedGraphPageView(host, view);
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
     }
 
     private static TelemetryPlotsRoot GetGraphRoot(RecordedGraphPageView view)

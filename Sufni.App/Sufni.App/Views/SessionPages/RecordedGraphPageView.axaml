@@ -18,6 +18,8 @@ mc:Ignorable="d">
     Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
+            <controls:RecordedSessionToolbarContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+
             <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
                 <controls:RecordedSessionGraphRowsView
                 Margin="-8,0,-8,0"

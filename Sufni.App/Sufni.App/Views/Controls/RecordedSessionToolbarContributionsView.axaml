@@ -1,0 +1,26 @@
+<UserControl
+x:Name="Root"
+x:Class="Sufni.App.Views.Controls.RecordedSessionToolbarContributionsView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+d:DesignHeight="80"
+d:DesignWidth="500"
+x:DataType="controls:RecordedSessionToolbarContributionsView"
+mc:Ignorable="d">
+
+    <StackPanel
+    Name="RecordedSessionToolbarContributionsRoot"
+    Spacing="8">
+        <StackPanel
+        Name="GraphToolbarActionsHost"
+        Orientation="Horizontal"
+        Spacing="6" />
+
+        <StackPanel
+        Name="GraphToolbarPanelsHost"
+        Spacing="6" />
+    </StackPanel>
+</UserControl>

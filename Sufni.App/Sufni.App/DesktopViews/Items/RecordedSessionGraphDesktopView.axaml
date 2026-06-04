@@ -11,5 +11,8 @@ d:DesignWidth="800"
 x:DataType="vm:IRecordedSessionGraphWorkspace"
 mc:Ignorable="d">
 
-    <controls:RecordedSessionGraphRowsView />
+    <StackPanel Spacing="8">
+        <controls:RecordedSessionToolbarContributionsView ExtensionSlots="{Binding ExtensionSlots}" />
+        <controls:RecordedSessionGraphRowsView />
+    </StackPanel>
 </UserControl>
