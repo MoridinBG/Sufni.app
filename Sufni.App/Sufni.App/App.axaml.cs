@@ -20,6 +20,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.ExtensionHost.Sync;
 
 namespace Sufni.App;
@@ -157,7 +158,9 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetService<ISynchronizationServerService>(),
             sp.GetRequiredService<BikeCoordinator>(),
-            sp.GetRequiredService<IExtensionCascadeService>()));
+            sp.GetRequiredService<IExtensionCascadeService>(),
+            sp.GetServices<IRecordedSessionExtensionFactory>(),
+            sp.GetRequiredService<IExtensionDatabaseConnection>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());

@@ -7,6 +7,7 @@ using NSubstitute;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -110,7 +111,9 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IRecordedSessionReprocessor>(),
             null,
             Bike(),
-            Substitute.For<IExtensionCascadeService>());
+            Substitute.For<IExtensionCascadeService>(),
+            Array.Empty<IRecordedSessionExtensionFactory>(),
+            Substitute.For<IExtensionDatabaseConnection>());
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())

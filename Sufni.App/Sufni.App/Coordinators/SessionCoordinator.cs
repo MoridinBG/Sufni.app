@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
@@ -46,6 +47,8 @@ public class SessionCoordinator
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly BikeCoordinator? bikeCoordinator;
     private readonly IExtensionCascadeService? extensionCascadeService;
+    private readonly IReadOnlyList<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories;
+    private readonly IExtensionDatabaseConnection? extensionDatabase;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -66,7 +69,9 @@ public class SessionCoordinator
         IRecordedSessionReprocessor recordedSessionReprocessor,
         ISynchronizationServerService? synchronizationServer = null,
         BikeCoordinator? bikeCoordinator = null,
-        IExtensionCascadeService? extensionCascadeService = null)
+        IExtensionCascadeService? extensionCascadeService = null,
+        IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
+        IExtensionDatabaseConnection? extensionDatabase = null)
     {
         this.sessionStore = sessionStore;
         this.databaseService = databaseService;
@@ -86,6 +91,8 @@ public class SessionCoordinator
         this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.bikeCoordinator = bikeCoordinator;
         this.extensionCascadeService = extensionCascadeService;
+        this.recordedSessionExtensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
+        this.extensionDatabase = extensionDatabase;
 
         if (synchronizationServer is not null)
         {
@@ -114,7 +121,11 @@ public class SessionCoordinator
                 dialogService,
                 sessionPreferences,
                 uiThreadDispatcher,
-                bikeCoordinator));
+                bikeCoordinator,
+                this.recordedSessionExtensionFactories,
+                extensionDatabase,
+                databaseService,
+                backgroundTaskRunner));
         return Task.CompletedTask;
     }
 

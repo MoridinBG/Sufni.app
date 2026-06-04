@@ -14,6 +14,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionGraph;
@@ -59,7 +61,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ISessionAnalysisService sessionAnalysisService;
     private readonly ISessionPreferences sessionPreferences;
+    private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
+    private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private Session session;
+    private RecordedSessionDomainSnapshot? latestDomain;
     private RecordedGraphPageViewModel GraphPage { get; }
     private StrokesPageViewModel StrokesPage { get; }
     private SpringPageViewModel SpringPage { get; }
@@ -82,6 +87,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
     private bool hasBeenActivated;
+    private bool recordedSessionExtensionsDisposed;
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
@@ -140,6 +146,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
     public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
+    public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
 
@@ -217,6 +224,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         if (value is null)
         {
             SessionAnalysis = SessionAnalysisResult.Hidden;
+            UpdateRecordedSessionExtensionHostState();
             return;
         }
 
@@ -228,6 +236,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
+        UpdateRecordedSessionExtensionHostState();
     }
 
     partial void OnAnalysisRangeChanged(TelemetryTimeRange? value)
@@ -236,6 +245,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         RefreshAnalysisRangeStates();
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
+        UpdateRecordedSessionExtensionHostState();
     }
 
     partial void OnSelectedTravelHistogramModeChanged(TravelHistogramMode value)
@@ -305,12 +315,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnTrackTimelineContextChanged(TrackTimeRange? value)
     {
-        if (MapViewModel is null)
+        if (MapViewModel is not null)
         {
-            return;
+            MapViewModel.TimelineContext = value;
         }
 
-        MapViewModel.TimelineContext = value;
+        UpdateRecordedSessionExtensionHostState();
     }
 
     partial void OnShowAirtimeChanged(bool value)
@@ -985,6 +995,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         await ResetImplementation();
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
+        UpdateRecordedSessionExtensionHostState();
     }
 
     private async Task HandleDomainChangedAsync(RecordedSessionDomainSnapshot domain)
@@ -993,6 +1004,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         {
             return;
         }
+
+        latestDomain = domain;
+        UpdateRecordedSessionExtensionHostState();
 
         if (ShouldDeferDomainHandling())
         {
@@ -1175,6 +1189,73 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
     }
 
+    private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
+    {
+        var snapshot = sessionStore.Get(Id);
+        return new RecordedSessionHostState(
+            snapshot,
+            latestDomain,
+            AnalysisRange,
+            TrackTimelineContext,
+            TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds,
+            viewLoaded,
+            IsTabActive);
+    }
+
+    private void UpdateRecordedSessionExtensionHostState()
+    {
+        if (recordedSessionExtensionsDisposed)
+        {
+            return;
+        }
+
+        recordedSessionExtensions?.UpdateHostState(CreateRecordedSessionExtensionHostState());
+    }
+
+    private async ValueTask InitializeRecordedSessionExtensionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (recordedSessionExtensions is null || recordedSessionExtensionsDisposed)
+        {
+            return;
+        }
+
+        await recordedSessionExtensions.InitializeAsync(
+            CreateRecordedSessionExtensionHostState(),
+            cancellationToken);
+    }
+
+    private async ValueTask DisposeRecordedSessionExtensionScopesAsync()
+    {
+        if (recordedSessionExtensions is null || recordedSessionExtensionsDisposed)
+        {
+            return;
+        }
+
+        await recordedSessionExtensions.DisposeScopesAsync();
+    }
+
+    private void ReportRecordedSessionExtensionOperation(string message, double percent)
+    {
+        ScreenState = SessionScreenPresentationState.Loading(message);
+    }
+
+    private void CompleteRecordedSessionExtensionOperation()
+    {
+        ScreenState = SessionScreenPresentationState.Ready;
+    }
+
+    private void SetRecordedSessionExtensionTimelineVisibleRange(
+        double startNormalized,
+        double endNormalized,
+        object source)
+    {
+        Timeline.SetVisibleRange(startNormalized, endNormalized, source);
+    }
+
+    private void RequestRecordedSessionExtensionPageSelection(string contributionId)
+    {
+    }
+
     #endregion
 
     #region Constructors
@@ -1191,10 +1272,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
-        BikeCoordinator? bikeCoordinator = null)
+        BikeCoordinator? bikeCoordinator = null,
+        IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
+        IExtensionDatabaseConnection? extensionDatabase = null,
+        IDatabaseService? databaseService = null,
+        IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
+
+        var extensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
+        if (extensionFactories.Length > 0 &&
+            (extensionDatabase is null || databaseService is null || backgroundTaskRunner is null))
+        {
+            throw new ArgumentException("Recorded-session extension factories require extension host services.");
+        }
 
         this.sessionCoordinator = sessionCoordinator;
         this.bikeCoordinator = bikeCoordinator;
@@ -1224,6 +1316,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BaselineUpdated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
+        if (extensionDatabase is not null && databaseService is not null && backgroundTaskRunner is not null)
+        {
+            recordedSessionExtensions = new RecordedSessionExtensionManager(
+                Id,
+                extensionFactories,
+                extensionDatabase,
+                databaseService,
+                backgroundTaskRunner,
+                uiThreadDispatcher,
+                new RecordedSessionOperationCoordinator(
+                    ReportRecordedSessionExtensionOperation,
+                    CompleteRecordedSessionExtensionOperation),
+                SetAnalysisRange,
+                ClearAnalysisRange,
+                SetRecordedSessionExtensionTimelineVisibleRange,
+                ErrorMessages.Add,
+                Notifications.Add,
+                RequestRecordedSessionExtensionPageSelection);
+        }
+
         GraphPage = new RecordedGraphPageViewModel(this, this);
         SpringPage = new SpringPageViewModel(this);
         StrokesPage = new StrokesPageViewModel(this);
@@ -1740,11 +1852,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         return Task.CompletedTask;
     }
 
-    protected override Task CloseImplementation()
+    protected override async Task CloseImplementation()
     {
-        StopLoadedSession();
+        await StopLoadedSessionAsync();
+        if (recordedSessionExtensions is not null)
+        {
+            await recordedSessionExtensions.DisposeAsync();
+            recordedSessionExtensionsDisposed = true;
+        }
+
         MapViewModel?.Dispose();
-        return Task.CompletedTask;
     }
 
     protected override async Task DeleteImplementation(bool navigateBack)
@@ -1852,6 +1969,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             s.Add(watch.Subscribe(domain => _ = HandleDomainChangedAsync(domain)));
         });
 
+        await InitializeRecordedSessionExtensionsAsync();
         await RestoreRecordedPreferencesAsync();
         await RequestLoadAsync();
     }
@@ -1859,6 +1977,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     protected override void OnActivated()
     {
         hasBeenActivated = true;
+        UpdateRecordedSessionExtensionHostState();
 
         if (!viewLoaded || deferredDomainWhileInactive is null)
         {
@@ -1868,6 +1987,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         var domain = deferredDomainWhileInactive;
         deferredDomainWhileInactive = null;
         _ = HandleDomainChangedAsync(domain);
+    }
+
+    protected override void OnDeactivated()
+    {
+        UpdateRecordedSessionExtensionHostState();
     }
 
     private bool ShouldDeferDomainHandling() =>
@@ -1899,18 +2023,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     }
 
     [RelayCommand]
-    private void Unloaded()
+    private async Task Unloaded()
     {
-        StopLoadedSession();
+        await StopLoadedSessionAsync();
     }
 
-    private void StopLoadedSession()
+    private async Task StopLoadedSessionAsync()
     {
         viewLoaded = false;
         loadOperation.Cancel();
         observedInitialDomain = false;
         promptedRecomputeSignature = null;
         deferredDomainWhileInactive = null;
+        latestDomain = null;
+        UpdateRecordedSessionExtensionHostState();
+        await DisposeRecordedSessionExtensionScopesAsync();
         DisposeScopedSubscriptions();
     }
 

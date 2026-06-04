@@ -5,6 +5,8 @@ using Avalonia;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionGraph;
@@ -48,7 +50,8 @@ public class SessionDetailViewModelTests
         IObservable<RecordedSessionDomainSnapshot>? watch = null,
         bool? isDesktop = null,
         ISessionPreferences? sessionPreferences = null,
-        BikeCoordinator? bikeCoordinator = null)
+        BikeCoordinator? bikeCoordinator = null,
+        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null)
     {
         if (isDesktop.HasValue)
         {
@@ -70,7 +73,11 @@ public class SessionDetailViewModelTests
             dialogService,
             preferencesService,
             new InlineUiThreadDispatcher(),
-            bikeCoordinator);
+            bikeCoordinator,
+            recordedSessionExtensionFactories,
+            Substitute.For<IExtensionDatabaseConnection>(),
+            Substitute.For<IDatabaseService>(),
+            new InlineBackgroundTaskRunner());
     }
 
     private void SetDesktop(bool isDesktop)
@@ -517,6 +524,98 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearForkVibrationState.IsHidden);
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
+        Assert.True(editor.ScreenState.IsReady);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_InitializesRecordedSessionExtensionScope_AndUnloadedDisposesIt()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory]);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.NotNull(factory.Scope);
+        Assert.True(factory.Scope.Initialized);
+        Assert.Contains(factory.Scope.UpdatedStates, state => state.IsLoaded);
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+
+        Assert.True(factory.Scope.Disposed);
+        Assert.False(factory.Scope.UpdatedStates.Last().IsLoaded);
+    }
+
+    [AvaloniaFact]
+    public async Task RecordedSessionExtensionScope_ReceivesHostStateUpdates()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var selectedRange = new TelemetryTimeRange(0.05, 0.2);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            watch,
+            recordedSessionExtensionFactories: [factory]);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var initialLoadedState = factory.Scope!.UpdatedStates.Last();
+
+        editor.SetAnalysisRange(selectedRange.StartSeconds, selectedRange.EndSeconds);
+        editor.SetTabActive(true);
+        var domain = DomainFromSnapshot(snapshot);
+        watch.OnNext(domain);
+        await Task.Yield();
+
+        Assert.Equal(telemetry.Metadata.Duration, initialLoadedState.TelemetryDurationSeconds);
+        Assert.Equal(selectedRange, factory.Scope.UpdatedStates.Last(state => state.AnalysisRange is not null).AnalysisRange);
+        Assert.True(factory.Scope.UpdatedStates.Last(state => state.IsActive).IsActive);
+        Assert.Equal(domain, factory.Scope.UpdatedStates.Last().Domain);
+    }
+
+    [AvaloniaFact]
+    public async Task RecordedSessionHostContext_RoutesHostCommands()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var selectedRange = new TelemetryTimeRange(0.05, 0.2);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory]);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var context = factory.Context!;
+
+        context.SetAnalysisRange(selectedRange.StartSeconds, selectedRange.EndSeconds);
+        context.SetTimelineVisibleRange(0.2, 0.8, context);
+        context.AddError("extension error");
+        context.AddNotification("extension notification");
+        var lease = context.StartOperation("Extension work");
+        lease.Report("Extension still working", 50);
+
+        Assert.Equal(selectedRange, editor.AnalysisRange);
+        Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
+        Assert.Contains("extension error", editor.ErrorMessages);
+        Assert.Contains("extension notification", editor.Notifications);
+        Assert.True(editor.ScreenState.IsLoading);
+        Assert.Equal("Extension still working", editor.ScreenState.Message);
+
+        lease.Complete();
+
         Assert.True(editor.ScreenState.IsReady);
     }
 
@@ -2220,5 +2319,44 @@ public class SessionDetailViewModelTests
     private static async Task<T> AwaitWithCancellation<T>(Task<T> task, CancellationToken cancellationToken)
     {
         return await task.WaitAsync(cancellationToken);
+    }
+
+    private sealed class TestRecordedSessionExtensionFactory(string extensionId) : IRecordedSessionExtensionFactory
+    {
+        public string ExtensionId { get; } = extensionId;
+        public RecordedSessionHostContext? Context { get; private set; }
+        public TestRecordedSessionExtensionScope? Scope { get; private set; }
+
+        public IRecordedSessionExtensionScope Create(RecordedSessionHostContext context)
+        {
+            Context = context;
+            Scope = new TestRecordedSessionExtensionScope();
+            return Scope;
+        }
+    }
+
+    private sealed class TestRecordedSessionExtensionScope : IRecordedSessionExtensionScope
+    {
+        public bool Initialized { get; private set; }
+        public bool Disposed { get; private set; }
+        public RecordedSessionExtensionSlots Slots { get; } = new();
+        public List<RecordedSessionHostState> UpdatedStates { get; } = [];
+
+        public ValueTask InitializeAsync(CancellationToken cancellationToken)
+        {
+            Initialized = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public void UpdateHostState(RecordedSessionHostState state)
+        {
+            UpdatedStates.Add(state);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
     }
 }

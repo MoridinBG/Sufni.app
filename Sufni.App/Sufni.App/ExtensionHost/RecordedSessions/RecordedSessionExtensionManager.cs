@@ -82,12 +82,12 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        UpdateHostState(initialState);
         if (scopes.Count > 0)
         {
             return;
         }
 
-        UpdateHostState(initialState);
         foreach (var factory in factories)
         {
             cancellationToken.ThrowIfCancellationRequested();
