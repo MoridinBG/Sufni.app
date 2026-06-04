@@ -21,6 +21,7 @@ mc:Ignorable="d">
                 BalanceSpeedMode="{Binding #Root.BalanceSpeedMode}"
                 BalanceType="{Binding #Root.BalanceType}"
                 DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
+                ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Height="{Binding #Root.PlotHeight}"
                 HeaderContent="{Binding #Root.HeaderContent}"
                 IsVisible="{Binding #Root.HasDynamicStatistics}"

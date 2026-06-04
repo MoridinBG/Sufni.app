@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.Telemetry;
 
@@ -37,6 +38,10 @@ public partial class VibrationStatisticsHost : UserControl
         AvaloniaProperty.Register<VibrationStatisticsHost, GridLength>(
             nameof(PlotRowHeight),
             new GridLength(1, GridUnitType.Star));
+
+    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
+        AvaloniaProperty.Register<VibrationStatisticsHost, RecordedSessionExtensionSlots?>(
+            nameof(ExtensionSlots));
 
     public string? HostName
     {
@@ -90,6 +95,12 @@ public partial class VibrationStatisticsHost : UserControl
     {
         get => GetValue(PlotRowHeightProperty);
         set => SetValue(PlotRowHeightProperty, value);
+    }
+
+    public RecordedSessionExtensionSlots? ExtensionSlots
+    {
+        get => GetValue(ExtensionSlotsProperty);
+        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public VibrationStatisticsHost()

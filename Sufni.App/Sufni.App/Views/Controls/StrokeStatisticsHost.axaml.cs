@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.Telemetry;
 
@@ -51,6 +52,10 @@ public partial class StrokeStatisticsHost : UserControl
         AvaloniaProperty.Register<StrokeStatisticsHost, GridLength>(
             nameof(DeepTravelRowHeight),
             new GridLength(180));
+
+    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
+        AvaloniaProperty.Register<StrokeStatisticsHost, RecordedSessionExtensionSlots?>(
+            nameof(ExtensionSlots));
 
     public SurfacePresentationState PresentationState
     {
@@ -116,6 +121,12 @@ public partial class StrokeStatisticsHost : UserControl
     {
         get => GetValue(DeepTravelRowHeightProperty);
         set => SetValue(DeepTravelRowHeightProperty, value);
+    }
+
+    public RecordedSessionExtensionSlots? ExtensionSlots
+    {
+        get => GetValue(ExtensionSlotsProperty);
+        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public StrokeStatisticsHost()

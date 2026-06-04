@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
@@ -156,6 +157,7 @@ public class TelemetryPlot : SufniPlot
     private const float MarkerLineWidth = 2.0f;
     private readonly TelemetryLegendInteraction legendInteraction;
     private readonly List<IPointerReadoutTarget> pointerReadoutTargets = [];
+    private readonly List<IPlottable> statisticsOverlayPlottables = [];
     private TelemetrySourceVisibilityStore? sourceVisibility;
     private Tooltip? cursorTooltip;
     private Color markerLineColor;
@@ -365,6 +367,81 @@ public class TelemetryPlot : SufniPlot
         HideCursorReadout();
     }
 
+    public void ApplyStatisticsOverlayDescriptor(RecordedSessionStatisticsPlotOverlayDescriptor? descriptor)
+    {
+        ClearStatisticsOverlayDescriptor();
+        if (descriptor is null)
+        {
+            return;
+        }
+
+        foreach (var band in descriptor.Bands)
+        {
+            var span = Plot.Add.HorizontalSpan(band.X1, band.X2);
+            ApplyStatisticsOverlayStyle(span, band.Style);
+            statisticsOverlayPlottables.Add(span);
+
+            if (!string.IsNullOrWhiteSpace(band.Label))
+            {
+                var label = AddStatisticsOverlayLabel(band.Label, (band.X1 + band.X2) / 2.0, Plot.Axes.GetLimits().Top);
+                statisticsOverlayPlottables.Add(label);
+            }
+        }
+
+        foreach (var line in descriptor.Lines)
+        {
+            var scatter = Plot.Add.Scatter(
+                new[] { line.X1, line.X2 },
+                new[] { line.Y1, line.Y2 });
+            scatter.MarkerStyle.IsVisible = false;
+            scatter.LineStyle.Color = ToPlotColor(line.Style);
+            scatter.LineStyle.Width = (float)line.Style.Width;
+            statisticsOverlayPlottables.Add(scatter);
+
+            if (!string.IsNullOrWhiteSpace(line.Label))
+            {
+                var label = AddStatisticsOverlayLabel(line.Label, line.X2, line.Y2);
+                statisticsOverlayPlottables.Add(label);
+            }
+        }
+    }
+
+    private void ClearStatisticsOverlayDescriptor()
+    {
+        foreach (var plottable in statisticsOverlayPlottables)
+        {
+            Plot.PlottableList.Remove(plottable);
+        }
+
+        statisticsOverlayPlottables.Clear();
+    }
+
+    private static void ApplyStatisticsOverlayStyle(HorizontalSpan span, RecordedSessionPlotOverlayStyle style)
+    {
+        var color = ToPlotColor(style);
+        span.FillColor = color;
+        span.LineStyle.Color = color;
+        span.LineStyle.Width = (float)style.Width;
+        span.EnableAutoscale = false;
+        span.IsVisible = true;
+    }
+
+    private Text AddStatisticsOverlayLabel(string label, double x, double y)
+    {
+        var text = Plot.Add.Text(label, x, y);
+        text.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
+        text.LabelFontSize = 12;
+        text.LabelAlignment = Alignment.MiddleCenter;
+        return text;
+    }
+
+    private static Color ToPlotColor(RecordedSessionPlotOverlayStyle style)
+    {
+        var color = style.Color;
+        return Color.FromHex($"#{color.R:x2}{color.G:x2}{color.B:x2}")
+            .WithAlpha(color.A / (double)byte.MaxValue * Math.Clamp(style.Opacity, 0.0, 1.0));
+    }
+
     public void SetCursorPositionWithReadout(double position)
     {
         SetCursorLinePosition(position);
@@ -491,6 +568,7 @@ public class TelemetryPlot : SufniPlot
 
     public override void Clear()
     {
+        statisticsOverlayPlottables.Clear();
         legendInteraction.Clear();
         base.Clear();
         HideSourceLegend();

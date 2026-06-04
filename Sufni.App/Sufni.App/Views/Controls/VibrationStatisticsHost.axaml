@@ -30,6 +30,7 @@ mc:Ignorable="d">
 
                 <plots:SessionStatisticsPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Grid.Row="1"
                 ImuLocation="{Binding #Root.ImuLocation}"
                 PlotKind="VibrationThirds"

@@ -23,6 +23,7 @@ mc:Ignorable="d">
 
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     HeaderContent="{Binding #Root.HeaderContent}"
                     PlotKind="TravelHistogram"
                     SuspensionType="{Binding #Root.SuspensionType}"
@@ -33,6 +34,7 @@ mc:Ignorable="d">
 
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Grid.Row="2"
                     PlotKind="TravelFrequencyHistogram"
                     SuspensionType="{Binding #Root.SuspensionType}"
@@ -42,6 +44,7 @@ mc:Ignorable="d">
                 <Grid IsVisible="{Binding !#Root.ShowFrequencyHistogram}">
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Height="{Binding #Root.PlotHeight}"
                     HeaderContent="{Binding #Root.HeaderContent}"
                     IsVisible="{Binding #Root.HasDynamicStatistics}"

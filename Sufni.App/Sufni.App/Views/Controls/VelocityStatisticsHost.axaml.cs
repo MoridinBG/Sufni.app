@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
@@ -72,6 +73,10 @@ public partial class VelocityStatisticsHost : UserControl
 
     public static readonly StyledProperty<Thickness> PlaceholderMarginProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, Thickness>(nameof(PlaceholderMargin));
+
+    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, RecordedSessionExtensionSlots?>(
+            nameof(ExtensionSlots));
 
     public SurfacePresentationState PresentationState
     {
@@ -185,6 +190,12 @@ public partial class VelocityStatisticsHost : UserControl
     {
         get => GetValue(PlaceholderMarginProperty);
         set => SetValue(PlaceholderMarginProperty, value);
+    }
+
+    public RecordedSessionExtensionSlots? ExtensionSlots
+    {
+        get => GetValue(ExtensionSlotsProperty);
+        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public VelocityStatisticsHost()

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.Telemetry;
 
@@ -47,6 +48,10 @@ public partial class TravelStatisticsHost : UserControl
 
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<TravelStatisticsHost, object?>(nameof(HeaderContent));
+
+    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
+        AvaloniaProperty.Register<TravelStatisticsHost, RecordedSessionExtensionSlots?>(
+            nameof(ExtensionSlots));
 
     public SurfacePresentationState PresentationState
     {
@@ -124,6 +129,12 @@ public partial class TravelStatisticsHost : UserControl
     {
         get => GetValue(HeaderContentProperty);
         set => SetValue(HeaderContentProperty, value);
+    }
+
+    public RecordedSessionExtensionSlots? ExtensionSlots
+    {
+        get => GetValue(ExtensionSlotsProperty);
+        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public TravelStatisticsHost()

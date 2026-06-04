@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Specialized;
+using System.Linq;
 using Avalonia;
 using Avalonia.Input;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
@@ -21,6 +24,8 @@ public enum PlotKind
 
 public class SessionStatisticsPlotView : SufniTelemetryPlotView
 {
+    private RecordedSessionExtensionSlots? subscribedSlots;
+
     public static readonly StyledProperty<PlotKind> PlotKindProperty =
         AvaloniaProperty.Register<SessionStatisticsPlotView, PlotKind>(nameof(PlotKind));
 
@@ -63,6 +68,10 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
 
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<SessionStatisticsPlotView, object?>(nameof(HeaderContent));
+
+    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
+        AvaloniaProperty.Register<SessionStatisticsPlotView, RecordedSessionExtensionSlots?>(
+            nameof(ExtensionSlots));
 
     public PlotKind PlotKind
     {
@@ -130,6 +139,12 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         set => SetValue(HeaderContentProperty, value);
     }
 
+    public RecordedSessionExtensionSlots? ExtensionSlots
+    {
+        get => GetValue(ExtensionSlotsProperty);
+        set => SetValue(ExtensionSlotsProperty, value);
+    }
+
     public SessionStatisticsPlotView()
     {
         PropertyChanged += (_, e) =>
@@ -153,7 +168,30 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
                 ApplyModeToPlotModel(PlotModel);
                 ReloadTelemetry();
             }
+
+            if (IsStatisticsOverlayProperty(e.Property.Name))
+            {
+                if (e.Property == ExtensionSlotsProperty)
+                {
+                    SubscribeToSlots(ExtensionSlots);
+                }
+
+                ApplyStatisticsOverlayDescriptor(refresh: true);
+            }
         };
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        SubscribeToSlots(ExtensionSlots);
+        ApplyStatisticsOverlayDescriptor(refresh: false);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        SubscribeToSlots(null);
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void CreatePlot()
@@ -175,7 +213,14 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
         ApplyModeToPlotModel(plotModel);
         SetPlotModel(plotModel);
         UpdateStatisticsTitle();
+        ApplyStatisticsOverlayDescriptor(refresh: false);
         InitializeBarReadoutInteractions();
+    }
+
+    protected override void OnPlotDataLoaded()
+    {
+        base.OnPlotDataLoaded();
+        ApplyStatisticsOverlayDescriptor(refresh: false);
     }
 
     private static bool IsTitleProperty(string? propertyName) =>
@@ -187,6 +232,99 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             nameof(BalanceDisplacementMode) or
             nameof(BalanceSpeedMode) or
             nameof(VelocityAverageMode);
+
+    private static bool IsStatisticsOverlayProperty(string? propertyName) =>
+        propertyName is nameof(ExtensionSlots) or
+            nameof(PlotKind) or
+            nameof(SuspensionType) or
+            nameof(BalanceType) or
+            nameof(ImuLocation);
+
+    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
+    {
+        if (ReferenceEquals(subscribedSlots, slots))
+        {
+            return;
+        }
+
+        if (subscribedSlots is not null)
+        {
+            subscribedSlots.StatisticsOverlays.CollectionChanged -= OnStatisticsOverlaysChanged;
+        }
+
+        subscribedSlots = slots;
+        if (subscribedSlots is not null)
+        {
+            subscribedSlots.StatisticsOverlays.CollectionChanged += OnStatisticsOverlaysChanged;
+        }
+    }
+
+    private void OnStatisticsOverlaysChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        ApplyStatisticsOverlayDescriptor(refresh: true);
+    }
+
+    private void ApplyStatisticsOverlayDescriptor(bool refresh)
+    {
+        if (!HasPlotModel)
+        {
+            return;
+        }
+
+        PlotModel.ApplyStatisticsOverlayDescriptor(CreateStatisticsOverlayDescriptor());
+        if (refresh)
+        {
+            RefreshPlot();
+        }
+    }
+
+    private RecordedSessionStatisticsPlotOverlayDescriptor? CreateStatisticsOverlayDescriptor()
+    {
+        if (ExtensionSlots is null || ResolveStatisticsOverlayTargetKind() is not { } targetKind)
+        {
+            return null;
+        }
+
+        var overlays = ExtensionSlots.StatisticsOverlays
+            .Where(contribution => contribution.TargetPlotKind == targetKind && contribution.Overlay is not null)
+            .OrderBy(contribution => contribution.Order)
+            .Select(contribution => contribution.Overlay!)
+            .ToArray();
+
+        if (overlays.Length == 0)
+        {
+            return null;
+        }
+
+        return new RecordedSessionStatisticsPlotOverlayDescriptor(
+            overlays.SelectMany(overlay => overlay.Lines).ToArray(),
+            overlays.SelectMany(overlay => overlay.Bands).ToArray());
+    }
+
+    private RecordedSessionStatisticsPlotKind? ResolveStatisticsOverlayTargetKind()
+    {
+        return PlotKind switch
+        {
+            PlotKind.TravelHistogram => SuspensionType == SuspensionType.Front
+                ? RecordedSessionStatisticsPlotKind.FrontTravelHistogram
+                : RecordedSessionStatisticsPlotKind.RearTravelHistogram,
+            PlotKind.VelocityHistogram => SuspensionType == SuspensionType.Front
+                ? RecordedSessionStatisticsPlotKind.FrontVelocityHistogram
+                : RecordedSessionStatisticsPlotKind.RearVelocityHistogram,
+            PlotKind.Balance => BalanceType == BalanceType.Compression
+                ? RecordedSessionStatisticsPlotKind.CompressionBalance
+                : RecordedSessionStatisticsPlotKind.ReboundBalance,
+            PlotKind.VibrationThirds => (SuspensionType, ImuLocation) switch
+            {
+                (SuspensionType.Front, ImuLocation.Fork) => RecordedSessionStatisticsPlotKind.FrontForkVibration,
+                (SuspensionType.Front, ImuLocation.Frame) => RecordedSessionStatisticsPlotKind.FrontFrameVibration,
+                (SuspensionType.Rear, ImuLocation.Fork) => RecordedSessionStatisticsPlotKind.RearForkVibration,
+                (SuspensionType.Rear, ImuLocation.Frame) => RecordedSessionStatisticsPlotKind.RearFrameVibration,
+                _ => null,
+            },
+            _ => null,
+        };
+    }
 
     private void UpdateStatisticsTitle()
     {

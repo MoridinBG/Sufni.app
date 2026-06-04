@@ -1,9 +1,12 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
@@ -172,6 +175,77 @@ public class SessionStatisticsPlotViewTests
 
         Assert.True(Math.Abs(titleCenter - viewCenter) < 1);
         Assert.True(titleRight < headerTopLeft.X);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsPlotView_AppliesExtensionOverlayDescriptors_WhenContributionsChangeAndTelemetryReloads()
+    {
+        var slots = new RecordedSessionExtensionSlots();
+        var view = new TestableSessionStatisticsPlotView
+        {
+            PlotKind = PlotKind.TravelHistogram,
+            SuspensionType = SuspensionType.Front,
+            ExtensionSlots = slots,
+            Telemetry = CreateProcessed(),
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.Empty(plot.Plot.PlottableList.OfType<Scatter>());
+
+        slots.StatisticsOverlays.Add(new RecordedSessionStatisticsOverlayContribution(
+            "extension",
+            "rear-overlay",
+            Order: 0,
+            RecordedSessionStatisticsPlotKind.RearTravelHistogram,
+            ViewModel: null,
+            new RecordedSessionStatisticsPlotOverlayDescriptor(
+                [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
+                [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())])));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.Empty(plot.Plot.PlottableList.OfType<Scatter>());
+
+        slots.StatisticsOverlays.Add(new RecordedSessionStatisticsOverlayContribution(
+            "extension",
+            "front-overlay",
+            Order: 1,
+            RecordedSessionStatisticsPlotKind.FrontTravelHistogram,
+            ViewModel: null,
+            new RecordedSessionStatisticsPlotOverlayDescriptor(
+                [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],
+                [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))])));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        AssertStatisticsOverlay(plot);
+
+        view.Telemetry = CreateProcessed();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        AssertStatisticsOverlay(plot);
+    }
+
+    private static RecordedSessionPlotOverlayStyle CreateOverlayStyle(double width = 2, double opacity = 0.75)
+    {
+        return new RecordedSessionPlotOverlayStyle(
+            new RecordedSessionMapColor(255, 17, 34, 51),
+            width,
+            opacity);
+    }
+
+    private static void AssertStatisticsOverlay(ScottPlot.Avalonia.AvaPlot plot)
+    {
+        var span = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.Equal(20, span.X1, 3);
+        Assert.Equal(30, span.X2, 3);
+        Assert.True(span.IsVisible);
+        Assert.False(span.EnableAutoscale);
+
+        var line = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
+        Assert.False(line.MarkerStyle.IsVisible);
+        Assert.Equal(3, line.LineStyle.Width, 3);
     }
 
     private sealed class TestableSessionStatisticsPlotView : SessionStatisticsPlotView

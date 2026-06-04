@@ -36,6 +36,7 @@ mc:Ignorable="d">
 
             <controls:TravelStatisticsHost
             AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
             HasDynamicStatistics="{Binding HasDynamicStatistics}"
             MinCardHeight="220"
             PlaceholderMargin="0,0,0,12"
@@ -49,6 +50,7 @@ mc:Ignorable="d">
 
             <controls:TravelStatisticsHost
             AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
             HasDynamicStatistics="{Binding HasDynamicStatistics}"
             MinCardHeight="220"
             PlotHeight="260"

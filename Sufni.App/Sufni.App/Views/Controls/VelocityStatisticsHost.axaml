@@ -26,6 +26,7 @@ mc:Ignorable="d">
                     <plots:SessionStatisticsPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
                     DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Height="{Binding #Root.PlotHeight}"
                     IsVisible="{Binding #Root.HasDynamicStatistics}"
                     PlotKind="VelocityHistogram"

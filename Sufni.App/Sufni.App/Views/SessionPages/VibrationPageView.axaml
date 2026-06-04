@@ -20,6 +20,7 @@ mc:Ignorable="d">
             <controls:VibrationStatisticsHost
             HostName="FrontForkVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Fork"
             MinCardHeight="320"
             PlotRowHeight="260"
@@ -31,6 +32,7 @@ mc:Ignorable="d">
             <controls:VibrationStatisticsHost
             HostName="FrontFrameVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Frame"
             MinCardHeight="320"
             PlotRowHeight="260"
@@ -42,6 +44,7 @@ mc:Ignorable="d">
             <controls:VibrationStatisticsHost
             HostName="RearForkVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Fork"
             MinCardHeight="320"
             PlotRowHeight="260"
@@ -53,6 +56,7 @@ mc:Ignorable="d">
             <controls:VibrationStatisticsHost
             HostName="RearFrameVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Frame"
             MinCardHeight="320"
             PlotRowHeight="260"
