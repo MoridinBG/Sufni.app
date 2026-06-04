@@ -55,6 +55,9 @@ public sealed class TelemetryPlotRow : UserControl
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, string?>(nameof(Title));
 
+    public static readonly StyledProperty<object?> TitleToolTipProperty =
+        AvaloniaProperty.Register<TelemetryPlotRow, object?>(nameof(TitleToolTip));
+
     public static readonly StyledProperty<string?> RowIdProperty =
         AvaloniaProperty.Register<TelemetryPlotRow, string?>(nameof(RowId));
 
@@ -114,6 +117,12 @@ public sealed class TelemetryPlotRow : UserControl
     {
         get => GetValue(TitleProperty);
         set => SetValue(TitleProperty, value);
+    }
+
+    public object? TitleToolTip
+    {
+        get => GetValue(TitleToolTipProperty);
+        set => SetValue(TitleToolTipProperty, value);
     }
 
     public string? RowId
@@ -343,6 +352,7 @@ public sealed class TelemetryPlotRow : UserControl
         PropertyChanged += (_, e) =>
         {
             if (e.Property == TitleProperty ||
+                e.Property == TitleToolTipProperty ||
                 e.Property == PresentationStateProperty ||
                 e.Property == PlotContentProperty ||
                 e.Property == PlaceholderContentProperty ||
@@ -664,6 +674,7 @@ public sealed class TelemetryPlotRow : UserControl
     private void UpdateVisualState()
     {
         titleText.Text = Title;
+        ToolTip.SetTip(titleText, TitleToolTip);
         headerActionsPresenter.Actions = HeaderActions;
         chevronText.Text = IsExpanded ? "-" : "+";
         chevronText.Margin = new Thickness(TitleLeftInset, 0, 0, 0);

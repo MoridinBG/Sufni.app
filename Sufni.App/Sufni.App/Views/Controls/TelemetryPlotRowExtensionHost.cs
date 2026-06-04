@@ -297,6 +297,7 @@ public static class TelemetryPlotRowExtensionHost
             hostedRow.RowId = contribution.RowId;
             SetIsHostedGraphRow(hostedRow, true);
             hostedRow.Title = contribution.Title;
+            hostedRow.TitleToolTip = contribution.TitleToolTip;
             hostedRow.PresentationState = contribution.PresentationState;
             hostedRow.PlotContent = CreateContributionControl(contribution.ViewModel);
             hostedRow.PlaceholderContent = new SurfacePlaceholderCard { Title = contribution.Title };

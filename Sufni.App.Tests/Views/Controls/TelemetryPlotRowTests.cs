@@ -74,6 +74,18 @@ public class TelemetryPlotRowTests
     }
 
     [AvaloniaFact]
+    public async Task TelemetryPlotRow_TitleToolTip_AppliesToTitleText()
+    {
+        var row = CreateRow("Travel");
+        row.TitleToolTip = "Extension supplied title tool tip.";
+
+        await using var mounted = await MountAsync(row);
+
+        var title = Assert.Single(row.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Travel");
+        Assert.Equal(row.TitleToolTip, ToolTip.GetTip(title));
+    }
+
+    [AvaloniaFact]
     public async Task TelemetryPlotRow_HeaderClick_ToleratesSmallPointerMovement()
     {
         var row = CreateRow("Travel");

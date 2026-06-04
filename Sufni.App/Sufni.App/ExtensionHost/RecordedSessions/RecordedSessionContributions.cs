@@ -159,7 +159,10 @@ public sealed record RecordedSessionHostedGraphRowContribution(
     string Title,
     SurfacePresentationState PresentationState,
     object ViewModel,
-    bool IsInitiallyExpanded) : IRecordedSessionContribution;
+    bool IsInitiallyExpanded) : IRecordedSessionContribution
+{
+    public object? TitleToolTip { get; init; }
+}
 
 public sealed record RecordedSessionTimeRangeOverlayContribution(
     string ExtensionId,
