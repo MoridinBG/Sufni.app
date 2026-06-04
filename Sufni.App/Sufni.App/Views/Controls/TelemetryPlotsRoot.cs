@@ -384,7 +384,9 @@ public sealed class TelemetryPlotsRoot : UserControl
 
     internal SessionGraphPreferences CaptureGraphPreferences()
     {
-        return SessionGraphPreferenceTree.Capture(Rows.Select(CreateRowState));
+        return SessionGraphPreferenceTree.Capture(Rows
+            .Where(row => !TelemetryPlotRowExtensionHost.GetIsHostedGraphRow(row))
+            .Select(CreateRowState));
     }
 
     private static SessionGraphPreferenceRowState CreateRowState(TelemetryPlotRow row)
@@ -392,7 +394,10 @@ public sealed class TelemetryPlotsRoot : UserControl
         return new SessionGraphPreferenceRowState(
             row.RowId ?? "",
             row.IsExpanded,
-            row.ChildRows.Select(CreateRowState).ToArray());
+            row.ChildRows
+                .Where(childRow => !TelemetryPlotRowExtensionHost.GetIsHostedGraphRow(childRow))
+                .Select(CreateRowState)
+                .ToArray());
     }
 
     private void ApplyGraphPreferences(SessionGraphPreferences? preferences)
@@ -408,13 +413,15 @@ public sealed class TelemetryPlotsRoot : UserControl
             return;
         }
 
+        var preferenceManagedRows = allRows
+            .Where(row =>
+                !TelemetryPlotRowExtensionHost.GetIsHostedGraphRow(row) &&
+                !string.IsNullOrWhiteSpace(row.RowId))
+            .ToArray();
         var normalized = SessionGraphPreferenceTree.Normalize(
             preferences,
-            allRows
-                .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
-                .Select(row => row.RowId!));
-        var rowsById = allRows
-            .Where(row => !string.IsNullOrWhiteSpace(row.RowId))
+            preferenceManagedRows.Select(row => row.RowId!));
+        var rowsById = preferenceManagedRows
             .GroupBy(row => row.RowId!)
             .ToDictionary(group => group.Key, group => group.First());
         var usedIds = new HashSet<string>();
@@ -425,13 +432,19 @@ public sealed class TelemetryPlotsRoot : UserControl
         {
             foreach (var row in allRows)
             {
-                row.ChildRows.Clear();
+                foreach (var childRow in row.ChildRows
+                             .Where(childRow => !TelemetryPlotRowExtensionHost.GetIsHostedGraphRow(childRow))
+                             .ToArray())
+                {
+                    row.ChildRows.Remove(childRow);
+                }
             }
 
             Rows.Clear();
             rootRows.AddRange(MaterializeRows(normalized.Rows, rowsById, usedIds));
             rootRows.AddRange(allRows.Where(row =>
-                string.IsNullOrWhiteSpace(row.RowId) || !usedIds.Contains(row.RowId)));
+                !TelemetryPlotRowExtensionHost.GetIsHostedGraphRow(row) &&
+                (string.IsNullOrWhiteSpace(row.RowId) || !usedIds.Contains(row.RowId))));
 
             foreach (var row in rootRows)
             {

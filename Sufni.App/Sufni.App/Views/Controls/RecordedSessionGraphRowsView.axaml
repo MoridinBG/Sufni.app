@@ -21,6 +21,7 @@ mc:Ignorable="d">
         <controls:TelemetryPlotsRoot.Rows>
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Travel}"
+            controls:TelemetryPlotRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding TravelHeaderActions}"
             Title="Travel (mm)"
             PresentationState="{Binding TravelGraphState}">
@@ -44,6 +45,7 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.ChildRows>
                     <controls:TelemetryPlotRow
                     RowId="{x:Static models:TelemetryGraphRowIds.Velocity}"
+                    controls:TelemetryPlotRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding VelocityHeaderActions}"
                     Title="Velocity (m/s)"
                     PresentationState="{Binding VelocityGraphState}">
@@ -70,6 +72,7 @@ mc:Ignorable="d">
 
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Imu}"
+            controls:TelemetryPlotRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding ImuHeaderActions}"
             Title="Vibration RMS (g)"
             PresentationState="{Binding ImuGraphState}">
@@ -93,6 +96,7 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.ChildRows>
                     <controls:TelemetryPlotRow
                     RowId="{x:Static models:TelemetryGraphRowIds.PitchRoll}"
+                    controls:TelemetryPlotRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding PitchRollHeaderActions}"
                     Title="Frame pitch/roll (deg)"
                     PresentationState="{Binding PitchRollGraphState}">
@@ -118,6 +122,7 @@ mc:Ignorable="d">
 
             <controls:TelemetryPlotRow
             RowId="{x:Static models:TelemetryGraphRowIds.Speed}"
+            controls:TelemetryPlotRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding SpeedHeaderActions}"
             Title="GPS speed (km/h)"
             PresentationState="{Binding SpeedGraphState}">
@@ -142,6 +147,7 @@ mc:Ignorable="d">
                 <controls:TelemetryPlotRow.ChildRows>
                     <controls:TelemetryPlotRow
                     RowId="{x:Static models:TelemetryGraphRowIds.Elevation}"
+                    controls:TelemetryPlotRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding ElevationHeaderActions}"
                     Title="Elevation (m)"
                     PresentationState="{Binding ElevationGraphState}">

@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.VisualTree;
+using Sufni.App.Plots;
 using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
@@ -47,6 +50,86 @@ public class RecordedSessionGraphDesktopViewTests
         Assert.NotNull(toolbarHost);
         AssertContributionText(mounted.View, "DesktopToolbarAction", "Action");
         AssertContributionText(mounted.View, "DesktopToolbarPanel", "Panel");
+    }
+
+    [AvaloniaFact]
+    public async Task RecordedSessionGraphDesktopView_RendersPlotRowExtensionContributions()
+    {
+        var workspace = new RecordedSessionGraphWorkspaceStub(CreateMinimal());
+        var hostedContent = new HostedGraphRowContent("Hosted row");
+        var headerAction = new TelemetryPlotRowAction
+        {
+            Id = "ExtensionVelocityAction",
+            Kind = TelemetryPlotRowActionKind.Execute,
+            IconGeometry = Geometry.Parse("M0 0L12 0L12 12L0 12Z"),
+            ToolTip = "Extension action",
+        };
+        var contextAction = new TelemetryPlotContextMenuAction(
+            "extension_context",
+            "Extension context",
+            new TestCommand());
+        var overlayRegistration = new RecordedTimeRangeOverlaySetRegistration(
+            "extension_range",
+            new RecordedTimeRangeOverlaySet(
+                [new RecordedTimeRangeOverlay(0.2, 0.4)],
+                new RecordedTimeRangeOverlayStyle(
+                    global::ScottPlot.Colors.CornflowerBlue,
+                    global::ScottPlot.Colors.Transparent,
+                    0)),
+            IsVisible: true);
+
+        workspace.ExtensionSlots.PlotRowHeaderActions.Add(new RecordedSessionPlotRowActionContribution(
+            "extension",
+            "velocity-action",
+            Order: 0,
+            TelemetryGraphRowIds.Velocity,
+            headerAction));
+        workspace.ExtensionSlots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
+            "extension",
+            "travel-context",
+            Order: 0,
+            TelemetryGraphRowIds.Travel,
+            contextAction));
+        workspace.ExtensionSlots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
+            "extension",
+            "hosted-row",
+            Order: 0,
+            ParentRowId: TelemetryGraphRowIds.Travel,
+            RowId: "extension-row",
+            Title: "Extension row",
+            SurfacePresentationState.Ready,
+            hostedContent,
+            IsInitiallyExpanded: true));
+        workspace.ExtensionSlots.TimeRangeOverlays.Add(new RecordedSessionTimeRangeOverlayContribution(
+            "extension",
+            "travel-range",
+            Order: 0,
+            TelemetryGraphRowIds.Travel,
+            overlayRegistration));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var velocityRow = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<TelemetryPlotRow>(),
+            row => row.RowId == TelemetryGraphRowIds.Velocity);
+        Assert.Contains(headerAction, velocityRow.HeaderActions!);
+        var hostedRow = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<TelemetryPlotRow>(),
+            row => row.RowId == "extension-row");
+        Assert.Equal("Extension row", hostedRow.Title);
+        var hostedPlotContent = Assert.IsType<ContentControl>(hostedRow.PlotContent);
+        Assert.Same(hostedContent, hostedPlotContent.Content);
+        var graphRoot = Assert.Single(mounted.View.GetVisualDescendants().OfType<TelemetryPlotsRoot>());
+        Assert.DoesNotContain("extension-row", FlattenRowIds(graphRoot.CaptureGraphPreferences().Rows));
+
+        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
+        Assert.Same(contextAction, Assert.Single(travelView.AdditionalContextMenuActions!));
+        Assert.Same(overlayRegistration, Assert.Single(travelView.TimeRangeOverlays!));
+
+        var plot = Assert.Single(travelView.GetVisualDescendants().OfType<AvaPlot>());
+        Assert.Contains(
+            plot.Plot.PlottableList.OfType<HorizontalSpan>(),
+            span => span.IsVisible && Math.Abs(span.X1 - 0.2) < 0.001 && Math.Abs(span.X2 - 0.4) < 0.001);
     }
 
     [AvaloniaFact]
@@ -170,6 +253,35 @@ public class RecordedSessionGraphDesktopViewTests
         var visual = rowsView.FindControl<T>(name);
         Assert.NotNull(visual);
         return visual!;
+    }
+
+    private static IEnumerable<string> FlattenRowIds(IEnumerable<SessionGraphRowPreferences> rows)
+    {
+        foreach (var row in rows)
+        {
+            yield return row.RowId;
+            foreach (var childRowId in FlattenRowIds(row.Children))
+            {
+                yield return childRowId;
+            }
+        }
+    }
+
+    private sealed record HostedGraphRowContent(string Text);
+
+    private sealed class TestCommand : ICommand
+    {
+        public event EventHandler? CanExecuteChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public bool CanExecute(object? parameter) => true;
+
+        public void Execute(object? parameter)
+        {
+        }
     }
 
     private sealed class RecordedSessionGraphWorkspaceStub(
