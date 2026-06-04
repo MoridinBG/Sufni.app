@@ -137,6 +137,11 @@ erDiagram
         text token
         int expires
     }
+
+    extension_schema_version {
+        text extension_id PK
+        int version
+    }
 ```
 
 ## Database Service
@@ -168,6 +173,35 @@ Session-specific operations split metadata, processed data, and recording source
 - `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids that do not have a source row, or whose source row hash differs from the persisted processing fingerprint's `SourceHash`
 - `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
 
+## Extension Schema
+
+`SqLiteDatabaseService` is also the concrete singleton behind
+`IExtensionDatabaseConnection`. `GetInitializedConnectionAsync()`
+awaits normal startup initialization before returning the raw
+`SQLiteAsyncConnection`, so extension services can run explicit SQL
+against their own tables without bypassing schema setup.
+
+Extension migrations are declared by `IExtensionDatabaseMigrator`.
+Each migrator declares:
+
+- `ExtensionId`
+- `TargetVersion`
+- `TableTypes` owned by that extension
+- ordered `ExtensionDatabaseMigrationStep` entries
+
+During `SqLiteDatabaseService.Init()`, extension work runs after core
+tables/compatibility columns are created and before cleanup completes:
+
+1. Create `extension_schema_version`.
+2. Create tables declared by all extension migrators.
+3. Run missing migration steps in ascending target version.
+4. Update the schema-version row after each successful step.
+5. Run core cleanup.
+6. Run extension orphan repair.
+
+The public schema tracks only extension ids and versions. Extension
+table columns and payload fields remain owned by the declaring module.
+
 ## Soft Delete
 
 `Synchronizable` entities (`Sufni.App/Sufni.App/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. Startup cleanup also soft-deletes duplicate active tracks that share the same cached start/end seconds, keeps one canonical row, repoints non-deleted sessions to it, and clears affected cached session-window tracks so they regenerate from the canonical full track.
@@ -178,6 +212,17 @@ On database initialization, the `Cleanup()` pass permanently removes:
 - Orphaned `session_cache` rows whose parent session is past that 1-day grace window
 - `session_recording_source` rows for purged sessions, plus any source row without a parent session
 - `paired_device` rows where `Expires < DateTime.UtcNow`
+
+Extension-owned rows that reference core entities are cleaned through
+declared cascade rules rather than ad hoc core knowledge.
+`IExtensionCascadeRuleProvider` declares the extension table, core
+entity kind, foreign-key column, and `SoftDelete` or `HardDelete`
+action. `ExtensionCascadeService` validates that the target table is
+owned by an extension migrator, applies rules after successful core
+delete workflows, and repeats the same declared cleanup during startup
+orphan repair. `IExtensionStateRefreshParticipant` lets extension
+state refresh after cascade work without exposing extension stores to
+core coordinators.
 
 ## Conflict Resolution
 

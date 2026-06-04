@@ -15,6 +15,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 - [DAQ Management](#daq-management)
 - [Signal Processing & Suspension Kinematics](#signal-processing--suspension-kinematics)
 - [UI Architecture](#ui-architecture)
+- [Extension Host](#extension-host)
 - [Plot Rendering](#plot-rendering)
 - [Maps & GPS Tracks](#maps--gps-tracks)
 - [Live DAQ Streaming](#live-daq-streaming)
@@ -160,6 +161,25 @@ Presentation-layer topics:
 - [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Views/Controls/` and `DesktopViews/Controls/`
 - [Theming](architecture/theming.md#theming) — theme snapshots, resource bridge, runtime theme service, and theme ownership
 - [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, desktop/mobile plot hosting
+
+---
+
+## Extension Host
+
+The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
+
+Topics in [architecture/extensions.md](architecture/extensions.md):
+
+- [Overview](architecture/extensions.md#overview) — neutral public host boundaries
+- [Module Startup](architecture/extensions.md#module-startup) — module service and capability registration
+- [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
+- [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
+- [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, raw initialized connection
+- [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
+- [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
+- [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
+- [Recorded-Session Slots](architecture/extensions.md#recorded-session-slots) — generic contribution slots and descriptors
+- [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries
 
 ---
 

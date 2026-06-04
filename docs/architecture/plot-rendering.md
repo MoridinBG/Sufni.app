@@ -48,6 +48,15 @@ SufniPlot                      (Plots/SufniPlot.cs)
 
 `SessionStatisticsPlotView` (`Sufni.App/Sufni.App/DesktopViews/Plots/SessionStatisticsPlotView.cs`) constructs every histogram / balance / vibration plot from a `PlotKind` enum, so the same Avalonia control hosts the whole statistics family. It also owns the visible statistics-plot title in Avalonia and suppresses the plot model's ScottPlot title, giving page-level controls a measured header slot beside the title without overlaying the data area. Header controls take their measured width on the right; the title remains centered over the plot when space allows, then shifts left only enough to clear those controls and trims once it reaches the plot edge. Direct plot-class rendering can still emit ScottPlot titles for cached SVG/static output. The time-series plots (`TravelPlot`, `VelocityPlot`, `ImuPlot`) and `LeverageRatioPlot` have dedicated views.
 
+Statistics plots can also receive recorded-session extension overlay
+descriptors through `SessionStatisticsPlotView.ExtensionSlots`. The
+view filters contributed descriptors by public plot kind (front/rear
+travel, front/rear velocity, balance side, or vibration location),
+combines them by contribution order, and reapplies them after normal
+telemetry reloads. `TelemetryPlot` translates those neutral line and
+band descriptors into ScottPlot plottables without knowing extension
+workflow semantics.
+
 | Family   | Class                          | What it draws                                                                                                        |
 | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | Travel   | `TravelPlot`                   | Travel over time per suspension (mm). Marker lines plus keyed analysis, preview, and airtime range overlays; airtime can show collision-culled duration labels |

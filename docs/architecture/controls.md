@@ -6,4 +6,14 @@
 
 `TelemetryPlotRow` owns reusable graph-row chrome: title, expand/collapse, drag/drop affordances, child-row hosting, row-depth backgrounds, and right-aligned header actions. Header actions are supplied as `TelemetryPlotRowAction` descriptors and rendered by the row, grouped as toggle actions first and execute actions second with extra spacing between the groups. Action descriptors carry command and visual state; the row keeps action pointer input separate from header collapse and drag handling.
 
+Recorded-session extension contribution hosts are also reusable controls:
+`RecordedSessionToolbarContributionsView`,
+`RecordedSessionMediaPanesView`,
+`RecordedSessionStatisticsContributionsView`,
+`RecordedSessionSessionListContributionsView`, and
+`TelemetryPlotRowExtensionHost`. They render neutral slot collections
+from `RecordedSessionExtensionSlots` and wrap non-control contribution
+view models in `ContentControl` so the extension view registry can
+resolve templates normally.
+
 Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; it does not reach into the child swipe control's visual tree.

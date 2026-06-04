@@ -44,8 +44,22 @@ and calls `BuildServiceProvider()`. There is no separate
 `RegisteredServices` indirection — the `ServiceCollection` itself is
 the composition root.
 
+Extension module startup is part of the same composition root. `App`
+computes desktop/mobile mode, calls the build-time partial
+`RegisterBuildTimeExtensions(App.Extensions)`, registers the
+`ExtensionViewRegistry`, then lets modules register services before
+core shared services. After module and core services are present,
+`AppExtensionCapabilityRegistry` is registered as a singleton and
+modules register capabilities. No assembly scanning occurs; public
+builds have no partial implementation and therefore no modules. See
+[Extension Host](extensions.md#module-startup).
+
 Shared registrations in `App.OnFrameworkInitializationCompleted`:
 
+- **Extension host**: `IExtensionViewRegistry` /
+  `ExtensionViewRegistry`, `AppExtensionCapabilityRegistry`, and the
+  services/capabilities supplied by `App.Extensions` before the
+  service provider is built.
 - **Shell**: `IShellCoordinator` chosen by application lifetime —
   `DesktopShellCoordinator` for `IClassicDesktopStyleApplicationLifetime`,
   `MobileShellCoordinator` for `ISingleViewApplicationLifetime`. Both
@@ -118,7 +132,10 @@ After `BuildServiceProvider()`, `App` eagerly resolves
 mobile-only `IPairingClientCoordinator`). This is necessary because
 their constructors subscribe to synchronization-server / pairing /
 service-discovery events and nothing else depends on them at
-startup.
+startup. The app then resolves any eager service types declared by
+extension capabilities, giving extension services the same
+constructor-subscription startup point without requiring core
+coordinators to know their concrete types.
 
 ## Navigation
 

@@ -55,8 +55,8 @@ sequenceDiagram
 
 `SynchronizationClientService` (`Sufni.App/Sufni.App/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases:
 
-1. **Push local changes** — collect all entities changed since last sync, add app-preference changes from `IAppPreferences.GetSyncDataAsync`, and PUT to `/sync/push`
-2. **Pull remote changes** — GET `/sync/pull?since=`, apply deletes or upserts locally, and apply `AppPreferencesSyncData` through `IAppPreferences.ApplySyncDataAsync`
+1. **Push local changes** — collect all entities changed since last sync, add app-preference changes from `IAppPreferences.GetSyncDataAsync`, append outgoing extension envelopes, and PUT to `/sync/push`
+2. **Pull remote changes** — GET `/sync/pull?since=`, apply deletes or upserts locally, apply `AppPreferencesSyncData` through `IAppPreferences.ApplySyncDataAsync`, then route extension envelopes
 3. **Push incomplete sessions** — for each server-side session missing processed data, upload the local MessagePack blob
 4. **Pull incomplete sessions** — for each local session missing processed data, download the MessagePack blob from the server
 5. **Push incomplete recorded sources** — for each server-side session missing a recorded-source row, upload the local `RecordedSessionSourceTransfer`
@@ -79,7 +79,17 @@ SynchronizationData
 ├── Setups[]
 ├── Sessions[] (metadata, tuning fields, full-track link, processing fingerprint; no blob)
 ├── Tracks[]
-└── AppPreferences? (map/session preferences as AppPreferencesSyncData)
+├── AppPreferences? (map/session preferences as AppPreferencesSyncData)
+└── ExtensionBatches[] (opaque extension envelopes)
 ```
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`.
+
+Extension envelopes are handled by `ExtensionSyncService`. Outgoing
+participants create batches containing an extension id, payload
+version, and opaque bytes. Incoming batches are ignored when no
+participant is registered for the id; known batches are handed to that
+participant after core entity and app-preference application. If a
+known participant fails to apply a batch, the sync request fails before
+the client advances its last-sync timestamp. Core sync code never
+interprets extension payload fields.

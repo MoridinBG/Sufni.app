@@ -255,6 +255,21 @@ Two pages diverge from that pattern:
   duplicated in the graph hierarchy preference: plot visibility remains
   the existing `SessionPlotPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
+- **Recorded-session extension scopes** are owned by
+  `SessionDetailViewModel` for each open recorded session. On
+  `Loaded`, the editor initializes `RecordedSessionExtensionManager`
+  with the current domain snapshot and constrained host context; on
+  `Unloaded` / final close it disposes all scopes. The manager mirrors
+  each scope's `RecordedSessionExtensionSlots` into one host slot
+  collection. Recorded graph, media, and statistics workspaces expose
+  that same slot object so views can render contributed pages, toolbar
+  content, media panes, map overlays, statistics banners/overlays,
+  session-list indicators/actions, plot-row actions, hosted graph rows,
+  and time-range overlays without adding workflow-specific properties
+  to public workspace contracts. Extension scopes can request analysis
+  range changes, timeline range changes, notifications, page selection,
+  and cancellable host operations through `RecordedSessionHostContext`;
+  they do not write editor state directly.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /

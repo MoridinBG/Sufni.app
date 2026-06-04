@@ -93,6 +93,15 @@ The code-behind builds a fixed layer stack on construction: a tile layer (replac
 
 `MapView` also exposes a `Timeline` styled property (`SessionTimelineLinkViewModel`) that the recorded and live session shells bind to. The two-way coupling lets timeline cursor and visible-range changes in one place (the graph rows, the video, or the map viewport) drive the others without view models depending on each other. Pointer interaction with the map computes a normalized session range from the visible viewport and pushes it back through `Timeline.SetVisibleRange`. External timeline range changes zoom the map to the matching track-point time window; if a track refresh arrives after the range was already changed, `MapView` applies the current timeline range instead of re-fitting the whole session. Straight-line or point-like selected track windows are expanded to a non-zero map extent before calling Mapsui's viewport fit so they still zoom visibly. The view's own pointer-tracking flag (`mapPointerInteractionActive`) is the gate that keeps Mapsui's own viewport-changed events from echoing back as user-driven. Desktop media XAML binds this through the shared `ISessionMediaWorkspace` contract so recorded and live desktop media surfaces use the same compiled-binding view.
 
+For recorded-session extension overlays, `MapView` also accepts
+`RecordedSessionExtensionSlots` through an `ExtensionSlots` styled
+property. It renders `MapOverlays` into a dedicated Mapsui memory
+layer using neutral line and point descriptors. Coordinates are
+latitude/longitude in the descriptor and are projected with the same
+spherical-mercator projection used for GPS tracks. The map view owns
+the Mapsui feature/style translation; media workspaces only forward
+the slot collection.
+
 ## Map Preferences
 
 `IMapPreferences` (`Sufni.App/Sufni.App/Services/IAppPreferences.cs`) is a facet of `IAppPreferences`. The concrete implementation in `AppPreferences` (`Sufni.App/Sufni.App/Services/AppPreferences.cs`) writes a single JSON document — `app-preferences.json` next to the SQLite database — under a `Maps` key. Reads and writes are serialized through a `SemaphoreSlim`, and writes go through a temp-file rename so a crashed write does not corrupt the document.
