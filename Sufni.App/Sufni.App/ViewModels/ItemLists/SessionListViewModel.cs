@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Rows;
@@ -27,6 +28,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly SessionCoordinator sessionCoordinator;
+    private readonly IRecordedSessionListExtensionService? listExtensionService;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
@@ -47,15 +49,22 @@ public partial class SessionListViewModel : ItemListViewModelBase
     public SessionListViewModel(
         IRecordedSessionGraph recordedSessionGraph,
         SessionCoordinator sessionCoordinator,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        IRecordedSessionListExtensionService? listExtensionService = null)
         : base(uiThreadDispatcher)
     {
         this.sessionCoordinator = sessionCoordinator;
+        this.listExtensionService = listExtensionService;
 
         recordedSessionGraph.ConnectSessions()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                summary => new SessionRowViewModel(summary, sessionCoordinator, RequestRowDelete, RecalculateSessionAsync),
+                summary => new SessionRowViewModel(
+                    summary,
+                    sessionCoordinator,
+                    RequestRowDelete,
+                    RecalculateSessionAsync,
+                    this.listExtensionService),
                 (row, summary) => row.Update(summary))
             .SortAndBind(
                 out sessionRows,

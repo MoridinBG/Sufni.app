@@ -2,6 +2,7 @@ using System.Globalization;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.ViewModels.ItemLists;
 
@@ -124,6 +125,38 @@ public class SessionListViewModelTests
             await sessionCoordinator.Received(1)
                 .RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>());
             Assert.Empty(viewModel.ErrorMessages);
+        }
+    }
+
+    [Fact]
+    public void Rows_RefreshExtensionListContributions_WhenSummaryUpdates()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(name: "initial", updated: 1);
+            var listExtensionService = new TestRecordedSessionListExtensionService();
+            sessionCache.AddOrUpdate(summary);
+
+            var viewModel = new SessionListViewModel(
+                graph,
+                TestCoordinatorSubstitutes.Session(),
+                UiThreadDispatcher,
+                listExtensionService);
+            var row = Assert.Single(viewModel.Items);
+
+            var initialIndicator = Assert.Single(row.Indicators);
+            var initialAction = Assert.Single(row.Actions);
+            Assert.Equal("initial-indicator", initialIndicator.ContributionId);
+            Assert.Equal("initial-action", initialAction.ContributionId);
+
+            sessionCache.AddOrUpdate(summary with { Name = "updated", Updated = 2 });
+
+            Assert.Same(row, Assert.Single(viewModel.Items));
+            var updatedIndicator = Assert.Single(row.Indicators);
+            var updatedAction = Assert.Single(row.Actions);
+            Assert.Equal("updated-indicator", updatedIndicator.ContributionId);
+            Assert.Equal("updated-action", updatedAction.ContributionId);
         }
     }
 
@@ -461,5 +494,32 @@ public class SessionListViewModelTests
     {
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
         return new DateTimeOffset(local).ToUnixTimeSeconds();
+    }
+
+    private sealed class TestRecordedSessionListExtensionService : IRecordedSessionListExtensionService
+    {
+        public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
+        {
+            return
+            [
+                new RecordedSessionListIndicatorContribution(
+                    "extension",
+                    $"{summary.Name}-indicator",
+                    Order: 0,
+                    new object()),
+            ];
+        }
+
+        public IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary)
+        {
+            return
+            [
+                new RecordedSessionListActionContribution(
+                    "extension",
+                    $"{summary.Name}-action",
+                    Order: 0,
+                    new object()),
+            ];
+        }
     }
 }

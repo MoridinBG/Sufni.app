@@ -2,6 +2,7 @@
     x:Class="Sufni.App.DesktopViews.Controls.SessionListItemButton"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
@@ -22,7 +23,7 @@
             Command="{Binding OpenPageCommand}"
             CommandParameter="{Binding}"
             CornerRadius="0">
-            <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto auto auto" ColumnSpacing="10">
+            <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto auto auto auto" ColumnSpacing="10">
                 <StackPanel
                     Grid.Column="0"
                     VerticalAlignment="Center"
@@ -50,8 +51,14 @@
                     Foreground="{DynamicResource SufniTextSecondary}"
                     Text="{Binding TimestampText}"
                     TextAlignment="Right" />
-                <Image
+                <controls:RecordedSessionSessionListContributionsView
                     Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Actions="{Binding Actions}"
+                    Indicators="{Binding Indicators}"
+                    ShowActions="False" />
+                <Image
+                    Grid.Column="3"
                     Width="16"
                     Height="16"
                     VerticalAlignment="Center"
@@ -60,12 +67,17 @@
                     Svg.Css="{DynamicResource SufniIconSecondarySvgCss}"
                     Source="{SvgImage /Assets/fa-cloud-arrow-down.svg}" />
                 <StackPanel
-                    Grid.Column="3"
+                    Grid.Column="4"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     IsVisible="{Binding #Button.IsPointerOver}"
                     Orientation="Horizontal"
                     Spacing="8">
+                    <controls:RecordedSessionSessionListContributionsView
+                        VerticalAlignment="Center"
+                        Actions="{Binding Actions}"
+                        Indicators="{Binding Indicators}"
+                        ShowIndicators="False" />
                     <Button
                         Name="RecalculateButton"
                         Width="24"

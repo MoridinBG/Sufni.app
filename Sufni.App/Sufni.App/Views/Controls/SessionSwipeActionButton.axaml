@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:labs="clr-namespace:Avalonia.Labs.Controls;assembly=Avalonia.Labs.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Rows"
     d:DesignHeight="600"
     d:DesignWidth="500"
@@ -37,7 +38,7 @@
                 Command="{Binding OpenPageCommand}"
                 CommandParameter="{Binding}"
                 CornerRadius="0">
-                <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto auto" ColumnSpacing="10">
+                <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto auto auto" ColumnSpacing="10">
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
                         <TextBlock
                             Name="TitleTextBlock"
@@ -62,9 +63,15 @@
                         Foreground="{DynamicResource SufniTextSecondary}"
                         Text="{Binding TimestampText}"
                         TextAlignment="Right" />
+                    <controls:RecordedSessionSessionListContributionsView
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Actions="{Binding Actions}"
+                        Indicators="{Binding Indicators}"
+                        ShowActions="False" />
                     <Image
                         Name="IncompleteStatusIcon"
-                        Grid.Column="2"
+                        Grid.Column="3"
                         Width="16"
                         Height="16"
                         VerticalAlignment="Center"

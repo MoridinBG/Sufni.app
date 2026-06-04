@@ -2,11 +2,14 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Labs.Controls;
+using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Controls;
 using Sufni.App.DesktopViews.ItemLists;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
@@ -58,6 +61,38 @@ public class SessionListViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         await coordinator.Received(1).OpenEditAsync(snapshot.Id);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionListView_RendersExtensionIndicators()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var snapshot = TestSnapshots.Session(name: "Morning Ride", timestamp: 1_700_000_000);
+        using var cache = new SourceCache<RecordedSessionSummary, Guid>(summary => summary.Id);
+        cache.AddOrUpdate(new RecordedSessionSummary(
+            snapshot.Id,
+            snapshot.Updated,
+            snapshot.Name,
+            snapshot.Description,
+            snapshot.Timestamp,
+            snapshot.HasProcessedData,
+            new SessionStaleness.Current()));
+        var graph = Substitute.For<IRecordedSessionGraph>();
+        graph.ConnectSessions().Returns(cache.Connect());
+        var viewModel = new SessionListViewModel(
+            graph,
+            TestCoordinatorSubstitutes.Session(),
+            new InlineUiThreadDispatcher(),
+            new TestRecordedSessionListExtensionService());
+        var view = new SessionListView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
+
+        AssertContributionText(mounted.Control, "SessionListIndicator", "Indicator");
     }
 
     [AvaloniaFact]
@@ -145,6 +180,41 @@ public class SessionListViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionListDesktopView_RendersExtensionIndicatorsAndActions()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var snapshot = TestSnapshots.Session(name: "Morning Ride", timestamp: 1_700_000_000);
+        using var cache = new SourceCache<RecordedSessionSummary, Guid>(summary => summary.Id);
+        cache.AddOrUpdate(new RecordedSessionSummary(
+            snapshot.Id,
+            snapshot.Updated,
+            snapshot.Name,
+            snapshot.Description,
+            snapshot.Timestamp,
+            snapshot.HasProcessedData,
+            new SessionStaleness.Current()));
+        var graph = Substitute.For<IRecordedSessionGraph>();
+        graph.ConnectSessions().Returns(cache.Connect());
+        var viewModel = new SessionListViewModel(
+            graph,
+            TestCoordinatorSubstitutes.Session(),
+            new InlineUiThreadDispatcher(),
+            new TestRecordedSessionListExtensionService());
+        var view = new SessionListDesktopView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
+
+        var row = Assert.Single(mounted.Control.FindAllVisual<SessionListItemButton>());
+
+        AssertContributionText(mounted.Control, "SessionListIndicator", "Indicator");
+        AssertLogicalContributionText(row, "SessionListAction", "Action");
+    }
+
+    [AvaloniaFact]
     public async Task SessionListDesktopView_RendersGroupedHeaders_AndCollapseTogglesRows()
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -207,5 +277,56 @@ public class SessionListViewTests
     {
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
         return new DateTimeOffset(local).ToUnixTimeSeconds();
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
+    }
+
+    private static void AssertLogicalContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetLogicalDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
+    }
+
+    private sealed class TestRecordedSessionListExtensionService : IRecordedSessionListExtensionService
+    {
+        public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
+        {
+            return
+            [
+                new RecordedSessionListIndicatorContribution(
+                    "extension",
+                    "indicator",
+                    Order: 0,
+                    new TextBlock { Name = "SessionListIndicator", Text = "Indicator" }),
+            ];
+        }
+
+        public IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary)
+        {
+            return
+            [
+                new RecordedSessionListActionContribution(
+                    "extension",
+                    "action",
+                    Order: 0,
+                    new TextBlock { Name = "SessionListAction", Text = "Action" }),
+            ];
+        }
     }
 }

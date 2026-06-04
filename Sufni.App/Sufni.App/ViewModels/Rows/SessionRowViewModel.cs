@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.ViewModels.ItemLists;
 
@@ -19,6 +21,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     private readonly SessionCoordinator sessionCoordinator;
     private readonly Action<SessionRowViewModel> requestDelete;
     private readonly Func<SessionRowViewModel, Task> requestRecalculate;
+    private readonly IRecordedSessionListExtensionService? listExtensionService;
 
     public Guid Id { get; private set; }
     public long Updated { get; private set; }
@@ -99,16 +102,20 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     }
 
     public IAsyncRelayCommand RecalculateCommand { get; }
+    public ObservableCollection<RecordedSessionListIndicatorContribution> Indicators { get; } = [];
+    public ObservableCollection<RecordedSessionListActionContribution> Actions { get; } = [];
 
     public SessionRowViewModel(
         RecordedSessionSummary summary,
         SessionCoordinator sessionCoordinator,
         Action<SessionRowViewModel> requestDelete,
-        Func<SessionRowViewModel, Task> requestRecalculate)
+        Func<SessionRowViewModel, Task> requestRecalculate,
+        IRecordedSessionListExtensionService? listExtensionService = null)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.requestDelete = requestDelete;
         this.requestRecalculate = requestRecalculate;
+        this.listExtensionService = listExtensionService;
         RecalculateCommand = new AsyncRelayCommand(RecalculateAsync, () => CanRecalculate);
         Update(summary);
     }
@@ -143,6 +150,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
             summary.AscentMeters,
             summary.DescentMeters);
         IsComplete = summary.HasProcessedData;
+        RefreshExtensionContributions(summary);
     }
 
     protected override async Task OpenPageAsync()
@@ -158,6 +166,26 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     private Task RecalculateAsync()
     {
         return requestRecalculate(this);
+    }
+
+    private void RefreshExtensionContributions(RecordedSessionSummary summary)
+    {
+        Indicators.Clear();
+        Actions.Clear();
+        if (listExtensionService is null)
+        {
+            return;
+        }
+
+        foreach (var contribution in listExtensionService.CreateIndicators(summary))
+        {
+            Indicators.Add(contribution);
+        }
+
+        foreach (var contribution in listExtensionService.CreateActions(summary))
+        {
+            Actions.Add(contribution);
+        }
     }
 
     private static string FormatTimestamp(DateTime? timestamp)
