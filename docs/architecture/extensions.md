@@ -108,6 +108,9 @@ Operation leases reject stale progress and cancel superseded work, so extension 
 ## Recorded-Session Slots
 
 `RecordedSessionExtensionSlots` is the shared contribution surface exposed by recorded graph, media, and statistics workspaces. Scopes add contributions to their own slot collection; the manager mirrors them into the host collection and rebuilds when scope collections change.
+Slot mirroring is coalesced and published through batched collection resets so
+one extension update does not fan out as repeated intermediate empty/add UI
+states.
 
 The current public slot families are:
 

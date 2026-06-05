@@ -150,6 +150,32 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
+    public async Task ScopeSlotChanges_AreCoalescedBeforeMirroringToHostSlots()
+    {
+        var dispatcher = new DeferredUiThreadDispatcher();
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var manager = CreateManager([factory], uiThreadDispatcher: dispatcher);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        var first = new RecordedSessionToolbarContribution(
+            "test",
+            "first",
+            Order: 1,
+            RecordedSessionToolbarZone.Trailing,
+            new object());
+        var second = first with { ContributionId = "second", Order = 2 };
+
+        factory.Scope!.Slots.GraphToolbarActions.Add(first);
+        factory.Scope.Slots.GraphToolbarActions.Add(second);
+
+        Assert.Equal(1, dispatcher.PendingPostCount);
+        Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+
+        dispatcher.RunPendingPosts();
+
+        Assert.Equal([first, second], manager.ExtensionSlots.GraphToolbarActions);
+    }
+
+    [Fact]
     public async Task DisposeScopesAsync_DisposesScopesAndAllowsReinitialize()
     {
         var factory = new TestRecordedSessionExtensionFactory("test");
@@ -173,7 +199,8 @@ public class RecordedSessionExtensionManagerTests
         Action<double, double, object>? setTimelineVisibleRange = null,
         Action<string>? addError = null,
         Action<string>? addNotification = null,
-        Action<string>? requestPageSelection = null)
+        Action<string>? requestPageSelection = null,
+        IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         return new RecordedSessionExtensionManager(
             Guid.NewGuid(),
@@ -181,7 +208,7 @@ public class RecordedSessionExtensionManagerTests
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),
             new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher(),
+            uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
             operationCoordinator ?? new RecordedSessionOperationCoordinator((_, _) => { }, () => { }),
             setAnalysisRange ?? ((_, _) => { }),
             clearAnalysisRange ?? (() => { }),
@@ -249,6 +276,38 @@ public class RecordedSessionExtensionManagerTests
         {
             Disposed = true;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class DeferredUiThreadDispatcher : IUiThreadDispatcher
+    {
+        private readonly Queue<Action> pendingPosts = new();
+
+        public int PendingPostCount => pendingPosts.Count;
+
+        public bool CheckAccess() => true;
+
+        public void Post(Action action)
+        {
+            pendingPosts.Enqueue(action);
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action) => action();
+
+        public Task<T> InvokeAsync<T>(Func<T> action) => Task.FromResult(action());
+
+        public void RunPendingPosts()
+        {
+            while (pendingPosts.Count > 0)
+            {
+                pendingPosts.Dequeue()();
+            }
         }
     }
 }
