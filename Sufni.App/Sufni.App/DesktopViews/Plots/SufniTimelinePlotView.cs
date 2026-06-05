@@ -1,9 +1,9 @@
 using System;
 using System.ComponentModel;
 using Avalonia;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Views.Plots;
-using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -11,13 +11,13 @@ public abstract class SufniTimelinePlotView : SufniPlotView
 {
     private bool applyingTimelineRange;
 
-    public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
-        AvaloniaProperty.Register<SufniTimelinePlotView, SessionTimelineLinkViewModel?>(nameof(Timeline));
+    public static readonly StyledProperty<IRecordedSessionTimeline?> TimelineProperty =
+        AvaloniaProperty.Register<SufniTimelinePlotView, IRecordedSessionTimeline?>(nameof(Timeline));
 
     protected abstract TelemetryPlot? TimelinePlot { get; }
     protected abstract double? TimelineDurationSeconds { get; }
 
-    public SessionTimelineLinkViewModel? Timeline
+    public IRecordedSessionTimeline? Timeline
     {
         get => GetValue(TimelineProperty);
         set => SetValue(TimelineProperty, value);
@@ -32,13 +32,13 @@ public abstract class SufniTimelinePlotView : SufniPlotView
                 return;
             }
 
-            if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
+            if (e.OldValue is IRecordedSessionTimeline oldTimeline)
             {
                 oldTimeline.PropertyChanged -= OnTimelinePropertyChanged;
                 oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
             }
 
-            if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
+            if (e.NewValue is IRecordedSessionTimeline newTimeline)
             {
                 newTimeline.PropertyChanged += OnTimelinePropertyChanged;
                 newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
@@ -111,7 +111,7 @@ public abstract class SufniTimelinePlotView : SufniPlotView
 
     private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(SessionTimelineLinkViewModel.NormalizedCursorPosition))
+        if (e.PropertyName == nameof(IRecordedSessionTimeline.NormalizedCursorPosition))
         {
             ApplyTimelineCursor();
         }

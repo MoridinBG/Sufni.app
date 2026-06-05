@@ -1242,19 +1242,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
     {
         var snapshot = sessionStore.Get(Id);
+        var timelineDurationSeconds = TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds;
+
         return new RecordedSessionHostState(
-            snapshot,
-            latestDomain,
-            AnalysisRange,
-            TrackTimelineContext,
-            TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds,
-            viewLoaded,
-            IsTabActive,
-            Timeline,
-            DamperPercentages,
-            DampingSpeedCutoffs,
-            SelectedVelocityAverageMode,
-            SelectedTravelHistogramMode);
+            new RecordedSessionIdentityState(
+                Id,
+                snapshot?.Name,
+                snapshot?.Timestamp,
+                snapshot?.DurationSeconds,
+                viewLoaded,
+                IsTabActive),
+            new RecordedSessionSelectionState(AnalysisRange),
+            new RecordedSessionTimelineState(
+                TrackTimelineContext,
+                timelineDurationSeconds,
+                Timeline),
+            new RecordedSessionStatisticsState(
+                DamperPercentages,
+                DampingSpeedCutoffs,
+                SelectedVelocityAverageMode,
+                SelectedTravelHistogramMode));
     }
 
     private void UpdateRecordedSessionExtensionHostState()
@@ -1404,7 +1411,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BikeCoordinator? bikeCoordinator = null,
         IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IExtensionDatabaseConnection? extensionDatabase = null,
-        IDatabaseService? databaseService = null,
+        IRecordedSessionDataReader? recordedSessionDataReader = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
@@ -1412,7 +1419,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         var extensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
         if (extensionFactories.Length > 0 &&
-            (extensionDatabase is null || databaseService is null || backgroundTaskRunner is null))
+            (extensionDatabase is null || recordedSessionDataReader is null || backgroundTaskRunner is null))
         {
             throw new ArgumentException("Recorded-session extension factories require extension host services.");
         }
@@ -1451,13 +1458,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BaselineUpdated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
-        if (extensionDatabase is not null && databaseService is not null && backgroundTaskRunner is not null)
+        if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
         {
             recordedSessionExtensions = new RecordedSessionExtensionManager(
                 Id,
                 extensionFactories,
                 extensionDatabase,
-                databaseService,
+                recordedSessionDataReader,
                 backgroundTaskRunner,
                 uiThreadDispatcher,
                 new RecordedSessionOperationCoordinator(

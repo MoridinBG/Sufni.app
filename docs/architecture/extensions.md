@@ -92,7 +92,7 @@ The contribution carries an extension id, contribution id, order, and view model
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close.
 
-`RecordedSessionHostState` carries the current session snapshot, domain snapshot, analysis range, track timeline context, telemetry duration, loaded/active flags, statistics presentation inputs, and the neutral `SessionTimelineLinkViewModel` used by graph, map, and media surfaces. Contributed media panes use that timeline object when they need to follow cursor movement or visible-range changes. Statistics presentation inputs are host-owned values such as current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode; they do not expose extension-owned comparison objects or persistence models.
+`RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, and an `IRecordedSessionTimeline` cursor/range interface. `Statistics` carries current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database service, or concrete editor timeline view model.
 
 `RecordedSessionHostContext` exposes constrained host operations:
 
@@ -101,6 +101,7 @@ The contribution carries an extension id, contribution id, order, and view model
 - post errors or notifications
 - request contributed page selection
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
+- read processed telemetry and track points through `IRecordedSessionDataReader`
 
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
@@ -129,9 +130,11 @@ Providers whose contribution availability can change without a core recorded-ses
 
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
 
+Time-series graph targets are typed at the extension boundary. Built-in graph rows are referenced with `RecordedSessionBuiltInGraphRow`; extension-owned rows are referenced with `RecordedSessionGraphRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `TelemetryGraphRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
+
 Statistics plot overlays are generic descriptors. A descriptor can contain lines, bands, and labels. Lines may use explicit plot coordinates or the host plot's full current horizontal span for statistic reference lines. Labels specify text, text/background color, font size, anchor, and either explicit plot coordinates or the host plot's current right edge for statistic value labels. Plot controls render those primitives without knowing why an extension contributed them.
 
-Statistics metric annotations are generic values targeted at host-owned metric ids. For example, velocity damping statistics expose public ids for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityStatisticsHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
+Statistics plot overlays target `RecordedSessionStatisticsPlotTarget` values, which combine a plot family with the relevant suspension side, balance type, or IMU location. Statistics metric annotations target `RecordedSessionStatisticsMetricTarget` enum values for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityStatisticsHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
 
 ## Neutrality Rules
 

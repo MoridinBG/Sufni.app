@@ -45,13 +45,13 @@ public class RecordedSessionExtensionSlotsTests
             "extension",
             "context",
             Order: 20,
-            RowId: "travel",
+            RecordedSessionBuiltInGraphRow.Travel,
             action));
         slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
             "extension",
             "metric",
             Order: 30,
-            RecordedSessionStatisticsMetricIds.FrontHscPercentage,
+            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
             "match 42.00",
             "+3.00",
             RecordedSessionMetricTone.Positive));
@@ -62,10 +62,10 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Equal("extension", contextContribution.ExtensionId);
         Assert.Equal("context", contextContribution.ContributionId);
         Assert.Equal(20, contextContribution.Order);
-        Assert.Equal("travel", contextContribution.RowId);
+        Assert.Equal(RecordedSessionBuiltInGraphRow.Travel, contextContribution.TargetRow);
         Assert.Equal(action, contextContribution.Action);
         var metricContribution = Assert.Single(slots.StatisticsMetrics);
-        Assert.Equal(RecordedSessionStatisticsMetricIds.FrontHscPercentage, metricContribution.TargetMetricId);
+        Assert.Equal(RecordedSessionStatisticsMetricTarget.FrontHscPercentage, metricContribution.TargetMetric);
         Assert.True(metricContribution.HasDeltaValue);
         Assert.True(metricContribution.IsPositiveTone);
     }

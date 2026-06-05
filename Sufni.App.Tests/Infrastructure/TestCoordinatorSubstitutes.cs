@@ -109,6 +109,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IRecordedSessionDomainQuery>(),
             Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<IRecordedSessionReprocessor>(),
+            Substitute.For<IRecordedSessionDataReader>(),
             null,
             Bike(),
             Substitute.For<IExtensionCascadeService>(),

@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.DesktopViews.Plots;
 using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.Models;
 
 namespace Sufni.App.Views.Controls;
 
@@ -189,10 +190,11 @@ public static class TelemetryPlotRowExtensionHost
         private void RebuildHeaderActions()
         {
             var rowId = row.RowId;
-            TelemetryPlotRowAction[] extensionActions = string.IsNullOrWhiteSpace(rowId) || slots is null
+            var rowTargetStableKey = GetRowTargetStableKey(rowId);
+            TelemetryPlotRowAction[] extensionActions = rowTargetStableKey is null || slots is null
                 ? []
                 : slots.PlotRowHeaderActions
-                    .Where(contribution => contribution.RowId == rowId)
+                    .Where(contribution => contribution.TargetRow.StableKey == rowTargetStableKey)
                     .OrderBy(contribution => contribution.Order)
                     .Select(contribution => contribution.Action)
                     .ToArray();
@@ -228,14 +230,14 @@ public static class TelemetryPlotRowExtensionHost
         private void RebuildHostedRows()
         {
             var rowId = row.RowId;
-            if (string.IsNullOrWhiteSpace(rowId) || slots is null)
+            if (slots is null || !TryGetBuiltInRow(rowId, out var parentRow))
             {
                 ClearHostedRows();
                 return;
             }
 
             var contributions = slots.HostedGraphRows
-                .Where(contribution => contribution.ParentRowId == rowId)
+                .Where(contribution => contribution.ParentRow == parentRow)
                 .OrderBy(contribution => contribution.Order)
                 .ToArray();
             var contributionKeys = contributions
@@ -294,7 +296,7 @@ public static class TelemetryPlotRowExtensionHost
             TelemetryPlotRow hostedRow,
             RecordedSessionHostedGraphRowContribution contribution)
         {
-            hostedRow.RowId = contribution.RowId;
+            hostedRow.RowId = contribution.RowTarget.StableKey;
             SetIsHostedGraphRow(hostedRow, true);
             hostedRow.Title = contribution.Title;
             hostedRow.TitleToolTip = contribution.TitleToolTip;
@@ -312,19 +314,21 @@ public static class TelemetryPlotRowExtensionHost
         private void RebuildPlotExtensions()
         {
             var rowId = row.RowId;
-            if (row.PlotContent is not SufniTimeSeriesPlotView plotView || string.IsNullOrWhiteSpace(rowId) || slots is null)
+            var rowTargetStableKey = GetRowTargetStableKey(rowId);
+            if (row.PlotContent is not SufniTimeSeriesPlotView plotView || rowTargetStableKey is null || slots is null)
             {
                 ClearPlotExtensions();
                 return;
             }
 
+            var hasBuiltInRow = TryGetBuiltInRow(rowId, out var builtInRow);
             plotView.AdditionalContextMenuActions = slots.PlotContextMenuActions
-                .Where(contribution => contribution.RowId == rowId)
+                .Where(contribution => hasBuiltInRow && contribution.TargetRow == builtInRow)
                 .OrderBy(contribution => contribution.Order)
                 .Select(contribution => contribution.Action)
                 .ToArray();
             plotView.TimeRangeOverlays = slots.TimeRangeOverlays
-                .Where(contribution => contribution.RowId == rowId)
+                .Where(contribution => contribution.TargetRow.StableKey == rowTargetStableKey)
                 .OrderBy(contribution => contribution.Order)
                 .Select(contribution => contribution.Registration)
                 .ToArray();
@@ -344,6 +348,39 @@ public static class TelemetryPlotRowExtensionHost
         private static Control CreateContributionControl(object viewModel)
         {
             return viewModel as Control ?? new ContentControl { Content = viewModel };
+        }
+
+        private static string? GetRowTargetStableKey(string? rowId)
+        {
+            if (TryGetBuiltInRow(rowId, out var builtInRow))
+            {
+                return RecordedSessionGraphRowTarget.BuiltIn(builtInRow).StableKey;
+            }
+
+            return string.IsNullOrWhiteSpace(rowId) ? null : rowId;
+        }
+
+        private static bool TryGetBuiltInRow(
+            string? rowId,
+            out RecordedSessionBuiltInGraphRow builtInRow)
+        {
+            builtInRow = rowId switch
+            {
+                TelemetryGraphRowIds.Travel => RecordedSessionBuiltInGraphRow.Travel,
+                TelemetryGraphRowIds.Velocity => RecordedSessionBuiltInGraphRow.Velocity,
+                TelemetryGraphRowIds.Imu => RecordedSessionBuiltInGraphRow.Imu,
+                TelemetryGraphRowIds.PitchRoll => RecordedSessionBuiltInGraphRow.PitchRoll,
+                TelemetryGraphRowIds.Speed => RecordedSessionBuiltInGraphRow.Speed,
+                TelemetryGraphRowIds.Elevation => RecordedSessionBuiltInGraphRow.Elevation,
+                _ => default,
+            };
+            return rowId is
+                TelemetryGraphRowIds.Travel or
+                TelemetryGraphRowIds.Velocity or
+                TelemetryGraphRowIds.Imu or
+                TelemetryGraphRowIds.PitchRoll or
+                TelemetryGraphRowIds.Speed or
+                TelemetryGraphRowIds.Elevation;
         }
     }
 }

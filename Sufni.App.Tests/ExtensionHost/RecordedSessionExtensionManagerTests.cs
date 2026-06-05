@@ -2,6 +2,8 @@ using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.Models;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
@@ -41,8 +43,8 @@ public class RecordedSessionExtensionManagerTests
         using var subscription = factory.Context!.StateChanged.Skip(1).Subscribe(observed.Add);
         var updated = initial with
         {
-            AnalysisRange = new TelemetryTimeRange(1, 3),
-            TelemetryDurationSeconds = 5,
+            Selection = initial.Selection with { AnalysisRange = new TelemetryTimeRange(1, 3) },
+            Timeline = initial.Timeline with { TelemetryDurationSeconds = 5 },
         };
 
         manager.UpdateHostState(updated);
@@ -130,7 +132,7 @@ public class RecordedSessionExtensionManagerTests
             "test",
             "metric",
             Order: 2,
-            RecordedSessionStatisticsMetricIds.FrontLscPercentage,
+            RecordedSessionStatisticsMetricTarget.FrontLscPercentage,
             "match 12.00",
             "-2.00",
             RecordedSessionMetricTone.Negative);
@@ -177,7 +179,7 @@ public class RecordedSessionExtensionManagerTests
             Guid.NewGuid(),
             factories,
             Substitute.For<IExtensionDatabaseConnection>(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<IRecordedSessionDataReader>(),
             new InlineBackgroundTaskRunner(),
             new InlineUiThreadDispatcher(),
             operationCoordinator ?? new RecordedSessionOperationCoordinator((_, _) => { }, () => { }),
@@ -195,13 +197,20 @@ public class RecordedSessionExtensionManagerTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         return new RecordedSessionHostState(
-            snapshot,
-            Domain: null,
-            AnalysisRange: null,
-            TrackTimelineContext: null,
-            TelemetryDurationSeconds: snapshot.DurationSeconds,
-            IsLoaded: isLoaded,
-            IsActive: isActive);
+            new RecordedSessionIdentityState(
+                snapshot.Id,
+                snapshot.Name,
+                snapshot.Timestamp,
+                snapshot.DurationSeconds,
+                isLoaded,
+                isActive),
+            new RecordedSessionSelectionState(null),
+            new RecordedSessionTimelineState(null, snapshot.DurationSeconds, null),
+            new RecordedSessionStatisticsState(
+                SessionDamperPercentages.Empty,
+                DampingSpeedCutoffs.Default,
+                VelocityAverageMode.SampleAveraged,
+                TravelHistogramMode.ActiveSuspension));
     }
 
     private sealed class TestRecordedSessionExtensionFactory(string extensionId) : IRecordedSessionExtensionFactory

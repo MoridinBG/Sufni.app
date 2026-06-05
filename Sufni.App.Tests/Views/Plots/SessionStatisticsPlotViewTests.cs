@@ -200,7 +200,7 @@ public class SessionStatisticsPlotViewTests
             "extension",
             "rear-overlay",
             Order: 0,
-            RecordedSessionStatisticsPlotKind.RearTravelHistogram,
+            RecordedSessionStatisticsPlotTarget.TravelHistogram(SuspensionType.Rear),
             ViewModel: null,
             new RecordedSessionStatisticsPlotOverlayDescriptor(
                 [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
@@ -215,7 +215,7 @@ public class SessionStatisticsPlotViewTests
             "extension",
             "front-overlay",
             Order: 1,
-            RecordedSessionStatisticsPlotKind.FrontTravelHistogram,
+            RecordedSessionStatisticsPlotTarget.TravelHistogram(SuspensionType.Front),
             ViewModel: null,
             new RecordedSessionStatisticsPlotOverlayDescriptor(
                 [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],

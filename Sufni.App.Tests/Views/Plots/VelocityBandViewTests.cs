@@ -252,7 +252,7 @@ public class VelocityBandViewTests
             "extension-b",
             "second",
             Order: 20,
-            RecordedSessionStatisticsMetricIds.FrontHscPercentage,
+            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
             "match second",
             null,
             RecordedSessionMetricTone.Default));
@@ -260,7 +260,7 @@ public class VelocityBandViewTests
             "extension-a",
             "first",
             Order: 10,
-            RecordedSessionStatisticsMetricIds.FrontHscPercentage,
+            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
             "match first",
             "+1.00",
             RecordedSessionMetricTone.Positive));
@@ -268,7 +268,7 @@ public class VelocityBandViewTests
             "extension-a",
             "rear",
             Order: 10,
-            RecordedSessionStatisticsMetricIds.RearHscPercentage,
+            RecordedSessionStatisticsMetricTarget.RearHscPercentage,
             "rear match",
             "-1.00",
             RecordedSessionMetricTone.Negative));

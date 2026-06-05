@@ -18,7 +18,7 @@ public sealed class RecordedSessionHostContext
         Guid sessionId,
         IObservable<RecordedSessionHostState> stateChanged,
         IExtensionDatabaseConnection database,
-        IDatabaseService databaseService,
+        IRecordedSessionDataReader dataReader,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
         Action<double, double> setAnalysisRange,
@@ -31,7 +31,7 @@ public sealed class RecordedSessionHostContext
     {
         ArgumentNullException.ThrowIfNull(stateChanged);
         ArgumentNullException.ThrowIfNull(database);
-        ArgumentNullException.ThrowIfNull(databaseService);
+        ArgumentNullException.ThrowIfNull(dataReader);
         ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
         ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
         ArgumentNullException.ThrowIfNull(setAnalysisRange);
@@ -45,7 +45,7 @@ public sealed class RecordedSessionHostContext
         SessionId = sessionId;
         StateChanged = stateChanged;
         Database = database;
-        DatabaseService = databaseService;
+        DataReader = dataReader;
         BackgroundTaskRunner = backgroundTaskRunner;
         UiThreadDispatcher = uiThreadDispatcher;
         this.setAnalysisRange = setAnalysisRange;
@@ -60,7 +60,7 @@ public sealed class RecordedSessionHostContext
     public Guid SessionId { get; }
     public IObservable<RecordedSessionHostState> StateChanged { get; }
     public IExtensionDatabaseConnection Database { get; }
-    public IDatabaseService DatabaseService { get; }
+    public IRecordedSessionDataReader DataReader { get; }
     public IBackgroundTaskRunner BackgroundTaskRunner { get; }
     public IUiThreadDispatcher UiThreadDispatcher { get; }
 

@@ -45,6 +45,7 @@ public class SessionCoordinator
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
+    private readonly IRecordedSessionDataReader recordedSessionDataReader;
     private readonly BikeCoordinator? bikeCoordinator;
     private readonly IExtensionCascadeService? extensionCascadeService;
     private readonly IReadOnlyList<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories;
@@ -67,6 +68,7 @@ public class SessionCoordinator
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionGraph recordedSessionGraph,
         IRecordedSessionReprocessor recordedSessionReprocessor,
+        IRecordedSessionDataReader recordedSessionDataReader,
         ISynchronizationServerService? synchronizationServer = null,
         BikeCoordinator? bikeCoordinator = null,
         IExtensionCascadeService? extensionCascadeService = null,
@@ -89,6 +91,7 @@ public class SessionCoordinator
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionGraph = recordedSessionGraph;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
+        this.recordedSessionDataReader = recordedSessionDataReader;
         this.bikeCoordinator = bikeCoordinator;
         this.extensionCascadeService = extensionCascadeService;
         this.recordedSessionExtensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
@@ -124,7 +127,7 @@ public class SessionCoordinator
                 bikeCoordinator,
                 this.recordedSessionExtensionFactories,
                 extensionDatabase,
-                databaseService,
+                recordedSessionDataReader: this.recordedSessionDataReader,
                 backgroundTaskRunner));
         return Task.CompletedTask;
     }

@@ -8,7 +8,10 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Database;
+using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.SessionDetails;
+using Sufni.Telemetry;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
@@ -17,7 +20,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly Guid sessionId;
     private readonly IReadOnlyList<IRecordedSessionExtensionFactory> factories;
     private readonly IExtensionDatabaseConnection database;
-    private readonly IDatabaseService databaseService;
+    private readonly IRecordedSessionDataReader dataReader;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly RecordedSessionOperationCoordinator operationCoordinator;
@@ -36,7 +39,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         Guid sessionId,
         IEnumerable<IRecordedSessionExtensionFactory> factories,
         IExtensionDatabaseConnection database,
-        IDatabaseService databaseService,
+        IRecordedSessionDataReader dataReader,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
         RecordedSessionOperationCoordinator operationCoordinator,
@@ -49,7 +52,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(factories);
         ArgumentNullException.ThrowIfNull(database);
-        ArgumentNullException.ThrowIfNull(databaseService);
+        ArgumentNullException.ThrowIfNull(dataReader);
         ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
         ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
         ArgumentNullException.ThrowIfNull(operationCoordinator);
@@ -63,7 +66,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.sessionId = sessionId;
         this.factories = factories.ToArray();
         this.database = database;
-        this.databaseService = databaseService;
+        this.dataReader = dataReader;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
         this.operationCoordinator = operationCoordinator;
@@ -73,7 +76,15 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.addError = addError;
         this.addNotification = addNotification;
         this.requestPageSelection = requestPageSelection;
-        CurrentState = new RecordedSessionHostState(null, null, null, null, null, IsLoaded: false, IsActive: false);
+        CurrentState = new RecordedSessionHostState(
+            new RecordedSessionIdentityState(sessionId, null, null, null, IsLoaded: false, IsActive: false),
+            new RecordedSessionSelectionState(null),
+            new RecordedSessionTimelineState(null, null, null),
+            new RecordedSessionStatisticsState(
+                SessionDamperPercentages.Empty,
+                DampingSpeedCutoffs.Default,
+                VelocityAverageMode.SampleAveraged,
+                TravelHistogramMode.ActiveSuspension));
         stateChanged = new BehaviorSubject<RecordedSessionHostState>(CurrentState);
     }
 
@@ -158,7 +169,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
             sessionId,
             stateChanged.AsObservable(),
             database,
-            databaseService,
+            dataReader,
             backgroundTaskRunner,
             uiThreadDispatcher,
             setAnalysisRange,

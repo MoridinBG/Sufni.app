@@ -4,6 +4,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -34,6 +35,7 @@ public class SessionCoordinatorTests
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
+    private readonly IRecordedSessionDataReader recordedSessionDataReader = Substitute.For<IRecordedSessionDataReader>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
@@ -67,6 +69,7 @@ public class SessionCoordinatorTests
             domainQuery,
             recordedSessionGraph,
             reprocessor,
+            recordedSessionDataReader,
             synchronizationServer: sync,
             extensionCascadeService: extensionCascade);
 

@@ -116,6 +116,7 @@ public partial class App : Application
                 () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
+        ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.TryAddSingleton<IRecordedSessionListExtensionService, RecordedSessionListExtensionService>();
@@ -168,6 +169,7 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionGraph>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
+            sp.GetRequiredService<IRecordedSessionDataReader>(),
             sp.GetService<ISynchronizationServerService>(),
             sp.GetRequiredService<BikeCoordinator>(),
             sp.GetRequiredService<IExtensionCascadeService>(),

@@ -307,13 +307,13 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
 
     private RecordedSessionStatisticsPlotOverlayDescriptor? CreateStatisticsOverlayDescriptor()
     {
-        if (ExtensionSlots is null || ResolveStatisticsOverlayTargetKind() is not { } targetKind)
+        if (ExtensionSlots is null || ResolveStatisticsOverlayTarget() is not { } target)
         {
             return null;
         }
 
         var overlays = ExtensionSlots.StatisticsOverlays
-            .Where(contribution => contribution.TargetPlotKind == targetKind && contribution.Overlay is not null)
+            .Where(contribution => contribution.TargetPlot == target && contribution.Overlay is not null)
             .OrderBy(contribution => contribution.Order)
             .Select(contribution => contribution.Overlay!)
             .ToArray();
@@ -329,27 +329,18 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
             overlays.SelectMany(overlay => overlay.Labels).ToArray());
     }
 
-    private RecordedSessionStatisticsPlotKind? ResolveStatisticsOverlayTargetKind()
+    private RecordedSessionStatisticsPlotTarget? ResolveStatisticsOverlayTarget()
     {
         return PlotKind switch
         {
-            PlotKind.TravelHistogram => SuspensionType == SuspensionType.Front
-                ? RecordedSessionStatisticsPlotKind.FrontTravelHistogram
-                : RecordedSessionStatisticsPlotKind.RearTravelHistogram,
-            PlotKind.VelocityHistogram => SuspensionType == SuspensionType.Front
-                ? RecordedSessionStatisticsPlotKind.FrontVelocityHistogram
-                : RecordedSessionStatisticsPlotKind.RearVelocityHistogram,
-            PlotKind.Balance => BalanceType == BalanceType.Compression
-                ? RecordedSessionStatisticsPlotKind.CompressionBalance
-                : RecordedSessionStatisticsPlotKind.ReboundBalance,
-            PlotKind.VibrationThirds => (SuspensionType, ImuLocation) switch
-            {
-                (SuspensionType.Front, ImuLocation.Fork) => RecordedSessionStatisticsPlotKind.FrontForkVibration,
-                (SuspensionType.Front, ImuLocation.Frame) => RecordedSessionStatisticsPlotKind.FrontFrameVibration,
-                (SuspensionType.Rear, ImuLocation.Fork) => RecordedSessionStatisticsPlotKind.RearForkVibration,
-                (SuspensionType.Rear, ImuLocation.Frame) => RecordedSessionStatisticsPlotKind.RearFrameVibration,
-                _ => null,
-            },
+            PlotKind.TravelHistogram => RecordedSessionStatisticsPlotTarget.TravelHistogram(SuspensionType),
+            PlotKind.TravelFrequencyHistogram => RecordedSessionStatisticsPlotTarget.TravelFrequencyHistogram(SuspensionType),
+            PlotKind.VelocityHistogram => RecordedSessionStatisticsPlotTarget.VelocityHistogram(SuspensionType),
+            PlotKind.Balance => RecordedSessionStatisticsPlotTarget.Balance(BalanceType),
+            PlotKind.StrokeLengthHistogram => RecordedSessionStatisticsPlotTarget.StrokeLengthHistogram(SuspensionType, BalanceType),
+            PlotKind.StrokeSpeedHistogram => RecordedSessionStatisticsPlotTarget.StrokeSpeedHistogram(SuspensionType, BalanceType),
+            PlotKind.DeepTravelHistogram => RecordedSessionStatisticsPlotTarget.DeepTravelHistogram(SuspensionType),
+            PlotKind.VibrationThirds => RecordedSessionStatisticsPlotTarget.VibrationThirds(SuspensionType, ImuLocation),
             _ => null,
         };
     }

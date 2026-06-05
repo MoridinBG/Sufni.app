@@ -59,6 +59,7 @@ public class RecordedSessionGraphDesktopViewTests
     {
         var workspace = new RecordedSessionGraphWorkspaceStub(CreateMinimal());
         var hostedContent = new HostedGraphRowContent("Hosted row");
+        var hostedRowTarget = RecordedSessionGraphRowTarget.Extension("extension", "hosted-row");
         var headerAction = new TelemetryPlotRowAction
         {
             Id = "ExtensionVelocityAction",
@@ -84,20 +85,20 @@ public class RecordedSessionGraphDesktopViewTests
             "extension",
             "velocity-action",
             Order: 0,
-            TelemetryGraphRowIds.Velocity,
+            RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Velocity),
             headerAction));
         workspace.ExtensionSlots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
             "extension",
             "travel-context",
             Order: 0,
-            TelemetryGraphRowIds.Travel,
+            RecordedSessionBuiltInGraphRow.Travel,
             contextAction));
         workspace.ExtensionSlots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
             "extension",
             "hosted-row",
             Order: 0,
-            ParentRowId: TelemetryGraphRowIds.Travel,
-            RowId: "extension-row",
+            ParentRow: RecordedSessionBuiltInGraphRow.Travel,
+            RowTarget: hostedRowTarget,
             Title: "Extension row",
             SurfacePresentationState.Ready,
             hostedContent,
@@ -106,7 +107,7 @@ public class RecordedSessionGraphDesktopViewTests
             "extension",
             "travel-range",
             Order: 0,
-            TelemetryGraphRowIds.Travel,
+            RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
             overlayRegistration));
 
         await using var mounted = await MountAsync(workspace);
@@ -117,12 +118,12 @@ public class RecordedSessionGraphDesktopViewTests
         Assert.Contains(headerAction, velocityRow.HeaderActions!);
         var hostedRow = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<TelemetryPlotRow>(),
-            row => row.RowId == "extension-row");
+            row => row.RowId == hostedRowTarget.StableKey);
         Assert.Equal("Extension row", hostedRow.Title);
         var hostedPlotContent = Assert.IsType<ContentControl>(hostedRow.PlotContent);
         Assert.Same(hostedContent, hostedPlotContent.Content);
         var graphRoot = Assert.Single(mounted.View.GetVisualDescendants().OfType<TelemetryPlotsRoot>());
-        Assert.DoesNotContain("extension-row", FlattenRowIds(graphRoot.CaptureGraphPreferences().Rows));
+        Assert.DoesNotContain(hostedRowTarget.StableKey, FlattenRowIds(graphRoot.CaptureGraphPreferences().Rows));
 
         var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
         Assert.Same(contextAction, Assert.Single(travelView.AdditionalContextMenuActions!));

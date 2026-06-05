@@ -1,9 +1,10 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.ExtensionHost.RecordedSessions;
 
 namespace Sufni.App.ViewModels.Editors;
 
-public sealed partial class SessionTimelineLinkViewModel : ObservableObject
+public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IRecordedSessionTimeline
 {
     private const double Epsilon = 0.000001;
 

@@ -4,6 +4,7 @@ using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
+using Sufni.Telemetry;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
@@ -89,24 +90,9 @@ public sealed record RecordedSessionStatisticsOverlayContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionStatisticsPlotKind TargetPlotKind,
+    RecordedSessionStatisticsPlotTarget TargetPlot,
     object? ViewModel,
     RecordedSessionStatisticsPlotOverlayDescriptor? Overlay) : IRecordedSessionContribution;
-
-public enum RecordedSessionStatisticsPlotKind
-{
-    FrontTravelHistogram,
-    RearTravelHistogram,
-    FrontVelocityHistogram,
-    RearVelocityHistogram,
-    CompressionBalance,
-    ReboundBalance,
-    FrontForkVibration,
-    FrontFrameVibration,
-    RearForkVibration,
-    RearFrameVibration,
-    SessionAnalysis,
-}
 
 public sealed record RecordedSessionStatisticsPlotOverlayDescriptor(
     IReadOnlyList<RecordedSessionPlotLineOverlay> Lines,
@@ -171,7 +157,7 @@ public sealed record RecordedSessionStatisticsMetricContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    string TargetMetricId,
+    RecordedSessionStatisticsMetricTarget TargetMetric,
     string DisplayValue,
     string? DeltaValue,
     RecordedSessionMetricTone Tone) : IRecordedSessionContribution
@@ -190,16 +176,16 @@ public enum RecordedSessionMetricTone
     Accent,
 }
 
-public static class RecordedSessionStatisticsMetricIds
+public enum RecordedSessionStatisticsMetricTarget
 {
-    public const string FrontHscPercentage = "front.hsc.percentage";
-    public const string FrontHsrPercentage = "front.hsr.percentage";
-    public const string FrontLscPercentage = "front.lsc.percentage";
-    public const string FrontLsrPercentage = "front.lsr.percentage";
-    public const string RearHscPercentage = "rear.hsc.percentage";
-    public const string RearHsrPercentage = "rear.hsr.percentage";
-    public const string RearLscPercentage = "rear.lsc.percentage";
-    public const string RearLsrPercentage = "rear.lsr.percentage";
+    FrontHscPercentage,
+    FrontHsrPercentage,
+    FrontLscPercentage,
+    FrontLsrPercentage,
+    RearHscPercentage,
+    RearHsrPercentage,
+    RearLscPercentage,
+    RearLsrPercentage,
 }
 
 public sealed record RecordedSessionListIndicatorContribution(
@@ -218,22 +204,22 @@ public sealed record RecordedSessionPlotContextMenuContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    string RowId,
+    RecordedSessionBuiltInGraphRow TargetRow,
     TelemetryPlotContextMenuAction Action) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionPlotRowActionContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    string RowId,
+    RecordedSessionGraphRowTarget TargetRow,
     TelemetryPlotRowAction Action) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionHostedGraphRowContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    string ParentRowId,
-    string RowId,
+    RecordedSessionBuiltInGraphRow ParentRow,
+    RecordedSessionGraphRowTarget RowTarget,
     string Title,
     SurfacePresentationState PresentationState,
     object ViewModel,
@@ -246,5 +232,5 @@ public sealed record RecordedSessionTimeRangeOverlayContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    string RowId,
+    RecordedSessionGraphRowTarget TargetRow,
     RecordedTimeRangeOverlaySetRegistration Registration) : IRecordedSessionContribution;

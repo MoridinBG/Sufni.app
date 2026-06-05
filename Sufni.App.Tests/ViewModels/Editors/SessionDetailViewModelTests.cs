@@ -76,7 +76,7 @@ public class SessionDetailViewModelTests
             bikeCoordinator,
             recordedSessionExtensionFactories,
             Substitute.For<IExtensionDatabaseConnection>(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<IRecordedSessionDataReader>(),
             new InlineBackgroundTaskRunner());
     }
 
@@ -581,12 +581,12 @@ public class SessionDetailViewModelTests
 
         Assert.NotNull(factory.Scope);
         Assert.True(factory.Scope.Initialized);
-        Assert.Contains(factory.Scope.UpdatedStates, state => state.IsLoaded);
+        Assert.Contains(factory.Scope.UpdatedStates, state => state.Identity.IsLoaded);
 
         await editor.UnloadedCommand.ExecuteAsync(null);
 
         Assert.True(factory.Scope.Disposed);
-        Assert.False(factory.Scope.UpdatedStates.Last().IsLoaded);
+        Assert.False(factory.Scope.UpdatedStates.Last().Identity.IsLoaded);
     }
 
     [AvaloniaFact]
@@ -614,10 +614,13 @@ public class SessionDetailViewModelTests
         watch.OnNext(domain);
         await Task.Yield();
 
-        Assert.Equal(telemetry.Metadata.Duration, initialLoadedState.TelemetryDurationSeconds);
-        Assert.Equal(selectedRange, factory.Scope.UpdatedStates.Last(state => state.AnalysisRange is not null).AnalysisRange);
-        Assert.True(factory.Scope.UpdatedStates.Last(state => state.IsActive).IsActive);
-        Assert.Equal(domain, factory.Scope.UpdatedStates.Last().Domain);
+        Assert.Equal(snapshot.Id, initialLoadedState.Identity.SessionId);
+        Assert.Equal(snapshot.Name, initialLoadedState.Identity.Name);
+        Assert.Equal(telemetry.Metadata.Duration, initialLoadedState.Timeline.TelemetryDurationSeconds);
+        Assert.Equal(
+            selectedRange,
+            factory.Scope.UpdatedStates.Last(state => state.Selection.AnalysisRange is not null).Selection.AnalysisRange);
+        Assert.True(factory.Scope.UpdatedStates.Last(state => state.Identity.IsActive).Identity.IsActive);
     }
 
     [AvaloniaFact]

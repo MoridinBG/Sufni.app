@@ -309,23 +309,24 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
     private void RefreshMetricAnnotations()
     {
         HsrMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionStatisticsMetricIds.FrontHsrPercentage
-            : RecordedSessionStatisticsMetricIds.RearHsrPercentage);
+            ? RecordedSessionStatisticsMetricTarget.FrontHsrPercentage
+            : RecordedSessionStatisticsMetricTarget.RearHsrPercentage);
         LsrMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionStatisticsMetricIds.FrontLsrPercentage
-            : RecordedSessionStatisticsMetricIds.RearLsrPercentage);
+            ? RecordedSessionStatisticsMetricTarget.FrontLsrPercentage
+            : RecordedSessionStatisticsMetricTarget.RearLsrPercentage);
         LscMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionStatisticsMetricIds.FrontLscPercentage
-            : RecordedSessionStatisticsMetricIds.RearLscPercentage);
+            ? RecordedSessionStatisticsMetricTarget.FrontLscPercentage
+            : RecordedSessionStatisticsMetricTarget.RearLscPercentage);
         HscMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionStatisticsMetricIds.FrontHscPercentage
-            : RecordedSessionStatisticsMetricIds.RearHscPercentage);
+            ? RecordedSessionStatisticsMetricTarget.FrontHscPercentage
+            : RecordedSessionStatisticsMetricTarget.RearHscPercentage);
     }
 
-    private IReadOnlyList<RecordedSessionStatisticsMetricContribution> GetMetricAnnotations(string metricId)
+    private IReadOnlyList<RecordedSessionStatisticsMetricContribution> GetMetricAnnotations(
+        RecordedSessionStatisticsMetricTarget metric)
     {
         return ExtensionSlots?.StatisticsMetrics
-            .Where(contribution => contribution.TargetMetricId == metricId)
+            .Where(contribution => contribution.TargetMetric == metric)
             .OrderBy(contribution => contribution.Order)
             .ThenBy(contribution => contribution.ExtensionId)
             .ThenBy(contribution => contribution.ContributionId)
