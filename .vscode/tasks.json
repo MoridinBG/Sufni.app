@@ -11,7 +11,8 @@
         "-c",
         "Debug",
         "-f",
-        "net10.0-macos"
+        "net10.0-macos",
+        "-p:SufniEnablePrivateExtensions=true"
       ],
       "group": {
         "kind": "build",
@@ -37,7 +38,8 @@
         "-c",
         "Debug",
         "-f",
-        "net10.0"
+        "net10.0",
+        "-p:SufniEnablePrivateExtensions=true"
       ],
       "group": "build",
       "options": {
@@ -60,7 +62,8 @@
         "-c",
         "Debug",
         "-f",
-        "net10.0-windows"
+        "net10.0-windows",
+        "-p:SufniEnablePrivateExtensions=true"
       ],
       "group": "build",
       "options": {
@@ -77,7 +80,7 @@
       "label": "desktop: build solution",
       "type": "shell",
       "command": "dotnet",
-      "args": ["build", "Sufni.Desktop.sln", "-c", "Debug"],
+      "args": ["build", "Sufni.Desktop.sln", "-c", "Debug", "-p:SufniEnablePrivateExtensions=true"],
       "group": "build",
       "options": {
         "cwd": "${workspaceFolder}"
