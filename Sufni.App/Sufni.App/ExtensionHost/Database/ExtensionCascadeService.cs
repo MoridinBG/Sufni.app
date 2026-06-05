@@ -91,6 +91,9 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
     }
 
     public async Task RepairOrphansAsync(CancellationToken cancellationToken = default)
+        => await RepairOrphansAsync(refreshExtensionState: true, cancellationToken);
+
+    internal async Task RepairOrphansAsync(bool refreshExtensionState, CancellationToken cancellationToken = default)
     {
         if (rules.Count == 0)
         {
@@ -105,7 +108,10 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
             await ApplyOrphanRepairRuleAsync(connection, rule, now);
         }
 
-        await RefreshExtensionStateAsync(cancellationToken);
+        if (refreshExtensionState)
+        {
+            await RefreshExtensionStateAsync(cancellationToken);
+        }
     }
 
     private static async Task ApplyRuleForDeletedCoreEntityAsync(

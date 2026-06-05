@@ -89,13 +89,13 @@ public class ExtensionCascadeServiceTests
     }
 
     [Fact]
-    public async Task Initialization_RepairsExtensionOrphansAfterStartupCleanup()
+    public async Task Initialization_RepairsExtensionOrphansAfterStartupCleanupWithoutRefreshingParticipants()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
         var databasePath = Path.Combine(tempDirectory, "orphan-repair.db");
         var missingSessionId = Guid.NewGuid();
-        var refresh = new RecordingRefreshParticipant();
+        var refreshProviderWasResolved = false;
         var migrator = CreateMigrator(
             [typeof(SoftCascadeRow)],
             [
@@ -118,13 +118,22 @@ public class ExtensionCascadeServiceTests
 
         try
         {
-            var database = new SqLiteDatabaseService(databasePath, [migrator], [provider], [refresh]);
+            var database = new SqLiteDatabaseService(
+                databasePath,
+                createAppDirectories: false,
+                [migrator],
+                [provider],
+                () =>
+                {
+                    refreshProviderWasResolved = true;
+                    return [new RecordingRefreshParticipant()];
+                });
             var connection = await database.GetInitializedConnectionAsync();
 
             var row = Assert.Single(await connection.Table<SoftCascadeRow>().ToListAsync());
             Assert.NotNull(row.Deleted);
             Assert.Equal(row.Deleted, row.Updated);
-            Assert.Equal(1, refresh.RefreshCount);
+            Assert.False(refreshProviderWasResolved);
         }
         finally
         {

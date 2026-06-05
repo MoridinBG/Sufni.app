@@ -178,7 +178,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
-            await extensionCascadeService.RepairOrphansAsync();
+            await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
             logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
             logger.Verbose(
                 "SQLite startup cleanup removed {SessionCacheCount} session caches, {RecordedSessionSourceCount} recorded session sources, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
