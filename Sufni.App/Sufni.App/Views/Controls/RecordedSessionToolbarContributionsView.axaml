@@ -11,16 +11,19 @@ d:DesignWidth="500"
 x:DataType="controls:RecordedSessionToolbarContributionsView"
 mc:Ignorable="d">
 
-    <StackPanel
+    <Grid
     Name="RecordedSessionToolbarContributionsRoot"
-    Spacing="8">
+    ColumnDefinitions="Auto,*,Auto">
         <StackPanel
-        Name="GraphToolbarActionsHost"
+        Name="LeadingGraphToolbarActionsHost"
+        Grid.Column="0"
         Orientation="Horizontal"
         Spacing="6" />
 
         <StackPanel
-        Name="GraphToolbarPanelsHost"
+        Name="TrailingGraphToolbarActionsHost"
+        Grid.Column="2"
+        Orientation="Horizontal"
         Spacing="6" />
-    </StackPanel>
+    </Grid>
 </UserControl>

@@ -73,14 +73,22 @@ public partial class RecordedSessionMediaPanesView : UserControl
     private void Rebuild()
     {
         RecordedSessionMediaPanesHost.Children.Clear();
+        RecordedSessionMediaPanesHost.RowDefinitions.Clear();
         if (ExtensionSlots is not { } slots)
         {
             return;
         }
 
-        foreach (var contribution in slots.MediaPanes.OrderBy(static contribution => contribution.Order))
+        var contributions = slots.MediaPanes
+            .OrderBy(static contribution => contribution.Order)
+            .ToArray();
+        for (var i = 0; i < contributions.Length; i++)
         {
-            RecordedSessionMediaPanesHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            RecordedSessionMediaPanesHost.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+
+            var control = CreateContributionControl(contributions[i].ViewModel);
+            Grid.SetRow(control, i);
+            RecordedSessionMediaPanesHost.Children.Add(control);
         }
     }
 

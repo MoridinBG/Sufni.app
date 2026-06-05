@@ -1,5 +1,6 @@
 using Sufni.App.Models;
 using Sufni.App.SessionGraph;
+using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -14,4 +15,8 @@ public sealed record RecordedSessionHostState(
     double? TelemetryDurationSeconds,
     bool IsLoaded,
     bool IsActive,
-    SessionTimelineLinkViewModel? Timeline = null);
+    SessionTimelineLinkViewModel? Timeline = null,
+    SessionDamperPercentages? DamperPercentages = null,
+    DampingSpeedCutoffs? DampingSpeedCutoffs = null,
+    VelocityAverageMode VelocityAverageMode = VelocityAverageMode.SampleAveraged,
+    TravelHistogramMode TravelHistogramMode = TravelHistogramMode.ActiveSuspension);

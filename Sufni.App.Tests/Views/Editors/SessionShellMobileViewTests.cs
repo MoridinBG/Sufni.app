@@ -166,9 +166,8 @@ public class SessionShellMobileViewTests
         host.ScreenState = SessionScreenPresentationState.Loading("loading test");
         await using var mounted = await MountAsync(host);
 
-        var busyOverlay = mounted.Shell.GetVisualDescendants()
-            .OfType<BusyOverlay>()
-            .Single();
+        var busyOverlay = mounted.Shell.FindControl<BusyOverlay>("ScreenBusyOverlay")
+            ?? throw new InvalidOperationException("Screen busy overlay was not found.");
         Assert.True(busyOverlay.IsActive);
         Assert.True(busyOverlay.IsVisible);
         Assert.True(busyOverlay.UseStackLayout);
@@ -190,6 +189,29 @@ public class SessionShellMobileViewTests
             .FirstOrDefault(t => t.Text == "boom");
         Assert.NotNull(errorHeading);
         Assert.NotNull(errorMessage);
+        Assert.False(busyOverlay.IsActive);
+        Assert.False(busyOverlay.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionShellMobileView_OperationOverlay_TracksSessionOperationState()
+    {
+        var host = CreateHost();
+        host.SessionOperationState = SessionOperationPresentationState.Progress("matching session 8/10", 80);
+        await using var mounted = await MountAsync(host);
+
+        var busyOverlay = mounted.Shell.FindControl<BusyOverlay>("SessionOperationBusyOverlay")
+            ?? throw new InvalidOperationException("Session operation busy overlay was not found.");
+        Assert.True(busyOverlay.IsActive);
+        Assert.True(busyOverlay.IsVisible);
+        Assert.True(busyOverlay.ShowProgress);
+        Assert.True(busyOverlay.ShowTint);
+        Assert.Equal("matching session 8/10", busyOverlay.Message);
+        Assert.Equal(0.8, busyOverlay.ProgressValue);
+
+        host.SessionOperationState = SessionOperationPresentationState.Hidden;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
         Assert.False(busyOverlay.IsActive);
         Assert.False(busyOverlay.IsVisible);
     }
@@ -254,6 +276,9 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
 
     [ObservableProperty]
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+
+    [ObservableProperty]
+    private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
 
     [ObservableProperty]
     private string? name;

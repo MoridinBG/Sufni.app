@@ -153,12 +153,28 @@
         </Grid>
 
         <v:BusyOverlay
+            Name="ScreenBusyOverlay"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             IndicatorForeground="{DynamicResource SufniAccentColor}"
             IsActive="{Binding ScreenState.IsLoading}"
             IsVisible="{Binding ScreenState.IsLoading}"
             Message="{Binding ScreenState.Message, TargetNullValue=Loading session data...}"
+            UseStackLayout="True" />
+
+        <v:BusyOverlay
+            Name="SessionOperationBusyOverlay"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IsActive="{Binding SessionOperationState.IsVisible}"
+            IsVisible="{Binding SessionOperationState.IsVisible}"
+            Message="{Binding SessionOperationState.Message}"
+            ProgressValue="{Binding SessionOperationState.ProgressFraction}"
+            ShowProgress="True"
+            ShowTint="True"
+            TintBackground="{DynamicResource SufniRegion}"
+            TintOpacity="0.35"
             UseStackLayout="True" />
 
         <Border

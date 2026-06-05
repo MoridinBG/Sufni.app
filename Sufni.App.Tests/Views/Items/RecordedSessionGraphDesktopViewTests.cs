@@ -34,22 +34,24 @@ public class RecordedSessionGraphDesktopViewTests
         var workspace = new RecordedSessionGraphWorkspaceStub(CreateMinimal());
         workspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
             "extension",
-            "toolbar-action",
+            "toolbar-leading",
             Order: 0,
-            new TextBlock { Name = "DesktopToolbarAction", Text = "Action" }));
-        workspace.ExtensionSlots.GraphToolbarPanels.Add(new RecordedSessionToolbarContribution(
+            RecordedSessionToolbarZone.Leading,
+            new TextBlock { Name = "DesktopToolbarLeadingAction", Text = "Leading" }));
+        workspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
             "extension",
-            "toolbar-panel",
+            "toolbar-trailing",
             Order: 1,
-            new TextBlock { Name = "DesktopToolbarPanel", Text = "Panel" }));
+            RecordedSessionToolbarZone.Trailing,
+            new TextBlock { Name = "DesktopToolbarTrailingAction", Text = "Trailing" }));
 
         await using var mounted = await MountAsync(workspace);
 
         var toolbarHost = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
         Assert.NotNull(toolbarHost);
-        AssertContributionText(mounted.View, "DesktopToolbarAction", "Action");
-        AssertContributionText(mounted.View, "DesktopToolbarPanel", "Panel");
+        AssertContributionText(mounted.View, "DesktopToolbarLeadingAction", "Leading");
+        AssertContributionText(mounted.View, "DesktopToolbarTrailingAction", "Trailing");
     }
 
     [AvaloniaFact]

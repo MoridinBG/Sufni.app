@@ -72,11 +72,16 @@ public class SessionMediaDesktopViewTests
     public async Task SessionMediaDesktopView_RendersMediaPaneContributions_WhenOnlyExtensionMediaIsPresent()
     {
         var workspace = CreateWorkspace([]);
+        var contribution = new Border
+        {
+            Name = "DesktopMediaPane",
+            Child = new TextBlock { Text = "Media pane" },
+        };
         workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "extension",
             "media-pane",
             Order: 0,
-            new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" }));
+            contribution));
 
         await using var mounted = await MountAsync(workspace);
 
@@ -90,7 +95,43 @@ public class SessionMediaDesktopViewTests
         Assert.NotNull(mediaPanes);
         Assert.True(mediaRoot!.IsVisible);
         Assert.False(mapHost!.IsVisible);
-        AssertContributionText(mounted.View, "DesktopMediaPane", "Media pane");
+        Assert.True(
+            contribution.Bounds.Height > mounted.View.Bounds.Height * 0.9,
+            $"Expected extension-only media pane to fill the available height. View={mounted.View.Bounds}, Contribution={contribution.Bounds}.");
+        AssertContributionText(mounted.View, "Media pane");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_SplitsMapAndMediaPanes_WhenBothArePresent()
+    {
+        var workspace = CreateWorkspace(
+        [
+            new TrackPoint(1, 2, 3, 4),
+        ]);
+        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" }));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
+        var splitter = mounted.View.FindControl<GridSplitter>("MediaPaneSplitter");
+        var mediaPanes = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
+
+        Assert.NotNull(mapHost);
+        Assert.NotNull(splitter);
+        Assert.True(splitter!.IsVisible);
+        Assert.True(mediaPanes.IsVisible);
+        Assert.True(
+            mapHost!.Bounds.Height > mounted.View.Bounds.Height * 0.4,
+            $"Expected map to receive about half of the media height. View={mounted.View.Bounds}, MapHost={mapHost.Bounds}.");
+        Assert.True(
+            mediaPanes.Bounds.Height > mounted.View.Bounds.Height * 0.4,
+            $"Expected media panes to receive about half of the media height. View={mounted.View.Bounds}, MediaPanes={mediaPanes.Bounds}.");
+        AssertContributionText(mounted.View, "Media pane");
     }
 
     [AvaloniaFact]
@@ -133,15 +174,15 @@ public class SessionMediaDesktopViewTests
         return new MountedSessionMediaDesktopView(host, view);
     }
 
-    private static void AssertContributionText(Control root, string name, string text)
+    private static void AssertContributionText(Control root, string text)
     {
         var textBlocks = root.GetVisualDescendants()
             .OfType<TextBlock>()
             .ToArray();
-        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Text == text);
         Assert.True(
             textBlock is not null,
-            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+            $"Expected contribution text '{text}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
         Assert.Equal(text, textBlock!.Text);
     }
 

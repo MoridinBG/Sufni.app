@@ -22,6 +22,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     private readonly Action<SessionRowViewModel> requestDelete;
     private readonly Func<SessionRowViewModel, Task> requestRecalculate;
     private readonly IRecordedSessionListExtensionService? listExtensionService;
+    private RecordedSessionSummary? summary;
 
     public Guid Id { get; private set; }
     public long Updated { get; private set; }
@@ -122,6 +123,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
 
     public void Update(RecordedSessionSummary summary)
     {
+        this.summary = summary;
         Id = summary.Id;
         Updated = summary.Updated;
         BaseName = summary.Name;
@@ -151,6 +153,14 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
             summary.DescentMeters);
         IsComplete = summary.HasProcessedData;
         RefreshExtensionContributions(summary);
+    }
+
+    public void RefreshExtensionContributions()
+    {
+        if (summary is not null)
+        {
+            RefreshExtensionContributions(summary);
+        }
     }
 
     protected override async Task OpenPageAsync()

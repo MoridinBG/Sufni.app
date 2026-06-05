@@ -649,12 +649,15 @@ public class SessionDetailViewModelTests
         Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
         Assert.Contains("extension error", editor.ErrorMessages);
         Assert.Contains("extension notification", editor.Notifications);
-        Assert.True(editor.ScreenState.IsLoading);
-        Assert.Equal("Extension still working", editor.ScreenState.Message);
+        Assert.True(editor.ScreenState.IsReady);
+        Assert.True(editor.SessionOperationState.IsVisible);
+        Assert.Equal("Extension still working", editor.SessionOperationState.Message);
+        Assert.Equal(50, editor.SessionOperationState.Percent);
 
         lease.Complete();
 
         Assert.True(editor.ScreenState.IsReady);
+        Assert.False(editor.SessionOperationState.IsVisible);
     }
 
     [AvaloniaFact]

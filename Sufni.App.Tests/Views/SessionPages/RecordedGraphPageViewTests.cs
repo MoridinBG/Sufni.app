@@ -138,14 +138,16 @@ public class RecordedGraphPageViewTests
             SurfacePresentationState.Hidden);
         graphWorkspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
             "extension",
-            "toolbar-action",
+            "toolbar-leading",
             Order: 0,
-            new TextBlock { Name = "MobileToolbarAction", Text = "Action" }));
-        graphWorkspace.ExtensionSlots.GraphToolbarPanels.Add(new RecordedSessionToolbarContribution(
+            RecordedSessionToolbarZone.Leading,
+            new TextBlock { Name = "MobileToolbarLeadingAction", Text = "Leading" }));
+        graphWorkspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
             "extension",
-            "toolbar-panel",
+            "toolbar-trailing",
             Order: 1,
-            new TextBlock { Name = "MobileToolbarPanel", Text = "Panel" }));
+            RecordedSessionToolbarZone.Trailing,
+            new TextBlock { Name = "MobileToolbarTrailingAction", Text = "Trailing" }));
         var page = new RecordedGraphPageViewModel(graphWorkspace, CreateMediaWorkspace([]));
 
         await using var mounted = await MountAsync(page);
@@ -153,8 +155,8 @@ public class RecordedGraphPageViewTests
         var toolbarHost = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
         Assert.NotNull(toolbarHost);
-        AssertContributionText(mounted.View, "MobileToolbarAction", "Action");
-        AssertContributionText(mounted.View, "MobileToolbarPanel", "Panel");
+        AssertContributionText(mounted.View, "MobileToolbarLeadingAction", "Leading");
+        AssertContributionText(mounted.View, "MobileToolbarTrailingAction", "Trailing");
     }
 
     [AvaloniaFact]

@@ -180,6 +180,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
 
+    public SessionOperationPresentationState SessionOperationState => SessionOperationPresentationState.Hidden;
+
     public SurfacePresentationState FrontStatisticsState => SessionStatisticsSurfaceState.ForSuspension(IsTravelStatisticsExpected(hasFrontTravelCalibration), TelemetryData, SuspensionType.Front);
     public SurfacePresentationState RearStatisticsState => SessionStatisticsSurfaceState.ForSuspension(IsTravelStatisticsExpected(hasRearTravelCalibration), TelemetryData, SuspensionType.Rear);
     public SurfacePresentationState CompressionBalanceState => SessionStatisticsSurfaceState.ForBalance(IsBalanceStatisticsExpected(), TelemetryData, BalanceType.Compression);

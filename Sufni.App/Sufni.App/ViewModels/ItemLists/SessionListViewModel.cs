@@ -55,6 +55,10 @@ public partial class SessionListViewModel : ItemListViewModelBase
     {
         this.sessionCoordinator = sessionCoordinator;
         this.listExtensionService = listExtensionService;
+        if (this.listExtensionService is not null)
+        {
+            this.listExtensionService.ContributionsChanged += OnListExtensionContributionsChanged;
+        }
 
         recordedSessionGraph.ConnectSessions()
             .Filter(filterSubject)
@@ -177,6 +181,26 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private void OnSessionRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         SynchronizeDateGroups();
+    }
+
+    private void OnListExtensionContributionsChanged(object? sender, EventArgs e)
+    {
+        if (UiThreadDispatcher.CheckAccess())
+        {
+            RefreshSessionRowExtensionContributions();
+        }
+        else
+        {
+            UiThreadDispatcher.Post(RefreshSessionRowExtensionContributions);
+        }
+    }
+
+    private void RefreshSessionRowExtensionContributions()
+    {
+        foreach (var row in sessionRows)
+        {
+            row.RefreshExtensionContributions();
+        }
     }
 
     private void SynchronizeDateGroups()

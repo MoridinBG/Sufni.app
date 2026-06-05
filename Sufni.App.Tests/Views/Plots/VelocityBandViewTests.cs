@@ -12,6 +12,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Behaviors;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -239,6 +240,68 @@ public class VelocityBandViewTests
         finally
         {
             TestApp.SetIsDesktop(true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task VelocityStatisticsHost_RendersSortedMetricAnnotationsForCurrentSuspensionSide()
+    {
+        TestApp.SetIsDesktop(true);
+        var slots = new RecordedSessionExtensionSlots();
+        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+            "extension-b",
+            "second",
+            Order: 20,
+            RecordedSessionStatisticsMetricIds.FrontHscPercentage,
+            "match second",
+            null,
+            RecordedSessionMetricTone.Default));
+        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+            "extension-a",
+            "first",
+            Order: 10,
+            RecordedSessionStatisticsMetricIds.FrontHscPercentage,
+            "match first",
+            "+1.00",
+            RecordedSessionMetricTone.Positive));
+        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+            "extension-a",
+            "rear",
+            Order: 10,
+            RecordedSessionStatisticsMetricIds.RearHscPercentage,
+            "rear match",
+            "-1.00",
+            RecordedSessionMetricTone.Negative));
+        var host = new VelocityStatisticsHost
+        {
+            Width = 600,
+            Height = 420,
+            PresentationState = SurfacePresentationState.Ready,
+            HasDynamicStatistics = false,
+            StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
+            SuspensionType = SuspensionType.Front,
+            DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
+            ExtensionSlots = slots,
+            StatisticsWorkspace = CreateWorkspace(),
+        };
+
+        EnsureVelocityBandStyle();
+        var window = await ViewTestHelpers.ShowViewAsync(host);
+        try
+        {
+            var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
+            Assert.Equal(["match first", "match second"], band.HscMetricAnnotations.Select(metric => metric.DisplayValue));
+            Assert.Empty(band.HsrMetricAnnotations);
+
+            host.SuspensionType = SuspensionType.Rear;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Equal(["rear match"], band.HscMetricAnnotations.Select(metric => metric.DisplayValue));
+        }
+        finally
+        {
+            window.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
         }
     }
 

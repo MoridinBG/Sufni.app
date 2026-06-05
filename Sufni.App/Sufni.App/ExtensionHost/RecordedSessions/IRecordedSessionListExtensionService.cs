@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Sufni.App.SessionGraph;
 
@@ -9,8 +10,15 @@ public interface IRecordedSessionListContributionProvider
     IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary);
 }
 
+public interface IRecordedSessionListContributionChangeSource
+{
+    event EventHandler? ContributionsChanged;
+}
+
 public interface IRecordedSessionListExtensionService
 {
+    event EventHandler? ContributionsChanged;
+
     IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary);
     IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary);
 }

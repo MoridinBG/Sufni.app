@@ -173,12 +173,12 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private void AttachScopeSlots(RecordedSessionExtensionSlots slots)
     {
         slotSubscriptions.Add(Subscribe(slots.GraphToolbarActions));
-        slotSubscriptions.Add(Subscribe(slots.GraphToolbarPanels));
         slotSubscriptions.Add(Subscribe(slots.Pages));
         slotSubscriptions.Add(Subscribe(slots.MediaPanes));
         slotSubscriptions.Add(Subscribe(slots.MapOverlays));
         slotSubscriptions.Add(Subscribe(slots.StatisticsBanners));
         slotSubscriptions.Add(Subscribe(slots.StatisticsOverlays));
+        slotSubscriptions.Add(Subscribe(slots.StatisticsMetrics));
         slotSubscriptions.Add(Subscribe(slots.SessionListIndicators));
         slotSubscriptions.Add(Subscribe(slots.SessionListActions));
         slotSubscriptions.Add(Subscribe(slots.PlotContextMenuActions));
@@ -200,12 +200,12 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         foreach (var scope in scopes)
         {
             AddRange(ExtensionSlots.GraphToolbarActions, scope.Slots.GraphToolbarActions);
-            AddRange(ExtensionSlots.GraphToolbarPanels, scope.Slots.GraphToolbarPanels);
             AddRange(ExtensionSlots.Pages, scope.Slots.Pages);
             AddRange(ExtensionSlots.MediaPanes, scope.Slots.MediaPanes);
             AddRange(ExtensionSlots.MapOverlays, scope.Slots.MapOverlays);
             AddRange(ExtensionSlots.StatisticsBanners, scope.Slots.StatisticsBanners);
             AddRange(ExtensionSlots.StatisticsOverlays, scope.Slots.StatisticsOverlays);
+            AddRange(ExtensionSlots.StatisticsMetrics, scope.Slots.StatisticsMetrics);
             AddRange(ExtensionSlots.SessionListIndicators, scope.Slots.SessionListIndicators);
             AddRange(ExtensionSlots.SessionListActions, scope.Slots.SessionListActions);
             AddRange(ExtensionSlots.PlotContextMenuActions, scope.Slots.PlotContextMenuActions);
@@ -218,12 +218,12 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private void ClearExtensionSlots()
     {
         ExtensionSlots.GraphToolbarActions.Clear();
-        ExtensionSlots.GraphToolbarPanels.Clear();
         ExtensionSlots.Pages.Clear();
         ExtensionSlots.MediaPanes.Clear();
         ExtensionSlots.MapOverlays.Clear();
         ExtensionSlots.StatisticsBanners.Clear();
         ExtensionSlots.StatisticsOverlays.Clear();
+        ExtensionSlots.StatisticsMetrics.Clear();
         ExtensionSlots.SessionListIndicators.Clear();
         ExtensionSlots.SessionListActions.Clear();
         ExtensionSlots.PlotContextMenuActions.Clear();

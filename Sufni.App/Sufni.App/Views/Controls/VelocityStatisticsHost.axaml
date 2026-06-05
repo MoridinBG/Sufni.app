@@ -83,9 +83,13 @@ mc:Ignorable="d">
                 CanEditDampingSpeedCutoffs="{Binding #Root.StatisticsWorkspace.CanEditDampingSpeedCutoffs}"
                 DampingSpeedCutoffs="{Binding #Root.DampingSpeedCutoffs}"
                 HscPercentage="{Binding #Root.HscPercentage}"
+                HscMetricAnnotations="{Binding #Root.HscMetricAnnotations}"
                 HsrPercentage="{Binding #Root.HsrPercentage}"
+                HsrMetricAnnotations="{Binding #Root.HsrMetricAnnotations}"
                 LscPercentage="{Binding #Root.LscPercentage}"
+                LscMetricAnnotations="{Binding #Root.LscMetricAnnotations}"
                 LsrPercentage="{Binding #Root.LsrPercentage}"
+                LsrMetricAnnotations="{Binding #Root.LsrMetricAnnotations}"
                 StatisticsWorkspace="{Binding #Root.StatisticsWorkspace}"
                 SuspensionType="{Binding #Root.SuspensionType}" />
             </Grid>

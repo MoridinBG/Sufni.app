@@ -92,7 +92,7 @@ The contribution carries an extension id, contribution id, order, and view model
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close.
 
-`RecordedSessionHostState` carries the current session snapshot, domain snapshot, analysis range, track timeline context, telemetry duration, loaded/active flags, and the neutral `SessionTimelineLinkViewModel` used by graph, map, and media surfaces. Contributed media panes use that timeline object when they need to follow cursor movement or visible-range changes.
+`RecordedSessionHostState` carries the current session snapshot, domain snapshot, analysis range, track timeline context, telemetry duration, loaded/active flags, statistics presentation inputs, and the neutral `SessionTimelineLinkViewModel` used by graph, map, and media surfaces. Contributed media panes use that timeline object when they need to follow cursor movement or visible-range changes. Statistics presentation inputs are host-owned values such as current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode; they do not expose extension-owned comparison objects or persistence models.
 
 `RecordedSessionHostContext` exposes constrained host operations:
 
@@ -102,7 +102,7 @@ The contribution carries an extension id, contribution id, order, and view model
 - request contributed page selection
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 
-Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle.
+Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
 ## Recorded-Session Slots
 
@@ -110,20 +110,28 @@ Operation leases reject stale progress and cancel superseded work, so extension 
 
 The current public slot families are:
 
-- graph toolbar actions and panels
+- graph toolbar actions
 - contributed pages
 - media panes
 - map overlays
-- statistics banners and statistics plot overlays
+- statistics banners, statistics plot overlays, and statistics metric annotations
 - session-list indicators and actions
 - plot context-menu actions
 - plot-row header actions
 - hosted graph rows
 - recorded time-range overlays
 
+Recorded-session graph toolbar contributions carry a `RecordedSessionToolbarZone` value. The host renders `Leading` contributions at the start of the graph toolbar and `Trailing` contributions at the end, with both zones sorted by `Order`, then extension id, then contribution id. Toolbar controls own their own transient UI, such as flyouts. The host does not provide a generic page-root overlay slot for extension-owned transient controls.
+
 Session-list indicators and actions are created by registered `IRecordedSessionListContributionProvider` implementations. `RecordedSessionListExtensionService` aggregates every provider and sorts each contribution family by `Order`, so separate modules can contribute to the same recorded-session row without replacing each other. Public builds with no providers return empty contribution lists.
 
+Providers whose contribution availability can change without a core recorded-session summary change also implement `IRecordedSessionListContributionChangeSource`. The aggregate list service exposes those invalidations as a neutral `ContributionsChanged` event. Session list rows respond by asking the list service to recreate their indicator and action descriptors from the latest summary, without the public app learning which extension-owned state changed.
+
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
+
+Statistics plot overlays are generic descriptors. A descriptor can contain lines, bands, and labels. Lines may use explicit plot coordinates or the host plot's full current horizontal span for statistic reference lines. Labels specify text, text/background color, font size, anchor, and either explicit plot coordinates or the host plot's current right edge for statistic value labels. Plot controls render those primitives without knowing why an extension contributed them.
+
+Statistics metric annotations are generic values targeted at host-owned metric ids. For example, velocity damping statistics expose public ids for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityStatisticsHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
 
 ## Neutrality Rules
 

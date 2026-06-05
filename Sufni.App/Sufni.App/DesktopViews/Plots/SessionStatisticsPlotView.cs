@@ -325,7 +325,8 @@ public class SessionStatisticsPlotView : SufniTelemetryPlotView
 
         return new RecordedSessionStatisticsPlotOverlayDescriptor(
             overlays.SelectMany(overlay => overlay.Lines).ToArray(),
-            overlays.SelectMany(overlay => overlay.Bands).ToArray());
+            overlays.SelectMany(overlay => overlay.Bands).ToArray(),
+            overlays.SelectMany(overlay => overlay.Labels).ToArray());
     }
 
     private RecordedSessionStatisticsPlotKind? ResolveStatisticsOverlayTargetKind()

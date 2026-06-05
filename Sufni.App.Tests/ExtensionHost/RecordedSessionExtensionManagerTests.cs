@@ -124,15 +124,27 @@ public class RecordedSessionExtensionManagerTests
             "test",
             "toolbar",
             Order: 1,
+            RecordedSessionToolbarZone.Trailing,
             new object());
+        var metricContribution = new RecordedSessionStatisticsMetricContribution(
+            "test",
+            "metric",
+            Order: 2,
+            RecordedSessionStatisticsMetricIds.FrontLscPercentage,
+            "match 12.00",
+            "-2.00",
+            RecordedSessionMetricTone.Negative);
 
         factory.Scope!.Slots.GraphToolbarActions.Add(contribution);
+        factory.Scope.Slots.StatisticsMetrics.Add(metricContribution);
 
         Assert.Equal([contribution], manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Equal([metricContribution], manager.ExtensionSlots.StatisticsMetrics);
 
         await manager.DisposeScopesAsync();
 
         Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Empty(manager.ExtensionSlots.StatisticsMetrics);
     }
 
     [Fact]

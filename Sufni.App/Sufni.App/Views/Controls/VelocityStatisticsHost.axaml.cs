@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.RecordedSessions;
@@ -10,6 +14,8 @@ namespace Sufni.App.Views.Controls;
 
 public partial class VelocityStatisticsHost : StatisticsHostBase
 {
+    private RecordedSessionExtensionSlots? subscribedSlots;
+
     public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, SurfacePresentationState>(
             nameof(PresentationState),
@@ -77,6 +83,26 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, RecordedSessionExtensionSlots?>(
             nameof(ExtensionSlots));
+
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> HsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+            nameof(HsrMetricAnnotations),
+            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> LsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+            nameof(LsrMetricAnnotations),
+            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> LscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+            nameof(LscMetricAnnotations),
+            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> HscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityStatisticsHost, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+            nameof(HscMetricAnnotations),
+            Array.Empty<RecordedSessionStatisticsMetricContribution>());
 
     public SurfacePresentationState PresentationState
     {
@@ -198,6 +224,30 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
         set => SetValue(ExtensionSlotsProperty, value);
     }
 
+    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> HsrMetricAnnotations
+    {
+        get => GetValue(HsrMetricAnnotationsProperty);
+        set => SetValue(HsrMetricAnnotationsProperty, value);
+    }
+
+    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> LsrMetricAnnotations
+    {
+        get => GetValue(LsrMetricAnnotationsProperty);
+        set => SetValue(LsrMetricAnnotationsProperty, value);
+    }
+
+    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> LscMetricAnnotations
+    {
+        get => GetValue(LscMetricAnnotationsProperty);
+        set => SetValue(LscMetricAnnotationsProperty, value);
+    }
+
+    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> HscMetricAnnotations
+    {
+        get => GetValue(HscMetricAnnotationsProperty);
+        set => SetValue(HscMetricAnnotationsProperty, value);
+    }
+
     public VelocityStatisticsHost()
     {
         InitializeComponent();
@@ -206,8 +256,79 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
             if (e.Property.Name is nameof(SuspensionType))
             {
                 SetSelectedRangeSelectionSuspensionType(SuspensionType);
+                RefreshMetricAnnotations();
+            }
+
+            if (e.Property == ExtensionSlotsProperty)
+            {
+                SubscribeToSlots(ExtensionSlots);
+                RefreshMetricAnnotations();
             }
         };
         SetSelectedRangeSelectionSuspensionType(SuspensionType);
+        RefreshMetricAnnotations();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        SubscribeToSlots(ExtensionSlots);
+        RefreshMetricAnnotations();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        SubscribeToSlots(null);
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
+    {
+        if (ReferenceEquals(subscribedSlots, slots))
+        {
+            return;
+        }
+
+        if (subscribedSlots is not null)
+        {
+            subscribedSlots.StatisticsMetrics.CollectionChanged -= OnStatisticsMetricsChanged;
+        }
+
+        subscribedSlots = slots;
+        if (subscribedSlots is not null)
+        {
+            subscribedSlots.StatisticsMetrics.CollectionChanged += OnStatisticsMetricsChanged;
+        }
+    }
+
+    private void OnStatisticsMetricsChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        RefreshMetricAnnotations();
+    }
+
+    private void RefreshMetricAnnotations()
+    {
+        HsrMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
+            ? RecordedSessionStatisticsMetricIds.FrontHsrPercentage
+            : RecordedSessionStatisticsMetricIds.RearHsrPercentage);
+        LsrMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
+            ? RecordedSessionStatisticsMetricIds.FrontLsrPercentage
+            : RecordedSessionStatisticsMetricIds.RearLsrPercentage);
+        LscMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
+            ? RecordedSessionStatisticsMetricIds.FrontLscPercentage
+            : RecordedSessionStatisticsMetricIds.RearLscPercentage);
+        HscMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
+            ? RecordedSessionStatisticsMetricIds.FrontHscPercentage
+            : RecordedSessionStatisticsMetricIds.RearHscPercentage);
+    }
+
+    private IReadOnlyList<RecordedSessionStatisticsMetricContribution> GetMetricAnnotations(string metricId)
+    {
+        return ExtensionSlots?.StatisticsMetrics
+            .Where(contribution => contribution.TargetMetricId == metricId)
+            .OrderBy(contribution => contribution.Order)
+            .ThenBy(contribution => contribution.ExtensionId)
+            .ThenBy(contribution => contribution.ContributionId)
+            .ToArray() ?? Array.Empty<RecordedSessionStatisticsMetricContribution>();
     }
 }

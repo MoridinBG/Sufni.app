@@ -32,6 +32,19 @@ public class RecordedSessionListExtensionServiceTests
         Assert.Equal(["second-session-action", "first-session-action"], actions.Select(action => action.ContributionId));
     }
 
+    [Fact]
+    public void ContributionsChanged_Raises_WhenProviderInvalidatesListContributions()
+    {
+        var provider = new TestInvalidatingContributionProvider();
+        var service = new RecordedSessionListExtensionService([provider]);
+        var raisedCount = 0;
+        service.ContributionsChanged += (_, _) => raisedCount++;
+
+        provider.RaiseContributionsChanged();
+
+        Assert.Equal(1, raisedCount);
+    }
+
     private static RecordedSessionSummary CreateSummary(string name = "session") => new(
         Guid.NewGuid(),
         Updated: 1,
@@ -68,6 +81,22 @@ public class RecordedSessionListExtensionServiceTests
                     actionOrder,
                     new object()),
             ];
+        }
+    }
+
+    private sealed class TestInvalidatingContributionProvider :
+        IRecordedSessionListContributionProvider,
+        IRecordedSessionListContributionChangeSource
+    {
+        public event EventHandler? ContributionsChanged;
+
+        public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary) => [];
+
+        public IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary) => [];
+
+        public void RaiseContributionsChanged()
+        {
+            ContributionsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

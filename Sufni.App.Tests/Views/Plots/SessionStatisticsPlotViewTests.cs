@@ -204,7 +204,8 @@ public class SessionStatisticsPlotViewTests
             ViewModel: null,
             new RecordedSessionStatisticsPlotOverlayDescriptor(
                 [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
-                [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())])));
+                [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())],
+                Labels: [])));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
@@ -218,7 +219,20 @@ public class SessionStatisticsPlotViewTests
             ViewModel: null,
             new RecordedSessionStatisticsPlotOverlayDescriptor(
                 [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],
-                [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))])));
+                [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))],
+                Labels:
+                [
+                    new RecordedSessionPlotLabelOverlay(
+                        X: 0,
+                        Y: 18,
+                        "match avg: 18.0 mm",
+                        new RecordedSessionPlotLabelStyle(
+                            new RecordedSessionMapColor(255, 17, 34, 51),
+                            BackgroundColor: null,
+                            FontSize: 11,
+                            RecordedSessionPlotLabelAnchor.Top),
+                        RecordedSessionPlotLabelPlacement.PlotRightEdge)
+                ])));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         AssertStatisticsOverlay(plot);
@@ -269,6 +283,9 @@ public class SessionStatisticsPlotViewTests
         var line = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
         Assert.False(line.MarkerStyle.IsVisible);
         Assert.Equal(3, line.LineStyle.Width, 3);
+        Assert.Contains(
+            "match avg: 18.0 mm",
+            plot.Plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels));
     }
 
     private static DampingRangeSelection CreateFrontDampingSelection(TelemetryData telemetry)

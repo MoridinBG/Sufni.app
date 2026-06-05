@@ -25,7 +25,8 @@ mc:Ignorable="d">
             <RowDefinition Height="{Binding VideoState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="{Binding MapState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="0" />
+            <RowDefinition Height="0" />
         </Grid.RowDefinitions>
 
         <controls:PlaceholderOverlayContainer x:Name="VideoHost" Grid.Row="0" PresentationState="{Binding VideoState}">
@@ -65,8 +66,15 @@ mc:Ignorable="d">
             </controls:PlaceholderOverlayContainer.PlaceholderContent>
         </controls:PlaceholderOverlayContainer>
 
-        <controls:RecordedSessionMediaPanesView
+        <GridSplitter
+        x:Name="MediaPaneSplitter"
         Grid.Row="3"
+        ResizeBehavior="PreviousAndNext"
+        ResizeDirection="Rows" />
+
+        <controls:RecordedSessionMediaPanesView
+        x:Name="MediaPanesHost"
+        Grid.Row="4"
         ExtensionSlots="{Binding ExtensionSlots}" />
     </Grid>
 </UserControl>

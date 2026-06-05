@@ -14,10 +14,17 @@ public interface IRecordedSessionContribution
     int Order { get; }
 }
 
+public enum RecordedSessionToolbarZone
+{
+    Leading,
+    Trailing,
+}
+
 public sealed record RecordedSessionToolbarContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
+    RecordedSessionToolbarZone Zone,
     object ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionPageContribution(
@@ -103,7 +110,8 @@ public enum RecordedSessionStatisticsPlotKind
 
 public sealed record RecordedSessionStatisticsPlotOverlayDescriptor(
     IReadOnlyList<RecordedSessionPlotLineOverlay> Lines,
-    IReadOnlyList<RecordedSessionPlotBandOverlay> Bands);
+    IReadOnlyList<RecordedSessionPlotBandOverlay> Bands,
+    IReadOnlyList<RecordedSessionPlotLabelOverlay> Labels);
 
 public sealed record RecordedSessionPlotLineOverlay(
     double X1,
@@ -111,7 +119,14 @@ public sealed record RecordedSessionPlotLineOverlay(
     double X2,
     double Y2,
     RecordedSessionPlotOverlayStyle Style,
-    string? Label = null);
+    string? Label = null,
+    RecordedSessionPlotLinePlacement Placement = RecordedSessionPlotLinePlacement.Coordinates);
+
+public enum RecordedSessionPlotLinePlacement
+{
+    Coordinates,
+    PlotHorizontal,
+}
 
 public sealed record RecordedSessionPlotBandOverlay(
     double X1,
@@ -119,10 +134,73 @@ public sealed record RecordedSessionPlotBandOverlay(
     RecordedSessionPlotOverlayStyle Style,
     string? Label = null);
 
+public sealed record RecordedSessionPlotLabelOverlay(
+    double X,
+    double Y,
+    string Text,
+    RecordedSessionPlotLabelStyle Style,
+    RecordedSessionPlotLabelPlacement Placement = RecordedSessionPlotLabelPlacement.Coordinates);
+
+public enum RecordedSessionPlotLabelPlacement
+{
+    Coordinates,
+    PlotRightEdge,
+}
+
+public sealed record RecordedSessionPlotLabelStyle(
+    RecordedSessionMapColor TextColor,
+    RecordedSessionMapColor? BackgroundColor,
+    double FontSize,
+    RecordedSessionPlotLabelAnchor Anchor);
+
+public enum RecordedSessionPlotLabelAnchor
+{
+    Center,
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
 public sealed record RecordedSessionPlotOverlayStyle(
     RecordedSessionMapColor Color,
     double Width = 1.0,
     double Opacity = 1.0);
+
+public sealed record RecordedSessionStatisticsMetricContribution(
+    string ExtensionId,
+    string ContributionId,
+    int Order,
+    string TargetMetricId,
+    string DisplayValue,
+    string? DeltaValue,
+    RecordedSessionMetricTone Tone) : IRecordedSessionContribution
+{
+    public bool HasDeltaValue => !string.IsNullOrWhiteSpace(DeltaValue);
+    public bool IsPositiveTone => Tone == RecordedSessionMetricTone.Positive;
+    public bool IsNegativeTone => Tone == RecordedSessionMetricTone.Negative;
+    public bool IsAccentTone => Tone == RecordedSessionMetricTone.Accent;
+}
+
+public enum RecordedSessionMetricTone
+{
+    Default,
+    Positive,
+    Negative,
+    Accent,
+}
+
+public static class RecordedSessionStatisticsMetricIds
+{
+    public const string FrontHscPercentage = "front.hsc.percentage";
+    public const string FrontHsrPercentage = "front.hsr.percentage";
+    public const string FrontLscPercentage = "front.lsc.percentage";
+    public const string FrontLsrPercentage = "front.lsr.percentage";
+    public const string RearHscPercentage = "rear.hsc.percentage";
+    public const string RearHsrPercentage = "rear.hsr.percentage";
+    public const string RearLscPercentage = "rear.lsc.percentage";
+    public const string RearLsrPercentage = "rear.lsr.percentage";
+}
 
 public sealed record RecordedSessionListIndicatorContribution(
     string ExtensionId,

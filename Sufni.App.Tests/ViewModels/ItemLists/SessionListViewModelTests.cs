@@ -161,6 +161,34 @@ public class SessionListViewModelTests
     }
 
     [Fact]
+    public void Rows_RefreshExtensionListContributions_WhenExtensionServiceInvalidates()
+    {
+        var (graph, sessionCache) = CreateGraph();
+        using (sessionCache)
+        {
+            var summary = CreateSummary(name: "session", updated: 1);
+            var listExtensionService = new TestRecordedSessionListExtensionService();
+            sessionCache.AddOrUpdate(summary);
+
+            var viewModel = new SessionListViewModel(
+                graph,
+                TestCoordinatorSubstitutes.Session(),
+                UiThreadDispatcher,
+                listExtensionService);
+            var row = Assert.Single(viewModel.Items);
+            Assert.Equal("session-indicator", Assert.Single(row.Indicators).ContributionId);
+            Assert.Equal("session-action", Assert.Single(row.Actions).ContributionId);
+
+            listExtensionService.ContributionRevision = 2;
+            listExtensionService.RaiseContributionsChanged();
+
+            Assert.Same(row, Assert.Single(viewModel.Items));
+            Assert.Equal("session-2-indicator", Assert.Single(row.Indicators).ContributionId);
+            Assert.Equal("session-2-action", Assert.Single(row.Actions).ContributionId);
+        }
+    }
+
+    [Fact]
     public async Task RecalculateRow_ReportsCoordinatorFailure()
     {
         var (graph, sessionCache) = CreateGraph();
@@ -498,13 +526,17 @@ public class SessionListViewModelTests
 
     private sealed class TestRecordedSessionListExtensionService : IRecordedSessionListExtensionService
     {
+        public event EventHandler? ContributionsChanged;
+
+        public int ContributionRevision { get; set; }
+
         public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
         {
             return
             [
                 new RecordedSessionListIndicatorContribution(
                     "extension",
-                    $"{summary.Name}-indicator",
+                    $"{ContributionIdPrefix(summary)}-indicator",
                     Order: 0,
                     new object()),
             ];
@@ -516,10 +548,20 @@ public class SessionListViewModelTests
             [
                 new RecordedSessionListActionContribution(
                     "extension",
-                    $"{summary.Name}-action",
+                    $"{ContributionIdPrefix(summary)}-action",
                     Order: 0,
                     new object()),
             ];
         }
+
+        public void RaiseContributionsChanged()
+        {
+            ContributionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private string ContributionIdPrefix(RecordedSessionSummary summary) =>
+            ContributionRevision == 0
+                ? summary.Name
+                : $"{summary.Name}-{ContributionRevision}";
     }
 }

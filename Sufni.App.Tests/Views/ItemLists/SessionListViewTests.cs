@@ -305,6 +305,12 @@ public class SessionListViewTests
 
     private sealed class TestRecordedSessionListExtensionService : IRecordedSessionListExtensionService
     {
+        public event EventHandler? ContributionsChanged
+        {
+            add { }
+            remove { }
+        }
+
         public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
         {
             return

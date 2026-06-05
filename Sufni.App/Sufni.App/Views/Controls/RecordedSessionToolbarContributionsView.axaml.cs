@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Linq;
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.RecordedSessions;
@@ -56,14 +57,12 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
         if (subscribedSlots is not null)
         {
             subscribedSlots.GraphToolbarActions.CollectionChanged -= OnToolbarContributionsChanged;
-            subscribedSlots.GraphToolbarPanels.CollectionChanged -= OnToolbarContributionsChanged;
         }
 
         subscribedSlots = slots;
         if (subscribedSlots is not null)
         {
             subscribedSlots.GraphToolbarActions.CollectionChanged += OnToolbarContributionsChanged;
-            subscribedSlots.GraphToolbarPanels.CollectionChanged += OnToolbarContributionsChanged;
         }
     }
 
@@ -74,22 +73,33 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
 
     private void Rebuild()
     {
-        GraphToolbarActionsHost.Children.Clear();
-        GraphToolbarPanelsHost.Children.Clear();
+        LeadingGraphToolbarActionsHost.Children.Clear();
+        TrailingGraphToolbarActionsHost.Children.Clear();
         if (ExtensionSlots is not { } slots)
         {
             return;
         }
 
-        foreach (var contribution in slots.GraphToolbarActions.OrderBy(static contribution => contribution.Order))
+        foreach (var contribution in OrderedToolbarContributions(slots, RecordedSessionToolbarZone.Leading))
         {
-            GraphToolbarActionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            LeadingGraphToolbarActionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
         }
 
-        foreach (var contribution in slots.GraphToolbarPanels.OrderBy(static contribution => contribution.Order))
+        foreach (var contribution in OrderedToolbarContributions(slots, RecordedSessionToolbarZone.Trailing))
         {
-            GraphToolbarPanelsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            TrailingGraphToolbarActionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
         }
+    }
+
+    private static IOrderedEnumerable<RecordedSessionToolbarContribution> OrderedToolbarContributions(
+        RecordedSessionExtensionSlots slots,
+        RecordedSessionToolbarZone zone)
+    {
+        return slots.GraphToolbarActions
+            .Where(contribution => contribution.Zone == zone)
+            .OrderBy(static contribution => contribution.Order)
+            .ThenBy(static contribution => contribution.ExtensionId, StringComparer.Ordinal)
+            .ThenBy(static contribution => contribution.ContributionId, StringComparer.Ordinal);
     }
 
     private static Control CreateContributionControl(object viewModel)

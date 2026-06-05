@@ -12,12 +12,12 @@ public class RecordedSessionExtensionSlotsTests
         var slots = new RecordedSessionExtensionSlots();
 
         Assert.Empty(slots.GraphToolbarActions);
-        Assert.Empty(slots.GraphToolbarPanels);
         Assert.Empty(slots.Pages);
         Assert.Empty(slots.MediaPanes);
         Assert.Empty(slots.MapOverlays);
         Assert.Empty(slots.StatisticsBanners);
         Assert.Empty(slots.StatisticsOverlays);
+        Assert.Empty(slots.StatisticsMetrics);
         Assert.Empty(slots.SessionListIndicators);
         Assert.Empty(slots.SessionListActions);
         Assert.Empty(slots.PlotContextMenuActions);
@@ -39,6 +39,7 @@ public class RecordedSessionExtensionSlotsTests
             "extension",
             "toolbar",
             Order: 10,
+            RecordedSessionToolbarZone.Leading,
             new object()));
         slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
             "extension",
@@ -46,13 +47,26 @@ public class RecordedSessionExtensionSlotsTests
             Order: 20,
             RowId: "travel",
             action));
+        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+            "extension",
+            "metric",
+            Order: 30,
+            RecordedSessionStatisticsMetricIds.FrontHscPercentage,
+            "match 42.00",
+            "+3.00",
+            RecordedSessionMetricTone.Positive));
 
-        Assert.Single(slots.GraphToolbarActions);
+        var toolbarContribution = Assert.Single(slots.GraphToolbarActions);
+        Assert.Equal(RecordedSessionToolbarZone.Leading, toolbarContribution.Zone);
         var contextContribution = Assert.Single(slots.PlotContextMenuActions);
         Assert.Equal("extension", contextContribution.ExtensionId);
         Assert.Equal("context", contextContribution.ContributionId);
         Assert.Equal(20, contextContribution.Order);
         Assert.Equal("travel", contextContribution.RowId);
         Assert.Equal(action, contextContribution.Action);
+        var metricContribution = Assert.Single(slots.StatisticsMetrics);
+        Assert.Equal(RecordedSessionStatisticsMetricIds.FrontHscPercentage, metricContribution.TargetMetricId);
+        Assert.True(metricContribution.HasDeltaValue);
+        Assert.True(metricContribution.IsPositiveTone);
     }
 }

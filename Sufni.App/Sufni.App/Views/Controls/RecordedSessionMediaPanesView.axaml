@@ -10,7 +10,7 @@ d:DesignWidth="360"
 x:DataType="controls:RecordedSessionMediaPanesView"
 mc:Ignorable="d">
 
-    <StackPanel
+    <Grid
     Name="RecordedSessionMediaPanesHost"
-    Spacing="8" />
+    RowSpacing="8" />
 </UserControl>

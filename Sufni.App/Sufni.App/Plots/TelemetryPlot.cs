@@ -155,6 +155,8 @@ public class TelemetryPlot : SufniPlot
     public static readonly Color RearColor = SufniThemes.SignalSeries.SuspensionRear.ToScottPlotColor();
 
     private const float MarkerLineWidth = 2.0f;
+    private const double StatisticLabelDataOffsetFraction = 0.05;
+    private const double StatisticLabelDataMarginFraction = 0.02;
     private readonly TelemetryLegendInteraction legendInteraction;
     private readonly List<IPointerReadoutTarget> pointerReadoutTargets = [];
     private readonly List<IPlottable> statisticsOverlayPlottables = [];
@@ -390,19 +392,43 @@ public class TelemetryPlot : SufniPlot
 
         foreach (var line in descriptor.Lines)
         {
-            var scatter = Plot.Add.Scatter(
-                new[] { line.X1, line.X2 },
-                new[] { line.Y1, line.Y2 });
-            scatter.MarkerStyle.IsVisible = false;
-            scatter.LineStyle.Color = ToPlotColor(line.Style);
-            scatter.LineStyle.Width = (float)line.Style.Width;
-            statisticsOverlayPlottables.Add(scatter);
+            IPlottable linePlottable;
+            if (line.Placement == RecordedSessionPlotLinePlacement.PlotHorizontal)
+            {
+                var horizontalLine = new FixedHorizontalLine
+                {
+                    LineWidth = (float)line.Style.Width,
+                    LineColor = ToPlotColor(line.Style),
+                    LinePattern = LinePattern.DenselyDashed,
+                    Y = line.Y1,
+                };
+                linePlottable = horizontalLine;
+                Plot.PlottableList.Add(horizontalLine);
+            }
+            else
+            {
+                var scatter = Plot.Add.Scatter(
+                    new[] { line.X1, line.X2 },
+                    new[] { line.Y1, line.Y2 });
+                scatter.MarkerStyle.IsVisible = false;
+                scatter.LineStyle.Color = ToPlotColor(line.Style);
+                scatter.LineStyle.Width = (float)line.Style.Width;
+                linePlottable = scatter;
+            }
+
+            statisticsOverlayPlottables.Add(linePlottable);
 
             if (!string.IsNullOrWhiteSpace(line.Label))
             {
                 var label = AddStatisticsOverlayLabel(line.Label, line.X2, line.Y2);
                 statisticsOverlayPlottables.Add(label);
             }
+        }
+
+        foreach (var labelOverlay in descriptor.Labels)
+        {
+            var label = AddStatisticsOverlayLabel(labelOverlay);
+            statisticsOverlayPlottables.Add(label);
         }
     }
 
@@ -435,11 +461,116 @@ public class TelemetryPlot : SufniPlot
         return text;
     }
 
-    private static Color ToPlotColor(RecordedSessionPlotOverlayStyle style)
+    private Text AddStatisticsOverlayLabel(RecordedSessionPlotLabelOverlay overlay)
     {
-        var color = style.Color;
+        var x = overlay.X;
+        var y = overlay.Y;
+        if (overlay.Placement == RecordedSessionPlotLabelPlacement.PlotRightEdge)
+        {
+            var limits = Plot.Axes.GetLimits();
+            var xInset = Math.Abs(limits.Right - limits.Left) * 0.015;
+            x = limits.Right - xInset;
+            y = OffsetPlotRightEdgeLabelPosition(y, overlay.Style.Anchor, limits);
+        }
+
+        var text = Plot.Add.Text(overlay.Text, x, y);
+        text.LabelFontColor = ToPlotColor(overlay.Style.TextColor);
+        text.LabelFontSize = (float)overlay.Style.FontSize;
+        text.LabelAlignment = overlay.Placement == RecordedSessionPlotLabelPlacement.PlotRightEdge
+            ? ToPlotRightEdgeAlignment(overlay.Style.Anchor)
+            : ToPlotAlignment(overlay.Style.Anchor);
+        if (overlay.Placement == RecordedSessionPlotLabelPlacement.PlotRightEdge)
+        {
+            text.LabelOffsetX = -10;
+            text.LabelOffsetY = 0;
+        }
+
+        if (overlay.Style.BackgroundColor is { } backgroundColor)
+        {
+            text.LabelBackgroundColor = ToPlotColor(backgroundColor);
+            text.LabelBorderWidth = 0;
+        }
+
+        return text;
+    }
+
+    private static Color ToPlotColor(RecordedSessionPlotOverlayStyle style) =>
+        ToPlotColor(style.Color, style.Opacity);
+
+    private static Color ToPlotColor(RecordedSessionMapColor color, double opacity = 1.0)
+    {
         return Color.FromHex($"#{color.R:x2}{color.G:x2}{color.B:x2}")
-            .WithAlpha(color.A / (double)byte.MaxValue * Math.Clamp(style.Opacity, 0.0, 1.0));
+            .WithAlpha(color.A / (double)byte.MaxValue * Math.Clamp(opacity, 0.0, 1.0));
+    }
+
+    private static Alignment ToPlotAlignment(RecordedSessionPlotLabelAnchor anchor)
+    {
+        return anchor switch
+        {
+            RecordedSessionPlotLabelAnchor.Left => Alignment.MiddleLeft,
+            RecordedSessionPlotLabelAnchor.Right => Alignment.MiddleRight,
+            RecordedSessionPlotLabelAnchor.Top => Alignment.UpperCenter,
+            RecordedSessionPlotLabelAnchor.Bottom => Alignment.LowerCenter,
+            _ => Alignment.MiddleCenter,
+        };
+    }
+
+    private static Alignment ToPlotRightEdgeAlignment(RecordedSessionPlotLabelAnchor anchor)
+    {
+        return anchor switch
+        {
+            RecordedSessionPlotLabelAnchor.Top => Alignment.LowerRight,
+            RecordedSessionPlotLabelAnchor.Bottom => Alignment.UpperRight,
+            _ => Alignment.MiddleRight,
+        };
+    }
+
+    private static double OffsetPlotRightEdgeLabelPosition(
+        double position,
+        RecordedSessionPlotLabelAnchor anchor,
+        AxisLimits limits)
+    {
+        if (!double.IsFinite(position) ||
+            !double.IsFinite(limits.Bottom) ||
+            !double.IsFinite(limits.Top))
+        {
+            return position;
+        }
+
+        var low = Math.Min(limits.Bottom, limits.Top);
+        var high = Math.Max(limits.Bottom, limits.Top);
+        var span = high - low;
+        if (span <= 0)
+        {
+            return position;
+        }
+
+        var margin = span * StatisticLabelDataMarginFraction;
+        var offset = span * StatisticLabelDataOffsetFraction;
+        var minimum = low + margin;
+        var maximum = high - margin;
+        if (minimum > maximum)
+        {
+            return Math.Clamp(position, low, high);
+        }
+
+        var visualUpDirection = limits.Top > limits.Bottom ? 1d : -1d;
+        var preferredDirection = anchor == RecordedSessionPlotLabelAnchor.Top
+            ? visualUpDirection
+            : -visualUpDirection;
+        var preferred = position + preferredDirection * offset;
+        if (preferred >= minimum && preferred <= maximum)
+        {
+            return preferred;
+        }
+
+        var fallback = position - preferredDirection * offset;
+        if (fallback >= minimum && fallback <= maximum)
+        {
+            return fallback;
+        }
+
+        return Math.Clamp(preferred, minimum, maximum);
     }
 
     public void SetCursorPositionWithReadout(double position)

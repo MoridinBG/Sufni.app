@@ -23,6 +23,7 @@ public interface ISessionShellMobileWorkspace
 {
     ObservableCollection<PageViewModelBase> Pages { get; }
     SessionScreenPresentationState ScreenState { get; }
+    SessionOperationPresentationState SessionOperationState { get; }
 }
 
 public interface IRecordedSessionGraphWorkspace

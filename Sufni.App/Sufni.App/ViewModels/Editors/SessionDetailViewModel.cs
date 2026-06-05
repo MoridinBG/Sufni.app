@@ -169,6 +169,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #region Observable properties
 
     [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+    [ObservableProperty] private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private TelemetryTimeRange? analysisRange;
     [ObservableProperty] private TrackTimeRange? trackTimelineContext;
@@ -280,6 +281,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
+        UpdateRecordedSessionExtensionHostState();
     }
 
     partial void OnSelectedBalanceDisplacementModeChanged(BalanceDisplacementMode value)
@@ -303,6 +305,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
+        UpdateRecordedSessionExtensionHostState();
     }
 
     partial void OnSelectedSessionAnalysisTargetProfileChanged(SessionAnalysisTargetProfile value)
@@ -315,6 +318,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
+        UpdateRecordedSessionExtensionHostState();
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -407,6 +411,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     {
         DamperPercentages = percentages;
         DamperPage.ApplyDamperPercentages(percentages);
+        UpdateRecordedSessionExtensionHostState();
     }
 
     private void ApplyDampingSpeedCutoffContext(
@@ -1246,7 +1251,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds,
             viewLoaded,
             IsTabActive,
-            Timeline);
+            Timeline,
+            DamperPercentages,
+            DampingSpeedCutoffs,
+            SelectedVelocityAverageMode,
+            SelectedTravelHistogramMode);
     }
 
     private void UpdateRecordedSessionExtensionHostState()
@@ -1283,12 +1292,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void ReportRecordedSessionExtensionOperation(string message, double percent)
     {
-        ScreenState = SessionScreenPresentationState.Loading(message);
+        SessionOperationState = SessionOperationPresentationState.Progress(message, percent);
     }
 
     private void CompleteRecordedSessionExtensionOperation()
     {
-        ScreenState = SessionScreenPresentationState.Ready;
+        SessionOperationState = SessionOperationPresentationState.Hidden;
     }
 
     private void SetRecordedSessionExtensionTimelineVisibleRange(
