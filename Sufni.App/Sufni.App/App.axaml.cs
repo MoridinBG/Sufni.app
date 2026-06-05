@@ -107,7 +107,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionAnalysisService>(_ => new SessionAnalysisService());
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
-        ServiceCollection.AddSingleton<SqLiteDatabaseService>();
+        ServiceCollection.AddSingleton<SqLiteDatabaseService>(sp =>
+            new SqLiteDatabaseService(
+                AppPaths.DatabasePath,
+                createAppDirectories: true,
+                sp.GetServices<IExtensionDatabaseMigrator>().ToArray(),
+                sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
+                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();

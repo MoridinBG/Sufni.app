@@ -92,6 +92,39 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     {
     }
 
+    internal SqLiteDatabaseService(
+        string databasePath,
+        bool createAppDirectories,
+        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators,
+        IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
+        Func<IReadOnlyList<IExtensionStateRefreshParticipant>> extensionStateRefreshParticipantsProvider)
+    {
+        var extensionMigratorList = extensionMigrators.ToArray();
+        var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
+
+        if (createAppDirectories)
+        {
+            AppPaths.CreateRequiredDirectories();
+        }
+        else
+        {
+            var directory = Path.GetDirectoryName(databasePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+
+        connection = new SQLiteAsyncConnection(databasePath);
+        extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigratorList);
+        extensionCascadeService = new ExtensionCascadeService(
+            connection,
+            extensionMigratorList,
+            extensionCascadeRuleProviderList,
+            extensionStateRefreshParticipantsProvider);
+        Initialization = Init();
+    }
+
     private SqLiteDatabaseService(
         string databasePath,
         bool createAppDirectories,

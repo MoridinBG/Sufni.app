@@ -12,7 +12,7 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
 {
     private readonly Func<CancellationToken, Task<SQLiteAsyncConnection>> getConnectionAsync;
     private readonly IReadOnlyList<ExtensionCascadeRule> rules;
-    private readonly IReadOnlyList<IExtensionStateRefreshParticipant> refreshParticipants;
+    private readonly Func<IReadOnlyList<IExtensionStateRefreshParticipant>> getRefreshParticipants;
     private readonly IReadOnlyDictionary<string, IReadOnlySet<string>> columnsByTableName;
 
     public ExtensionCascadeService(
@@ -24,7 +24,7 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
             databaseConnection.GetInitializedConnectionAsync,
             migrators,
             ruleProviders,
-            refreshParticipants)
+            () => refreshParticipants.ToArray())
     {
     }
 
@@ -37,7 +37,20 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
             _ => Task.FromResult(connection),
             migrators,
             ruleProviders,
-            refreshParticipants)
+            () => refreshParticipants.ToArray())
+    {
+    }
+
+    internal ExtensionCascadeService(
+        SQLiteAsyncConnection connection,
+        IEnumerable<IExtensionDatabaseMigrator> migrators,
+        IEnumerable<IExtensionCascadeRuleProvider> ruleProviders,
+        Func<IReadOnlyList<IExtensionStateRefreshParticipant>> getRefreshParticipants)
+        : this(
+            _ => Task.FromResult(connection),
+            migrators,
+            ruleProviders,
+            getRefreshParticipants)
     {
     }
 
@@ -45,11 +58,11 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
         Func<CancellationToken, Task<SQLiteAsyncConnection>> getConnectionAsync,
         IEnumerable<IExtensionDatabaseMigrator> migrators,
         IEnumerable<IExtensionCascadeRuleProvider> ruleProviders,
-        IEnumerable<IExtensionStateRefreshParticipant> refreshParticipants)
+        Func<IReadOnlyList<IExtensionStateRefreshParticipant>> getRefreshParticipants)
     {
         this.getConnectionAsync = getConnectionAsync;
         rules = ruleProviders.SelectMany(provider => provider.Rules).ToArray();
-        this.refreshParticipants = refreshParticipants.ToArray();
+        this.getRefreshParticipants = getRefreshParticipants;
         columnsByTableName = BuildTableColumnMap(migrators);
     }
 
@@ -185,7 +198,7 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
 
     private async Task RefreshExtensionStateAsync(CancellationToken cancellationToken)
     {
-        foreach (var participant in refreshParticipants)
+        foreach (var participant in getRefreshParticipants())
         {
             await participant.RefreshExtensionStateAsync(cancellationToken);
         }
