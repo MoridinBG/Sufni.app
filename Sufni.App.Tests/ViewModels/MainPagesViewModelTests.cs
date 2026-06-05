@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Views;
@@ -106,6 +107,17 @@ public class MainPagesViewModelTests
         _ = MainPagesViewModelTestFactory.Create(recordedSessionSourceStore: sourceStore);
 
         await sourceStore.Received(1).RefreshAsync();
+    }
+
+    [Fact]
+    public async Task Constructor_RefreshesExtensionStateParticipants_WithInitialDatabaseLoad()
+    {
+        var participant = new RecordingExtensionStateRefreshParticipant();
+
+        _ = MainPagesViewModelTestFactory.Create(extensionStateRefreshParticipants: [participant]);
+
+        await participant.Refreshed.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, participant.RefreshCount);
     }
 
     [Fact]
@@ -216,6 +228,19 @@ public class MainPagesViewModelTests
             [
                 new AppToolbarContribution("extension", "earlier", Order: 10, new object()),
             ];
+        }
+    }
+
+    private sealed class RecordingExtensionStateRefreshParticipant : IExtensionStateRefreshParticipant
+    {
+        public TaskCompletionSource Refreshed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int RefreshCount { get; private set; }
+
+        public Task RefreshExtensionStateAsync(CancellationToken cancellationToken = default)
+        {
+            RefreshCount++;
+            Refreshed.TrySetResult();
+            return Task.CompletedTask;
         }
     }
 }

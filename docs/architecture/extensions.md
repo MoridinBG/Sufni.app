@@ -72,7 +72,7 @@ Extensions declare references to core rows through `IExtensionCascadeRuleProvide
 - `SoftDelete` marks the extension row deleted and updates its timestamp.
 - `HardDelete` removes the extension row.
 
-The service is invoked after successful bike, setup, session, and track delete work. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types.
+The service is invoked after successful bike, setup, session, and track delete work. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types. The main page startup database load also invokes these participants after the core stores refresh, so extension-owned read stores are hydrated before list, toolbar, and recorded-session contributions need persisted extension state.
 
 ## Sync Envelopes
 

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -26,6 +27,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly SyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
+    private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
     private readonly ItemListViewModelBase[] primaryPages;
     private ItemListViewModelBase? activePrimaryPage;
 
@@ -79,7 +81,8 @@ public partial class MainPagesViewModel : ViewModelBase
         IUiThreadDispatcher uiThreadDispatcher,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingClientViewModel? pairingClientPage = null,
-        PairingServerViewModel? pairingServerViewModel = null)
+        PairingServerViewModel? pairingServerViewModel = null,
+        IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
         : base(uiThreadDispatcher)
     {
         this.bikeStore = bikeStore;
@@ -92,6 +95,7 @@ public partial class MainPagesViewModel : ViewModelBase
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
         this.themeService = themeService;
+        this.extensionStateRefreshParticipants = extensionStateRefreshParticipants?.ToArray() ?? [];
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
@@ -186,6 +190,10 @@ public partial class MainPagesViewModel : ViewModelBase
         await sessionStore.RefreshAsync();
         await recordedSessionSourceStore.RefreshAsync();
         await pairedDeviceStore.RefreshAsync();
+        foreach (var participant in extensionStateRefreshParticipants)
+        {
+            await participant.RefreshExtensionStateAsync();
+        }
 
         DatabaseLoaded = true;
     }

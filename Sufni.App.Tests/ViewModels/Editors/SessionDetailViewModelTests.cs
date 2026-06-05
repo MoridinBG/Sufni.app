@@ -730,6 +730,42 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task CloseThenLoaded_ReinitializesRecordedSessionExtensionScopes_ForTabHistoryRestore()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var factory = new TestRecordedSessionExtensionFactory(
+            "test",
+            scope => scope.Slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+                "test",
+                "media-pane",
+                Order: 0,
+                new object())));
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory]);
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var firstScope = factory.Scope;
+        Assert.NotNull(firstScope);
+        Assert.True(editor.HasMediaContent);
+
+        await editor.CloseCommand.ExecuteAsync(null);
+        Assert.True(firstScope!.Disposed);
+        Assert.False(editor.HasMediaContent);
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, factory.Scopes.Count);
+        Assert.NotSame(firstScope, factory.Scope);
+        Assert.True(factory.Scope!.Initialized);
+        Assert.True(editor.HasMediaContent);
+    }
+
+    [AvaloniaFact]
     public async Task DampingSpeedCutoffPreview_RecomputesPercentagesAndAnalysisWithoutDirtying()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -2489,11 +2525,13 @@ public class SessionDetailViewModelTests
         public string ExtensionId { get; } = extensionId;
         public RecordedSessionHostContext? Context { get; private set; }
         public TestRecordedSessionExtensionScope? Scope { get; private set; }
+        public List<TestRecordedSessionExtensionScope> Scopes { get; } = [];
 
         public IRecordedSessionExtensionScope Create(RecordedSessionHostContext context)
         {
             Context = context;
             Scope = new TestRecordedSessionExtensionScope();
+            Scopes.Add(Scope);
             configureScope?.Invoke(Scope);
             return Scope;
         }

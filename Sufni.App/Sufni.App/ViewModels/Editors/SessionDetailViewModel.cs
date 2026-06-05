@@ -89,7 +89,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
     private bool hasBeenActivated;
-    private bool recordedSessionExtensionsDisposed;
     private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
@@ -1260,17 +1259,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void UpdateRecordedSessionExtensionHostState()
     {
-        if (recordedSessionExtensionsDisposed)
-        {
-            return;
-        }
-
         recordedSessionExtensions?.UpdateHostState(CreateRecordedSessionExtensionHostState());
     }
 
     private async ValueTask InitializeRecordedSessionExtensionsAsync(CancellationToken cancellationToken = default)
     {
-        if (recordedSessionExtensions is null || recordedSessionExtensionsDisposed)
+        if (recordedSessionExtensions is null)
         {
             return;
         }
@@ -1282,7 +1276,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private async ValueTask DisposeRecordedSessionExtensionScopesAsync()
     {
-        if (recordedSessionExtensions is null || recordedSessionExtensionsDisposed)
+        if (recordedSessionExtensions is null)
         {
             return;
         }
@@ -2153,14 +2147,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     protected override async Task CloseImplementation()
     {
         await StopLoadedSessionAsync();
-        if (recordedSessionExtensions is not null)
-        {
-            recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged -= OnRecordedSessionExtensionPagesChanged;
-            recordedSessionExtensions.ExtensionSlots.MediaPanes.CollectionChanged -= OnRecordedSessionExtensionMediaPanesChanged;
-            await recordedSessionExtensions.DisposeAsync();
-            recordedSessionExtensionsDisposed = true;
-        }
-
         MapViewModel?.Dispose();
     }
 

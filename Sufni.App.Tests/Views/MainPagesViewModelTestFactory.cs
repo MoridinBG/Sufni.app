@@ -5,6 +5,7 @@ using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -28,7 +29,8 @@ internal static class MainPagesViewModelTestFactory
         IThemeService? themeService = null,
         SyncCoordinator? syncCoordinator = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
-        PairingServerViewModel? pairingServerViewModel = null)
+        PairingServerViewModel? pairingServerViewModel = null,
+        IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
     {
         var bikeStore = Substitute.For<IBikeStore>();
         var setupStore = Substitute.For<ISetupStore>();
@@ -72,7 +74,8 @@ internal static class MainPagesViewModelTestFactory
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
             appToolbarContributionProviders,
-            pairingServerViewModel: pairingServerViewModel);
+            pairingServerViewModel: pairingServerViewModel,
+            extensionStateRefreshParticipants: extensionStateRefreshParticipants);
     }
 
     public static WelcomeScreenViewModel CreateWelcomeScreen()

@@ -226,7 +226,8 @@ public partial class App : Application
             sp.GetRequiredService<IUiThreadDispatcher>(),
             sp.GetServices<IAppToolbarContributionProvider>(),
             sp.GetService<PairingClientViewModel>(),
-            sp.GetService<PairingServerViewModel>()));
+            sp.GetService<PairingServerViewModel>(),
+            sp.GetServices<IExtensionStateRefreshParticipant>()));
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
