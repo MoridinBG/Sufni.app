@@ -20,6 +20,13 @@ There is no assembly scanning. Modules are added explicitly by build-time code t
 
 Desktop/mobile mode is computed before module service registration. The registration context exposes that mode plus the service collection so modules can keep platform-specific registrations outside the shared app source.
 
+Modules that expose one concrete singleton through one or more neutral service
+interfaces use `AddExtensionSingletonAlias<TService, TImplementation>()` so
+the concrete type and every alias resolve to the same instance. Modules use the
+generic `RegisterView<TViewModel, TSharedView>()` /
+`RegisterView<TViewModel, TSharedView, TDesktopView>()` overloads for normal
+parameterless extension view registrations.
+
 ## Build Imports
 
 `Directory.Build.props` imports `Directory.Private.props` when present, and `Directory.Build.targets` imports `Directory.Private.targets` when present. Setting `SufniEnablePrivateExtensions=true` without both import files fails before build preparation with a clear error. Public project files do not reference extension projects directly; non-public builds add those references through the imported files.
@@ -94,7 +101,10 @@ The contribution carries an extension id, contribution id, order, and view model
 
 `RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, and an `IRecordedSessionTimeline` cursor/range interface. `Statistics` carries current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database service, or concrete editor timeline view model.
 
-`RecordedSessionHostContext` exposes constrained host operations:
+`RecordedSessionHostContext` is constructed from grouped
+`RecordedSessionHostServices` and `RecordedSessionHostOperations` records so
+service access and host callbacks stay explicit without a long positional
+constructor. It exposes constrained host operations:
 
 - set or clear the analysis range
 - set timeline visible range
@@ -111,6 +121,14 @@ Operation leases reject stale progress and cancel superseded work, so extension 
 Slot mirroring is coalesced and published through batched collection resets so
 one extension update does not fan out as repeated intermediate empty/add UI
 states.
+Scopes that rebuild multiple slot families use
+`RecordedSessionExtensionSlotPublisher` with a
+`RecordedSessionExtensionSlotBuilder` to publish a complete neutral slot
+snapshot through the same batched reset path. Off-UI rebuild requests can be
+coalesced so only the latest pending snapshot reaches the UI thread.
+The builder can copy an existing slot snapshot, and the slot collection exposes
+a generic change subscription so host mirroring is not manually repeated per
+slot family.
 
 The current public slot families are:
 

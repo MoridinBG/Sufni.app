@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -31,6 +29,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly Action<string> addNotification;
     private readonly Action<string> requestPageSelection;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
+    private readonly RecordedSessionExtensionSlotPublisher extensionSlotPublisher;
     private readonly List<IRecordedSessionExtensionScope> scopes = [];
     private readonly List<IDisposable> slotSubscriptions = [];
     private bool disposed;
@@ -77,6 +76,7 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.addError = addError;
         this.addNotification = addNotification;
         this.requestPageSelection = requestPageSelection;
+        extensionSlotPublisher = new RecordedSessionExtensionSlotPublisher(ExtensionSlots, uiThreadDispatcher);
         CurrentState = new RecordedSessionHostState(
             new RecordedSessionIdentityState(sessionId, null, null, null, IsLoaded: false, IsActive: false),
             new RecordedSessionSelectionState(null),
@@ -170,42 +170,25 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
     {
         return new RecordedSessionHostContext(
             sessionId,
-            stateChanged.AsObservable(),
-            database,
-            dataReader,
-            backgroundTaskRunner,
-            uiThreadDispatcher,
-            setAnalysisRange,
-            clearAnalysisRange,
-            setTimelineVisibleRange,
-            addError,
-            addNotification,
-            operationCoordinator.StartOperation,
-            requestPageSelection);
+            new RecordedSessionHostServices(
+                stateChanged.AsObservable(),
+                database,
+                dataReader,
+                backgroundTaskRunner,
+                uiThreadDispatcher),
+            new RecordedSessionHostOperations(
+                setAnalysisRange,
+                clearAnalysisRange,
+                setTimelineVisibleRange,
+                addError,
+                addNotification,
+                operationCoordinator.StartOperation,
+                requestPageSelection));
     }
 
     private void AttachScopeSlots(RecordedSessionExtensionSlots slots)
     {
-        slotSubscriptions.Add(Subscribe(slots.GraphToolbarActions));
-        slotSubscriptions.Add(Subscribe(slots.Pages));
-        slotSubscriptions.Add(Subscribe(slots.MediaPanes));
-        slotSubscriptions.Add(Subscribe(slots.MapOverlays));
-        slotSubscriptions.Add(Subscribe(slots.StatisticsBanners));
-        slotSubscriptions.Add(Subscribe(slots.StatisticsOverlays));
-        slotSubscriptions.Add(Subscribe(slots.StatisticsMetrics));
-        slotSubscriptions.Add(Subscribe(slots.SessionListIndicators));
-        slotSubscriptions.Add(Subscribe(slots.SessionListActions));
-        slotSubscriptions.Add(Subscribe(slots.PlotContextMenuActions));
-        slotSubscriptions.Add(Subscribe(slots.PlotRowHeaderActions));
-        slotSubscriptions.Add(Subscribe(slots.HostedGraphRows));
-        slotSubscriptions.Add(Subscribe(slots.TimeRangeOverlays));
-    }
-
-    private IDisposable Subscribe<T>(ObservableCollection<T> collection)
-    {
-        NotifyCollectionChangedEventHandler handler = (_, _) => QueueExtensionSlotsRebuild();
-        collection.CollectionChanged += handler;
-        return new CollectionSubscription(() => collection.CollectionChanged -= handler);
+        slotSubscriptions.Add(slots.SubscribeToChanges(QueueExtensionSlotsRebuild));
     }
 
     private void QueueExtensionSlotsRebuild()
@@ -236,52 +219,22 @@ public sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
     private void RebuildExtensionSlots()
     {
-        ExtensionSlots.GraphToolbarActions.ReplaceWith(scopes.SelectMany(scope => scope.Slots.GraphToolbarActions));
-        ExtensionSlots.Pages.ReplaceWith(scopes.SelectMany(scope => scope.Slots.Pages));
-        ExtensionSlots.MediaPanes.ReplaceWith(scopes.SelectMany(scope => scope.Slots.MediaPanes));
-        ExtensionSlots.MapOverlays.ReplaceWith(scopes.SelectMany(scope => scope.Slots.MapOverlays));
-        ExtensionSlots.StatisticsBanners.ReplaceWith(scopes.SelectMany(scope => scope.Slots.StatisticsBanners));
-        ExtensionSlots.StatisticsOverlays.ReplaceWith(scopes.SelectMany(scope => scope.Slots.StatisticsOverlays));
-        ExtensionSlots.StatisticsMetrics.ReplaceWith(scopes.SelectMany(scope => scope.Slots.StatisticsMetrics));
-        ExtensionSlots.SessionListIndicators.ReplaceWith(scopes.SelectMany(scope => scope.Slots.SessionListIndicators));
-        ExtensionSlots.SessionListActions.ReplaceWith(scopes.SelectMany(scope => scope.Slots.SessionListActions));
-        ExtensionSlots.PlotContextMenuActions.ReplaceWith(scopes.SelectMany(scope => scope.Slots.PlotContextMenuActions));
-        ExtensionSlots.PlotRowHeaderActions.ReplaceWith(scopes.SelectMany(scope => scope.Slots.PlotRowHeaderActions));
-        ExtensionSlots.HostedGraphRows.ReplaceWith(scopes.SelectMany(scope => scope.Slots.HostedGraphRows));
-        ExtensionSlots.TimeRangeOverlays.ReplaceWith(scopes.SelectMany(scope => scope.Slots.TimeRangeOverlays));
+        extensionSlotPublisher.Publish(builder =>
+        {
+            foreach (var scope in scopes)
+            {
+                builder.AddFrom(scope.Slots);
+            }
+        });
     }
 
     private void ClearExtensionSlots()
     {
-        ExtensionSlots.GraphToolbarActions.ReplaceWith([]);
-        ExtensionSlots.Pages.ReplaceWith([]);
-        ExtensionSlots.MediaPanes.ReplaceWith([]);
-        ExtensionSlots.MapOverlays.ReplaceWith([]);
-        ExtensionSlots.StatisticsBanners.ReplaceWith([]);
-        ExtensionSlots.StatisticsOverlays.ReplaceWith([]);
-        ExtensionSlots.StatisticsMetrics.ReplaceWith([]);
-        ExtensionSlots.SessionListIndicators.ReplaceWith([]);
-        ExtensionSlots.SessionListActions.ReplaceWith([]);
-        ExtensionSlots.PlotContextMenuActions.ReplaceWith([]);
-        ExtensionSlots.PlotRowHeaderActions.ReplaceWith([]);
-        ExtensionSlots.HostedGraphRows.ReplaceWith([]);
-        ExtensionSlots.TimeRangeOverlays.ReplaceWith([]);
+        extensionSlotPublisher.Clear();
     }
 
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-    }
-
-    private sealed class CollectionSubscription(Action dispose) : IDisposable
-    {
-        private Action? disposeAction = dispose;
-
-        public void Dispose()
-        {
-            var action = disposeAction;
-            disposeAction = null;
-            action?.Invoke();
-        }
     }
 }

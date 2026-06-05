@@ -1,6 +1,12 @@
 using CommunityToolkit.Mvvm.Input;
+using ScottPlot;
 using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.Plots;
+using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Views.Controls;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.ExtensionHost;
 
@@ -68,5 +74,157 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Equal(RecordedSessionStatisticsMetricTarget.FrontHscPercentage, metricContribution.TargetMetric);
         Assert.True(metricContribution.HasDeltaValue);
         Assert.True(metricContribution.IsPositiveTone);
+    }
+
+    [Fact]
+    public void SubscribeToChanges_NotifiesForEverySlotFamilyUntilDisposed()
+    {
+        var slots = new RecordedSessionExtensionSlots();
+        var notifications = 0;
+        using var subscription = slots.SubscribeToChanges(() => notifications++);
+
+        AddOneContributionToEachFamily(slots);
+
+        Assert.Equal(13, notifications);
+
+        subscription.Dispose();
+        slots.GraphToolbarActions.Add(CreateToolbarContribution("after-dispose"));
+
+        Assert.Equal(13, notifications);
+    }
+
+    [Fact]
+    public void Builder_AddFrom_CopiesEverySlotFamily()
+    {
+        var source = new RecordedSessionExtensionSlots();
+        AddOneContributionToEachFamily(source);
+        var target = new RecordedSessionExtensionSlots();
+        var publisher = new RecordedSessionExtensionSlotPublisher(target, new InlineUiThreadDispatcher());
+
+        publisher.Publish(builder => builder.AddFrom(source));
+
+        Assert.Equal(["toolbar"], target.GraphToolbarActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["page"], target.Pages.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["media"], target.MediaPanes.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["map"], target.MapOverlays.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["banner"], target.StatisticsBanners.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["overlay"], target.StatisticsOverlays.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["metric"], target.StatisticsMetrics.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["indicator"], target.SessionListIndicators.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["list-action"], target.SessionListActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["context"], target.PlotContextMenuActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["row-action"], target.PlotRowHeaderActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["hosted-row"], target.HostedGraphRows.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["range"], target.TimeRangeOverlays.Select(contribution => contribution.ContributionId));
+    }
+
+    private static void AddOneContributionToEachFamily(RecordedSessionExtensionSlots slots)
+    {
+        slots.GraphToolbarActions.Add(CreateToolbarContribution("toolbar"));
+        slots.Pages.Add(new RecordedSessionPageContribution(
+            "extension",
+            "page",
+            Order: 2,
+            new PageViewModelBase("Page"),
+            RequestedIndex: 0));
+        slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media",
+            Order: 3,
+            new object()));
+        slots.MapOverlays.Add(new RecordedSessionMapOverlayContribution(
+            "extension",
+            "map",
+            Order: 4,
+            Lines: [],
+            Points: []));
+        slots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+            "extension",
+            "banner",
+            Order: 5,
+            new object()));
+        slots.StatisticsOverlays.Add(new RecordedSessionStatisticsOverlayContribution(
+            "extension",
+            "overlay",
+            Order: 6,
+            RecordedSessionStatisticsPlotTarget.TravelHistogram(SuspensionType.Front),
+            ViewModel: null,
+            Overlay: null));
+        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+            "extension",
+            "metric",
+            Order: 7,
+            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
+            "42.00",
+            DeltaValue: null,
+            RecordedSessionMetricTone.Default));
+        slots.SessionListIndicators.Add(new RecordedSessionListIndicatorContribution(
+            "extension",
+            "indicator",
+            Order: 8,
+            new object()));
+        slots.SessionListActions.Add(new RecordedSessionListActionContribution(
+            "extension",
+            "list-action",
+            Order: 9,
+            new object()));
+        slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
+            "extension",
+            "context",
+            Order: 10,
+            RecordedSessionBuiltInGraphRow.Travel,
+            new TelemetryPlotContextMenuAction("inspect", "Inspect", new RelayCommand(() => { }))));
+        slots.PlotRowHeaderActions.Add(new RecordedSessionPlotRowActionContribution(
+            "extension",
+            "row-action",
+            Order: 11,
+            RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
+            new TelemetryPlotRowAction { Id = "row-action" }));
+        slots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
+            "extension",
+            "hosted-row",
+            Order: 12,
+            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionGraphRowTarget.Extension("extension", "hosted-row"),
+            "Hosted row",
+            SurfacePresentationState.Ready,
+            new object(),
+            IsInitiallyExpanded: false));
+        slots.TimeRangeOverlays.Add(new RecordedSessionTimeRangeOverlayContribution(
+            "extension",
+            "range",
+            Order: 13,
+            RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
+            new RecordedTimeRangeOverlaySetRegistration(
+                "range",
+                new RecordedTimeRangeOverlaySet(
+                    [],
+                    new RecordedTimeRangeOverlayStyle(Colors.Red, Colors.Blue, 1.0f)),
+                IsVisible: true)));
+    }
+
+    private static RecordedSessionToolbarContribution CreateToolbarContribution(string contributionId) =>
+        new(
+            "extension",
+            contributionId,
+            Order: 1,
+            RecordedSessionToolbarZone.Leading,
+            new object());
+
+    private sealed class InlineUiThreadDispatcher : Sufni.App.Services.IUiThreadDispatcher
+    {
+        public bool CheckAccess() => true;
+
+        public void Post(Action action) => action();
+
+        public Task InvokeAsync(Action action)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action) => action();
+
+        public Task<T> InvokeAsync<T>(Func<T> action) => Task.FromResult(action());
     }
 }

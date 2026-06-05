@@ -4,23 +4,38 @@ using Sufni.App.Services;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
-public sealed class RecordedSessionHostContext
+public sealed record RecordedSessionHostServices
 {
-    private readonly Action<double, double> setAnalysisRange;
-    private readonly Action clearAnalysisRange;
-    private readonly Action<double, double, object> setTimelineVisibleRange;
-    private readonly Action<string> addError;
-    private readonly Action<string> addNotification;
-    private readonly Func<string, IRecordedSessionOperationLease> startOperation;
-    private readonly Action<string> requestPageSelection;
-
-    public RecordedSessionHostContext(
-        Guid sessionId,
+    public RecordedSessionHostServices(
         IObservable<RecordedSessionHostState> stateChanged,
         IExtensionDatabaseConnection database,
         IRecordedSessionDataReader dataReader,
         IBackgroundTaskRunner backgroundTaskRunner,
-        IUiThreadDispatcher uiThreadDispatcher,
+        IUiThreadDispatcher uiThreadDispatcher)
+    {
+        ArgumentNullException.ThrowIfNull(stateChanged);
+        ArgumentNullException.ThrowIfNull(database);
+        ArgumentNullException.ThrowIfNull(dataReader);
+        ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
+        ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
+
+        StateChanged = stateChanged;
+        Database = database;
+        DataReader = dataReader;
+        BackgroundTaskRunner = backgroundTaskRunner;
+        UiThreadDispatcher = uiThreadDispatcher;
+    }
+
+    public IObservable<RecordedSessionHostState> StateChanged { get; }
+    public IExtensionDatabaseConnection Database { get; }
+    public IRecordedSessionDataReader DataReader { get; }
+    public IBackgroundTaskRunner BackgroundTaskRunner { get; }
+    public IUiThreadDispatcher UiThreadDispatcher { get; }
+}
+
+public sealed record RecordedSessionHostOperations
+{
+    public RecordedSessionHostOperations(
         Action<double, double> setAnalysisRange,
         Action clearAnalysisRange,
         Action<double, double, object> setTimelineVisibleRange,
@@ -29,11 +44,6 @@ public sealed class RecordedSessionHostContext
         Func<string, IRecordedSessionOperationLease> startOperation,
         Action<string> requestPageSelection)
     {
-        ArgumentNullException.ThrowIfNull(stateChanged);
-        ArgumentNullException.ThrowIfNull(database);
-        ArgumentNullException.ThrowIfNull(dataReader);
-        ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
-        ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
         ArgumentNullException.ThrowIfNull(setAnalysisRange);
         ArgumentNullException.ThrowIfNull(clearAnalysisRange);
         ArgumentNullException.ThrowIfNull(setTimelineVisibleRange);
@@ -42,61 +52,81 @@ public sealed class RecordedSessionHostContext
         ArgumentNullException.ThrowIfNull(startOperation);
         ArgumentNullException.ThrowIfNull(requestPageSelection);
 
+        SetAnalysisRange = setAnalysisRange;
+        ClearAnalysisRange = clearAnalysisRange;
+        SetTimelineVisibleRange = setTimelineVisibleRange;
+        AddError = addError;
+        AddNotification = addNotification;
+        StartOperation = startOperation;
+        RequestPageSelection = requestPageSelection;
+    }
+
+    public Action<double, double> SetAnalysisRange { get; }
+    public Action ClearAnalysisRange { get; }
+    public Action<double, double, object> SetTimelineVisibleRange { get; }
+    public Action<string> AddError { get; }
+    public Action<string> AddNotification { get; }
+    public Func<string, IRecordedSessionOperationLease> StartOperation { get; }
+    public Action<string> RequestPageSelection { get; }
+}
+
+public sealed class RecordedSessionHostContext
+{
+    public RecordedSessionHostContext(
+        Guid sessionId,
+        RecordedSessionHostServices services,
+        RecordedSessionHostOperations operations)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(operations);
+
         SessionId = sessionId;
-        StateChanged = stateChanged;
-        Database = database;
-        DataReader = dataReader;
-        BackgroundTaskRunner = backgroundTaskRunner;
-        UiThreadDispatcher = uiThreadDispatcher;
-        this.setAnalysisRange = setAnalysisRange;
-        this.clearAnalysisRange = clearAnalysisRange;
-        this.setTimelineVisibleRange = setTimelineVisibleRange;
-        this.addError = addError;
-        this.addNotification = addNotification;
-        this.startOperation = startOperation;
-        this.requestPageSelection = requestPageSelection;
+        Services = services;
+        Operations = operations;
     }
 
     public Guid SessionId { get; }
-    public IObservable<RecordedSessionHostState> StateChanged { get; }
-    public IExtensionDatabaseConnection Database { get; }
-    public IRecordedSessionDataReader DataReader { get; }
-    public IBackgroundTaskRunner BackgroundTaskRunner { get; }
-    public IUiThreadDispatcher UiThreadDispatcher { get; }
+    public RecordedSessionHostServices Services { get; }
+    public RecordedSessionHostOperations Operations { get; }
+    public IObservable<RecordedSessionHostState> StateChanged => Services.StateChanged;
+    public IExtensionDatabaseConnection Database => Services.Database;
+    public IRecordedSessionDataReader DataReader => Services.DataReader;
+    public IBackgroundTaskRunner BackgroundTaskRunner => Services.BackgroundTaskRunner;
+    public IUiThreadDispatcher UiThreadDispatcher => Services.UiThreadDispatcher;
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
-        setAnalysisRange(startSeconds, endSeconds);
+        Operations.SetAnalysisRange(startSeconds, endSeconds);
     }
 
     public void ClearAnalysisRange()
     {
-        clearAnalysisRange();
+        Operations.ClearAnalysisRange();
     }
 
     public void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        setTimelineVisibleRange(startNormalized, endNormalized, source);
+        Operations.SetTimelineVisibleRange(startNormalized, endNormalized, source);
     }
 
     public void AddError(string message)
     {
-        addError(message);
+        Operations.AddError(message);
     }
 
     public void AddNotification(string message)
     {
-        addNotification(message);
+        Operations.AddNotification(message);
     }
 
     public IRecordedSessionOperationLease StartOperation(string message)
     {
-        return startOperation(message);
+        return Operations.StartOperation(message);
     }
 
     public void RequestPageSelection(string contributionId)
     {
-        requestPageSelection(contributionId);
+        Operations.RequestPageSelection(contributionId);
     }
 }

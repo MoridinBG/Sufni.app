@@ -24,6 +24,70 @@ public sealed class RecordedSessionExtensionSlots
     public ObservableCollection<RecordedSessionTimeRangeOverlayContribution> TimeRangeOverlays { get; } = CreateCollection<RecordedSessionTimeRangeOverlayContribution>();
 
     private static ObservableCollection<T> CreateCollection<T>() => new RecordedSessionExtensionSlotCollection<T>();
+
+    public IDisposable SubscribeToChanges(Action changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+
+        return new RecordedSessionExtensionSlotChangeSubscription(
+            [
+                Subscribe(GraphToolbarActions, changed),
+                Subscribe(Pages, changed),
+                Subscribe(MediaPanes, changed),
+                Subscribe(MapOverlays, changed),
+                Subscribe(StatisticsBanners, changed),
+                Subscribe(StatisticsOverlays, changed),
+                Subscribe(StatisticsMetrics, changed),
+                Subscribe(SessionListIndicators, changed),
+                Subscribe(SessionListActions, changed),
+                Subscribe(PlotContextMenuActions, changed),
+                Subscribe(PlotRowHeaderActions, changed),
+                Subscribe(HostedGraphRows, changed),
+                Subscribe(TimeRangeOverlays, changed),
+            ]);
+    }
+
+    private static IDisposable Subscribe<T>(ObservableCollection<T> collection, Action changed)
+    {
+        NotifyCollectionChangedEventHandler handler = (_, _) => changed();
+        collection.CollectionChanged += handler;
+        return new RecordedSessionExtensionSlotChangeSubscription(
+            () => collection.CollectionChanged -= handler);
+    }
+
+    private sealed class RecordedSessionExtensionSlotChangeSubscription : IDisposable
+    {
+        private Action? disposeAction;
+        private IReadOnlyList<IDisposable>? subscriptions;
+
+        public RecordedSessionExtensionSlotChangeSubscription(Action dispose)
+        {
+            disposeAction = dispose;
+        }
+
+        public RecordedSessionExtensionSlotChangeSubscription(IReadOnlyList<IDisposable> subscriptions)
+        {
+            this.subscriptions = subscriptions;
+        }
+
+        public void Dispose()
+        {
+            if (disposeAction is { } action)
+            {
+                disposeAction = null;
+                action();
+            }
+
+            if (subscriptions is { } currentSubscriptions)
+            {
+                subscriptions = null;
+                foreach (var subscription in currentSubscriptions)
+                {
+                    subscription.Dispose();
+                }
+            }
+        }
+    }
 }
 
 public static class RecordedSessionExtensionSlotCollectionExtensions

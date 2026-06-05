@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.ExtensionHost;
 
@@ -60,6 +61,37 @@ public class AppExtensionCollectionTests
         Assert.Equal([typeof(FirstService), typeof(SecondService)], registry.EagerServiceTypes);
     }
 
+    [Fact]
+    public void AddExtensionSingletonAlias_ReusesSingleImplementationForMultipleServiceTypes()
+    {
+        var services = new ServiceCollection();
+        services.AddExtensionSingletonAlias<IFirstAlias, AliasedService>();
+        services.AddExtensionSingletonAlias<ISecondAlias, AliasedService>();
+        using var provider = services.BuildServiceProvider();
+
+        var concrete = provider.GetRequiredService<AliasedService>();
+        var firstAlias = provider.GetRequiredService<IFirstAlias>();
+        var secondAlias = provider.GetRequiredService<ISecondAlias>();
+
+        Assert.Same(concrete, firstAlias);
+        Assert.Same(concrete, secondAlias);
+    }
+
+    [Fact]
+    public void RegisterView_GenericOverload_RegistersSharedAndDesktopFactories()
+    {
+        var viewRegistry = new ExtensionViewRegistry();
+        var registry = new AppExtensionCapabilityRegistry(viewRegistry);
+        var viewModel = new TestViewModel();
+
+        registry.RegisterView<TestViewModel, SharedView, DesktopView>();
+
+        Assert.True(viewRegistry.TryBuild(viewModel, isDesktop: false, out var sharedView));
+        Assert.IsType<SharedView>(sharedView);
+        Assert.True(viewRegistry.TryBuild(viewModel, isDesktop: true, out var desktopView));
+        Assert.IsType<DesktopView>(desktopView);
+    }
+
     private sealed class TestExtensionModule(
         string id,
         Action? registerServices = null,
@@ -81,4 +113,16 @@ public class AppExtensionCollectionTests
     private sealed class FirstService;
 
     private sealed class SecondService;
+
+    private interface IFirstAlias;
+
+    private interface ISecondAlias;
+
+    private sealed class AliasedService : IFirstAlias, ISecondAlias;
+
+    private sealed class TestViewModel;
+
+    private sealed class SharedView : Control;
+
+    private sealed class DesktopView : Control;
 }
