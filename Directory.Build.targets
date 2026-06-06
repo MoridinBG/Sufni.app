@@ -1,9 +1,15 @@
 <Project>
+  <PropertyGroup>
+    <SufniPrivateExtensionsRoot Condition="'$(SufniPrivateExtensionsRoot)' == ''">$(MSBuildThisFileDirectory)../Sufni.PrivateExtensions/</SufniPrivateExtensionsRoot>
+    <SufniPrivateExtensionsProps>$(SufniPrivateExtensionsRoot)Directory.Private.props</SufniPrivateExtensionsProps>
+    <SufniPrivateExtensionsTargets>$(SufniPrivateExtensionsRoot)Directory.Private.targets</SufniPrivateExtensionsTargets>
+  </PropertyGroup>
+
   <Target Name="FailWhenPrivateExtensionsRequestedButMissing"
           BeforeTargets="PrepareForBuild"
-          Condition="'$(SufniEnablePrivateExtensions)' == 'true' and (!Exists('$(MSBuildThisFileDirectory)Directory.Private.props') or !Exists('$(MSBuildThisFileDirectory)Directory.Private.targets'))">
-    <Error Text="SufniEnablePrivateExtensions=true requires Directory.Private.props and Directory.Private.targets." />
+          Condition="'$(SufniEnablePrivateExtensions)' == 'true' and (!Exists('$(SufniPrivateExtensionsProps)') or !Exists('$(SufniPrivateExtensionsTargets)'))">
+    <Error Text="SufniEnablePrivateExtensions=true requires Directory.Private.props and Directory.Private.targets under SufniPrivateExtensionsRoot." />
   </Target>
 
-  <Import Project="Directory.Private.targets" Condition="Exists('Directory.Private.targets')" />
+  <Import Project="$(SufniPrivateExtensionsTargets)" Condition="Exists('$(SufniPrivateExtensionsTargets)')" />
 </Project>

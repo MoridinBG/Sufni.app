@@ -3,6 +3,12 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# Local/private extension imports
+Directory.Private.props
+Directory.Private.targets
+Sufni.PrivateExtensions/
+ExternalExtensions/
+
 # User-specific files
 *.rsuser
 *.suo

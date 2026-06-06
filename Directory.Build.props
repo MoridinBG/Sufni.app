@@ -1,7 +1,9 @@
 <Project>
-  <Import Project="Directory.Private.props" Condition="Exists('Directory.Private.props')" />
-
   <PropertyGroup>
     <LangVersion>14.0</LangVersion>
+    <SufniPrivateExtensionsRoot Condition="'$(SufniPrivateExtensionsRoot)' == ''">$(MSBuildThisFileDirectory)../Sufni.PrivateExtensions/</SufniPrivateExtensionsRoot>
+    <SufniPrivateExtensionsProps>$(SufniPrivateExtensionsRoot)Directory.Private.props</SufniPrivateExtensionsProps>
   </PropertyGroup>
+
+  <Import Project="$(SufniPrivateExtensionsProps)" Condition="Exists('$(SufniPrivateExtensionsProps)')" />
 </Project>

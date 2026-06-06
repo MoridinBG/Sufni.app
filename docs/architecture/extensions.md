@@ -29,7 +29,9 @@ parameterless extension view registrations.
 
 ## Build Imports
 
-`Directory.Build.props` imports `Directory.Private.props` when present, and `Directory.Build.targets` imports `Directory.Private.targets` when present. Setting `SufniEnablePrivateExtensions=true` without both import files fails before build preparation with a clear error. Public project files do not reference extension projects directly; non-public builds add those references through the imported files.
+`Directory.Build.props` defines an overridable `SufniPrivateExtensionsRoot`, defaulting to the sibling `../Sufni.PrivateExtensions/` folder, and imports `Directory.Private.props` from that root when present. `Directory.Build.targets` imports `Directory.Private.targets` from the same root when present. Setting `SufniEnablePrivateExtensions=true` without both import files fails before build preparation with a clear error.
+
+Public project files do not reference extension projects, implementation folders, platform hooks, views, or assets directly. Non-public builds add concrete references and linked partials only through the external import files under `SufniPrivateExtensionsRoot`.
 
 Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(IServiceCollection)` partial hook. Each head calls it after its built-in platform services and desktop sync registration, before returning the configured Avalonia builder. Private build imports can compile platform-specific partial implementations into the head assemblies without adding extension references to public project files.
 
