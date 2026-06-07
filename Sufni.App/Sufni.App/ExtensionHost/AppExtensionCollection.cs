@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.ExtensionHost;
 
-public sealed class AppExtensionCollection
+internal sealed class AppExtensionCollection
 {
     private readonly List<IAppExtensionModule> modules = [];
     private readonly HashSet<string> moduleIds = new(StringComparer.Ordinal);
@@ -44,4 +44,3 @@ public sealed class AppExtensionCollection
         }
     }
 }
-

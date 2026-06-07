@@ -20,8 +20,16 @@ public class SynchronizationClientService : ISynchronizationClientService
     public SynchronizationClientService(
         IDatabaseService databaseService,
         IHttpApiService httpApiService,
+        IAppPreferences appPreferences)
+        : this(databaseService, httpApiService, appPreferences, null)
+    {
+    }
+
+    internal SynchronizationClientService(
+        IDatabaseService databaseService,
+        IHttpApiService httpApiService,
         IAppPreferences appPreferences,
-        IExtensionSyncService? extensionSyncService = null)
+        IExtensionSyncService? extensionSyncService)
     {
         this.databaseService = databaseService;
         this.httpApiService = httpApiService;

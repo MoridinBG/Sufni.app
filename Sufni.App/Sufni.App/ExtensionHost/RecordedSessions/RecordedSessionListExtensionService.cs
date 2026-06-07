@@ -5,7 +5,7 @@ using Sufni.App.SessionGraph;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
-public sealed class RecordedSessionListExtensionService : IRecordedSessionListExtensionService
+internal sealed class RecordedSessionListExtensionService : IRecordedSessionListExtensionService
 {
     private readonly IReadOnlyList<IRecordedSessionListContributionProvider> providers;
 

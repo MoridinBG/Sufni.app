@@ -8,7 +8,7 @@ using SQLite;
 
 namespace Sufni.App.ExtensionHost.Database;
 
-public sealed class ExtensionCascadeService : IExtensionCascadeService
+internal sealed class ExtensionCascadeService : IExtensionCascadeService
 {
     private readonly Func<CancellationToken, Task<SQLiteAsyncConnection>> getConnectionAsync;
     private readonly IReadOnlyList<ExtensionCascadeRule> rules;
@@ -248,4 +248,3 @@ public sealed class ExtensionCascadeService : IExtensionCascadeService
     private static string QuoteIdentifier(string identifier) =>
         "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 }
-

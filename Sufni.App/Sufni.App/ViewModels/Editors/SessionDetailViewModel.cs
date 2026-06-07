@@ -1377,7 +1377,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             var key = RecordedSessionExtensionPageKey(contribution);
             if (!recordedSessionExtensionPages.TryGetValue(key, out var page))
             {
-                page = contribution.Page;
+                page = new RecordedSessionExtensionPageViewModel(
+                    contribution.DisplayName,
+                    contribution.ViewModel);
                 recordedSessionExtensionPages.Add(key, page);
             }
 

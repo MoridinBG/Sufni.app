@@ -3,7 +3,7 @@ using SQLite;
 namespace Sufni.App.ExtensionHost.Database;
 
 [Table("extension_schema_version")]
-public sealed class ExtensionSchemaVersion
+internal sealed class ExtensionSchemaVersion
 {
     [PrimaryKey]
     [Column("extension_id")]
@@ -12,4 +12,3 @@ public sealed class ExtensionSchemaVersion
     [Column("version")]
     public int Version { get; set; }
 }
-

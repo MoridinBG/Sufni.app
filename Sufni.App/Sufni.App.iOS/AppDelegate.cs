@@ -4,6 +4,7 @@ using Avalonia.Logging;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
 using UIKit;
@@ -31,7 +32,11 @@ namespace Sufni.App.iOS
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("sync");
             App.ServiceCollection.AddSingleton<IHapticFeedback, IosHapticFeedback>();
-            App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+            App.ServiceCollection.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
+                sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<IHttpApiService>(),
+                sp.GetRequiredService<IAppPreferences>(),
+                sp.GetService<IExtensionSyncService>()));
             App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
             App.ServiceCollection.AddSingleton<PairingClientViewModel>();
             return base.CustomizeAppBuilder(builder)

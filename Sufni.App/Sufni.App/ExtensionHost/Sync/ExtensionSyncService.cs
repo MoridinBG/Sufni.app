@@ -7,7 +7,7 @@ using Sufni.App.Services;
 
 namespace Sufni.App.ExtensionHost.Sync;
 
-public sealed class ExtensionSyncService : IExtensionSyncService
+internal sealed class ExtensionSyncService : IExtensionSyncService
 {
     private readonly IReadOnlyList<IExtensionSyncParticipant> participants;
 
@@ -85,4 +85,3 @@ public sealed class ExtensionSyncService : IExtensionSyncService
         }
     }
 }
-

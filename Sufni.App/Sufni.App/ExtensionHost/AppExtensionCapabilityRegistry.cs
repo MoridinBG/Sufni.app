@@ -4,14 +4,7 @@ using Avalonia.Controls;
 
 namespace Sufni.App.ExtensionHost;
 
-public interface IAppExtensionCapabilityRegistry
-{
-    IReadOnlyList<Type> EagerServiceTypes { get; }
-    void RegisterEagerService(Type serviceType);
-    void RegisterView(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory = null);
-}
-
-public sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRegistry
+internal sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRegistry
 {
     private readonly IExtensionViewRegistry viewRegistry;
     private readonly List<Type> eagerServiceTypes = [];
@@ -41,6 +34,14 @@ public sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRegi
     }
 
     public void RegisterView(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory = null)
+    {
+        viewRegistry.Register(viewModelType, sharedFactory, desktopFactory);
+    }
+
+    public void RegisterView(
+        Type viewModelType,
+        Func<IServiceProvider, Control> sharedFactory,
+        Func<IServiceProvider, Control>? desktopFactory = null)
     {
         viewRegistry.Register(viewModelType, sharedFactory, desktopFactory);
     }

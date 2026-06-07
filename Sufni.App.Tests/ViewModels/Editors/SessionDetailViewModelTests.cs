@@ -674,6 +674,7 @@ public class SessionDetailViewModelTests
                 "test",
                 "extension-page",
                 Order: 1,
+                extensionPage.DisplayName,
                 extensionPage,
                 RequestedIndex: 1)));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
@@ -685,17 +686,17 @@ public class SessionDetailViewModelTests
             recordedSessionExtensionFactories: [factory]);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Contains(extensionPage, editor.Pages);
-        Assert.Equal(1, editor.Pages.IndexOf(extensionPage));
+        var contributedPage = Assert.Single(editor.Pages, page => page.DisplayName == extensionPage.DisplayName);
+        Assert.Equal(1, editor.Pages.IndexOf(contributedPage));
 
         factory.Context!.RequestPageSelection("extension-page");
 
-        Assert.True(extensionPage.Selected);
-        Assert.All(editor.Pages.Where(page => page != extensionPage), page => Assert.False(page.Selected));
+        Assert.True(contributedPage.Selected);
+        Assert.All(editor.Pages.Where(page => page != contributedPage), page => Assert.False(page.Selected));
 
         await editor.UnloadedCommand.ExecuteAsync(null);
 
-        Assert.DoesNotContain(extensionPage, editor.Pages);
+        Assert.DoesNotContain(contributedPage, editor.Pages);
     }
 
     [AvaloniaFact]

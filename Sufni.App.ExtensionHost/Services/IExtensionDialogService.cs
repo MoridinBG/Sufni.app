@@ -6,6 +6,7 @@ namespace Sufni.App.Services;
 public interface IExtensionDialogService
 {
     Task<TResult?> ShowDialogAsync<TResult>(ExtensionDialogRequest<TResult> request);
+    Task<bool> ShowConfirmationAsync(string title, string message);
 }
 
 public interface IExtensionDialogResultSource<TResult>

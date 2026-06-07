@@ -77,8 +77,16 @@ public class SynchronizationServerService : ISynchronizationServerService
     public SynchronizationServerService(
         IDatabaseService databaseService,
         IAppPreferences appPreferences,
+        ISecureStorage secureStorage)
+        : this(databaseService, appPreferences, secureStorage, null)
+    {
+    }
+
+    internal SynchronizationServerService(
+        IDatabaseService databaseService,
+        IAppPreferences appPreferences,
         ISecureStorage secureStorage,
-        IExtensionSyncService? extensionSyncService = null)
+        IExtensionSyncService? extensionSyncService)
     {
         this.databaseService = databaseService;
         this.appPreferences = appPreferences;

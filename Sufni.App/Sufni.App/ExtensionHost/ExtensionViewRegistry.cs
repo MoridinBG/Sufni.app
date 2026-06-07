@@ -4,11 +4,25 @@ using Avalonia.Controls;
 
 namespace Sufni.App.ExtensionHost;
 
-public sealed class ExtensionViewRegistry : IExtensionViewRegistry
+internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
 {
     private readonly Dictionary<Type, ExtensionViewFactories> factoriesByViewModelType = [];
 
     public void Register(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory)
+    {
+        ArgumentNullException.ThrowIfNull(viewModelType);
+        ArgumentNullException.ThrowIfNull(sharedFactory);
+
+        Register(
+            viewModelType,
+            _ => sharedFactory(),
+            desktopFactory is null ? null : _ => desktopFactory());
+    }
+
+    public void Register(
+        Type viewModelType,
+        Func<IServiceProvider, Control> sharedFactory,
+        Func<IServiceProvider, Control>? desktopFactory)
     {
         ArgumentNullException.ThrowIfNull(viewModelType);
         ArgumentNullException.ThrowIfNull(sharedFactory);
@@ -18,7 +32,13 @@ public sealed class ExtensionViewRegistry : IExtensionViewRegistry
 
     public bool TryBuild(object data, bool isDesktop, out Control control)
     {
+        return TryBuild(data, isDesktop, EmptyServiceProvider.Instance, out control);
+    }
+
+    public bool TryBuild(object data, bool isDesktop, IServiceProvider serviceProvider, out Control control)
+    {
         ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(serviceProvider);
 
         var viewModelType = data.GetType();
         if (!factoriesByViewModelType.TryGetValue(viewModelType, out var factories))
@@ -28,8 +48,8 @@ public sealed class ExtensionViewRegistry : IExtensionViewRegistry
         }
 
         control = isDesktop && factories.DesktopFactory is not null
-            ? factories.DesktopFactory()
-            : factories.SharedFactory();
+            ? factories.DesktopFactory(serviceProvider)
+            : factories.SharedFactory(serviceProvider);
         return true;
     }
 
@@ -40,6 +60,14 @@ public sealed class ExtensionViewRegistry : IExtensionViewRegistry
         return factoriesByViewModelType.ContainsKey(viewModelType);
     }
 
-    private sealed record ExtensionViewFactories(Func<Control> SharedFactory, Func<Control>? DesktopFactory);
-}
+    private sealed record ExtensionViewFactories(
+        Func<IServiceProvider, Control> SharedFactory,
+        Func<IServiceProvider, Control>? DesktopFactory);
 
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public static EmptyServiceProvider Instance { get; } = new();
+
+        public object? GetService(Type serviceType) => null;
+    }
+}

@@ -29,7 +29,7 @@ namespace Sufni.App;
 public partial class App : Application
 {
     public static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
-    public static AppExtensionCollection Extensions { get; } = new();
+    internal static AppExtensionCollection Extensions { get; } = new();
 
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
@@ -99,7 +99,9 @@ public partial class App : Application
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
-        ServiceCollection.AddSingleton<ViewLocator>();
+        ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
+            sp.GetRequiredService<IExtensionViewRegistry>(),
+            sp));
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
@@ -117,6 +119,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
+        ServiceCollection.AddSingleton<IExtensionNotificationService, ExtensionNotificationService>();
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.TryAddSingleton<IRecordedSessionListExtensionService, RecordedSessionListExtensionService>();

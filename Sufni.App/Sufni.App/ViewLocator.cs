@@ -16,6 +16,7 @@ namespace Sufni.App;
 public class ViewLocator : IDataTemplate
 {
     private readonly IExtensionViewRegistry extensionViewRegistry;
+    private readonly IServiceProvider serviceProvider;
 
     private static readonly IReadOnlyDictionary<Type, Func<Control>> ViewFactories = new Dictionary<Type, Func<Control>>
     {
@@ -68,13 +69,19 @@ public class ViewLocator : IDataTemplate
     };
 
     public ViewLocator()
-        : this(new ExtensionViewRegistry())
+        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance)
     {
     }
 
-    public ViewLocator(IExtensionViewRegistry extensionViewRegistry)
+    internal ViewLocator(IExtensionViewRegistry extensionViewRegistry)
+        : this(extensionViewRegistry, EmptyServiceProvider.Instance)
+    {
+    }
+
+    internal ViewLocator(IExtensionViewRegistry extensionViewRegistry, IServiceProvider serviceProvider)
     {
         this.extensionViewRegistry = extensionViewRegistry;
+        this.serviceProvider = serviceProvider;
     }
 
     public Control? Build(object? data)
@@ -85,7 +92,12 @@ public class ViewLocator : IDataTemplate
         var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
 
-        if (extensionViewRegistry.TryBuild(data, isDesktop, out var extensionView))
+        if (data is RecordedSessionExtensionPageViewModel extensionPage)
+        {
+            return Build(extensionPage.ViewModel);
+        }
+
+        if (extensionViewRegistry.TryBuild(data, isDesktop, serviceProvider, out var extensionView))
         {
             return extensionView;
         }
@@ -114,5 +126,12 @@ public class ViewLocator : IDataTemplate
                extensionViewRegistry.Matches(viewModelType, isDesktop) ||
                ViewFactories.ContainsKey(viewModelType) ||
                (isDesktop && DesktopViewFactories.ContainsKey(viewModelType));
+    }
+
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public static EmptyServiceProvider Instance { get; } = new();
+
+        public object? GetService(Type serviceType) => null;
     }
 }

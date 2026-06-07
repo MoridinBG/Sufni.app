@@ -13,7 +13,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
-public sealed class RecordedSessionExtensionManager : IAsyncDisposable
+internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 {
     private readonly Guid sessionId;
     private readonly IReadOnlyList<IRecordedSessionExtensionFactory> factories;

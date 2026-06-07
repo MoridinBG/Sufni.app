@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
-public sealed class RecordedSessionOperationCoordinator : IAsyncDisposable
+internal sealed class RecordedSessionOperationCoordinator : IAsyncDisposable
 {
     private readonly object gate = new();
     private readonly Action<string, double> reportOperation;

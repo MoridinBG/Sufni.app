@@ -5,6 +5,7 @@ using Avalonia.Android;
 using Avalonia.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
 
@@ -28,7 +29,11 @@ namespace Sufni.App.Android
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("sync");
             App.ServiceCollection.AddSingleton<IHapticFeedback>(_ => new AndroidHapticFeedback(Window!));
-            App.ServiceCollection.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
+            App.ServiceCollection.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
+                sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<IHttpApiService>(),
+                sp.GetRequiredService<IAppPreferences>(),
+                sp.GetService<IExtensionSyncService>()));
             App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
             App.ServiceCollection.AddSingleton<PairingClientViewModel>();
 

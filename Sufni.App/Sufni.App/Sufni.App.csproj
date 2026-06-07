@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Sufni.App.Tests" />
+    <InternalsVisibleTo Include="Sufni.App.Android" />
     <InternalsVisibleTo Include="Sufni.App.Desktop" />
     <InternalsVisibleTo Include="Sufni.App.macOS" />
     <InternalsVisibleTo Include="Sufni.App.iOS" />
@@ -48,6 +49,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Sufni.App.ExtensionHost\Sufni.App.ExtensionHost.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
   </ItemGroup>

@@ -7,7 +7,7 @@ using SQLite;
 
 namespace Sufni.App.ExtensionHost.Database;
 
-public sealed class ExtensionDatabaseMigratorRunner
+internal sealed class ExtensionDatabaseMigratorRunner
 {
     private readonly IReadOnlyList<IExtensionDatabaseMigrator> migrators;
 
@@ -65,4 +65,3 @@ public sealed class ExtensionDatabaseMigratorRunner
         }
     }
 }
-

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="ScottPlot" />
+    <PackageReference Include="sqlite-net-e" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
+  </ItemGroup>
+</Project>

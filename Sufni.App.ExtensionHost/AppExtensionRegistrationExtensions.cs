@@ -30,6 +30,20 @@ public static class AppExtensionRegistrationExtensions
             static () => new TSharedView());
     }
 
+    public static void RegisterView<TViewModel>(
+        this IAppExtensionCapabilityRegistry registry,
+        Func<IServiceProvider, Control> sharedFactory,
+        Func<IServiceProvider, Control>? desktopFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(sharedFactory);
+
+        registry.RegisterView(
+            typeof(TViewModel),
+            sharedFactory,
+            desktopFactory);
+    }
+
     public static void RegisterView<TViewModel, TSharedView, TDesktopView>(
         this IAppExtensionCapabilityRegistry registry)
         where TSharedView : Control, new()

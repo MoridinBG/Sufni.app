@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Sufni.App.Plots;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
@@ -32,7 +31,8 @@ public sealed record RecordedSessionPageContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    PageViewModelBase Page,
+    string DisplayName,
+    object ViewModel,
     int RequestedIndex) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionMediaPaneContribution(

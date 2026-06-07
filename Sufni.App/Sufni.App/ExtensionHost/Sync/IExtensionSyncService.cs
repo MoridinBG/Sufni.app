@@ -5,7 +5,7 @@ using Sufni.App.Services;
 
 namespace Sufni.App.ExtensionHost.Sync;
 
-public interface IExtensionSyncService
+internal interface IExtensionSyncService
 {
     Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(long since, CancellationToken cancellationToken = default);
 
@@ -16,4 +16,3 @@ public interface IExtensionSyncService
         int totalSteps,
         CancellationToken cancellationToken = default);
 }
-

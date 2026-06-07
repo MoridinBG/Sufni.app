@@ -4,7 +4,6 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
@@ -125,7 +124,8 @@ public class RecordedSessionExtensionSlotsTests
             "extension",
             "page",
             Order: 2,
-            new PageViewModelBase("Page"),
+            "Page",
+            new object(),
             RequestedIndex: 0));
         slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "extension",
