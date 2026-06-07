@@ -166,6 +166,39 @@ public class RecordedGraphPageViewTests
     }
 
     [AvaloniaFact]
+    public async Task RecordedGraphPageView_InsertsHostedRowsBeforeBuiltInChildRows()
+    {
+        var graphWorkspace = new RecordedGraphPageWorkspaceStub(
+            TestTelemetryData.CreateProcessed(),
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden);
+        var rowTarget = RecordedSessionGraphRowTarget.Extension("extension", "hosted-row");
+        graphWorkspace.ExtensionSlots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
+            "extension",
+            "hosted-row",
+            Order: 0,
+            ParentRow: RecordedSessionBuiltInGraphRow.Travel,
+            RowTarget: rowTarget,
+            Title: "Hosted row",
+            SurfacePresentationState.Ready,
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "HostedRowContent", Text = "Hosted row content" },
+            },
+            IsInitiallyExpanded: true));
+        var page = new RecordedGraphPageViewModel(graphWorkspace, CreateMediaWorkspace([]));
+
+        await using var mounted = await MountAsync(page);
+
+        var root = GetGraphRoot(mounted.View);
+        var travelRow = GetBaseRow(root, "Travel (mm)");
+        Assert.Equal(
+            ["Hosted row", "Velocity (m/s)"],
+            travelRow.ChildRows.Select(row => row.Title!).ToArray());
+        AssertContributionText(mounted.View, "HostedRowContent", "Hosted row content");
+    }
+
+    [AvaloniaFact]
     public async Task RecordedGraphPageView_RendersMediaPaneContributions()
     {
         var graphWorkspace = new RecordedGraphPageWorkspaceStub(

@@ -11,8 +11,18 @@ d:DesignWidth="500"
 x:DataType="vm:DamperPageViewModel"
 mc:Ignorable="d">
 
-    <ScrollViewer Width="{Binding $parent[ScrollViewer].Bounds.Width}" IsScrollChainingEnabled="False">
-        <StackPanel Orientation="Vertical" Spacing="8">
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    ClipToBounds="True"
+    HorizontalScrollBarVisibility="Disabled"
+    IsScrollChainingEnabled="False">
+        <StackPanel
+        Name="MobileDamperStatisticsContent"
+        Width="{Binding #PageScrollViewer.Bounds.Width}"
+        ClipToBounds="True"
+        Orientation="Vertical"
+        Spacing="8">
             <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}" />
 
             <StackPanel

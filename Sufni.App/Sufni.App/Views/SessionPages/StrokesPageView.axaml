@@ -12,9 +12,16 @@ x:DataType="vm:StrokesPageViewModel"
 mc:Ignorable="d">
 
     <ScrollViewer
+    x:Name="PageScrollViewer"
     Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    ClipToBounds="True"
+    HorizontalScrollBarVisibility="Disabled"
     IsScrollChainingEnabled="False">
-        <StackPanel Spacing="8">
+        <StackPanel
+        Name="MobileStrokesStatisticsContent"
+        Width="{Binding #PageScrollViewer.Bounds.Width}"
+        ClipToBounds="True"
+        Spacing="8">
             <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
 
             <StackPanel

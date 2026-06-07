@@ -170,6 +170,7 @@
             IsActive="{Binding SessionOperationState.IsVisible}"
             IsVisible="{Binding SessionOperationState.IsVisible}"
             Message="{Binding SessionOperationState.Message}"
+            MessageForeground="{DynamicResource SufniAccentColor}"
             ProgressValue="{Binding SessionOperationState.ProgressFraction}"
             ShowProgress="True"
             ShowTint="True"

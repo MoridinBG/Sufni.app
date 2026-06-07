@@ -207,7 +207,15 @@ public class SessionShellMobileViewTests
         Assert.True(busyOverlay.ShowProgress);
         Assert.True(busyOverlay.ShowTint);
         Assert.Equal("matching session 8/10", busyOverlay.Message);
+        Assert.NotNull(busyOverlay.MessageForeground);
         Assert.Equal(0.8, busyOverlay.ProgressValue);
+
+        var operationMessage = mounted.Shell.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .FirstOrDefault(t => t.Name == "StackBusyMessageText");
+        Assert.NotNull(operationMessage);
+        Assert.Equal("matching session 8/10", operationMessage.Text);
+        Assert.NotNull(operationMessage.Foreground);
 
         host.SessionOperationState = SessionOperationPresentationState.Hidden;
         await ViewTestHelpers.FlushDispatcherAsync();

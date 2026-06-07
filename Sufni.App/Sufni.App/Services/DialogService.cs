@@ -408,10 +408,10 @@ public class DialogService : IDialogService, IExtensionDialogService
             Children =
             {
                 header,
-                new Border
+                new ScrollViewer
                 {
                     Margin = new Thickness(16, 0, 16, 16),
-                    Child = content
+                    Content = content
                 }
             }
         };
@@ -429,12 +429,10 @@ public class DialogService : IDialogService, IExtensionDialogService
                 },
                 new Border
                 {
-                    HorizontalAlignment = HorizontalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Width = request.Layout.Width,
-                    Height = request.Layout.Height,
-                    MinWidth = request.Layout.MinWidth,
-                    MinHeight = request.Layout.MinHeight,
+                    MaxWidth = request.Layout.Width,
+                    MaxHeight = request.Layout.Height,
                     Margin = new Thickness(12),
                     Background = new SolidColorBrush(Color.Parse("#15191c")),
                     CornerRadius = new CornerRadius(6),
@@ -446,10 +444,127 @@ public class DialogService : IDialogService, IExtensionDialogService
 
     public async Task<bool> ShowConfirmationAsync(string title, string message)
     {
+        if (App.Current?.IsDesktop != true)
+        {
+            return await ShowConfirmationOverlayAsync(title, message);
+        }
+
         Debug.Assert(owner != null, nameof(owner) + " != null");
 
         var dialog = new OkCancelDialogWindow(title, message);
         var result = await dialog.ShowDialogAsync(owner);
         return result == PromptResult.Ok;
+    }
+
+    private Task<bool> ShowConfirmationOverlayAsync(string title, string message)
+    {
+        var host = overlayHost ?? TryGetSingleViewOverlayHost();
+        Debug.Assert(host != null, nameof(overlayHost) + " != null");
+
+        if (host is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host has not been set.");
+        }
+
+        var panel = TryGetOverlayPanel(host);
+        if (panel is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
+        }
+
+        var tcs = new TaskCompletionSource<bool>();
+        Control? overlay = null;
+        overlay = CreateConfirmationOverlay(title, message, Complete);
+        overlay.DetachedFromVisualTree += OverlayDetached;
+        panel.Children.Add(overlay);
+        return tcs.Task;
+
+        void OverlayDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            overlay = null;
+            tcs.TrySetResult(false);
+        }
+
+        void Complete(bool result)
+        {
+            if (overlay is { } currentOverlay)
+            {
+                currentOverlay.DetachedFromVisualTree -= OverlayDetached;
+                panel.Children.Remove(currentOverlay);
+                overlay = null;
+            }
+
+            tcs.TrySetResult(result);
+        }
+    }
+
+    private static Control CreateConfirmationOverlay(string title, string message, Action<bool> complete)
+    {
+        var cancelButton = new Button
+        {
+            Content = "Cancel"
+        };
+        cancelButton.Click += (_, _) => complete(false);
+
+        var okButton = new Button
+        {
+            Content = "OK"
+        };
+        okButton.Classes.Add("accent");
+        okButton.Click += (_, _) => complete(true);
+
+        var buttons = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            Children =
+            {
+                cancelButton,
+                okButton
+            }
+        };
+
+        return new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Children =
+            {
+                new Border
+                {
+                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                },
+                new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MaxWidth = 420,
+                    Margin = new Thickness(12),
+                    Padding = new Thickness(16),
+                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    CornerRadius = new CornerRadius(6),
+                    Child = new StackPanel
+                    {
+                        Spacing = 12,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = title,
+                                FontWeight = FontWeight.SemiBold,
+                                TextWrapping = TextWrapping.Wrap
+                            },
+                            new TextBlock
+                            {
+                                Text = message,
+                                TextWrapping = TextWrapping.Wrap
+                            },
+                            buttons
+                        }
+                    }
+                }
+            }
+        };
     }
 }

@@ -71,7 +71,7 @@ public partial class App : Application
 
         var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
 
-        RegisterBuildTimeExtensions(Extensions);
+        RegisterBuildTimeExtensions(Extensions, isDesktop);
 
         var extensionViewRegistry = new ExtensionViewRegistry();
         ServiceCollection.AddSingleton<IExtensionViewRegistry>(extensionViewRegistry);
@@ -338,5 +338,5 @@ public partial class App : Application
                 and not ISingleViewApplicationLifetime;
     }
 
-    static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions);
+    static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions, bool isDesktop);
 }

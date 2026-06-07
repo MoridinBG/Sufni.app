@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
@@ -72,6 +73,45 @@ public class MobileStatisticsPageViewTests
             mounted.View.GetVisualDescendants().OfType<RecordedSessionStatisticsContributionsView>());
         Assert.NotNull(contributionHost);
         AssertContributionText(mounted.View, "MobileSpringStatisticsBanner", "Statistics banner");
+    }
+
+    [AvaloniaFact]
+    public async Task SpringPageView_ConstrainsStatisticsContentToMobileViewport()
+    {
+        var workspace = MobileStatisticsWorkspaceStub.Create(
+            hasFrontStatistics: true,
+            hasRearStatistics: true);
+        workspace.ExtensionSlots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+            "extension",
+            "wide-statistics-banner",
+            Order: 0,
+            new TestContributionViewModel
+            {
+                Content = new TextBlock
+                {
+                    Name = "WideMobileSpringStatisticsBanner",
+                    Text = string.Join(' ', Enumerable.Repeat("wide extension statistics banner text", 8)),
+                },
+            }));
+        var page = new SpringPageViewModel(workspace);
+
+        await using var mounted = await MountAsync(new SpringPageView { DataContext = page }, viewportWidth: 390);
+
+        var scrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
+        var content = mounted.View.FindControl<StackPanel>("MobileSpringStatisticsContent");
+        var travelHosts = mounted.View.GetVisualDescendants().OfType<TravelStatisticsHost>().ToArray();
+
+        Assert.NotNull(scrollViewer);
+        Assert.NotNull(content);
+        Assert.Equal(ScrollBarVisibility.Disabled, scrollViewer!.HorizontalScrollBarVisibility);
+        Assert.True(scrollViewer.ClipToBounds);
+        Assert.True(content!.ClipToBounds);
+        Assert.InRange(scrollViewer.Bounds.Width, 389, 391);
+        Assert.InRange(content.Bounds.Width, 389, 391);
+        Assert.NotEmpty(travelHosts);
+        Assert.All(travelHosts, host => Assert.True(
+            host.Bounds.Width <= scrollViewer.Bounds.Width + 0.5,
+            $"Expected travel statistics host width {host.Bounds.Width} to fit viewport width {scrollViewer.Bounds.Width}."));
     }
 
     [AvaloniaFact]
@@ -270,13 +310,21 @@ public class MobileStatisticsPageViewTests
         Assert.Equal(SessionAnalysisTargetProfile.Enduro, workspace.SelectedSessionAnalysisTargetProfile);
     }
 
-    private static async Task<MountedMobileStatisticsPageView<TView>> MountAsync<TView>(TView view)
+    private static async Task<MountedMobileStatisticsPageView<TView>> MountAsync<TView>(
+        TView view,
+        double? viewportWidth = null)
         where TView : Control
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsurePlotViewStyle();
 
-        var host = await ViewTestHelpers.ShowViewAsync(new ScrollViewer { Content = view });
+        var hostView = new ScrollViewer { Content = view };
+        if (viewportWidth is { } width)
+        {
+            hostView.Width = width;
+        }
+
+        var host = await ViewTestHelpers.ShowViewAsync(hostView);
         return new MountedMobileStatisticsPageView<TView>(host, view);
     }
 

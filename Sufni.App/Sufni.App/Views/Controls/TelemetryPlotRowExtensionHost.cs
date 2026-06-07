@@ -271,8 +271,21 @@ public static class TelemetryPlotRowExtensionHost
                     UpdateHostedRow(hostedRow, contribution);
                 }
 
-                row.ChildRows.Add(hostedRow);
+                row.ChildRows.Insert(GetHostedRowInsertionIndex(row.ChildRows), hostedRow);
             }
+        }
+
+        private static int GetHostedRowInsertionIndex(IReadOnlyList<TelemetryPlotRow> rows)
+        {
+            for (var index = 0; index < rows.Count; index++)
+            {
+                if (!GetIsHostedGraphRow(rows[index]))
+                {
+                    return index;
+                }
+            }
+
+            return rows.Count;
         }
 
         private void ClearHostedRows()

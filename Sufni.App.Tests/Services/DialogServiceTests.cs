@@ -168,6 +168,80 @@ public class DialogServiceTests
     }
 
     [AvaloniaFact]
+    public async Task ShowConfirmationAsync_MobileMode_UsesOverlayHostAndReturnsTrue_WhenOkClicked()
+    {
+        TestApp.SetIsDesktop(false);
+
+        var service = new DialogService();
+        var overlayHost = new Grid();
+        var owner = ViewTestHelpers.ShowView(overlayHost);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        service.SetOwner(owner);
+        service.SetOverlayHost(overlayHost);
+
+        try
+        {
+            var resultTask = service.ShowConfirmationAsync("Delete entry", "Remove saved entry?");
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Empty(owner.OwnedWindows);
+            Assert.Contains(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Delete entry");
+            Assert.Contains(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Remove saved entry?");
+
+            ClickConfirmationButton(overlayHost, "OK");
+
+            var result = await resultTask;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.True(result);
+            Assert.DoesNotContain(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Delete entry");
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            owner.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ShowConfirmationAsync_MobileMode_ReturnsFalse_WhenCancelClicked()
+    {
+        TestApp.SetIsDesktop(false);
+
+        var service = new DialogService();
+        var overlayHost = new Grid();
+        var owner = ViewTestHelpers.ShowView(overlayHost);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        service.SetOwner(owner);
+        service.SetOverlayHost(overlayHost);
+
+        try
+        {
+            var resultTask = service.ShowConfirmationAsync("Delete entry", "Remove saved entry?");
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Empty(owner.OwnedWindows);
+
+            ClickConfirmationButton(overlayHost, "Cancel");
+
+            var result = await resultTask;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.False(result);
+            Assert.DoesNotContain(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Delete entry");
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            owner.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ShowAddTileLayerDialogAsync_DesktopMode_UsesOwnedWindow()
     {
         TestApp.SetIsDesktop(true);
@@ -252,6 +326,14 @@ public class DialogServiceTests
         var okButton = view.FindControl<Button>("OkButton");
         Assert.NotNull(okButton);
         okButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    private static void ClickConfirmationButton(Control root, string content)
+    {
+        var button = root.GetVisualDescendants()
+            .OfType<Button>()
+            .Single(button => Equals(button.Content, content));
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
 
     private static void CloseOwnedWindows(Window owner)
