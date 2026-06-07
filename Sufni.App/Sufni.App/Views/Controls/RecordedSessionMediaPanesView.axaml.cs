@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.RecordedSessions;
 
 namespace Sufni.App.Views.Controls;
@@ -92,7 +93,7 @@ public partial class RecordedSessionMediaPanesView : UserControl
         }
     }
 
-    private static Control CreateContributionControl(object viewModel)
+    private static Control CreateContributionControl(IExtensionViewModel viewModel)
     {
         return viewModel as Control ?? new ContentControl { Content = viewModel };
     }

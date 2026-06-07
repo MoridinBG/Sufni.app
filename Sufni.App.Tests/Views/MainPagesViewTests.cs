@@ -114,7 +114,7 @@ public class MainPagesViewTests
             "extension",
             "toolbar-action",
             Order: 0,
-            new object());
+            new TestContributionViewModel());
         var viewModel = MainPagesViewModelTestFactory.Create(
             appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)]);
         var view = new MainPagesView

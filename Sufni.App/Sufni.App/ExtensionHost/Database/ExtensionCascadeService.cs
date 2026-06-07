@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
+using Sufni.App.Services;
 
 namespace Sufni.App.ExtensionHost.Database;
 
@@ -13,15 +13,15 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
     private readonly Func<CancellationToken, Task<SQLiteAsyncConnection>> getConnectionAsync;
     private readonly IReadOnlyList<ExtensionCascadeRule> rules;
     private readonly Func<IReadOnlyList<IExtensionStateRefreshParticipant>> getRefreshParticipants;
-    private readonly IReadOnlyDictionary<string, IReadOnlySet<string>> columnsByTableName;
+    private readonly ExtensionDatabaseTableCatalog tableCatalog;
 
     public ExtensionCascadeService(
-        IExtensionDatabaseConnection databaseConnection,
+        SqLiteDatabaseService database,
         IEnumerable<IExtensionDatabaseMigrator> migrators,
         IEnumerable<IExtensionCascadeRuleProvider> ruleProviders,
         IEnumerable<IExtensionStateRefreshParticipant> refreshParticipants)
         : this(
-            databaseConnection.GetInitializedConnectionAsync,
+            database.GetInitializedConnectionAsync,
             migrators,
             ruleProviders,
             () => refreshParticipants.ToArray())
@@ -63,7 +63,11 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
         this.getConnectionAsync = getConnectionAsync;
         rules = ruleProviders.SelectMany(provider => provider.Rules).ToArray();
         this.getRefreshParticipants = getRefreshParticipants;
-        columnsByTableName = BuildTableColumnMap(migrators);
+        tableCatalog = ExtensionDatabaseTableCatalog.Create(migrators);
+        foreach (var rule in rules)
+        {
+            ValidateRule(rule);
+        }
     }
 
     public async Task ApplyForDeletedCoreEntityAsync(
@@ -176,17 +180,28 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
 
     private void ValidateRule(ExtensionCascadeRule rule)
     {
-        if (!columnsByTableName.TryGetValue(rule.TableName, out var columnNames))
+        if (string.IsNullOrWhiteSpace(rule.ExtensionId))
+        {
+            throw new InvalidOperationException("Extension cascade rule extension id is required.");
+        }
+
+        if (!tableCatalog.TryGetRegistration(rule.TableName, out var registration))
         {
             throw new InvalidOperationException(
                 $"Extension cascade rule for '{rule.ExtensionId}' references table '{rule.TableName}', but no registered extension migrator declares that table.");
         }
 
-        ValidateColumn(rule, columnNames, rule.ReferenceColumnName);
+        if (!StringComparer.Ordinal.Equals(registration.ExtensionId, rule.ExtensionId))
+        {
+            throw new InvalidOperationException(
+                $"Extension cascade rule for '{rule.ExtensionId}' references table '{rule.TableName}', but that table is owned by '{registration.ExtensionId}'.");
+        }
+
+        ValidateColumn(rule, registration.ColumnNames, rule.ReferenceColumnName);
         if (rule.Action == ExtensionCascadeAction.SoftDelete)
         {
-            ValidateColumn(rule, columnNames, rule.DeletedColumnName);
-            ValidateColumn(rule, columnNames, rule.UpdatedColumnName);
+            ValidateColumn(rule, registration.ColumnNames, rule.DeletedColumnName);
+            ValidateColumn(rule, registration.ColumnNames, rule.UpdatedColumnName);
         }
     }
 
@@ -208,31 +223,6 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
         {
             await participant.RefreshExtensionStateAsync(cancellationToken);
         }
-    }
-
-    private static IReadOnlyDictionary<string, IReadOnlySet<string>> BuildTableColumnMap(
-        IEnumerable<IExtensionDatabaseMigrator> migrators)
-    {
-        return migrators
-            .SelectMany(migrator => migrator.TableTypes)
-            .Distinct()
-            .ToDictionary(
-                GetTableName,
-                GetColumnNames,
-                StringComparer.Ordinal);
-    }
-
-    private static string GetTableName(Type tableType)
-    {
-        return tableType.GetCustomAttribute<TableAttribute>()?.Name ?? tableType.Name;
-    }
-
-    private static IReadOnlySet<string> GetColumnNames(Type tableType)
-    {
-        return tableType
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Select(property => property.GetCustomAttribute<ColumnAttribute>()?.Name ?? property.Name)
-            .ToHashSet(StringComparer.Ordinal);
     }
 
     private static string GetCoreTableName(ExtensionCoreEntityKind kind) => kind switch

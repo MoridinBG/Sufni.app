@@ -70,7 +70,10 @@ public class SessionStatisticsDesktopViewTests
             "extension",
             "statistics-banner",
             Order: 0,
-            new TextBlock { Name = "DesktopStatisticsBanner", Text = "Statistics banner" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopStatisticsBanner", Text = "Statistics banner" },
+            }));
 
         await using var mounted = await MountAsync(workspace);
 

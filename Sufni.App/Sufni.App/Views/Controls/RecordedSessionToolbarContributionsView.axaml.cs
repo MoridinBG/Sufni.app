@@ -3,6 +3,7 @@ using System.Linq;
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.RecordedSessions;
 
 namespace Sufni.App.Views.Controls;
@@ -102,7 +103,7 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
             .ThenBy(static contribution => contribution.ContributionId, StringComparer.Ordinal);
     }
 
-    private static Control CreateContributionControl(object viewModel)
+    private static Control CreateContributionControl(IExtensionViewModel viewModel)
     {
         return viewModel as Control ?? new ContentControl { Content = viewModel };
     }

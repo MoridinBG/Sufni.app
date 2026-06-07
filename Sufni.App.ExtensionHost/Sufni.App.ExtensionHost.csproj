@@ -8,7 +8,6 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <PackageReference Include="ScottPlot" />
     <PackageReference Include="sqlite-net-e" />
   </ItemGroup>
 

@@ -60,7 +60,10 @@ public class MobileStatisticsPageViewTests
             "extension",
             "statistics-banner",
             Order: 0,
-            new TextBlock { Name = "MobileSpringStatisticsBanner", Text = "Statistics banner" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "MobileSpringStatisticsBanner", Text = "Statistics banner" },
+            }));
         var page = new SpringPageViewModel(workspace);
 
         await using var mounted = await MountAsync(new SpringPageView { DataContext = page });
@@ -233,7 +236,10 @@ public class MobileStatisticsPageViewTests
             "extension",
             "statistics-banner",
             Order: 0,
-            new TextBlock { Name = "MobileStrokesStatisticsBanner", Text = "Statistics banner" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "MobileStrokesStatisticsBanner", Text = "Statistics banner" },
+            }));
         var page = new StrokesPageViewModel(workspace);
 
         await using var mounted = await MountAsync(new StrokesPageView { DataContext = page });

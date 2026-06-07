@@ -538,7 +538,7 @@ public class SessionListViewModelTests
                     "extension",
                     $"{ContributionIdPrefix(summary)}-indicator",
                     Order: 0,
-                    new object()),
+                    new TestContributionViewModel()),
             ];
         }
 
@@ -550,7 +550,7 @@ public class SessionListViewModelTests
                     "extension",
                     $"{ContributionIdPrefix(summary)}-action",
                     Order: 0,
-                    new object()),
+                    new TestContributionViewModel()),
             ];
         }
 

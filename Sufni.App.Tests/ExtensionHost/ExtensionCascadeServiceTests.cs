@@ -101,7 +101,7 @@ public class ExtensionCascadeServiceTests
             [
                 new ExtensionDatabaseMigrationStep(1, async (context, _) =>
                 {
-                    await context.Connection.InsertAsync(new SoftCascadeRow
+                    await context.Database.InsertAsync(new SoftCascadeRow
                     {
                         Id = "orphan",
                         SessionId = missingSessionId,
@@ -162,10 +162,49 @@ public class ExtensionCascadeServiceTests
         {
             var database = new SqLiteDatabaseService(databasePath, [migrator]);
             _ = await database.GetInitializedConnectionAsync();
-            var service = new ExtensionCascadeService(database, [migrator], [provider], []);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, Guid.NewGuid()));
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                new ExtensionCascadeService(database, [migrator], [provider], []));
+
+            Assert.Contains("not_owned", exception.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Constructor_RejectsRulesForTablesOwnedByAnotherExtension()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "wrong-owner-cascade.db");
+        var migrator = new TestExtensionMigrator(
+            "owner",
+            targetVersion: 0,
+            [typeof(SoftCascadeRow)],
+            []);
+        var provider = CreateProvider(new ExtensionCascadeRule(
+            "other",
+            ExtensionCoreEntityKind.Session,
+            "soft_cascade_row",
+            "session_id",
+            ExtensionCascadeAction.SoftDelete));
+
+        try
+        {
+            var database = new SqLiteDatabaseService(databasePath, [migrator]);
+            _ = await database.GetInitializedConnectionAsync();
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                new ExtensionCascadeService(database, [migrator], [provider], []));
+
+            Assert.Contains("other", exception.Message);
+            Assert.Contains("owner", exception.Message);
         }
         finally
         {
@@ -242,4 +281,3 @@ public class ExtensionCascadeServiceTests
         }
     }
 }
-

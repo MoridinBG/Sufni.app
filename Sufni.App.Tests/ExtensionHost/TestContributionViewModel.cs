@@ -1,0 +1,17 @@
+using Avalonia.Controls;
+using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.RecordedSessions;
+
+namespace Sufni.App.Tests.ExtensionHost;
+
+internal sealed class TestContributionViewModel :
+    ContentControl,
+    IAppToolbarContributionViewModel,
+    IRecordedSessionToolbarContributionViewModel,
+    IRecordedSessionPageContributionViewModel,
+    IRecordedSessionMediaPaneContributionViewModel,
+    IRecordedSessionStatisticsBannerContributionViewModel,
+    IRecordedSessionStatisticsOverlayContributionViewModel,
+    IRecordedSessionListIndicatorContributionViewModel,
+    IRecordedSessionListActionContributionViewModel,
+    IRecordedSessionHostedGraphRowContributionViewModel;

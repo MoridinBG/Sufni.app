@@ -310,8 +310,8 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     {
         span.X1 = range.StartSeconds;
         span.X2 = range.EndSeconds;
-        span.FillColor = style.FillColor;
-        span.LineStyle.Color = style.OutlineColor;
+        span.FillColor = style.FillColor.ToScottPlotColor();
+        span.LineStyle.Color = style.OutlineColor.ToScottPlotColor();
         span.LineStyle.Width = style.OutlineWidth;
         span.EnableAutoscale = false;
         span.IsVisible = isVisible;

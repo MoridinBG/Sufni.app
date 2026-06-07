@@ -275,6 +275,90 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
+    public void Constructor_RejectsDuplicateExtensionMigratorIds()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "duplicate-extension-id.db");
+
+        try
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                new SqLiteDatabaseService(
+                    databasePath,
+                    [
+                        new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], []),
+                        new TestExtensionMigrator("test", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
+                    ]));
+
+            Assert.Contains("test", exception.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Constructor_RejectsDuplicateExtensionTableOwnership()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "duplicate-extension-table.db");
+
+        try
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                new SqLiteDatabaseService(
+                    databasePath,
+                    [
+                        new TestExtensionMigrator("first", targetVersion: 0, [typeof(TestExtensionRow)], []),
+                        new TestExtensionMigrator("second", targetVersion: 0, [typeof(DuplicateNamedExtensionRow)], []),
+                    ]));
+
+            Assert.Contains("test_extension_row", exception.Message);
+            Assert.Contains("first", exception.Message);
+            Assert.Contains("second", exception.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Constructor_RejectsExtensionTablesThatUseReservedCoreTableNames()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "reserved-extension-table.db");
+
+        try
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                new SqLiteDatabaseService(
+                    databasePath,
+                    [new TestExtensionMigrator("test", targetVersion: 0, [typeof(CoreNamedExtensionRow)], [])]));
+
+            Assert.Contains("session", exception.Message);
+            Assert.Contains("reserved", exception.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Initialization_RunsExtensionMigrationStepsOnceAndAdvancesVersion()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
@@ -289,7 +373,7 @@ public class SQLiteDatabaseServiceTests
                 new ExtensionDatabaseMigrationStep(1, async (context, _) =>
                 {
                     appliedSteps.Add(1);
-                    await context.Connection.InsertAsync(new TestExtensionRow
+                    await context.Database.InsertAsync(new TestExtensionRow
                     {
                         Id = "step-1",
                         Value = 1,
@@ -298,7 +382,7 @@ public class SQLiteDatabaseServiceTests
                 new ExtensionDatabaseMigrationStep(2, async (context, _) =>
                 {
                     appliedSteps.Add(2);
-                    await context.Connection.InsertAsync(new TestExtensionRow
+                    await context.Database.InsertAsync(new TestExtensionRow
                     {
                         Id = "step-2",
                         Value = 2,
@@ -333,7 +417,7 @@ public class SQLiteDatabaseServiceTests
     }
 
     [Fact]
-    public async Task GetInitializedConnectionAsync_WaitsForExtensionMigrations()
+    public async Task OpenSessionAsync_WaitsForExtensionMigrations()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
@@ -345,7 +429,7 @@ public class SQLiteDatabaseServiceTests
             [
                 new ExtensionDatabaseMigrationStep(1, async (context, _) =>
                 {
-                    await context.Connection.InsertAsync(new TestExtensionRow
+                    await context.Database.InsertAsync(new TestExtensionRow
                     {
                         Id = "ready",
                         Value = 1,
@@ -357,11 +441,43 @@ public class SQLiteDatabaseServiceTests
         {
             IExtensionDatabaseConnection database = new SqLiteDatabaseService(databasePath, [migrator]);
 
-            var rawConnection = await database.GetInitializedConnectionAsync();
-            var rows = await rawConnection.Table<TestExtensionRow>().ToListAsync();
+            var session = await database.OpenSessionAsync();
+            var rows = await session.Table<TestExtensionRow>().ToListAsync();
 
             Assert.Single(rows);
             Assert.Equal("ready", rows[0].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task OpenSessionAsync_RejectsUndeclaredAndCoreTableTypes()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-db-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var databasePath = Path.Combine(tempDirectory, "extension-owned-session.db");
+
+        try
+        {
+            IExtensionDatabaseConnection database = new SqLiteDatabaseService(
+                databasePath,
+                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]);
+            var session = await database.OpenSessionAsync();
+
+            _ = session.Table<TestExtensionRow>();
+            var undeclaredException = Assert.Throws<InvalidOperationException>(
+                () => session.Table<SecondTestExtensionRow>());
+            var coreException = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => session.InsertAsync(new CoreNamedExtensionRow { Id = "core" }));
+
+            Assert.Contains(typeof(SecondTestExtensionRow).FullName!, undeclaredException.Message);
+            Assert.Contains(typeof(CoreNamedExtensionRow).FullName!, coreException.Message);
         }
         finally
         {
@@ -2047,6 +2163,30 @@ public class SQLiteDatabaseServiceTests
 
         [Column("value")]
         public int Value { get; set; }
+    }
+
+    [Table("second_test_extension_row")]
+    private sealed class SecondTestExtensionRow
+    {
+        [PrimaryKey]
+        [Column("id")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [Table("test_extension_row")]
+    private sealed class DuplicateNamedExtensionRow
+    {
+        [PrimaryKey]
+        [Column("id")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [Table("session")]
+    private sealed class CoreNamedExtensionRow
+    {
+        [PrimaryKey]
+        [Column("id")]
+        public string Id { get; set; } = string.Empty;
     }
 
     private sealed class TestExtensionMigrator(

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ScottPlot;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
@@ -10,6 +9,7 @@ namespace Sufni.App.Plots;
 public static class RecordedTimeRangeOverlayFactory
 {
     public const double AirtimeLabelFontSize = 13;
+    private static readonly RecordedTimeRangeOverlayColor Transparent = new(0, 0, 0, 0);
 
     public static RecordedTimeRangeOverlaySetRegistration CreateAirtimeRegistration(
         IEnumerable<Airtime> airtimes,
@@ -48,8 +48,8 @@ public static class RecordedTimeRangeOverlayFactory
             new RecordedTimeRangeOverlaySet(
                 ranges,
                 new RecordedTimeRangeOverlayStyle(
-                    plotTheme.Marker.AirtimeFill.ToScottPlotColor(),
-                    plotTheme.Marker.AirtimeOutline.ToScottPlotColor(),
+                    plotTheme.Marker.AirtimeFill.ToRecordedTimeRangeOverlayColor(),
+                    plotTheme.Marker.AirtimeOutline.ToRecordedTimeRangeOverlayColor(),
                     1.0f),
                 labelOptions),
             isVisible);
@@ -64,8 +64,8 @@ public static class RecordedTimeRangeOverlayFactory
             new RecordedTimeRangeOverlaySet(
                 [new RecordedTimeRangeOverlay(range.StartSeconds, range.EndSeconds)],
                 new RecordedTimeRangeOverlayStyle(
-                    plotTheme.AnalysisRange.SelectedFill.ToScottPlotColor(),
-                    Colors.Transparent,
+                    plotTheme.AnalysisRange.SelectedFill.ToRecordedTimeRangeOverlayColor(),
+                    Transparent,
                     0)),
             IsVisible: true);
     }
@@ -85,8 +85,8 @@ public static class RecordedTimeRangeOverlayFactory
                         Style: CreateStatisticsSelectionStyle(range.SuspensionType, plotTheme)))
                     .ToArray(),
                 new RecordedTimeRangeOverlayStyle(
-                    plotTheme.Marker.DampingSelectionFill.ToScottPlotColor(),
-                    plotTheme.Marker.DampingSelectionOutline.ToScottPlotColor(),
+                    plotTheme.Marker.DampingSelectionFill.ToRecordedTimeRangeOverlayColor(),
+                    plotTheme.Marker.DampingSelectionOutline.ToRecordedTimeRangeOverlayColor(),
                     1.0f)),
             isVisible);
     }
@@ -98,12 +98,12 @@ public static class RecordedTimeRangeOverlayFactory
         return suspensionType switch
         {
             SuspensionType.Front => new RecordedTimeRangeOverlayStyle(
-                plotTheme.Marker.StatisticsSelectionFrontFill.ToScottPlotColor(),
-                plotTheme.Marker.StatisticsSelectionFrontOutline.ToScottPlotColor(),
+                plotTheme.Marker.StatisticsSelectionFrontFill.ToRecordedTimeRangeOverlayColor(),
+                plotTheme.Marker.StatisticsSelectionFrontOutline.ToRecordedTimeRangeOverlayColor(),
                 1.0f),
             SuspensionType.Rear => new RecordedTimeRangeOverlayStyle(
-                plotTheme.Marker.StatisticsSelectionRearFill.ToScottPlotColor(),
-                plotTheme.Marker.StatisticsSelectionRearOutline.ToScottPlotColor(),
+                plotTheme.Marker.StatisticsSelectionRearFill.ToRecordedTimeRangeOverlayColor(),
+                plotTheme.Marker.StatisticsSelectionRearOutline.ToRecordedTimeRangeOverlayColor(),
                 1.0f),
             _ => null,
         };
@@ -121,8 +121,8 @@ public static class RecordedTimeRangeOverlayFactory
             new RecordedTimeRangeOverlaySet(
                 [new RecordedTimeRangeOverlay(start, end)],
                 new RecordedTimeRangeOverlayStyle(
-                    plotTheme.AnalysisRange.PreviewFill.ToScottPlotColor(),
-                    Colors.Transparent,
+                    plotTheme.AnalysisRange.PreviewFill.ToRecordedTimeRangeOverlayColor(),
+                    Transparent,
                     0)),
             IsVisible: true);
     }

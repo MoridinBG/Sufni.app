@@ -10,10 +10,12 @@ namespace Sufni.App.ExtensionHost.Sync;
 internal sealed class ExtensionSyncService : IExtensionSyncService
 {
     private readonly IReadOnlyList<IExtensionSyncParticipant> participants;
+    private readonly IReadOnlyDictionary<string, IExtensionSyncParticipant> participantsById;
 
     public ExtensionSyncService(IEnumerable<IExtensionSyncParticipant> participants)
     {
         this.participants = participants.ToArray();
+        participantsById = CreateParticipantMap(this.participants);
     }
 
     public async Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(
@@ -41,9 +43,6 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
         int totalSteps,
         CancellationToken cancellationToken = default)
     {
-        var participantsById = participants.ToDictionary(
-            participant => participant.ExtensionId,
-            StringComparer.Ordinal);
         var progress = new List<SynchronizationProgressSnapshot>();
 
         foreach (var envelope in envelopes)
@@ -83,5 +82,26 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
                 totalSteps,
                 IsDeterminate: totalSteps > 0));
         }
+    }
+
+    private static IReadOnlyDictionary<string, IExtensionSyncParticipant> CreateParticipantMap(
+        IReadOnlyList<IExtensionSyncParticipant> participants)
+    {
+        var participantMap = new Dictionary<string, IExtensionSyncParticipant>(StringComparer.Ordinal);
+        foreach (var participant in participants)
+        {
+            if (string.IsNullOrWhiteSpace(participant.ExtensionId))
+            {
+                throw new InvalidOperationException("Extension sync participant extension id is required.");
+            }
+
+            if (!participantMap.TryAdd(participant.ExtensionId, participant))
+            {
+                throw new InvalidOperationException(
+                    $"More than one extension sync participant is registered for extension '{participant.ExtensionId}'.");
+            }
+        }
+
+        return participantMap;
     }
 }

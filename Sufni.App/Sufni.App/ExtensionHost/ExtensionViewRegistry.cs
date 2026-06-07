@@ -27,6 +27,12 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
         ArgumentNullException.ThrowIfNull(viewModelType);
         ArgumentNullException.ThrowIfNull(sharedFactory);
 
+        if (factoriesByViewModelType.ContainsKey(viewModelType))
+        {
+            throw new InvalidOperationException(
+                $"An extension view is already registered for view-model type '{viewModelType.FullName}'.");
+        }
+
         factoriesByViewModelType[viewModelType] = new ExtensionViewFactories(sharedFactory, desktopFactory);
     }
 

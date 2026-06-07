@@ -175,7 +175,7 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
 - [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
 - [Host Services](architecture/extensions.md#host-services) — neutral DI services available to extensions
-- [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, raw initialized connection
+- [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
 - [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
 - [App Toolbar Actions](architecture/extensions.md#app-toolbar-actions) — app-level action contribution slot

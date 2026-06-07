@@ -45,6 +45,31 @@ public class RecordedSessionListExtensionServiceTests
         Assert.Equal(1, raisedCount);
     }
 
+    [Fact]
+    public void Constructor_RejectsDuplicateProviderExtensionIds()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new RecordedSessionListExtensionService(
+            [
+                new TestContributionProvider("duplicate", indicatorOrder: 10, actionOrder: 20),
+                new TestContributionProvider("duplicate", indicatorOrder: 30, actionOrder: 40),
+            ]));
+
+        Assert.Contains("duplicate", exception.Message);
+    }
+
+    [Fact]
+    public void CreateContributions_RejectsDuplicateContributionIdsAcrossIndicatorsAndActions()
+    {
+        var service = new RecordedSessionListExtensionService([new DuplicateContributionProvider()]);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            service.CreateIndicators(CreateSummary()));
+
+        Assert.Contains("duplicate", exception.Message);
+        Assert.Contains("extension", exception.Message);
+    }
+
     private static RecordedSessionSummary CreateSummary(string name = "session") => new(
         Guid.NewGuid(),
         Updated: 1,
@@ -59,15 +84,17 @@ public class RecordedSessionListExtensionServiceTests
         int indicatorOrder,
         int actionOrder) : IRecordedSessionListContributionProvider
     {
+        public string ExtensionId => id;
+
         public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
         {
             return
             [
                 new RecordedSessionListIndicatorContribution(
-                    "extension",
+                    ExtensionId,
                     $"{id}-{summary.Name}-indicator",
                     indicatorOrder,
-                    new object()),
+                    new TestContributionViewModel()),
             ];
         }
 
@@ -76,10 +103,10 @@ public class RecordedSessionListExtensionServiceTests
             return
             [
                 new RecordedSessionListActionContribution(
-                    "extension",
+                    ExtensionId,
                     $"{id}-{summary.Name}-action",
                     actionOrder,
-                    new object()),
+                    new TestContributionViewModel()),
             ];
         }
     }
@@ -90,6 +117,8 @@ public class RecordedSessionListExtensionServiceTests
     {
         public event EventHandler? ContributionsChanged;
 
+        public string ExtensionId => "invalidating";
+
         public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary) => [];
 
         public IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary) => [];
@@ -97,6 +126,35 @@ public class RecordedSessionListExtensionServiceTests
         public void RaiseContributionsChanged()
         {
             ContributionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private sealed class DuplicateContributionProvider : IRecordedSessionListContributionProvider
+    {
+        public string ExtensionId => "extension";
+
+        public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
+        {
+            return
+            [
+                new RecordedSessionListIndicatorContribution(
+                    ExtensionId,
+                    "duplicate",
+                    Order: 10,
+                    new TestContributionViewModel()),
+            ];
+        }
+
+        public IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary)
+        {
+            return
+            [
+                new RecordedSessionListActionContribution(
+                    ExtensionId,
+                    "duplicate",
+                    Order: 20,
+                    new TestContributionViewModel()),
+            ];
         }
     }
 }

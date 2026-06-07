@@ -10,10 +10,12 @@ namespace Sufni.App.ExtensionHost.Database;
 internal sealed class ExtensionDatabaseMigratorRunner
 {
     private readonly IReadOnlyList<IExtensionDatabaseMigrator> migrators;
+    private readonly ExtensionDatabaseTableCatalog tableCatalog;
 
     public ExtensionDatabaseMigratorRunner(IEnumerable<IExtensionDatabaseMigrator> migrators)
     {
         this.migrators = migrators.ToArray();
+        tableCatalog = ExtensionDatabaseTableCatalog.Create(this.migrators);
     }
 
     public async Task RunAsync(SQLiteAsyncConnection connection, CancellationToken cancellationToken = default)
@@ -27,10 +29,7 @@ internal sealed class ExtensionDatabaseMigratorRunner
 
     private async Task CreateExtensionTablesAsync(SQLiteAsyncConnection connection)
     {
-        var tableTypes = migrators
-            .SelectMany(migrator => migrator.TableTypes)
-            .Distinct()
-            .ToArray();
+        var tableTypes = tableCatalog.TableTypes;
 
         if (tableTypes.Length == 0)
         {
@@ -46,7 +45,9 @@ internal sealed class ExtensionDatabaseMigratorRunner
         {
             var version = await connection.FindAsync<ExtensionSchemaVersion>(migrator.ExtensionId);
             var currentVersion = version?.Version ?? 0;
-            var context = new ExtensionDatabaseMigrationContext(migrator.ExtensionId, connection);
+            var context = new ExtensionDatabaseMigrationContext(
+                migrator.ExtensionId,
+                new ExtensionDatabaseSession(connection, tableCatalog));
             var pendingSteps = migrator.Steps
                 .Where(step => step.TargetVersion > currentVersion && step.TargetVersion <= migrator.TargetVersion)
                 .OrderBy(step => step.TargetVersion)

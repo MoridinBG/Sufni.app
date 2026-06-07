@@ -721,7 +721,7 @@ public class SessionDetailViewModelTests
             "test",
             "media-pane",
             Order: 0,
-            new object()));
+            new TestContributionViewModel()));
 
         Assert.True(editor.HasMediaContent);
         Assert.Contains(nameof(SessionDetailViewModel.HasMediaContent), observedProperties);
@@ -743,7 +743,7 @@ public class SessionDetailViewModelTests
                 "test",
                 "media-pane",
                 Order: 0,
-                new object())));
+                new TestContributionViewModel())));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         SetDesktop(true);
@@ -2541,7 +2541,8 @@ public class SessionDetailViewModelTests
         }
     }
 
-    private sealed class TestPageViewModel(string displayName) : PageViewModelBase(displayName)
+    private sealed class TestPageViewModel(string displayName)
+        : PageViewModelBase(displayName), IRecordedSessionPageContributionViewModel
     {
     }
 

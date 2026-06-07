@@ -3,16 +3,10 @@ using Sufni.App.Plots;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;
-using Sufni.Telemetry;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 
-public interface IRecordedSessionContribution
-{
-    string ExtensionId { get; }
-    string ContributionId { get; }
-    int Order { get; }
-}
+public interface IRecordedSessionContribution : IExtensionContribution;
 
 public enum RecordedSessionToolbarZone
 {
@@ -25,21 +19,21 @@ public sealed record RecordedSessionToolbarContribution(
     string ContributionId,
     int Order,
     RecordedSessionToolbarZone Zone,
-    object ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionToolbarContributionViewModel ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionPageContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
     string DisplayName,
-    object ViewModel,
+    IRecordedSessionPageContributionViewModel ViewModel,
     int RequestedIndex) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionMediaPaneContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    object ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionMediaPaneContributionViewModel ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionMapOverlayContribution(
     string ExtensionId,
@@ -84,14 +78,14 @@ public sealed record RecordedSessionStatisticsBannerContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    object ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionStatisticsBannerContributionViewModel ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionStatisticsOverlayContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
     RecordedSessionStatisticsPlotTarget TargetPlot,
-    object? ViewModel,
+    IRecordedSessionStatisticsOverlayContributionViewModel? ViewModel,
     RecordedSessionStatisticsPlotOverlayDescriptor? Overlay) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionStatisticsPlotOverlayDescriptor(
@@ -192,13 +186,13 @@ public sealed record RecordedSessionListIndicatorContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    object ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionListIndicatorContributionViewModel ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionListActionContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    object ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionListActionContributionViewModel ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionPlotContextMenuContribution(
     string ExtensionId,
@@ -222,7 +216,7 @@ public sealed record RecordedSessionHostedGraphRowContribution(
     RecordedSessionGraphRowTarget RowTarget,
     string Title,
     SurfacePresentationState PresentationState,
-    object ViewModel,
+    IRecordedSessionHostedGraphRowContributionViewModel ViewModel,
     bool IsInitiallyExpanded) : IRecordedSessionContribution
 {
     public object? TitleToolTip { get; init; }

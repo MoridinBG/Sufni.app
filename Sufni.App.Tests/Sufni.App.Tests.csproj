@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Sufni.App.Tests.ExtensionHost" />
   </ItemGroup>
 
 </Project>

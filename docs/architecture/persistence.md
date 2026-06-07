@@ -176,10 +176,11 @@ Session-specific operations split metadata, processed data, and recording source
 ## Extension Schema
 
 `SqLiteDatabaseService` is also the concrete singleton behind
-`IExtensionDatabaseConnection`. `GetInitializedConnectionAsync()`
-awaits normal startup initialization before returning the raw
-`SQLiteAsyncConnection`, so extension services can run explicit SQL
-against their own tables without bypassing schema setup.
+`IExtensionDatabaseConnection`. `OpenSessionAsync()` awaits normal startup
+initialization before returning an `IExtensionDatabaseSession` scoped to
+declared extension table types. Extension services can query and mutate their
+owned rows through the session operations, while undeclared table types and
+core table names are rejected before reaching sqlite-net.
 
 Extension migrations are declared by `IExtensionDatabaseMigrator`.
 Each migrator declares:
@@ -201,6 +202,9 @@ tables/compatibility columns are created and before cleanup completes:
 
 The public schema tracks only extension ids and versions. Extension
 table columns and payload fields remain owned by the declaring module.
+Migrator validation rejects blank or duplicate extension ids, invalid target
+versions, duplicate migration step versions, reserved core table names, and
+duplicate extension table ownership during database service construction.
 
 ## Soft Delete
 

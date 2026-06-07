@@ -15,6 +15,11 @@ internal sealed class AppExtensionCollection
     {
         ArgumentNullException.ThrowIfNull(module);
 
+        if (string.IsNullOrWhiteSpace(module.Id))
+        {
+            throw new InvalidOperationException("Extension module id is required.");
+        }
+
         if (!moduleIds.Add(module.Id))
         {
             throw new InvalidOperationException($"An extension module with id '{module.Id}' is already registered.");

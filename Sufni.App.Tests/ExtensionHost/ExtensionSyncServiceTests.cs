@@ -81,6 +81,28 @@ public class ExtensionSyncServiceTests
         Assert.Equal("extension failed", exception.Message);
     }
 
+    [Fact]
+    public void Constructor_RejectsDuplicateParticipantExtensionIds()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new ExtensionSyncService(
+                [
+                    new TestSyncParticipant("duplicate"),
+                    new TestSyncParticipant("duplicate"),
+                ]));
+
+        Assert.Contains("duplicate", exception.Message);
+    }
+
+    [Fact]
+    public void Constructor_RejectsBlankParticipantExtensionIds()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new ExtensionSyncService([new TestSyncParticipant(" ")]));
+
+        Assert.Contains("extension id is required", exception.Message);
+    }
+
     private static ExtensionSyncEnvelope CreateEnvelope(string extensionId) => new(
         extensionId,
         SchemaVersion: 1,
@@ -108,4 +130,3 @@ public class ExtensionSyncServiceTests
         }
     }
 }
-

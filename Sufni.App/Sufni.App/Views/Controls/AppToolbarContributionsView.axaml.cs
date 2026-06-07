@@ -87,7 +87,7 @@ public partial class AppToolbarContributionsView : UserControl
         }
     }
 
-    private static Control CreateContributionControl(object viewModel)
+    private static Control CreateContributionControl(IExtensionViewModel viewModel)
     {
         return viewModel as Control ?? new ContentControl { Content = viewModel };
     }

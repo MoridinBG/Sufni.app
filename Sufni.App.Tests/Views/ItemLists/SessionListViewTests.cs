@@ -319,7 +319,10 @@ public class SessionListViewTests
                     "extension",
                     "indicator",
                     Order: 0,
-                    new TextBlock { Name = "SessionListIndicator", Text = "Indicator" }),
+                    new TestContributionViewModel
+                    {
+                        Content = new TextBlock { Name = "SessionListIndicator", Text = "Indicator" },
+                    }),
             ];
         }
 
@@ -331,7 +334,10 @@ public class SessionListViewTests
                     "extension",
                     "action",
                     Order: 0,
-                    new TextBlock { Name = "SessionListAction", Text = "Action" }),
+                    new TestContributionViewModel
+                    {
+                        Content = new TextBlock { Name = "SessionListAction", Text = "Action" },
+                    }),
             ];
         }
     }

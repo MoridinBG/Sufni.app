@@ -104,11 +104,7 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
-        ExtensionToolbarActions = appToolbarContributionProviders?
-            .SelectMany(provider => provider.CreateContributions())
-            .OrderBy(contribution => contribution.Order)
-            .ToArray()
-            ?? [];
+        ExtensionToolbarActions = BuildExtensionToolbarActions(appToolbarContributionProviders);
         primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
         activePrimaryPage = GetSelectedPrimaryPage();
 
@@ -137,6 +133,37 @@ public partial class MainPagesViewModel : ViewModelBase
         SyncThemeState();
 
         _ = LoadDatabaseContent();
+    }
+
+    private static IReadOnlyList<AppToolbarContribution> BuildExtensionToolbarActions(
+        IEnumerable<IAppToolbarContributionProvider>? providers)
+    {
+        if (providers is null)
+        {
+            return [];
+        }
+
+        var contributions = new List<AppToolbarContribution>();
+        var contributionIds = new ExtensionContributionValidator.ContributionIdTracker("app toolbar contributions");
+        foreach (var provider in providers)
+        {
+            ArgumentNullException.ThrowIfNull(provider);
+            ExtensionContributionValidator.ValidateRequiredId(
+                provider.ExtensionId,
+                "App toolbar contribution provider");
+            foreach (var contribution in provider.CreateContributions())
+            {
+                ExtensionContributionValidator.ValidateAppToolbarContribution(
+                    contribution,
+                    provider.ExtensionId,
+                    contributionIds);
+                contributions.Add(contribution);
+            }
+        }
+
+        return contributions
+            .OrderBy(contribution => contribution.Order)
+            .ToArray();
     }
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)

@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
@@ -30,7 +31,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly Action<string> requestPageSelection;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
     private readonly RecordedSessionExtensionSlotPublisher extensionSlotPublisher;
-    private readonly List<IRecordedSessionExtensionScope> scopes = [];
+    private readonly List<RecordedSessionExtensionScopeRegistration> scopes = [];
     private readonly List<IDisposable> slotSubscriptions = [];
     private bool disposed;
     private bool extensionSlotsRebuildQueued;
@@ -65,6 +66,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
         this.sessionId = sessionId;
         this.factories = factories.ToArray();
+        ExtensionContributionValidator.ValidateRecordedSessionExtensionFactories(this.factories);
         this.database = database;
         this.dataReader = dataReader;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -108,7 +110,8 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             var context = CreateContext();
             var scope = factory.Create(context);
-            scopes.Add(scope);
+            ArgumentNullException.ThrowIfNull(scope);
+            scopes.Add(new RecordedSessionExtensionScopeRegistration(factory.ExtensionId, scope));
             AttachScopeSlots(scope.Slots);
             await scope.InitializeAsync(cancellationToken);
             scope.UpdateHostState(CurrentState);
@@ -125,7 +128,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
         foreach (var scope in scopes)
         {
-            scope.UpdateHostState(state);
+            scope.Scope.UpdateHostState(state);
         }
     }
 
@@ -147,7 +150,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         ClearExtensionSlots();
         for (var i = scopes.Count - 1; i >= 0; i--)
         {
-            await scopes[i].DisposeAsync();
+            await scopes[i].Scope.DisposeAsync();
         }
 
         scopes.Clear();
@@ -223,7 +226,10 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         {
             foreach (var scope in scopes)
             {
-                builder.AddFrom(scope.Slots);
+                ExtensionContributionValidator.ValidateRecordedSessionSlots(
+                    scope.Scope.Slots,
+                    scope.ExtensionId);
+                builder.AddFrom(scope.Scope.Slots);
             }
         });
     }
@@ -237,4 +243,8 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
     }
+
+    private sealed record RecordedSessionExtensionScopeRegistration(
+        string ExtensionId,
+        IRecordedSessionExtensionScope Scope);
 }

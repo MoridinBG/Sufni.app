@@ -90,12 +90,39 @@ public class MainPagesViewModelTests
             "extension",
             "action",
             Order: 0,
-            new object());
+            new TestContributionViewModel());
 
         var viewModel = MainPagesViewModelTestFactory.Create(
             appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)]);
 
         Assert.Equal([contribution], viewModel.ExtensionToolbarActions);
+    }
+
+    [Fact]
+    public void Constructor_RejectsExtensionToolbarContributionFromDifferentOwner()
+    {
+        var provider = new MismatchedToolbarContributionProvider();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            MainPagesViewModelTestFactory.Create(appToolbarContributionProviders: [provider]));
+
+        Assert.Contains("other:action", exception.Message);
+        Assert.Contains("owner", exception.Message);
+    }
+
+    [Fact]
+    public void Constructor_RejectsDuplicateExtensionToolbarContributionIdsForSameExtension()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            MainPagesViewModelTestFactory.Create(
+                appToolbarContributionProviders:
+                [
+                    new DuplicateToolbarContributionProvider("first"),
+                    new DuplicateToolbarContributionProvider("second"),
+                ]));
+
+        Assert.Contains("duplicate", exception.Message);
+        Assert.Contains("extension", exception.Message);
     }
 
     [Fact]
@@ -207,10 +234,12 @@ public class MainPagesViewModelTests
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
             inboundActivityIdleGrace: TimeSpan.Zero);
 
-    private sealed class ToolbarDependency;
+    private sealed class ToolbarDependency : IAppToolbarContributionViewModel;
 
     private sealed class LaterToolbarContributionProvider(ToolbarDependency dependency) : IAppToolbarContributionProvider
     {
+        public string ExtensionId => "extension";
+
         public IReadOnlyList<AppToolbarContribution> CreateContributions()
         {
             return
@@ -222,13 +251,43 @@ public class MainPagesViewModelTests
 
     private sealed class EarlierToolbarContributionProvider : IAppToolbarContributionProvider
     {
+        public string ExtensionId => "extension";
+
         public IReadOnlyList<AppToolbarContribution> CreateContributions()
         {
             return
             [
-                new AppToolbarContribution("extension", "earlier", Order: 10, new object()),
+                new AppToolbarContribution("extension", "earlier", Order: 10, new TestContributionViewModel()),
             ];
         }
+    }
+
+    private sealed class MismatchedToolbarContributionProvider : IAppToolbarContributionProvider
+    {
+        public string ExtensionId => "owner";
+
+        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        {
+            return
+            [
+                new AppToolbarContribution("other", "action", Order: 10, new TestContributionViewModel()),
+            ];
+        }
+    }
+
+    private sealed class DuplicateToolbarContributionProvider(string surface) : IAppToolbarContributionProvider
+    {
+        public string ExtensionId => "extension";
+
+        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        {
+            return
+            [
+                new AppToolbarContribution(ExtensionId, "duplicate", Order: 10, new TestContributionViewModel()),
+            ];
+        }
+
+        public override string ToString() => surface;
     }
 
     private sealed class RecordingExtensionStateRefreshParticipant : IExtensionStateRefreshParticipant

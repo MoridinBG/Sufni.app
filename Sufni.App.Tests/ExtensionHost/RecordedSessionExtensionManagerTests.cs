@@ -3,6 +3,7 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
+using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
@@ -127,7 +128,7 @@ public class RecordedSessionExtensionManagerTests
             "toolbar",
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
-            new object());
+            new TestContributionViewModel());
         var metricContribution = new RecordedSessionStatisticsMetricContribution(
             "test",
             "metric",
@@ -150,6 +151,87 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
+    public void Constructor_RejectsDuplicateRecordedSessionFactoryExtensionIds()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            CreateManager(
+            [
+                new TestRecordedSessionExtensionFactory("duplicate"),
+                new TestRecordedSessionExtensionFactory("duplicate"),
+            ]));
+
+        Assert.Contains("duplicate", exception.Message);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_RejectContributionFromDifferentOwner()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            factory.Scope!.Slots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+                "other",
+                "toolbar",
+                Order: 1,
+                RecordedSessionToolbarZone.Trailing,
+                new TestContributionViewModel())));
+
+        Assert.Contains("other:toolbar", exception.Message);
+        Assert.Contains("owner", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_RejectDuplicateContributionIdsAcrossSlotFamilies()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        factory.Scope!.Slots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+            "owner",
+            "duplicate",
+            Order: 1,
+            RecordedSessionToolbarZone.Trailing,
+            new TestContributionViewModel()));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            factory.Scope.Slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+                "owner",
+                "duplicate",
+                Order: 2,
+                new TestContributionViewModel())));
+
+        Assert.Contains("duplicate", exception.Message);
+        Assert.Contains("owner", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.MediaPanes);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_RejectHostedGraphRowWithInvalidRowTarget()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            factory.Scope!.Slots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
+                "owner",
+                "hosted-row",
+                Order: 1,
+                RecordedSessionBuiltInGraphRow.Travel,
+                RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Velocity),
+                "Hosted",
+                SurfacePresentationState.Ready,
+                new TestContributionViewModel(),
+                IsInitiallyExpanded: true)));
+
+        Assert.Contains("hosted-row", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.HostedGraphRows);
+    }
+
+    [Fact]
     public async Task ScopeSlotChanges_AreCoalescedBeforeMirroringToHostSlots()
     {
         var dispatcher = new DeferredUiThreadDispatcher();
@@ -161,7 +243,7 @@ public class RecordedSessionExtensionManagerTests
             "first",
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
-            new object());
+            new TestContributionViewModel());
         var second = first with { ContributionId = "second", Order = 2 };
 
         factory.Scope!.Slots.GraphToolbarActions.Add(first);

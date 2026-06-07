@@ -5,6 +5,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.DesktopViews.Plots;
+using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 
@@ -345,7 +346,7 @@ public static class TelemetryPlotRowExtensionHost
             plotView.TimeRangeOverlays = null;
         }
 
-        private static Control CreateContributionControl(object viewModel)
+        private static Control CreateContributionControl(IExtensionViewModel viewModel)
         {
             return viewModel as Control ?? new ContentControl { Content = viewModel };
         }

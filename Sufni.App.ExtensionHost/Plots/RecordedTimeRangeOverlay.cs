@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ScottPlot;
 
 namespace Sufni.App.Plots;
 
@@ -11,9 +10,15 @@ public static class RecordedTimeRangeOverlayIds
     public const string StatisticsSelection = "statistics_selection";
 }
 
+public sealed record RecordedTimeRangeOverlayColor(
+    byte A,
+    byte R,
+    byte G,
+    byte B);
+
 public sealed record RecordedTimeRangeOverlayStyle(
-    Color FillColor,
-    Color OutlineColor,
+    RecordedTimeRangeOverlayColor FillColor,
+    RecordedTimeRangeOverlayColor OutlineColor,
     float OutlineWidth);
 
 public sealed record RecordedTimeRangeOverlayLabelOptions(

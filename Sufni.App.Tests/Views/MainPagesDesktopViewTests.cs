@@ -115,7 +115,10 @@ public class MainPagesDesktopViewTests
             "extension",
             "toolbar-action",
             Order: 0,
-            new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" });
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" },
+            });
         var view = new MainPagesDesktopView
         {
             DataContext = MainPagesViewModelTestFactory.Create(

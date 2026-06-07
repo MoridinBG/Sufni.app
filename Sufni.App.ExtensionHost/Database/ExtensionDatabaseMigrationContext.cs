@@ -1,16 +1,13 @@
-using SQLite;
-
 namespace Sufni.App.ExtensionHost.Database;
 
 public sealed class ExtensionDatabaseMigrationContext
 {
-    public ExtensionDatabaseMigrationContext(string extensionId, SQLiteAsyncConnection connection)
+    public ExtensionDatabaseMigrationContext(string extensionId, IExtensionDatabaseSession database)
     {
         ExtensionId = extensionId;
-        Connection = connection;
+        Database = database;
     }
 
     public string ExtensionId { get; }
-    public SQLiteAsyncConnection Connection { get; }
+    public IExtensionDatabaseSession Database { get; }
 }
-

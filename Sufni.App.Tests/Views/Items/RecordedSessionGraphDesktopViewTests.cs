@@ -37,13 +37,19 @@ public class RecordedSessionGraphDesktopViewTests
             "toolbar-leading",
             Order: 0,
             RecordedSessionToolbarZone.Leading,
-            new TextBlock { Name = "DesktopToolbarLeadingAction", Text = "Leading" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopToolbarLeadingAction", Text = "Leading" },
+            }));
         workspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
             "extension",
             "toolbar-trailing",
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
-            new TextBlock { Name = "DesktopToolbarTrailingAction", Text = "Trailing" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopToolbarTrailingAction", Text = "Trailing" },
+            }));
 
         await using var mounted = await MountAsync(workspace);
 
@@ -76,8 +82,8 @@ public class RecordedSessionGraphDesktopViewTests
             new RecordedTimeRangeOverlaySet(
                 [new RecordedTimeRangeOverlay(0.2, 0.4)],
                 new RecordedTimeRangeOverlayStyle(
-                    global::ScottPlot.Colors.CornflowerBlue,
-                    global::ScottPlot.Colors.Transparent,
+                    new RecordedTimeRangeOverlayColor(255, 100, 149, 237),
+                    new RecordedTimeRangeOverlayColor(0, 0, 0, 0),
                     0)),
             IsVisible: true);
 
@@ -270,7 +276,7 @@ public class RecordedSessionGraphDesktopViewTests
         }
     }
 
-    private sealed record HostedGraphRowContent(string Text);
+    private sealed record HostedGraphRowContent(string Text) : IRecordedSessionHostedGraphRowContributionViewModel;
 
     private sealed class TestCommand : ICommand
     {

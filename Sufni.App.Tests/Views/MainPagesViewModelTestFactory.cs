@@ -142,6 +142,8 @@ internal static class MainPagesViewModelTestFactory
 internal sealed class TestAppToolbarContributionProvider(params AppToolbarContribution[] contributions)
     : IAppToolbarContributionProvider
 {
+    public string ExtensionId => contributions.Length > 0 ? contributions[0].ExtensionId : "test";
+
     public IReadOnlyList<AppToolbarContribution> CreateContributions()
     {
         return contributions;

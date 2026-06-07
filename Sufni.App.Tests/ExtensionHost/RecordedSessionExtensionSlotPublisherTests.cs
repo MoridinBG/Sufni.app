@@ -12,7 +12,11 @@ public class RecordedSessionExtensionSlotPublisherTests
     {
         var slots = new RecordedSessionExtensionSlots();
         var publisher = new RecordedSessionExtensionSlotPublisher(slots, new TestUiThreadDispatcher(checkAccess: true));
-        var mediaPane = new RecordedSessionMediaPaneContribution("extension", "media", Order: 10, new object());
+        var mediaPane = new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media",
+            Order: 10,
+            new TestContributionViewModel());
         var contextMenu = new RecordedSessionPlotContextMenuContribution(
             "extension",
             "context",
@@ -46,7 +50,7 @@ public class RecordedSessionExtensionSlotPublisherTests
             "first",
             Order: 1,
             RecordedSessionToolbarZone.Leading,
-            new object());
+            new TestContributionViewModel());
         var second = first with { ContributionId = "second" };
 
         publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(first));
@@ -71,7 +75,7 @@ public class RecordedSessionExtensionSlotPublisherTests
             "queued",
             Order: 1,
             RecordedSessionToolbarZone.Leading,
-            new object());
+            new TestContributionViewModel());
         var current = queued with { ContributionId = "current" };
 
         publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(queued));
@@ -96,7 +100,7 @@ public class RecordedSessionExtensionSlotPublisherTests
             "queued",
             Order: 1,
             RecordedSessionToolbarZone.Leading,
-            new object());
+            new TestContributionViewModel());
 
         publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(queued));
         publisher.Clear();

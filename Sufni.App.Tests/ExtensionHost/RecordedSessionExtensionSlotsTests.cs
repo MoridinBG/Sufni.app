@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.Input;
-using ScottPlot;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Presentation;
@@ -45,7 +44,7 @@ public class RecordedSessionExtensionSlotsTests
             "toolbar",
             Order: 10,
             RecordedSessionToolbarZone.Leading,
-            new object()));
+            new TestContributionViewModel()));
         slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
             "extension",
             "context",
@@ -125,13 +124,13 @@ public class RecordedSessionExtensionSlotsTests
             "page",
             Order: 2,
             "Page",
-            new object(),
+            new TestContributionViewModel(),
             RequestedIndex: 0));
         slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "extension",
             "media",
             Order: 3,
-            new object()));
+            new TestContributionViewModel()));
         slots.MapOverlays.Add(new RecordedSessionMapOverlayContribution(
             "extension",
             "map",
@@ -142,7 +141,7 @@ public class RecordedSessionExtensionSlotsTests
             "extension",
             "banner",
             Order: 5,
-            new object()));
+            new TestContributionViewModel()));
         slots.StatisticsOverlays.Add(new RecordedSessionStatisticsOverlayContribution(
             "extension",
             "overlay",
@@ -162,12 +161,12 @@ public class RecordedSessionExtensionSlotsTests
             "extension",
             "indicator",
             Order: 8,
-            new object()));
+            new TestContributionViewModel()));
         slots.SessionListActions.Add(new RecordedSessionListActionContribution(
             "extension",
             "list-action",
             Order: 9,
-            new object()));
+            new TestContributionViewModel()));
         slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
             "extension",
             "context",
@@ -188,7 +187,7 @@ public class RecordedSessionExtensionSlotsTests
             RecordedSessionGraphRowTarget.Extension("extension", "hosted-row"),
             "Hosted row",
             SurfacePresentationState.Ready,
-            new object(),
+            new TestContributionViewModel(),
             IsInitiallyExpanded: false));
         slots.TimeRangeOverlays.Add(new RecordedSessionTimeRangeOverlayContribution(
             "extension",
@@ -199,7 +198,10 @@ public class RecordedSessionExtensionSlotsTests
                 "range",
                 new RecordedTimeRangeOverlaySet(
                     [],
-                    new RecordedTimeRangeOverlayStyle(Colors.Red, Colors.Blue, 1.0f)),
+                    new RecordedTimeRangeOverlayStyle(
+                        new RecordedTimeRangeOverlayColor(255, 255, 0, 0),
+                        new RecordedTimeRangeOverlayColor(255, 0, 0, 255),
+                        1.0f)),
                 IsVisible: true)));
     }
 
@@ -209,7 +211,7 @@ public class RecordedSessionExtensionSlotsTests
             contributionId,
             Order: 1,
             RecordedSessionToolbarZone.Leading,
-            new object());
+            new TestContributionViewModel());
 
     private sealed class InlineUiThreadDispatcher : Sufni.App.Services.IUiThreadDispatcher
     {

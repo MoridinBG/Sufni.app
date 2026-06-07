@@ -141,13 +141,19 @@ public class RecordedGraphPageViewTests
             "toolbar-leading",
             Order: 0,
             RecordedSessionToolbarZone.Leading,
-            new TextBlock { Name = "MobileToolbarLeadingAction", Text = "Leading" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "MobileToolbarLeadingAction", Text = "Leading" },
+            }));
         graphWorkspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
             "extension",
             "toolbar-trailing",
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
-            new TextBlock { Name = "MobileToolbarTrailingAction", Text = "Trailing" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "MobileToolbarTrailingAction", Text = "Trailing" },
+            }));
         var page = new RecordedGraphPageViewModel(graphWorkspace, CreateMediaWorkspace([]));
 
         await using var mounted = await MountAsync(page);
@@ -171,7 +177,10 @@ public class RecordedGraphPageViewTests
             "extension",
             "media-pane",
             Order: 0,
-            new TextBlock { Name = "MobileMediaPane", Text = "Media pane" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "MobileMediaPane", Text = "Media pane" },
+            }));
         var page = new RecordedGraphPageViewModel(graphWorkspace, mediaWorkspace);
 
         await using var mounted = await MountAsync(page);

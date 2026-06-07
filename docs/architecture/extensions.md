@@ -55,7 +55,7 @@ This keeps public `ViewLocator` dictionaries free of extension view-model types 
 
 ## Database Hooks
 
-`SqLiteDatabaseService` is registered as the concrete singleton behind both `IDatabaseService` and `IExtensionDatabaseConnection`. `GetInitializedConnectionAsync()` awaits normal initialization before returning the raw `SQLiteAsyncConnection`.
+`SqLiteDatabaseService` is registered as the concrete singleton behind both `IDatabaseService` and `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator.
 
 Extension schema state lives in `extension_schema_version`:
 
@@ -73,6 +73,9 @@ Each `IExtensionDatabaseMigrator` declares an `ExtensionId`, `TargetVersion`, ow
 7. Runs extension orphan repair.
 
 Extension-owned tables are not part of core models, stores, or snapshots.
+Migrator validation rejects blank or duplicate extension ids, invalid target
+versions, duplicate migration step versions, reserved core table names, and
+duplicate extension table ownership before creating tables or running steps.
 
 ## Cascade Rules
 
@@ -93,13 +96,13 @@ Extension sync is ordered after core entity/app-preference sync during apply, so
 
 ## App Toolbar Actions
 
-`AppToolbarContribution` is the app-level action slot. Modules register `IAppToolbarContributionProvider` implementations through DI during `RegisterServices(...)`; `MainPagesViewModel` resolves the providers, flattens their contributions, sorts them by `Order`, and exposes the result as `ExtensionToolbarActions`. The desktop nav rail and mobile side panel render those actions through `AppToolbarContributionsView`, after the built-in import/GPX actions and before the paired-device/theme area.
+`AppToolbarContribution` is the app-level action slot. Modules register `IAppToolbarContributionProvider` implementations through DI during `RegisterServices(...)`; each provider declares the owning `ExtensionId`. `MainPagesViewModel` resolves the providers, validates that every contribution id is present, every contribution extension id matches its provider, and no extension reuses a contribution id in the toolbar aggregation, then sorts by `Order` and exposes the result as `ExtensionToolbarActions`. The desktop nav rail and mobile side panel render those actions through `AppToolbarContributionsView`, after the built-in import/GPX actions and before the paired-device/theme area.
 
-The contribution carries an extension id, contribution id, order, and view model. The rendered host wraps non-control view models in `ContentControl`, allowing the extension view registry to resolve a matching view template. Providers are DI-created, so toolbar view models can depend on normal extension and host services.
+The contribution carries an extension id, contribution id, order, and an `IAppToolbarContributionViewModel`. The rendered host wraps non-control view models in `ContentControl`, allowing the extension view registry to resolve a matching view template. Providers are DI-created, so toolbar view models can depend on normal extension and host services.
 
 ## Recorded-Session Scope
 
-`SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close.
+`SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close. Factory extension ids are required and unique.
 
 `RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, and an `IRecordedSessionTimeline` cursor/range interface. `Statistics` carries current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database service, or concrete editor timeline view model.
 
@@ -123,6 +126,14 @@ Operation leases reject stale progress and cancel superseded work, so extension 
 Slot mirroring is coalesced and published through batched collection resets so
 one extension update does not fan out as repeated intermediate empty/add UI
 states.
+Before mirroring, the manager validates that each contribution's extension id
+matches the owning factory id and that hosted graph row targets are well formed.
+Hosted graph row contributions must identify themselves through
+`RecordedSessionGraphRowTarget.Extension(extensionId, contributionId)` using
+their own extension and contribution ids; plot-row actions and time-range
+overlays may target built-in rows or hosted rows published by the same
+extension. Contribution ids are unique globally per extension across every
+recorded-session slot family in the mirrored scope.
 Scopes that rebuild multiple slot families use
 `RecordedSessionExtensionSlotPublisher` with a
 `RecordedSessionExtensionSlotBuilder` to publish a complete neutral slot
@@ -145,9 +156,17 @@ The current public slot families are:
 - hosted graph rows
 - recorded time-range overlays
 
+View-model-backed slot families use marker interfaces instead of `object`:
+toolbar, page, media pane, statistics banner/overlay, session-list indicator,
+session-list action, and hosted graph row contributions each require the
+matching `IRecordedSession...ContributionViewModel` marker. Descriptor-only
+families such as map overlays, statistics metrics, plot context actions, row
+header actions, and time-range overlays carry neutral records or command
+descriptors instead.
+
 Recorded-session graph toolbar contributions carry a `RecordedSessionToolbarZone` value. The host renders `Leading` contributions at the start of the graph toolbar and `Trailing` contributions at the end, with both zones sorted by `Order`, then extension id, then contribution id. Toolbar controls own their own transient UI, such as flyouts. The host does not provide a generic page-root overlay slot for extension-owned transient controls.
 
-Session-list indicators and actions are created by registered `IRecordedSessionListContributionProvider` implementations. `RecordedSessionListExtensionService` aggregates every provider and sorts each contribution family by `Order`, so separate modules can contribute to the same recorded-session row without replacing each other. Public builds with no providers return empty contribution lists.
+Session-list indicators and actions are created by registered `IRecordedSessionListContributionProvider` implementations. Each provider declares its owning `ExtensionId`; duplicate providers for the same extension are rejected. `RecordedSessionListExtensionService` aggregates every provider, validates that contribution ids are present, validates that each contribution extension id matches its provider, rejects duplicate contribution ids globally per extension across indicators and actions for the row, and sorts each contribution family by `Order`, so separate modules can contribute to the same recorded-session row without replacing each other. Public builds with no providers return empty contribution lists.
 
 Providers whose contribution availability can change without a core recorded-session summary change also implement `IRecordedSessionListContributionChangeSource`. The aggregate list service exposes those invalidations as a neutral `ContributionsChanged` event. Session list rows respond by asking the list service to recreate their indicator and action descriptors from the latest summary, without the public app learning which extension-owned state changed.
 
@@ -158,6 +177,10 @@ Time-series graph targets are typed at the extension boundary. Built-in graph ro
 Statistics plot overlays are generic descriptors. A descriptor can contain lines, bands, and labels. Lines may use explicit plot coordinates or the host plot's full current horizontal span for statistic reference lines. Labels specify text, text/background color, font size, anchor, and either explicit plot coordinates or the host plot's current right edge for statistic value labels. Plot controls render those primitives without knowing why an extension contributed them.
 
 Statistics plot overlays target `RecordedSessionStatisticsPlotTarget` values, which combine a plot family with the relevant suspension side, balance type, or IMU location. Statistics metric annotations target `RecordedSessionStatisticsMetricTarget` enum values for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityStatisticsHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
+
+Recorded time-range overlays use neutral `RecordedTimeRangeOverlayColor` ARGB
+records and line/fill style descriptors in `Sufni.App.ExtensionHost`; the app
+plot layer converts those descriptors to ScottPlot primitives at render time.
 
 ## Neutrality Rules
 

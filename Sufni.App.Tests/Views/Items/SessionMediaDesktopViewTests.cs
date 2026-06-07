@@ -72,10 +72,10 @@ public class SessionMediaDesktopViewTests
     public async Task SessionMediaDesktopView_RendersMediaPaneContributions_WhenOnlyExtensionMediaIsPresent()
     {
         var workspace = CreateWorkspace([]);
-        var contribution = new Border
+        var contribution = new TestContributionViewModel
         {
             Name = "DesktopMediaPane",
-            Child = new TextBlock { Text = "Media pane" },
+            Content = new TextBlock { Text = "Media pane" },
         };
         workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "extension",
@@ -112,7 +112,10 @@ public class SessionMediaDesktopViewTests
             "extension",
             "media-pane",
             Order: 0,
-            new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" }));
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" },
+            }));
 
         await using var mounted = await MountAsync(workspace);
 

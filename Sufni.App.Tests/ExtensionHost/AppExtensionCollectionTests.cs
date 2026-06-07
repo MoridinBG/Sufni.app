@@ -19,6 +19,17 @@ public class AppExtensionCollectionTests
     }
 
     [Fact]
+    public void Add_RejectsBlankModuleIds()
+    {
+        var extensions = new AppExtensionCollection();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            extensions.Add(new TestExtensionModule(" ")));
+
+        Assert.Contains("id is required", exception.Message);
+    }
+
+    [Fact]
     public void RegisterServicesAndCapabilities_PreservesModuleOrder()
     {
         var calls = new List<string>();
@@ -90,6 +101,20 @@ public class AppExtensionCollectionTests
         Assert.IsType<SharedView>(sharedView);
         Assert.True(viewRegistry.TryBuild(viewModel, isDesktop: true, out var desktopView));
         Assert.IsType<DesktopView>(desktopView);
+    }
+
+    [Fact]
+    public void RegisterView_RejectsDuplicateViewModelTypes()
+    {
+        var viewRegistry = new ExtensionViewRegistry();
+        var registry = new AppExtensionCapabilityRegistry(viewRegistry);
+
+        registry.RegisterView<TestViewModel, SharedView>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            registry.RegisterView<TestViewModel, DesktopView>());
+
+        Assert.Contains(typeof(TestViewModel).FullName!, exception.Message);
     }
 
     private sealed class TestExtensionModule(

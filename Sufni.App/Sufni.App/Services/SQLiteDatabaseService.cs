@@ -22,6 +22,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
 
     private Task Initialization { get; }
     private readonly SQLiteAsyncConnection connection;
+    private readonly ExtensionDatabaseTableCatalog extensionTableCatalog;
     private readonly ExtensionDatabaseMigratorRunner extensionMigratorRunner;
     private readonly ExtensionCascadeService extensionCascadeService;
 
@@ -116,6 +117,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         }
 
         connection = new SQLiteAsyncConnection(databasePath);
+        extensionTableCatalog = ExtensionDatabaseTableCatalog.Create(extensionMigratorList);
         extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigratorList);
         extensionCascadeService = new ExtensionCascadeService(
             connection,
@@ -150,6 +152,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         }
 
         connection = new SQLiteAsyncConnection(databasePath);
+        extensionTableCatalog = ExtensionDatabaseTableCatalog.Create(extensionMigratorList);
         extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigratorList);
         extensionCascadeService = new ExtensionCascadeService(
             connection,
@@ -198,7 +201,13 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         }
     }
 
-    public async Task<SQLiteAsyncConnection> GetInitializedConnectionAsync(CancellationToken cancellationToken = default)
+    public async Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
+    {
+        await Initialization.WaitAsync(cancellationToken);
+        return new ExtensionDatabaseSession(connection, extensionTableCatalog);
+    }
+
+    internal async Task<SQLiteAsyncConnection> GetInitializedConnectionAsync(CancellationToken cancellationToken = default)
     {
         await Initialization.WaitAsync(cancellationToken);
         return connection;
