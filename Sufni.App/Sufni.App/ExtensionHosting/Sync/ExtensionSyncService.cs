@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHosting.Sync;
+using Sufni.App.ExtensionHost.Sync;
 
-namespace Sufni.App.ExtensionHost.Sync;
+namespace Sufni.App.ExtensionHosting.Sync;
 
 internal sealed class ExtensionSyncService : IExtensionSyncService
 {

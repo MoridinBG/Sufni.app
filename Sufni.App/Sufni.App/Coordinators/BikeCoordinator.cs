@@ -13,6 +13,7 @@ using Sufni.Telemetry;
 using Serilog;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Coordinators;
 

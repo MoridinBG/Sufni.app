@@ -9,6 +9,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.Coordinators;
 

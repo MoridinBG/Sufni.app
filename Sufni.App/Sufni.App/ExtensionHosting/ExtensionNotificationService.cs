@@ -2,8 +2,9 @@ using System;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting;
 
-namespace Sufni.App.ExtensionHost;
+namespace Sufni.App.ExtensionHosting;
 
 internal sealed class ExtensionNotificationService(
     SessionListViewModel sessionsPage,

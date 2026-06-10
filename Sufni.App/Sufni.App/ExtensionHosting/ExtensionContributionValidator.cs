@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHosting;
+using Sufni.App.ExtensionHost;
 
-namespace Sufni.App.ExtensionHost;
+namespace Sufni.App.ExtensionHosting;
 
 internal static class ExtensionContributionValidator
 {

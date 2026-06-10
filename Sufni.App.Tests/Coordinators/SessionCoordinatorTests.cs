@@ -20,6 +20,7 @@ using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.Coordinators;
 

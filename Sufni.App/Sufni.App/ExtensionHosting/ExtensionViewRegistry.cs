@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHosting;
 
-namespace Sufni.App.ExtensionHost;
+namespace Sufni.App.ExtensionHosting;
 
 internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
 {

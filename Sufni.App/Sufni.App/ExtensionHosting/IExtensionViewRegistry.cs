@@ -1,7 +1,8 @@
 using System;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHosting;
 
-namespace Sufni.App.ExtensionHost;
+namespace Sufni.App.ExtensionHosting;
 
 internal interface IExtensionViewRegistry
 {

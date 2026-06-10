@@ -14,8 +14,11 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting;
+using Sufni.App.ExtensionHosting.RecordedSessions;
+using Sufni.App.ExtensionHost.RecordedSessions;
 
-namespace Sufni.App.ExtensionHost.RecordedSessions;
+namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
 internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 {

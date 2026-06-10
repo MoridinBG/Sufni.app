@@ -6,6 +6,7 @@ using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App.Desktop;
 

@@ -1,8 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.ExtensionHost.Database;
 
-namespace Sufni.App.ExtensionHost.Database;
+namespace Sufni.App.ExtensionHosting.Database;
 
 public interface IExtensionCascadeService
 {

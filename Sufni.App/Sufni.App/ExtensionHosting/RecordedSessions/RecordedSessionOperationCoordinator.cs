@@ -1,8 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHosting.RecordedSessions;
+using Sufni.App.ExtensionHost.RecordedSessions;
 
-namespace Sufni.App.ExtensionHost.RecordedSessions;
+namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
 internal sealed class RecordedSessionOperationCoordinator : IAsyncDisposable
 {

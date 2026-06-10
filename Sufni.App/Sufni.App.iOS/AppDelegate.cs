@@ -9,6 +9,7 @@ using Sufni.App.Services;
 using Sufni.App.ViewModels;
 using UIKit;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App.iOS
 {

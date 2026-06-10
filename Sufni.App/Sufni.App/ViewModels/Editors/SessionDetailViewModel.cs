@@ -33,6 +33,7 @@ using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHost.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHosting.RecordedSessions;
 
 namespace Sufni.App.ViewModels.Editors;
 

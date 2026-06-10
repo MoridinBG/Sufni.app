@@ -10,6 +10,7 @@ using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.App.ViewModels.SensorConfigurations;
 using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.ExtensionHosting;
 
 namespace Sufni.App;
 

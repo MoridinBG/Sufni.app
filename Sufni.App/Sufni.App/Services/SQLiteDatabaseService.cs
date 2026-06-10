@@ -15,6 +15,7 @@ using Sufni.Telemetry;
 using Serilog;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Services;
 

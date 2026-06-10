@@ -4,8 +4,11 @@ using System.Linq;
 using Sufni.App.ExtensionHost;
 using Sufni.App.SessionGraph;
 using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHosting;
+using Sufni.App.ExtensionHosting.RecordedSessions;
+using Sufni.App.ExtensionHost.RecordedSessions;
 
-namespace Sufni.App.ExtensionHost.RecordedSessions;
+namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
 internal sealed class RecordedSessionListExtensionService : IRecordedSessionListExtensionService
 {

@@ -13,6 +13,7 @@ using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Presentation;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting.RecordedSessions;
 
 namespace Sufni.App.Tests.ExtensionHost;
 

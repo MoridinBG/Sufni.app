@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
+using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.ExtensionHost.Database;
 
-namespace Sufni.App.ExtensionHost.Database;
+namespace Sufni.App.ExtensionHosting.Database;
 
 internal sealed class ExtensionDatabaseMigratorRunner
 {

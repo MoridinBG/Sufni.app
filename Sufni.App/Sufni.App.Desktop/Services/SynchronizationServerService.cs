@@ -29,6 +29,7 @@ using Serilog;
 using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App.Services;
 

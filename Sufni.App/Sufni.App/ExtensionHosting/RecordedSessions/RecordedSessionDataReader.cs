@@ -7,8 +7,10 @@ using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHosting.RecordedSessions;
+using Sufni.App.ExtensionHost.RecordedSessions;
 
-namespace Sufni.App.ExtensionHost.RecordedSessions;
+namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
 internal sealed class RecordedSessionDataReader(IDatabaseService databaseService) : IRecordedSessionDataReader
 {

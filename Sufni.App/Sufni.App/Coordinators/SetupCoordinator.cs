@@ -11,6 +11,7 @@ using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 using Serilog;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Coordinators;
 

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Avalonia.Controls;
+using Sufni.App.ExtensionHosting;
+using Sufni.App.ExtensionHost;
 
-namespace Sufni.App.ExtensionHost;
+namespace Sufni.App.ExtensionHosting;
 
 internal sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRegistry
 {

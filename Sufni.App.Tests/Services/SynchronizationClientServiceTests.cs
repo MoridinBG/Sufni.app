@@ -3,6 +3,7 @@ using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App.Tests.Services;
 

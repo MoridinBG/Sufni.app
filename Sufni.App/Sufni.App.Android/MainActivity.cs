@@ -1,4 +1,5 @@
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting.Sync;
 ﻿using Android.App;
 using Android.Content.PM;
 using Avalonia;

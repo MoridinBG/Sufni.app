@@ -1,6 +1,7 @@
 using SQLite;
+using Sufni.App.ExtensionHosting.Database;
 
-namespace Sufni.App.ExtensionHost.Database;
+namespace Sufni.App.ExtensionHosting.Database;
 
 [Table("extension_schema_version")]
 internal sealed class ExtensionSchemaVersion

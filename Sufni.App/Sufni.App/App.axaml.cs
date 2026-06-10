@@ -24,6 +24,10 @@ using Sufni.App.ExtensionHost.Database;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHosting;
+using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.ExtensionHosting.RecordedSessions;
+using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App;
 

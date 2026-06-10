@@ -1,6 +1,7 @@
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHosting.Database;
 
 using System;
 using System.Collections.Generic;

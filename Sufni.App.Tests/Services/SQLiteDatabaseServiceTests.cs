@@ -8,6 +8,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.Services;
 

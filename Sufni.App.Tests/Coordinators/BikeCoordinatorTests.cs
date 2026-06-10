@@ -16,6 +16,7 @@ using Sufni.Kinematics;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.Coordinators;
 
