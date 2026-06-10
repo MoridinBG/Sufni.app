@@ -123,10 +123,6 @@ public partial class App : Application
                 sp.GetServices<IExtensionDatabaseMigrator>().ToArray(),
                 sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
                 () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
-        ServiceCollection.AddSingleton<SqLiteDatabaseService>(sp =>
-            new SqLiteDatabaseService(
-                sp.GetRequiredService<SqliteConnectionContext>(),
-                sp.GetRequiredService<ISessionTelemetryProcessor>()));
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
@@ -134,7 +130,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
         ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
-        ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
         ServiceCollection.AddSingleton<IExtensionNotificationService, ExtensionNotificationService>();

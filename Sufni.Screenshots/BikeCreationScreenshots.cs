@@ -16,6 +16,8 @@ using NSubstitute;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Items;
+using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.ExtensionHost.Services;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
@@ -189,18 +191,21 @@ public class BikeCreationScreenshots
             bikeCoordinator,
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            Substitute.For<IUiThreadDispatcher>());
     }
 
     private static BikeCoordinator CreateBikeCoordinator()
     {
         var bikeCoordinator = Substitute.For<BikeCoordinator>(
             Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBikeEditorService>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            Substitute.For<IUiThreadDispatcher>(),
+            Substitute.For<IExtensionCascadeService>());
 
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
