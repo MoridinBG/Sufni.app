@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Styling;
-using Avalonia.Threading;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Theming;
 
@@ -12,11 +12,13 @@ namespace Sufni.App.Theming;
 public sealed class ThemeService : IThemeService, IDisposable
 {
     private readonly IThemePreferences themePreferences;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IDisposable? syncSubscription;
 
-    public ThemeService(IAppPreferences appPreferences)
+    public ThemeService(IAppPreferences appPreferences, IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         themePreferences = appPreferences.Theme;
+        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
         IsSystemThemeAvailable = ResolveSystemThemeAvailable();
         Mode = NormalizeMode(ResolveModeFromApplication(IsSystemThemeAvailable));
 
@@ -98,13 +100,13 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private async Task ApplyOnUiThreadAsync(SufniThemeMode mode)
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (uiThreadDispatcher.CheckAccess())
         {
             Apply(mode);
             return;
         }
 
-        await Dispatcher.UIThread.InvokeAsync(() => Apply(mode));
+        await uiThreadDispatcher.InvokeAsync(() => Apply(mode));
     }
 
     private void Apply(SufniThemeMode mode)

@@ -41,6 +41,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     private readonly IDaqManagementService daqManagementService;
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly DispatcherTimer massStorageScanTimer;
     private int massStorageRefreshInProgress;
     private volatile bool isBrowsing;
@@ -79,7 +80,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
                 addedDataStores.Add(await CreateMassStorageDataStoreAsync(drive, cancellationToken));
             }
 
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await uiThreadDispatcher.InvokeAsync(() =>
             {
                 if (!isBrowsing)
                     return;
@@ -118,7 +119,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         var port = e.Announcement.Port;
         var name = $"gosst://{ipAddress}:{port}";
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        await uiThreadDispatcher.InvokeAsync(() =>
         {
             if (!isBrowsing)
                 return;
@@ -144,12 +145,12 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         }
         catch (Exception ex)
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await uiThreadDispatcher.InvokeAsync(() =>
                 ErrorOccurred?.Invoke(this, $"Could not connect to DAQ at {ipAddress}:{port}: {ex.Message}"));
             return;
         }
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        await uiThreadDispatcher.InvokeAsync(() =>
         {
             if (!isBrowsing || DataStores.Any(existing => existing.Name == ds.Name))
                 return;
@@ -193,13 +194,15 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         IDaqBrowseOwner browseOwner,
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
-        IBackgroundTaskRunner backgroundTaskRunner)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         this.serviceDiscovery = serviceDiscovery;
         this.browseOwner = browseOwner;
         this.daqManagementService = daqManagementService;
         this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
         this.backgroundTaskRunner = backgroundTaskRunner;
+        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
         massStorageScanTimer = new DispatcherTimer(DispatcherPriority.Background);
         massStorageScanTimer.Interval = TimeSpan.FromSeconds(1);
@@ -265,7 +268,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
             return createdDataStore;
         }, cancellationToken);
 
-        await Dispatcher.UIThread.InvokeAsync(() => DataStores.Add(dataStore));
+        await uiThreadDispatcher.InvokeAsync(() => DataStores.Add(dataStore));
         return new StorageProviderRegistrationResult.Added(dataStore);
     }
 

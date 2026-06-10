@@ -1,9 +1,9 @@
 using System.Linq;
-using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Coordinators;
 
@@ -21,23 +21,26 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
     private readonly IDatabaseService databaseService;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public InboundSyncCoordinator(
         IDatabaseService databaseService,
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
-        ISynchronizationServerService synchronizationServer)
+        ISynchronizationServerService synchronizationServer,
+        IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         this.databaseService = databaseService;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
+        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
         synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
     }
 
     private void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)
     {
-        Dispatcher.UIThread.InvokeAsync(async () =>
+        _ = uiThreadDispatcher.InvokeAsync(async () =>
         {
             try
             {

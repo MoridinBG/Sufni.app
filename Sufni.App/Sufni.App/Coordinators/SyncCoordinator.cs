@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
@@ -23,6 +22,7 @@ public class SyncCoordinator
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly TimeSpan inboundActivityIdleGrace;
     private readonly TimeSpan finalInboundActivityIdleGrace;
 
@@ -76,7 +76,8 @@ public class SyncCoordinator
         ISynchronizationServerService? synchronizationServerService = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         TimeSpan? inboundActivityIdleGrace = null,
-        TimeSpan? finalInboundActivityIdleGrace = null)
+        TimeSpan? finalInboundActivityIdleGrace = null,
+        IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         this.bikeStore = bikeStore;
         this.setupStore = setupStore;
@@ -86,6 +87,7 @@ public class SyncCoordinator
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
+        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
         this.inboundActivityIdleGrace = inboundActivityIdleGrace ?? DefaultInboundActivityIdleGrace;
         this.finalInboundActivityIdleGrace = finalInboundActivityIdleGrace ?? FinalInboundActivityIdleGrace;
 
@@ -185,13 +187,13 @@ public class SyncCoordinator
 
     private void SetProgressOnUiThread(SynchronizationProgressSnapshot? snapshot)
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (uiThreadDispatcher.CheckAccess())
         {
             Progress = snapshot;
             return;
         }
 
-        Dispatcher.UIThread.Post(() => Progress = snapshot);
+        uiThreadDispatcher.Post(() => Progress = snapshot);
     }
 
     private void SetOutboundSyncRunning(bool value)
@@ -213,7 +215,7 @@ public class SyncCoordinator
 
     private void OnSyncActivityStarted(object? sender, SynchronizationActivityEventArgs e)
     {
-        Dispatcher.UIThread.Post(() =>
+        uiThreadDispatcher.Post(() =>
         {
             inboundIdleGeneration++;
             inboundActivityDepth++;
@@ -224,7 +226,7 @@ public class SyncCoordinator
 
     private void OnSyncActivityEnded(object? sender, SynchronizationActivityEventArgs e)
     {
-        Dispatcher.UIThread.Post(() =>
+        uiThreadDispatcher.Post(() =>
         {
             if (inboundActivityDepth > 0)
             {
@@ -255,7 +257,7 @@ public class SyncCoordinator
     private async Task ClearInboundActivityAfterDelayAsync(int generation, TimeSpan idleGrace)
     {
         await Task.Delay(idleGrace);
-        await Dispatcher.UIThread.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
+        await uiThreadDispatcher.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
     }
 
     private void ClearInboundActivityIfIdle(int generation)
@@ -323,13 +325,13 @@ public class SyncCoordinator
 
     private async Task RefreshStoresOnUiThreadAsync()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (uiThreadDispatcher.CheckAccess())
         {
             await RefreshStoresAsync();
             return;
         }
 
-        await Dispatcher.UIThread.InvokeAsync(RefreshStoresAsync);
+        await uiThreadDispatcher.InvokeAsync(RefreshStoresAsync);
     }
 
     private async Task RefreshStoresAsync()

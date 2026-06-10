@@ -5,9 +5,9 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using Serilog;
 using Sufni.App.Models;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Services;
 
@@ -21,6 +21,7 @@ public class TileLayerService : ITileLayerService, IDisposable
     private static readonly ILogger logger = Log.ForContext<TileLayerService>();
 
     private readonly IMapPreferences mapPreferences;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IDisposable syncAppliedSubscription;
     // Serializes refresh-after-sync bodies. AppPreferences gates apply so
     // SyncDataApplied events fire back-to-back.
@@ -43,9 +44,10 @@ public class TileLayerService : ITileLayerService, IDisposable
         await mapPreferences.SetSelectedLayerIdAsync(config.Id);
     }
 
-    public TileLayerService(IAppPreferences appPreferences)
+    public TileLayerService(IAppPreferences appPreferences, IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         mapPreferences = appPreferences.Map;
+        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
         // SyncDataApplied fires on whichever thread happens to be awaiting
         // ApplySyncDataAsync. Marshal the refresh onto the UI thread because
@@ -152,13 +154,13 @@ public class TileLayerService : ITileLayerService, IDisposable
 
     private void OnSyncDataApplied()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (uiThreadDispatcher.CheckAccess())
         {
             _ = RefreshFromPreferencesSafelyAsync();
             return;
         }
 
-        _ = Dispatcher.UIThread.InvokeAsync(RefreshFromPreferencesSafelyAsync);
+        _ = uiThreadDispatcher.InvokeAsync(RefreshFromPreferencesSafelyAsync);
     }
 
     private async Task RefreshFromPreferencesSafelyAsync()
