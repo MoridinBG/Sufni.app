@@ -1,0 +1,437 @@
+using SQLite;
+using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.Models;
+using Sufni.App.Services;
+using Sufni.App.Tests.Infrastructure;
+using Sufni.Telemetry;
+
+namespace Sufni.App.Tests.Services.Persistence;
+
+public class SessionRepositoryTests
+{
+    [Fact]
+    public async Task PutProcessedSessionAsync_PersistsSessionSummaryMetrics()
+    {
+        using var tempDatabase = new TempDatabase("processed-session-summary.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var track = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points =
+            [
+                new TrackPoint(100, 0, 0, 10),
+                new TrackPoint(101, 3, 4, 14),
+                new TrackPoint(102, 6, 8, 10)
+            ]
+        };
+
+        var database = new TestPersistenceHarness(databasePath);
+        var session = new Session(sessionId, "processed", "desc", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+
+        var persisted = await database.PutProcessedSessionAsync(session, track, source: null);
+        var loaded = await database.GetSessionAsync(sessionId);
+
+        Assert.Equal(65, persisted.DurationSeconds);
+        Assert.InRange(persisted.DistanceMeters!.Value, 9.98, 10.0);
+        Assert.Equal(4, persisted.AscentMeters);
+        Assert.Equal(4, persisted.DescentMeters);
+        Assert.NotNull(loaded);
+        Assert.Equal(65, loaded!.DurationSeconds);
+        Assert.InRange(loaded.DistanceMeters!.Value, 9.98, 10.0);
+        Assert.Equal(4, loaded.AscentMeters);
+        Assert.Equal(4, loaded.DescentMeters);
+
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionAsync_PersistsSessionTrackSourceAndFingerprint()
+    {
+        using var tempDatabase = new TempDatabase("processed-session.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var track = PersistenceTestData.CreateFullTrack();
+
+        var database = new TestPersistenceHarness(databasePath);
+        var session = new Session(sessionId, "processed", "desc", null, 100)
+        {
+            ProcessedData = [8, 7, 6],
+            ProcessingFingerprintJson = """{"schemaVersion":1}"""
+        };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+
+        var persisted = await database.PutProcessedSessionAsync(session, track, source);
+
+        Assert.Equal(track.Id, persisted.FullTrack);
+        Assert.True(persisted.HasProcessedData);
+        Assert.Equal("""{"schemaVersion":1}""", persisted.ProcessingFingerprintJson);
+        Assert.Equal([8, 7, 6], await database.GetSessionRawPsstAsync(sessionId));
+        Assert.NotNull(await database.GetAsync<Track>(track.Id));
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(sessionId));
+
+    }
+
+    [Fact]
+    public async Task PutSessionAsync_PreservesExistingSummaryMetrics_OnMetadataUpdate()
+    {
+        using var tempDatabase = new TempDatabase("session-summary-metadata-save.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        var processed = await database.PutProcessedSessionAsync(
+            new Session(sessionId, "processed", "desc", null, 100)
+            {
+                ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+            },
+            PersistenceTestData.CreateFullTrack(),
+            source: null);
+
+        await database.PutSessionAsync(new Session(sessionId, "renamed", "new desc", null, 100)
+        {
+            DurationSeconds = 1,
+            DistanceMeters = 2,
+            AscentMeters = 3,
+            DescentMeters = 4
+        });
+
+        var loaded = await database.GetSessionAsync(sessionId);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("renamed", loaded!.Name);
+        Assert.Equal("new desc", loaded.Description);
+        Assert.Equal(processed.DurationSeconds, loaded.DurationSeconds);
+        Assert.Equal(processed.DistanceMeters, loaded.DistanceMeters);
+        Assert.Equal(processed.AscentMeters, loaded.AscentMeters);
+        Assert.Equal(processed.DescentMeters, loaded.DescentMeters);
+
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionAsync_AssociatesExistingTrack_WhenSessionHasNoGeneratedTrack()
+    {
+        using var tempDatabase = new TempDatabase("processed-session-existing-track.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutAsync(new Track
+        {
+            Id = trackId,
+            Points =
+            [
+                new TrackPoint(90, 1, 1, 10),
+                new TrackPoint(110, 2, 2, 11)
+            ]
+        });
+        var session = new Session(sessionId, "processed", "desc", null, 100)
+        {
+            ProcessedData = [8, 7, 6],
+            ProcessingFingerprintJson = """{"schemaVersion":1}"""
+        };
+
+        var persisted = await database.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+
+        Assert.Equal(trackId, persisted.FullTrack);
+        Assert.Single(await database.GetAllAsync<Track>());
+
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionIfUnchangedAsync_ReturnsNullAndRollsBack_WhenBaselineDoesNotMatch()
+    {
+        using var tempDatabase = new TempDatabase("processed-session-conflict.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var newTrack = PersistenceTestData.CreateFullTrack();
+
+        var database = new TestPersistenceHarness(databasePath);
+        var original = new Session(sessionId, "original", "desc", null, 100)
+        {
+            ProcessedData = [1, 2, 3],
+            ProcessingFingerprintJson = """{"schemaVersion":1}"""
+        };
+        var persisted = await database.PutProcessedSessionAsync(original, newFullTrack: null, source: null);
+        var baselineUpdated = persisted.Updated;
+        var newerUpdated = baselineUpdated + 10;
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Execute(
+                "UPDATE session SET name=?, data=?, updated=? WHERE id=?",
+                "newer",
+                new byte[] { 4, 5, 6 },
+                newerUpdated,
+                sessionId);
+        }
+
+        var recomputed = new Session(sessionId, "recomputed", "desc", null, 100)
+        {
+            ProcessedData = [8, 7, 6],
+            ProcessingFingerprintJson = """{"schemaVersion":2}"""
+        };
+
+        var result = await database.PutProcessedSessionIfUnchangedAsync(
+            recomputed,
+            newTrack,
+            source: null,
+            baselineUpdated);
+
+        Assert.Null(result);
+        var current = await database.GetSessionAsync(sessionId);
+        Assert.NotNull(current);
+        Assert.Equal("newer", current!.Name);
+        Assert.Equal(newerUpdated, current.Updated);
+        Assert.Equal([4, 5, 6], await database.GetSessionRawPsstAsync(sessionId));
+        Assert.Null(await database.GetAsync<Track>(newTrack.Id));
+
+    }
+
+    [Fact]
+    public async Task PutProcessedSessionAsync_RollsBackSessionTrackAndSource_WhenSourceWriteFails()
+    {
+        using var tempDatabase = new TempDatabase("processed-session-rollback.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var track = PersistenceTestData.CreateFullTrack();
+
+        var database = new TestPersistenceHarness(databasePath);
+        var session = new Session(sessionId, "processed", "desc", null, 100)
+        {
+            ProcessedData = [8, 7, 6],
+            ProcessingFingerprintJson = """{"schemaVersion":1}"""
+        };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+        source.SourceName = null!;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.PutProcessedSessionAsync(session, track, source));
+
+        Assert.Null(await database.GetSessionAsync(sessionId));
+        Assert.Null(await database.GetAsync<Track>(track.Id));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
+
+    }
+
+    [Fact]
+    public async Task GetSessionPsstAsync_ReturnsNull_WhenSessionHasNoProcessedData()
+    {
+        using var tempDatabase = new TempDatabase("session-psst.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100));
+
+        var telemetryData = await database.GetSessionPsstAsync(sessionId);
+
+        Assert.Null(telemetryData);
+
+    }
+
+    [Fact]
+    public async Task PatchSessionPsstAsync_UpdatesDurationSummaryMetric()
+    {
+        using var tempDatabase = new TempDatabase("session-psst-summary-patch.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+        {
+            DistanceMeters = 10,
+            AscentMeters = 4,
+            DescentMeters = 2
+        });
+
+        await database.PatchSessionPsstAsync(sessionId, PersistenceTestData.CreateTelemetryBlob(65));
+
+        var session = await database.GetSessionAsync(sessionId);
+
+        Assert.NotNull(session);
+        Assert.Equal(65, session!.DurationSeconds);
+        Assert.Equal(10, session.DistanceMeters);
+        Assert.Equal(4, session.AscentMeters);
+        Assert.Equal(2, session.DescentMeters);
+
+    }
+
+    [Fact]
+    public async Task PatchSessionPsstAsync_FlipsHasProcessedData_ForChangedSessionQueries()
+    {
+        using var tempDatabase = new TempDatabase("session-psst-patch.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.ApplyRemoteSynchronizationDataAsync(new SynchronizationData
+        {
+            Sessions = [new Session(sessionId, "remote", "desc", null, 100) { Updated = 10, ClientUpdated = 10 }]
+        });
+
+        var patchedPsst = PersistenceTestData.CreateTelemetryBlob(65);
+        await database.PatchSessionPsstAsync(sessionId, patchedPsst);
+
+        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
+
+        Assert.True(changedSession.HasProcessedData);
+        Assert.Equal(patchedPsst, await database.GetSessionRawPsstAsync(sessionId));
+
+    }
+
+    [Fact]
+    public async Task PatchSessionPsstAsync_RejectsInvalidBlob_WithoutChangingExistingData()
+    {
+        using var tempDatabase = new TempDatabase("session-psst-invalid-patch.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var originalPsst = PersistenceTestData.CreateTelemetryBlob(65);
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutProcessedSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+        {
+            ProcessedData = originalPsst
+        }, newFullTrack: null, source: null);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => database.PatchSessionPsstAsync(sessionId, [1, 2, 3]));
+
+        var session = await database.GetSessionAsync(sessionId);
+
+        Assert.NotNull(session);
+        Assert.True(session!.HasProcessedData);
+        Assert.Equal(65, session.DurationSeconds);
+        Assert.Equal(originalPsst, await database.GetSessionRawPsstAsync(sessionId));
+
+    }
+
+    [Fact]
+    public async Task GetChangedAsync_ForSessions_DerivesHasProcessedDataFromDataColumn()
+    {
+        using var tempDatabase = new TempDatabase("session-has-data-derived.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
+            {
+                ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
+                Updated = 10
+            });
+            connection.Execute("UPDATE session SET has_data = 0 WHERE id = ?", sessionId);
+        }
+
+        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
+
+        Assert.True(changedSession.HasProcessedData);
+        Assert.Null(changedSession.ProcessedData);
+
+    }
+
+    [Fact]
+    public async Task PutSessionAsync_ReusesSoftDeletedRow_AndPreservesExistingBinaryData()
+    {
+        using var tempDatabase = new TempDatabase("session-revive.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var fullTrackId = Guid.NewGuid();
+        var originalPsst = new byte[] { 9, 8, 7 };
+        var originalTrack = new List<TrackPoint>
+        {
+            new(10, 1, 1, 0),
+            new(11, 2, 2, 0)
+        };
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "old", "old desc", null, 50)
+            {
+                ProcessedData = originalPsst,
+                Track = originalTrack,
+                Updated = 10,
+                ClientUpdated = 10,
+                Deleted = 10
+            });
+        }
+
+        await database.PutSessionAsync(new Session(sessionId, "new", "new desc", setupId, 1234)
+        {
+            FullTrack = fullTrackId,
+            ProcessingFingerprintJson = """{"current":true}"""
+        });
+
+        var session = await database.GetSessionAsync(sessionId);
+        var rawPsst = await database.GetSessionRawPsstAsync(sessionId);
+        var sessionTrack = await database.GetSessionTrackAsync(sessionId);
+
+        Assert.NotNull(session);
+        Assert.Equal("new", session!.Name);
+        Assert.Equal("new desc", session.Description);
+        Assert.Equal(setupId, session.Setup);
+        Assert.Equal(1234, session.Timestamp);
+        Assert.Equal(fullTrackId, session.FullTrack);
+        Assert.Equal("""{"current":true}""", session.ProcessingFingerprintJson);
+        Assert.True(session.HasProcessedData);
+        Assert.Null(session.Deleted);
+        Assert.Equal(originalPsst, rawPsst);
+        Assert.NotNull(sessionTrack);
+        Assert.Equal(2, sessionTrack!.Count);
+
+    }
+
+    [Fact]
+    public async Task PatchSessionTrackAsync_UpdatesTrackAndBumpsSessionUpdated()
+    {
+        using var tempDatabase = new TempDatabase("session-track-patch.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
+            {
+                DurationSeconds = 65,
+                Updated = 1,
+                ClientUpdated = 1
+            });
+        }
+
+        var before = await database.GetSessionAsync(sessionId);
+
+        await database.PatchSessionTrackAsync(sessionId,
+        [
+            new TrackPoint(100, 1, 1, 0),
+            new TrackPoint(101, 2, 2, 0)
+        ]);
+
+        var after = await database.GetSessionAsync(sessionId);
+        var track = await database.GetSessionTrackAsync(sessionId);
+
+        Assert.NotNull(before);
+        Assert.NotNull(after);
+        Assert.NotNull(track);
+        Assert.Equal(2, track!.Count);
+        Assert.Equal(65, after!.DurationSeconds);
+        Assert.InRange(after.DistanceMeters!.Value, 1.41, 1.42);
+        Assert.Equal(0, after.AscentMeters);
+        Assert.Equal(0, after.DescentMeters);
+        Assert.True(after!.Updated > before!.Updated);
+
+    }
+}
