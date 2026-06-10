@@ -16,7 +16,7 @@ public class TrackCoordinator(
     ISynchronizableRepository<Track> trackEntityRepository,
     ISessionRepository sessionRepository,
     IFilesService filesService,
-    IBackgroundTaskRunner backgroundTaskRunner)
+    IBackgroundTaskRunner backgroundTaskRunner) : ITrackCoordinator
 {
     private const double DefaultMapVideoWidth = 400.0;
 

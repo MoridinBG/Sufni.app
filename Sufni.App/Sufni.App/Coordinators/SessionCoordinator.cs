@@ -43,7 +43,7 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly ISessionCacheStore sessionCacheStore;
     private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly TrackCoordinator trackCoordinator;
+    private readonly ITrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ISessionAnalysisService sessionAnalysisService;
     private readonly ITileLayerService tileLayerService;
@@ -72,7 +72,7 @@ public class SessionCoordinator : ISessionCoordinator
         ISessionCacheStore sessionCacheStore,
         IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
-        TrackCoordinator trackCoordinator,
+        ITrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
         ISessionAnalysisService sessionAnalysisService,
         ITileLayerService tileLayerService,
