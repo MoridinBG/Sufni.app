@@ -1,6 +1,7 @@
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Tests.Presentation;
 

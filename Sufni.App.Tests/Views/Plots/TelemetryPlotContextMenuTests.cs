@@ -4,6 +4,7 @@ using Sufni.App.Models;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
 
 namespace Sufni.App.Tests.Views.Plots;
 

@@ -28,6 +28,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Services;
 

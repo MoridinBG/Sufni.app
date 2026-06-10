@@ -5,6 +5,7 @@ using ScottPlot;
 using Sufni.App.Models;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Plots;
 

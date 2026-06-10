@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Sufni.App.Models;
+namespace Sufni.App.ExtensionHost.Models;
 
 public class TrackPoint(
     double time,

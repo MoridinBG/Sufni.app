@@ -14,6 +14,7 @@ using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.LinkageEditing;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.Kinematics;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 

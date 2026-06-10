@@ -21,6 +21,9 @@ using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Plots;
 

@@ -1,3 +1,4 @@
+using Sufni.App.ExtensionHost.Services;
 ﻿using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

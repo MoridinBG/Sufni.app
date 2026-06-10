@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels;
 

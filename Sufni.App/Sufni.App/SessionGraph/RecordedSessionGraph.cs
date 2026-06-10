@@ -7,6 +7,7 @@ using System.Reactive.Subjects;
 using Avalonia.Threading;
 using DynamicData;
 using Sufni.App.Stores;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.SessionGraph;
 

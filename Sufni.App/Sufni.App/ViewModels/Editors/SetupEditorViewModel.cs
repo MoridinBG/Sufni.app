@@ -20,6 +20,7 @@ using Sufni.App.Stores;
 using Sufni.App.ViewModels.LinkageParts;
 using Sufni.App.ViewModels.SensorConfigurations;
 using BikeModel = Sufni.App.Models.Bike;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels.Editors;
 

@@ -1,7 +1,7 @@
 using System;
 using Sufni.Telemetry;
 
-namespace Sufni.App.SessionDetails;
+namespace Sufni.App.ExtensionHost.SessionDetails;
 
 public enum DampingSpeedCircuit
 {

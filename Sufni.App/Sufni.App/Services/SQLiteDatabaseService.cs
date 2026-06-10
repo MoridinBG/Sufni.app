@@ -13,6 +13,8 @@ using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 using Serilog;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Services;
 

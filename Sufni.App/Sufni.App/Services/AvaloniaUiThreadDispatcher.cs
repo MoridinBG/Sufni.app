@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Services;
 

@@ -4,6 +4,7 @@ using Avalonia.Headless.XUnit;
 using Sufni.App.Presentation;
 using Sufni.App.Views.Controls;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Tests.Views.Controls;
 

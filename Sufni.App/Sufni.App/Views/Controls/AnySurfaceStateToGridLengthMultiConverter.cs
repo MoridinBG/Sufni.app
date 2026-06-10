@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Sufni.App.Presentation;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Views.Controls;
 

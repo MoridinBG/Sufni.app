@@ -5,6 +5,11 @@ using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Plots;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.Tests.ExtensionHost;
 
@@ -213,7 +218,7 @@ public class RecordedSessionExtensionSlotsTests
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel());
 
-    private sealed class InlineUiThreadDispatcher : Sufni.App.Services.IUiThreadDispatcher
+    private sealed class InlineUiThreadDispatcher : Sufni.App.ExtensionHost.Services.IUiThreadDispatcher
     {
         public bool CheckAccess() => true;
 

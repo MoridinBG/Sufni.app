@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Coordinators;
 

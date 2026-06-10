@@ -11,6 +11,8 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Tests.Coordinators;
 

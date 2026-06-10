@@ -10,6 +10,7 @@ using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Rows;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels.ItemLists;
 

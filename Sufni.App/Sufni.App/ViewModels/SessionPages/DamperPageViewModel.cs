@@ -1,3 +1,5 @@
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Models;

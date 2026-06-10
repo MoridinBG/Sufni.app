@@ -8,6 +8,7 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.DesktopViews.Plots;
 

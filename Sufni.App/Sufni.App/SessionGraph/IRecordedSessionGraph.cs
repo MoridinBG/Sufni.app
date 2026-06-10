@@ -1,5 +1,6 @@
 using System;
 using DynamicData;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.SessionGraph;
 

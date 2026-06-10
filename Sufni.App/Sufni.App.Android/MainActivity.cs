@@ -1,3 +1,4 @@
+using Sufni.App.ExtensionHost.Services;
 ﻿using Android.App;
 using Android.Content.PM;
 using Avalonia;

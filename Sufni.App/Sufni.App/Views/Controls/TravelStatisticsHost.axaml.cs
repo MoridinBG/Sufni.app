@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Views.Controls;
 

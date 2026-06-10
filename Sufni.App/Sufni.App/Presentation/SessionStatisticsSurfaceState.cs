@@ -1,4 +1,5 @@
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Presentation;
 

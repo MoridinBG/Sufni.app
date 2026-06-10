@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Plots;
 
 namespace Sufni.App.Plots;
 

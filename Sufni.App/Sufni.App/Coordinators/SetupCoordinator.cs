@@ -10,6 +10,7 @@ using Sufni.App.SetupEditing;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
 using Serilog;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Coordinators;
 

@@ -1,3 +1,4 @@
+using Sufni.App.ExtensionHost.Services;
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;

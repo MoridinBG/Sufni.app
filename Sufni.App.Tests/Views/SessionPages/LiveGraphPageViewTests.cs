@@ -20,6 +20,8 @@ using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.SessionPages;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Tests.Views.SessionPages;
 

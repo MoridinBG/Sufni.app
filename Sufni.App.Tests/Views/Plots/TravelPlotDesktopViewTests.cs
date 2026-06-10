@@ -21,6 +21,10 @@ using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Plots;
 

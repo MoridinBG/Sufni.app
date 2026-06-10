@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
 
 namespace Sufni.App.Tests.ExtensionHost;
 

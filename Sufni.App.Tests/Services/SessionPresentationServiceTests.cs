@@ -3,6 +3,7 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Tests.Services;
 

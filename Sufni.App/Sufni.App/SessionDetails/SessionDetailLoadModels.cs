@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Sufni.App.Models;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.SessionDetails;
 

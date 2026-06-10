@@ -8,6 +8,9 @@ using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels.Editors;
 

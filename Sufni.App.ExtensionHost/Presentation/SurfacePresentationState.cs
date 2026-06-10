@@ -1,4 +1,4 @@
-namespace Sufni.App.Presentation;
+namespace Sufni.App.ExtensionHost.Presentation;
 
 public enum SurfaceStateKind
 {

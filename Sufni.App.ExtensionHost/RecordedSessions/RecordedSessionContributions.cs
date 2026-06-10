@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Sufni.App.Plots;
-using Sufni.App.Presentation;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Controls;
+using Sufni.App.ExtensionHost.Plots;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 

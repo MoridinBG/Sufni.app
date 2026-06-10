@@ -1,6 +1,8 @@
 using System;
 using SQLite;
 using Sufni.App.SessionDetails;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Models;
 

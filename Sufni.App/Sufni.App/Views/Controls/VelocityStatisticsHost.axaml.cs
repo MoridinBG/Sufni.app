@@ -9,6 +9,8 @@ using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Views.Controls;
 

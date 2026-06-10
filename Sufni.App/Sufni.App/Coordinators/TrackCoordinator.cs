@@ -7,6 +7,7 @@ using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Coordinators;
 

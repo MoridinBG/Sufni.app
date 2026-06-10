@@ -1,6 +1,6 @@
 using System;
 
-namespace Sufni.App.SessionGraph;
+namespace Sufni.App.ExtensionHost.SessionGraph;
 
 /// <summary>
 /// Lightweight recorded-session row state.

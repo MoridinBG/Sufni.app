@@ -20,6 +20,9 @@ using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Editors;
 

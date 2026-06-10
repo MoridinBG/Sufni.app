@@ -2,6 +2,7 @@ using System;
 using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.Kinematics;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Stores;
 

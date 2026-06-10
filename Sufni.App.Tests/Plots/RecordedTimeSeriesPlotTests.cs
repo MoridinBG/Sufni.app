@@ -4,6 +4,7 @@ using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Plots;
 
 namespace Sufni.App.Tests.Plots;
 

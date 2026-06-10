@@ -14,6 +14,8 @@ using Avalonia.VisualTree;
 using Sufni.App.Presentation;
 using Sufni.App.Theming;
 using Sufni.App.Views.Plots;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.Views.Controls;
 

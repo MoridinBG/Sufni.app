@@ -10,6 +10,7 @@ using Sufni.App.BikeEditing;
 using Sufni.App.Models;
 using Sufni.Kinematics;
 using Serilog;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Services;
 

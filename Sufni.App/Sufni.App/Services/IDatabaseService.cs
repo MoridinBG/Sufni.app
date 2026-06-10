@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Services;
 

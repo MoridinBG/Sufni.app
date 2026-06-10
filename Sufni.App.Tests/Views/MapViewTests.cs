@@ -14,6 +14,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
+using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Tests.Views;
 

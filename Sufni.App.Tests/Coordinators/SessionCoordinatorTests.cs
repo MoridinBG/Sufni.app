@@ -16,6 +16,10 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.Tests.Coordinators;
 

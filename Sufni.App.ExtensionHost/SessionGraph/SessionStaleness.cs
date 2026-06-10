@@ -1,4 +1,4 @@
-namespace Sufni.App.SessionGraph;
+namespace Sufni.App.ExtensionHost.SessionGraph;
 
 /// <summary>
 /// Classification of whether recorded-session processed data matches its

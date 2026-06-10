@@ -3,6 +3,7 @@ using Sufni.App.Models;
 using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.Tests.SessionGraph;
 

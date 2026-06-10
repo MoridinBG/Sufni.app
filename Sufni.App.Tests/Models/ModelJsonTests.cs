@@ -3,6 +3,7 @@ using System.Text.Json;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.Kinematics;
+using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Tests.Models;
 

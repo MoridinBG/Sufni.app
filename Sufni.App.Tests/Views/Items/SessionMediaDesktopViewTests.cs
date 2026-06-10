@@ -16,6 +16,8 @@ using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
 using Sufni.App.Views.Controls;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Tests.Views.Items;
 

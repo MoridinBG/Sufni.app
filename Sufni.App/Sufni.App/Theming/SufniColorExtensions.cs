@@ -3,6 +3,7 @@ using Avalonia.Media;
 using Sufni.App.Plots;
 using AvaloniaColor = Avalonia.Media.Color;
 using ScottPlotColor = ScottPlot.Color;
+using Sufni.App.ExtensionHost.Plots;
 
 namespace Sufni.App.Theming;
 

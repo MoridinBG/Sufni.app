@@ -6,6 +6,8 @@ using Sufni.App.Coordinators;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Tests.Coordinators;
 

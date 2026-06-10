@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.Models;
+using Sufni.App.ExtensionHost.Models;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;

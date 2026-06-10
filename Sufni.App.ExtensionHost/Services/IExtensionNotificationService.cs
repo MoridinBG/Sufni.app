@@ -1,4 +1,4 @@
-namespace Sufni.App.Services;
+namespace Sufni.App.ExtensionHost.Services;
 
 public interface IExtensionNotificationService
 {

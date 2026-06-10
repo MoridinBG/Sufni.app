@@ -21,6 +21,10 @@ using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
@@ -713,7 +717,7 @@ public class LiveSessionDetailViewModelTests
         // waiting placeholder.
         Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
         Assert.Equal(
-            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            Sufni.App.ExtensionHost.Presentation.SurfaceStateKind.WaitingForData,
             editor.BalancePage.CompressionBalanceState.Kind);
     }
 
@@ -910,13 +914,13 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
 
         Assert.Equal(
-            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            Sufni.App.ExtensionHost.Presentation.SurfaceStateKind.WaitingForData,
             editor.SpringPage.FrontHistogramState.Kind);
         Assert.Equal(
-            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            Sufni.App.ExtensionHost.Presentation.SurfaceStateKind.WaitingForData,
             editor.DamperPage.RearHistogramState.Kind);
         Assert.Equal(
-            Sufni.App.Presentation.SurfaceStateKind.WaitingForData,
+            Sufni.App.ExtensionHost.Presentation.SurfaceStateKind.WaitingForData,
             editor.BalancePage.CompressionBalanceState.Kind);
     }
 

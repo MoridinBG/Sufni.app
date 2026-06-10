@@ -2,6 +2,7 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Tests.Services;
 

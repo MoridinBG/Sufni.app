@@ -14,6 +14,8 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Rows;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.ViewModels.ItemLists;
 

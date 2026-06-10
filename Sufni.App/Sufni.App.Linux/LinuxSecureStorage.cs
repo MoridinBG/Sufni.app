@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using DBus.Services.Secrets;
 using Serilog;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Linux;
 

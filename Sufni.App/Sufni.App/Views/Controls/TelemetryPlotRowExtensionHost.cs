@@ -8,6 +8,7 @@ using Sufni.App.DesktopViews.Plots;
 using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.Views.Controls;
 

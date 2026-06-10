@@ -13,6 +13,9 @@ using Sufni.App.Services;
 using Sufni.App.Services.Imu;
 using Sufni.Telemetry;
 using Serilog;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Services.LiveStreaming;
 

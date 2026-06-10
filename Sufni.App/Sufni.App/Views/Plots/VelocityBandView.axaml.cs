@@ -13,6 +13,7 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Views.Plots;
 

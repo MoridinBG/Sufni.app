@@ -15,6 +15,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.ItemLists;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.Tests.Views.ItemLists;
 

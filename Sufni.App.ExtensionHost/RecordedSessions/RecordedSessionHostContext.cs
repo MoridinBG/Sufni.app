@@ -1,6 +1,6 @@
 using System;
 using Sufni.App.ExtensionHost.Database;
-using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 

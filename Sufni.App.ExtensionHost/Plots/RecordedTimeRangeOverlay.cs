@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Sufni.App.Plots;
+namespace Sufni.App.ExtensionHost.Plots;
 
 public static class RecordedTimeRangeOverlayIds
 {

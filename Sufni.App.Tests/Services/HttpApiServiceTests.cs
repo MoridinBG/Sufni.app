@@ -8,6 +8,7 @@ using System.Threading;
 using NSubstitute;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Tests.Services;
 

@@ -1,4 +1,5 @@
 using Sufni.App.Stores;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.SessionGraph;
 

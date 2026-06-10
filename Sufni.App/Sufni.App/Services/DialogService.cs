@@ -12,6 +12,7 @@ using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
 using Sufni.App.Views.Editors;
 using Sufni.App.Views.Controls;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Services;
 

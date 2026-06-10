@@ -14,6 +14,8 @@ using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Tests.Coordinators;
 

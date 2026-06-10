@@ -11,6 +11,11 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.ViewModels.Editors;
 

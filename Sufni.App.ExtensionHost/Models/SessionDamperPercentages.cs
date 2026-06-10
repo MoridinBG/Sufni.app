@@ -1,6 +1,6 @@
 using Sufni.Telemetry;
 
-namespace Sufni.App.Models;
+namespace Sufni.App.ExtensionHost.Models;
 
 public enum DamperBand
 {

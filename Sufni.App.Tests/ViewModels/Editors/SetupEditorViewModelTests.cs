@@ -10,6 +10,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SensorConfigurations;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 

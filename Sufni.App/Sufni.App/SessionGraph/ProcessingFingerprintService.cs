@@ -3,6 +3,7 @@ using System.Text.Json;
 using Sufni.App.Models;
 using Sufni.App.Stores;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.SessionGraph;
 

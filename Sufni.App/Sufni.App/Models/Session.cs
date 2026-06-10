@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using SQLite;
+using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Models;
 

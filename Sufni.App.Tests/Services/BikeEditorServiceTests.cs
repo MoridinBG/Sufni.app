@@ -8,6 +8,7 @@ using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Kinematics;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Tests.Services;
 

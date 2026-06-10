@@ -8,6 +8,8 @@ using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionGraph;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;

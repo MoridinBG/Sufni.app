@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels;
 

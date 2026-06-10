@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
 
-namespace Sufni.App.Services;
+namespace Sufni.App.ExtensionHost.Services;
 
 public interface IFilePickerService
 {

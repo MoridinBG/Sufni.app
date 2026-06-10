@@ -11,6 +11,9 @@ using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 

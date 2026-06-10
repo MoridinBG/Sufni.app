@@ -1,5 +1,6 @@
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.Tests.ExtensionHost;
 

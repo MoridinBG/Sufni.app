@@ -23,6 +23,11 @@ using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Plots;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Items;
 

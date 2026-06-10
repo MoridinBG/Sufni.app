@@ -5,6 +5,7 @@ using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.ViewModels.ItemLists;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 

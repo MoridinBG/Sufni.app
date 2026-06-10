@@ -4,6 +4,7 @@ using Sufni.App.Plots;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using Sufni.App.ExtensionHost.Plots;
 
 namespace Sufni.App.Tests.Plots;
 

@@ -12,6 +12,7 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels.ItemLists;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels;
 

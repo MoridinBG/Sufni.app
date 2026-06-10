@@ -14,6 +14,8 @@ using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
+using Sufni.App.ExtensionHost.Plots;
+using Sufni.App.ExtensionHost.ViewModels.Editors;
 
 namespace Sufni.App.DesktopViews.Plots;
 

@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Services;
 

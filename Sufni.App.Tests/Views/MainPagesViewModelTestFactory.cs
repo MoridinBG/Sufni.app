@@ -15,6 +15,8 @@ using Sufni.App.Tests.Views.ItemLists;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.Tests.Views;
 

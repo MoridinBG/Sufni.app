@@ -11,6 +11,7 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Serilog;
+using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Queries;
 

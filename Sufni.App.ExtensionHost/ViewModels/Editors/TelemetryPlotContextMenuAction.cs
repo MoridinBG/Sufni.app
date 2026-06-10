@@ -1,7 +1,7 @@
 using System.Windows.Input;
 using Sufni.Telemetry;
 
-namespace Sufni.App.ViewModels.Editors;
+namespace Sufni.App.ExtensionHost.ViewModels.Editors;
 
 public sealed record TelemetryPlotContextMenuContext(
     string RowId,

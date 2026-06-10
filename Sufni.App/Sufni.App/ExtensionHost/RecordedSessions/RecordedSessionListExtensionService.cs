@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.ExtensionHost;
 using Sufni.App.SessionGraph;
+using Sufni.App.ExtensionHost.SessionGraph;
 
 namespace Sufni.App.ExtensionHost.RecordedSessions;
 

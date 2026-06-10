@@ -2,7 +2,7 @@ using System.Windows.Input;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Sufni.App.Views.Controls;
+namespace Sufni.App.ExtensionHost.Views.Controls;
 
 public enum TelemetryPlotRowActionKind
 {

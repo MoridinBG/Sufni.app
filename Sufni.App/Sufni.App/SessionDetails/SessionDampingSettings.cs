@@ -1,3 +1,4 @@
+using Sufni.App.ExtensionHost.SessionDetails;
 namespace Sufni.App.SessionDetails;
 
 public static class SessionDampingSettings
