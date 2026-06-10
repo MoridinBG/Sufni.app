@@ -496,30 +496,18 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
         if (headTube1 is null || headTube2 is null || frontWheel is null || rearWheel is null) return;
 
-        var frontRadiusPixels = WheelGeometry.FrontWheelDiameter.Value / 2.0 / PixelsToMillimeters.Value;
-        var rearRadiusPixels = WheelGeometry.RearWheelDiameter.Value / 2.0 / PixelsToMillimeters.Value;
-
-        var frontContactY = frontWheel.Y + frontRadiusPixels;
-        var rearContactY = rearWheel.Y + rearRadiusPixels;
-
-        var dxGround = frontWheel.X - rearWheel.X;
-        var dyGround = frontContactY - rearContactY;
-
-        var top = headTube1.Y < headTube2.Y ? headTube1 : headTube2;
-        var bottom = headTube1.Y < headTube2.Y ? headTube2 : headTube1;
-
-        var dxHeadTube = top.X - bottom.X;
-        var dyHeadTube = top.Y - bottom.Y;
-
-        var magnitudeGround = Math.Sqrt(dxGround * dxGround + dyGround * dyGround);
-        var magnitudeHeadTube = Math.Sqrt(dxHeadTube * dxHeadTube + dyHeadTube * dyHeadTube);
-        if (magnitudeGround < 0.001 || magnitudeHeadTube < 0.001) return;
-
-        var dot = dxGround * dxHeadTube + dyGround * dyHeadTube;
-        var cos = Math.Clamp(dot / (magnitudeGround * magnitudeHeadTube), -1.0, 1.0);
-        var angle = Math.Acos(cos) * 180.0 / Math.PI;
-
-        HeadAngle = Math.Round(180.0 - angle, 1);
+        var headAngle = GeometryUtils.CalculateHeadAngle(
+            headTube1,
+            headTube2,
+            frontWheel,
+            rearWheel,
+            WheelGeometry.FrontWheelDiameter.Value,
+            WheelGeometry.RearWheelDiameter.Value,
+            PixelsToMillimeters.Value);
+        if (headAngle.HasValue)
+        {
+            HeadAngle = headAngle.Value;
+        }
     }
 
     private void QueuePlotRefresh(bool showPlotBusyOverlay = true) => _ = RefreshAnalysisAsync(showPlotBusyOverlay);

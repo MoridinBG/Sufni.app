@@ -73,6 +73,36 @@ public class KinematicsHelperTests
     }
 
     [Fact]
+    public void CalculateHeadAngle_ReturnsRoundedAngleAgainstWheelContactGround()
+    {
+        var headAngle = GeometryUtils.CalculateHeadAngle(
+            headTube1: new CartesianCoordinate(0, -10),
+            headTube2: new CartesianCoordinate(0, 0),
+            frontWheel: new CartesianCoordinate(10, 0),
+            rearWheel: new CartesianCoordinate(0, 0),
+            frontWheelDiameter: 2,
+            rearWheelDiameter: 2,
+            pixelsToMillimeters: 1);
+
+        Assert.Equal(90, headAngle);
+    }
+
+    [Fact]
+    public void CalculateHeadAngle_ReturnsNullForDegenerateGeometry()
+    {
+        var headAngle = GeometryUtils.CalculateHeadAngle(
+            headTube1: new CartesianCoordinate(0, 0),
+            headTube2: new CartesianCoordinate(0, 0),
+            frontWheel: new CartesianCoordinate(10, 0),
+            rearWheel: new CartesianCoordinate(0, 0),
+            frontWheelDiameter: 2,
+            rearWheelDiameter: 2,
+            pixelsToMillimeters: 1);
+
+        Assert.Null(headAngle);
+    }
+
+    [Fact]
     public void CalculateAngleAtPoint_WithCoincidentPoints_ThrowsInvalidOperationException()
     {
         Assert.Throws<InvalidOperationException>(() =>

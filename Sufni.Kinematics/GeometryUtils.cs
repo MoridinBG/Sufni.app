@@ -7,6 +7,53 @@ public static class GeometryUtils
         return Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
     }
 
+    public static double? CalculateHeadAngle(
+        IPoint headTube1,
+        IPoint headTube2,
+        IPoint frontWheel,
+        IPoint rearWheel,
+        double frontWheelDiameter,
+        double rearWheelDiameter,
+        double pixelsToMillimeters)
+    {
+        if (pixelsToMillimeters <= 0 || !double.IsFinite(pixelsToMillimeters))
+        {
+            return null;
+        }
+
+        var frontRadiusPixels = frontWheelDiameter / 2.0 / pixelsToMillimeters;
+        var rearRadiusPixels = rearWheelDiameter / 2.0 / pixelsToMillimeters;
+        if (!double.IsFinite(frontRadiusPixels) || !double.IsFinite(rearRadiusPixels))
+        {
+            return null;
+        }
+
+        var frontContactY = frontWheel.Y + frontRadiusPixels;
+        var rearContactY = rearWheel.Y + rearRadiusPixels;
+
+        var dxGround = frontWheel.X - rearWheel.X;
+        var dyGround = frontContactY - rearContactY;
+
+        var top = headTube1.Y < headTube2.Y ? headTube1 : headTube2;
+        var bottom = headTube1.Y < headTube2.Y ? headTube2 : headTube1;
+
+        var dxHeadTube = top.X - bottom.X;
+        var dyHeadTube = top.Y - bottom.Y;
+
+        var magnitudeGround = Math.Sqrt(dxGround * dxGround + dyGround * dyGround);
+        var magnitudeHeadTube = Math.Sqrt(dxHeadTube * dxHeadTube + dyHeadTube * dyHeadTube);
+        if (magnitudeGround < 0.001 || magnitudeHeadTube < 0.001)
+        {
+            return null;
+        }
+
+        var dot = dxGround * dxHeadTube + dyGround * dyHeadTube;
+        var cos = Math.Clamp(dot / (magnitudeGround * magnitudeHeadTube), -1.0, 1.0);
+        var angle = Math.Acos(cos) * 180.0 / Math.PI;
+
+        return Math.Round(180.0 - angle, 1);
+    }
+
     public static double CalculateAngleAtPoint(Joint central, Joint adjacent1, Joint adjacent2)
     {
         return CalculateAngleAtPoint(central.X, central.Y, adjacent1.X, adjacent1.Y, adjacent2.X, adjacent2.Y);
