@@ -21,7 +21,8 @@ internal sealed class RecordedSessionDataReader(IDatabaseService databaseService
             .Select(session => new RecordedSessionCatalogItem(
                 session.Id,
                 session.Name,
-                session.Timestamp))
+                session.Timestamp,
+                session.DurationSeconds))
             .ToArray();
     }
 
@@ -37,7 +38,8 @@ internal sealed class RecordedSessionDataReader(IDatabaseService databaseService
             : new RecordedSessionCatalogItem(
                 session.Id,
                 session.Name,
-                session.Timestamp);
+                session.Timestamp,
+                session.DurationSeconds);
     }
 
     public async Task<TelemetryData?> GetProcessedTelemetryAsync(
