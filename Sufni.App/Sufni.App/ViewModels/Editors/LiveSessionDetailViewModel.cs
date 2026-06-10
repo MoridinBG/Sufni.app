@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Models;
@@ -418,11 +417,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
         finally
         {
-            Dispatcher.UIThread.Post(() =>
+            UiThreadDispatcher.Post(() =>
             {
                 EvaluateDirtiness();
                 RefreshCommandState();
-            }, DispatcherPriority.Background);
+            });
         }
     }
 
@@ -615,7 +614,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         if (shouldPost)
         {
-            Dispatcher.UIThread.Post(FlushGraphBatchRefresh, DispatcherPriority.Background);
+            UiThreadDispatcher.Post(FlushGraphBatchRefresh);
         }
     }
 
@@ -716,7 +715,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 return;
             }
 
-            Dispatcher.UIThread.Post(() =>
+            UiThreadDispatcher.Post(() =>
             {
                 if (cts.IsCancellationRequested)
                 {
@@ -724,16 +723,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 }
 
                 ApplyCachePresentation(data);
-            }, DispatcherPriority.Background);
+            });
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception e)
         {
-            Dispatcher.UIThread.Post(() =>
-                ErrorMessages.Add($"Live statistics render failed: {e.Message}"),
-                DispatcherPriority.Background);
+            UiThreadDispatcher.Post(() => ErrorMessages.Add($"Live statistics render failed: {e.Message}"));
         }
     }
 
