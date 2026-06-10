@@ -23,6 +23,8 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public class ImportSessionsCoordinator(
     IDatabaseService databaseService,
+    ISynchronizableRepository<Setup> setupRepository,
+    ISynchronizableRepository<Bike> bikeRepository,
     ISessionStoreWriter sessionStore,
     IRecordedSessionSourceStoreWriter sourceStore,
     IShellCoordinator shell,
@@ -80,10 +82,10 @@ public class ImportSessionsCoordinator(
         var failures = new List<SessionImportFailure>();
 
         logger.Verbose("Loading setup {SetupId} for session import", setupId);
-        var setup = await databaseService.GetAsync<Setup>(setupId)
+        var setup = await setupRepository.GetAsync(setupId)
             ?? throw new Exception("Setup is missing");
         logger.Verbose("Loading bike {BikeId} for imported setup {SetupId}", setup.BikeId, setupId);
-        var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
+        var bike = await bikeRepository.GetAsync(setup.BikeId)
             ?? throw new Exception("Bike is missing");
 
         var setupSnapshot = SetupSnapshot.From(setup, boardId: null);

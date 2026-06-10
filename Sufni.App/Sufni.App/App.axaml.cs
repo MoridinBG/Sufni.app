@@ -28,6 +28,7 @@ using Sufni.App.ExtensionHosting;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.ExtensionHosting.RecordedSessions;
 using Sufni.App.ExtensionHosting.Sync;
+using Sufni.App.Models;
 
 namespace Sufni.App;
 
@@ -211,6 +212,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
                 sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
+                sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
                 sp.GetRequiredService<IShellCoordinator>(),

@@ -22,6 +22,8 @@ namespace Sufni.App.Tests.Coordinators;
 public class ImportSessionsCoordinatorTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
+    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
@@ -82,6 +84,8 @@ public class ImportSessionsCoordinatorTests
 
     private ImportSessionsCoordinator CreateCoordinator() => new(
         database,
+        setupRepository,
+        bikeRepository,
         sessionStore,
         sourceStore,
         shell,
@@ -111,14 +115,14 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_Throws_WhenSetupCannotBeLoaded()
     {
         var setupId = Guid.NewGuid();
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult<Setup>(null!));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(null));
 
         var coordinator = CreateCoordinator();
 
         await Assert.ThrowsAsync<Exception>(() =>
             coordinator.ImportAsync(Array.Empty<ITelemetryFile>(), setupId));
 
-        await database.DidNotReceive().GetAsync<Bike>(Arg.Any<Guid>());
+        await bikeRepository.DidNotReceive().GetAsync(Arg.Any<Guid>());
     }
 
     [Fact]
@@ -127,8 +131,8 @@ public class ImportSessionsCoordinatorTests
         var setupId = Guid.NewGuid();
         var bikeId = Guid.NewGuid();
         var setup = new Setup(setupId, "setup") { BikeId = bikeId };
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(setup));
-        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult<Bike>(null!));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(setup));
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(null));
 
         var coordinator = CreateCoordinator();
 
@@ -635,8 +639,8 @@ public class ImportSessionsCoordinatorTests
         var setupId = Guid.NewGuid();
         var bike = new Bike(bikeId, "test bike") { HeadAngle = headAngle, ForkStroke = 160 };
         var setup = new Setup(setupId, "test setup") { BikeId = bikeId };
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(setup));
-        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(bike));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(setup));
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(bike));
         return (setup, bike);
     }
 
