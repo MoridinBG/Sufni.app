@@ -1,5 +1,3 @@
-using System;
-using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -30,8 +28,7 @@ public class WindowsSecureStorage : ISecureStorage
     };
 
     private static readonly string AppSecureStoragePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Sufni.App",
+        AppPaths.AppDataDirectory,
         "preferences.dat");
 
     private readonly SecureStorageDictionary secureStorage = new();
@@ -77,9 +74,7 @@ public class WindowsSecureStorage : ISecureStorage
     {
         await Initialization;
 
-        var dir = Path.GetDirectoryName(AppSecureStoragePath);
-        Debug.Assert(dir != null, nameof(dir) + " != null");
-        Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(AppPaths.AppDataDirectory);
 
         await using var stream = File.Create(AppSecureStoragePath);
         await AppJson.SerializeAsync(stream, secureStorage);
