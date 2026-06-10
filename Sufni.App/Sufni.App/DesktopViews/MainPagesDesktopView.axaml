@@ -7,7 +7,7 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:converters="using:Avalonia.Data.Converters"
 xmlns:theming="clr-namespace:Sufni.App.Theming"
-xmlns:v="clr-namespace:Sufni.App.DesktopViews"
+xmlns:viewconverters="clr-namespace:Sufni.App.Views.Converters"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="720"
 d:DesignWidth="500"
@@ -15,7 +15,7 @@ x:DataType="vm:MainPagesViewModel"
 mc:Ignorable="d">
 
     <UserControl.Resources>
-        <v:ProgressToArcConverter x:Key="ProgressToArcConverter" />
+        <viewconverters:ProgressToArcConverter x:Key="ProgressToArcConverter" />
     </UserControl.Resources>
 
     <UserControl.Styles>

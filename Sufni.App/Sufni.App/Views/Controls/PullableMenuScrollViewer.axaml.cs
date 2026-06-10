@@ -1,43 +1,19 @@
 using System;
 using System.Collections;
-using System.Globalization;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using Avalonia.Data;
-using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Labs.Controls.Base.Pan;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Sufni.App.Behaviors;
 using Sufni.App.ViewModels;
 
 namespace Sufni.App.Views.Controls;
-
-public class MenuItemSelectedConverter : IValueConverter
-{
-    public static readonly MenuItemSelectedConverter Instance = new();
-
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is bool selected)
-        {
-            return selected ? FontWeight.DemiBold : FontWeight.Regular;
-        }
-
-        return new BindingNotification(new InvalidCastException(), BindingErrorType.Error);
-    }
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        throw new NotSupportedException();
-    }
-}
 
 public partial class PullableMenuScrollViewer : UserControl
 {

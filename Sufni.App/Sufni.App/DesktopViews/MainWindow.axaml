@@ -2,10 +2,10 @@
     x:Class="Sufni.App.DesktopViews.MainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:Sufni.App.Views.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:shortcuts="using:Sufni.App.KeyboardShortcuts"
-    xmlns:v="clr-namespace:Sufni.App.DesktopViews"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     Title="Sufni.App"
     Width="1600"
@@ -18,9 +18,9 @@
     mc:Ignorable="d">
 
     <Window.Resources>
-        <v:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
-        <v:BoolToColorConverter x:Key="BoolToColorConverter" />
-        <v:IsEqualConverter x:Key="IsEqualConverter" />
+        <converters:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+        <converters:IsEqualConverter x:Key="IsEqualConverter" />
     </Window.Resources>
 
     <Window.KeyBindings>
