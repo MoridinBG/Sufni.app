@@ -13,13 +13,16 @@ namespace Sufni.App.Tests.Queries;
 public class LiveDaqKnownBoardsQueryTests
 {
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
+    private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
+    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly SetupStore setupStore;
     private readonly BikeStore bikeStore;
 
     public LiveDaqKnownBoardsQueryTests()
     {
-        setupStore = new SetupStore(database);
-        bikeStore = new BikeStore(database);
+        setupStore = new SetupStore(setupRepository, boardRepository);
+        bikeStore = new BikeStore(bikeRepository);
     }
 
     private LiveDaqKnownBoardsQuery CreateQuery() => new(database, setupStore, bikeStore);

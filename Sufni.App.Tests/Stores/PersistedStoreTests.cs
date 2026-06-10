@@ -22,8 +22,9 @@ public class PersistedStoreTests
             HeadAngle = 64,
             Updated = 7
         };
-        database.GetAllAsync<Bike>().Returns([bike]);
-        var store = new BikeStore(database);
+        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+        bikeRepository.GetAllAsync().Returns([bike]);
+        var store = new BikeStore(bikeRepository);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync();
@@ -54,9 +55,11 @@ public class PersistedStoreTests
             Updated = 9
         };
         var board = new Board(boardId, setupId);
-        database.GetAllAsync<Setup>().Returns([setup]);
-        database.GetAllAsync<Board>().Returns([board]);
-        var store = new SetupStore(database);
+        var setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
+        var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
+        setupRepository.GetAllAsync().Returns([setup]);
+        boardRepository.GetAllAsync().Returns([board]);
+        var store = new SetupStore(setupRepository, boardRepository);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync();

@@ -12,12 +12,12 @@ namespace Sufni.App.Stores;
 /// Registered as a singleton behind both <see cref="IBikeStore"/> and
 /// <see cref="IBikeStoreWriter"/>.
 /// </summary>
-internal sealed class BikeStore(IDatabaseService databaseService)
+internal sealed class BikeStore(ISynchronizableRepository<Bike> bikeRepository)
     : SourceCacheStoreBase<BikeSnapshot, Guid>(b => b.Id), IBikeStoreWriter
 {
     public async Task RefreshAsync()
     {
-        var bikes = await databaseService.GetAllAsync<Bike>();
+        var bikes = await bikeRepository.GetAllAsync();
         ReplaceWith(bikes.Select(BikeSnapshot.From));
     }
 }

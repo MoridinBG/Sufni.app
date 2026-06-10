@@ -6,7 +6,9 @@ using Sufni.App.Services;
 
 namespace Sufni.App.Stores;
 
-internal sealed class SetupStore(IDatabaseService databaseService)
+internal sealed class SetupStore(
+    ISynchronizableRepository<Setup> setupRepository,
+    ISynchronizableRepository<Board> boardRepository)
     : SourceCacheStoreBase<SetupSnapshot, Guid>(s => s.Id), ISetupStoreWriter
 {
     public SetupSnapshot? FindByBoardId(Guid boardId) =>
@@ -14,8 +16,8 @@ internal sealed class SetupStore(IDatabaseService databaseService)
 
     public async Task RefreshAsync()
     {
-        var setups = await databaseService.GetAllAsync<Setup>();
-        var boards = await databaseService.GetAllAsync<Board>();
+        var setups = await setupRepository.GetAllAsync();
+        var boards = await boardRepository.GetAllAsync();
 
         ReplaceWith(setups.Select(setup =>
         {
