@@ -3,7 +3,6 @@ using System.IO;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
@@ -603,13 +602,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RequestSharedStreamRefresh()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (UiThreadDispatcher.CheckAccess())
         {
             RefreshSharedStreamState();
             return;
         }
 
-        Dispatcher.UIThread.Post(RefreshSharedStreamState, DispatcherPriority.Background);
+        UiThreadDispatcher.Post(RefreshSharedStreamState);
     }
 
     private void RefreshSharedStreamState()
@@ -628,26 +627,24 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RequestTravelProjectionRefresh()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (UiThreadDispatcher.CheckAccess())
         {
             RefreshTravelCalibration();
             return;
         }
 
-        Dispatcher.UIThread.Post(RefreshTravelCalibration, DispatcherPriority.Background);
+        UiThreadDispatcher.Post(RefreshTravelCalibration);
     }
 
     private void RequestSessionAvailabilityRefresh()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (UiThreadDispatcher.CheckAccess())
         {
             RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState);
             return;
         }
 
-        Dispatcher.UIThread.Post(
-            () => RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState),
-            DispatcherPriority.Background);
+        UiThreadDispatcher.Post(() => RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState));
     }
 
     private void RefreshTravelCalibration()
@@ -659,13 +656,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RequestHeaderRefresh()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (UiThreadDispatcher.CheckAccess())
         {
             RefreshHeaderFromStore();
             return;
         }
 
-        Dispatcher.UIThread.Post(RefreshHeaderFromStore, DispatcherPriority.Background);
+        UiThreadDispatcher.Post(RefreshHeaderFromStore);
     }
 
     private void RefreshHeaderFromStore()
