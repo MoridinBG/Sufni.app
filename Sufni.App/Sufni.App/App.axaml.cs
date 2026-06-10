@@ -216,6 +216,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
         ServiceCollection.AddSingleton<PairedDeviceCoordinator>();
+        ServiceCollection.AddSingleton<IPairedDeviceCoordinator>(sp => sp.GetRequiredService<PairedDeviceCoordinator>());
         ServiceCollection.AddSingleton<SyncCoordinator>();
         ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
@@ -264,7 +265,7 @@ public partial class App : Application
         // eagerly resolved here so the subscriptions are wired before any
         // sync, pairing, or telemetry arrival can happen.
         _ = Services.GetRequiredService<SessionCoordinator>();
-        _ = Services.GetRequiredService<PairedDeviceCoordinator>();
+        _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
         _ = Services.GetRequiredService<SyncCoordinator>();
 
         // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs

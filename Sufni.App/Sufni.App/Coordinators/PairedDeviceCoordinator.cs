@@ -15,7 +15,7 @@ namespace Sufni.App.Coordinators;
 /// eagerly resolved at app startup so the constructor's event
 /// subscriptions wire up before any pairing arrives.
 /// </summary>
-public sealed class PairedDeviceCoordinator
+public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
 

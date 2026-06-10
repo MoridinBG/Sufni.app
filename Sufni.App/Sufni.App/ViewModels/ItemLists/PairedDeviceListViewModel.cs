@@ -21,7 +21,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IPairedDeviceStore pairedDeviceStore;
-    private readonly PairedDeviceCoordinator pairedDeviceCoordinator;
+    private readonly IPairedDeviceCoordinator pairedDeviceCoordinator;
     private readonly ReadOnlyObservableCollection<PairedDeviceRowViewModel> pairedDeviceRows;
     private readonly BehaviorSubject<Func<PairedDeviceSnapshot, bool>> filterSubject = new(_ => true);
     private readonly HashSet<string> pendingDeleteIds = [];
@@ -38,7 +38,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     public PairedDeviceListViewModel(
         IPairedDeviceStore pairedDeviceStore,
-        PairedDeviceCoordinator pairedDeviceCoordinator,
+        IPairedDeviceCoordinator pairedDeviceCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(uiThreadDispatcher, backgroundTaskRunner)
