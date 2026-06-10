@@ -15,7 +15,10 @@ public static class DesktopAppBootstrapper
     public static void RegisterDesktopSync(IServiceCollection services)
     {
         services.AddSingleton<ISynchronizationServerService>(sp => new SynchronizationServerService(
-            sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<ISyncDataStore>(),
+            sp.GetRequiredService<IPairedDeviceRepository>(),
+            sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IAppPreferences>(),
             sp.GetRequiredService<ISecureStorage>(),
             sp.GetService<IExtensionSyncService>()));

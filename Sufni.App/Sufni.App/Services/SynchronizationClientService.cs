@@ -13,26 +13,34 @@ public class SynchronizationClientService : ISynchronizationClientService
     private static readonly ILogger logger = Log.ForContext<SynchronizationClientService>();
     public const string SyncStateKey = "paired-server";
 
-    private readonly IDatabaseService databaseService;
+    private readonly ISyncDataStore syncDataStore;
+    private readonly ISessionRepository sessionRepository;
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
     private readonly IExtensionSyncService? extensionSyncService;
 
     public SynchronizationClientService(
-        IDatabaseService databaseService,
+        ISyncDataStore syncDataStore,
+        ISessionRepository sessionRepository,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences)
-        : this(databaseService, httpApiService, appPreferences, null)
+        : this(syncDataStore, sessionRepository, recordedSessionSourceRepository, httpApiService, appPreferences, null)
     {
     }
 
     internal SynchronizationClientService(
-        IDatabaseService databaseService,
+        ISyncDataStore syncDataStore,
+        ISessionRepository sessionRepository,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences,
         IExtensionSyncService? extensionSyncService)
     {
-        this.databaseService = databaseService;
+        this.syncDataStore = syncDataStore;
+        this.sessionRepository = sessionRepository;
+        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
         this.extensionSyncService = extensionSyncService;
@@ -40,7 +48,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PushLocalChanges(long lastSyncTime)
     {
-        var changes = await databaseService.GetSynchronizationDataAsync(lastSyncTime);
+        var changes = await syncDataStore.GetSynchronizationDataAsync(lastSyncTime);
         changes.AppPreferences = await appPreferences.GetSyncDataAsync(lastSyncTime);
         if (extensionSyncService is not null)
         {
@@ -68,7 +76,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
         foreach (var id in incompleteSessions)
         {
-            var psst = await databaseService.GetSessionRawPsstAsync(id);
+            var psst = await sessionRepository.GetSessionRawPsstAsync(id);
             if (psst is not null)
             {
                 await httpApiService.PatchSessionPsstAsync(id, psst);
@@ -87,7 +95,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         IProgress<SynchronizationProgressSnapshot>? progress)
     {
         var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
-        await databaseService.ApplyRemoteSynchronizationDataAsync(syncData);
+        await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
         if (extensionSyncService is not null)
         {
@@ -120,7 +128,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PullIncompleteSessions()
     {
-        var incompleteSessionIds = await databaseService.GetIncompleteSessionIdsAsync();
+        var incompleteSessionIds = await sessionRepository.GetIncompleteSessionIdsAsync();
         var downloadedCount = 0;
 
         foreach (var id in incompleteSessionIds)
@@ -128,7 +136,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             var psst = await httpApiService.GetSessionPsstAsync(id);
             if (psst is not null)
             {
-                await databaseService.PatchSessionPsstAsync(id, psst);
+                await sessionRepository.PatchSessionPsstAsync(id, psst);
                 downloadedCount++;
             }
         }
@@ -146,7 +154,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
         foreach (var id in incompleteSourceIds)
         {
-            var source = await databaseService.GetRecordedSessionSourceAsync(id);
+            var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
                 if (!RecordedSessionSourceHash.Matches(source))
@@ -167,7 +175,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PullIncompleteSessionSources()
     {
-        var incompleteSourceIds = await databaseService.GetSessionIdsMissingRecordedSourceAsync();
+        var incompleteSourceIds = await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
         var downloadedCount = 0;
 
         foreach (var id in incompleteSourceIds)
@@ -180,7 +188,7 @@ public class SynchronizationClientService : ISynchronizationClientService
                     continue;
                 }
 
-                await databaseService.PutRecordedSessionSourceAsync(FromTransfer(source));
+                await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromTransfer(source));
                 downloadedCount++;
             }
         }
@@ -195,7 +203,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         try
         {
-            var lastSyncTime = await databaseService.GetLastSyncTimeAsync(SyncStateKey);
+            var lastSyncTime = await syncDataStore.GetLastSyncTimeAsync(SyncStateKey);
 
             logger.Verbose("Starting synchronization client run with last sync time {LastSyncTime}", lastSyncTime);
 
@@ -206,7 +214,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, PullIncompleteSessionSources);
 
-            await databaseService.UpdateLastSyncTimeAsync(SyncStateKey);
+            await syncDataStore.UpdateLastSyncTimeAsync(SyncStateKey);
             logger.Verbose("Synchronization client run completed");
         }
         catch (System.Exception exception)

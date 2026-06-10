@@ -43,7 +43,10 @@ public class SynchronizationServerService : ISynchronizationServerService
     private const string DefaultServiceInstanceName = "s1";
     private const int MaxServiceProbeAttempts = 5;
 
-    private readonly IDatabaseService databaseService;
+    private readonly ISyncDataStore syncDataStore;
+    private readonly IPairedDeviceRepository pairedDeviceRepository;
+    private readonly ISessionRepository sessionRepository;
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IAppPreferences appPreferences;
     private readonly IExtensionSyncService? extensionSyncService;
     private readonly ISecureStorage secureStorage;
@@ -77,20 +80,29 @@ public class SynchronizationServerService : ISynchronizationServerService
     #region Constructors
 
     public SynchronizationServerService(
-        IDatabaseService databaseService,
+        ISyncDataStore syncDataStore,
+        IPairedDeviceRepository pairedDeviceRepository,
+        ISessionRepository sessionRepository,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage)
-        : this(databaseService, appPreferences, secureStorage, null)
+        : this(syncDataStore, pairedDeviceRepository, sessionRepository, recordedSessionSourceRepository, appPreferences, secureStorage, null)
     {
     }
 
     internal SynchronizationServerService(
-        IDatabaseService databaseService,
+        ISyncDataStore syncDataStore,
+        IPairedDeviceRepository pairedDeviceRepository,
+        ISessionRepository sessionRepository,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
         IExtensionSyncService? extensionSyncService)
     {
-        this.databaseService = databaseService;
+        this.syncDataStore = syncDataStore;
+        this.pairedDeviceRepository = pairedDeviceRepository;
+        this.sessionRepository = sessionRepository;
+        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
         this.extensionSyncService = extensionSyncService;
@@ -443,7 +455,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                 var accessToken = GenerateAccessToken(req.DeviceId);
                 var pairedDevice = new PairedDevice(req.DeviceId, displayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
-                await databaseService.PutPairedDeviceAsync(pairedDevice);
+                await pairedDeviceRepository.PutPairedDeviceAsync(pairedDevice);
 
                 logger.Verbose("Pairing confirmed for {DeviceId}", req.DeviceId);
                 PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
@@ -452,7 +464,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             app.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
             {
-                var pairedDevice = await databaseService.GetPairedDeviceByTokenAsync(req.RefreshToken);
+                var pairedDevice = await pairedDeviceRepository.GetPairedDeviceByTokenAsync(req.RefreshToken);
                 if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow)
                 {
                     logger.Warning("Token refresh rejected because the paired device was missing or expired");
@@ -461,7 +473,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                 var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
                 var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
-                await databaseService.PutPairedDeviceAsync(newPairedDevice);
+                await pairedDeviceRepository.PutPairedDeviceAsync(newPairedDevice);
 
                 logger.Verbose("Issued refreshed synchronization token for {DeviceId}", pairedDevice.DeviceId);
                 return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
@@ -469,7 +481,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             app.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
             {
-                var device = await databaseService.GetPairedDeviceAsync(req.DeviceId);
+                var device = await pairedDeviceRepository.GetPairedDeviceAsync(req.DeviceId);
                 if (device is null)
                 {
                     logger.Verbose("Ignoring unpair request for {DeviceId} because no device was found", req.DeviceId);
@@ -482,7 +494,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     return Results.Unauthorized();
                 }
 
-                await databaseService.DeletePairedDeviceAsync(device.DeviceId);
+                await pairedDeviceRepository.DeletePairedDeviceAsync(device.DeviceId);
                 logger.Verbose("Unpaired device {DeviceId}", device.DeviceId);
                 Unpaired?.Invoke(this, new PairingEventArgs(device));
 
@@ -495,7 +507,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
                     async () =>
                     {
-                        var data = await databaseService.GetSynchronizationDataAsync(since);
+                        var data = await syncDataStore.GetSynchronizationDataAsync(since);
                         data.AppPreferences = await appPreferences.GetSyncDataAsync(since);
                         if (extensionSyncService is not null)
                         {
@@ -533,7 +545,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                             data.ExtensionBatches.Count,
                             data.AppPreferences is not null);
 
-                        await databaseService.MergeAllAsync(data);
+                        await syncDataStore.MergeAllAsync(data);
                         await appPreferences.ApplySyncDataAsync(data.AppPreferences);
                         if (extensionSyncService is not null)
                         {
@@ -555,7 +567,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.CheckingIncompleteSessions, "Checking missing session data"),
                     async () =>
                     {
-                        var incompleteSessions = await databaseService.GetIncompleteSessionIdsAsync();
+                        var incompleteSessions = await sessionRepository.GetIncompleteSessionIdsAsync();
                         logger.Verbose("Synchronization incomplete-session query returned {SessionCount} sessions", incompleteSessions.Count);
                         return Results.Ok(incompleteSessions);
                     });
@@ -567,7 +579,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingSessionData, "Serving session data"),
                     async () =>
                     {
-                        var data = await databaseService.GetSessionRawPsstAsync(id);
+                        var data = await sessionRepository.GetSessionRawPsstAsync(id);
                         if (data is null)
                         {
                             logger.Warning("Session data download failed because session {SessionId} was not found", id);
@@ -597,7 +609,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                         try
                         {
-                            await databaseService.PatchSessionPsstAsync(id, data);
+                            await sessionRepository.PatchSessionPsstAsync(id, data);
                         }
                         catch (InvalidDataException ex)
                         {
@@ -622,7 +634,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.CheckingIncompleteSessionSources, "Checking missing recorded sources"),
                     async () =>
                     {
-                        var incompleteSources = await databaseService.GetSessionIdsMissingRecordedSourceAsync();
+                        var incompleteSources = await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
                         logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
                         return Results.Ok(incompleteSources);
                     });
@@ -634,7 +646,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingSessionSourceData, "Serving recorded source data"),
                     async () =>
                     {
-                        var source = await databaseService.GetRecordedSessionSourceAsync(id);
+                        var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
                         if (source is null)
                         {
                             logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
@@ -686,7 +698,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                             Payload = transfer.Payload
                         };
 
-                        await databaseService.PutRecordedSessionSourceAsync(source);
+                        await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
 
                         logger.Verbose("Patched recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
                         SessionSourceDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));

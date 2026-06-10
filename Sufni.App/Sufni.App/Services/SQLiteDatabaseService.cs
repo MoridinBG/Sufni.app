@@ -31,6 +31,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private readonly ISessionCacheStore sessionCacheStore;
     private readonly ITrackRepository trackRepository;
     private readonly ISessionRepository sessionRepository;
+    private readonly ISyncDataStore syncDataStore;
 
     public SqLiteDatabaseService()
         : this(
@@ -146,6 +147,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         sessionCacheStore = new SessionCacheStore(connectionContext);
         trackRepository = new TrackRepository(connectionContext);
         sessionRepository = new SessionRepository(connectionContext, this.sessionTelemetryProcessor, trackRepository);
+        syncDataStore = new SynchronizationMergeEngine(connectionContext, trackRepository);
     }
 
     public async Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
@@ -235,132 +237,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
                                                                       deleted,
                                                                       {SessionHasDataProjection}
                                                                       """;
-
-    private const string RemoteSessionMetadataUpdateAssignments = """
-                                                                  name=?,
-                                                                  setup_id=?,
-                                                                  description=?,
-                                                                  timestamp=?,
-                                                                  duration_seconds=?,
-                                                                  distance_meters=?,
-                                                                  ascent_meters=?,
-                                                                  descent_meters=?,
-                                                                  full_track_id=?,
-                                                                  session_processing_fingerprint=?,
-                                                                  track=?,
-                                                                  front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                                                  rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                                                  updated=?,
-                                                                  client_updated=?,
-                                                                  deleted=?
-                                                                  """;
-
-    private static readonly string UpdateRemoteSessionMetadataSql = $"""
-                                                                     UPDATE session
-                                                                     SET
-                                                                         {RemoteSessionMetadataUpdateAssignments}
-                                                                     WHERE
-                                                                         id=?
-                                                                     """;
-
-    private static string? SerializeTrack(Session session) =>
-        session.Track is null ? null : AppJson.Serialize(session.Track);
-
-    private static object?[] CreateProcessedSessionUpdateValues(Session session) =>
-    [
-        session.Name,
-        session.Setup,
-        session.Description,
-        session.Timestamp,
-        session.DurationSeconds,
-        session.DistanceMeters,
-        session.AscentMeters,
-        session.DescentMeters,
-        session.FullTrack,
-        session.ProcessingFingerprintJson,
-        SerializeTrack(session),
-        session.ProcessedData,
-        session.FrontSpringRate,
-        session.FrontHighSpeedCompression,
-        session.FrontLowSpeedCompression,
-        session.FrontLowSpeedRebound,
-        session.FrontHighSpeedRebound,
-        session.RearSpringRate,
-        session.RearHighSpeedCompression,
-        session.RearLowSpeedCompression,
-        session.RearLowSpeedRebound,
-        session.RearHighSpeedRebound,
-        session.Updated
-    ];
-
-    private static object?[] CreateProcessedSessionUpdateValues(Session session, long baselineUpdated) =>
-    [
-        .. CreateProcessedSessionUpdateValues(session),
-        session.Id,
-        baselineUpdated
-    ];
-
-    private static object?[] CreateProcessedSessionUpdateValuesWithId(Session session) =>
-    [
-        .. CreateProcessedSessionUpdateValues(session),
-        session.Id
-    ];
-
-    private static object?[] CreateSessionMetadataSaveUpdateValuesWithId(Session session) =>
-    [
-        session.Name,
-        session.Setup,
-        session.Description,
-        session.Timestamp,
-        session.FullTrack,
-        session.ProcessingFingerprintJson,
-        SerializeTrack(session),
-        session.ProcessedData,
-        session.FrontSpringRate,
-        session.FrontHighSpeedCompression,
-        session.FrontLowSpeedCompression,
-        session.FrontLowSpeedRebound,
-        session.FrontHighSpeedRebound,
-        session.RearSpringRate,
-        session.RearHighSpeedCompression,
-        session.RearLowSpeedCompression,
-        session.RearLowSpeedRebound,
-        session.RearHighSpeedRebound,
-        session.Updated,
-        session.Id
-    ];
-
-    private static object?[] CreateRemoteSessionMetadataValues(
-        Session session,
-        long updated,
-        long clientUpdated) =>
-    [
-        session.Name,
-        session.Setup,
-        session.Description,
-        session.Timestamp,
-        session.DurationSeconds,
-        session.DistanceMeters,
-        session.AscentMeters,
-        session.DescentMeters,
-        session.FullTrack,
-        session.ProcessingFingerprintJson,
-        SerializeTrack(session),
-        session.FrontSpringRate,
-        session.FrontHighSpeedCompression,
-        session.FrontLowSpeedCompression,
-        session.FrontLowSpeedRebound,
-        session.FrontHighSpeedRebound,
-        session.RearSpringRate,
-        session.RearHighSpeedCompression,
-        session.RearLowSpeedCompression,
-        session.RearLowSpeedRebound,
-        session.RearHighSpeedRebound,
-        updated,
-        clientUpdated,
-        session.Deleted,
-        session.Id
-    ];
 
     public async Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : Synchronizable, new()
     {
@@ -514,94 +390,17 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     public Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId) =>
         trackRepository.AssociateSessionWithTrackAsync(sessionId);
 
-    public async Task<SynchronizationData> GetSynchronizationDataAsync(long since)
-    {
-        await Initialization;
+    public Task<SynchronizationData> GetSynchronizationDataAsync(long since) =>
+        syncDataStore.GetSynchronizationDataAsync(since);
 
-        var boards = await GetChangedAsync<Board>(since);
-        var bikes = await GetChangedAsync<Bike>(since);
-        var setups = await GetChangedAsync<Setup>(since);
-        var sessions = await GetChangedAsync<Session>(since);
-        var tracks = await GetChangedAsync<Track>(since);
+    public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
 
-        var changedTrackIds = tracks.Select(track => track.Id).ToHashSet();
-        var relatedTrackIds = sessions
-            .Where(session => session.Deleted is null && session.FullTrack.HasValue)
-            .Select(session => session.FullTrack!.Value)
-            .Where(trackId => !changedTrackIds.Contains(trackId))
-            .Distinct()
-            .ToList();
+    public Task<long> GetLastSyncTimeAsync(string? serverUrl) =>
+        syncDataStore.GetLastSyncTimeAsync(serverUrl);
 
-        if (relatedTrackIds.Count > 0)
-        {
-            tracks.AddRange(await trackRepository.GetTracksByIdsAsync(relatedTrackIds));
-        }
-
-        return new SynchronizationData
-        {
-            Boards = boards,
-            Bikes = bikes,
-            Setups = setups,
-            Sessions = sessions,
-            Tracks = tracks
-        };
-    }
-
-    public async Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data)
-    {
-        await Initialization;
-
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
-        try
-        {
-            foreach (var board in data.Boards) await ApplyRemoteEntityAsync(board);
-            foreach (var bike in data.Bikes) await ApplyRemoteEntityAsync(bike);
-            foreach (var setup in data.Setups) await ApplyRemoteEntityAsync(setup);
-            foreach (var track in data.Tracks) await ApplyRemoteEntityAsync(track);
-            foreach (var session in data.Sessions) await ApplyRemoteSessionAsync(session);
-
-            await connection.ExecuteAsync("COMMIT");
-        }
-        catch
-        {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
-        }
-    }
-
-    public async Task<long> GetLastSyncTimeAsync(string? serverUrl)
-    {
-        await Initialization;
-
-        var s = await connection.Table<Synchronization>()
-            .Where(s => s.ServerUrl == serverUrl)
-            .FirstOrDefaultAsync();
-        return s?.LastSyncTime ?? 0;
-    }
-
-    public async Task UpdateLastSyncTimeAsync(string? serverUrl)
-    {
-        await Initialization;
-
-        var lastSyncTime = DateTimeOffset.Now.ToUnixTimeSeconds();
-        var synchronization = await connection.Table<Synchronization>()
-            .Where(s => s.ServerUrl == serverUrl)
-            .FirstOrDefaultAsync();
-
-        if (synchronization is null)
-        {
-            await connection.InsertAsync(new Synchronization
-            {
-                ServerUrl = serverUrl,
-                LastSyncTime = lastSyncTime
-            });
-            return;
-        }
-
-        synchronization.LastSyncTime = lastSyncTime;
-        await connection.UpdateAsync(synchronization);
-    }
+    public Task UpdateLastSyncTimeAsync(string? serverUrl) =>
+        syncDataStore.UpdateLastSyncTimeAsync(serverUrl);
 
     public Task<List<PairedDevice>> GetPairedDevicesAsync() =>
         pairedDeviceRepository.GetPairedDevicesAsync();
@@ -618,168 +417,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     public Task DeletePairedDeviceAsync(string id) =>
         pairedDeviceRepository.DeletePairedDeviceAsync(id);
 
-    private async Task ApplyRemoteEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity)
-        where T : Synchronizable, new()
-    {
-        var existing = await FindAsync<T>(entity.Id);
-        if (existing is null)
-        {
-            await InsertEntityAsync(entity);
-            return;
-        }
-
-        await UpdateEntityAsync(entity);
-    }
-
-    private async Task ApplyRemoteSessionAsync(Session session)
-    {
-        var existing = await FindAsync<Session>(session.Id);
-        if (existing is null)
-        {
-            await InsertEntityAsync(session);
-            return;
-        }
-
-        await connection.ExecuteAsync(
-            UpdateRemoteSessionMetadataSql,
-            CreateRemoteSessionMetadataValues(session, session.Updated, session.ClientUpdated));
-    }
-
-    private static long GetContentVersion(Synchronizable entity) => entity.ClientUpdated > 0
-        ? entity.ClientUpdated
-        : entity.Updated;
-
-    private async Task MergeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        T entity,
-        Func<T, long, bool, Task> applyAcceptedContentAsync) where T : Synchronizable, new()
-    {
-        await Initialization;
-
-        var existing = await FindAsync<T>(entity.Id);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-        if (existing is null)
-        {
-            await applyAcceptedContentAsync(entity, now, true);
-            return;
-        }
-
-        var existingContentVersion = GetContentVersion(existing);
-
-        if (existing.Deleted.HasValue)
-        {
-            if (entity.Deleted.HasValue && entity.Deleted > existing.Deleted)
-            {
-                existing.Deleted = entity.Deleted;
-            }
-
-            existing.Updated = now;
-            await UpdateEntityAsync(existing);
-            return;
-        }
-
-        if (entity.Deleted.HasValue)
-        {
-            if (entity.Deleted <= existingContentVersion)
-            {
-                existing.Updated = now;
-                await UpdateEntityAsync(existing);
-                return;
-            }
-
-            existing.Deleted = entity.Deleted;
-            existing.Updated = now;
-            await UpdateEntityAsync(existing);
-            return;
-        }
-
-        // Some other client updated the row  later and synced earlier. We
-        // want the latest update, so discard content in this update, but
-        // adjust update timestamp.
-        if (existingContentVersion > entity.Updated)
-        {
-            existing.Updated = now;
-            await UpdateEntityAsync(existing);
-            return;
-        }
-
-        await applyAcceptedContentAsync(entity, now, false);
-    }
-
-    private Task PersistAcceptedEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        T entity,
-        long now,
-        bool isInsert) where T : Synchronizable, new()
-    {
-        return PersistEntityWithServerTimestampsAsync(
-            entity,
-            updated: now,
-            clientUpdated: entity.Updated,
-            persistAsync: isInsert ? InsertEntityAsync : UpdateEntityAsync);
-    }
-
-    private async Task PersistEntityWithServerTimestampsAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        T entity,
-        long updated,
-        long clientUpdated,
-        Func<T, Task<int>> persistAsync) where T : Synchronizable, new()
-    {
-        var originalUpdated = entity.Updated;
-        var originalClientUpdated = entity.ClientUpdated;
-
-        try
-        {
-            entity.Updated = updated;
-            entity.ClientUpdated = clientUpdated;
-            await persistAsync(entity);
-        }
-        finally
-        {
-            entity.Updated = originalUpdated;
-            entity.ClientUpdated = originalClientUpdated;
-        }
-    }
-
-    private Task MergeGenericAcceptedContentAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        T entity,
-        long now,
-        bool isInsert) where T : Synchronizable, new()
-    {
-        return PersistAcceptedEntityAsync(entity, now, isInsert);
-    }
-
-    private Task MergeSessionMetadataAsync(Session session, long now)
-    {
-        return connection.ExecuteAsync(
-            UpdateRemoteSessionMetadataSql,
-            CreateRemoteSessionMetadataValues(session, now, session.Updated));
-    }
-
-    private Task MergeSessionAcceptedContentAsync(Session session, long now, bool isInsert) =>
-        isInsert
-            ? PersistAcceptedEntityAsync(session, now, isInsert: true)
-            : MergeSessionMetadataAsync(session, now);
-
-    public async Task MergeAllAsync(SynchronizationData data)
-    {
-        await Initialization;
-
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
-        try
-        {
-            foreach (var bike in data.Bikes) await MergeAsync(bike, MergeGenericAcceptedContentAsync);
-            foreach (var setup in data.Setups) await MergeAsync(setup, MergeGenericAcceptedContentAsync);
-            foreach (var board in data.Boards) await MergeAsync(board, MergeGenericAcceptedContentAsync);
-            foreach (var session in data.Sessions) await MergeAsync(session, MergeSessionAcceptedContentAsync);
-            foreach (var track in data.Tracks) await MergeAsync(track, MergeGenericAcceptedContentAsync);
-
-            await connection.ExecuteAsync("COMMIT");
-        }
-        catch
-        {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
-        }
-    }
+    public Task MergeAllAsync(SynchronizationData data) =>
+        syncDataStore.MergeAllAsync(data);
 }

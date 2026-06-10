@@ -9,7 +9,9 @@ namespace Sufni.App.Tests.Services;
 
 public class SynchronizationClientServiceTests
 {
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISyncDataStore syncDataStore = Substitute.For<ISyncDataStore>();
+    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
     private readonly IAppPreferences appPreferences = Substitute.For<IAppPreferences>();
 
@@ -17,16 +19,22 @@ public class SynchronizationClientServiceTests
     {
         httpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
         httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
-        database.GetIncompleteSessionIdsAsync().Returns([]);
+        sessionRepository.GetIncompleteSessionIdsAsync().Returns([]);
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
-        database.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
         appPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
         appPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
 
     private SynchronizationClientService CreateService(IExtensionSyncService? extensionSync = null)
     {
-        return new SynchronizationClientService(database, httpApiService, appPreferences, extensionSync);
+        return new SynchronizationClientService(
+            syncDataStore,
+            sessionRepository,
+            recordedSessionSourceRepository,
+            httpApiService,
+            appPreferences,
+            extensionSync);
     }
 
     [Fact]
@@ -58,14 +66,14 @@ public class SynchronizationClientServiceTests
             ]
         };
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(localChanges);
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(localChanges);
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
 
         await CreateService().SyncAll();
 
         await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data => ReferenceEquals(data, localChanges)));
-        await database.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
     }
 
     [Fact]
@@ -106,19 +114,18 @@ public class SynchronizationClientServiceTests
             AppPreferences = remotePreferences,
         };
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(remoteChanges);
 
         await CreateService().SyncAll();
 
-        await database.Received(1).ApplyRemoteSynchronizationDataAsync(Arg.Is<SynchronizationData>(data =>
+        await syncDataStore.Received(1).ApplyRemoteSynchronizationDataAsync(Arg.Is<SynchronizationData>(data =>
             data.Sessions.Count == 1 &&
             data.Tracks.Count == 1 &&
             data.Tracks[0].Id == trackId));
         await appPreferences.Received(1).ApplySyncDataAsync(remotePreferences);
-        await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
-        await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+        await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
     }
 
     [Fact]
@@ -133,8 +140,8 @@ public class SynchronizationClientServiceTests
             },
         };
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         appPreferences.GetSyncDataAsync(5).Returns(localPreferences);
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
 
@@ -153,8 +160,8 @@ public class SynchronizationClientServiceTests
             CreateBatchesResult = [envelope]
         };
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
 
         await CreateService(extensionSync).SyncAll();
@@ -186,9 +193,9 @@ public class SynchronizationClientServiceTests
             },
         };
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        database.ApplyRemoteSynchronizationDataAsync(remoteChanges)
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(remoteChanges)
             .Returns(_ =>
             {
                 calls.Add("core");
@@ -200,7 +207,7 @@ public class SynchronizationClientServiceTests
                 calls.Add("preferences");
                 return Task.CompletedTask;
             });
-        database.UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey)
+        syncDataStore.UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey)
             .Returns(_ =>
             {
                 calls.Add("last-sync");
@@ -227,13 +234,13 @@ public class SynchronizationClientServiceTests
             ExtensionBatches = [CreateExtensionEnvelope("test")],
         };
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(remoteChanges);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(extensionSync).SyncAll());
 
-        await database.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
     }
 
     [Fact]
@@ -255,8 +262,8 @@ public class SynchronizationClientServiceTests
         };
         var events = new List<SynchronizationProgressSnapshot>();
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(remoteChanges);
 
         await CreateService(extensionSync).SyncAll(new ProgressCapture(events));
@@ -267,8 +274,8 @@ public class SynchronizationClientServiceTests
     [Fact]
     public async Task SyncAll_ReportsSixServicePhaseProgress_WhenProgressIsProvided()
     {
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         var events = new List<SynchronizationProgressSnapshot>();
 
@@ -294,11 +301,11 @@ public class SynchronizationClientServiceTests
     {
         var source = CreateRecordedSource();
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
-        database.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
+        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
 
         await CreateService().SyncAll();
 
@@ -317,11 +324,11 @@ public class SynchronizationClientServiceTests
         var source = CreateRecordedSource();
         source.SourceHash = "invalid";
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
-        database.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
+        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
 
         await CreateService().SyncAll();
 
@@ -340,15 +347,15 @@ public class SynchronizationClientServiceTests
             source.SourceHash,
             source.Payload);
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        database.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
 
         await CreateService().SyncAll();
 
-        await database.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
             saved.SessionId == source.SessionId &&
             saved.SourceKind == source.SourceKind &&
             saved.SourceName == source.SourceName &&
@@ -369,15 +376,15 @@ public class SynchronizationClientServiceTests
             "invalid",
             source.Payload);
 
-        database.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        database.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        database.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
 
         await CreateService().SyncAll();
 
-        await database.DidNotReceive().PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>());
+        await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>());
     }
 
     private static RecordedSessionSource CreateRecordedSource()

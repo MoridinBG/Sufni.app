@@ -25,7 +25,9 @@ public static class MobileAppBootstrapper
         services.AddKeyedSingleton<IServiceDiscovery>("sync", (_, key) => createServiceDiscovery((string)key!));
         services.AddSingleton(_ => createHapticFeedback());
         services.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
-            sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<ISyncDataStore>(),
+            sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IAppPreferences>(),
             sp.GetService<IExtensionSyncService>()));
