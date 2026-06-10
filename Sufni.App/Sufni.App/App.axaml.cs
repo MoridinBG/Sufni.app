@@ -112,6 +112,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ISessionAnalysisService, SessionAnalysisService>();
+        ServiceCollection.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<SqLiteDatabaseService>(sp =>
@@ -120,7 +121,8 @@ public partial class App : Application
                 createAppDirectories: true,
                 sp.GetServices<IExtensionDatabaseMigrator>().ToArray(),
                 sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
-                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
+                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray(),
+                sp.GetRequiredService<ISessionTelemetryProcessor>()));
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();

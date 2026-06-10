@@ -28,6 +28,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private readonly ExtensionDatabaseTableCatalog extensionTableCatalog;
     private readonly ExtensionDatabaseMigratorRunner extensionMigratorRunner;
     private readonly ExtensionCascadeService extensionCascadeService;
+    private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
 
     public SqLiteDatabaseService()
         : this(
@@ -101,10 +102,12 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         bool createAppDirectories,
         IEnumerable<IExtensionDatabaseMigrator> extensionMigrators,
         IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
-        Func<IReadOnlyList<IExtensionStateRefreshParticipant>> extensionStateRefreshParticipantsProvider)
+        Func<IReadOnlyList<IExtensionStateRefreshParticipant>> extensionStateRefreshParticipantsProvider,
+        ISessionTelemetryProcessor? sessionTelemetryProcessor = null)
     {
         var extensionMigratorList = extensionMigrators.ToArray();
         var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
+        this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
 
         if (createAppDirectories)
         {
@@ -135,11 +138,13 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         bool createAppDirectories,
         IEnumerable<IExtensionDatabaseMigrator> extensionMigrators,
         IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
-        IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants)
+        IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants,
+        ISessionTelemetryProcessor? sessionTelemetryProcessor = null)
     {
         var extensionMigratorList = extensionMigrators.ToArray();
         var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
         var extensionStateRefreshParticipantList = extensionStateRefreshParticipants.ToArray();
+        this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
 
         if (createAppDirectories)
         {
@@ -655,45 +660,11 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         session.Id
     ];
 
-    private static double? ReadProcessedDurationSeconds(byte[]? processedData)
-    {
-        if (processedData is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return TelemetryData.FromBinary(processedData).Metadata?.Duration;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static TelemetryData ReadProcessedTelemetryData(byte[] processedData)
-    {
-        try
-        {
-            return TelemetryData.FromBinary(processedData)
-                   ?? throw new InvalidDataException("Processed session data did not contain telemetry.");
-        }
-        catch (InvalidDataException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidDataException("Processed session data is not valid telemetry.", exception);
-        }
-    }
-
     private async Task ApplySessionSummaryMetricsAsync(Session session, Track? generatedFullTrack)
     {
-        var durationSeconds = ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds;
+        var durationSeconds = sessionTelemetryProcessor.ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds;
         var points = await GetMetricTrackPointsAsync(session, generatedFullTrack, durationSeconds);
-        var metrics = SessionSummaryMetricsCalculator.Calculate(durationSeconds, points);
+        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
 
         session.DurationSeconds = metrics.DurationSeconds;
         session.DistanceMeters = metrics.DistanceMeters;
@@ -736,20 +707,12 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         var fullTrack = await connection.Table<Track>()
             .Where(track => track.Id == fullTrackId.Value && track.Deleted == null)
             .FirstOrDefaultAsync();
-        if (fullTrack is null || !fullTrack.HasPoints)
+        if (fullTrack is null)
         {
             return null;
         }
 
-        var start = timestamp.Value;
-        var end = start + (int)Math.Ceiling(duration);
-        if (fullTrack.StartTime > start || fullTrack.EndTime < end)
-        {
-            return null;
-        }
-
-        var points = fullTrack.GenerateSessionTrack(start, end);
-        return points.Count == 0 ? null : points;
+        return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(fullTrack, timestamp, durationSeconds);
     }
 
     private Task<int> UpdateProcessedSessionAsync(Session session)
@@ -1116,9 +1079,12 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         await Initialization;
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
-        return sessions.Count == 1 && sessions[0].ProcessedData is not null
-            ? TelemetryData.FromBinary(sessions[0].ProcessedData)
-            : null;
+        if (sessions.Count != 1 || sessions[0].ProcessedData is not { } processedData)
+        {
+            return null;
+        }
+
+        return sessionTelemetryProcessor.ReadProcessedTelemetryData(processedData);
     }
 
     public async Task<byte[]?> GetSessionRawPsstAsync(Guid id)
@@ -1296,10 +1262,10 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
             throw new Exception($"Session {id} does not exist.");
         }
 
-        var telemetryData = ReadProcessedTelemetryData(data);
+        var telemetryData = sessionTelemetryProcessor.ReadProcessedTelemetryData(data);
         session.ProcessedData = data;
         var durationSeconds = telemetryData.Metadata?.Duration ?? session.DurationSeconds;
-        var metrics = SessionSummaryMetricsCalculator.Calculate(durationSeconds, session.Track);
+        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, session.Track);
         var hasTrackPoints = session.Track is { Count: > 0 };
 
         await connection.ExecuteAsync(
@@ -1334,8 +1300,8 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         }
 
         session.Track = points;
-        var metrics = SessionSummaryMetricsCalculator.Calculate(
-            ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds,
+        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(
+            sessionTelemetryProcessor.ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds,
             points);
         var pointsJson = AppJson.Serialize(points);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
