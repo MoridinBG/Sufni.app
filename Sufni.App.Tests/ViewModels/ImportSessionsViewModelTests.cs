@@ -20,8 +20,8 @@ public class ImportSessionsViewModelTests
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly SetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
-    private readonly ImportSessionsCoordinator importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
+    private readonly ISetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
+    private readonly IImportSessionsCoordinator importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
     private readonly ISetupStore setupStore = Substitute.For<ISetupStore>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 

@@ -20,7 +20,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class LiveDaqDetailViewModelTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
-    private readonly LiveDaqCoordinator liveDaqCoordinator = TestCoordinatorSubstitutes.LiveDaq();
+    private readonly ILiveDaqCoordinator liveDaqCoordinator = TestCoordinatorSubstitutes.LiveDaq();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();

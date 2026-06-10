@@ -35,7 +35,7 @@ public class SessionCoordinatorTests
     private readonly ISynchronizableRepository<Session> sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
     private readonly ISessionCacheStore sessionCacheStore = Substitute.For<ISessionCacheStore>();
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
-    private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
+    private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();

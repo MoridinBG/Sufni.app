@@ -26,10 +26,10 @@ internal static class MainPagesViewModelTestFactory
 
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
-        TrackCoordinator? trackCoordinator = null,
+        ITrackCoordinator? trackCoordinator = null,
         IAppDataRefresher? appDataRefresher = null,
         IThemeService? themeService = null,
-        SyncCoordinator? syncCoordinator = null,
+        ISyncCoordinator? syncCoordinator = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingServerViewModel? pairingServerViewModel = null,
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
@@ -112,7 +112,7 @@ internal static class MainPagesViewModelTestFactory
 
     private static ImportSessionsViewModel CreateImportSessionsPage(
         IShellCoordinator shell,
-        ImportSessionsCoordinator importSessionsCoordinator)
+        IImportSessionsCoordinator importSessionsCoordinator)
     {
         var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
         telemetryDataStoreService.DataStores.Returns(new ObservableCollection<ITelemetryDataStore>());

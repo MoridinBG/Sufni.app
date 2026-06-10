@@ -31,7 +31,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class LiveSessionDetailViewModelTests
 {
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
-    private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
+    private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
@@ -1060,7 +1060,7 @@ public class LiveSessionDetailViewModelTests
 
     private LiveSessionDetailViewModel CreateEditor(
         LiveDaqSessionContext? context = null,
-        BikeCoordinator? bikeCoordinator = null)
+        IBikeCoordinator? bikeCoordinator = null)
     {
         return new LiveSessionDetailViewModel(
             context ?? CreateSessionContext(),

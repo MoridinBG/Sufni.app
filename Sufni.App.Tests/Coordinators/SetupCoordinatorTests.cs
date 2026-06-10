@@ -15,7 +15,7 @@ public class SetupCoordinatorTests
 {
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
-    private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+    private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();

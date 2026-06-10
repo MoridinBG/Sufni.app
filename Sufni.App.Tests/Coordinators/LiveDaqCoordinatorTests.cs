@@ -26,7 +26,7 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
-    private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
+    private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();

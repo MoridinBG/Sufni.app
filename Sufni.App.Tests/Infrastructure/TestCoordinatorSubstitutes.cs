@@ -6,36 +6,21 @@ using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionGraph;
-using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
-using Sufni.App.Queries;
+using Sufni.App.ExtensionHost.SessionGraph;
 using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Services.Management;
 using Sufni.App.SetupEditing;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.Infrastructure;
 
 internal static class TestCoordinatorSubstitutes
 {
-    public static BikeCoordinator Bike()
+    public static IBikeCoordinator Bike()
     {
-        var coordinator = Substitute.For<BikeCoordinator>(
-            Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<ISynchronizableRepository<Bike>>(),
-            Substitute.For<IBikeDependencyQuery>(),
-            Substitute.For<IShellCoordinator>(),
-            Substitute.For<IBikeEditorService>(),
-            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
-            Substitute.For<IExtensionCascadeService>());
+        var coordinator = Substitute.For<IBikeCoordinator>();
 
         coordinator.OpenCreateAsync().Returns(Task.CompletedTask);
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
@@ -53,20 +38,9 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static SetupCoordinator Setup()
+    public static ISetupCoordinator Setup()
     {
-        var coordinator = Substitute.For<SetupCoordinator>(
-            Substitute.For<ISetupStoreWriter>(),
-            Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<ISynchronizableRepository<Setup>>(),
-            Substitute.For<ISynchronizableRepository<Bike>>(),
-            Substitute.For<ISynchronizableRepository<Board>>(),
-            Substitute.For<ITelemetryDataStoreService>(),
-            Substitute.For<IFilesService>(),
-            Substitute.For<IBackgroundTaskRunner>(),
-            Substitute.For<IShellCoordinator>(),
-            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
-            Substitute.For<IExtensionCascadeService>());
+        var coordinator = Substitute.For<ISetupCoordinator>();
 
         coordinator.OpenCreateAsync(Arg.Any<Guid?>()).Returns(Task.CompletedTask);
         coordinator.OpenCreateForDetectedBoardAsync().Returns(Task.CompletedTask);
@@ -79,14 +53,9 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static TrackCoordinator Track()
+    public static ITrackCoordinator Track()
     {
-        var coordinator = Substitute.For<TrackCoordinator>(
-            Substitute.For<ITrackRepository>(),
-            Substitute.For<ISynchronizableRepository<Track>>(),
-            Substitute.For<ISessionRepository>(),
-            Substitute.For<IFilesService>(),
-            Substitute.For<IBackgroundTaskRunner>());
+        var coordinator = Substitute.For<ITrackCoordinator>();
 
         coordinator.ImportGpxAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new GpxImportResult(0, 0)));
@@ -94,74 +63,9 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static SessionCoordinator Session()
+    public static ISessionCoordinator Session()
     {
-        var sessionStore = Substitute.For<ISessionStoreWriter>();
-        var sessionRepository = Substitute.For<ISessionRepository>();
-        var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
-        var trackCoordinator = Track();
-        var sessionPresentationService = Substitute.For<ISessionPresentationService>();
-        var domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
-        var shell = Substitute.For<IShellCoordinator>();
-        var sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
-        var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-        var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
-        var reprocessor = Substitute.For<IRecordedSessionReprocessor>();
-        var trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
-        var sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
-        var extensionCascadeService = Substitute.For<IExtensionCascadeService>();
-        var sessionLoader = new SessionLoader(
-            sessionStore,
-            sessionRepository,
-            Substitute.For<ISessionCacheStore>(),
-            Substitute.For<IHttpApiService>(),
-            backgroundTaskRunner,
-            trackCoordinator,
-            sessionPresentationService,
-            domainQuery);
-        var sessionSaver = new SessionSaver(
-            sessionStore,
-            sessionRepository,
-            shell);
-        var liveCaptureSaver = new LiveCaptureSaver(
-            sessionStore,
-            Substitute.For<ISynchronizableRepository<Setup>>(),
-            Substitute.For<ISynchronizableRepository<Bike>>(),
-            sessionRepository,
-            backgroundTaskRunner,
-            sessionPreferences,
-            sourceStore,
-            reprocessor);
-        var sessionRecomputer = new SessionRecomputer(
-            sessionStore,
-            sessionRepository,
-            trackEntityRepository,
-            sessionEntityRepository,
-            backgroundTaskRunner,
-            sessionPreferences,
-            sourceStore,
-            domainQuery,
-            reprocessor,
-            extensionCascadeService);
-        var sessionDeleter = new SessionDeleter(
-            sessionStore,
-            sessionRepository,
-            trackEntityRepository,
-            sessionEntityRepository,
-            sessionPreferences,
-            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
-            sourceRepository,
-            sourceStore,
-            extensionCascadeService);
-
-        var coordinator = Substitute.For<SessionCoordinator>(
-            sessionStore,
-            sessionLoader,
-            sessionSaver,
-            liveCaptureSaver,
-            sessionRecomputer,
-            sessionDeleter,
-            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()));
+        var coordinator = Substitute.For<ISessionCoordinator>();
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -170,15 +74,9 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static LiveDaqCoordinator LiveDaq()
+    public static ILiveDaqCoordinator LiveDaq()
     {
-        var coordinator = Substitute.For<LiveDaqCoordinator>(
-            Substitute.For<ILiveDaqStoreWriter>(),
-            Substitute.For<ILiveDaqKnownBoardsQuery>(),
-            Substitute.For<ILiveDaqCatalogService>(),
-            Substitute.For<ILiveDaqSharedStreamRegistry>(),
-            Substitute.For<ILiveSessionServiceFactory>(),
-            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()));
+        var coordinator = Substitute.For<ILiveDaqCoordinator>();
 
         coordinator.SelectAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
         coordinator.OpenSessionAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
@@ -186,33 +84,21 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static ImportSessionsCoordinator ImportSessions()
+    public static IImportSessionsCoordinator ImportSessions()
     {
-        var coordinator = Substitute.For<ImportSessionsCoordinator>(
-            Substitute.For<ISessionRepository>(),
-            Substitute.For<ISynchronizableRepository<Setup>>(),
-            Substitute.For<ISynchronizableRepository<Bike>>(),
-            Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStoreWriter>(),
-            Substitute.For<IShellCoordinator>(),
-            Substitute.For<IBackgroundTaskRunner>(),
-            new InlineUiThreadDispatcher(),
-            Substitute.For<IDaqManagementService>(),
-            Substitute.For<IRecordedSessionReprocessor>(),
-            new Func<ImportSessionsViewModel>(() => null!));
+        var coordinator = Substitute.For<IImportSessionsCoordinator>();
 
         coordinator.OpenAsync().Returns(Task.CompletedTask);
 
         return coordinator;
     }
 
-    public static SyncCoordinator Sync() =>
-        new(
-            Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<ISetupStoreWriter>(),
-            Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStoreWriter>(),
-            Substitute.For<IPairedDeviceStoreWriter>(),
-            null,
-            null);
+    public static ISyncCoordinator Sync()
+    {
+        var coordinator = Substitute.For<ISyncCoordinator>();
+
+        coordinator.SyncAllAsync().Returns(Task.CompletedTask);
+
+        return coordinator;
+    }
 }

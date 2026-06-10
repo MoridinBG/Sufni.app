@@ -16,8 +16,8 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SetupEditorViewModelTests
 {
-    private readonly SetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
-    private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+    private readonly ISetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
+    private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();

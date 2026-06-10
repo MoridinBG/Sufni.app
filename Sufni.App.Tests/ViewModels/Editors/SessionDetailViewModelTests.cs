@@ -31,7 +31,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SessionDetailViewModelTests
 {
-    private readonly SessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
+    private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -58,7 +58,7 @@ public class SessionDetailViewModelTests
         IObservable<RecordedSessionDomainSnapshot>? watch = null,
         bool? isDesktop = null,
         ISessionPreferences? sessionPreferences = null,
-        BikeCoordinator? bikeCoordinator = null,
+        IBikeCoordinator? bikeCoordinator = null,
         IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {

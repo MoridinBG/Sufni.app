@@ -20,7 +20,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class BikeEditorViewModelTests
 {
-    private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+    private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
