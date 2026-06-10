@@ -73,6 +73,39 @@ public class KinematicsHelperTests
     }
 
     [Fact]
+    public void CalculatePixelsToMillimetersFromChainstay_UsesWheelToBottomBracketDistance()
+    {
+        var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(
+            chainstayMillimeters: 450,
+            rearWheel: new CartesianCoordinate(0, 0),
+            bottomBracket: new CartesianCoordinate(3, 4));
+
+        Assert.Equal(90, pixelsToMillimeters);
+    }
+
+    [Fact]
+    public void CalculatePixelsToMillimetersFromChainstay_ReturnsNullForDegenerateCalibration()
+    {
+        var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(
+            chainstayMillimeters: 450,
+            rearWheel: new CartesianCoordinate(0, 0),
+            bottomBracket: new CartesianCoordinate(0, 0));
+
+        Assert.Null(pixelsToMillimeters);
+    }
+
+    [Fact]
+    public void CalculatePixelsToMillimetersFromChainstay_ReturnsNullForMissingChainstay()
+    {
+        var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(
+            chainstayMillimeters: null,
+            rearWheel: new CartesianCoordinate(0, 0),
+            bottomBracket: new CartesianCoordinate(3, 4));
+
+        Assert.Null(pixelsToMillimeters);
+    }
+
+    [Fact]
     public void CalculateHeadAngle_ReturnsRoundedAngleAgainstWheelContactGround()
     {
         var headAngle = GeometryUtils.CalculateHeadAngle(

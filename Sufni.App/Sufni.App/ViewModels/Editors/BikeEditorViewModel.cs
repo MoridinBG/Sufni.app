@@ -480,8 +480,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var rw = LinkageEditor.JointViewModels.FirstOrDefault(p => p.Type == JointType.RearWheel);
         if (bb is null || rw is null) return;
 
-        var distance = GeometryUtils.CalculateDistance(rw, bb);
-        PixelsToMillimeters = Chainstay / distance;
+        var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(Chainstay, rw, bb);
+        if (pixelsToMillimeters.HasValue)
+        {
+            PixelsToMillimeters = pixelsToMillimeters.Value;
+        }
     }
 
     private void RecalculateHeadAngle()

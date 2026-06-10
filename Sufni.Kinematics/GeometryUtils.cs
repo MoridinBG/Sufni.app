@@ -7,6 +7,27 @@ public static class GeometryUtils
         return Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
     }
 
+    public static double? CalculatePixelsToMillimetersFromChainstay(
+        double? chainstayMillimeters,
+        IPoint rearWheel,
+        IPoint bottomBracket)
+    {
+        if (!chainstayMillimeters.HasValue ||
+            chainstayMillimeters.Value <= 0 ||
+            !double.IsFinite(chainstayMillimeters.Value))
+        {
+            return null;
+        }
+
+        var distancePixels = CalculateDistance(rearWheel, bottomBracket);
+        if (distancePixels <= 0 || !double.IsFinite(distancePixels))
+        {
+            return null;
+        }
+
+        return chainstayMillimeters.Value / distancePixels;
+    }
+
     public static double? CalculateHeadAngle(
         IPoint headTube1,
         IPoint headTube2,
