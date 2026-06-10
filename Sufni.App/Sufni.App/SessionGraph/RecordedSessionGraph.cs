@@ -4,10 +4,10 @@ using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using Avalonia.Threading;
 using DynamicData;
 using Sufni.App.Stores;
 using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.SessionGraph;
 
@@ -39,14 +39,15 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         ISetupStore setupStore,
         IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore,
-        IProcessingFingerprintService fingerprintService)
+        IProcessingFingerprintService fingerprintService,
+        IUiThreadDispatcher uiThreadDispatcher)
         : this(
             sessionStore,
             setupStore,
             bikeStore,
             sourceStore,
             fingerprintService,
-            AvaloniaRecordedSessionGraphScheduler.Instance)
+            new UiThreadRecordedSessionGraphScheduler(uiThreadDispatcher))
     {
     }
 
@@ -537,18 +538,7 @@ internal interface IRecordedSessionGraphScheduler
     void Post(Action action);
 }
 
-/// <summary>
-/// Dispatcher-backed scheduler for deferred recorded-session graph recomputes.
-/// The fixed scheduler keeps graph flush timing independent from the ambient
-/// synchronization context of the thread that queued a change.
-/// </summary>
-internal sealed class AvaloniaRecordedSessionGraphScheduler : IRecordedSessionGraphScheduler
+internal sealed class UiThreadRecordedSessionGraphScheduler(IUiThreadDispatcher uiThreadDispatcher) : IRecordedSessionGraphScheduler
 {
-    public static AvaloniaRecordedSessionGraphScheduler Instance { get; } = new();
-
-    private AvaloniaRecordedSessionGraphScheduler()
-    {
-    }
-
-    public void Post(Action action) => Dispatcher.UIThread.Post(action, DispatcherPriority.Background);
+    public void Post(Action action) => uiThreadDispatcher.Post(action);
 }
