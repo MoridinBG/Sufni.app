@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
     d:DesignHeight="140"
     d:DesignWidth="400"
@@ -28,37 +29,7 @@
                     Text="{Binding ControlState.CaptureDurationText}" />
             </Grid>
 
-            <StackPanel
-                IsVisible="{Binding ControlState.HasSessionHeader}"
-                Spacing="2">
-                <TextBlock
-                    x:Name="LiveSessionIdTextBlock"
-                    FontSize="12"
-                    Opacity="0.85"
-                    Text="{Binding ControlState.SessionIdText}" />
-                <TextBlock
-                    x:Name="LiveAcceptedTravelRateTextBlock"
-                    FontSize="12"
-                    Opacity="0.85"
-                    Text="{Binding ControlState.AcceptedTravelRateText}" />
-                <TextBlock
-                    x:Name="LiveAcceptedImuRateTextBlock"
-                    FontSize="12"
-                    Opacity="0.85"
-                    Text="{Binding ControlState.AcceptedImuRateText}" />
-                <TextBlock
-                    x:Name="LiveAcceptedGpsRateTextBlock"
-                    FontSize="12"
-                    Opacity="0.85"
-                    Text="{Binding ControlState.AcceptedGpsRateText}" />
-            </StackPanel>
-
-            <TextBlock
-                x:Name="LiveWaitingForHeaderTextBlock"
-                FontSize="12"
-                IsVisible="{Binding !ControlState.HasSessionHeader}"
-                Opacity="0.7"
-                Text="Waiting for the accepted live session header." />
+            <shared:LiveSessionHeaderFields />
 
             <TextBlock
                 x:Name="LiveLastErrorTextBlock"

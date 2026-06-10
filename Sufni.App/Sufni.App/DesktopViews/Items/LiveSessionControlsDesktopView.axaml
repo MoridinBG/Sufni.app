@@ -4,6 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="180"
 d:DesignWidth="400"
@@ -28,28 +29,10 @@ mc:Ignorable="d">
             IsVisible="{Binding ControlState.HasLastError}"
             Text="{Binding ControlState.LastError}" />
 
-            <StackPanel
-            IsVisible="{Binding ControlState.HasSessionHeader}"
-            Spacing="4">
-                <TextBlock
-                x:Name="LiveSessionIdTextBlock"
-                Text="{Binding ControlState.SessionIdText}" />
-                <TextBlock
-                x:Name="LiveAcceptedTravelRateTextBlock"
-                Text="{Binding ControlState.AcceptedTravelRateText}" />
-                <TextBlock
-                x:Name="LiveAcceptedImuRateTextBlock"
-                Text="{Binding ControlState.AcceptedImuRateText}" />
-                <TextBlock
-                x:Name="LiveAcceptedGpsRateTextBlock"
-                Text="{Binding ControlState.AcceptedGpsRateText}" />
-            </StackPanel>
-
-            <TextBlock
-            x:Name="LiveWaitingForHeaderTextBlock"
-            IsVisible="{Binding !ControlState.HasSessionHeader}"
-            Opacity="0.7"
-            Text="Waiting for the accepted live session header." />
+            <shared:LiveSessionHeaderFields
+            FieldFontSize="14"
+            FieldOpacity="1"
+            FieldSpacing="4" />
         </StackPanel>
     </Border>
 </UserControl>
