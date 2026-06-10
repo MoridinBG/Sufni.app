@@ -53,8 +53,9 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
             }
 
             isStarted = true;
-            flushCts = new CancellationTokenSource();
-            flushLoopTask = Task.Run(() => RunFlushLoopAsync(flushCts.Token));
+            var cts = new CancellationTokenSource();
+            flushCts = cts;
+            flushLoopTask = Task.Run(() => RunFlushLoopAsync(cts.Token));
         }
     }
 

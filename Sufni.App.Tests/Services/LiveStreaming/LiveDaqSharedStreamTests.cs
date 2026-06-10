@@ -449,9 +449,10 @@ public class LiveDaqSharedStreamTests
         {
             Assert.True(receivedOffsets.Count < publishedFrameCount);
             Assert.Contains((ulong)publishedFrameCount, receivedOffsets);
-            Assert.Contains(
-                receivedOffsets.Zip(receivedOffsets.Skip(1), (previous, current) => current > previous + 1),
-                hasGap => hasGap);
+            // Depending on when the drain task starts, the first delivered
+            // frame can already be the retained suffix. Frame 2 should still
+            // be dropped once the blocked subscriber overflows its buffer.
+            Assert.DoesNotContain((ulong)2, receivedOffsets);
         }
 
         Assert.True(stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0);
