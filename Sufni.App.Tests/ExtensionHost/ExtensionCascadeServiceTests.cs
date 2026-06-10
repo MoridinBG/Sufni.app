@@ -1,6 +1,7 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Services;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.ExtensionHost;
@@ -262,18 +263,6 @@ public class ExtensionCascadeServiceTests
 
         [Column("track_id")]
         public Guid TrackId { get; set; }
-    }
-
-    private sealed class TestExtensionMigrator(
-        string extensionId,
-        int targetVersion,
-        IReadOnlyList<Type> tableTypes,
-        IReadOnlyList<ExtensionDatabaseMigrationStep> steps) : IExtensionDatabaseMigrator
-    {
-        public string ExtensionId { get; } = extensionId;
-        public int TargetVersion { get; } = targetVersion;
-        public IReadOnlyList<Type> TableTypes { get; } = tableTypes;
-        public IReadOnlyList<ExtensionDatabaseMigrationStep> Steps { get; } = steps;
     }
 
     private sealed class TestCascadeRuleProvider(IReadOnlyList<ExtensionCascadeRule> rules)

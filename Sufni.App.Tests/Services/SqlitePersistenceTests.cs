@@ -1885,15 +1885,4 @@ public class SqlitePersistenceTests
         public string Id { get; set; } = string.Empty;
     }
 
-    private sealed class TestExtensionMigrator(
-        string extensionId,
-        int targetVersion,
-        IReadOnlyList<Type> tableTypes,
-        IReadOnlyList<ExtensionDatabaseMigrationStep> steps) : IExtensionDatabaseMigrator
-    {
-        public string ExtensionId { get; } = extensionId;
-        public int TargetVersion { get; } = targetVersion;
-        public IReadOnlyList<Type> TableTypes { get; } = tableTypes;
-        public IReadOnlyList<ExtensionDatabaseMigrationStep> Steps { get; } = steps;
-    }
 }
