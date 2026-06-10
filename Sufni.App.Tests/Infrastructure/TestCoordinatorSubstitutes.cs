@@ -30,7 +30,7 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<BikeCoordinator>(
             Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBikeEditorService>(),
@@ -60,7 +60,9 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ISetupStoreWriter>(),
             Substitute.For<IBikeStoreWriter>(),
             Bike(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<ISynchronizableRepository<Setup>>(),
+            Substitute.For<ISynchronizableRepository<Bike>>(),
+            Substitute.For<ISynchronizableRepository<Board>>(),
             Substitute.For<ITelemetryDataStoreService>(),
             Substitute.For<IFilesService>(),
             Substitute.For<IBackgroundTaskRunner>(),

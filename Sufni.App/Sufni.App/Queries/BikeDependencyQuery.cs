@@ -12,12 +12,12 @@ namespace Sufni.App.Queries;
 
 public sealed class BikeDependencyQuery : IBikeDependencyQuery, IDisposable
 {
-    private readonly IDatabaseService databaseService;
+    private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly IObservableCache<SetupSnapshot, Guid> setupCache;
 
-    public BikeDependencyQuery(IDatabaseService databaseService, ISetupStore setupStore)
+    public BikeDependencyQuery(ISynchronizableRepository<Setup> setupRepository, ISetupStore setupStore)
     {
-        this.databaseService = databaseService;
+        this.setupRepository = setupRepository;
         // Materialize the setup store into a sync cache so the
         // IsBikeInUse fast path can answer immediately. Disposed when
         // the singleton is disposed at app shutdown.
@@ -31,7 +31,7 @@ public sealed class BikeDependencyQuery : IBikeDependencyQuery, IDisposable
 
     public async Task<bool> IsBikeInUseAsync(Guid bikeId)
     {
-        var setups = await databaseService.GetAllAsync<Setup>();
+        var setups = await setupRepository.GetAllAsync();
         return setups.Any(s => s?.BikeId == bikeId);
     }
 

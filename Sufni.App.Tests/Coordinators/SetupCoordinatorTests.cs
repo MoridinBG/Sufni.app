@@ -18,7 +18,9 @@ public class SetupCoordinatorTests
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly BikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
+    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+    private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
     private readonly ITelemetryDataStoreService telemetry = Substitute.For<ITelemetryDataStoreService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
@@ -28,7 +30,7 @@ public class SetupCoordinatorTests
     private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     private SetupCoordinator CreateCoordinator() => new(
-        setupStore, bikeStore, bikeCoordinator, database, telemetry, filesService, backgroundTaskRunner, shell, dialogService, uiThreadDispatcher, extensionCascade);
+        setupStore, bikeStore, bikeCoordinator, setupRepository, bikeRepository, boardRepository, telemetry, filesService, backgroundTaskRunner, shell, dialogService, uiThreadDispatcher, extensionCascade);
 
     // ----- OpenCreateAsync -----
 
@@ -136,7 +138,7 @@ public class SetupCoordinatorTests
 
         var result = await CreateCoordinator().SaveAsync(setup, boardId: existing.BoardId, baselineUpdated: 5);
 
-        await database.Received(1).PutAsync(setup);
+        await setupRepository.Received(1).PutAsync(setup);
         setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7));
         shell.Received(1).GoBack();
@@ -155,7 +157,7 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().SaveAsync(setup, boardId, baselineUpdated: 5);
 
-        await database.DidNotReceive().PutAsync(Arg.Any<Board>());
+        await boardRepository.DidNotReceive().PutAsync(Arg.Any<Board>());
     }
 
     [Fact]
@@ -170,9 +172,9 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().SaveAsync(setup, newBoardId, baselineUpdated: 5);
 
-        await database.Received(1).PutAsync(Arg.Is<Board>(b =>
+        await boardRepository.Received(1).PutAsync(Arg.Is<Board>(b =>
             b.Id == oldBoardId && b.SetupId == null));
-        await database.Received(1).PutAsync(Arg.Is<Board>(b =>
+        await boardRepository.Received(1).PutAsync(Arg.Is<Board>(b =>
             b.Id == newBoardId && b.SetupId == existing.Id));
     }
 
@@ -187,10 +189,10 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().SaveAsync(setup, newBoardId, baselineUpdated: 5);
 
-        await database.Received(1).PutAsync(Arg.Is<Board>(b =>
+        await boardRepository.Received(1).PutAsync(Arg.Is<Board>(b =>
             b.Id == newBoardId && b.SetupId == existing.Id));
         // Only the new-board write — no clear-previous write.
-        await database.Received(1).PutAsync(Arg.Any<Board>());
+        await boardRepository.Received(1).PutAsync(Arg.Any<Board>());
     }
 
     [Fact]
@@ -204,9 +206,9 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().SaveAsync(setup, boardId: null, baselineUpdated: 5);
 
-        await database.Received(1).PutAsync(Arg.Is<Board>(b =>
+        await boardRepository.Received(1).PutAsync(Arg.Is<Board>(b =>
             b.Id == oldBoardId && b.SetupId == null));
-        await database.Received(1).PutAsync(Arg.Any<Board>());
+        await boardRepository.Received(1).PutAsync(Arg.Any<Board>());
     }
 
     [Fact]
@@ -221,7 +223,7 @@ public class SetupCoordinatorTests
 
         var conflict = Assert.IsType<SetupSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await database.DidNotReceive().PutAsync(Arg.Any<Setup>());
+        await setupRepository.DidNotReceive().PutAsync(Arg.Any<Setup>());
         setupStore.DidNotReceive().Upsert(Arg.Any<SetupSnapshot>());
         shell.DidNotReceive().GoBack();
     }
@@ -231,7 +233,7 @@ public class SetupCoordinatorTests
     {
         var existing = TestSnapshots.Setup(updated: 5);
         setupStore.Get(existing.Id).Returns(existing);
-        database.PutAsync(Arg.Any<Setup>()).ThrowsAsync(new InvalidOperationException("disk full"));
+        setupRepository.PutAsync(Arg.Any<Setup>()).ThrowsAsync(new InvalidOperationException("disk full"));
 
         var setup = new Setup(existing.Id, existing.Name) { BikeId = existing.BikeId };
 
@@ -253,7 +255,7 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
-        await database.Received(1).DeleteAsync<Setup>(snapshot.Id);
+        await setupRepository.Received(1).DeleteAsync(snapshot.Id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, snapshot.Id);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SetupEditorViewModel, bool>>(), forgetRestoreHistory: true);
         setupStore.Received(1).Remove(snapshot.Id);
@@ -269,7 +271,7 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
-        await database.Received(1).PutAsync(Arg.Is<Board>(b =>
+        await boardRepository.Received(1).PutAsync(Arg.Is<Board>(b =>
             b.Id == boardId && b.SetupId == null));
     }
 
@@ -279,7 +281,7 @@ public class SetupCoordinatorTests
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(boardId: boardId);
         setupStore.Get(snapshot.Id).Returns(snapshot);
-        database.PutAsync(Arg.Any<Board>()).ThrowsAsync(new InvalidOperationException("board write blew up"));
+        boardRepository.PutAsync(Arg.Any<Board>()).ThrowsAsync(new InvalidOperationException("board write blew up"));
 
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
@@ -292,7 +294,7 @@ public class SetupCoordinatorTests
     {
         var snapshot = TestSnapshots.Setup();
         setupStore.Get(snapshot.Id).Returns(snapshot);
-        database.DeleteAsync<Setup>(snapshot.Id).ThrowsAsync(new InvalidOperationException("locked"));
+        setupRepository.DeleteAsync(snapshot.Id).ThrowsAsync(new InvalidOperationException("locked"));
 
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 

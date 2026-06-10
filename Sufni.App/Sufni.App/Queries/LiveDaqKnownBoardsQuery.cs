@@ -26,7 +26,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         LiveDaqTravelCalibration? TravelCalibration,
         LiveDaqSessionContext? SessionContext);
 
-    private readonly IDatabaseService databaseService;
+    private readonly ISynchronizableRepository<Board> boardRepository;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> changesSubject = new([]);
@@ -39,11 +39,11 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
     private bool refreshPending;
 
     public LiveDaqKnownBoardsQuery(
-        IDatabaseService databaseService,
+        ISynchronizableRepository<Board> boardRepository,
         ISetupStore setupStore,
         IBikeStore bikeStore)
     {
-        this.databaseService = databaseService;
+        this.boardRepository = boardRepository;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
 
@@ -169,7 +169,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
         {
             logger.Debug("Refreshing known live DAQ boards because of {RefreshReason}", reason);
 
-            var boards = await databaseService.GetAllAsync<Board>().ConfigureAwait(false);
+            var boards = await boardRepository.GetAllAsync().ConfigureAwait(false);
 
             var projections = boards
                 .OrderBy(board => board.Id)

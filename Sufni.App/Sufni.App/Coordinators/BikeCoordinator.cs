@@ -19,7 +19,7 @@ namespace Sufni.App.Coordinators;
 
 public class BikeCoordinator(
     IBikeStoreWriter bikeStore,
-    IDatabaseService databaseService,
+    ISynchronizableRepository<Bike> bikeRepository,
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
@@ -213,7 +213,7 @@ public class BikeCoordinator(
 
         try
         {
-            await databaseService.PutAsync(bike);
+            await bikeRepository.PutAsync(bike);
             var saved = BikeSnapshot.From(bike);
             bikeStore.Upsert(saved);
             shell.GoBack();
@@ -267,7 +267,7 @@ public class BikeCoordinator(
 
         try
         {
-            await databaseService.PutAsync(bike);
+            await bikeRepository.PutAsync(bike);
             var saved = BikeSnapshot.From(bike);
             bikeStore.Upsert(saved);
 
@@ -293,7 +293,7 @@ public class BikeCoordinator(
 
         try
         {
-            await databaseService.DeleteAsync<Bike>(bikeId);
+            await bikeRepository.DeleteAsync(bikeId);
             if (extensionCascadeService is not null)
             {
                 await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Bike, bikeId);

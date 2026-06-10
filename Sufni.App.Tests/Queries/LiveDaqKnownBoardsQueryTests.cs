@@ -12,7 +12,6 @@ namespace Sufni.App.Tests.Queries;
 
 public class LiveDaqKnownBoardsQueryTests
 {
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
@@ -25,13 +24,13 @@ public class LiveDaqKnownBoardsQueryTests
         bikeStore = new BikeStore(bikeRepository);
     }
 
-    private LiveDaqKnownBoardsQuery CreateQuery() => new(database, setupStore, bikeStore);
+    private LiveDaqKnownBoardsQuery CreateQuery() => new(boardRepository, setupStore, bikeStore);
 
     [Fact]
     public async Task Changes_ReturnsBoardOnlyRecord_WhenBoardHasNoSetup()
     {
         var boardId = Guid.NewGuid();
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, null) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, null) }));
 
         using var query = CreateQuery();
         var records = await WaitForRecordsAsync(query.Changes);
@@ -55,7 +54,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         var records = await WaitForRecordsAsync(query.Changes);
@@ -73,7 +72,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         var records = await WaitForRecordsAsync(query.Changes);
@@ -91,7 +90,7 @@ public class LiveDaqKnownBoardsQueryTests
     {
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "startup setup", bikeId: Guid.NewGuid(), boardId: boardId);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         var initialRecords = await WaitForRecordsAsync(query.Changes);
@@ -119,7 +118,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -141,7 +140,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -169,7 +168,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -201,7 +200,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -240,7 +239,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -286,7 +285,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -319,7 +318,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         setupStore.Upsert(setup);
         bikeStore.Upsert(bike);
-        database.GetAllAsync<Board>().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);

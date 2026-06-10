@@ -12,7 +12,7 @@ public interface IBikeDependencyQuery
 {
     /// <summary>
     /// True if any setup currently references the bike. Backed by
-    /// <see cref="Services.IDatabaseService"/> for the authoritative
+    /// <see cref="Services.ISynchronizableRepository{T}"/> for the authoritative
     /// answer used inside coordinator delete checks.
     /// </summary>
     Task<bool> IsBikeInUseAsync(Guid bikeId);

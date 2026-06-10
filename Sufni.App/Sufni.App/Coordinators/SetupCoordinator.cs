@@ -19,7 +19,9 @@ public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
     BikeCoordinator bikeCoordinator,
-    IDatabaseService databaseService,
+    ISynchronizableRepository<Setup> setupRepository,
+    ISynchronizableRepository<Bike> bikeRepository,
+    ISynchronizableRepository<Board> boardRepository,
     ITelemetryDataStoreService telemetryDataStoreService,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
@@ -97,7 +99,7 @@ public class SetupCoordinator(
 
         try
         {
-            await databaseService.PutAsync(setup);
+            await setupRepository.PutAsync(setup);
 
             if (current?.BoardId != boardId)
             {
@@ -132,7 +134,7 @@ public class SetupCoordinator(
 
         try
         {
-            await databaseService.DeleteAsync<Setup>(setupId);
+            await setupRepository.DeleteAsync(setupId);
             if (extensionCascadeService is not null)
             {
                 await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, setupId);
@@ -195,13 +197,13 @@ public class SetupCoordinator(
 
         try
         {
-            await databaseService.PutAsync(payload.Bike);
+            await bikeRepository.PutAsync(payload.Bike);
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
             bikeStore.Upsert(bikeSnapshot);
 
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
-            await databaseService.PutAsync(payload.Setup);
+            await setupRepository.PutAsync(payload.Setup);
             await ReassignBoardAsync(originalBoardId: null, resolvedBoardId, payload.Setup.Id);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
             setupStore.Upsert(setupSnapshot);
@@ -285,11 +287,11 @@ public class SetupCoordinator(
 
         if (originalBoardId.HasValue)
         {
-            await databaseService.PutAsync(new Board(originalBoardId.Value, null));
+            await boardRepository.PutAsync(new Board(originalBoardId.Value, null));
         }
         if (newBoardId.HasValue)
         {
-            await databaseService.PutAsync(new Board(newBoardId.Value, setupId));
+            await boardRepository.PutAsync(new Board(newBoardId.Value, setupId));
         }
     }
 }
