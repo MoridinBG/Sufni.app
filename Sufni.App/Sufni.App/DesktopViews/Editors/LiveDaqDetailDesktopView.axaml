@@ -6,6 +6,7 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="800"
 d:DesignWidth="1100"
@@ -64,16 +65,7 @@ mc:Ignorable="d">
                     CornerRadius="8">
                         <StackPanel Spacing="10">
                             <TextBlock FontSize="16" FontWeight="SemiBold" Text="Requested Rates" />
-                            <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto auto" RowSpacing="8" ColumnSpacing="12">
-                                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Travel Hz" />
-                                <NumericUpDown x:Name="RequestedTravelHzUpDown" Grid.Row="0" Grid.Column="1" IsEnabled="{Binding AreRequestedRatesEnabled}" Minimum="0" Value="{Binding RequestedTravelHz}" />
-
-                                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="IMU Hz" />
-                                <NumericUpDown x:Name="RequestedImuHzUpDown" Grid.Row="1" Grid.Column="1" IsEnabled="{Binding AreRequestedRatesEnabled}" Minimum="0" Value="{Binding RequestedImuHz}" />
-
-                                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="GPS Hz" />
-                                <NumericUpDown x:Name="RequestedGpsFixHzUpDown" Grid.Row="2" Grid.Column="1" IsEnabled="{Binding AreRequestedRatesEnabled}" Minimum="0" Value="{Binding RequestedGpsFixHz}" />
-                            </Grid>
+                            <shared:LiveDaqRequestedRatesGrid x:Name="RequestedRatesGrid" />
 
                             <Grid ColumnDefinitions="* *" ColumnSpacing="8">
                                 <Border Grid.Column="0" ToolTip.Tip="{Binding ConnectDisabledTooltip}">

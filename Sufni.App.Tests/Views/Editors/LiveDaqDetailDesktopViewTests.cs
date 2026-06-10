@@ -13,6 +13,7 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Shared;
 
 namespace Sufni.App.Tests.Views.Editors;
 
@@ -28,9 +29,12 @@ public class LiveDaqDetailDesktopViewTests
 
         await using var mounted = await MountAsync(editor);
 
-        Assert.Equal(200, Convert.ToInt32(mounted.View.FindControl<NumericUpDown>("RequestedTravelHzUpDown")!.Value));
-        Assert.Equal(100, Convert.ToInt32(mounted.View.FindControl<NumericUpDown>("RequestedImuHzUpDown")!.Value));
-        Assert.Equal(5, Convert.ToInt32(mounted.View.FindControl<NumericUpDown>("RequestedGpsFixHzUpDown")!.Value));
+        var requestedRates = mounted.View.FindControl<LiveDaqRequestedRatesGrid>("RequestedRatesGrid");
+        Assert.NotNull(requestedRates);
+
+        Assert.Equal(200, Convert.ToInt32(requestedRates!.FindControl<NumericUpDown>("RequestedTravelHzUpDown")!.Value));
+        Assert.Equal(100, Convert.ToInt32(requestedRates.FindControl<NumericUpDown>("RequestedImuHzUpDown")!.Value));
+        Assert.Equal(5, Convert.ToInt32(requestedRates.FindControl<NumericUpDown>("RequestedGpsFixHzUpDown")!.Value));
     }
 
     [AvaloniaFact]

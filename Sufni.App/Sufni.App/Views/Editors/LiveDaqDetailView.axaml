@@ -6,6 +6,7 @@ xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:live="clr-namespace:Sufni.App.Services.LiveStreaming"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="800"
 d:DesignWidth="420"
@@ -111,50 +112,7 @@ mc:Ignorable="d">
                         FontSize="16"
                         FontWeight="SemiBold"
                         Text="Requested Rates" />
-                        <Grid
-                        ColumnDefinitions="auto *"
-                        ColumnSpacing="12"
-                        RowDefinitions="auto auto auto"
-                        RowSpacing="8">
-                            <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            VerticalAlignment="Center"
-                            Text="Travel Hz" />
-                            <NumericUpDown
-                            Name="RequestedTravelHzUpDown"
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            IsEnabled="{Binding AreRequestedRatesEnabled}"
-                            Minimum="0"
-                            Value="{Binding RequestedTravelHz}" />
-
-                            <TextBlock
-                            Grid.Row="1"
-                            Grid.Column="0"
-                            VerticalAlignment="Center"
-                            Text="IMU Hz" />
-                            <NumericUpDown
-                            Name="RequestedImuHzUpDown"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            IsEnabled="{Binding AreRequestedRatesEnabled}"
-                            Minimum="0"
-                            Value="{Binding RequestedImuHz}" />
-
-                            <TextBlock
-                            Grid.Row="2"
-                            Grid.Column="0"
-                            VerticalAlignment="Center"
-                            Text="GPS Hz" />
-                            <NumericUpDown
-                            Name="RequestedGpsFixHzUpDown"
-                            Grid.Row="2"
-                            Grid.Column="1"
-                            IsEnabled="{Binding AreRequestedRatesEnabled}"
-                            Minimum="0"
-                            Value="{Binding RequestedGpsFixHz}" />
-                        </Grid>
+                        <shared:LiveDaqRequestedRatesGrid Name="RequestedRatesGrid" />
                     </StackPanel>
                 </Border>
 
