@@ -187,23 +187,28 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetRequiredService<IExtensionCascadeService>()));
+        ServiceCollection.AddSingleton<SessionDeleter>(sp => new SessionDeleter(
+            sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<ISynchronizableRepository<Track>>(),
+            sp.GetRequiredService<ISynchronizableRepository<Session>>(),
+            sp.GetRequiredService<ISessionPreferences>(),
+            sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
+            sp.GetRequiredService<IExtensionCascadeService>()));
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<SessionLoader>(),
             sp.GetRequiredService<SessionSaver>(),
             sp.GetRequiredService<LiveCaptureSaver>(),
             sp.GetRequiredService<SessionRecomputer>(),
+            sp.GetRequiredService<SessionDeleter>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<ISynchronizableRepository<Track>>(),
-            sp.GetRequiredService<ISynchronizableRepository<Session>>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetService<ISynchronizationServerService>(),
-            sp.GetRequiredService<IExtensionCascadeService>()));
+            sp.GetService<ISynchronizationServerService>()));
         ServiceCollection.AddSingleton<ISessionCoordinator>(sp => sp.GetRequiredService<SessionCoordinator>());
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());

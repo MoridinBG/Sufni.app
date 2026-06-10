@@ -142,6 +142,15 @@ internal static class TestCoordinatorSubstitutes
             domainQuery,
             reprocessor,
             extensionCascadeService);
+        var sessionDeleter = new SessionDeleter(
+            sessionStore,
+            sessionRepository,
+            trackEntityRepository,
+            sessionEntityRepository,
+            sessionPreferences,
+            shell,
+            sourceStore,
+            extensionCascadeService);
 
         var coordinator = Substitute.For<SessionCoordinator>(
             sessionStore,
@@ -149,17 +158,13 @@ internal static class TestCoordinatorSubstitutes
             sessionSaver,
             liveCaptureSaver,
             sessionRecomputer,
+            sessionDeleter,
             sessionRepository,
             Substitute.For<IRecordedSessionSourceRepository>(),
-            trackEntityRepository,
-            sessionEntityRepository,
-            backgroundTaskRunner,
-            sessionPreferences,
             shell,
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             sourceStore,
-            null,
-            extensionCascadeService);
+            null);
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())

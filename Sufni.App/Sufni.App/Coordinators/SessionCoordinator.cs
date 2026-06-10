@@ -38,16 +38,12 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly SessionSaver sessionSaver;
     private readonly LiveCaptureSaver liveCaptureSaver;
     private readonly SessionRecomputer sessionRecomputer;
+    private readonly SessionDeleter sessionDeleter;
     private readonly ISessionRepository sessionRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
-    private readonly ISynchronizableRepository<Track> trackEntityRepository;
-    private readonly ISynchronizableRepository<Session> sessionEntityRepository;
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
-    private readonly IExtensionCascadeService? extensionCascadeService;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -55,33 +51,25 @@ public class SessionCoordinator : ISessionCoordinator
         SessionSaver sessionSaver,
         LiveCaptureSaver liveCaptureSaver,
         SessionRecomputer sessionRecomputer,
+        SessionDeleter sessionDeleter,
         ISessionRepository sessionRepository,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
-        ISynchronizableRepository<Track> trackEntityRepository,
-        ISynchronizableRepository<Session> sessionEntityRepository,
-        IBackgroundTaskRunner backgroundTaskRunner,
-        ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         Func<IEditorFactory> editorFactory,
         IRecordedSessionSourceStoreWriter sourceStore,
-        ISynchronizationServerService? synchronizationServer = null,
-        IExtensionCascadeService? extensionCascadeService = null)
+        ISynchronizationServerService? synchronizationServer = null)
     {
         this.sessionStore = sessionStore;
         this.sessionLoader = sessionLoader;
         this.sessionSaver = sessionSaver;
         this.liveCaptureSaver = liveCaptureSaver;
         this.sessionRecomputer = sessionRecomputer;
+        this.sessionDeleter = sessionDeleter;
         this.sessionRepository = sessionRepository;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
-        this.trackEntityRepository = trackEntityRepository;
-        this.sessionEntityRepository = sessionEntityRepository;
-        this.backgroundTaskRunner = backgroundTaskRunner;
-        this.sessionPreferences = sessionPreferences;
         this.shell = shell;
         this.editorFactory = editorFactory;
         this.sourceStore = sourceStore;
-        this.extensionCascadeService = extensionCascadeService;
 
         if (synchronizationServer is not null)
         {
@@ -129,58 +117,8 @@ public class SessionCoordinator : ISessionCoordinator
         CancellationToken cancellationToken = default)
         => sessionRecomputer.RecomputeAsync(sessionId, baselineUpdated, cancellationToken);
 
-    public virtual async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
-    {
-        logger.Information("Starting session delete for {SessionId}", sessionId);
-
-        try
-        {
-            var session = await sessionRepository.GetSessionAsync(sessionId);
-            var trackId = session?.FullTrack;
-            var shouldDeleteTrack = false;
-
-            if (trackId.HasValue)
-            {
-                var sessions = await sessionEntityRepository.GetAllAsync();
-                shouldDeleteTrack = !sessions.Any(existing => existing.Id != sessionId && existing.FullTrack == trackId);
-            }
-
-            await sessionEntityRepository.DeleteAsync(sessionId);
-            if (extensionCascadeService is not null)
-            {
-                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
-            }
-            await sourceStore.RemoveAsync(sessionId);
-
-            if (shouldDeleteTrack && trackId.HasValue)
-            {
-                try
-                {
-                    await trackEntityRepository.DeleteAsync(trackId.Value);
-                    if (extensionCascadeService is not null)
-                    {
-                        await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId.Value);
-                    }
-                }
-                catch (Exception e)
-                {
-                    logger.Warning(e, "Failed to delete orphaned track {TrackId} after deleting session {SessionId}", trackId.Value, sessionId);
-                }
-            }
-
-            await sessionPreferences.RemoveRecordedAsync(sessionId);
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Session delete failed for {SessionId}", sessionId);
-            return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
-        }
-
-        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
-        sessionStore.Remove(sessionId);
-        logger.Information("Session delete completed for {SessionId}", sessionId);
-        return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
-    }
+    public virtual Task<SessionDeleteResult> DeleteAsync(Guid sessionId) =>
+        sessionDeleter.DeleteAsync(sessionId);
 
     private async void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)
     {

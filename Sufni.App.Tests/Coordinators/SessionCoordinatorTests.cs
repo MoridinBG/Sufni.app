@@ -103,6 +103,17 @@ public class SessionCoordinatorTests
             reprocessor,
             extensionCascade);
 
+    private SessionDeleter CreateDeleter() =>
+        new(
+            sessionStore,
+            sessionRepository,
+            trackEntityRepository,
+            sessionEntityRepository,
+            sessionPreferences,
+            shell,
+            sourceStore,
+            extensionCascade);
+
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
@@ -110,17 +121,13 @@ public class SessionCoordinatorTests
             CreateSaver(),
             CreateLiveCaptureSaver(),
             CreateRecomputer(),
+            CreateDeleter(),
             sessionRepository,
             recordedSessionSourceRepository,
-            trackEntityRepository,
-            sessionEntityRepository,
-            backgroundTaskRunner,
-            sessionPreferences,
             shell,
             () => editorFactory,
             sourceStore,
-            synchronizationServer: sync,
-            extensionCascadeService: extensionCascade);
+            synchronizationServer: sync);
 
     // ----- OpenEditAsync -----
 
