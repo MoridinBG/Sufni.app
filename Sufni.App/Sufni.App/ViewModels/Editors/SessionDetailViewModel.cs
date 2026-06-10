@@ -42,9 +42,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// editable notes/settings state, and reactive stale-data prompts for the
 /// opened session.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
-    ISessionShellMobileWorkspace,
-    IRecordedSessionGraphWorkspace, ISessionMediaWorkspace, ISessionStatisticsWorkspace, ISessionSidebarWorkspace
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 {
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
@@ -255,7 +253,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SelectedBalanceDisplacementMode,
         SelectedBalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
-    IReadOnlyList<TrackPoint>? IRecordedSessionGraphWorkspace.TrackPoints => TrackPoints;
 
     #endregion Observable properties
 
