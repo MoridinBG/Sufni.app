@@ -196,20 +196,14 @@ public partial class App : Application
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IExtensionCascadeService>()));
-        ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
+        ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<SessionLoader>(),
-            sp.GetRequiredService<SessionSaver>(),
-            sp.GetRequiredService<LiveCaptureSaver>(),
-            sp.GetRequiredService<SessionRecomputer>(),
-            sp.GetRequiredService<SessionDeleter>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<IShellCoordinator>(),
-            sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
+            sp.GetRequiredService<IUiThreadDispatcher>(),
             sp.GetService<ISynchronizationServerService>()));
-        ServiceCollection.AddSingleton<ISessionCoordinator>(sp => sp.GetRequiredService<SessionCoordinator>());
+        ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
@@ -272,10 +266,10 @@ public partial class App : Application
         var themeService = Services.GetRequiredService<IThemeService>();
         _ = themeService.InitializeAsync();
 
-        // Coordinators with constructor-time event subscriptions are
+        // Services with constructor-time event subscriptions are
         // eagerly resolved here so the subscriptions are wired before any
         // sync, pairing, or telemetry arrival can happen.
-        _ = Services.GetRequiredService<SessionCoordinator>();
+        _ = Services.GetRequiredService<SessionSyncApplier>();
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
         _ = Services.GetRequiredService<ISyncCoordinator>();
 

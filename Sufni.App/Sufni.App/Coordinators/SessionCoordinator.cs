@@ -1,25 +1,13 @@
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHost.SessionGraph;
-using Sufni.App.ExtensionHosting.Database;
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Threading;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
-using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
-using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.Editors;
-using Sufni.Telemetry;
-using Serilog;
 
 namespace Sufni.App.Coordinators;
 
@@ -31,19 +19,14 @@ namespace Sufni.App.Coordinators;
 /// </summary>
 public class SessionCoordinator : ISessionCoordinator
 {
-    private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
-
     private readonly ISessionStoreWriter sessionStore;
     private readonly SessionLoader sessionLoader;
     private readonly SessionSaver sessionSaver;
     private readonly LiveCaptureSaver liveCaptureSaver;
     private readonly SessionRecomputer sessionRecomputer;
     private readonly SessionDeleter sessionDeleter;
-    private readonly ISessionRepository sessionRepository;
-    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IShellCoordinator shell;
     private readonly Func<IEditorFactory> editorFactory;
-    private readonly IRecordedSessionSourceStoreWriter sourceStore;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -52,12 +35,8 @@ public class SessionCoordinator : ISessionCoordinator
         LiveCaptureSaver liveCaptureSaver,
         SessionRecomputer sessionRecomputer,
         SessionDeleter sessionDeleter,
-        ISessionRepository sessionRepository,
-        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IShellCoordinator shell,
-        Func<IEditorFactory> editorFactory,
-        IRecordedSessionSourceStoreWriter sourceStore,
-        ISynchronizationServerService? synchronizationServer = null)
+        Func<IEditorFactory> editorFactory)
     {
         this.sessionStore = sessionStore;
         this.sessionLoader = sessionLoader;
@@ -65,18 +44,8 @@ public class SessionCoordinator : ISessionCoordinator
         this.liveCaptureSaver = liveCaptureSaver;
         this.sessionRecomputer = sessionRecomputer;
         this.sessionDeleter = sessionDeleter;
-        this.sessionRepository = sessionRepository;
-        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.shell = shell;
         this.editorFactory = editorFactory;
-        this.sourceStore = sourceStore;
-
-        if (synchronizationServer is not null)
-        {
-            synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
-            synchronizationServer.SessionDataArrived += OnSessionDataArrived;
-            synchronizationServer.SessionSourceDataArrived += OnSessionSourceDataArrived;
-        }
     }
 
     public virtual Task OpenEditAsync(Guid sessionId)
@@ -119,117 +88,6 @@ public class SessionCoordinator : ISessionCoordinator
 
     public virtual Task<SessionDeleteResult> DeleteAsync(Guid sessionId) =>
         sessionDeleter.DeleteAsync(sessionId);
-
-    private async void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)
-    {
-        try
-        {
-            await HandleSynchronizationDataArrivedAsync(e);
-        }
-        catch (Exception exception)
-        {
-            logger.Error(exception, "Failed to apply inbound session synchronization data");
-        }
-    }
-
-    private async Task HandleSynchronizationDataArrivedAsync(SynchronizationDataArrivedEventArgs e)
-    {
-        var removals = new List<Guid>();
-        var upserts = new List<SessionSnapshot>();
-
-        foreach (var session in e.Data.Sessions)
-        {
-            if (session.Deleted is not null)
-            {
-                removals.Add(session.Id);
-                continue;
-            }
-
-            var fresh = await sessionRepository.GetSessionAsync(session.Id);
-            if (fresh is not null)
-            {
-                upserts.Add(SessionSnapshot.From(fresh));
-            }
-        }
-
-        logger.Verbose(
-            "Applying inbound session synchronization with {RemovalCount} removals and {UpsertCount} upserts",
-            removals.Count,
-            upserts.Count);
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            foreach (var id in removals)
-            {
-                sessionStore.Remove(id);
-            }
-
-            foreach (var snapshot in upserts)
-            {
-                sessionStore.Upsert(snapshot);
-            }
-        });
-    }
-
-    private async void OnSessionDataArrived(object? sender, SessionDataArrivedEventArgs e)
-    {
-        try
-        {
-            await HandleSessionDataArrivedAsync(e);
-        }
-        catch (Exception exception)
-        {
-            logger.Error(exception, "Failed to apply inbound session data for {SessionId}", e.SessionId);
-        }
-    }
-
-    private async Task HandleSessionDataArrivedAsync(SessionDataArrivedEventArgs e)
-    {
-        logger.Verbose("Applying inbound session data for {SessionId}", e.SessionId);
-
-        var fresh = await sessionRepository.GetSessionAsync(e.SessionId);
-        if (fresh is null)
-        {
-            logger.Verbose("Ignoring inbound session data because session {SessionId} is missing", e.SessionId);
-            return;
-        }
-
-        var snapshot = SessionSnapshot.From(fresh);
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            sessionStore.Upsert(snapshot);
-        });
-    }
-
-    private async void OnSessionSourceDataArrived(object? sender, SessionDataArrivedEventArgs e)
-    {
-        try
-        {
-            await HandleSessionSourceDataArrivedAsync(e);
-        }
-        catch (Exception exception)
-        {
-            logger.Error(exception, "Failed to apply inbound recorded source for {SessionId}", e.SessionId);
-        }
-    }
-
-    private async Task HandleSessionSourceDataArrivedAsync(SessionDataArrivedEventArgs e)
-    {
-        logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
-
-        var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(e.SessionId);
-        if (source is null)
-        {
-            logger.Verbose("Ignoring inbound recorded source because source {SessionId} is missing", e.SessionId);
-            return;
-        }
-
-        var snapshot = RecordedSessionSourceSnapshot.From(source);
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            sourceStore.Upsert(snapshot);
-        });
-    }
 }
 
 public abstract record SessionSaveResult

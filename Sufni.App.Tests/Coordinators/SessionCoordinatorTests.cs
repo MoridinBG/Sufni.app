@@ -114,7 +114,7 @@ public class SessionCoordinatorTests
             sourceStore,
             extensionCascade);
 
-    private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
+    private SessionCoordinator CreateCoordinator() =>
         new(
             sessionStore,
             CreateLoader(),
@@ -122,12 +122,17 @@ public class SessionCoordinatorTests
             CreateLiveCaptureSaver(),
             CreateRecomputer(),
             CreateDeleter(),
+            shell,
+            () => editorFactory);
+
+    private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
+        new(
+            sessionStore,
             sessionRepository,
             recordedSessionSourceRepository,
-            shell,
-            () => editorFactory,
             sourceStore,
-            synchronizationServer: sync);
+            uiThreadDispatcher,
+            sync);
 
     // ----- OpenEditAsync -----
 
@@ -1192,7 +1197,7 @@ public class SessionCoordinatorTests
     public async Task Constructor_SubscribesToSyncEvents_AndUpsertsOnSessionDataArrived()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
-        var coordinator = CreateCoordinator(sync);
+        _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
         var fresh = new Session(sessionId, "n", "", null) { Updated = 4, HasProcessedData = true };
@@ -1209,7 +1214,7 @@ public class SessionCoordinatorTests
     public async Task Constructor_OnSessionDataArrived_IgnoresDatabaseFailure()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateCoordinator(sync);
+        _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
         sessionRepository.GetSessionAsync(sessionId).ThrowsAsync(new InvalidOperationException());
@@ -1224,7 +1229,7 @@ public class SessionCoordinatorTests
     public async Task Constructor_SubscribesToSourceEvents_AndUpsertsOnSessionSourceDataArrived()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateCoordinator(sync);
+        _ = CreateSyncApplier(sync);
 
         var source = CreateRecordedSource(Guid.NewGuid());
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
@@ -1241,7 +1246,7 @@ public class SessionCoordinatorTests
     public async Task Constructor_OnSessionSourceDataArrived_IgnoresDatabaseFailure()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateCoordinator(sync);
+        _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(sessionId).ThrowsAsync(new InvalidOperationException());
@@ -1256,7 +1261,7 @@ public class SessionCoordinatorTests
     public async Task Constructor_OnSynchronizationDataArrived_RemovesDeletedSessionsAndUpsertsLive()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
-        var coordinator = CreateCoordinator(sync);
+        _ = CreateSyncApplier(sync);
 
         var liveId = Guid.NewGuid();
         var deletedId = Guid.NewGuid();
@@ -1283,7 +1288,7 @@ public class SessionCoordinatorTests
     public async Task Constructor_OnSynchronizationDataArrived_IgnoresDatabaseFailure()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateCoordinator(sync);
+        _ = CreateSyncApplier(sync);
 
         var liveId = Guid.NewGuid();
         sessionRepository.GetSessionAsync(liveId).ThrowsAsync(new InvalidOperationException());

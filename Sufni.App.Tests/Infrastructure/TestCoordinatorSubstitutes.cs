@@ -159,12 +159,8 @@ internal static class TestCoordinatorSubstitutes
             liveCaptureSaver,
             sessionRecomputer,
             sessionDeleter,
-            sessionRepository,
-            Substitute.For<IRecordedSessionSourceRepository>(),
             shell,
-            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
-            sourceStore,
-            null);
+            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()));
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
