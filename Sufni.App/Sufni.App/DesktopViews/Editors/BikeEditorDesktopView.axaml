@@ -4,7 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:v="using:Sufni.App.DesktopViews.Items"
 xmlns:vm="using:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
@@ -38,35 +38,16 @@ mc:Ignorable="d">
 
         </SplitView>
 
-        <Panel
-        Background="#0d0d0d"
-        IsHitTestVisible="True"
-        Opacity="0.4">
-            <Panel.IsVisible>
+        <shared:EditorBusyOverlay>
+            <shared:EditorBusyOverlay.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="LoadedCommand.IsRunning" />
                     <Binding Path="ImportCommand.IsRunning" />
                     <Binding Path="OpenImageCommand.IsRunning" />
                     <Binding Path="SaveCommand.IsRunning" />
                 </MultiBinding>
-            </Panel.IsVisible>
-        </Panel>
-
-        <progRing:ProgressRing
-        Width="40"
-        Height="40"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        Foreground="{DynamicResource SufniAccentColor}">
-            <progRing:ProgressRing.IsActive>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="LoadedCommand.IsRunning" />
-                    <Binding Path="ImportCommand.IsRunning" />
-                    <Binding Path="OpenImageCommand.IsRunning" />
-                    <Binding Path="SaveCommand.IsRunning" />
-                </MultiBinding>
-            </progRing:ProgressRing.IsActive>
-        </progRing:ProgressRing>
+            </shared:EditorBusyOverlay.IsActive>
+        </shared:EditorBusyOverlay>
 
     </Grid>
 

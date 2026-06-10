@@ -8,6 +8,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:editorViews="using:Sufni.App.Views.Editors"
 xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:vm="using:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
@@ -234,43 +235,20 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="4" />
 
-        <Panel
+        <shared:EditorBusyOverlay
         Grid.Row="0"
         Grid.RowSpan="13"
         Grid.Column="0"
-        Grid.ColumnSpan="4"
-        Background="#0d0d0d"
-        IsHitTestVisible="True"
-        Opacity="0.4">
-            <Panel.IsVisible>
+        Grid.ColumnSpan="4">
+            <shared:EditorBusyOverlay.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="LoadedCommand.IsRunning" />
                     <Binding Path="ImportCommand.IsRunning" />
                     <Binding Path="OpenImageCommand.IsRunning" />
                     <Binding Path="SaveCommand.IsRunning" />
                 </MultiBinding>
-            </Panel.IsVisible>
-        </Panel>
-
-        <progRing:ProgressRing
-        Grid.Row="0"
-        Grid.RowSpan="13"
-        Grid.Column="0"
-        Grid.ColumnSpan="4"
-        Width="40"
-        Height="40"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center"
-        Foreground="{DynamicResource SufniAccentColor}">
-            <progRing:ProgressRing.IsActive>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="LoadedCommand.IsRunning" />
-                    <Binding Path="ImportCommand.IsRunning" />
-                    <Binding Path="OpenImageCommand.IsRunning" />
-                    <Binding Path="SaveCommand.IsRunning" />
-                </MultiBinding>
-            </progRing:ProgressRing.IsActive>
-        </progRing:ProgressRing>
+            </shared:EditorBusyOverlay.IsActive>
+        </shared:EditorBusyOverlay>
 
     </Grid>
 
