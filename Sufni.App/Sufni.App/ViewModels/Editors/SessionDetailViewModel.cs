@@ -76,6 +76,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly StatisticsSelectionController statisticsSelectionController = new();
+    private readonly RecordedPresentationApplier presentationApplier;
     private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
@@ -110,12 +111,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly TelemetryPlotRowAction showSpeedStatisticsSelectionAction;
     private readonly TelemetryPlotRowAction showElevationStatisticsSelectionAction;
     private readonly PlotAutozoomController plotAutozoomController;
-    private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedPitchRollGraphBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedSpeedGraphBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedElevationGraphBaseState = SurfacePresentationState.Hidden;
     private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
     private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
@@ -360,7 +355,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         SessionContext.AnalysisRange = value;
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
         ClearStatisticsSelections();
-        RefreshAnalysisRangeStates();
+        presentationApplier.RefreshAnalysisRangeStates();
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
         UpdateRecordedSessionExtensionHostState();
@@ -454,7 +449,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         RefreshTrackTimelineContext();
         if (TelemetryData is not null)
         {
-            ApplyRecordedTrackGraphStates();
+            presentationApplier.ApplyRecordedTrackGraphStates();
         }
     }
 
@@ -581,14 +576,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         return new SessionPresentationDimensions((int)rect.Width, (int)(rect.Height / 2.0));
     }
 
-    private void ApplyDamperPercentages(SessionDamperPercentages percentages)
+    internal void ApplyDamperPercentages(SessionDamperPercentages percentages)
     {
         DamperPercentages = percentages;
         DamperPage.ApplyDamperPercentages(percentages);
         UpdateRecordedSessionExtensionHostState();
     }
 
-    private void ApplyDampingSpeedCutoffContext(
+    internal void ApplyDampingSpeedCutoffContext(
         DampingSpeedCutoffs cutoffs,
         DampingSpeedCutoffOwner? owner)
     {
@@ -697,7 +692,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             DampingSpeedCutoffs));
     }
 
-    private void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    internal void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
     {
         if (TelemetryData is null)
         {
@@ -724,7 +719,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         RecomputeSessionAnalysis();
     }
 
-    private void RecomputeSessionAnalysis()
+    internal void RecomputeSessionAnalysis()
     {
         SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
             TelemetryData,
@@ -740,164 +735,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         });
     }
 
-    private static string FormatSeconds(double seconds)
+    internal Guid? CurrentSessionFullTrack => session.FullTrack;
+
+    internal SessionPlotPreferences RecordedPlotPreferences => recordedPreferences.Plots;
+
+    internal void SetSessionFullTrack(Guid? fullTrackId)
     {
-        return seconds.ToString("F1", CultureInfo.InvariantCulture);
+        session.FullTrack = fullTrackId;
     }
 
-    private void EnsureBalancePage(bool balanceAvailable)
+    internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
     {
-        var containsBalancePage = Pages.Contains(BalancePage);
-        if (balanceAvailable)
+        suppressAnalysisRecompute = true;
+        try
         {
-            if (containsBalancePage)
-            {
-                return;
-            }
-
-            var insertIndex = Pages.IndexOf(VibrationPage);
-            if (insertIndex < 0)
-            {
-                insertIndex = Pages.IndexOf(AnalysisPage);
-            }
-
-            if (insertIndex < 0)
-            {
-                insertIndex = Pages.IndexOf(NotesPage);
-            }
-
-            if (insertIndex < 0)
-            {
-                Pages.Add(BalancePage);
-            }
-            else
-            {
-                Pages.Insert(insertIndex, BalancePage);
-            }
-
-            return;
+            TelemetryData = value;
         }
-
-        if (containsBalancePage)
+        finally
         {
-            Pages.Remove(BalancePage);
+            suppressAnalysisRecompute = false;
         }
-    }
-
-    private void ApplyCachePresentation(SessionCachePresentationData data)
-    {
-        ApplyDampingSpeedCutoffContext(data.DampingSpeedCutoffs, data.DampingSpeedCutoffOwner);
-
-        var hasFrontTravelHistogram = !string.IsNullOrWhiteSpace(data.FrontTravelHistogram);
-        var hasRearTravelHistogram = !string.IsNullOrWhiteSpace(data.RearTravelHistogram);
-        var hasFrontVelocityHistogram = !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
-        var hasRearVelocityHistogram = !string.IsNullOrWhiteSpace(data.RearVelocityHistogram);
-        var hasCompressionBalance = !string.IsNullOrWhiteSpace(data.CompressionBalance);
-        var hasReboundBalance = !string.IsNullOrWhiteSpace(data.ReboundBalance);
-
-        SpringPage.FrontTravelHistogram = data.FrontTravelHistogram;
-        SpringPage.RearTravelHistogram = data.RearTravelHistogram;
-        SpringPage.FrontHistogramState = hasFrontTravelHistogram
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        SpringPage.RearHistogramState = hasRearTravelHistogram
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-
-        DamperPage.FrontVelocityHistogram = data.FrontVelocityHistogram;
-        DamperPage.RearVelocityHistogram = data.RearVelocityHistogram;
-        DamperPage.FrontHistogramState = hasFrontVelocityHistogram
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        DamperPage.RearHistogramState = hasRearVelocityHistogram
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-
-        FrontStatisticsState = SpringPage.FrontHistogramState.ReservesLayout || DamperPage.FrontHistogramState.ReservesLayout
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        RearStatisticsState = SpringPage.RearHistogramState.ReservesLayout || DamperPage.RearHistogramState.ReservesLayout
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-
-        ApplyDamperPercentages(data.DamperPercentages);
-        BalancePage.CompressionBalance = data.CompressionBalance;
-        BalancePage.ReboundBalance = data.ReboundBalance;
-        BalancePage.CompressionBalanceState = hasCompressionBalance
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        BalancePage.ReboundBalanceState = hasReboundBalance
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        CompressionBalanceState = BalancePage.CompressionBalanceState;
-        ReboundBalanceState = BalancePage.ReboundBalanceState;
-        HideVibrationStates();
-        EnsureBalancePage(data.BalanceAvailable);
-    }
-
-    private static bool HasTravelTelemetry(TelemetryData? telemetry)
-    {
-        return telemetry is { } value && (value.Front.Present || value.Rear.Present);
-    }
-
-    private static bool HasImuTelemetry(TelemetryData? telemetry)
-    {
-        return telemetry?.ImuData is { } imuData &&
-               imuData.Records.Count > 0 &&
-               imuData.ActiveLocations.Count > 0;
-    }
-
-    private static bool HasFramePitchRollTelemetry(TelemetryData? telemetry)
-    {
-        if (telemetry?.ImuData is not { } imuData ||
-            imuData.Records.Count == 0 ||
-            !imuData.ActiveLocations.Contains((byte)ImuLocation.Frame))
-        {
-            return false;
-        }
-
-        var frameMeta = imuData.Meta.FirstOrDefault(meta => meta.LocationId == (byte)ImuLocation.Frame);
-        return frameMeta is { AccelLsbPerG: > 0, GyroLsbPerDps: > 0 };
-    }
-
-    private void RefreshAnalysisRangeStates()
-    {
-        if (TelemetryData is { } telemetry)
-        {
-            ApplyAnalysisRangeStates(telemetry);
-        }
-    }
-
-    private void ApplyAnalysisRangeStates(TelemetryData telemetry)
-    {
-        FrontStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front, AnalysisRange);
-        RearStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, AnalysisRange);
-        CompressionBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Compression, AnalysisRange);
-        ReboundBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Rebound, AnalysisRange);
-        FrontForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, AnalysisRange);
-        FrontFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, AnalysisRange);
-        RearForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, AnalysisRange);
-        RearFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, AnalysisRange);
-    }
-
-    private void HideVibrationStates()
-    {
-        FrontForkVibrationState = SurfacePresentationState.Hidden;
-        FrontFrameVibrationState = SurfacePresentationState.Hidden;
-        RearForkVibrationState = SurfacePresentationState.Hidden;
-        RearFrameVibrationState = SurfacePresentationState.Hidden;
-    }
-
-    private static SurfacePresentationState CreateMapState(IReadOnlyCollection<TrackPoint>? trackPoints, bool mapExpected)
-    {
-        if (trackPoints is { Count: > 0 })
-        {
-            return SurfacePresentationState.Ready;
-        }
-
-        return mapExpected
-            ? SurfacePresentationState.WaitingForData("Waiting for map data.")
-            : SurfacePresentationState.Hidden;
     }
 
     private void RefreshTrackTimelineContext()
@@ -910,254 +767,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             : null;
     }
 
-    private void ClearRecordedPresentation()
+    private static string FormatSeconds(double seconds)
     {
-        TelemetryData = null;
-        FullTrackPoints = null;
-        TrackPoints = null;
-        MapVideoWidth = null;
-        ClearDamperPercentages();
-        HideVibrationStates();
-        ApplyRecordedPlotAvailability(null);
-        SetRecordedGraphBaseStates(
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden);
-    }
-
-    private void ApplyRecordedLoadingStates(bool mapExpected)
-    {
-        ScreenState = SessionScreenPresentationState.Ready;
-        ApplyRecordedPlotAvailability(null);
-        SetRecordedGraphBaseStates(
-            SurfacePresentationState.Loading("Loading travel graphs."),
-            SurfacePresentationState.Loading("Loading velocity graph."),
-            SurfacePresentationState.Loading("Loading IMU graph."),
-            SurfacePresentationState.Loading("Loading pitch/roll graph."),
-            mapExpected ? SurfacePresentationState.Loading("Loading speed graph.") : SurfacePresentationState.Hidden,
-            mapExpected ? SurfacePresentationState.Loading("Loading elevation graph.") : SurfacePresentationState.Hidden);
-        FrontStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
-        RearStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
-        CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
-        ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
-        HideVibrationStates();
-        MapState = mapExpected
-            ? SurfacePresentationState.Loading("Loading map data.")
-            : SurfacePresentationState.Hidden;
-        SpringPage.FrontHistogramState = SurfacePresentationState.Loading("Loading spring chart.");
-        SpringPage.RearHistogramState = SurfacePresentationState.Loading("Loading spring chart.");
-        DamperPage.FrontHistogramState = SurfacePresentationState.Loading("Loading damping chart.");
-        DamperPage.RearHistogramState = SurfacePresentationState.Loading("Loading damping chart.");
-        BalancePage.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
-        BalancePage.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
-    }
-
-    private void ApplyRecordedWaitingStates(bool mapExpected)
-    {
-        ScreenState = SessionScreenPresentationState.Ready;
-        ApplyRecordedPlotAvailability(null);
-        SetRecordedGraphBaseStates(
-            SurfacePresentationState.WaitingForData("Waiting for travel data."),
-            SurfacePresentationState.WaitingForData("Waiting for velocity data."),
-            SurfacePresentationState.WaitingForData("Waiting for IMU data."),
-            SurfacePresentationState.WaitingForData("Waiting for pitch/roll data."),
-            mapExpected ? SurfacePresentationState.WaitingForData("Waiting for speed data.") : SurfacePresentationState.Hidden,
-            mapExpected ? SurfacePresentationState.WaitingForData("Waiting for elevation data.") : SurfacePresentationState.Hidden);
-        FrontStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
-        RearStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
-        CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
-        ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
-        HideVibrationStates();
-        MapState = mapExpected
-            ? SurfacePresentationState.WaitingForData("Waiting for map data.")
-            : SurfacePresentationState.Hidden;
-        SpringPage.FrontHistogramState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
-        SpringPage.RearHistogramState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
-        DamperPage.FrontHistogramState = SurfacePresentationState.WaitingForData("Waiting for damping chart.");
-        DamperPage.RearHistogramState = SurfacePresentationState.WaitingForData("Waiting for damping chart.");
-        BalancePage.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
-        BalancePage.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
-    }
-
-    private void ApplyRecordedLoadedStates(SessionTelemetryPresentationData data)
-    {
-        ScreenState = SessionScreenPresentationState.Ready;
-        ApplyRecordedReadyGraphStates(data.TelemetryData);
-
-        if (data.TelemetryData is { } telemetry)
-        {
-            ApplyAnalysisRangeStates(telemetry);
-        }
-        else
-        {
-            FrontStatisticsState = SurfacePresentationState.Hidden;
-            RearStatisticsState = SurfacePresentationState.Hidden;
-            CompressionBalanceState = SurfacePresentationState.Hidden;
-            ReboundBalanceState = SurfacePresentationState.Hidden;
-            HideVibrationStates();
-        }
-
-        MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
-    }
-
-    private void ApplyDesktopLoadResult(SessionDesktopLoadResult result)
-    {
-        switch (result)
-        {
-            case SessionDesktopLoadResult.Loaded loaded:
-                ApplyDampingSpeedCutoffContext(
-                    loaded.Data.DampingSpeedCutoffs,
-                    loaded.Data.DampingSpeedCutoffOwner);
-                suppressAnalysisRecompute = true;
-                try
-                {
-                    TelemetryData = loaded.Data.TelemetryData;
-                }
-                finally
-                {
-                    suppressAnalysisRecompute = false;
-                }
-                session.FullTrack = loaded.Data.FullTrackId;
-                FullTrackPoints = loaded.Data.FullTrackPoints;
-                TrackPoints = loaded.Data.TrackPoints;
-                MapVideoWidth = loaded.Data.MapVideoWidth;
-                ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
-                ApplyRecordedLoadedStates(loaded.Data);
-                RecomputeSessionAnalysis();
-                break;
-
-            case SessionDesktopLoadResult.TelemetryPending:
-                ClearRecordedPresentation();
-                ApplyRecordedWaitingStates(session.FullTrack is not null);
-                break;
-
-            case SessionDesktopLoadResult.Failed failed:
-                ClearRecordedPresentation();
-                ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
-                break;
-        }
-    }
-
-    private void ApplyMobileLoadResult(SessionMobileLoadResult result)
-    {
-        switch (result)
-        {
-            case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
-                ApplyCachePresentation(loadedFromCache.Data);
-                suppressAnalysisRecompute = true;
-                try
-                {
-                    TelemetryData = loadedFromCache.Telemetry;
-                }
-                finally
-                {
-                    suppressAnalysisRecompute = false;
-                }
-                ApplyMobileExtendedStatisticsStates(
-                    loadedFromCache.Telemetry,
-                    HasFrontCacheStatistics(loadedFromCache.Data),
-                    HasRearCacheStatistics(loadedFromCache.Data),
-                    loadedFromCache.Data.BalanceAvailable);
-                ApplyRecordedReadyGraphStates(TelemetryData);
-                ApplyMobileTrackPresentation(loadedFromCache.TrackData);
-                ScreenState = SessionScreenPresentationState.Ready;
-                IsComplete = true;
-                RecomputeSessionAnalysis();
-                break;
-
-            case SessionMobileLoadResult.BuiltCache builtCache:
-                ApplyCachePresentation(builtCache.Data);
-                suppressAnalysisRecompute = true;
-                try
-                {
-                    TelemetryData = builtCache.Telemetry;
-                }
-                finally
-                {
-                    suppressAnalysisRecompute = false;
-                }
-                ApplyMobileExtendedStatisticsStates(
-                    builtCache.Telemetry,
-                    HasFrontCacheStatistics(builtCache.Data),
-                    HasRearCacheStatistics(builtCache.Data),
-                    builtCache.Data.BalanceAvailable);
-                ApplyRecordedReadyGraphStates(TelemetryData);
-                ApplyMobileTrackPresentation(builtCache.TrackData);
-                ScreenState = SessionScreenPresentationState.Ready;
-                IsComplete = true;
-                RecomputeSessionAnalysis();
-                break;
-
-            case SessionMobileLoadResult.TelemetryPending:
-                ApplyRecordedWaitingStates(mapExpected: false);
-                break;
-
-            case SessionMobileLoadResult.Failed failed:
-                ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
-                break;
-        }
-    }
-
-    private static bool HasFrontCacheStatistics(SessionCachePresentationData data)
-    {
-        return !string.IsNullOrWhiteSpace(data.FrontTravelHistogram)
-               || !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
-    }
-
-    private static bool HasRearCacheStatistics(SessionCachePresentationData data)
-    {
-        return !string.IsNullOrWhiteSpace(data.RearTravelHistogram)
-               || !string.IsNullOrWhiteSpace(data.RearVelocityHistogram);
-    }
-
-    private void ApplyMobileExtendedStatisticsStates(
-        TelemetryData? telemetry,
-        bool frontStatisticsAvailable,
-        bool rearStatisticsAvailable,
-        bool balanceAvailable)
-    {
-        if (telemetry is null)
-        {
-            FrontStatisticsState = SurfacePresentationState.Hidden;
-            RearStatisticsState = SurfacePresentationState.Hidden;
-            CompressionBalanceState = SurfacePresentationState.Hidden;
-            ReboundBalanceState = SurfacePresentationState.Hidden;
-            HideVibrationStates();
-            return;
-        }
-
-        ApplyAnalysisRangeStates(telemetry);
-        if (!frontStatisticsAvailable && FrontStatisticsState.Kind != SurfaceStateKind.NoData)
-        {
-            FrontStatisticsState = SurfacePresentationState.Hidden;
-            FrontForkVibrationState = SurfacePresentationState.Hidden;
-            FrontFrameVibrationState = SurfacePresentationState.Hidden;
-        }
-
-        if (!rearStatisticsAvailable && RearStatisticsState.Kind != SurfaceStateKind.NoData)
-        {
-            RearStatisticsState = SurfacePresentationState.Hidden;
-            RearForkVibrationState = SurfacePresentationState.Hidden;
-            RearFrameVibrationState = SurfacePresentationState.Hidden;
-        }
-
-        if (!balanceAvailable)
-        {
-            CompressionBalanceState = SurfacePresentationState.Hidden;
-            ReboundBalanceState = SurfacePresentationState.Hidden;
-        }
-    }
-
-    private void ApplyMobileTrackPresentation(SessionTrackPresentationData? trackData)
-    {
-        session.FullTrack = trackData?.FullTrackId;
-        FullTrackPoints = trackData?.FullTrackPoints;
-        TrackPoints = trackData?.TrackPoints;
-        MapVideoWidth = trackData?.MapVideoWidth;
-        MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
+        return seconds.ToString("F1", CultureInfo.InvariantCulture);
     }
 
     private async Task RequestLoadAsync()
@@ -1171,8 +783,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         var currentSnapshot = sessionStore.Get(Id);
         if (currentSnapshot?.HasProcessedData == true)
         {
-            ClearRecordedPresentation();
-            ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
+            presentationApplier.ClearRecordedPresentation();
+            presentationApplier.ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
         }
         else
         {
@@ -1185,7 +797,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             {
                 var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, token);
                 if (token.IsCancellationRequested) return;
-                ApplyDesktopLoadResult(result);
+                presentationApplier.ApplyDesktopLoadResult(result);
                 return;
             }
 
@@ -1194,7 +806,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             var mobileResult = await sessionCoordinator.LoadMobileDetailAsync(
                 Id, lastPresentationDimensions.Value, token);
             if (token.IsCancellationRequested) return;
-            ApplyMobileLoadResult(mobileResult);
+            presentationApplier.ApplyMobileLoadResult(mobileResult);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -1510,6 +1122,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         BalancePage = new BalancePageViewModel(StatisticsWorkspace);
         VibrationPage = new VibrationPageViewModel(StatisticsWorkspace);
         AnalysisPage = new SessionAnalysisPageViewModel(StatisticsWorkspace);
+        presentationApplier = new RecordedPresentationApplier(
+            this,
+            Pages,
+            SpringPage,
+            DamperPage,
+            BalancePage,
+            VibrationPage,
+            AnalysisPage,
+            NotesPage,
+            PreferencesPage);
         Pages.Add(GraphPage);
         Pages.Add(SpringPage);
         Pages.Add(StrokesPage);
@@ -1523,7 +1145,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         _ = SessionContext.MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
-            ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
+            presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
         }
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
@@ -1673,96 +1295,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         EvaluateDirtiness();
     }
 
-    private void ApplyRecordedPlotAvailability(TelemetryData? telemetry)
-    {
-        var hasTravelTelemetry = HasTravelTelemetry(telemetry);
-        var hasImuTelemetry = HasImuTelemetry(telemetry);
-        var hasFramePitchRollTelemetry = HasFramePitchRollTelemetry(telemetry);
-        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(TrackPoints);
-        var hasElevationSeries = TrackPointSeries.HasElevationSeries(TrackPoints);
-        PreferencesPage.ApplyPlotAvailability(
-            hasTravelTelemetry,
-            hasTravelTelemetry,
-            hasImuTelemetry,
-            hasFramePitchRollTelemetry,
-            hasSpeedSeries,
-            hasElevationSeries);
-    }
-
-    private void ApplyRecordedReadyGraphStates(TelemetryData? telemetry)
-    {
-        var hasTravelTelemetry = HasTravelTelemetry(telemetry);
-        var hasImuTelemetry = HasImuTelemetry(telemetry);
-        var hasFramePitchRollTelemetry = HasFramePitchRollTelemetry(telemetry);
-        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(TrackPoints);
-        var hasElevationSeries = TrackPointSeries.HasElevationSeries(TrackPoints);
-
-        PreferencesPage.ApplyPlotAvailability(
-            hasTravelTelemetry,
-            hasTravelTelemetry,
-            hasImuTelemetry,
-            hasFramePitchRollTelemetry,
-            hasSpeedSeries,
-            hasElevationSeries);
-
-        var travelState = hasTravelTelemetry
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        var imuState = hasImuTelemetry
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        var pitchRollState = hasFramePitchRollTelemetry
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        var speedState = hasSpeedSeries
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        var elevationState = hasElevationSeries
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-
-        SetRecordedGraphBaseStates(travelState, travelState, imuState, pitchRollState, speedState, elevationState);
-    }
-
-    private void ApplyRecordedTrackGraphStates()
-    {
-        ApplyRecordedPlotAvailability(TelemetryData);
-        recordedSpeedGraphBaseState = TrackPointSeries.HasSpeedSeries(TrackPoints)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        recordedElevationGraphBaseState = TrackPointSeries.HasElevationSeries(TrackPoints)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        RefreshRecordedGraphStates();
-    }
-
-    private void SetRecordedGraphBaseStates(
-        SurfacePresentationState travelState,
-        SurfacePresentationState velocityState,
-        SurfacePresentationState imuState,
-        SurfacePresentationState pitchRollState,
-        SurfacePresentationState speedState,
-        SurfacePresentationState elevationState)
-    {
-        recordedTravelGraphBaseState = travelState;
-        recordedVelocityGraphBaseState = velocityState;
-        recordedImuGraphBaseState = imuState;
-        recordedPitchRollGraphBaseState = pitchRollState;
-        recordedSpeedGraphBaseState = speedState;
-        recordedElevationGraphBaseState = elevationState;
-        RefreshRecordedGraphStates();
-    }
-
-    private void RefreshRecordedGraphStates()
-    {
-        TravelGraphState = recordedTravelGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Travel);
-        VelocityGraphState = recordedVelocityGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Velocity);
-        ImuGraphState = recordedImuGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Imu);
-        PitchRollGraphState = recordedPitchRollGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.PitchRoll);
-        SpeedGraphState = recordedSpeedGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Speed);
-        ElevationGraphState = recordedElevationGraphBaseState.ApplyPlotSelection(recordedPreferences.Plots.Elevation);
-    }
-
     private async Task RestoreRecordedPreferencesAsync()
     {
         recordedPreferencePersistenceEnabled = false;
@@ -1789,7 +1321,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);
-        RefreshRecordedGraphStates();
+        presentationApplier.RefreshRecordedGraphStates(recordedPreferences.Plots);
     }
 
     private void ApplyRecordedStatisticsPreferences(SessionStatisticsPreferences preferences)
@@ -1819,7 +1351,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         var plots = PreferencesPage.CreatePlotPreferences();
         PlotPreferences = plots;
         recordedPreferences = recordedPreferences with { Plots = plots };
-        RefreshRecordedGraphStates();
+        presentationApplier.RefreshRecordedGraphStates(recordedPreferences.Plots);
         PersistRecordedPreferenceChangeIfEnabled(current => current with { Plots = plots });
     }
 
