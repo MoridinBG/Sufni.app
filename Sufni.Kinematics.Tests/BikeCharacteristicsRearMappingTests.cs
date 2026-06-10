@@ -1,7 +1,6 @@
-using Sufni.App.Tests.Infrastructure;
 using Sufni.Kinematics;
 
-namespace Sufni.App.Tests.Kinematics;
+namespace Sufni.Kinematics.Tests;
 
 public class BikeCharacteristicsRearMappingTests
 {
@@ -56,7 +55,7 @@ public class BikeCharacteristicsRearMappingTests
 
     private static BikeCharacteristics CreateCharacteristics()
     {
-        var solution = new KinematicSolver(TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true))
+        var solution = new KinematicSolver(TestLinkages.FullSuspensionLinkage(includeHeadTubeJoints: true))
             .SolveSuspensionMotion();
 
         return new BikeCharacteristics(solution);

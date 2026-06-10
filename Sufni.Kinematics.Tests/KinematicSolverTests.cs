@@ -1,14 +1,13 @@
-using Sufni.App.Tests.Infrastructure;
 using Sufni.Kinematics;
 
-namespace Sufni.App.Tests.Kinematics;
+namespace Sufni.Kinematics.Tests;
 
 public class KinematicSolverTests
 {
     [Fact]
     public void SolveSuspensionMotion_MatchesResolvedInput_WhenCallerLinkageHasUnresolvedLengths()
     {
-        var resolvedLinkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var resolvedLinkage = TestLinkages.FullSuspensionLinkage(includeHeadTubeJoints: true);
         var unresolvedLinkage = Linkage.FromJson(resolvedLinkage.ToJson(), resolve: false);
 
         var resolvedSolution = new KinematicSolver(resolvedLinkage).SolveSuspensionMotion();

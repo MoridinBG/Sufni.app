@@ -1,6 +1,6 @@
 using Sufni.Kinematics;
 
-namespace Sufni.App.Tests.Kinematics;
+namespace Sufni.Kinematics.Tests;
 
 public class TravelInterpolationTests
 {
