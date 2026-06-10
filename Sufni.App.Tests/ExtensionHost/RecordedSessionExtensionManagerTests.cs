@@ -327,45 +327,6 @@ public class RecordedSessionExtensionManagerTests
                 TravelHistogramMode.ActiveSuspension));
     }
 
-    private sealed class TestRecordedSessionExtensionFactory(string extensionId) : IRecordedSessionExtensionFactory
-    {
-        public string ExtensionId { get; } = extensionId;
-        public RecordedSessionHostContext? Context { get; private set; }
-        public TestRecordedSessionExtensionScope? Scope { get; private set; }
-
-        public IRecordedSessionExtensionScope Create(RecordedSessionHostContext context)
-        {
-            Context = context;
-            Scope = new TestRecordedSessionExtensionScope();
-            return Scope;
-        }
-    }
-
-    private sealed class TestRecordedSessionExtensionScope : IRecordedSessionExtensionScope
-    {
-        public bool Initialized { get; private set; }
-        public bool Disposed { get; private set; }
-        public RecordedSessionExtensionSlots Slots { get; } = new();
-        public List<RecordedSessionHostState> UpdatedStates { get; } = [];
-
-        public ValueTask InitializeAsync(CancellationToken cancellationToken)
-        {
-            Initialized = true;
-            return ValueTask.CompletedTask;
-        }
-
-        public void UpdateHostState(RecordedSessionHostState state)
-        {
-            UpdatedStates.Add(state);
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            Disposed = true;
-            return ValueTask.CompletedTask;
-        }
-    }
-
     private sealed class DeferredUiThreadDispatcher : IUiThreadDispatcher
     {
         private readonly Queue<Action> pendingPosts = new();
