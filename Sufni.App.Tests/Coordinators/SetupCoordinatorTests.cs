@@ -6,8 +6,6 @@ using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHosting.Database;
 
@@ -45,35 +43,18 @@ public class SetupCoordinatorTests
             shell,
             () => editorFactory,
             extensionCascade);
-        editorFactory
-            .CreateSetupEditor(Arg.Any<SetupSnapshot>(), Arg.Any<bool>())
-            .Returns(callInfo => new SetupEditorViewModel(
-                callInfo.ArgAt<SetupSnapshot>(0),
-                callInfo.ArgAt<bool>(1),
-                bikeStore,
-                bikeCoordinator,
-                coordinator,
-                shell,
-                dialogService,
-                uiThreadDispatcher));
         return coordinator;
     }
 
     // ----- OpenCreateAsync -----
 
     [Fact]
-    public async Task OpenCreateAsync_OpensNewEditor_WithIsDirtyTrue()
+    public async Task OpenCreateAsync_OpensNewEditor_ThroughFactory()
     {
-        ViewModelBase? captured = null;
-        shell.When(s => s.Open(Arg.Any<ViewModelBase>()))
-            .Do(c => captured = c.Arg<ViewModelBase>());
-
         await CreateCoordinator().OpenCreateAsync();
 
-        shell.Received(1).Open(Arg.Any<ViewModelBase>());
-        var editor = Assert.IsType<SetupEditorViewModel>(captured);
-        Assert.False(editor.IsInDatabase);
-        Assert.True(editor.IsDirty);
+        editorFactory.Received(1).OpenNewSetupEditor(Arg.Is<SetupSnapshot>(snapshot =>
+            snapshot.Name == "new setup"));
     }
 
     [Fact]
@@ -82,9 +63,9 @@ public class SetupCoordinatorTests
         var boardId = Guid.NewGuid();
         setupStore.FindByBoardId(boardId).Returns((SetupSnapshot?)null);
 
-        SetupEditorViewModel? captured = null;
-        shell.When(s => s.Open(Arg.Any<ViewModelBase>()))
-            .Do(c => captured = c.Arg<ViewModelBase>() as SetupEditorViewModel);
+        SetupSnapshot? captured = null;
+        editorFactory.When(factory => factory.OpenNewSetupEditor(Arg.Any<SetupSnapshot>()))
+            .Do(call => captured = call.Arg<SetupSnapshot>());
 
         await CreateCoordinator().OpenCreateAsync(boardId);
 
@@ -99,9 +80,9 @@ public class SetupCoordinatorTests
         var existing = TestSnapshots.Setup(boardId: boardId);
         setupStore.FindByBoardId(boardId).Returns(existing);
 
-        SetupEditorViewModel? captured = null;
-        shell.When(s => s.Open(Arg.Any<ViewModelBase>()))
-            .Do(c => captured = c.Arg<ViewModelBase>() as SetupEditorViewModel);
+        SetupSnapshot? captured = null;
+        editorFactory.When(factory => factory.OpenNewSetupEditor(Arg.Any<SetupSnapshot>()))
+            .Do(call => captured = call.Arg<SetupSnapshot>());
 
         await CreateCoordinator().OpenCreateAsync(boardId);
 
@@ -117,9 +98,9 @@ public class SetupCoordinatorTests
             .Returns(Task.FromResult<Guid?>(boardId));
         setupStore.FindByBoardId(boardId).Returns((SetupSnapshot?)null);
 
-        SetupEditorViewModel? captured = null;
-        shell.When(s => s.Open(Arg.Any<ViewModelBase>()))
-            .Do(c => captured = c.Arg<ViewModelBase>() as SetupEditorViewModel);
+        SetupSnapshot? captured = null;
+        editorFactory.When(factory => factory.OpenNewSetupEditor(Arg.Any<SetupSnapshot>()))
+            .Do(call => captured = call.Arg<SetupSnapshot>());
 
         await CreateCoordinator().OpenCreateForDetectedBoardAsync();
 
@@ -137,20 +118,18 @@ public class SetupCoordinatorTests
 
         await CreateCoordinator().OpenEditAsync(Guid.NewGuid());
 
-        shell.DidNotReceiveWithAnyArgs().OpenOrFocus<SetupEditorViewModel>(default!, default!);
+        editorFactory.DidNotReceive().OpenSetupEditor(Arg.Any<SetupSnapshot>());
     }
 
     [Fact]
-    public async Task OpenEditAsync_RoutesThroughOpenOrFocus_WhenSnapshotPresent()
+    public async Task OpenEditAsync_OpensEditor_ThroughFactory()
     {
         var snapshot = TestSnapshots.Setup();
         setupStore.Get(snapshot.Id).Returns(snapshot);
 
         await CreateCoordinator().OpenEditAsync(snapshot.Id);
 
-        shell.Received(1).OpenOrFocus(
-            Arg.Any<Func<SetupEditorViewModel, bool>>(),
-            Arg.Any<Func<SetupEditorViewModel>>());
+        editorFactory.Received(1).OpenSetupEditor(snapshot);
     }
 
     // ----- SaveAsync -----
@@ -284,7 +263,7 @@ public class SetupCoordinatorTests
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await setupRepository.Received(1).DeleteAsync(snapshot.Id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, snapshot.Id);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SetupEditorViewModel, bool>>(), forgetRestoreHistory: true);
+        editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
         setupStore.Received(1).Remove(snapshot.Id);
     }
 
@@ -328,6 +307,6 @@ public class SetupCoordinatorTests
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         setupStore.DidNotReceiveWithAnyArgs().Remove(default);
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SetupEditorViewModel>(default!);
+        editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }
 }

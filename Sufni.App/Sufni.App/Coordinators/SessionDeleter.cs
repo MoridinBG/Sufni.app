@@ -7,7 +7,6 @@ using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
 
@@ -20,7 +19,7 @@ public sealed class SessionDeleter
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly ISynchronizableRepository<Session> sessionEntityRepository;
     private readonly ISessionPreferences sessionPreferences;
-    private readonly IShellCoordinator shell;
+    private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IExtensionCascadeService? extensionCascadeService;
@@ -31,7 +30,7 @@ public sealed class SessionDeleter
         ISynchronizableRepository<Track> trackEntityRepository,
         ISynchronizableRepository<Session> sessionEntityRepository,
         ISessionPreferences sessionPreferences,
-        IShellCoordinator shell,
+        Func<IEditorFactory> editorFactory,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
         IExtensionCascadeService? extensionCascadeService = null)
@@ -41,7 +40,7 @@ public sealed class SessionDeleter
         this.trackEntityRepository = trackEntityRepository;
         this.sessionEntityRepository = sessionEntityRepository;
         this.sessionPreferences = sessionPreferences;
-        this.shell = shell;
+        this.editorFactory = editorFactory;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
         this.extensionCascadeService = extensionCascadeService;
@@ -95,7 +94,7 @@ public sealed class SessionDeleter
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
 
-        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
+        editorFactory().CloseSessionDetail(sessionId);
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);

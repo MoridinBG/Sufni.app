@@ -8,7 +8,6 @@ using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.SetupEditing;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 using Serilog;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHosting.Database;
@@ -42,9 +41,7 @@ public class SetupCoordinator(
 
         var seed = new Setup(Guid.NewGuid(), "new setup");
         var snapshot = SetupSnapshot.From(seed, actualBoardId);
-        var editor = editorFactory().CreateSetupEditor(snapshot, isNew: true);
-        editor.IsDirty = true;
-        shell.Open(editor);
+        editorFactory().OpenNewSetupEditor(snapshot);
         return Task.CompletedTask;
     }
 
@@ -61,9 +58,7 @@ public class SetupCoordinator(
         var snapshot = setupStore.Get(setupId);
         if (snapshot is null) return Task.CompletedTask;
 
-        shell.OpenOrFocus<SetupEditorViewModel>(
-            editor => editor.Id == setupId,
-            () => editorFactory().CreateSetupEditor(snapshot, isNew: false));
+        editorFactory().OpenSetupEditor(snapshot);
         return Task.CompletedTask;
     }
 
@@ -131,7 +126,7 @@ public class SetupCoordinator(
         try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
         catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
 
-        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId, forgetRestoreHistory: true);
+        editorFactory().CloseSetupEditor(setupId);
         setupStore.Remove(setupId);
 
         logger.Information("Setup delete completed for {SetupId}", setupId);

@@ -9,7 +9,6 @@ using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
@@ -57,32 +56,6 @@ public class LiveDaqCoordinatorTests
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
         liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStream>())
             .Returns(liveSessionService);
-        editorFactory
-            .CreateLiveDaqDetail(Arg.Any<LiveDaqSnapshot>(), Arg.Any<ILiveDaqSharedStream>())
-            .Returns(callInfo => new LiveDaqDetailViewModel(
-                callInfo.ArgAt<LiveDaqSnapshot>(0),
-                callInfo.ArgAt<ILiveDaqSharedStream>(1),
-                TestCoordinatorSubstitutes.LiveDaq(),
-                daqManagementService,
-                filesService,
-                shell,
-                dialogService,
-                knownBoardsQuery,
-                liveDaqStore,
-                uiThreadDispatcher));
-        editorFactory
-            .CreateLiveSessionDetail(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveSessionService>())
-            .Returns(callInfo => new LiveSessionDetailViewModel(
-                callInfo.ArgAt<LiveDaqSessionContext>(0),
-                callInfo.ArgAt<ILiveSessionService>(1),
-                sessionCoordinator,
-                sessionPresentationService,
-                backgroundTaskRunner,
-                tileLayerService,
-                shell,
-                dialogService,
-                uiThreadDispatcher,
-                TestCoordinatorSubstitutes.Bike()));
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
@@ -92,7 +65,6 @@ public class LiveDaqCoordinatorTests
             catalogService,
             sharedStreamRegistry,
             liveSessionServiceFactory,
-            shell,
             () => editorFactory);
 
     [Fact]
@@ -257,7 +229,7 @@ public class LiveDaqCoordinatorTests
     }
 
     [Fact]
-    public async Task SelectAsync_RoutesThroughOpenOrFocus_WithIdentityMatcher()
+    public async Task SelectAsync_OpensLiveDaqDetail_ThroughFactory()
     {
         var snapshot = new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -269,48 +241,15 @@ public class LiveDaqCoordinatorTests
             SetupName: "setup",
             BikeName: "bike");
         liveDaqStore.Upsert(snapshot);
-
-        Func<LiveDaqDetailViewModel, bool>? capturedMatch = null;
-        Func<LiveDaqDetailViewModel>? capturedCreate = null;
-        shell.When(s => s.OpenOrFocus(
-                Arg.Any<Func<LiveDaqDetailViewModel, bool>>(),
-                Arg.Any<Func<LiveDaqDetailViewModel>>()))
-            .Do(callInfo =>
-            {
-                capturedMatch = callInfo.ArgAt<Func<LiveDaqDetailViewModel, bool>>(0);
-                capturedCreate = callInfo.ArgAt<Func<LiveDaqDetailViewModel>>(1);
-            });
 
         await CreateCoordinator().SelectAsync(snapshot.IdentityKey);
 
-        shell.Received(1).OpenOrFocus(
-            Arg.Any<Func<LiveDaqDetailViewModel, bool>>(),
-            Arg.Any<Func<LiveDaqDetailViewModel>>());
-
-        Assert.NotNull(capturedCreate);
-        var created = capturedCreate();
-        Assert.Equal(snapshot.IdentityKey, created.IdentityKey);
-        Assert.Equal(snapshot.DisplayName, created.Name);
         sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
-        Assert.NotNull(capturedMatch);
-        Assert.True(capturedMatch(created));
-
-        var other = new LiveDaqDetailViewModel(
-            snapshot with { IdentityKey = "board-2", DisplayName = "Board 2", BoardId = "board-2" },
-            sharedStream,
-            TestCoordinatorSubstitutes.LiveDaq(),
-            daqManagementService,
-            filesService,
-            shell,
-            dialogService,
-            knownBoardsQuery,
-            liveDaqStore,
-            uiThreadDispatcher);
-        Assert.False(capturedMatch(other));
+        editorFactory.Received(1).OpenLiveDaqDetail(snapshot, sharedStream);
     }
 
     [Fact]
-    public async Task OpenSessionAsync_RoutesThroughOpenOrFocus_WithIdentityMatcher()
+    public async Task OpenSessionAsync_OpensLiveSessionDetail_ThroughFactory()
     {
         var snapshot = new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -322,44 +261,14 @@ public class LiveDaqCoordinatorTests
             SetupName: "setup",
             BikeName: "bike");
         liveDaqStore.Upsert(snapshot);
-        knownBoardsQuery.GetSessionContext(snapshot.IdentityKey).Returns(CreateSessionContext(snapshot.IdentityKey, snapshot.DisplayName));
-
-        Func<LiveSessionDetailViewModel, bool>? capturedMatch = null;
-        Func<LiveSessionDetailViewModel>? capturedCreate = null;
-        shell.When(s => s.OpenOrFocus(
-                Arg.Any<Func<LiveSessionDetailViewModel, bool>>(),
-                Arg.Any<Func<LiveSessionDetailViewModel>>()))
-            .Do(callInfo =>
-            {
-                capturedMatch = callInfo.ArgAt<Func<LiveSessionDetailViewModel, bool>>(0);
-                capturedCreate = callInfo.ArgAt<Func<LiveSessionDetailViewModel>>(1);
-            });
+        var context = CreateSessionContext(snapshot.IdentityKey, snapshot.DisplayName);
+        knownBoardsQuery.GetSessionContext(snapshot.IdentityKey).Returns(context);
 
         await CreateCoordinator().OpenSessionAsync(snapshot.IdentityKey);
 
-        shell.Received(1).OpenOrFocus(
-            Arg.Any<Func<LiveSessionDetailViewModel, bool>>(),
-            Arg.Any<Func<LiveSessionDetailViewModel>>());
-
-        Assert.NotNull(capturedCreate);
-        var created = capturedCreate();
-        Assert.Equal(snapshot.IdentityKey, created.IdentityKey);
-        Assert.Equal("setup", created.SetupName);
         sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
-        Assert.NotNull(capturedMatch);
-        Assert.True(capturedMatch(created));
-
-        var other = new LiveSessionDetailViewModel(
-            CreateSessionContext("board-2", "Board 2"),
-            liveSessionService,
-            sessionCoordinator,
-            sessionPresentationService,
-            backgroundTaskRunner,
-            tileLayerService,
-            shell,
-            dialogService,
-            uiThreadDispatcher);
-        Assert.False(capturedMatch(other));
+        liveSessionServiceFactory.Received(1).Create(context, sharedStream);
+        editorFactory.Received(1).OpenLiveSessionDetail(snapshot.IdentityKey, context, liveSessionService);
     }
 
     private static LiveDaqSessionContext CreateSessionContext(string identityKey, string displayName)

@@ -10,8 +10,6 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Services;
@@ -43,40 +41,19 @@ public class BikeCoordinatorTests
             bikeEditorService,
             () => editorFactory,
             extensionCascade);
-        editorFactory
-            .CreateBikeEditor(Arg.Any<BikeSnapshot>(), Arg.Any<bool>())
-            .Returns(callInfo => new BikeEditorViewModel(
-                callInfo.ArgAt<BikeSnapshot>(0),
-                callInfo.ArgAt<bool>(1),
-                coordinator,
-                dependencyQuery,
-                shell,
-                dialogService,
-                uiThreadDispatcher));
         return coordinator;
     }
 
     // ----- OpenCreateAsync -----
 
-    // [AvaloniaFact] because BikeEditorViewModel construction calls
-    // AddInitialJoints → JointViewModel..cctor, which builds Avalonia
-    // SolidColorBrush instances. Those have dispatcher-thread affinity,
-    // so the test body has to run on the headless UI thread.
-    [AvaloniaFact]
-    public async Task OpenCreateAsync_OpensNewEditor_OnShell()
+    [Fact]
+    public async Task OpenCreateAsync_OpensNewEditor_ThroughFactory()
     {
-        TestApp.SetIsDesktop(true);
-        ViewModelBase? captured = null;
-        shell.When(s => s.Open(Arg.Any<ViewModelBase>()))
-            .Do(c => captured = c.Arg<ViewModelBase>());
-
         var coordinator = CreateCoordinator();
         await coordinator.OpenCreateAsync();
 
-        shell.Received(1).Open(Arg.Any<ViewModelBase>());
-        var editor = Assert.IsType<BikeEditorViewModel>(captured);
-        Assert.False(editor.IsInDatabase);
-        Assert.True(editor.IsDirty);
+        editorFactory.Received(1).OpenNewBikeEditor(Arg.Is<BikeSnapshot>(snapshot =>
+            snapshot.Name == "new bike"));
     }
 
     // ----- OpenEditAsync -----
@@ -89,12 +66,12 @@ public class BikeCoordinatorTests
 
         await coordinator.OpenEditAsync(Guid.NewGuid());
 
-        shell.DidNotReceiveWithAnyArgs().OpenOrFocus<BikeEditorViewModel>(default!, default!);
-        shell.DidNotReceiveWithAnyArgs().Open(default!);
+        editorFactory.DidNotReceive().OpenBikeEditor(Arg.Any<BikeSnapshot>());
+        editorFactory.DidNotReceive().OpenNewBikeEditor(Arg.Any<BikeSnapshot>());
     }
 
     [Fact]
-    public async Task OpenEditAsync_RoutesThroughOpenOrFocus_WithIdMatcher()
+    public async Task OpenEditAsync_OpensEditor_ThroughFactory()
     {
         var snapshot = TestSnapshots.Bike();
         bikeStore.Get(snapshot.Id).Returns(snapshot);
@@ -102,9 +79,7 @@ public class BikeCoordinatorTests
 
         await coordinator.OpenEditAsync(snapshot.Id);
 
-        shell.Received(1).OpenOrFocus(
-            Arg.Any<Func<BikeEditorViewModel, bool>>(),
-            Arg.Any<Func<BikeEditorViewModel>>());
+        editorFactory.Received(1).OpenBikeEditor(snapshot);
     }
 
     [Fact]
@@ -445,7 +420,7 @@ public class BikeCoordinatorTests
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await bikeRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!, default);
+        editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
 
@@ -461,7 +436,7 @@ public class BikeCoordinatorTests
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await bikeRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Bike, id);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<BikeEditorViewModel, bool>>(), forgetRestoreHistory: true);
+        editorFactory.Received(1).CloseBikeEditor(id);
         bikeStore.Received(1).Remove(id);
     }
 
@@ -478,6 +453,6 @@ public class BikeCoordinatorTests
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<BikeEditorViewModel>(default!, default);
+        editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }
 }

@@ -194,7 +194,7 @@ public partial class App : Application
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<ISynchronizableRepository<Session>>(),
             sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IExtensionCascadeService>()));

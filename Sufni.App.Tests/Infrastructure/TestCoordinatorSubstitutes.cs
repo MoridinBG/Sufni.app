@@ -149,7 +149,7 @@ internal static class TestCoordinatorSubstitutes
             trackEntityRepository,
             sessionEntityRepository,
             sessionPreferences,
-            shell,
+            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             sourceRepository,
             sourceStore,
             extensionCascadeService);
@@ -161,7 +161,6 @@ internal static class TestCoordinatorSubstitutes
             liveCaptureSaver,
             sessionRecomputer,
             sessionDeleter,
-            shell,
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()));
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
@@ -179,7 +178,6 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ILiveDaqCatalogService>(),
             Substitute.For<ILiveDaqSharedStreamRegistry>(),
             Substitute.For<ILiveSessionServiceFactory>(),
-            Substitute.For<IShellCoordinator>(),
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()));
 
         coordinator.SelectAsync(Arg.Any<string>()).Returns(Task.CompletedTask);

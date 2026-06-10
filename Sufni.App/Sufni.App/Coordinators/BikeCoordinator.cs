@@ -8,7 +8,6 @@ using Sufni.App.Queries;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using Serilog;
 using Sufni.App.ExtensionHost.Services;
@@ -33,9 +32,7 @@ public class BikeCoordinator(
     {
         var seed = new Bike(Guid.NewGuid(), "new bike");
         var snapshot = BikeSnapshot.From(seed);
-        var editor = editorFactory().CreateBikeEditor(snapshot, isNew: true);
-        editor.IsDirty = true;
-        shell.Open(editor);
+        editorFactory().OpenNewBikeEditor(snapshot);
         return Task.CompletedTask;
     }
 
@@ -44,9 +41,7 @@ public class BikeCoordinator(
         var snapshot = bikeStore.Get(bikeId);
         if (snapshot is null) return Task.CompletedTask;
 
-        shell.OpenOrFocus<BikeEditorViewModel>(
-            editor => editor.Id == bikeId,
-            () => editorFactory().CreateBikeEditor(snapshot, isNew: false));
+        editorFactory().OpenBikeEditor(snapshot);
         return Task.CompletedTask;
     }
 
@@ -289,7 +284,7 @@ public class BikeCoordinator(
             return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
         }
 
-        shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId, forgetRestoreHistory: true);
+        editorFactory().CloseBikeEditor(bikeId);
         bikeStore.Remove(bikeId);
         logger.Information("Bike delete completed for {BikeId}", bikeId);
         return new BikeDeleteResult(BikeDeleteOutcome.Deleted);

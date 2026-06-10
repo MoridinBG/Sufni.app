@@ -8,7 +8,6 @@ using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 using Serilog;
 using Sufni.App.ExtensionHost.Services;
 
@@ -25,7 +24,6 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
-    private readonly IShellCoordinator shell;
     private readonly Func<IEditorFactory> editorFactory;
 
     private readonly object reconcileGate = new();
@@ -39,7 +37,6 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqCatalogService liveDaqCatalogService,
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
         ILiveSessionServiceFactory liveSessionServiceFactory,
-        IShellCoordinator shell,
         Func<IEditorFactory> editorFactory)
     {
         this.liveDaqStore = liveDaqStore;
@@ -47,7 +44,6 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         this.liveDaqCatalogService = liveDaqCatalogService;
         this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
         this.liveSessionServiceFactory = liveSessionServiceFactory;
-        this.shell = shell;
         this.editorFactory = editorFactory;
     }
 
@@ -119,11 +115,9 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
             snapshot.BoardId,
             snapshot.Endpoint);
 
-        shell.OpenOrFocus<LiveDaqDetailViewModel>(
-            detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => editorFactory().CreateLiveDaqDetail(
-                snapshot,
-                liveDaqSharedStreamRegistry.GetOrCreate(snapshot)));
+        editorFactory().OpenLiveDaqDetail(
+            snapshot,
+            liveDaqSharedStreamRegistry.GetOrCreate(snapshot));
 
         return Task.CompletedTask;
     }
@@ -154,13 +148,12 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
             snapshot.BoardId,
             snapshot.Endpoint);
 
-        shell.OpenOrFocus<LiveSessionDetailViewModel>(
-            detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => editorFactory().CreateLiveSessionDetail(
+        editorFactory().OpenLiveSessionDetail(
+            snapshot.IdentityKey,
+            context,
+            liveSessionServiceFactory.Create(
                 context,
-                liveSessionServiceFactory.Create(
-                    context,
-                    liveDaqSharedStreamRegistry.GetOrCreate(snapshot))));
+                liveDaqSharedStreamRegistry.GetOrCreate(snapshot)));
 
         return Task.CompletedTask;
     }

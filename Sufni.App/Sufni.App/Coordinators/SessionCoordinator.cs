@@ -7,7 +7,6 @@ using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
 
@@ -25,7 +24,6 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly LiveCaptureSaver liveCaptureSaver;
     private readonly SessionRecomputer sessionRecomputer;
     private readonly SessionDeleter sessionDeleter;
-    private readonly IShellCoordinator shell;
     private readonly Func<IEditorFactory> editorFactory;
 
     public SessionCoordinator(
@@ -35,7 +33,6 @@ public class SessionCoordinator : ISessionCoordinator
         LiveCaptureSaver liveCaptureSaver,
         SessionRecomputer sessionRecomputer,
         SessionDeleter sessionDeleter,
-        IShellCoordinator shell,
         Func<IEditorFactory> editorFactory)
     {
         this.sessionStore = sessionStore;
@@ -44,7 +41,6 @@ public class SessionCoordinator : ISessionCoordinator
         this.liveCaptureSaver = liveCaptureSaver;
         this.sessionRecomputer = sessionRecomputer;
         this.sessionDeleter = sessionDeleter;
-        this.shell = shell;
         this.editorFactory = editorFactory;
     }
 
@@ -53,9 +49,7 @@ public class SessionCoordinator : ISessionCoordinator
         var snapshot = sessionStore.Get(sessionId);
         if (snapshot is null) return Task.CompletedTask;
 
-        shell.OpenOrFocus<SessionDetailViewModel>(
-            editor => editor.Id == sessionId,
-            () => editorFactory().CreateSessionDetail(snapshot));
+        editorFactory().OpenSessionDetail(snapshot);
         return Task.CompletedTask;
     }
 

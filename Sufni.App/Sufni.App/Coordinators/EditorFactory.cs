@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.ExtensionHost.RecordedSessions;
@@ -40,6 +41,25 @@ internal sealed class EditorFactory(
     IRecordedSessionDataReader recordedSessionDataReader,
     IBackgroundTaskRunner backgroundTaskRunner) : IEditorFactory
 {
+    public void OpenNewBikeEditor(BikeSnapshot snapshot)
+    {
+        var editor = CreateBikeEditor(snapshot, isNew: true);
+        editor.IsDirty = true;
+        shell.Open(editor);
+    }
+
+    public void OpenBikeEditor(BikeSnapshot snapshot)
+    {
+        shell.OpenOrFocus<BikeEditorViewModel>(
+            editor => editor.Id == snapshot.Id,
+            () => CreateBikeEditor(snapshot, isNew: false));
+    }
+
+    public void CloseBikeEditor(Guid bikeId)
+    {
+        shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId, forgetRestoreHistory: true);
+    }
+
     public BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew) =>
         new(
             snapshot,
@@ -49,6 +69,25 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher);
+
+    public void OpenNewSetupEditor(SetupSnapshot snapshot)
+    {
+        var editor = CreateSetupEditor(snapshot, isNew: true);
+        editor.IsDirty = true;
+        shell.Open(editor);
+    }
+
+    public void OpenSetupEditor(SetupSnapshot snapshot)
+    {
+        shell.OpenOrFocus<SetupEditorViewModel>(
+            editor => editor.Id == snapshot.Id,
+            () => CreateSetupEditor(snapshot, isNew: false));
+    }
+
+    public void CloseSetupEditor(Guid setupId)
+    {
+        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId, forgetRestoreHistory: true);
+    }
 
     public SetupEditorViewModel CreateSetupEditor(SetupSnapshot snapshot, bool isNew) =>
         new(
@@ -60,6 +99,18 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher);
+
+    public void OpenSessionDetail(SessionSnapshot snapshot)
+    {
+        shell.OpenOrFocus<SessionDetailViewModel>(
+            editor => editor.Id == snapshot.Id,
+            () => CreateSessionDetail(snapshot));
+    }
+
+    public void CloseSessionDetail(Guid sessionId)
+    {
+        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
+    }
 
     public SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot) =>
         new(
@@ -80,6 +131,13 @@ internal sealed class EditorFactory(
             recordedSessionDataReader,
             backgroundTaskRunner);
 
+    public void OpenLiveDaqDetail(LiveDaqSnapshot snapshot, ILiveDaqSharedStream sharedStream)
+    {
+        shell.OpenOrFocus<LiveDaqDetailViewModel>(
+            detail => detail.IdentityKey == snapshot.IdentityKey,
+            () => CreateLiveDaqDetail(snapshot, sharedStream));
+    }
+
     public LiveDaqDetailViewModel CreateLiveDaqDetail(
         LiveDaqSnapshot snapshot,
         ILiveDaqSharedStream sharedStream) =>
@@ -94,6 +152,16 @@ internal sealed class EditorFactory(
             liveDaqKnownBoardsQuery,
             liveDaqStore,
             uiThreadDispatcher);
+
+    public void OpenLiveSessionDetail(
+        string identityKey,
+        LiveDaqSessionContext context,
+        ILiveSessionService liveSessionService)
+    {
+        shell.OpenOrFocus<LiveSessionDetailViewModel>(
+            detail => detail.IdentityKey == identityKey,
+            () => CreateLiveSessionDetail(context, liveSessionService));
+    }
 
     public LiveSessionDetailViewModel CreateLiveSessionDetail(
         LiveDaqSessionContext context,

@@ -110,7 +110,7 @@ public class SessionCoordinatorTests
             trackEntityRepository,
             sessionEntityRepository,
             sessionPreferences,
-            shell,
+            () => editorFactory,
             recordedSessionSourceRepository,
             sourceStore,
             extensionCascade);
@@ -123,7 +123,6 @@ public class SessionCoordinatorTests
             CreateLiveCaptureSaver(),
             CreateRecomputer(),
             CreateDeleter(),
-            shell,
             () => editorFactory);
 
     private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
@@ -144,24 +143,18 @@ public class SessionCoordinatorTests
 
         await CreateCoordinator().OpenEditAsync(Guid.NewGuid());
 
-        shell.DidNotReceiveWithAnyArgs().OpenOrFocus<SessionDetailViewModel>(default!, default!);
+        editorFactory.DidNotReceive().OpenSessionDetail(Arg.Any<SessionSnapshot>());
     }
 
-    // OpenEditAsync's happy path constructs a SessionDetailViewModel,
-    // which subscribes to NotesPage property-changed events on the
-    // dispatcher thread — that needs the headless app, so it lives in
-    // a separate [AvaloniaFact] below.
-    [AvaloniaFact]
-    public async Task OpenEditAsync_RoutesThroughOpenOrFocus_WhenSnapshotPresent()
+    [Fact]
+    public async Task OpenEditAsync_OpensSessionDetail_ThroughFactory()
     {
         var snapshot = TestSnapshots.Session();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
 
         await CreateCoordinator().OpenEditAsync(snapshot.Id);
 
-        shell.Received(1).OpenOrFocus(
-            Arg.Any<Func<SessionDetailViewModel, bool>>(),
-            Arg.Any<Func<SessionDetailViewModel>>());
+        editorFactory.Received(1).OpenSessionDetail(snapshot);
     }
 
     // ----- SaveAsync -----
@@ -745,7 +738,7 @@ public class SessionCoordinatorTests
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
+        editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -771,7 +764,7 @@ public class SessionCoordinatorTests
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, Arg.Any<Guid>());
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
+        editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -796,7 +789,7 @@ public class SessionCoordinatorTests
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
-        shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
+        editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -812,7 +805,7 @@ public class SessionCoordinatorTests
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
-        shell.DidNotReceiveWithAnyArgs().CloseIfOpen<SessionDetailViewModel>(default!, default);
+        editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());
     }
 
     // ----- Desktop / Mobile load workflows -----
