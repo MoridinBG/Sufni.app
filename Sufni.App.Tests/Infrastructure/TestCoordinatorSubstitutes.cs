@@ -102,6 +102,7 @@ internal static class TestCoordinatorSubstitutes
         var trackCoordinator = Track();
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
+        var shell = Substitute.For<IShellCoordinator>();
         var sessionLoader = new SessionLoader(
             sessionStore,
             sessionRepository,
@@ -111,10 +112,15 @@ internal static class TestCoordinatorSubstitutes
             trackCoordinator,
             sessionPresentationService,
             domainQuery);
+        var sessionSaver = new SessionSaver(
+            sessionStore,
+            sessionRepository,
+            shell);
 
         var coordinator = Substitute.For<SessionCoordinator>(
             sessionStore,
             sessionLoader,
+            sessionSaver,
             sessionRepository,
             Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<ISynchronizableRepository<Setup>>(),
@@ -124,7 +130,7 @@ internal static class TestCoordinatorSubstitutes
             backgroundTaskRunner,
             Substitute.For<ISessionAnalysisService>(),
             Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded(),
-            Substitute.For<IShellCoordinator>(),
+            shell,
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             Substitute.For<IRecordedSessionSourceStoreWriter>(),
             domainQuery,

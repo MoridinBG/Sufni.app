@@ -35,6 +35,7 @@ public class SessionCoordinator : ISessionCoordinator
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly SessionLoader sessionLoader;
+    private readonly SessionSaver sessionSaver;
     private readonly ISessionRepository sessionRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISynchronizableRepository<Setup> setupRepository;
@@ -54,6 +55,7 @@ public class SessionCoordinator : ISessionCoordinator
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
         SessionLoader sessionLoader,
+        SessionSaver sessionSaver,
         ISessionRepository sessionRepository,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         ISynchronizableRepository<Setup> setupRepository,
@@ -73,6 +75,7 @@ public class SessionCoordinator : ISessionCoordinator
     {
         this.sessionStore = sessionStore;
         this.sessionLoader = sessionLoader;
+        this.sessionSaver = sessionSaver;
         this.sessionRepository = sessionRepository;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.setupRepository = setupRepository;
@@ -119,46 +122,8 @@ public class SessionCoordinator : ISessionCoordinator
         CancellationToken cancellationToken = default)
         => sessionLoader.LoadMobileDetailAsync(sessionId, dimensions, cancellationToken);
 
-    public virtual async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
-    {
-        logger.Information("Starting session save for {SessionId}", session.Id);
-
-        var current = sessionStore.Get(session.Id);
-        if (current is not null && current.Updated > baselineUpdated)
-        {
-            logger.Warning("Session save conflict for {SessionId}", session.Id);
-            return new SessionSaveResult.Conflict(current);
-        }
-
-        try
-        {
-            if (current is not null && session.ProcessingFingerprintJson is null)
-            {
-                session.ProcessingFingerprintJson = current.ProcessingFingerprintJson;
-            }
-
-            await sessionRepository.PutSessionAsync(session);
-            // Re-fetch via the SQL-computed has_data path so the snapshot's
-            // HasProcessedData reflects the current DB state.
-            var fresh = await sessionRepository.GetSessionAsync(session.Id);
-            if (fresh is null)
-            {
-                logger.Error("Session save failed because the session disappeared after save for {SessionId}", session.Id);
-                return new SessionSaveResult.Failed("Session disappeared after save");
-            }
-            var saved = SessionSnapshot.From(fresh);
-            sessionStore.Upsert(saved);
-            shell.GoBack();
-
-            logger.Information("Session save completed for {SessionId}", session.Id);
-            return new SessionSaveResult.Saved(saved.Updated);
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Session save failed for {SessionId}", session.Id);
-            return new SessionSaveResult.Failed(e.Message);
-        }
-    }
+    public virtual Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
+        sessionSaver.SaveAsync(session, baselineUpdated);
 
     public virtual async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
         Session session,

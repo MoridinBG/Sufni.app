@@ -74,10 +74,17 @@ public class SessionCoordinatorTests
             sessionPresentationService,
             domainQuery);
 
+    private SessionSaver CreateSaver() =>
+        new(
+            sessionStore,
+            sessionRepository,
+            shell);
+
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
             CreateLoader(),
+            CreateSaver(),
             sessionRepository,
             recordedSessionSourceRepository,
             setupRepository,
