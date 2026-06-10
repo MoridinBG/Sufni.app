@@ -67,6 +67,25 @@ public class SufniThemeTests
         }
     }
 
+    [Fact]
+    public void SufniThemeResourceDictionary_AppBrushes_ExistInBothVariantDictionaries()
+    {
+        var resources = new SufniThemeResourceDictionary();
+        var dark = ResolveVariant(resources, ThemeVariant.Dark);
+        var light = ResolveVariant(resources, ThemeVariant.Light);
+
+        foreach (var key in new[]
+                 {
+                     "SufniOverlayScrimBrush",
+                     "SufniDialogSurfaceBrush",
+                     "SufniSurfacePlaceholderPreviewBrush",
+                 })
+        {
+            Assert.True(dark.ContainsKey(key), $"Dark variant missing {key}");
+            Assert.True(light.ContainsKey(key), $"Light variant missing {key}");
+        }
+    }
+
     private static ResourceDictionary ResolveVariant(SufniThemeResourceDictionary resources, ThemeVariant variant)
     {
         Assert.True(resources.ThemeDictionaries.TryGetValue(variant, out var provider));

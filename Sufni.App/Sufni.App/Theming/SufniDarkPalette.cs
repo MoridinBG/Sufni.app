@@ -39,6 +39,8 @@ public static class SufniDarkPalette
     public static readonly Color SlateBlack    = C("#1A1F23");
     public static readonly Color Obsidian      = C("#15191C");
     public static readonly Color Onyx          = C("#10161B");
+    public static readonly Color OverlayScrim  = C("#99000000");
+    public static readonly Color PlaceholderPreviewSurface = C("#2C3946");
 
     // Hosted graph-row depth ramp, level 1 (lightest of the three deeps).
     public static readonly Color TarContainer = C("#0F1314");

@@ -1,6 +1,5 @@
 using Avalonia.Controls;
-using Avalonia.Media;
-using Sufni.App.Plots;
+using Sufni.App.Theming;
 
 namespace Sufni.App.DesktopViews.Plots;
 
@@ -10,11 +9,11 @@ public partial class TravelPercentageLegend : UserControl
     {
         InitializeComponent();
 
-        foreach (var color in TravelZonePalette.HexColors)
+        foreach (var color in SufniThemes.TravelZoneRamp)
         {
             PaletteGrid.Children.Add(new Border
             {
-                Background = new SolidColorBrush(Color.Parse(color))
+                Background = color.ToBrush()
             });
         }
     }

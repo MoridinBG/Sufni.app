@@ -17,6 +17,8 @@ public static class SufniLightPalette
     public static readonly Color Haze      = C("#DDE1E5");
     public static readonly Color Alabaster = C("#D8DCE0");
     public static readonly Color Smoke     = C("#D6DADF");
+    public static readonly Color OverlayScrim = C("#99000000");
+    public static readonly Color PlaceholderPreviewSurface = Vapor;
 
     // Mid grays (lines, dividers, borders, plot grid major).
     public static readonly Color Mineral   = C("#D5DAE0");

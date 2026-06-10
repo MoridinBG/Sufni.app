@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Sufni.App.Models;
+using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
 using Sufni.App.Views.Editors;
@@ -319,7 +320,7 @@ public class DialogService : IDialogService, IExtensionDialogService
             {
                 new Border
                 {
-                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                    Background = SufniBrushes.OverlayScrim()
                 },
                 new Border
                 {
@@ -327,7 +328,7 @@ public class DialogService : IDialogService, IExtensionDialogService
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                     Margin = new Thickness(16),
                     MaxWidth = 420,
-                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    Background = SufniBrushes.DialogSurface(),
                     CornerRadius = new CornerRadius(6),
                     Child = content
                 }
@@ -353,7 +354,7 @@ public class DialogService : IDialogService, IExtensionDialogService
             {
                 new Border
                 {
-                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                    Background = SufniBrushes.OverlayScrim()
                 },
                 new Border
                 {
@@ -362,7 +363,7 @@ public class DialogService : IDialogService, IExtensionDialogService
                     Margin = new Thickness(12),
                     MaxWidth = 680,
                     MaxHeight = 760,
-                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    Background = SufniBrushes.DialogSurface(),
                     CornerRadius = new CornerRadius(6),
                     Child = content
                 }
@@ -426,7 +427,7 @@ public class DialogService : IDialogService, IExtensionDialogService
             {
                 new Border
                 {
-                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                    Background = SufniBrushes.OverlayScrim()
                 },
                 new Border
                 {
@@ -435,7 +436,7 @@ public class DialogService : IDialogService, IExtensionDialogService
                     MaxWidth = request.Layout.Width,
                     MaxHeight = request.Layout.Height,
                     Margin = new Thickness(12),
-                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    Background = SufniBrushes.DialogSurface(),
                     CornerRadius = new CornerRadius(6),
                     Child = dialogContent
                 }
@@ -534,7 +535,7 @@ public class DialogService : IDialogService, IExtensionDialogService
             {
                 new Border
                 {
-                    Background = new SolidColorBrush(Color.Parse("#99000000"))
+                    Background = SufniBrushes.OverlayScrim()
                 },
                 new Border
                 {
@@ -543,7 +544,7 @@ public class DialogService : IDialogService, IExtensionDialogService
                     MaxWidth = 420,
                     Margin = new Thickness(12),
                     Padding = new Thickness(16),
-                    Background = new SolidColorBrush(Color.Parse("#15191c")),
+                    Background = SufniBrushes.DialogSurface(),
                     CornerRadius = new CornerRadius(6),
                     Child = new StackPanel
                     {

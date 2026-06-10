@@ -163,6 +163,9 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniSurfaceInputDisabled", theme.Surface.InputDisabled);
         AddColorPair(resources, "SufniSurfaceItemHover", theme.Surface.ItemHover);
         AddColorPair(resources, "SufniSurfaceInputFocused", theme.Surface.InputFocused);
+        AddColorPair(resources, "SufniOverlayScrim", theme.Palette.OverlayScrim);
+        AddColorPair(resources, "SufniDialogSurface", theme.Palette.DialogSurface);
+        AddColorPair(resources, "SufniSurfacePlaceholderPreview", theme.Palette.PlaceholderPreviewSurface);
 
         AddColorPair(resources, "SufniTextHigh", theme.Text.High);
         AddColorPair(resources, "SufniTextEmphasis", theme.Text.Emphasis);

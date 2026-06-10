@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Sufni.App.Theming;
 
 namespace Sufni.App.Views.Controls;
 
@@ -12,7 +13,7 @@ public partial class SurfacePlaceholderCard : UserControl
     public static readonly StyledProperty<IBrush?> PreviewBrushProperty =
         AvaloniaProperty.Register<SurfacePlaceholderCard, IBrush?>(
             nameof(PreviewBrush),
-            defaultValue: new SolidColorBrush(Color.Parse("#2c3946")));
+            defaultValue: SufniBrushes.SurfacePlaceholderPreview());
 
     public static readonly StyledProperty<double> MinCardHeightProperty =
         AvaloniaProperty.Register<SurfacePlaceholderCard, double>(nameof(MinCardHeight));
